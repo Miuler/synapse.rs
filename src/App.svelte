@@ -222,21 +222,17 @@
           placeholder="Título de la nota..."
         />
 
-        {#if isEditing}
-          <textarea
-            class="editor-textarea"
-            bind:value={currentNote.content}
-            oninput={() => persistNoteToRust(currentNote)}
-            placeholder="Comienza a escribir Markdown..."
-          ></textarea>
-        {:else}
-          <div class="markdown-preview">
-            <MarkdownViewer
-              content={currentNote.content}
-              isMarkdown={currentNote.relative_path ? (currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')) : true}
-            />
-          </div>
-        {/if}
+        <div class="editor-main-content">
+          <MarkdownViewer
+            content={currentNote.content}
+            readOnly={!isEditing}
+            onChange={(updatedMarkdown) => {
+              currentNote.content = updatedMarkdown;
+              persistNoteToRust(currentNote);
+            }}
+            isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
+          />
+        </div>
       {/if}
     </div>
 
@@ -256,15 +252,11 @@
 </div>
 
 <style>
-  .markdown-preview {
-    color: #c9d1d9;
-    font-size: 16px;
-    line-height: 1.7;
-    white-space: pre-wrap;
-    background: rgba(255, 255, 255, 0.02);
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+  .editor-main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .empty-workspace {
