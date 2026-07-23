@@ -2,7 +2,7 @@ use crate::domain::models::note::Note;
 use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use std::path::Path;
-use log::{debug, info};
+use log::debug;
 
 /// Casos de uso de la aplicación para gestionar notas.
 pub struct NoteUseCases<R: NoteRepository> {

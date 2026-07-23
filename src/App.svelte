@@ -5,6 +5,7 @@
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import { commandRegistry } from './lib/services/commands.svelte';
   import { invokeTauri, isTauriEnvironment } from './lib/services/tauri';
+  import { info, error, warn } from '@tauri-apps/plugin-log';
 
   interface NoteItem {
     id: string;
@@ -36,8 +37,10 @@
   );
   let charCount = $derived(currentNote.content ? currentNote.content.length : 0);
 
-  // Carga estrictamente dinámica desde Rust (Tauri IPC)
-  $effect(() => {
+  import { onMount } from 'svelte';
+
+  // Carga estrictamente dinámica desde Rust (Tauri IPC) al montar
+  onMount(() => {
     async function fetchNotesFromBackend() {
       if (isTauriEnvironment()) {
         try {
@@ -109,7 +112,7 @@
   }
 
   // Registrar comandos por defecto al iniciar
-  $effect(() => {
+  onMount(() => {
     commandRegistry.registerMany([
       {
         id: 'cmd-new-note',

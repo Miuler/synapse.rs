@@ -10,6 +10,7 @@ use infrastructure::tauri::commands::{
 };
 use std::env;
 use std::path::PathBuf;
+use tauri_plugin_log::{Target, TargetKind};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -40,7 +41,12 @@ pub fn run() {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
+                        .targets([
+                            Target::new(TargetKind::Stdout),
+                            // Target::new(TargetKind::LogDir { fallback_to_logs: true }),
+                            Target::new(TargetKind::Webview),
+                        ])
+                        .level(log::LevelFilter::Debug)
                         .build(),
                 )?;
             }
