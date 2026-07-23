@@ -14,30 +14,65 @@ impl FileNoteRepository {
     fn resolve_absolute_path(&self, vault_path: &Path, relative_path: &NoteRelativePath) -> PathBuf {
         vault_path.join(relative_path.as_str())
     }
-}
 
-impl NoteRepository for FileNoteRepository {
-    fn list_notes(&self, vault_path: &Path) -> Result<Vec<Note>, String> {
-        if !vault_path.exists() {
-            return Ok(Vec::new());
+    /// Función auxiliar recursiva para listar todos los archivos Markdown en la bóveda
+    fn walk_directory(base_vault: &Path, current_dir: &Path, notes: &mut Vec<Note>) -> Result<(), String> {
+        if !current_dir.exists() || !current_dir.is_dir() {
+            return Ok(());
         }
 
-        let mut notes = Vec::new();
-        let entries = fs::read_dir(vault_path).map_err(|e| e.to_string())?;
+        let entries = fs::read_dir(current_dir).map_err(|e| e.to_string())?;
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
-                    if let Ok(rel_path) = NoteRelativePath::new(file_name) {
-                        let content = fs::read_to_string(&path).unwrap_or_default();
-                        let title = file_name.trim_end_matches(".md").to_string();
-                        notes.push(Note::new(rel_path, title, content));
+            let file_name = match path.file_name().and_then(|s| s.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+
+            // Ignorar directorios ocultos y carpetas de build/dependencias
+            if file_name.starts_with('.') || file_name == "node_modules" || file_name == "target" {
+                continue;
+            }
+
+            if path.is_dir() {
+                Self::walk_directory(base_vault, &path, notes)?;
+            } else if path.is_file() {
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                let is_markdown = ext == "md" || ext == "markdown";
+                if is_markdown {
+                    if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
+                        if let Some(rel_str) = rel_path_buf.to_str() {
+                            if let Ok(rel_path) = NoteRelativePath::new(rel_str) {
+                                let content = fs::read_to_string(&path).unwrap_or_default();
+                                let title = path
+                                    .file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .unwrap_or(file_name)
+                                    .to_string();
+                                notes.push(Note::new(rel_path, title, content));
+                            }
+                        }
                     }
                 }
             }
         }
 
+        Ok(())
+    }
+}
+
+impl NoteRepository for FileNoteRepository {
+    fn list_notes(&self, vault_path: &Path) -> Result<Vec<Note>, String> {
+        if !vault_path.exists() {
+            fs::create_dir_all(vault_path).map_err(|e| e.to_string())?;
+        }
+
+        let mut notes = Vec::new();
+        Self::walk_directory(vault_path, vault_path, &mut notes)?;
+
+        // Ordenar notas alfabéticamente por título
+        notes.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
         Ok(notes)
     }
 
@@ -46,10 +81,9 @@ impl NoteRepository for FileNoteRepository {
         let content = fs::read_to_string(&abs_path).map_err(|e| format!("Error al leer la nota en {:?}: {}", abs_path, e))?;
         
         let title = abs_path
-            .file_name()
+            .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("Sin título")
-            .trim_end_matches(".md")
             .to_string();
 
         Ok(Note::new(relative_path.clone(), title, content))

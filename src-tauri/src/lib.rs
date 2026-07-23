@@ -7,11 +7,18 @@ use infrastructure::tauri::commands::{
     search_notes_command, set_active_vault_path, AppState,
 };
 use std::env;
+use std::path::PathBuf;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Definimos una ruta por defecto para el Vault (ejemplo: ~/SynapseVault)
-    let default_vault = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    // Escaneamos por defecto la raíz del proyecto actual
+    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let default_vault = if cwd.ends_with("src-tauri") {
+        cwd.parent().unwrap_or(&cwd).to_path_buf()
+    } else {
+        cwd
+    };
+
     let app_state = AppState::new(default_vault);
 
     tauri::Builder::default()
