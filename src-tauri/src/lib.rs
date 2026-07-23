@@ -3,7 +3,8 @@ pub mod domain;
 pub mod infrastructure;
 
 use infrastructure::tauri::commands::{
-    get_vault_notes, read_note_content, save_note_content, set_active_vault_path, AppState,
+    get_vault_notes, read_note_content, save_note_content, search_items_command,
+    search_notes_command, set_active_vault_path, AppState,
 };
 use std::env;
 
@@ -19,7 +20,9 @@ pub fn run() {
             get_vault_notes,
             read_note_content,
             save_note_content,
-            set_active_vault_path
+            set_active_vault_path,
+            search_items_command,
+            search_notes_command
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
