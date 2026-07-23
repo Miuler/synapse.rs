@@ -1,0 +1,179 @@
+<script lang="ts">
+  interface Props {
+    title?: string;
+    isEditing?: boolean;
+    onToggleView?: () => void;
+    onSplitView?: () => void;
+    onOpenCommandPalette?: () => void;
+    onAction?: (actionId: string) => void;
+  }
+
+  let {
+    title = 'Nota de bienvenida.md',
+    isEditing = $bindable(true),
+    onToggleView,
+    onSplitView,
+    onOpenCommandPalette,
+    onAction
+  }: Props = $props();
+
+  function triggerAction(actionId: string) {
+    if (onAction) onAction(actionId);
+  }
+</script>
+
+<header class="editor-header">
+  <div class="left-section">
+    <div class="nav-buttons">
+      <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <button type="button" class="icon-btn" onclick={() => triggerAction('nav-forward')} title="Navegar adelante">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="tab-title-container">
+      <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="tab-title">{title}</span>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <button
+      type="button"
+      class="view-toggle-btn"
+      onclick={() => {
+        isEditing = !isEditing;
+        if (onToggleView) onToggleView();
+      }}
+      title={isEditing ? 'Cambiar a modo Lectura' : 'Cambiar a modo Edición'}
+    >
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        {#if isEditing}
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        {:else}
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        {/if}
+      </svg>
+      <span>{isEditing ? 'Lectura' : 'Edición'}</span>
+    </button>
+
+    <button type="button" class="icon-btn" onclick={() => { if (onSplitView) onSplitView(); }} title="Dividir panel verticalmente">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <line x1="12" y1="3" x2="12" y2="21"/>
+      </svg>
+    </button>
+
+    <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones de la nota">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1"/>
+        <circle cx="19" cy="12" r="1"/>
+        <circle cx="5" cy="12" r="1"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<style>
+  .editor-header {
+    height: 42px;
+    background-color: var(--bg-dark, #121418);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    user-select: none;
+  }
+
+  .left-section,
+  .right-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-buttons {
+    display: flex;
+    gap: 2px;
+  }
+
+  .tab-title-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .file-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--cyan, #33ccff);
+  }
+
+  .tab-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e6edf3;
+  }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #8b949e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .icon-btn:hover {
+    color: #f0f6fc;
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .view-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    color: #c9d1d9;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .view-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f0f6fc;
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .icon {
+    width: 16px;
+    height: 16px;
+  }
+</style>

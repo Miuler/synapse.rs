@@ -182,27 +182,108 @@ code {
 }
 
 #app {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  overflow: hidden;
   box-sizing: border-box;
+  background-color: var(--bg-dark);
 }
 
-#center {
+.workspace-layout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar-panel {
+  width: 240px;
+  background-color: #161a22;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
+  user-select: none;
+}
 
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+.sidebar-header {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6e7681;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-content {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-tree-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f0f6fc;
+}
+
+.file-tree-item.active {
+  background-color: rgba(51, 204, 255, 0.1);
+  color: var(--cyan);
+}
+
+.main-workspace {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #0d1117;
+  overflow: hidden;
+}
+
+.editor-container {
+  flex-grow: 1;
+  padding: 32px 48px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-title-input {
+  background: transparent;
+  border: none;
+  font-size: 32px;
+  font-weight: 700;
+  color: #f0f6fc;
+  outline: none;
+  font-family: var(--heading);
+}
+
+.editor-textarea {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  color: #c9d1d9;
+  font-size: 16px;
+  line-height: 1.7;
+  outline: none;
+  resize: none;
+  font-family: var(--main-font);
 }

@@ -1,0 +1,137 @@
+<script lang="ts">
+  interface Props {
+    wordCount?: number;
+    charCount?: number;
+    line?: number;
+    col?: number;
+    syncStatus?: 'synced' | 'saving' | 'error';
+    onOpenCommandPalette?: () => void;
+  }
+
+  let {
+    wordCount = 142,
+    charCount = 890,
+    line = 12,
+    col = 24,
+    syncStatus = 'synced',
+    onOpenCommandPalette
+  }: Props = $props();
+</script>
+
+<footer class="status-bar">
+  <div class="left-group">
+    <button
+      type="button"
+      class="status-item clickable"
+      onclick={() => { if (onOpenCommandPalette) onOpenCommandPalette(); }}
+      title="Abrir paleta de comandos"
+    >
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>
+      </svg>
+      <span>Ctrl+P</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <div class="status-item">
+      <span class="dot {syncStatus}"></span>
+      <span>{syncStatus === 'synced' ? 'Guardado' : syncStatus === 'saving' ? 'Guardando...' : 'Error de guardado'}</span>
+    </div>
+  </div>
+
+  <div class="right-group">
+    <div class="status-item">
+      <span>{wordCount} palabras</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item">
+      <span>{charCount} caracteres</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item">
+      <span>Lín {line}, Col {col}</span>
+    </div>
+    <div class="divider"></div>
+    <div class="status-item highlight">
+      <span>UTF-8</span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .status-bar {
+    height: 26px;
+    background-color: var(--bg-dark, #121418);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    color: #6e7681;
+    user-select: none;
+  }
+
+  .left-group,
+  .right-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-item.clickable {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .status-item.clickable:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--cyan, #33ccff);
+  }
+
+  .status-item.highlight {
+    color: #8b949e;
+  }
+
+  .divider {
+    width: 1px;
+    height: 12px;
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .dot.synced {
+    background-color: #3fb950;
+    box-shadow: 0 0 6px rgba(63, 185, 80, 0.6);
+  }
+
+  .dot.saving {
+    background-color: #d29922;
+  }
+
+  .dot.error {
+    background-color: #f85149;
+  }
+</style>
