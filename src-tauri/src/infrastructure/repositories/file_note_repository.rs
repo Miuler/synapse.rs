@@ -15,8 +15,13 @@ impl FileNoteRepository {
         vault_path.join(relative_path.as_str())
     }
 
-    /// Función auxiliar recursiva para listar todos los archivos Markdown en la bóveda
-    fn walk_directory(base_vault: &Path, current_dir: &Path, notes: &mut Vec<Note>) -> Result<(), String> {
+    /// Función auxiliar recursiva para listar todos los archivos que coincidan con las extensiones en la bóveda
+    fn walk_directory(
+        base_vault: &Path,
+        current_dir: &Path,
+        notes: &mut Vec<Note>,
+        extensions: &[String],
+    ) -> Result<(), String> {
         if !current_dir.exists() || !current_dir.is_dir() {
             return Ok(());
         }
@@ -36,11 +41,11 @@ impl FileNoteRepository {
             }
 
             if path.is_dir() {
-                Self::walk_directory(base_vault, &path, notes)?;
+                Self::walk_directory(base_vault, &path, notes, extensions)?;
             } else if path.is_file() {
                 let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                let is_markdown = ext == "md" || ext == "markdown";
-                if is_markdown {
+                let is_supported = extensions.iter().any(|e| e == ext);
+                if is_supported {
                     if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
                         if let Some(rel_str) = rel_path_buf.to_str() {
                             if let Ok(rel_path) = NoteRelativePath::new(rel_str) {
@@ -63,13 +68,13 @@ impl FileNoteRepository {
 }
 
 impl NoteRepository for FileNoteRepository {
-    fn list_notes(&self, vault_path: &Path) -> Result<Vec<Note>, String> {
+    fn list_notes(&self, vault_path: &Path, extensions: &[String]) -> Result<Vec<Note>, String> {
         if !vault_path.exists() {
             fs::create_dir_all(vault_path).map_err(|e| e.to_string())?;
         }
 
         let mut notes = Vec::new();
-        Self::walk_directory(vault_path, vault_path, &mut notes)?;
+        Self::walk_directory(vault_path, vault_path, &mut notes, extensions)?;
 
         // Ordenar notas alfabéticamente por título
         notes.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
@@ -98,5 +103,79 @@ impl NoteRepository for FileNoteRepository {
         }
 
         fs::write(&abs_path, &note.content).map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn test_walk_directory() {
+        // Crear un directorio temporal único para la prueba
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        let temp_dir = std::env::temp_dir().join(format!("synapse_test_{}", nanos));
+
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Estructura de prueba:
+        // temp_dir/
+        //   ├── note1.md
+        //   ├── subfolder/
+        //   │     └── note2.markdown
+        //   ├── ignored.txt
+        //   ├── .hidden_dir/
+        //   │     └── note_hidden.md
+        //   └── target/
+        //         └── note_target.md
+
+        let note1_path = temp_dir.join("note1.md");
+        let mut f1 = File::create(&note1_path).unwrap();
+        writeln!(f1, "# Contenido 1").unwrap();
+
+        let sub_dir = temp_dir.join("subfolder");
+        fs::create_dir_all(&sub_dir).unwrap();
+        let note2_path = sub_dir.join("note2.markdown");
+        let mut f2 = File::create(&note2_path).unwrap();
+        writeln!(f2, "# Contenido 2").unwrap();
+
+        let ignored_path = temp_dir.join("ignored.txt");
+        let mut f3 = File::create(&ignored_path).unwrap();
+        writeln!(f3, "texto plano").unwrap();
+
+        let hidden_dir = temp_dir.join(".hidden_dir");
+        fs::create_dir_all(&hidden_dir).unwrap();
+        let hidden_note = hidden_dir.join("note_hidden.md");
+        let mut f4 = File::create(&hidden_note).unwrap();
+        writeln!(f4, "# Oculto").unwrap();
+
+        let target_dir = temp_dir.join("target");
+        fs::create_dir_all(&target_dir).unwrap();
+        let target_note = target_dir.join("note_target.md");
+        let mut f5 = File::create(&target_note).unwrap();
+        writeln!(f5, "# Target").unwrap();
+
+        // Ejecutar walk_directory
+        let mut notes = Vec::new();
+        let extensions = vec!["md".to_string(), "markdown".to_string()];
+        let result = FileNoteRepository::walk_directory(&temp_dir, &temp_dir, &mut notes, &extensions);
+
+        // Limpieza
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        assert!(result.is_ok());
+        // Debería encontrar exactamente note1.md y subfolder/note2.markdown
+        assert_eq!(notes.len(), 2);
+
+        let titles: Vec<String> = notes.iter().map(|n| n.title.clone()).collect();
+        assert!(titles.contains(&"note1".to_string()));
+        assert!(titles.contains(&"note2".to_string()));
     }
 }

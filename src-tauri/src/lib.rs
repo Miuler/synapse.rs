@@ -19,7 +19,8 @@ pub fn run() {
         cwd
     };
 
-    let app_state = AppState::new(default_vault);
+    let supported_extensions = vec!["md".to_string(), "markdown".to_string()];
+    let app_state = AppState::new(default_vault, supported_extensions);
 
     tauri::Builder::default()
         .manage(app_state)

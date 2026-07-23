@@ -9,12 +9,14 @@ use tauri::State;
 
 pub struct AppState {
     pub active_vault_path: Mutex<PathBuf>,
+    pub supported_extensions: Vec<String>,
 }
 
 impl AppState {
-    pub fn new(initial_vault_path: PathBuf) -> Self {
+    pub fn new(initial_vault_path: PathBuf, supported_extensions: Vec<String>) -> Self {
         Self {
             active_vault_path: Mutex::new(initial_vault_path),
+            supported_extensions,
         }
     }
 }
@@ -24,7 +26,7 @@ pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> 
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
-    use_cases.list_notes(&vault_path)
+    use_cases.list_notes(&vault_path, &state.supported_extensions)
 }
 
 #[tauri::command]
@@ -66,7 +68,7 @@ pub fn search_notes_command(state: State<'_, AppState>, query: String) -> Result
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
-    let notes = use_cases.list_notes(&vault_path)?;
+    let notes = use_cases.list_notes(&vault_path, &state.supported_extensions)?;
 
     let search_service = NucleoSearchService::new();
     Ok(search_service.search_notes(&query, &notes))
