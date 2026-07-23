@@ -23,3 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.1", features = [] }
 tauri-plugin-log = "2"
+nucleo-matcher = "0.3"
+indicatif = { version = "0.18", features = ["tokio"] }
+tracing-indicatif = "0.3.14"
+indicatif-log-bridge = "0.2.3"
