@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { isTauriEnvironment } from '../services/tauri';
+
   interface Props {
     title?: string;
     isEditing?: boolean;
@@ -20,9 +23,21 @@
   function triggerAction(actionId: string) {
     if (onAction) onAction(actionId);
   }
+
+  async function handleWindowControl(action: 'minimize' | 'maximize' | 'close') {
+    if (!isTauriEnvironment()) return;
+    const appWindow = getCurrentWindow();
+    if (action === 'minimize') {
+      await appWindow.minimize();
+    } else if (action === 'maximize') {
+      await appWindow.toggleMaximize();
+    } else if (action === 'close') {
+      await appWindow.close();
+    }
+  }
 </script>
 
-<header class="editor-header">
+<header class="editor-header" data-tauri-drag-region>
   <div class="left-section">
     <div class="nav-buttons">
       <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
@@ -82,6 +97,26 @@
         <circle cx="5" cy="12" r="1"/>
       </svg>
     </button>
+
+    <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
+    <div class="window-controls">
+      <button type="button" class="win-btn minimize" onclick={() => handleWindowControl('minimize')} title="Minimizar">
+        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <button type="button" class="win-btn maximize" onclick={() => handleWindowControl('maximize')} title="Maximizar / Restaurar">
+        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="5" width="14" height="14" rx="1"/>
+        </svg>
+      </button>
+      <button type="button" class="win-btn close" onclick={() => handleWindowControl('close')} title="Cerrar">
+        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -175,5 +210,43 @@
   .icon {
     width: 16px;
     height: 16px;
+  }
+
+  .window-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .win-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #8b949e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .win-btn:hover {
+    color: #f0f6fc;
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .win-btn.close:hover {
+    color: #ffffff;
+    background-color: #e5534b;
+  }
+
+  .win-icon {
+    width: 14px;
+    height: 14px;
   }
 </style>
