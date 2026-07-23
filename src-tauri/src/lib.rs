@@ -2,6 +2,8 @@ pub mod application;
 pub mod domain;
 pub mod infrastructure;
 
+use infrastructure::repositories::file_note_repository::FileNoteRepository;
+use application::use_cases::note_use_cases::NoteUseCases;
 use infrastructure::tauri::commands::{
     get_vault_notes, read_note_content, save_note_content, search_items_command,
     search_notes_command, set_active_vault_path, AppState,
@@ -20,7 +22,9 @@ pub fn run() {
     };
 
     let supported_extensions = vec!["md".to_string(), "markdown".to_string()];
-    let app_state = AppState::new(default_vault, supported_extensions);
+    let repo = FileNoteRepository::new();
+    let use_cases = NoteUseCases::new(repo);
+    let app_state = AppState::new(default_vault, supported_extensions, use_cases);
 
     tauri::Builder::default()
         .manage(app_state)
