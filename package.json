@@ -12,6 +12,7 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.13.2",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.1",
@@ -19,6 +20,9 @@
     "vite": "^8.1.1"
   },
   "dependencies": {
-    "@tauri-apps/plugin-log": "^2.9.0"
+    "@tauri-apps/plugin-log": "^2.9.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.3.0",
+    "mermaid": "^11.16.0"
   }
 }

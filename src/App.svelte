@@ -3,6 +3,7 @@
   import EditorHeader from './lib/components/EditorHeader.svelte';
   import StatusBar from './lib/components/StatusBar.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
+  import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
   import { commandRegistry } from './lib/services/commands.svelte';
   import { invokeTauri, isTauriEnvironment } from './lib/services/tauri';
   import { info, error, warn } from '@tauri-apps/plugin-log';
@@ -230,7 +231,10 @@
           ></textarea>
         {:else}
           <div class="markdown-preview">
-            <p>{currentNote.content}</p>
+            <MarkdownViewer
+              content={currentNote.content}
+              isMarkdown={currentNote.relative_path ? (currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')) : true}
+            />
           </div>
         {/if}
       {/if}
