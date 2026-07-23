@@ -109,18 +109,48 @@ impl NoteRepository for FileNoteRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use log::info;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::path::PathBuf;
+    use std::sync::Once;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tracing_indicatif::IndicatifLayer;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::EnvFilter;
+
+    static INIT: Once = Once::new();
+
+    /// Setup function to initialize tracing once for all tests (simulates before_all)
+    fn setup_tracing() {
+        INIT.call_once(|| {
+            // Establece el nivel INFO por defecto (o respeta la variable de entorno RUST_LOG si existe)
+            let filter = EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("debug"));
+            let fmt_layer = tracing_subscriber::fmt::layer().with_test_writer();
+
+            let indicatif_layer = IndicatifLayer::new();
+            let _ = tracing_subscriber::registry()
+                .with(filter)
+                .with(indicatif_layer)
+                .with(fmt_layer)
+                .try_init();
+        });
+    }
+
 
     #[test]
     fn test_walk_directory() {
+        setup_tracing();
+
         // Crear un directorio temporal único para la prueba
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .subsec_nanos();
         let temp_dir = std::env::temp_dir().join(format!("synapse_test_{}", nanos));
+        info!("temp_dir: {:?}", temp_dir);
 
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();
@@ -135,6 +165,14 @@ mod tests {
         //   │     └── note_hidden.md
         //   └── target/
         //         └── note_target.md
+
+        let bin1_path = temp_dir.join("other.bin");
+        let mut bin1 = File::create(&bin1_path).unwrap();
+        writeln!(bin1, "# bin 1").unwrap();
+
+        let file1_path = temp_dir.join("file1.rs");
+        let mut rs1 = File::create(&file1_path).unwrap();
+        writeln!(rs1, "# Contenido.rs 1").unwrap();
 
         let note1_path = temp_dir.join("note1.md");
         let mut f1 = File::create(&note1_path).unwrap();
@@ -164,18 +202,29 @@ mod tests {
 
         // Ejecutar walk_directory
         let mut notes = Vec::new();
-        let extensions = vec!["md".to_string(), "markdown".to_string()];
+        let extensions = vec!["md".to_string(), "markdown".to_string(), "rs".to_string()];
         let result = FileNoteRepository::walk_directory(&temp_dir, &temp_dir, &mut notes, &extensions);
 
         // Limpieza
-        let _ = fs::remove_dir_all(&temp_dir);
+        // let _ = fs::remove_dir_all(&temp_dir);
 
         assert!(result.is_ok());
         // Debería encontrar exactamente note1.md y subfolder/note2.markdown
-        assert_eq!(notes.len(), 2);
+        assert_eq!(notes.len(), 3);
 
         let titles: Vec<String> = notes.iter().map(|n| n.title.clone()).collect();
         assert!(titles.contains(&"note1".to_string()));
         assert!(titles.contains(&"note2".to_string()));
+    }
+
+    #[test]
+    fn test_walk_directory_rs() {
+        setup_tracing();
+
+        let mut notes = Vec::new();
+        let extensions = vec!["md".to_string(), "markdown".to_string(), "rs".to_string()];
+        let project_path = PathBuf::from("/home/miuler/src/github.com/Miuler/synapse.rs");
+        FileNoteRepository::walk_directory(&project_path, &project_path, &mut notes, &extensions).unwrap();
+        info!("len: {}", notes.len())
     }
 }

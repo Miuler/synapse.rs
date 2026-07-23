@@ -21,7 +21,7 @@ pub fn run() {
         cwd
     };
 
-    let supported_extensions = vec!["md".to_string(), "markdown".to_string()];
+    let supported_extensions = vec!["md".to_string(), "markdown".to_string(), "rs".to_string()];
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
     let app_state = AppState::new(default_vault, supported_extensions, use_cases);
