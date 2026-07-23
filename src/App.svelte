@@ -266,7 +266,7 @@
     justify-content: center;
     height: 100%;
     gap: 12px;
-    color: #8b949e;
+    color: var(--text-secondary);
     text-align: center;
     user-select: none;
   }
@@ -274,20 +274,20 @@
   .empty-icon {
     width: 56px;
     height: 56px;
-    color: #484f58;
+    color: var(--border-primary);
     margin-bottom: 8px;
   }
 
   .empty-workspace h2 {
     font-size: 20px;
     font-weight: 500;
-    color: #c9d1d9;
+    color: var(--text-primary);
     margin: 0;
   }
 
   .empty-workspace p {
     font-size: 14px;
-    color: #6e7681;
+    color: var(--text-secondary);
     margin: 0;
   }
 
@@ -297,9 +297,9 @@
     gap: 8px;
     margin-top: 12px;
     padding: 8px 16px;
-    background-color: rgba(51, 204, 255, 0.1);
-    color: var(--cyan, #33ccff);
-    border: 1px solid rgba(51, 204, 255, 0.3);
+    background-color: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
@@ -308,9 +308,8 @@
   }
 
   .create-btn:hover {
-    background-color: rgba(51, 204, 255, 0.2);
-    border-color: var(--cyan, #33ccff);
-    box-shadow: 0 0 12px rgba(51, 204, 255, 0.3);
+    background-color: rgba(9, 105, 218, 0.15);
+    border-color: var(--accent);
   }
 
   .file-name {
@@ -328,10 +327,10 @@
   .rust-badge {
     font-size: 9px;
     font-weight: 700;
-    background: rgba(51, 204, 255, 0.15);
-    color: var(--cyan, #33ccff);
+    background: var(--accent-bg);
+    color: var(--accent);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(51, 204, 255, 0.3);
+    border: 1px solid var(--accent-border);
   }
 </style>

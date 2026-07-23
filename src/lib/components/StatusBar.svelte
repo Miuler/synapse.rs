@@ -62,14 +62,14 @@
 <style>
   .status-bar {
     height: 26px;
-    background-color: var(--bg-dark, #121418);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background-color: var(--bg-secondary, #f6f8fa);
+    border-top: 1px solid var(--border-primary, #d0d7de);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
     font-size: 11px;
-    color: #6e7681;
+    color: var(--text-secondary, #656d76);
     user-select: none;
   }
 
@@ -89,7 +89,7 @@
   .status-item.clickable {
     background: transparent;
     border: none;
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
     cursor: pointer;
     padding: 2px 6px;
     border-radius: 4px;
@@ -97,18 +97,18 @@
   }
 
   .status-item.clickable:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--cyan, #33ccff);
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--accent, #0969da);
   }
 
   .status-item.highlight {
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
   }
 
   .divider {
     width: 1px;
     height: 12px;
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--border-primary, #d0d7de);
   }
 
   .icon {

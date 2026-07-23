@@ -159,10 +159,10 @@
   .palette-container {
     width: 620px;
     max-width: 90%;
-    background-color: var(--bg-dark, #121418);
+    background-color: var(--bg-primary, #ffffff);
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.7);
+    border: 1px solid var(--border-primary, #d0d7de);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -178,14 +178,14 @@
     display: flex;
     align-items: center;
     padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-secondary, #f6f8fa);
   }
 
   .search-icon {
     width: 18px;
     height: 18px;
-    color: #6e7681;
+    color: var(--text-secondary, #656d76);
     margin-right: 12px;
   }
 
@@ -193,24 +193,24 @@
     flex-grow: 1;
     background: transparent;
     border: none;
-    color: #f0f6fc;
+    color: var(--text-primary, #1f2328);
     font-size: 15px;
     outline: none;
     font-family: inherit;
   }
 
   input::placeholder {
-    color: #6e7681;
+    color: var(--text-secondary, #656d76);
   }
 
   .esc-badge {
     font-size: 11px;
     font-family: var(--mono, monospace);
-    color: #6e7681;
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary, #656d76);
+    background: var(--bg-primary, #ffffff);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-primary, #d0d7de);
   }
 
   .results-container {
@@ -222,7 +222,7 @@
   .empty-state {
     padding: 24px;
     text-align: center;
-    color: #6e7681;
+    color: var(--text-secondary, #656d76);
     font-size: 14px;
   }
 
@@ -238,17 +238,17 @@
     padding: 10px 16px;
     cursor: pointer;
     font-size: 14px;
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
     transition: background-color 0.1s ease, color 0.1s ease;
   }
 
   .command-item.selected {
-    background-color: rgba(51, 204, 255, 0.1);
-    color: #f0f6fc;
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
+    color: var(--text-primary, #1f2328);
   }
 
   .command-item.selected .category-tag {
-    color: var(--cyan, #33ccff);
+    color: var(--accent, #0969da);
   }
 
   .category-tag {
@@ -256,7 +256,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #6e7681;
+    color: var(--text-secondary, #656d76);
     margin-right: 12px;
     min-width: 80px;
   }
@@ -268,11 +268,11 @@
   .shortcut-badge {
     font-family: var(--mono, monospace);
     font-size: 11px;
-    background: rgba(255, 255, 255, 0.06);
-    color: #c9d1d9;
+    background: var(--bg-secondary, #f6f8fa);
+    color: var(--text-primary, #1f2328);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-primary, #d0d7de);
   }
 
   .palette-footer {

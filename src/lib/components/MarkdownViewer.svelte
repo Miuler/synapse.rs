@@ -149,7 +149,7 @@
     width: 100%;
     min-height: 400px;
     background: transparent !important;
-    color: #e6edf3 !important;
+    color: var(--text-primary) !important;
     box-shadow: none !important;
   }
 
@@ -157,26 +157,26 @@
   :global(.milkdown .ProseMirror),
   :global(.ProseMirror) {
     min-height: 400px !important;
-    color: #e6edf3 !important;
+    color: var(--text-primary) !important;
     outline: none !important;
     font-size: 15px !important;
     line-height: 1.6 !important;
   }
 
   :global(.ProseMirror p) {
-    color: #e6edf3 !important;
+    color: var(--text-primary) !important;
     margin-bottom: 12px !important;
   }
 
   :global(.ProseMirror h1, .ProseMirror h2, .ProseMirror h3) {
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
     font-weight: 600 !important;
   }
 
   .plain-text {
     font-family: var(--code-font, monospace);
     white-space: pre-wrap;
-    color: #c9d1d9;
+    color: var(--text-primary);
     padding: 16px;
   }
 </style>

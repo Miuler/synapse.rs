@@ -77,8 +77,8 @@
   .ribbon {
     width: 48px;
     height: 100%;
-    background-color: var(--bg-dark, #121418);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    background-color: var(--bg-secondary, #f6f8fa);
+    border-right: 1px solid var(--border-primary, #d0d7de);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -104,7 +104,7 @@
     background: transparent;
     border: none;
     border-radius: 8px;
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -113,25 +113,24 @@
   }
 
   .ribbon-btn:hover {
-    color: #f0f6fc;
-    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary, #1f2328);
+    background-color: rgba(0, 0, 0, 0.05);
   }
 
   .ribbon-btn.active {
-    color: var(--cyan, #33ccff);
-    background-color: rgba(51, 204, 255, 0.1);
+    color: var(--accent, #0969da);
+    background-color: var(--accent-bg);
   }
 
-  /* Indicador neón lateral estilo IDE */
+  /* Indicador lateral estilo IDE */
   .ribbon-btn.active::before {
     content: '';
     position: absolute;
     left: -6px;
     width: 3px;
     height: 18px;
-    background-color: var(--cyan, #33ccff);
+    background-color: var(--accent, #0969da);
     border-radius: 0 4px 4px 0;
-    box-shadow: 0 0 8px rgba(51, 204, 255, 0.6);
   }
 
   .icon {
@@ -139,12 +138,12 @@
     height: 20px;
   }
 
-  /* Tooltip Flotante Neomórfico */
+  /* Tooltip Flotante */
   .tooltip {
     position: absolute;
     left: 50px;
-    background: #1c2128;
-    color: #e6edf3;
+    background: #ffffff;
+    color: #1f2328;
     padding: 5px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -153,8 +152,8 @@
     pointer-events: none;
     transform: translateX(-6px);
     transition: all 0.18s ease;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-primary);
     z-index: 100;
   }
 

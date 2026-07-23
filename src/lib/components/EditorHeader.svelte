@@ -123,8 +123,8 @@
 <style>
   .editor-header {
     height: 42px;
-    background-color: var(--bg-dark, #121418);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background-color: var(--bg-primary, #ffffff);
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -149,21 +149,21 @@
     align-items: center;
     gap: 8px;
     padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-secondary, #f6f8fa);
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-primary, #d0d7de);
   }
 
   .file-icon {
     width: 14px;
     height: 14px;
-    color: var(--cyan, #33ccff);
+    color: var(--accent, #0969da);
   }
 
   .tab-title {
     font-size: 13px;
     font-weight: 500;
-    color: #e6edf3;
+    color: var(--text-primary, #1f2328);
   }
 
   .icon-btn {
@@ -172,7 +172,7 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -181,8 +181,8 @@
   }
 
   .icon-btn:hover {
-    color: #f0f6fc;
-    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary, #1f2328);
+    background-color: rgba(0, 0, 0, 0.05);
   }
 
   .view-toggle-btn {
@@ -191,10 +191,10 @@
     gap: 6px;
     padding: 4px 10px;
     height: 30px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 6px;
-    color: #c9d1d9;
+    color: var(--text-primary, #1f2328);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -202,9 +202,9 @@
   }
 
   .view-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f0f6fc;
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--accent, #0969da);
+    border-color: var(--accent, #0969da);
   }
 
   .icon {
@@ -218,7 +218,7 @@
     gap: 4px;
     margin-left: 8px;
     padding-left: 8px;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid var(--border-primary, #d0d7de);
   }
 
   .win-btn {
@@ -227,7 +227,7 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: #8b949e;
+    color: var(--text-secondary, #656d76);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -236,8 +236,8 @@
   }
 
   .win-btn:hover {
-    color: #f0f6fc;
-    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #1f2328);
+    background-color: rgba(0, 0, 0, 0.05);
   }
 
   .win-btn.close:hover {

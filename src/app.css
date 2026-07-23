@@ -1,11 +1,24 @@
 :root {
-  --bg-dark: #121418; /* Color de fondo base muy oscuro */
-  --gradient-start: #1a1e24; /* Tono oscuro para el degradado */
-  --gradient-end: #0f1114;   /* Tono aún más oscuro */
-  --cyan: #33ccff;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #ffffff;
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --border-primary: #d0d7de;
+  --accent: #0969da;
+  --accent-bg: rgba(9, 105, 218, 0.1);
+  --accent-border: rgba(9, 105, 218, 0.5);
+  
+  --cyan: #0969da;
   --orange: #ff9933;
   --main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+
+  /* Aliases for quick migration */
+  --bg-dark: var(--bg-secondary);
+  --gradient-start: var(--bg-secondary);
+  --gradient-end: var(--bg-primary);
+  --text-h: var(--text-primary);
 }
 
 * {
@@ -14,73 +27,21 @@
   padding: 0;
 }
 
-:root {
-  /*--text: #6b6375;*/
-  /*--text-h: #08060d;*/
-  /*--bg: #fff;*/
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  /*--social-bg: rgba(244, 243, 236, 0.5);*/
-  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  /*--sans: system-ui, 'Segoe UI', Roboto, sans-serif;*/
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  /*font: 18px/145% var(--sans);*/
-  /*letter-spacing: 0.18px;*/
-  /*color-scheme: light dark;*/
-  /*color: var(--text);*/
-  /*background: var(--bg);*/
-  /*font-synthesis: none;*/
-  /*text-rendering: optimizeLegibility;*/
-  /*-webkit-font-smoothing: antialiased;*/
-  /*-moz-osx-font-smoothing: grayscale;*/
-
-  /*@media (max-width: 1024px) {*/
-  /*  font-size: 16px;*/
-  /*}*/
-}
-
-@media (prefers-color-scheme: dark) {
-  /*:root {*/
-  /*  --text: #9ca3af;*/
-    --text-h: #f3f4f6;
-  /*  --bg: #16171d;*/
-  /*  --border: #2e303a;*/
-  /*  --code-bg: #1f2028;*/
-  /*  --accent: #c084fc;*/
-  /*  --accent-bg: rgba(192, 132, 252, 0.15);*/
-  /*  --accent-border: rgba(192, 132, 252, 0.5);*/
-  /*  --social-bg: rgba(47, 48, 58, 0.5);*/
-  /*  --shadow:*/
-  /*    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;*/
-  /*}*/
-
-  /*#social .button-icon {*/
-  /*  filter: invert(1) brightness(2);*/
-  /*}*/
-}
-
 body {
   font-family: var(--main-font);
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  color: #f0f0f0; /* Texto claro por defecto */
-  /* Degradado sutil para todo el fondo de la página */
-  background: radial-gradient(circle at center, var(--gradient-start) 0%, var(--bg-dark) 70%, var(--gradient-end) 100%);
-  overflow: hidden; /* Evita barras de desplazamiento */
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  overflow: hidden;
 }
 
 .logo-card {
   /*width: 320px;*/
   /*height: 320px;*/
-  background-color: var(--bg-dark);
+  background-color: var(--bg-primary);
   border-radius: 67px; /* Esquinas redondeadas como la referencia */
   display: flex;
   flex-direction: column;
@@ -89,15 +50,15 @@ body {
   margin-bottom: 2.5rem;
 
   /* EFECTO SOLICITADO: Borde y Sombra Neomórfica */
-  /* Un borde muy sutil y oscuro */
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  /* Un borde muy sutil */
+  border: 1px solid var(--border-primary);
 
   /* Una sombra exterior suave para darle relieve */
   box-shadow:
-    /* Sombra oscura profunda (abajo a la derecha) */
-          15px 15px 30px rgba(0, 0, 0, 0.4),
-            /* Brillo sutil (arriba a la izquierda) */
-          -10px -10px 30px rgba(255, 255, 255, 0.03);
+    /* Sombra suave */
+          10px 10px 20px rgba(0, 0, 0, 0.05),
+            /* Brillo sutil */
+          -10px -10px 20px rgba(255, 255, 255, 0.8);
 
   /* Efecto de resplandor interior sutil (como la referencia 1) */
   position: relative;
@@ -154,12 +115,12 @@ code,
 
 code {
   font-family: var(--code-font);
-  background-color: #24292e; /* Fondo de código oscuro */
-  color: #e6edf3;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   padding: 3px 6px;
   border-radius: 5px;
   font-size: 0.9em;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-primary);
 }
 
 .counter {
@@ -190,7 +151,7 @@ code {
   flex-direction: row;
   overflow: hidden;
   box-sizing: border-box;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-primary);
 }
 
 .workspace-layout {
@@ -202,8 +163,8 @@ code {
 
 .sidebar-panel {
   width: 240px;
-  background-color: #161a22;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   user-select: none;
@@ -215,8 +176,8 @@ code {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #6e7681;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .sidebar-content {
@@ -233,19 +194,19 @@ code {
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 13px;
-  color: #8b949e;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .file-tree-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #f0f6fc;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
 }
 
 .file-tree-item.active {
-  background-color: rgba(51, 204, 255, 0.1);
-  color: var(--cyan);
+  background-color: var(--accent-bg);
+  color: var(--accent);
 }
 
 .main-workspace {
@@ -253,7 +214,7 @@ code {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #0d1117;
+  background-color: var(--bg-primary);
   overflow: hidden;
 }
 
@@ -271,7 +232,7 @@ code {
   border: none;
   font-size: 32px;
   font-weight: 700;
-  color: #f0f6fc;
+  color: var(--text-primary);
   outline: none;
   font-family: var(--heading);
 }
@@ -280,7 +241,7 @@ code {
   flex-grow: 1;
   background: transparent;
   border: none;
-  color: #c9d1d9;
+  color: var(--text-primary);
   font-size: 16px;
   line-height: 1.7;
   outline: none;
