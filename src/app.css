@@ -230,6 +230,12 @@ code {
   gap: 16px;
 }
 
+.editor-container.full-pane {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
 .editor-title-input {
   background: transparent;
   border: none;

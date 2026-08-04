@@ -5,6 +5,7 @@
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
   import MermanViewer from './lib/components/MermanViewer.svelte';
+  import ExcalidrawViewer from './lib/components/ExcalidrawViewer.svelte';
   import { commandRegistry } from './lib/services/commands.svelte';
   import { invokeTauri, isTauriEnvironment } from './lib/services/tauri';
   import { info, error, warn } from '@tauri-apps/plugin-log';
@@ -209,7 +210,7 @@
     <!-- CONTENEDOR DEL EDITOR -->
     <div 
       class="editor-container" 
-      class:full-pane={currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
+      class:full-pane={currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid') || currentNote.relative_path.endsWith('.excalidraw') || currentNote.relative_path.endsWith('.excalidraw.json'))}
       bind:this={editorContainerRef}
     >
       {#if notes.length === 0}
@@ -231,6 +232,15 @@
         </div>
       {:else if currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
         <MermanViewer
+          content={currentNote.content}
+          readOnly={!isEditing}
+          onChange={(updatedContent) => {
+            currentNote.content = updatedContent;
+            persistNoteToRust(currentNote);
+          }}
+        />
+      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith('.excalidraw') || currentNote.relative_path.endsWith('.excalidraw.json'))}
+        <ExcalidrawViewer
           content={currentNote.content}
           readOnly={!isEditing}
           onChange={(updatedContent) => {
