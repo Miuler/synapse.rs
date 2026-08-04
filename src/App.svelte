@@ -207,7 +207,11 @@
     />
 
     <!-- CONTENEDOR DEL EDITOR -->
-    <div class="editor-container" bind:this={editorContainerRef}>
+    <div 
+      class="editor-container" 
+      class:full-pane={currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
+      bind:this={editorContainerRef}
+    >
       {#if notes.length === 0}
         <div class="empty-workspace">
           <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -225,6 +229,15 @@
             <span>Crear nueva nota</span>
           </button>
         </div>
+      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
+        <MermanViewer
+          content={currentNote.content}
+          readOnly={!isEditing}
+          onChange={(updatedContent) => {
+            currentNote.content = updatedContent;
+            persistNoteToRust(currentNote);
+          }}
+        />
       {:else}
         <input
           type="text"
@@ -235,26 +248,15 @@
         />
 
         <div class="editor-main-content">
-          {#if currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
-            <MermanViewer
-              content={currentNote.content}
-              readOnly={!isEditing}
-              onChange={(updatedContent) => {
-                currentNote.content = updatedContent;
-                persistNoteToRust(currentNote);
-              }}
-            />
-          {:else}
-            <MarkdownViewer
-              content={currentNote.content}
-              readOnly={!isEditing}
-              onChange={(updatedMarkdown) => {
-                currentNote.content = updatedMarkdown;
-                persistNoteToRust(currentNote);
-              }}
-              isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
-            />
-          {/if}
+          <MarkdownViewer
+            content={currentNote.content}
+            readOnly={!isEditing}
+            onChange={(updatedMarkdown) => {
+              currentNote.content = updatedMarkdown;
+              persistNoteToRust(currentNote);
+            }}
+            isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
+          />
         </div>
       {/if}
     </div>

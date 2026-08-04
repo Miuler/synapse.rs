@@ -1,10 +1,9 @@
 <script lang="ts">
   import { initMerman, renderSvg } from '@mermanjs/web';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   interface Props {
     content: string;
-    // Ignoramos readOnly porque el componente será siempre de sólo lectura
     readOnly?: boolean;
     onChange?: (content: string) => void;
   }
@@ -22,6 +21,9 @@
   let startX = $state(0);
   let startY = $state(0);
 
+  let containerRef = $state<HTMLDivElement | null>(null);
+  let baseViewBox = $state<{ x: number; y: number; w: number; h: number } | null>(null);
+
   onMount(async () => {
     try {
       await initMerman();
@@ -34,22 +36,79 @@
   $effect(() => {
     if (isReady && content) {
       try {
-        svgContent = renderSvg(content);
+        const svgStr = renderSvg(content);
         error = '';
         scale = 1;
         panX = 0;
         panY = 0;
+
+        // Extraer viewBox inicial directamente del string del SVG
+        const match = svgStr.match(/viewBox=["']([^"']+)["']/i);
+        let parsedVb: { x: number; y: number; w: number; h: number } | null = null;
+        if (match && match[1]) {
+          const parts = match[1].trim().split(/[\s,]+/).map(Number);
+          if (parts.length === 4 && !parts.some(isNaN)) {
+            parsedVb = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+          }
+        }
+        if (!parsedVb) {
+          parsedVb = { x: 0, y: 0, w: 800, h: 600 };
+        }
+        baseViewBox = parsedVb;
+        svgContent = svgStr;
       } catch (e) {
         error = 'Error de sintaxis Mermaid:\n' + String(e);
       }
     } else if (isReady && !content) {
       svgContent = '';
       error = '';
+      baseViewBox = null;
+    }
+  });
+
+  // Asegurar que el elemento SVG ocupe el 100% de alto y ancho al insertarse
+  $effect(() => {
+    if (svgContent && containerRef) {
+      tick().then(() => {
+        const svg = containerRef?.querySelector('svg');
+        if (svg) {
+          svg.style.width = '100%';
+          svg.style.height = '100%';
+          svg.style.maxWidth = 'none';
+          svg.style.maxHeight = 'none';
+        }
+      });
+    }
+  });
+
+  // Actualizar reactivamente el atributo viewBox cuando cambia scale, panX o panY
+  $effect(() => {
+    const s = scale;
+    const px = panX;
+    const py = panY;
+    const bVb = baseViewBox;
+
+    if (containerRef && bVb) {
+      const svg = containerRef.querySelector('svg');
+      if (svg) {
+        const { x, y, w, h } = bVb;
+        const curScale = Math.max(0.1, s);
+        const newW = w / curScale;
+        const newH = h / curScale;
+
+        const rect = containerRef.getBoundingClientRect();
+        const factorX = rect.width ? w / rect.width : 1;
+        const factorY = rect.height ? h / rect.height : 1;
+
+        const newX = (x + (w - newW) / 2) - (px * factorX);
+        const newY = (y + (h - newH) / 2) - (py * factorY);
+
+        svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
+      }
     }
   });
 
   function handleWheel(e: WheelEvent) {
-    // Si queremos que el zoom funcione siempre (incluso sin Ctrl), quitamos la condición
     e.preventDefault();
     const zoomSensitivity = 0.002;
     const delta = -e.deltaY * zoomSensitivity;
@@ -80,6 +139,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     class="preview-pane"
+    bind:this={containerRef}
     onwheel={handleWheel}
     onpointerdown={handlePointerDown}
     onpointermove={handlePointerMove}
@@ -93,7 +153,7 @@
       <div class="loading">Cargando Merman...</div>
     {/if}
     {#if svgContent && !error}
-      <div class="svg-container" style="transform: translate({panX}px, {panY}px) scale({scale})">
+      <div class="svg-container">
         {@html svgContent}
       </div>
     {/if}
@@ -129,6 +189,7 @@
     min-width: 0;
     cursor: grab;
     touch-action: none;
+    position: relative;
   }
   
   .preview-pane:active {
@@ -141,16 +202,13 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    transform-origin: center center;
-    transition: transform 0.05s ease-out;
-    will-change: transform;
   }
   
   .svg-container :global(svg) {
     width: 100%;
     height: 100%;
     max-width: none;
-    pointer-events: none; /* Para que el contenedor principal reciba los eventos de puntero */
+    pointer-events: none;
     user-select: none;
   }
 
