@@ -8,6 +8,7 @@
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
+    onCloseTab?: () => void;
     onAction?: (actionId: string) => void;
   }
 
@@ -17,6 +18,7 @@
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
+    onCloseTab,
     onAction
   }: Props = $props();
 
@@ -52,13 +54,21 @@
       </button>
     </div>
 
-    <div class="tab-title-container">
-      <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-      </svg>
-      <span class="tab-title">{title}</span>
-    </div>
+    {#if title}
+      <div class="tab-title-container">
+        <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span class="tab-title">{title}</span>
+        <button type="button" class="close-tab-btn" onclick={() => { if (onCloseTab) onCloseTab(); }} title="Cerrar pestaña">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="right-section">
@@ -165,6 +175,32 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--text-primary, #1f2328);
+  }
+
+  .close-tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    margin-left: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .close-tab-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-primary, #1f2328);
+  }
+
+  .close-tab-btn svg {
+    width: 12px;
+    height: 12px;
   }
 
   .icon-btn {

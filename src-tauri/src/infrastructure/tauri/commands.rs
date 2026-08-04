@@ -58,6 +58,25 @@ pub fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Re
 }
 
 #[tauri::command]
+pub async fn select_vault_folder(state: State<'_, AppState>) -> Result<Option<Vec<Note>>, String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("Seleccionar Carpeta / Bóveda")
+        .pick_folder()
+        .await;
+
+    if let Some(folder_handle) = folder {
+        let path = folder_handle.path().to_path_buf();
+        let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        *vault_path = path.clone();
+        
+        let notes = state.note_use_cases.list_notes(&path, &state.supported_extensions)?;
+        Ok(Some(notes))
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
 pub fn search_items_command(query: String, items: Vec<String>) -> Vec<SearchResult> {
     let search_service = NucleoSearchService::new();
     search_service.search_items(&query, &items)

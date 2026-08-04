@@ -6,7 +6,7 @@ use application::use_cases::note_use_cases::NoteUseCases;
 use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
     get_vault_notes, read_note_content, save_note_content, search_items_command,
-    search_notes_command, set_active_vault_path, AppState,
+    search_notes_command, select_vault_folder, set_active_vault_path, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -50,6 +50,7 @@ pub fn run() {
             read_note_content,
             save_note_content,
             set_active_vault_path,
+            select_vault_folder,
             search_items_command,
             search_notes_command
         ])

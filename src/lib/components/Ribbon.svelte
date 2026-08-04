@@ -14,8 +14,17 @@
     { id: 'graph', label: 'Vista de gráfico', icon: 'graph' },
   ];
 
+  let lastActiveTab = 'files';
+
   function handleToolClick(id: string) {
-    activeTab = id;
+    if (id === 'files' || id === 'search') {
+      if (activeTab === id) {
+        activeTab = '';
+      } else {
+        activeTab = id;
+        lastActiveTab = id;
+      }
+    }
     if (onAction) onAction(id);
   }
 </script>

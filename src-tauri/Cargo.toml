@@ -29,6 +29,7 @@ tracing-indicatif = "0.3.14"
 indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+rfd = "0.15"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "1.4.0"

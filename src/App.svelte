@@ -1,14 +1,14 @@
 <script lang="ts">
-  import Ribbon from './lib/components/Ribbon.svelte';
-  import EditorHeader from './lib/components/EditorHeader.svelte';
-  import StatusBar from './lib/components/StatusBar.svelte';
-  import CommandPalette from './lib/components/CommandPalette.svelte';
-  import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
-  import MermanViewer from './lib/components/MermanViewer.svelte';
-  import ExcalidrawViewer from './lib/components/ExcalidrawViewer.svelte';
-  import { commandRegistry } from './lib/services/commands.svelte';
-  import { invokeTauri, isTauriEnvironment } from './lib/services/tauri';
-  import { info, error, warn } from '@tauri-apps/plugin-log';
+  import Ribbon from "./lib/components/Ribbon.svelte";
+  import EditorHeader from "./lib/components/EditorHeader.svelte";
+  import StatusBar from "./lib/components/StatusBar.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import MarkdownViewer from "./lib/components/MarkdownViewer.svelte";
+  import MermanViewer from "./lib/components/MermanViewer.svelte";
+  import ExcalidrawViewer from "./lib/components/ExcalidrawViewer.svelte";
+  import { commandRegistry } from "./lib/services/commands.svelte";
+  import { invokeTauri, isTauriEnvironment } from "./lib/services/tauri";
+  import { info, error, warn } from "@tauri-apps/plugin-log";
 
   interface NoteItem {
     id: string;
@@ -18,29 +18,35 @@
   }
 
   // Estados reactivos con Runas de Svelte 5 (inicialmente VACÍO)
-  let activeRibbonTab = $state('files');
+  let activeRibbonTab = $state("files");
   let isPaletteOpen = $state(false);
   let isEditing = $state(true);
   let isConnectedToRust = $state(false);
-  let syncState = $state<'synced' | 'saving' | 'error'>('synced');
+  let syncState = $state<"synced" | "saving" | "error">("synced");
 
   // Estado reactivo dinámico sin ninguna nota predeterminada ni de relleno
   let notes = $state<NoteItem[]>([]);
-  let activeNoteIndex = $state(0);
+  let activeNoteIndex = $state(-1);
+  let sidebarWidth = $state(240);
+  let isResizingSidebar = $state(false);
 
   let currentNote = $derived(
-    notes[activeNoteIndex] || { id: '0', title: '', content: '', relative_path: '' }
+    activeNoteIndex >= 0 && notes[activeNoteIndex]
+      ? notes[activeNoteIndex]
+      : { id: "0", title: "", content: "", relative_path: "" },
   );
 
   // Contadores calculados reactivamente
   let wordCount = $derived(
     currentNote.content && currentNote.content.trim()
       ? currentNote.content.trim().split(/\s+/).length
-      : 0
+      : 0,
   );
-  let charCount = $derived(currentNote.content ? currentNote.content.length : 0);
+  let charCount = $derived(
+    currentNote.content ? currentNote.content.length : 0,
+  );
 
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick } from "svelte";
 
   let editorContainerRef = $state<HTMLDivElement | null>(null);
 
@@ -58,15 +64,26 @@
     async function fetchNotesFromBackend() {
       if (isTauriEnvironment()) {
         try {
-          const realNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content: string }>>('get_vault_notes');
+          const realNotes =
+            await invokeTauri<
+              Array<{
+                relative_path: { 0?: string } | string;
+                title: string;
+                content: string;
+              }>
+            >("get_vault_notes");
 
           if (realNotes && Array.isArray(realNotes)) {
             isConnectedToRust = true;
             notes = realNotes.map((n, index) => {
               let relPath = `${n.title}.md`;
-              if (typeof n.relative_path === 'string') {
+              if (typeof n.relative_path === "string") {
                 relPath = n.relative_path;
-              } else if (n.relative_path && typeof n.relative_path === 'object' && n.relative_path[0]) {
+              } else if (
+                n.relative_path &&
+                typeof n.relative_path === "object" &&
+                n.relative_path[0]
+              ) {
                 relPath = n.relative_path[0];
               }
 
@@ -74,15 +91,16 @@
                 id: String(index + 1),
                 title: n.title,
                 content: n.content,
-                relative_path: relPath
+                relative_path: relPath,
               };
             });
-            activeNoteIndex = 0;
+            activeNoteIndex = -1;
           } else {
             notes = [];
+            activeNoteIndex = -1;
           }
         } catch (e) {
-          console.warn('Error al cargar notas de Rust:', e);
+          console.warn("Error al cargar notas de Rust:", e);
           isConnectedToRust = false;
           notes = [];
         }
@@ -97,17 +115,17 @@
   // Guardar nota en tiempo real en el backend de Rust al modificar contenido o título
   async function persistNoteToRust(note: NoteItem) {
     if (!isConnectedToRust || !note.title) return;
-    syncState = 'saving';
+    syncState = "saving";
     try {
-      await invokeTauri('save_note_content', {
+      await invokeTauri("save_note_content", {
         relativePath: note.relative_path || `${note.title}.md`,
         title: note.title,
-        content: note.content
+        content: note.content,
       });
-      syncState = 'synced';
+      syncState = "synced";
     } catch (e) {
-      console.error('Error al guardar la nota en Rust:', e);
-      syncState = 'error';
+      console.error("Error al guardar la nota en Rust:", e);
+      syncState = "error";
     }
   }
 
@@ -117,8 +135,8 @@
     const newNote: NoteItem = {
       id: String(notes.length + 1),
       title: newTitle,
-      content: '# Nueva Nota\n\nEscribe tu contenido aquí...',
-      relative_path: newRelPath
+      content: "# Nueva Nota\n\nEscribe tu contenido aquí...",
+      relative_path: newRelPath,
     };
     notes.push(newNote);
     activeNoteIndex = notes.length - 1;
@@ -129,38 +147,88 @@
   onMount(() => {
     commandRegistry.registerMany([
       {
-        id: 'cmd-new-note',
-        name: 'Crear nueva nota',
-        category: 'Archivo',
-        shortcut: 'Ctrl+N',
-        action: createNewNote
+        id: "cmd-new-note",
+        name: "Crear nueva nota",
+        category: "Archivo",
+        shortcut: "Ctrl+N",
+        action: createNewNote,
       },
       {
-        id: 'cmd-open-palette',
-        name: 'Abrir paleta de comandos',
-        category: 'Sistema',
-        shortcut: 'Ctrl+P',
+        id: "cmd-open-palette",
+        name: "Abrir paleta de comandos",
+        category: "Sistema",
+        shortcut: "Ctrl+P",
         action: () => {
           isPaletteOpen = true;
-        }
+        },
       },
       {
-        id: 'cmd-toggle-view',
-        name: 'Alternar entre modo Edición y Lectura',
-        category: 'Vista',
-        shortcut: 'Ctrl+E',
+        id: "cmd-toggle-view",
+        name: "Alternar entre modo Edición y Lectura",
+        category: "Vista",
+        shortcut: "Ctrl+E",
         action: () => {
           isEditing = !isEditing;
-        }
-      }
+        },
+      },
     ]);
   });
 
   function handleRibbonAction(actionId: string) {
-    if (actionId === 'command-palette') {
+    if (actionId === "command-palette") {
       isPaletteOpen = true;
-    } else if (actionId === 'new-note') {
+    } else if (actionId === "new-note") {
       createNewNote();
+    }
+  }
+
+  async function handleOpenVaultFolder() {
+    if (!isTauriEnvironment()) return;
+    try {
+      const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content: string }> | null>('select_vault_folder');
+      if (newNotes && Array.isArray(newNotes)) {
+        notes = newNotes.map((n, index) => {
+          let relPath = `${n.title}.md`;
+          if (typeof n.relative_path === 'string') {
+            relPath = n.relative_path;
+          } else if (n.relative_path && typeof n.relative_path === 'object' && n.relative_path[0]) {
+            relPath = n.relative_path[0];
+          }
+
+          return {
+            id: String(index + 1),
+            title: n.title,
+            content: n.content,
+            relative_path: relPath
+          };
+        });
+        activeNoteIndex = -1;
+      }
+    } catch (e) {
+      console.error('Error al abrir la carpeta de la bóveda:', e);
+    }
+  }
+
+  function handleSidebarResizeStart(e: PointerEvent) {
+    isResizingSidebar = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function handleSidebarResizeMove(e: PointerEvent) {
+    if (isResizingSidebar) {
+      const newWidth = e.clientX - 48;
+      sidebarWidth = Math.max(150, Math.min(newWidth, 600));
+    }
+  }
+
+  function handleSidebarResizeEnd(e: PointerEvent) {
+    if (isResizingSidebar) {
+      isResizingSidebar = false;
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignorar si el puntero se libera automáticamente
+      }
     }
   }
 </script>
@@ -170,12 +238,23 @@
   <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction} />
 
   <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
-  {#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}
-    <aside class="sidebar-panel">
+  {#if activeRibbonTab === "files" || activeRibbonTab === "search"}
+    <aside 
+      class="sidebar-panel" 
+      class:is-resizing={isResizingSidebar}
+      style="width: {sidebarWidth}px;"
+    >
       <div class="sidebar-header">
-        <span>{activeRibbonTab === 'files' ? 'Bóveda de Notas' : 'Buscar'}</span>
+        <span>{activeRibbonTab === "files" ? "Bóveda de Notas" : "Buscar"}</span>
         {#if isConnectedToRust}
-          <span class="rust-badge" title="Conectado al Backend en Rust (Bóveda real en disco)">RUST</span>
+          <button
+            type="button"
+            class="rust-badge-btn"
+            onclick={handleOpenVaultFolder}
+            title="Abrir carpeta / bóveda en disco"
+          >
+            RUST
+          </button>
         {/if}
       </div>
       <div class="sidebar-content">
@@ -187,14 +266,35 @@
             class:active={idx === activeNoteIndex}
             onclick={() => (activeNoteIndex = idx)}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+              />
+              <polyline points="14 2 14 8 20 8" />
             </svg>
-            <span class="file-name">{note.relative_path || `${note.title}.md`}</span>
+            <span class="file-name"
+              >{note.relative_path || `${note.title}.md`}</span
+            >
           </div>
         {/each}
       </div>
+
+      <!-- Tirador para redimensionar el panel lateral -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="sidebar-resizer"
+        onpointerdown={handleSidebarResizeStart}
+        onpointermove={handleSidebarResizeMove}
+        onpointerup={handleSidebarResizeEnd}
+        onpointercancel={handleSidebarResizeEnd}
+      ></div>
     </aside>
   {/if}
 
@@ -203,34 +303,66 @@
     <!-- BARRA SUPERIOR DE PESTAÑA Y HERRAMIENTAS -->
     <EditorHeader
       bind:isEditing
-      title={notes.length > 0 ? (currentNote.relative_path || (currentNote.title ? `${currentNote.title}.md` : '')) : ''}
+      title={activeNoteIndex >= 0 && notes[activeNoteIndex]
+        ? currentNote.relative_path ||
+          (currentNote.title ? `${currentNote.title}.md` : "")
+        : ""}
+      onCloseTab={() => (activeNoteIndex = -1)}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
 
     <!-- CONTENEDOR DEL EDITOR -->
-    <div 
-      class="editor-container" 
-      class:full-pane={currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid') || currentNote.relative_path.endsWith('.excalidraw') || currentNote.relative_path.endsWith('.excalidraw.json'))}
+    <div
+      class="editor-container"
+      class:full-pane={activeNoteIndex >= 0 &&
+        currentNote.relative_path &&
+        (currentNote.relative_path.endsWith(".mmd") ||
+          currentNote.relative_path.endsWith(".mermaid") ||
+          currentNote.relative_path.endsWith(".excalidraw") ||
+          currentNote.relative_path.endsWith(".excalidraw.json"))}
       bind:this={editorContainerRef}
     >
-      {#if notes.length === 0}
+      {#if activeNoteIndex === -1 || notes.length === 0}
         <div class="empty-workspace">
-          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
+          <svg
+            class="empty-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+            />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="15" x2="15" y2="15" />
           </svg>
-          <h2>No hay archivos en la bóveda</h2>
-          <p>Crea una nueva nota para comenzar a escribir.</p>
+          <h2>
+            {notes.length === 0
+              ? "No hay archivos en la bóveda"
+              : "Ningún archivo abierto"}
+          </h2>
+          <p>
+            {notes.length === 0
+              ? "Crea una nueva nota para comenzar a escribir."
+              : "Selecciona un archivo del panel lateral para abrirlo."}
+          </p>
           <button class="create-btn" onclick={createNewNote}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             <span>Crear nueva nota</span>
           </button>
         </div>
-      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
+      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith(".mmd") || currentNote.relative_path.endsWith(".mermaid"))}
         <MermanViewer
           content={currentNote.content}
           readOnly={!isEditing}
@@ -239,7 +371,7 @@
             persistNoteToRust(currentNote);
           }}
         />
-      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith('.excalidraw') || currentNote.relative_path.endsWith('.excalidraw.json'))}
+      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith(".excalidraw") || currentNote.relative_path.endsWith(".excalidraw.json"))}
         <ExcalidrawViewer
           content={currentNote.content}
           readOnly={!isEditing}
@@ -265,7 +397,9 @@
               currentNote.content = updatedMarkdown;
               persistNoteToRust(currentNote);
             }}
-            isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
+            isMarkdown={!currentNote.relative_path ||
+              currentNote.relative_path.endsWith(".md") ||
+              currentNote.relative_path.endsWith(".markdown")}
           />
         </div>
       {/if}
@@ -276,7 +410,9 @@
       wordCount={notes.length > 0 ? wordCount : 0}
       charCount={notes.length > 0 ? charCount : 0}
       line={notes.length > 0 ? 1 : 0}
-      col={notes.length > 0 && currentNote.content ? currentNote.content.length : 0}
+      col={notes.length > 0 && currentNote.content
+        ? currentNote.content.length
+        : 0}
       syncStatus={syncState}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
@@ -357,7 +493,25 @@
     align-items: center;
   }
 
-  .rust-badge {
+  .sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 20;
+    user-select: none;
+    touch-action: none;
+    transition: background-color 0.15s ease;
+  }
+
+  .sidebar-resizer:hover,
+  .sidebar-panel.is-resizing .sidebar-resizer {
+    background-color: var(--accent, #0969da);
+  }
+
+  .rust-badge-btn {
     font-size: 9px;
     font-weight: 700;
     background: var(--accent-bg);
@@ -365,5 +519,12 @@
     padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid var(--accent-border);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .rust-badge-btn:hover {
+    background: var(--accent);
+    color: #ffffff;
   }
 </style>
