@@ -15,12 +15,12 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.1", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.11.1", features = [] }
+tauri = { version = "2.11.5", features = [] }
 tauri-plugin-log = "2"
 nucleo-matcher = "0.3"
 log = "0.4"
@@ -29,3 +29,6 @@ tracing-indicatif = "0.3.14"
 indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk-nvidia-quirk = "1.4.0"
