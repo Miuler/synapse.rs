@@ -1,6 +1,6 @@
 <script lang="ts">
   import { initMerman, renderSvg } from '@mermanjs/web';
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
 
   interface Props {
     content: string;
@@ -20,6 +20,17 @@
   let isDragging = $state(false);
   let startX = $state(0);
   let startY = $state(0);
+
+  // Modo Puntero Láser con mutación in-place para conservar referencias de array
+  let isLaserMode = $state(false);
+  let canvasRef = $state<HTMLCanvasElement | null>(null);
+  
+  type LaserPoint = { x: number; y: number; time: number };
+  type LaserStroke = LaserPoint[];
+  
+  let laserStrokes: LaserStroke[] = [];
+  let activeStroke: LaserStroke | null = null;
+  let animFrameId: number | null = null;
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let baseViewBox = $state<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -42,7 +53,6 @@
         panX = 0;
         panY = 0;
 
-        // Extraer viewBox inicial directamente del string del SVG
         const match = svgStr.match(/viewBox=["']([^"']+)["']/i);
         let parsedVb: { x: number; y: number; w: number; h: number } | null = null;
         if (match && match[1]) {
@@ -66,7 +76,6 @@
     }
   });
 
-  // Asegurar que el elemento SVG ocupe el 100% de alto y ancho al insertarse
   $effect(() => {
     if (svgContent && containerRef) {
       tick().then(() => {
@@ -81,7 +90,6 @@
     }
   });
 
-  // Actualizar reactivamente el atributo viewBox cuando cambia scale, panX o panY
   $effect(() => {
     const s = scale;
     const px = panX;
@@ -108,6 +116,131 @@
     }
   });
 
+  // Renderizado continuo del láser con mutación in-place
+  function drawLaserLoop() {
+    if (!canvasRef) return;
+    const ctx = canvasRef.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvasRef.width, canvasRef.height);
+
+    const now = Date.now();
+    const maxAge = 1600; // 1600ms de desvanecimiento (duración más prolongada de la estela)
+
+    // Mientras el puntero esté presionado, mantenemos vivo el último punto del trazo activo
+    if (isDragging && activeStroke && activeStroke.length > 0) {
+      activeStroke[activeStroke.length - 1].time = now;
+    }
+
+    // Purgar puntos obsoletos in-place para no romper la referencia de array
+    for (let i = laserStrokes.length - 1; i >= 0; i--) {
+      const stroke = laserStrokes[i];
+      while (stroke.length > 0 && now - stroke[0].time >= maxAge) {
+        stroke.shift();
+      }
+      if (stroke.length === 0 && stroke !== activeStroke) {
+        laserStrokes.splice(i, 1);
+      }
+    }
+
+    for (const stroke of laserStrokes) {
+      if (stroke.length === 0) continue;
+
+      if (stroke.length === 1) {
+        const p = stroke[0];
+        const alpha = Math.max(0, 1 - (now - p.time) / maxAge);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 30, 60, ${alpha})`;
+        ctx.shadowColor = '#ff0033';
+        ctx.shadowBlur = 14 * alpha;
+        ctx.fill();
+        continue;
+      }
+
+      // Dibujar líneas curvas suaves con desvanecimiento por segmento
+      for (let i = 0; i < stroke.length - 1; i++) {
+        const p1 = stroke[i];
+        const p2 = stroke[i + 1];
+        const age = now - p2.time;
+        const alpha = Math.max(0, 1 - age / maxAge);
+
+        ctx.beginPath();
+        if (i === 0) {
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        } else {
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+          const prevMidX = (stroke[i - 1].x + p1.x) / 2;
+          const prevMidY = (stroke[i - 1].y + p1.y) / 2;
+          ctx.moveTo(prevMidX, prevMidY);
+          ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+        }
+        ctx.strokeStyle = `rgba(255, 30, 60, ${alpha})`;
+        ctx.lineWidth = 6 * alpha;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = '#ff0033';
+        ctx.shadowBlur = 12 * alpha;
+        ctx.stroke();
+      }
+
+      // Punto resplandeciente en la punta del láser
+      const head = stroke[stroke.length - 1];
+      const headAge = now - head.time;
+      const headAlpha = Math.max(0, 1 - headAge / maxAge);
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`;
+      ctx.shadowColor = '#ff0033';
+      ctx.shadowBlur = 18 * headAlpha;
+      ctx.fill();
+    }
+
+    if (isLaserMode || laserStrokes.length > 0) {
+      animFrameId = requestAnimationFrame(drawLaserLoop);
+    } else {
+      animFrameId = null;
+    }
+  }
+
+  $effect(() => {
+    if (isLaserMode) {
+      if (!animFrameId) {
+        animFrameId = requestAnimationFrame(drawLaserLoop);
+      }
+    } else {
+      laserStrokes = [];
+      activeStroke = null;
+    }
+  });
+
+  onDestroy(() => {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+  });
+
+  function updateCanvasSize() {
+    if (containerRef && canvasRef) {
+      const rect = containerRef.getBoundingClientRect();
+      if (canvasRef.width !== rect.width || canvasRef.height !== rect.height) {
+        canvasRef.width = rect.width;
+        canvasRef.height = rect.height;
+      }
+    }
+  }
+
+  function addLaserPoint(clientX: number, clientY: number) {
+    if (!containerRef || !activeStroke) return;
+    updateCanvasSize();
+    const rect = containerRef.getBoundingClientRect();
+    activeStroke.push({
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+      time: Date.now(),
+    });
+  }
+
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     const zoomSensitivity = 0.002;
@@ -117,20 +250,31 @@
 
   function handlePointerDown(e: PointerEvent) {
     isDragging = true;
-    startX = e.clientX - panX;
-    startY = e.clientY - panY;
+    if (isLaserMode) {
+      activeStroke = [];
+      laserStrokes.push(activeStroke);
+      addLaserPoint(e.clientX, e.clientY);
+    } else {
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+    }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
 
   function handlePointerMove(e: PointerEvent) {
     if (isDragging) {
-      panX = e.clientX - startX;
-      panY = e.clientY - startY;
+      if (isLaserMode) {
+        addLaserPoint(e.clientX, e.clientY);
+      } else {
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+      }
     }
   }
 
   function handlePointerUp(e: PointerEvent) {
     isDragging = false;
+    activeStroke = null;
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   }
 </script>
@@ -139,6 +283,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     class="preview-pane"
+    class:laser-cursor={isLaserMode}
     bind:this={containerRef}
     onwheel={handleWheel}
     onpointerdown={handlePointerDown}
@@ -157,9 +302,22 @@
         {@html svgContent}
       </div>
     {/if}
+
+    <!-- Capa de lienzo transparente para el Puntero Láser -->
+    <canvas bind:this={canvasRef} class="laser-canvas"></canvas>
   </div>
   
   <div class="zoom-controls">
+    <button 
+      class="laser-toggle-btn" 
+      class:active={isLaserMode} 
+      onclick={() => (isLaserMode = !isLaserMode)} 
+      title="Activar / Desactivar Puntero Láser"
+    >
+      <span class="laser-dot"></span>
+      Láser
+    </button>
+    <div class="separator"></div>
     <button onclick={() => scale = Math.max(0.1, scale / 1.2)}>-</button>
     <span>{Math.round(scale * 100)}%</span>
     <button onclick={() => scale = Math.min(10, scale * 1.2)}>+</button>
@@ -194,6 +352,21 @@
   
   .preview-pane:active {
     cursor: grabbing;
+  }
+
+  .preview-pane.laser-cursor,
+  .preview-pane.laser-cursor:active {
+    cursor: crosshair;
+  }
+
+  .laser-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
   }
 
   .svg-container {
@@ -244,6 +417,43 @@
     border: 1px solid var(--border-primary, #d0d7de);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     z-index: 10;
+  }
+
+  .laser-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .laser-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #888;
+    transition: background-color 0.2s ease;
+  }
+
+  .laser-toggle-btn.active {
+    background-color: rgba(255, 30, 60, 0.15) !important;
+    color: #e0002b !important;
+    border: 1px solid rgba(255, 30, 60, 0.3);
+  }
+
+  .laser-toggle-btn.active .laser-dot {
+    background-color: #ff0033;
+    box-shadow: 0 0 8px #ff0033;
+  }
+
+  .separator {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border-primary, #d0d7de);
+    margin: 0 4px;
   }
   
   .zoom-controls button {
