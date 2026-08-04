@@ -15,20 +15,36 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let root: Root | null = null;
-  let lastContent = $state(untrack(() => content));
+  let excalidrawAPI = $state<any>(null);
+  let isMounted = false;
 
-  function parseInitialData(raw: string) {
-    if (!raw || !raw.trim()) return undefined;
+  let lastContent = $state(untrack(() => content));
+  let lastReadOnly = $state(untrack(() => readOnly));
+
+  function parseInitialData(raw: string, isReadOnly: boolean) {
+    if (!raw || !raw.trim()) {
+      return {
+        elements: [],
+        appState: { viewModeEnabled: isReadOnly },
+        files: {},
+      };
+    }
     try {
       const parsed = JSON.parse(raw);
       return {
         elements: parsed.elements || [],
-        appState: parsed.appState ? { ...parsed.appState, viewModeEnabled: readOnly } : { viewModeEnabled: readOnly },
+        appState: parsed.appState
+          ? { ...parsed.appState, viewModeEnabled: isReadOnly }
+          : { viewModeEnabled: isReadOnly },
         files: parsed.files || {},
       };
     } catch (e) {
       console.warn('Error al parsear contenido Excalidraw:', e);
-      return undefined;
+      return {
+        elements: [],
+        appState: { viewModeEnabled: isReadOnly },
+        files: {},
+      };
     }
   }
 
@@ -38,13 +54,23 @@
       root = createRoot(containerRef);
     }
 
-    const initialData = parseInitialData(data);
+    const initialData = parseInitialData(data, isReadOnly);
 
     const reactElement = React.createElement(Excalidraw, {
       initialData,
+      excalidrawAPI: (api: any) => {
+        excalidrawAPI = api;
+      },
       viewModeEnabled: isReadOnly,
       onChange: (elements: readonly any[], appState: any, files: any) => {
         if (isReadOnly) return;
+
+        // Evitar emitir guarda en el primer render de montaje si no ha habido interacción
+        if (!isMounted) {
+          isMounted = true;
+          return;
+        }
+
         const serialized = JSON.stringify(
           {
             type: 'excalidraw',
@@ -81,14 +107,21 @@
       root.unmount();
       root = null;
     }
+    excalidrawAPI = null;
   });
 
   $effect(() => {
     const c = content;
     const r = readOnly;
-    if (root && containerRef && c !== lastContent) {
+    if (root && containerRef && (c !== untrack(() => lastContent) || r !== untrack(() => lastReadOnly))) {
       lastContent = c;
-      renderReactApp(c, r);
+      lastReadOnly = r;
+      if (excalidrawAPI) {
+        const parsed = parseInitialData(c, r);
+        excalidrawAPI.updateScene(parsed);
+      } else {
+        renderReactApp(c, r);
+      }
     }
   });
 </script>

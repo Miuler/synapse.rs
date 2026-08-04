@@ -21,19 +21,57 @@
   let activeRibbonTab = $state("files");
   let isPaletteOpen = $state(false);
   let isEditing = $state(true);
+  let isVimMode = $state(false);
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
 
   // Estado reactivo dinámico sin ninguna nota predeterminada ni de relleno
   let notes = $state<NoteItem[]>([]);
-  let activeNoteIndex = $state(-1);
+  let openTabPaths = $state<string[]>([]);
+  let activeTabPath = $state<string | null>(null);
   let sidebarWidth = $state(240);
   let isResizingSidebar = $state(false);
 
+  function selectTab(path: string) {
+    if (!openTabPaths.includes(path)) {
+      openTabPaths.push(path);
+    }
+    activeTabPath = path;
+  }
+
+  function closeTab(path: string) {
+    const idx = openTabPaths.indexOf(path);
+    if (idx !== -1) {
+      openTabPaths.splice(idx, 1);
+      if (activeTabPath === path) {
+        if (openTabPaths.length > 0) {
+          const nextIdx = Math.min(idx, openTabPaths.length - 1);
+          activeTabPath = openTabPaths[nextIdx];
+        } else {
+          activeTabPath = null;
+        }
+      }
+    }
+  }
+
+  let savedContents = $state<Record<string, string>>({});
+
   let currentNote = $derived(
-    activeNoteIndex >= 0 && notes[activeNoteIndex]
-      ? notes[activeNoteIndex]
-      : { id: "0", title: "", content: "", relative_path: "" },
+    activeTabPath && notes.length > 0
+      ? notes.find((n) => n.relative_path === activeTabPath) || { id: "0", title: "", content: "", relative_path: "" }
+      : { id: "0", title: "", content: "", relative_path: "" }
+  );
+
+  let tabsInfo = $derived(
+    openTabPaths.map((path) => {
+      const n = notes.find((item) => item.relative_path === path);
+      const isDirty = n ? (savedContents[path] !== undefined && n.content !== savedContents[path]) : false;
+      return {
+        path,
+        title: n ? (n.title || n.relative_path) : path,
+        isDirty,
+      };
+    })
   );
 
   // Contadores calculados reactivamente
@@ -53,7 +91,7 @@
   // Volver al inicio del documento cada vez que se abre una nota distinta,
   // ya que el editor de Milkdown se reutiliza entre notas y conserva el scroll anterior.
   $effect(() => {
-    activeNoteIndex;
+    activeTabPath;
     tick().then(() => {
       if (editorContainerRef) editorContainerRef.scrollTop = 0;
     });
@@ -75,6 +113,7 @@
 
           if (realNotes && Array.isArray(realNotes)) {
             isConnectedToRust = true;
+            const newSavedMap: Record<string, string> = {};
             notes = realNotes.map((n, index) => {
               let relPath = `${n.title}.md`;
               if (typeof n.relative_path === "string") {
@@ -87,6 +126,8 @@
                 relPath = n.relative_path[0];
               }
 
+              newSavedMap[relPath] = n.content;
+
               return {
                 id: String(index + 1),
                 title: n.title,
@@ -94,26 +135,48 @@
                 relative_path: relPath,
               };
             });
-            activeNoteIndex = -1;
+            savedContents = newSavedMap;
+            openTabPaths = [];
+            activeTabPath = null;
           } else {
             notes = [];
-            activeNoteIndex = -1;
+            savedContents = {};
+            openTabPaths = [];
+            activeTabPath = null;
           }
         } catch (e) {
           console.warn("Error al cargar notas de Rust:", e);
           isConnectedToRust = false;
           notes = [];
+          savedContents = {};
         }
       } else {
         notes = [];
+        savedContents = {};
       }
     }
 
     fetchNotesFromBackend();
   });
 
+  // Estado de Auto-Guardado (por defecto activado con debounce para evitar bombardear disco)
+  let autoSave = $state(true);
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function debouncedPersistNoteToRust(note: NoteItem, delay = 600) {
+    if (!autoSave) return;
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      persistNoteToRust(note);
+    }, delay);
+  }
+
   // Guardar nota en tiempo real en el backend de Rust al modificar contenido o título
   async function persistNoteToRust(note: NoteItem) {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
     if (!isConnectedToRust || !note.title) return;
     syncState = "saving";
     try {
@@ -122,6 +185,7 @@
         title: note.title,
         content: note.content,
       });
+      savedContents[note.relative_path] = note.content;
       syncState = "synced";
     } catch (e) {
       console.error("Error al guardar la nota en Rust:", e);
@@ -139,7 +203,7 @@
       relative_path: newRelPath,
     };
     notes.push(newNote);
-    activeNoteIndex = notes.length - 1;
+    selectTab(newRelPath);
     await persistNoteToRust(newNote);
   }
 
@@ -177,7 +241,7 @@
         category: "Archivo",
         shortcut: "Ctrl+S",
         action: () => {
-          if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+          if (activeTabPath && currentNote.relative_path) {
             persistNoteToRust(currentNote);
           }
         },
@@ -187,7 +251,7 @@
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+        if (activeTabPath && currentNote.relative_path) {
           persistNoteToRust(currentNote);
         }
       }
@@ -212,6 +276,7 @@
     try {
       const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content: string }> | null>('select_vault_folder');
       if (newNotes && Array.isArray(newNotes)) {
+        const newSavedMap: Record<string, string> = {};
         notes = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
@@ -220,6 +285,8 @@
             relPath = n.relative_path[0];
           }
 
+          newSavedMap[relPath] = n.content;
+
           return {
             id: String(index + 1),
             title: n.title,
@@ -227,7 +294,9 @@
             relative_path: relPath
           };
         });
-        activeNoteIndex = -1;
+        savedContents = newSavedMap;
+        openTabPaths = [];
+        activeTabPath = null;
       }
     } catch (e) {
       console.error('Error al abrir la carpeta de la bóveda:', e);
@@ -283,13 +352,13 @@
         {/if}
       </div>
       <div class="sidebar-content">
-        {#each notes as note, idx}
+        {#each notes as note}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="file-tree-item"
-            class:active={idx === activeNoteIndex}
-            onclick={() => (activeNoteIndex = idx)}
+            class:active={note.relative_path === activeTabPath}
+            onclick={() => selectTab(note.relative_path)}
           >
             <svg
               width="14"
@@ -325,40 +394,32 @@
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
   <main class="main-workspace">
-    <!-- BARRA SUPERIOR DE PESTAÑA Y HERRAMIENTAS -->
+    <!-- BARRA SUPERIOR DE PESTAÑAS Y HERRAMIENTAS -->
     <EditorHeader
       bind:isEditing
-      title={activeNoteIndex >= 0 && notes[activeNoteIndex]
-        ? currentNote.relative_path ||
-          (currentNote.title ? `${currentNote.title}.md` : "")
-        : ""}
+      tabs={tabsInfo}
+      {activeTabPath}
+      title={currentNote.relative_path || currentNote.title}
       showSaveButton={isEditing &&
-        activeNoteIndex >= 0 &&
-        currentNote &&
+        !!activeTabPath &&
         (!currentNote.relative_path ||
           currentNote.relative_path.endsWith(".md") ||
-          currentNote.relative_path.endsWith(".markdown"))}
-      onCloseTab={() => (activeNoteIndex = -1)}
+          currentNote.relative_path.endsWith(".markdown") ||
+          currentNote.relative_path.endsWith(".excalidraw") ||
+          currentNote.relative_path.endsWith(".excalidraw.json"))}
+      onSelectTab={(path) => selectTab(path)}
+      onCloseTab={(path) => closeTab(path)}
       onSave={() => {
-        if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+        if (activeTabPath && currentNote.relative_path) {
           persistNoteToRust(currentNote);
         }
       }}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
 
-    <!-- CONTENEDOR DEL EDITOR -->
-    <div
-      class="editor-container"
-      class:full-pane={activeNoteIndex >= 0 &&
-        currentNote.relative_path &&
-        (currentNote.relative_path.endsWith(".mmd") ||
-          currentNote.relative_path.endsWith(".mermaid") ||
-          currentNote.relative_path.endsWith(".excalidraw") ||
-          currentNote.relative_path.endsWith(".excalidraw.json"))}
-      bind:this={editorContainerRef}
-    >
-      {#if activeNoteIndex === -1 || notes.length === 0}
+    <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB -->
+    <div class="editor-container" bind:this={editorContainerRef}>
+      {#if openTabPaths.length === 0 || !activeTabPath}
         <div class="empty-workspace">
           <svg
             class="empty-icon"
@@ -398,46 +459,63 @@
             <span>Crear nueva nota</span>
           </button>
         </div>
-      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith(".mmd") || currentNote.relative_path.endsWith(".mermaid"))}
-        <MermanViewer
-          content={currentNote.content}
-          readOnly={!isEditing}
-          onChange={(updatedContent) => {
-            currentNote.content = updatedContent;
-            persistNoteToRust(currentNote);
-          }}
-        />
-      {:else if currentNote.relative_path && (currentNote.relative_path.endsWith(".excalidraw") || currentNote.relative_path.endsWith(".excalidraw.json"))}
-        <ExcalidrawViewer
-          content={currentNote.content}
-          readOnly={!isEditing}
-          onChange={(updatedContent) => {
-            currentNote.content = updatedContent;
-            persistNoteToRust(currentNote);
-          }}
-        />
       {:else}
-        <input
-          type="text"
-          class="editor-title-input"
-          bind:value={currentNote.title}
-          oninput={() => persistNoteToRust(currentNote)}
-          placeholder="Título de la nota..."
-        />
+        {#each openTabPaths as tabPath (tabPath)}
+          {@const note = notes.find((n) => n.relative_path === tabPath)}
+          {#if note}
+            <div
+              class="tab-pane"
+              class:hidden={tabPath !== activeTabPath}
+              class:full-pane={tabPath.endsWith(".mmd") ||
+                tabPath.endsWith(".mermaid") ||
+                tabPath.endsWith(".excalidraw") ||
+                tabPath.endsWith(".excalidraw.json")}
+            >
+              {#if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
+                <MermanViewer
+                  content={note.content}
+                  readOnly={!isEditing}
+                  vimMode={isVimMode}
+                  onChange={(updatedContent) => {
+                    note.content = updatedContent;
+                    debouncedPersistNoteToRust(note);
+                  }}
+                />
+              {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
+                <ExcalidrawViewer
+                  content={note.content}
+                  readOnly={!isEditing}
+                  onChange={(updatedContent) => {
+                    note.content = updatedContent;
+                    debouncedPersistNoteToRust(note);
+                  }}
+                />
+              {:else}
+                <input
+                  type="text"
+                  class="editor-title-input"
+                  bind:value={note.title}
+                  oninput={() => persistNoteToRust(note)}
+                  placeholder="Título de la nota..."
+                />
 
-        <div class="editor-main-content">
-          <MarkdownViewer
-            content={currentNote.content}
-            readOnly={!isEditing}
-            onChange={(updatedMarkdown) => {
-              currentNote.content = updatedMarkdown;
-              persistNoteToRust(currentNote);
-            }}
-            isMarkdown={!currentNote.relative_path ||
-              currentNote.relative_path.endsWith(".md") ||
-              currentNote.relative_path.endsWith(".markdown")}
-          />
-        </div>
+                <div class="editor-main-content">
+                  <MarkdownViewer
+                    content={note.content}
+                    readOnly={!isEditing}
+                    onChange={(updatedMarkdown) => {
+                      note.content = updatedMarkdown;
+                      debouncedPersistNoteToRust(note);
+                    }}
+                    isMarkdown={!note.relative_path ||
+                      note.relative_path.endsWith(".md") ||
+                      note.relative_path.endsWith(".markdown")}
+                  />
+                </div>
+              {/if}
+            </div>
+          {/if}
+        {/each}
       {/if}
     </div>
 
@@ -450,6 +528,8 @@
         ? currentNote.content.length
         : 0}
       syncStatus={syncState}
+      isVimMode={isVimMode}
+      onToggleVim={() => (isVimMode = !isVimMode)}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
   </main>
@@ -459,6 +539,24 @@
 </div>
 
 <style>
+  .tab-pane {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .tab-pane.hidden {
+    display: none !important;
+  }
+
+  .tab-pane.full-pane {
+    padding: 0;
+  }
+
   .editor-main-content {
     display: flex;
     flex-direction: column;

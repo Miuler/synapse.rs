@@ -1,18 +1,21 @@
 <script lang="ts">
   import { initMerman, renderSvg, validate } from '@mermanjs/web';
   import { onMount, onDestroy, tick } from 'svelte';
+  import CodeEditor from './CodeEditor.svelte';
 
   interface Props {
     content: string;
     readOnly?: boolean;
+    vimMode?: boolean;
     onChange?: (content: string) => void;
   }
 
-  let { content = '', readOnly = false, onChange }: Props = $props();
+  let { content = '', readOnly = false, vimMode = false, onChange }: Props = $props();
 
   let svgContent = $state('');
   let isReady = $state(false);
   let error = $state('');
+  let codeEditorRef = $state<any>(null);
   
   let scale = $state(1);
   let panX = $state(0);
@@ -34,19 +37,6 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let baseViewBox = $state<{ x: number; y: number; w: number; h: number } | null>(null);
-
-  // Referencias para el editor de código con números de línea
-  let textareaRef = $state<HTMLTextAreaElement | null>(null);
-  let lineNumbersRef = $state<HTMLDivElement | null>(null);
-
-  let lineCount = $derived((content || '').split('\n').length);
-  let lineArray = $derived(Array.from({ length: Math.max(1, lineCount) }, (_, i) => i + 1));
-
-  function handleEditorScroll() {
-    if (textareaRef && lineNumbersRef) {
-      lineNumbersRef.scrollTop = textareaRef.scrollTop;
-    }
-  }
 
   onMount(async () => {
     try {
@@ -304,6 +294,19 @@
           {/if}
           <button
             type="button"
+            class="editor-header-btn"
+            onclick={() => { if (codeEditorRef) codeEditorRef.triggerSearch(); }}
+            title="Buscar y Reemplazar (Ctrl+F / Ctrl+H)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span>Buscar</span>
+          </button>
+
+          <button
+            type="button"
             class="editor-save-btn"
             onclick={() => { if (onChange) onChange(content); }}
             title="Guardar / Grabar cambios"
@@ -319,28 +322,16 @@
       </div>
 
       <div class="editor-body">
-        <!-- Columna de números de línea sincronizada -->
-        <div class="line-numbers-column" bind:this={lineNumbersRef}>
-          {#each lineArray as lineNum}
-            <span class="line-num">{lineNum}</span>
-          {/each}
-        </div>
-
-        <!-- Área de edición de código -->
-        <div class="code-area">
-          <textarea
-            bind:this={textareaRef}
-            class="mermaid-code-input"
-            value={content}
-            onscroll={handleEditorScroll}
-            oninput={(e) => {
-              const val = (e.target as HTMLTextAreaElement).value;
-              if (onChange) onChange(val);
-            }}
-            placeholder="Escribe tu código Mermaid aquí (ej: flowchart TD...)"
-            spellcheck="false"
-          ></textarea>
-        </div>
+        <CodeEditor
+          bind:this={codeEditorRef}
+          {content}
+          {readOnly}
+          {vimMode}
+          mode="mermaid"
+          onChange={(newVal) => {
+            if (onChange) onChange(newVal);
+          }}
+        />
       </div>
 
       {#if error}
@@ -431,14 +422,33 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-secondary, #656d76);
-    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    padding: 8px 12px;
     background: var(--bg-primary, #ffffff);
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+  }
+
+  .editor-header-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 4px;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .editor-header-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary, #1f2328);
   }
 
   .editor-header-actions {
@@ -484,50 +494,6 @@
     position: relative;
     overflow: hidden;
     background: var(--bg-primary, #ffffff);
-  }
-
-  .line-numbers-column {
-    width: 44px;
-    flex-shrink: 0;
-    padding: 16px 0;
-    background: var(--bg-secondary, #f6f8fa);
-    border-right: 1px solid var(--border-primary, #d0d7de);
-    color: var(--text-secondary, #8c959f);
-    font-family: var(--code-font, 'Fira Code', 'Cascadia Code', monospace);
-    font-size: 13px;
-    line-height: 1.6;
-    text-align: right;
-    user-select: none;
-    overflow: hidden;
-  }
-
-  .line-num {
-    display: block;
-    padding-right: 10px;
-  }
-
-  .code-area {
-    flex: 1;
-    position: relative;
-    height: 100%;
-  }
-
-  .mermaid-code-input {
-    width: 100%;
-    height: 100%;
-    padding: 16px;
-    border: none;
-    outline: none;
-    resize: none;
-    font-family: var(--code-font, 'Fira Code', 'Cascadia Code', monospace);
-    font-size: 13px;
-    line-height: 1.6;
-    background: transparent;
-    color: var(--text-primary, #1f2328);
-    box-sizing: border-box;
-    tab-size: 2;
-    white-space: pre;
-    overflow-x: auto;
   }
 
   .editor-error-footer {

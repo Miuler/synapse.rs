@@ -7,10 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "tauri": "tauri"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tauri-apps/cli": "^2.11.4",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.18",
@@ -21,6 +23,7 @@
     "vite": "^8.1.1"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.5.1",
     "@excalidraw/excalidraw": "^0.18.1",
     "@mermanjs/web": "^0.7.0",
     "@milkdown/core": "^7.21.3",
@@ -30,8 +33,10 @@
     "@milkdown/preset-gfm": "^7.21.3",
     "@milkdown/theme-nord": "^7.21.3",
     "@milkdown/utils": "^7.21.3",
+    "@replit/codemirror-vim": "^6.4.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-log": "^2.9.0",
+    "codemirror": "^6.0.2",
     "highlight.js": "^11.11.1",
     "mermaid": "^11.16.0",
     "react": "^19.2.8",

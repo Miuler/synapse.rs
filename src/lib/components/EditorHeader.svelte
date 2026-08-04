@@ -2,26 +2,38 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { isTauriEnvironment } from '../services/tauri';
 
+  export interface TabItem {
+    path: string;
+    title: string;
+    isDirty?: boolean;
+  }
+
   interface Props {
     title?: string;
+    tabs?: TabItem[];
+    activeTabPath?: string | null;
     isEditing?: boolean;
     showSaveButton?: boolean;
+    onSelectTab?: (path: string) => void;
+    onCloseTab?: (path: string) => void;
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
-    onCloseTab?: () => void;
     onSave?: () => void;
     onAction?: (actionId: string) => void;
   }
 
   let {
     title = 'Nota de bienvenida.md',
+    tabs = [],
+    activeTabPath = null,
     isEditing = $bindable(true),
     showSaveButton = false,
+    onSelectTab,
+    onCloseTab,
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
-    onCloseTab,
     onSave,
     onAction
   }: Props = $props();
@@ -58,14 +70,47 @@
       </button>
     </div>
 
-    {#if title}
-      <div class="tab-title-container">
+    {#if tabs && tabs.length > 0}
+      <div class="tabs-bar">
+        {#each tabs as tab (tab.path)}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="tab-title-container"
+            class:active={tab.path === activeTabPath}
+            class:is-dirty={tab.isDirty}
+            onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
+          >
+            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+            <button
+              type="button"
+              class="close-tab-btn"
+              onclick={(e) => {
+                e.stopPropagation();
+                if (onCloseTab) onCloseTab(tab.path);
+              }}
+              title="Cerrar pestaña"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        {/each}
+      </div>
+    {:else if title}
+      <div class="tab-title-container active">
         <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
         <span class="tab-title">{title}</span>
-        <button type="button" class="close-tab-btn" onclick={() => { if (onCloseTab) onCloseTab(); }} title="Cerrar pestaña">
+        <button type="button" class="close-tab-btn" onclick={() => { if (onCloseTab) onCloseTab(''); }} title="Cerrar pestaña">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/>
             <line x1="6" y1="6" x2="18" y2="18"/>
@@ -177,6 +222,16 @@
     gap: 2px;
   }
 
+  .tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    max-width: calc(100vw - 340px);
+    padding: 2px 0;
+    scrollbar-width: thin;
+  }
+
   .tab-title-container {
     display: flex;
     align-items: center;
@@ -185,6 +240,22 @@
     background: var(--bg-secondary, #f6f8fa);
     border-radius: 6px;
     border: 1px solid var(--border-primary, #d0d7de);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    opacity: 0.75;
+  }
+
+  .tab-title-container:hover {
+    opacity: 1;
+    background: var(--bg-primary, #ffffff);
+  }
+
+  .tab-title-container.active {
+    opacity: 1;
+    background: var(--bg-primary, #ffffff);
+    border-color: var(--accent, #0969da);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   .file-icon {

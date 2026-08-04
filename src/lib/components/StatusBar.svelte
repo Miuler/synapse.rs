@@ -5,6 +5,8 @@
     line?: number;
     col?: number;
     syncStatus?: 'synced' | 'saving' | 'error';
+    isVimMode?: boolean;
+    onToggleVim?: () => void;
     onOpenCommandPalette?: () => void;
   }
 
@@ -14,6 +16,8 @@
     line = 12,
     col = 24,
     syncStatus = 'synced',
+    isVimMode = false,
+    onToggleVim,
     onOpenCommandPalette
   }: Props = $props();
 </script>
@@ -41,6 +45,17 @@
   </div>
 
   <div class="right-group">
+    <button
+      type="button"
+      class="status-item clickable vim-btn"
+      class:active={isVimMode}
+      onclick={() => { if (onToggleVim) onToggleVim(); }}
+      title={isVimMode ? 'Desactivar modo VIM en el editor' : 'Activar modo VIM en el editor'}
+    >
+      <span class="vim-badge">VIM</span>
+      <span>{isVimMode ? 'ON' : 'OFF'}</span>
+    </button>
+    <div class="divider"></div>
     <div class="status-item">
       <span>{wordCount} palabras</span>
     </div>
@@ -104,6 +119,29 @@
 
   .status-item.highlight {
     color: var(--text-secondary, #656d76);
+  }
+
+  .vim-btn {
+    font-weight: 600;
+  }
+
+  .vim-btn.active {
+    color: var(--accent, #0969da);
+    background: var(--accent-bg, rgba(9, 105, 218, 0.1));
+  }
+
+  .vim-badge {
+    font-size: 10px;
+    padding: 1px 4px;
+    background: var(--border-primary, #d0d7de);
+    color: var(--text-primary, #1f2328);
+    border-radius: 3px;
+    font-weight: 700;
+  }
+
+  .vim-btn.active .vim-badge {
+    background: var(--accent, #0969da);
+    color: #ffffff;
   }
 
   .divider {
