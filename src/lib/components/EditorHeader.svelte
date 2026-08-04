@@ -5,20 +5,24 @@
   interface Props {
     title?: string;
     isEditing?: boolean;
+    showSaveButton?: boolean;
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
     onCloseTab?: () => void;
+    onSave?: () => void;
     onAction?: (actionId: string) => void;
   }
 
   let {
     title = 'Nota de bienvenida.md',
     isEditing = $bindable(true),
+    showSaveButton = false,
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
     onCloseTab,
+    onSave,
     onAction
   }: Props = $props();
 
@@ -72,6 +76,24 @@
   </div>
 
   <div class="right-section">
+    {#if showSaveButton}
+      <button
+        type="button"
+        class="save-btn"
+        onclick={() => {
+          if (onSave) onSave();
+        }}
+        title="Guardar / Grabar cambios (Ctrl+S)"
+      >
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        <span>Grabar</span>
+      </button>
+    {/if}
+
     <button
       type="button"
       class="view-toggle-btn"
@@ -242,6 +264,26 @@
     background: rgba(0, 0, 0, 0.05);
     color: var(--accent, #0969da);
     border-color: var(--accent, #0969da);
+  }
+
+  .save-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--accent-bg, rgba(9, 105, 218, 0.1));
+    border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent, #0969da);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .save-btn:hover {
+    background: var(--accent, #0969da);
+    color: #ffffff;
   }
 
   .icon {

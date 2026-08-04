@@ -171,7 +171,32 @@
           isEditing = !isEditing;
         },
       },
+      {
+        id: "cmd-save-note",
+        name: "Guardar / Grabar nota actual",
+        category: "Archivo",
+        shortcut: "Ctrl+S",
+        action: () => {
+          if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+            persistNoteToRust(currentNote);
+          }
+        },
+      },
     ]);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+          persistNoteToRust(currentNote);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   });
 
   function handleRibbonAction(actionId: string) {
@@ -307,7 +332,18 @@
         ? currentNote.relative_path ||
           (currentNote.title ? `${currentNote.title}.md` : "")
         : ""}
+      showSaveButton={isEditing &&
+        activeNoteIndex >= 0 &&
+        currentNote &&
+        (!currentNote.relative_path ||
+          currentNote.relative_path.endsWith(".md") ||
+          currentNote.relative_path.endsWith(".markdown"))}
       onCloseTab={() => (activeNoteIndex = -1)}
+      onSave={() => {
+        if (activeNoteIndex >= 0 && notes[activeNoteIndex]) {
+          persistNoteToRust(currentNote);
+        }
+      }}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
 

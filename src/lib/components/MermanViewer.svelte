@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { initMerman, renderSvg } from '@mermanjs/web';
+  import { initMerman, renderSvg, validate } from '@mermanjs/web';
   import { onMount, onDestroy, tick } from 'svelte';
 
   interface Props {
@@ -8,7 +8,7 @@
     onChange?: (content: string) => void;
   }
 
-  let { content = '' }: Props = $props();
+  let { content = '', readOnly = false, onChange }: Props = $props();
 
   let svgContent = $state('');
   let isReady = $state(false);
@@ -21,7 +21,7 @@
   let startX = $state(0);
   let startY = $state(0);
 
-  // Modo Puntero Láser con mutación in-place para conservar referencias de array
+  // Modo Puntero Láser
   let isLaserMode = $state(false);
   let canvasRef = $state<HTMLCanvasElement | null>(null);
   
@@ -35,6 +35,19 @@
   let containerRef = $state<HTMLDivElement | null>(null);
   let baseViewBox = $state<{ x: number; y: number; w: number; h: number } | null>(null);
 
+  // Referencias para el editor de código con números de línea
+  let textareaRef = $state<HTMLTextAreaElement | null>(null);
+  let lineNumbersRef = $state<HTMLDivElement | null>(null);
+
+  let lineCount = $derived((content || '').split('\n').length);
+  let lineArray = $derived(Array.from({ length: Math.max(1, lineCount) }, (_, i) => i + 1));
+
+  function handleEditorScroll() {
+    if (textareaRef && lineNumbersRef) {
+      lineNumbersRef.scrollTop = textareaRef.scrollTop;
+    }
+  }
+
   onMount(async () => {
     try {
       await initMerman();
@@ -47,27 +60,32 @@
   $effect(() => {
     if (isReady && content) {
       try {
-        const svgStr = renderSvg(content);
-        error = '';
-        scale = 1;
-        panX = 0;
-        panY = 0;
+        const valRes = validate(content);
+        if (!valRes.valid) {
+          error = valRes.error || `Error de sintaxis (${valRes.code_name || 'MERMAN_PARSE_ERROR'})`;
+        } else {
+          const svgStr = renderSvg(content);
+          error = '';
+          scale = 1;
+          panX = 0;
+          panY = 0;
 
-        const match = svgStr.match(/viewBox=["']([^"']+)["']/i);
-        let parsedVb: { x: number; y: number; w: number; h: number } | null = null;
-        if (match && match[1]) {
-          const parts = match[1].trim().split(/[\s,]+/).map(Number);
-          if (parts.length === 4 && !parts.some(isNaN)) {
-            parsedVb = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+          const match = svgStr.match(/viewBox=["']([^"']+)["']/i);
+          let parsedVb: { x: number; y: number; w: number; h: number } | null = null;
+          if (match && match[1]) {
+            const parts = match[1].trim().split(/[\s,]+/).map(Number);
+            if (parts.length === 4 && !parts.some(isNaN)) {
+              parsedVb = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+            }
           }
+          if (!parsedVb) {
+            parsedVb = { x: 0, y: 0, w: 800, h: 600 };
+          }
+          baseViewBox = parsedVb;
+          svgContent = svgStr;
         }
-        if (!parsedVb) {
-          parsedVb = { x: 0, y: 0, w: 800, h: 600 };
-        }
-        baseViewBox = parsedVb;
-        svgContent = svgStr;
-      } catch (e) {
-        error = 'Error de sintaxis Mermaid:\n' + String(e);
+      } catch (e: any) {
+        error = String(e?.message || e);
       }
     } else if (isReady && !content) {
       svgContent = '';
@@ -125,14 +143,12 @@
     ctx.clearRect(0, 0, canvasRef.width, canvasRef.height);
 
     const now = Date.now();
-    const maxAge = 1600; // 1600ms de desvanecimiento (duración más prolongada de la estela)
+    const maxAge = 1600;
 
-    // Mientras el puntero esté presionado, mantenemos vivo el último punto del trazo activo
     if (isDragging && activeStroke && activeStroke.length > 0) {
       activeStroke[activeStroke.length - 1].time = now;
     }
 
-    // Purgar puntos obsoletos in-place para no romper la referencia de array
     for (let i = laserStrokes.length - 1; i >= 0; i--) {
       const stroke = laserStrokes[i];
       while (stroke.length > 0 && now - stroke[0].time >= maxAge) {
@@ -158,7 +174,6 @@
         continue;
       }
 
-      // Dibujar líneas curvas suaves con desvanecimiento por segmento
       for (let i = 0; i < stroke.length - 1; i++) {
         const p1 = stroke[i];
         const p2 = stroke[i + 1];
@@ -186,7 +201,6 @@
         ctx.stroke();
       }
 
-      // Punto resplandeciente en la punta del láser
       const head = stroke[stroke.length - 1];
       const headAge = now - head.time;
       const headAlpha = Math.max(0, 1 - headAge / maxAge);
@@ -279,7 +293,69 @@
   }
 </script>
 
-<div class="merman-container">
+<div class="merman-container" class:split-mode={!readOnly}>
+  {#if !readOnly}
+    <div class="editor-pane">
+      <div class="editor-header-bar">
+        <span>Código Mermaid</span>
+        <div class="editor-header-actions">
+          {#if error}
+            <span class="syntax-error-badge">Error de sintaxis</span>
+          {/if}
+          <button
+            type="button"
+            class="editor-save-btn"
+            onclick={() => { if (onChange) onChange(content); }}
+            title="Guardar / Grabar cambios"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Grabar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-body">
+        <!-- Columna de números de línea sincronizada -->
+        <div class="line-numbers-column" bind:this={lineNumbersRef}>
+          {#each lineArray as lineNum}
+            <span class="line-num">{lineNum}</span>
+          {/each}
+        </div>
+
+        <!-- Área de edición de código -->
+        <div class="code-area">
+          <textarea
+            bind:this={textareaRef}
+            class="mermaid-code-input"
+            value={content}
+            onscroll={handleEditorScroll}
+            oninput={(e) => {
+              const val = (e.target as HTMLTextAreaElement).value;
+              if (onChange) onChange(val);
+            }}
+            placeholder="Escribe tu código Mermaid aquí (ej: flowchart TD...)"
+            spellcheck="false"
+          ></textarea>
+        </div>
+      </div>
+
+      {#if error}
+        <div class="editor-error-footer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <pre>{error}</pre>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     class="preview-pane"
@@ -292,7 +368,10 @@
     onpointercancel={handlePointerUp}
   >
     {#if error}
-      <div class="error-msg">{error}</div>
+      <div class="error-msg">
+        <div class="error-title">Error al renderizar diagrama Mermaid</div>
+        <pre>{error}</pre>
+      </div>
     {/if}
     {#if !isReady}
       <div class="loading">Cargando Merman...</div>
@@ -328,13 +407,153 @@
 <style>
   .merman-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100%;
     width: 100%;
     box-sizing: border-box;
     position: relative;
     overflow: hidden;
     background: var(--bg-primary, #ffffff);
+  }
+
+  .editor-pane {
+    width: 40%;
+    min-width: 280px;
+    height: 100%;
+    border-right: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-secondary, #f6f8fa);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .editor-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #656d76);
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #ffffff);
+  }
+
+  .editor-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .editor-save-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: var(--accent-bg, rgba(9, 105, 218, 0.1));
+    border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent, #0969da);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .editor-save-btn:hover {
+    background: var(--accent, #0969da);
+    color: #ffffff;
+  }
+
+  .syntax-error-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: #cf222e;
+    background: #ffebe9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(207, 34, 46, 0.3);
+    text-transform: none;
+  }
+
+  .editor-body {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary, #ffffff);
+  }
+
+  .line-numbers-column {
+    width: 44px;
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: var(--bg-secondary, #f6f8fa);
+    border-right: 1px solid var(--border-primary, #d0d7de);
+    color: var(--text-secondary, #8c959f);
+    font-family: var(--code-font, 'Fira Code', 'Cascadia Code', monospace);
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: right;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  .line-num {
+    display: block;
+    padding-right: 10px;
+  }
+
+  .code-area {
+    flex: 1;
+    position: relative;
+    height: 100%;
+  }
+
+  .mermaid-code-input {
+    width: 100%;
+    height: 100%;
+    padding: 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: var(--code-font, 'Fira Code', 'Cascadia Code', monospace);
+    font-size: 13px;
+    line-height: 1.6;
+    background: transparent;
+    color: var(--text-primary, #1f2328);
+    box-sizing: border-box;
+    tab-size: 2;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .editor-error-footer {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #ffebe9;
+    border-top: 1px solid rgba(207, 34, 46, 0.3);
+    color: #cf222e;
+    font-size: 12px;
+    font-family: var(--code-font, monospace);
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .editor-error-footer pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+  }
+
+  .editor-error-footer svg {
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   .preview-pane {
@@ -388,14 +607,26 @@
   .error-msg {
     color: #cf222e;
     background: #ffebe9;
-    padding: 12px;
-    border-radius: 6px;
+    padding: 14px;
+    border-radius: 8px;
     font-family: var(--code-font, monospace);
     font-size: 13px;
-    white-space: pre-wrap;
-    width: 80%;
-    border: 1px solid rgba(207, 34, 46, 0.2);
+    width: 85%;
+    border: 1px solid rgba(207, 34, 46, 0.3);
     z-index: 10;
+    box-shadow: 0 4px 12px rgba(207, 34, 46, 0.1);
+  }
+
+  .error-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .error-msg pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .loading {
