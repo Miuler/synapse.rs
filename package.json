@@ -19,6 +19,7 @@
     "vite": "^8.1.1"
   },
   "dependencies": {
+    "@mermanjs/web": "^0.7.0",
     "@milkdown/core": "^7.21.3",
     "@milkdown/plugin-diagram": "^7.7.0",
     "@milkdown/plugin-listener": "^7.21.3",

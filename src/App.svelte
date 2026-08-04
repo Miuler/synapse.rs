@@ -4,6 +4,7 @@
   import StatusBar from './lib/components/StatusBar.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
+  import MermanViewer from './lib/components/MermanViewer.svelte';
   import { commandRegistry } from './lib/services/commands.svelte';
   import { invokeTauri, isTauriEnvironment } from './lib/services/tauri';
   import { info, error, warn } from '@tauri-apps/plugin-log';
@@ -38,7 +39,18 @@
   );
   let charCount = $derived(currentNote.content ? currentNote.content.length : 0);
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+
+  let editorContainerRef = $state<HTMLDivElement | null>(null);
+
+  // Volver al inicio del documento cada vez que se abre una nota distinta,
+  // ya que el editor de Milkdown se reutiliza entre notas y conserva el scroll anterior.
+  $effect(() => {
+    activeNoteIndex;
+    tick().then(() => {
+      if (editorContainerRef) editorContainerRef.scrollTop = 0;
+    });
+  });
 
   // Carga estrictamente dinámica desde Rust (Tauri IPC) al montar
   onMount(() => {
@@ -195,7 +207,7 @@
     />
 
     <!-- CONTENEDOR DEL EDITOR -->
-    <div class="editor-container">
+    <div class="editor-container" bind:this={editorContainerRef}>
       {#if notes.length === 0}
         <div class="empty-workspace">
           <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -223,15 +235,26 @@
         />
 
         <div class="editor-main-content">
-          <MarkdownViewer
-            content={currentNote.content}
-            readOnly={!isEditing}
-            onChange={(updatedMarkdown) => {
-              currentNote.content = updatedMarkdown;
-              persistNoteToRust(currentNote);
-            }}
-            isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
-          />
+          {#if currentNote.relative_path && (currentNote.relative_path.endsWith('.mmd') || currentNote.relative_path.endsWith('.mermaid'))}
+            <MermanViewer
+              content={currentNote.content}
+              readOnly={!isEditing}
+              onChange={(updatedContent) => {
+                currentNote.content = updatedContent;
+                persistNoteToRust(currentNote);
+              }}
+            />
+          {:else}
+            <MarkdownViewer
+              content={currentNote.content}
+              readOnly={!isEditing}
+              onChange={(updatedMarkdown) => {
+                currentNote.content = updatedMarkdown;
+                persistNoteToRust(currentNote);
+              }}
+              isMarkdown={!currentNote.relative_path || currentNote.relative_path.endsWith('.md') || currentNote.relative_path.endsWith('.markdown')}
+            />
+          {/if}
         </div>
       {/if}
     </div>
@@ -253,10 +276,8 @@
 
 <style>
   .editor-main-content {
-    flex-grow: 1;
     display: flex;
     flex-direction: column;
-    height: 100%;
   }
 
   .empty-workspace {

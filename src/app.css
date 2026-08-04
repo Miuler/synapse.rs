@@ -185,6 +185,8 @@ code {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex-grow: 1;
+  overflow-y: auto;
 }
 
 .file-tree-item {
@@ -220,6 +222,7 @@ code {
 
 .editor-container {
   flex-grow: 1;
+  min-height: 0;
   padding: 32px 48px;
   overflow-y: auto;
   display: flex;

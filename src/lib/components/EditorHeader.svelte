@@ -123,6 +123,7 @@
 <style>
   .editor-header {
     height: 42px;
+    flex-shrink: 0;
     background-color: var(--bg-primary, #ffffff);
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     display: flex;

@@ -62,6 +62,7 @@
 <style>
   .status-bar {
     height: 26px;
+    flex-shrink: 0;
     background-color: var(--bg-secondary, #f6f8fa);
     border-top: 1px solid var(--border-primary, #d0d7de);
     display: flex;
