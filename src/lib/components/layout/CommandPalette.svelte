@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { commandRegistry, type AppCommand } from '../services/commands.svelte';
+  import { commandRegistry, type AppCommand } from '../../services/commands.svelte';
 
   interface Props {
     isOpen?: boolean;

@@ -129,13 +129,14 @@
 <style>
   .milkdown-wrapper {
     width: 100%;
-    min-height: 400px;
+    min-height: 100%;
     background-color: transparent;
   }
 
   .milkdown-container {
-    padding: 16px;
-    min-height: 400px;
+    padding: 16px 24px;
+    min-height: 100%;
+    box-sizing: border-box;
   }
 
   .milkdown-container.hidden {

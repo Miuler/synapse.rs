@@ -1,11 +1,11 @@
 <script lang="ts">
-  import Ribbon from "./lib/components/Ribbon.svelte";
-  import EditorHeader from "./lib/components/EditorHeader.svelte";
-  import StatusBar from "./lib/components/StatusBar.svelte";
-  import CommandPalette from "./lib/components/CommandPalette.svelte";
-  import MarkdownViewer from "./lib/components/MarkdownViewer.svelte";
-  import MermanViewer from "./lib/components/MermanViewer.svelte";
-  import ExcalidrawViewer from "./lib/components/ExcalidrawViewer.svelte";
+  import Ribbon from "./lib/components/layout/Ribbon.svelte";
+  import EditorHeader from "./lib/components/layout/EditorHeader.svelte";
+  import StatusBar from "./lib/components/layout/StatusBar.svelte";
+  import CommandPalette from "./lib/components/layout/CommandPalette.svelte";
+  import MarkdownViewer from "./lib/components/viewer/MarkdownViewer.svelte";
+  import MermanViewer from "./lib/components/viewer/MermanViewer.svelte";
+  import ExcalidrawViewer from "./lib/components/viewer/ExcalidrawViewer.svelte";
   import { commandRegistry } from "./lib/services/commands.svelte";
   import { invokeTauri, isTauriEnvironment } from "./lib/services/tauri";
   import { info, error, warn } from "@tauri-apps/plugin-log";
@@ -333,8 +333,8 @@
 
   <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
   {#if activeRibbonTab === "files" || activeRibbonTab === "search"}
-    <aside 
-      class="sidebar-panel" 
+    <aside
+      class="sidebar-panel"
       class:is-resizing={isResizingSidebar}
       style="width: {sidebarWidth}px;"
     >
@@ -373,9 +373,7 @@
               />
               <polyline points="14 2 14 8 20 8" />
             </svg>
-            <span class="file-name"
-              >{note.relative_path || `${note.title}.md`}</span
-            >
+            <span class="file-name">{note.relative_path || `${note.title}.md`}</span>
           </div>
         {/each}
       </div>
@@ -560,6 +558,9 @@
   .editor-main-content {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .empty-workspace {

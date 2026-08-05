@@ -1,7 +1,7 @@
 <script lang="ts">
   import { initMerman, renderSvg, validate } from '@mermanjs/web';
   import { onMount, onDestroy, tick } from 'svelte';
-  import CodeEditor from './CodeEditor.svelte';
+  import CodeEditor from '../editor/CodeEditor.svelte';
 
   interface Props {
     content: string;

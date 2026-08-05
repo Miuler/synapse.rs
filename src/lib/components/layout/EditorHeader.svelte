@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { isTauriEnvironment } from '../services/tauri';
+  import { isTauriEnvironment } from '../../services/tauri';
 
   export interface TabItem {
     path: string;
@@ -150,14 +150,14 @@
     >
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         {#if isEditing}
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        {:else}
           <path d="M12 20h9"/>
           <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        {:else}
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
         {/if}
       </svg>
-      <span>{isEditing ? 'Lectura' : 'Edición'}</span>
+      <span>{isEditing ? 'Edición' : 'Lectura'}</span>
     </button>
 
     <button type="button" class="icon-btn" onclick={() => { if (onSplitView) onSplitView(); }} title="Dividir panel verticalmente">
