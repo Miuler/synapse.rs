@@ -37,7 +37,7 @@
     style="width: {sidebarWidth}px;"
   >
     <div class="sidebar-header">
-      <span>{activeRibbonTab === 'files' ? 'Bóveda de Notas' : 'Buscar'}</span>
+      <span>{activeRibbonTab === 'files' ? 'Bóveda de Archivos' : 'Buscar'}</span>
       {#if isConnectedToRust}
         <button
           type="button"
@@ -50,13 +50,13 @@
       {/if}
     </div>
     <div class="sidebar-content">
-      {#each vaultItems as item}
+      {#each vaultItems as vaultItem}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="file-tree-item"
-          class:active={item.relative_path === activeTabPath}
-          onclick={() => onSelectTab(item.relative_path)}
+          class:active={vaultItem.relative_path === activeTabPath}
+          onclick={() => onSelectTab(vaultItem.relative_path)}
         >
           <svg
             width="14"
@@ -71,7 +71,7 @@
             />
             <polyline points="14 2 14 8 20 8" />
           </svg>
-          <span class="file-name">{item.relative_path || `${item.title}.md`}</span>
+          <span class="file-name">{vaultItem.relative_path || `${vaultItem.title}.md`}</span>
         </div>
       {/each}
     </div>

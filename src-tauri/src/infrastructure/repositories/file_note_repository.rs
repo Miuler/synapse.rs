@@ -49,7 +49,7 @@ impl FileNoteRepository {
                     if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
                         if let Some(rel_str) = rel_path_buf.to_str() {
                             if let Ok(rel_path) = NoteRelativePath::new(rel_str) {
-                                let content = fs::read_to_string(&path).unwrap_or_default();
+                                let content = String::new();
                                 let title = path
                                     .file_stem()
                                     .and_then(|s| s.to_str())

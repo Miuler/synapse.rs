@@ -20,18 +20,52 @@
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
 
-  // Estado reactivo dinámico
+  // Lista de metadatos de elementos de la bóveda (VaultItem[])
   let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
   let sidebarWidth = $state(240);
   let isResizingSidebar = $state(false);
 
+  // Mapa reactivo de contenidos cargados BAJO DEMANDA sólo para las pestañas abiertas
+  let loadedContents = $state<Record<string, string>>({});
+  let savedContents = $state<Record<string, string>>({});
+  let loadingPaths = $state<Record<string, boolean>>({});
+
+  async function ensureContentLoaded(path: string) {
+    if (!path || loadedContents[path] !== undefined || loadingPaths[path]) return;
+
+    if (isTauriEnvironment()) {
+      loadingPaths[path] = true;
+      try {
+        const noteData = await invokeTauri<{
+          relative_path: string;
+          title: string;
+          content: string;
+        }>("read_note_content", { relativePath: path });
+
+        const fetchedContent = noteData?.content ?? "";
+        loadedContents[path] = fetchedContent;
+        savedContents[path] = fetchedContent;
+      } catch (e) {
+        console.error(`Error al cargar contenido de ${path} desde Rust:`, e);
+        loadedContents[path] = "";
+        savedContents[path] = "";
+      } finally {
+        loadingPaths[path] = false;
+      }
+    } else {
+      loadedContents[path] = "";
+      savedContents[path] = "";
+    }
+  }
+
   function selectTab(path: string) {
     if (!openTabPaths.includes(path)) {
       openTabPaths.push(path);
     }
     activeTabPath = path;
+    ensureContentLoaded(path);
   }
 
   function closeTab(path: string) {
@@ -42,54 +76,66 @@
         if (openTabPaths.length > 0) {
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
+          if (activeTabPath) ensureContentLoaded(activeTabPath);
         } else {
           activeTabPath = null;
         }
       }
     }
+    // Liberar memoria del contenido cuando la pestaña se cierra
+    delete loadedContents[path];
+    delete savedContents[path];
+    delete loadingPaths[path];
   }
 
-  let savedContents = $state<Record<string, string>>({});
-
-  let currentItem = $derived(
+  let currentVaultItem = $derived(
     activeTabPath && vaultItems.length > 0
-      ? vaultItems.find((item) => item.relative_path === activeTabPath) || { id: "0", title: "", content: "", relative_path: "" }
-      : { id: "0", title: "", content: "", relative_path: "" }
+      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || { id: "0", title: "", relative_path: "" }
+      : { id: "0", title: "", relative_path: "" }
+  );
+
+  let activeContent = $derived(
+    activeTabPath ? loadedContents[activeTabPath] ?? "" : ""
   );
 
   let tabsInfo = $derived(
     openTabPaths.map((path) => {
-      const item = vaultItems.find((i) => i.relative_path === path);
-      const isDirty = item ? (savedContents[path] !== undefined && item.content !== savedContents[path]) : false;
+      const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const isDirty = vaultItem
+        ? loadedContents[path] !== undefined &&
+          savedContents[path] !== undefined &&
+          loadedContents[path] !== savedContents[path]
+        : false;
       return {
         path,
-        title: item ? (item.title || item.relative_path) : path,
+        title: vaultItem ? vaultItem.title || vaultItem.relative_path : path,
         isDirty,
       };
     })
   );
 
-  // Contadores calculados reactivamente
+  // Contadores calculados reactivamente sobre el contenido activo
   let wordCount = $derived(
-    currentItem.content && currentItem.content.trim()
-      ? currentItem.content.trim().split(/\s+/).length
-      : 0,
+    activeContent && activeContent.trim()
+      ? activeContent.trim().split(/\s+/).length
+      : 0
   );
-  let charCount = $derived(
-    currentItem.content ? currentItem.content.length : 0,
-  );
+  let charCount = $derived(activeContent ? activeContent.length : 0);
 
   let editorContainerRef = $state<HTMLDivElement | null>(null);
 
-  // Volver al inicio del documento cada vez que se abre un archivo distinto
+  // Volver al inicio del documento y asegurar carga al cambiar de pestaña
   $effect(() => {
-    activeTabPath;
+    const path = activeTabPath;
+    if (path) {
+      ensureContentLoaded(path);
+    }
     tick().then(() => {
       if (editorContainerRef) editorContainerRef.scrollTop = 0;
     });
   });
 
-  // Carga estrictamente dinámica desde Rust (Tauri IPC) al montar
+  // Carga únicamente de metadatos desde Rust (Tauri IPC) al montar
   onMount(() => {
     async function fetchNotesFromBackend() {
       if (isTauriEnvironment()) {
@@ -99,13 +145,12 @@
               Array<{
                 relative_path: { 0?: string } | string;
                 title: string;
-                content: string;
+                content?: string;
               }>
             >("get_vault_notes");
 
           if (realNotes && Array.isArray(realNotes)) {
             isConnectedToRust = true;
-            const newSavedMap: Record<string, string> = {};
             vaultItems = realNotes.map((n, index) => {
               let relPath = `${n.title}.md`;
               if (typeof n.relative_path === "string") {
@@ -118,32 +163,33 @@
                 relPath = n.relative_path[0];
               }
 
-              newSavedMap[relPath] = n.content;
-
               return {
                 id: String(index + 1),
                 title: n.title,
-                content: n.content,
                 relative_path: relPath,
               };
             });
-            savedContents = newSavedMap;
             openTabPaths = [];
             activeTabPath = null;
+            loadedContents = {};
+            savedContents = {};
           } else {
             vaultItems = [];
-            savedContents = {};
             openTabPaths = [];
             activeTabPath = null;
+            loadedContents = {};
+            savedContents = {};
           }
         } catch (e) {
-          console.warn("Error al cargar archivos de Rust:", e);
+          console.warn("Error al cargar lista de archivos de Rust:", e);
           isConnectedToRust = false;
           vaultItems = [];
+          loadedContents = {};
           savedContents = {};
         }
       } else {
         vaultItems = [];
+        loadedContents = {};
         savedContents = {};
       }
     }
@@ -155,28 +201,31 @@
   let autoSave = $state(true);
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  function debouncedPersistItemToRust(item: VaultItem, delay = 600) {
+  function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay = 600) {
     if (!autoSave) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-      persistItemToRust(item);
+      persistVaultItemToRust(vaultItem);
     }, delay);
   }
 
-  async function persistItemToRust(item: VaultItem) {
+  async function persistVaultItemToRust(vaultItem: VaultItem) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
     }
-    if (!isConnectedToRust || !item.title) return;
+    const path = vaultItem.relative_path;
+    if (!isConnectedToRust || !vaultItem.title || !path) return;
+    const contentToSave = loadedContents[path] ?? "";
+
     syncState = "saving";
     try {
       await invokeTauri("save_note_content", {
-        relativePath: item.relative_path || `${item.title}.md`,
-        title: item.title,
-        content: item.content,
+        relativePath: path,
+        title: vaultItem.title,
+        content: contentToSave,
       });
-      savedContents[item.relative_path] = item.content;
+      savedContents[path] = contentToSave;
       syncState = "synced";
     } catch (e) {
       console.error("Error al guardar el archivo en Rust:", e);
@@ -184,18 +233,19 @@
     }
   }
 
-  async function createNewFile() {
+  async function createNewVaultItem() {
     const newTitle = `Nuevo Archivo ${vaultItems.length + 1}`;
     const newRelPath = `${newTitle}.md`;
-    const newItem: VaultItem = {
+    const newVaultItem: VaultItem = {
       id: String(vaultItems.length + 1),
       title: newTitle,
-      content: "# Nuevo Archivo\n\nEscribe tu contenido aquí...",
       relative_path: newRelPath,
     };
-    vaultItems.push(newItem);
+    const initialContent = "# Nuevo Archivo\n\nEscribe tu contenido aquí...";
+    vaultItems.push(newVaultItem);
+    loadedContents[newRelPath] = initialContent;
     selectTab(newRelPath);
-    await persistItemToRust(newItem);
+    await persistVaultItemToRust(newVaultItem);
   }
 
   // Registrar comandos por defecto al iniciar
@@ -206,7 +256,7 @@
         name: "Crear nuevo archivo / nota",
         category: "Archivo",
         shortcut: "Ctrl+N",
-        action: createNewFile,
+        action: createNewVaultItem,
       },
       {
         id: "cmd-open-palette",
@@ -232,8 +282,8 @@
         category: "Archivo",
         shortcut: "Ctrl+S",
         action: () => {
-          if (activeTabPath && currentItem.relative_path) {
-            persistItemToRust(currentItem);
+          if (activeTabPath && currentVaultItem.relative_path) {
+            persistVaultItemToRust(currentVaultItem);
           }
         },
       },
@@ -242,8 +292,8 @@
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (activeTabPath && currentItem.relative_path) {
-          persistItemToRust(currentItem);
+        if (activeTabPath && currentVaultItem.relative_path) {
+          persistVaultItemToRust(currentVaultItem);
         }
       }
     };
@@ -258,16 +308,15 @@
     if (actionId === "command-palette") {
       isPaletteOpen = true;
     } else if (actionId === "new-note") {
-      createNewFile();
+      createNewVaultItem();
     }
   }
 
   async function handleOpenVaultFolder() {
     if (!isTauriEnvironment()) return;
     try {
-      const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content: string }> | null>('select_vault_folder');
+      const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content?: string }> | null>('select_vault_folder');
       if (newNotes && Array.isArray(newNotes)) {
-        const newSavedMap: Record<string, string> = {};
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
@@ -276,18 +325,16 @@
             relPath = n.relative_path[0];
           }
 
-          newSavedMap[relPath] = n.content;
-
           return {
             id: String(index + 1),
             title: n.title,
-            content: n.content,
             relative_path: relPath
           };
         });
-        savedContents = newSavedMap;
         openTabPaths = [];
         activeTabPath = null;
+        loadedContents = {};
+        savedContents = {};
       }
     } catch (e) {
       console.error('Error al abrir la carpeta de la bóveda:', e);
@@ -344,25 +391,25 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
-      title={currentItem.relative_path || currentItem.title}
+      title={currentVaultItem.relative_path || currentVaultItem.title}
       showSaveButton={isEditing &&
         !!activeTabPath &&
-        (!currentItem.relative_path ||
-          currentItem.relative_path.endsWith(".md") ||
-          currentItem.relative_path.endsWith(".markdown") ||
-          currentItem.relative_path.endsWith(".excalidraw") ||
-          currentItem.relative_path.endsWith(".excalidraw.json"))}
+        (!currentVaultItem.relative_path ||
+          currentVaultItem.relative_path.endsWith(".md") ||
+          currentVaultItem.relative_path.endsWith(".markdown") ||
+          currentVaultItem.relative_path.endsWith(".excalidraw") ||
+          currentVaultItem.relative_path.endsWith(".excalidraw.json"))}
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
       onSave={() => {
-        if (activeTabPath && currentItem.relative_path) {
-          persistItemToRust(currentItem);
+        if (activeTabPath && currentVaultItem.relative_path) {
+          persistVaultItemToRust(currentVaultItem);
         }
       }}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
     />
 
-    <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB -->
+    <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
     <div class="editor-container" bind:this={editorContainerRef}>
       {#if openTabPaths.length === 0 || !activeTabPath}
         <div class="empty-workspace">
@@ -389,7 +436,7 @@
               ? "Crea un nuevo archivo para comenzar a escribir."
               : "Selecciona un archivo del panel lateral para abrirlo."}
           </p>
-          <button class="create-btn" onclick={createNewFile}>
+          <button class="create-btn" onclick={createNewVaultItem}>
             <svg
               width="16"
               height="16"
@@ -406,8 +453,11 @@
         </div>
       {:else}
         {#each openTabPaths as tabPath (tabPath)}
-          {@const item = vaultItems.find((i) => i.relative_path === tabPath)}
-          {#if item}
+          {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath)}
+          {@const content = loadedContents[tabPath]}
+          {@const isLoading = loadingPaths[tabPath]}
+
+          {#if vaultItem}
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
@@ -416,45 +466,50 @@
                 tabPath.endsWith(".excalidraw") ||
                 tabPath.endsWith(".excalidraw.json")}
             >
-              {#if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
+              {#if isLoading || content === undefined}
+                <div class="content-loading">
+                  <span class="spinner"></span>
+                  <span>Cargando contenido desde disco...</span>
+                </div>
+              {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
                 <MermanViewer
-                  content={item.content}
+                  {content}
                   readOnly={!isEditing}
                   vimMode={isVimMode}
                   onChange={(updatedContent) => {
-                    item.content = updatedContent;
-                    debouncedPersistItemToRust(item);
+                    loadedContents[tabPath] = updatedContent;
+                    debouncedPersistVaultItemToRust(vaultItem);
                   }}
                 />
               {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
                 <ExcalidrawViewer
-                  content={item.content}
+                  {content}
                   readOnly={!isEditing}
                   onChange={(updatedContent) => {
-                    item.content = updatedContent;
-                    debouncedPersistItemToRust(item);
+                    loadedContents[tabPath] = updatedContent;
+                    debouncedPersistVaultItemToRust(vaultItem);
                   }}
                 />
               {:else}
                 <input
                   type="text"
                   class="editor-title-input"
-                  bind:value={item.title}
-                  oninput={() => persistItemToRust(item)}
+                  bind:value={vaultItem.title}
+                  oninput={() => persistVaultItemToRust(vaultItem)}
                   placeholder="Título del archivo..."
                 />
 
                 <div class="editor-main-content">
                   <MarkdownViewer
-                    content={item.content}
+                    {content}
                     readOnly={!isEditing}
                     onChange={(updatedMarkdown) => {
-                      item.content = updatedMarkdown;
-                      debouncedPersistItemToRust(item);
+                      loadedContents[tabPath] = updatedMarkdown;
+                      debouncedPersistVaultItemToRust(vaultItem);
                     }}
-                    isMarkdown={!item.relative_path ||
-                      item.relative_path.endsWith(".md") ||
-                      item.relative_path.endsWith(".markdown")}
+                    isMarkdown={!vaultItem.relative_path ||
+                      vaultItem.relative_path.endsWith(".md") ||
+                      vaultItem.relative_path.endsWith(".markdown")}
                   />
                 </div>
               {/if}
@@ -469,8 +524,8 @@
       wordCount={vaultItems.length > 0 ? wordCount : 0}
       charCount={vaultItems.length > 0 ? charCount : 0}
       line={vaultItems.length > 0 ? 1 : 0}
-      col={vaultItems.length > 0 && currentItem.content
-        ? currentItem.content.length
+      col={vaultItems.length > 0 && activeContent
+        ? activeContent.length
         : 0}
       syncStatus={syncState}
       isVimMode={isVimMode}
@@ -526,6 +581,29 @@
 
   .tab-pane.full-pane {
     padding: 0;
+  }
+
+  .content-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    color: var(--text-secondary, #656d76);
+    font-size: 14px;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-primary, #d0d7de);
+    border-top-color: var(--accent, #0969da);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .editor-title-input {
