@@ -35,13 +35,13 @@ src/
 │   └── command-palette/      # Modal superpuesto para la paleta de comandos (Ctrl+P)
 │
 ├── features/                 # Capa Features: Funcionalidades orientadas a la interacción del usuario
-│   ├── vault-explorer/       # Explorador de archivos del vault y selección de carpeta
+│   ├── vault-explorer/       # Explorador de archivos de la bóveda (Markdown, Mermaid, Excalidraw, PDFs, etc.)
 │   ├── markdown-editor/      # Editor y visor de notas Markdown con Milkdown
 │   ├── merman-editor/        # Editor/visor interactivo de diagramas Mermaid + Láser
 │   └── excalidraw-editor/    # Visualizador e integrador de lienzos Excalidraw
 │
 ├── entities/                 # Capa Entities: Entidades de negocio y modelos del dominio
-│   ├── note/                 # Tipos y estado del dominio de notas (`NoteItem`, `TabItem`)
+│   ├── vault-item/           # Modelo de elemento de bóveda (`VaultItem`, `VaultItemKind`, `TabItem`)
 │   └── command/              # Registro de comandos y motor de búsqueda difusa (`commandRegistry`)
 │
 └── shared/                   # Capa Shared: Reutilizables de infraestructura sin lógica de negocio

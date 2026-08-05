@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { isTauriEnvironment } from '@shared/api';
-  import type { TabItem } from '@entities/note';
+  import type { TabItem } from '@entities/vault-item';
 
   interface Props {
     title?: string;
@@ -162,7 +162,7 @@
       </svg>
     </button>
 
-    <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones de la nota">
+    <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones del archivo">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="1"/>
         <circle cx="19" cy="12" r="1"/>

@@ -8,7 +8,7 @@
   import { MarkdownViewer } from "@features/markdown-editor";
   import { MermanViewer } from "@features/merman-editor";
   import { ExcalidrawViewer } from "@features/excalidraw-editor";
-  import type { NoteItem } from "@entities/note";
+  import type { VaultItem } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
   import { invokeTauri, isTauriEnvironment } from "@shared/api";
 
@@ -21,7 +21,7 @@
   let syncState = $state<"synced" | "saving" | "error">("synced");
 
   // Estado reactivo dinámico
-  let notes = $state<NoteItem[]>([]);
+  let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
   let sidebarWidth = $state(240);
@@ -51,19 +51,19 @@
 
   let savedContents = $state<Record<string, string>>({});
 
-  let currentNote = $derived(
-    activeTabPath && notes.length > 0
-      ? notes.find((n) => n.relative_path === activeTabPath) || { id: "0", title: "", content: "", relative_path: "" }
+  let currentItem = $derived(
+    activeTabPath && vaultItems.length > 0
+      ? vaultItems.find((item) => item.relative_path === activeTabPath) || { id: "0", title: "", content: "", relative_path: "" }
       : { id: "0", title: "", content: "", relative_path: "" }
   );
 
   let tabsInfo = $derived(
     openTabPaths.map((path) => {
-      const n = notes.find((item) => item.relative_path === path);
-      const isDirty = n ? (savedContents[path] !== undefined && n.content !== savedContents[path]) : false;
+      const item = vaultItems.find((i) => i.relative_path === path);
+      const isDirty = item ? (savedContents[path] !== undefined && item.content !== savedContents[path]) : false;
       return {
         path,
-        title: n ? (n.title || n.relative_path) : path,
+        title: item ? (item.title || item.relative_path) : path,
         isDirty,
       };
     })
@@ -71,17 +71,17 @@
 
   // Contadores calculados reactivamente
   let wordCount = $derived(
-    currentNote.content && currentNote.content.trim()
-      ? currentNote.content.trim().split(/\s+/).length
+    currentItem.content && currentItem.content.trim()
+      ? currentItem.content.trim().split(/\s+/).length
       : 0,
   );
   let charCount = $derived(
-    currentNote.content ? currentNote.content.length : 0,
+    currentItem.content ? currentItem.content.length : 0,
   );
 
   let editorContainerRef = $state<HTMLDivElement | null>(null);
 
-  // Volver al inicio del documento cada vez que se abre una nota distinta
+  // Volver al inicio del documento cada vez que se abre un archivo distinto
   $effect(() => {
     activeTabPath;
     tick().then(() => {
@@ -106,7 +106,7 @@
           if (realNotes && Array.isArray(realNotes)) {
             isConnectedToRust = true;
             const newSavedMap: Record<string, string> = {};
-            notes = realNotes.map((n, index) => {
+            vaultItems = realNotes.map((n, index) => {
               let relPath = `${n.title}.md`;
               if (typeof n.relative_path === "string") {
                 relPath = n.relative_path;
@@ -131,19 +131,19 @@
             openTabPaths = [];
             activeTabPath = null;
           } else {
-            notes = [];
+            vaultItems = [];
             savedContents = {};
             openTabPaths = [];
             activeTabPath = null;
           }
         } catch (e) {
-          console.warn("Error al cargar notas de Rust:", e);
+          console.warn("Error al cargar archivos de Rust:", e);
           isConnectedToRust = false;
-          notes = [];
+          vaultItems = [];
           savedContents = {};
         }
       } else {
-        notes = [];
+        vaultItems = [];
         savedContents = {};
       }
     }
@@ -155,58 +155,58 @@
   let autoSave = $state(true);
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  function debouncedPersistNoteToRust(note: NoteItem, delay = 600) {
+  function debouncedPersistItemToRust(item: VaultItem, delay = 600) {
     if (!autoSave) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-      persistNoteToRust(note);
+      persistItemToRust(item);
     }, delay);
   }
 
-  async function persistNoteToRust(note: NoteItem) {
+  async function persistItemToRust(item: VaultItem) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
     }
-    if (!isConnectedToRust || !note.title) return;
+    if (!isConnectedToRust || !item.title) return;
     syncState = "saving";
     try {
       await invokeTauri("save_note_content", {
-        relativePath: note.relative_path || `${note.title}.md`,
-        title: note.title,
-        content: note.content,
+        relativePath: item.relative_path || `${item.title}.md`,
+        title: item.title,
+        content: item.content,
       });
-      savedContents[note.relative_path] = note.content;
+      savedContents[item.relative_path] = item.content;
       syncState = "synced";
     } catch (e) {
-      console.error("Error al guardar la nota en Rust:", e);
+      console.error("Error al guardar el archivo en Rust:", e);
       syncState = "error";
     }
   }
 
-  async function createNewNote() {
-    const newTitle = `Nueva Nota ${notes.length + 1}`;
+  async function createNewFile() {
+    const newTitle = `Nuevo Archivo ${vaultItems.length + 1}`;
     const newRelPath = `${newTitle}.md`;
-    const newNote: NoteItem = {
-      id: String(notes.length + 1),
+    const newItem: VaultItem = {
+      id: String(vaultItems.length + 1),
       title: newTitle,
-      content: "# Nueva Nota\n\nEscribe tu contenido aquí...",
+      content: "# Nuevo Archivo\n\nEscribe tu contenido aquí...",
       relative_path: newRelPath,
     };
-    notes.push(newNote);
+    vaultItems.push(newItem);
     selectTab(newRelPath);
-    await persistNoteToRust(newNote);
+    await persistItemToRust(newItem);
   }
 
   // Registrar comandos por defecto al iniciar
   onMount(() => {
     commandRegistry.registerMany([
       {
-        id: "cmd-new-note",
-        name: "Crear nueva nota",
+        id: "cmd-new-file",
+        name: "Crear nuevo archivo / nota",
         category: "Archivo",
         shortcut: "Ctrl+N",
-        action: createNewNote,
+        action: createNewFile,
       },
       {
         id: "cmd-open-palette",
@@ -227,13 +227,13 @@
         },
       },
       {
-        id: "cmd-save-note",
-        name: "Guardar / Grabar nota actual",
+        id: "cmd-save-file",
+        name: "Guardar / Grabar archivo actual",
         category: "Archivo",
         shortcut: "Ctrl+S",
         action: () => {
-          if (activeTabPath && currentNote.relative_path) {
-            persistNoteToRust(currentNote);
+          if (activeTabPath && currentItem.relative_path) {
+            persistItemToRust(currentItem);
           }
         },
       },
@@ -242,8 +242,8 @@
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (activeTabPath && currentNote.relative_path) {
-          persistNoteToRust(currentNote);
+        if (activeTabPath && currentItem.relative_path) {
+          persistItemToRust(currentItem);
         }
       }
     };
@@ -258,7 +258,7 @@
     if (actionId === "command-palette") {
       isPaletteOpen = true;
     } else if (actionId === "new-note") {
-      createNewNote();
+      createNewFile();
     }
   }
 
@@ -268,7 +268,7 @@
       const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content: string }> | null>('select_vault_folder');
       if (newNotes && Array.isArray(newNotes)) {
         const newSavedMap: Record<string, string> = {};
-        notes = newNotes.map((n, index) => {
+        vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
             relPath = n.relative_path;
@@ -328,7 +328,7 @@
     {sidebarWidth}
     {isResizingSidebar}
     {isConnectedToRust}
-    {notes}
+    {vaultItems}
     {activeTabPath}
     onSelectTab={selectTab}
     onOpenVaultFolder={handleOpenVaultFolder}
@@ -344,19 +344,19 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
-      title={currentNote.relative_path || currentNote.title}
+      title={currentItem.relative_path || currentItem.title}
       showSaveButton={isEditing &&
         !!activeTabPath &&
-        (!currentNote.relative_path ||
-          currentNote.relative_path.endsWith(".md") ||
-          currentNote.relative_path.endsWith(".markdown") ||
-          currentNote.relative_path.endsWith(".excalidraw") ||
-          currentNote.relative_path.endsWith(".excalidraw.json"))}
+        (!currentItem.relative_path ||
+          currentItem.relative_path.endsWith(".md") ||
+          currentItem.relative_path.endsWith(".markdown") ||
+          currentItem.relative_path.endsWith(".excalidraw") ||
+          currentItem.relative_path.endsWith(".excalidraw.json"))}
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
       onSave={() => {
-        if (activeTabPath && currentNote.relative_path) {
-          persistNoteToRust(currentNote);
+        if (activeTabPath && currentItem.relative_path) {
+          persistItemToRust(currentItem);
         }
       }}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -380,16 +380,16 @@
             <line x1="9" y1="15" x2="15" y2="15" />
           </svg>
           <h2>
-            {notes.length === 0
+            {vaultItems.length === 0
               ? "No hay archivos en la bóveda"
               : "Ningún archivo abierto"}
           </h2>
           <p>
-            {notes.length === 0
-              ? "Crea una nueva nota para comenzar a escribir."
+            {vaultItems.length === 0
+              ? "Crea un nuevo archivo para comenzar a escribir."
               : "Selecciona un archivo del panel lateral para abrirlo."}
           </p>
-          <button class="create-btn" onclick={createNewNote}>
+          <button class="create-btn" onclick={createNewFile}>
             <svg
               width="16"
               height="16"
@@ -401,13 +401,13 @@
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>Crear nueva nota</span>
+            <span>Crear nuevo archivo</span>
           </button>
         </div>
       {:else}
         {#each openTabPaths as tabPath (tabPath)}
-          {@const note = notes.find((n) => n.relative_path === tabPath)}
-          {#if note}
+          {@const item = vaultItems.find((i) => i.relative_path === tabPath)}
+          {#if item}
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
@@ -418,43 +418,43 @@
             >
               {#if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
                 <MermanViewer
-                  content={note.content}
+                  content={item.content}
                   readOnly={!isEditing}
                   vimMode={isVimMode}
                   onChange={(updatedContent) => {
-                    note.content = updatedContent;
-                    debouncedPersistNoteToRust(note);
+                    item.content = updatedContent;
+                    debouncedPersistItemToRust(item);
                   }}
                 />
               {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
                 <ExcalidrawViewer
-                  content={note.content}
+                  content={item.content}
                   readOnly={!isEditing}
                   onChange={(updatedContent) => {
-                    note.content = updatedContent;
-                    debouncedPersistNoteToRust(note);
+                    item.content = updatedContent;
+                    debouncedPersistItemToRust(item);
                   }}
                 />
               {:else}
                 <input
                   type="text"
                   class="editor-title-input"
-                  bind:value={note.title}
-                  oninput={() => persistNoteToRust(note)}
-                  placeholder="Título de la nota..."
+                  bind:value={item.title}
+                  oninput={() => persistItemToRust(item)}
+                  placeholder="Título del archivo..."
                 />
 
                 <div class="editor-main-content">
                   <MarkdownViewer
-                    content={note.content}
+                    content={item.content}
                     readOnly={!isEditing}
                     onChange={(updatedMarkdown) => {
-                      note.content = updatedMarkdown;
-                      debouncedPersistNoteToRust(note);
+                      item.content = updatedMarkdown;
+                      debouncedPersistItemToRust(item);
                     }}
-                    isMarkdown={!note.relative_path ||
-                      note.relative_path.endsWith(".md") ||
-                      note.relative_path.endsWith(".markdown")}
+                    isMarkdown={!item.relative_path ||
+                      item.relative_path.endsWith(".md") ||
+                      item.relative_path.endsWith(".markdown")}
                   />
                 </div>
               {/if}
@@ -466,11 +466,11 @@
 
     <!-- BARRA DE ESTADO INFERIOR -->
     <StatusBar
-      wordCount={notes.length > 0 ? wordCount : 0}
-      charCount={notes.length > 0 ? charCount : 0}
-      line={notes.length > 0 ? 1 : 0}
-      col={notes.length > 0 && currentNote.content
-        ? currentNote.content.length
+      wordCount={vaultItems.length > 0 ? wordCount : 0}
+      charCount={vaultItems.length > 0 ? charCount : 0}
+      line={vaultItems.length > 0 ? 1 : 0}
+      col={vaultItems.length > 0 && currentItem.content
+        ? currentItem.content.length
         : 0}
       syncStatus={syncState}
       isVimMode={isVimMode}

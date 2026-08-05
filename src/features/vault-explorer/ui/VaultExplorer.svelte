@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { NoteItem } from '@entities/note';
+  import type { VaultItem } from '@entities/vault-item';
 
   interface Props {
     activeRibbonTab: string;
     sidebarWidth: number;
     isResizingSidebar: boolean;
     isConnectedToRust: boolean;
-    notes: NoteItem[];
+    vaultItems: VaultItem[];
     activeTabPath: string | null;
     onSelectTab: (path: string) => void;
     onOpenVaultFolder: () => void;
@@ -20,7 +20,7 @@
     sidebarWidth,
     isResizingSidebar,
     isConnectedToRust,
-    notes,
+    vaultItems,
     activeTabPath,
     onSelectTab,
     onOpenVaultFolder,
@@ -50,13 +50,13 @@
       {/if}
     </div>
     <div class="sidebar-content">
-      {#each notes as note}
+      {#each vaultItems as item}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="file-tree-item"
-          class:active={note.relative_path === activeTabPath}
-          onclick={() => onSelectTab(note.relative_path)}
+          class:active={item.relative_path === activeTabPath}
+          onclick={() => onSelectTab(item.relative_path)}
         >
           <svg
             width="14"
@@ -71,7 +71,7 @@
             />
             <polyline points="14 2 14 8 20 8" />
           </svg>
-          <span class="file-name">{note.relative_path || `${note.title}.md`}</span>
+          <span class="file-name">{item.relative_path || `${item.title}.md`}</span>
         </div>
       {/each}
     </div>

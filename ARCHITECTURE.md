@@ -6,7 +6,7 @@ Este proyecto combina un backend potente en **Rust** (Tauri v2) con un frontend 
 
 ## 🎨 1. Arquitectura Frontend: Feature-Sliced Design (FSD)
 
-El código web ubicado en `src/` sigue estrictamente **Feature-Sliced Design (FSD)**.
+El código web ubicado en `src/` sigue strictly **Feature-Sliced Design (FSD)**.
 
 ### Capas (Layers) de FSD (de menor a mayor jerarquía):
 
@@ -26,13 +26,13 @@ src/
 │   └── command-palette/ # Modal flotante para ejecución de comandos difusos (Ctrl+P)
 │
 ├── features/         # Interacciones del usuario que aportan valor de negocio concreto
-│   ├── vault-explorer/  # Explorador de archivos de la bóveda de notas
+│   ├── vault-explorer/  # Explorador de archivos de la bóveda (Markdown, Mermaid, Excalidraw, PDFs, etc.)
 │   ├── markdown-editor/ # Visor/editor Markdown enriquecido con Milkdown
 │   ├── merman-editor/   # Editor/visor interactivo de diagramas Mermaid + puntero láser
 │   └── excalidraw-editor/# Lienzo de dibujos a mano alzada con Excalidraw
 │
 ├── entities/         # Entidades del dominio de negocio (modelos de datos y registros)
-│   ├── note/         # Modelo de datos de Notas (`NoteItem`, `TabItem`)
+│   ├── vault-item/   # Modelo del elemento de bóveda (`VaultItem`, `VaultItemKind`, `TabItem`)
 │   └── command/      # Registro global y lógica de búsqueda de comandos (`commandRegistry`)
 │
 └── shared/           # Infraestructura reutilizable sin lógica de dominio
@@ -52,8 +52,8 @@ src/
 
 El backend en **Rust** (ubicado en `src-tauri/`) sigue **Onion Architecture**:
 
-- **Domain (Core Interno)**: Modelos de datos del vault, estructuras de notas e interfaces base de servicios.
-- **Application Services**: Casos de uso de la aplicación (crear nota, leer bóveda, persistencia en disco).
+- **Domain (Core Interno)**: Modelos de datos del vault, estructuras de archivos e interfaces base de servicios.
+- **Application Services**: Casos de uso de la aplicación (crear archivo, leer bóveda, persistencia en disco).
 - **Adapters / Infrastructure (Capa Exterior)**: Integración con el sistema de archivos del SO y la API de Tauri IPC.
 
 ---
