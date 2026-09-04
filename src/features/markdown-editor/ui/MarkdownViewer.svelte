@@ -210,7 +210,8 @@
     },
     '.cm-content': {
       padding: '16px 24px',
-      maxWidth: '900px',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
       minHeight: '100%',
     },
     '.cm-gutters': {

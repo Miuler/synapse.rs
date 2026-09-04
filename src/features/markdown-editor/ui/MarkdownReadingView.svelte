@@ -155,8 +155,8 @@
   }
 
   .markdown-body {
-    max-width: 860px;
-    margin: 0 auto;
+    max-width: 100%;
+    margin: 0;
     font-size: 15px;
   }
 
