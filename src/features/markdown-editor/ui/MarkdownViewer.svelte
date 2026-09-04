@@ -10,6 +10,7 @@
   import { vim } from '@replit/codemirror-vim';
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
+  import { imageLivePreviewField } from '../lib/image-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -153,6 +154,7 @@
     livePreviewTheme,
     syntaxHighlighting(livePreviewHighlightStyle),
     mermaidLivePreviewField,
+    imageLivePreviewField,
   ];
 
   // 2. Estilos y tema para modo Fuente puro (Source Mode monospaciado sin sustituciones de diagramas)
@@ -258,6 +260,111 @@
     },
     '&.cm-focused': {
       outline: 'none',
+    },
+    /* Estilos del widget de imagen interactivo en CodeMirror */
+    '.cm-image-widget-wrapper': {
+      display: 'block',
+      margin: '12px 0 16px 0',
+      textAlign: 'center',
+    },
+    '.cm-image-card': {
+      display: 'inline-block',
+      maxWidth: '100%',
+      position: 'relative',
+      borderRadius: '8px',
+      overflow: 'hidden',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      backgroundColor: 'var(--bg-primary, #ffffff)',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+    },
+    '.cm-image-card:hover': {
+      borderColor: 'rgba(9, 105, 218, 0.4)',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+    },
+    '.cm-image-actions': {
+      position: 'absolute',
+      top: '8px',
+      right: '8px',
+      opacity: '0',
+      transition: 'opacity 0.2s ease',
+      zIndex: '2',
+    },
+    '.cm-image-card:hover .cm-image-actions': {
+      opacity: '1',
+    },
+    '.cm-image-action-btn': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontSize: '11px',
+      fontWeight: '500',
+      padding: '3px 8px',
+      borderRadius: '4px',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      backgroundColor: 'rgba(255, 255, 255, 0.92)',
+      backdropFilter: 'blur(4px)',
+      color: 'var(--text-secondary, #656d76)',
+      cursor: 'pointer',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    },
+    '.cm-image-action-btn:hover': {
+      color: 'var(--accent, #0969da)',
+      borderColor: 'var(--accent, #0969da)',
+      backgroundColor: '#ffffff',
+    },
+    '.cm-image-content': {
+      position: 'relative',
+      minHeight: '40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '4px',
+    },
+    '.cm-image-element': {
+      display: 'block',
+      maxWidth: '100%',
+      height: 'auto',
+      borderRadius: '6px',
+      cursor: 'pointer',
+    },
+    '.cm-image-caption': {
+      padding: '6px 12px',
+      fontSize: '12px',
+      fontStyle: 'italic',
+      color: 'var(--text-secondary, #656d76)',
+      backgroundColor: 'var(--bg-secondary, #f6f8fa)',
+      borderTop: '1px solid var(--border-primary, #d0d7de)',
+      textAlign: 'center',
+    },
+    '.cm-image-loading': {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '20px 28px',
+      color: 'var(--text-secondary, #656d76)',
+      fontSize: '12.5px',
+    },
+    '.cm-image-spinner': {
+      width: '14px',
+      height: '14px',
+      border: '2px solid var(--border-primary, #d0d7de)',
+      borderTopColor: 'var(--accent, #0969da)',
+      borderRadius: '50%',
+      animation: 'spin 0.6s linear infinite',
+    },
+    '.cm-image-error': {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '12px 18px',
+      color: '#cf222e',
+      backgroundColor: '#ffebe9',
+      fontSize: '12px',
+    },
+    '.cm-image-error code': {
+      fontFamily: 'var(--code-font, monospace)',
+      fontSize: '11px',
     },
     /* Estilos del widget de diagrama Mermaid dentro de CodeMirror */
     '.cm-mermaid-widget-wrapper': {

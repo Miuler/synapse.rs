@@ -3,6 +3,7 @@
   import { Marked } from 'marked';
   import { resolveIncludes } from '../lib/include-resolver';
   import { renderUnifiedDiagramSvg } from '../lib/render-diagram';
+  import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
 
   interface Props {
     content: string;
@@ -18,6 +19,20 @@
 
   marked.use({
     renderer: {
+      image({ href, title, text }: { href: string; title?: string | null; text: string }) {
+        const { cleanAlt, width, height } = parseImageDimensions(text || '');
+        const style = [
+          width ? `width: ${width};` : '',
+          height ? `height: ${height};` : '',
+        ].filter(Boolean).join(' ');
+
+        return `<figure class="reading-image-figure" data-raw-src="${encodeURIComponent(href)}" data-alt="${encodeURIComponent(cleanAlt)}" data-title="${encodeURIComponent(title || '')}">
+          <div class="reading-image-container">
+            <img class="reading-image-el" alt="${escapeHtml(cleanAlt)}" ${title ? `title="${escapeHtml(title)}"` : ''} ${style ? `style="${style}"` : ''} loading="lazy" />
+          </div>
+          ${cleanAlt ? `<figcaption class="reading-image-caption">${escapeHtml(cleanAlt)}</figcaption>` : ''}
+        </figure>`;
+      },
       code({ text, lang }: { text: string; lang?: string }) {
         if (/^(?:mermaid|mermair|mermai|merman)$/i.test(lang?.trim() || '')) {
           return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}">
@@ -33,6 +48,26 @@
       },
     },
   });
+
+  async function renderImages() {
+    if (!containerRef) return;
+    const figures = containerRef.querySelectorAll<HTMLElement>('.reading-image-figure');
+    for (const fig of figures) {
+      const rawSrc = decodeURIComponent(fig.getAttribute('data-raw-src') || '');
+      if (!rawSrc) continue;
+      const img = fig.querySelector<HTMLImageElement>('.reading-image-el');
+      if (!img) continue;
+
+      try {
+        const resolvedUrl = await resolveVaultImageUrl(rawSrc, filePath);
+        if (resolvedUrl) {
+          img.src = resolvedUrl;
+        }
+      } catch (err) {
+        console.warn('Error resolviendo imagen en modo lectura:', err);
+      }
+    }
+  }
 
   async function renderDiagrams() {
     if (!containerRef) return;
@@ -63,7 +98,7 @@
         body.innerHTML = `
           <div class="reading-mermaid-error">
             <div class="error-badge">Error al procesar diagrama</div>
-            <pre>${escapeHtml(String(e))}</pre>
+            <pre>${escapeHtml(String(e instanceof Error ? e.message : e))}</pre>
           </div>
         `;
       }
@@ -81,6 +116,7 @@
 
   onMount(() => {
     renderDiagrams();
+    renderImages();
   });
 
   $effect(() => {
@@ -90,6 +126,7 @@
 
     tick().then(() => {
       renderDiagrams();
+      renderImages();
     });
   });
 </script>
@@ -219,6 +256,36 @@
   :global(.markdown-body a) {
     color: var(--accent, #0969da);
     text-decoration: underline;
+  }
+
+  /* Figuras e imágenes en modo lectura */
+  :global(.reading-image-figure) {
+    margin: 20px 0;
+    padding: 0;
+    text-align: center;
+  }
+
+  :global(.reading-image-container) {
+    display: inline-block;
+    max-width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-primary, #d0d7de);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    background-color: var(--bg-primary, #ffffff);
+  }
+
+  :global(.reading-image-el) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  :global(.reading-image-caption) {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-secondary, #656d76);
+    font-style: italic;
   }
 
   :global(.reading-mermaid-card) {
