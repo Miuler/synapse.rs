@@ -45,9 +45,11 @@ pub fn save_note_content(
     relative_path: String,
     title: String,
     content: String,
+    encoding: Option<String>,
 ) -> Result<(), String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    state.note_use_cases.save_note(&vault_path, &relative_path, &title, &content)
+    let enc = encoding.unwrap_or_else(|| "UTF-8".to_string());
+    state.note_use_cases.save_note(&vault_path, &relative_path, &title, &content, &enc)
 }
 
 #[tauri::command]

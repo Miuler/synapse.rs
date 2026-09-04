@@ -46,7 +46,7 @@
 
   export function triggerSearch() {
     if (editorView) {
-      openSearchPanel(editorView);
+      openSearchPanel(editorView as any);
     }
   }
 
@@ -241,7 +241,7 @@
         langExtension,
         syntaxHighlighting(customHighlightStyle),
         search({ top: true }),
-        keymap.of(searchKeymap),
+        keymap.of(searchKeymap as any),
         EditorView.editable.of(!readOnly),
         updateListener,
         theme,
@@ -297,5 +297,4 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }
-</style>
+  }</style>

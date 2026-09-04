@@ -26,9 +26,21 @@ impl<R: NoteRepository> NoteUseCases<R> {
         self.repository.read_note(vault_path, &relative_path)
     }
 
-    pub fn save_note(&self, vault_path: &Path, relative_path_str: &str, title: &str, content: &str) -> Result<(), String> {
+    pub fn save_note(
+        &self,
+        vault_path: &Path,
+        relative_path_str: &str,
+        title: &str,
+        content: &str,
+        encoding: &str,
+    ) -> Result<(), String> {
         let relative_path = NoteRelativePath::new(relative_path_str)?;
-        let note = Note::new(relative_path, title.to_string(), content.to_string());
+        let note = Note::with_encoding(
+            relative_path,
+            title.to_string(),
+            content.to_string(),
+            encoding.to_string(),
+        );
         self.repository.save_note(vault_path, &note)
     }
 }

@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
   import { Ribbon } from "@widgets/ribbon";
   import { EditorHeader } from "@widgets/editor-header";
-  import { StatusBar } from "@widgets/status-bar";
+  import { StatusBar, type MarkdownViewMode } from "@widgets/status-bar";
   import { CommandPalette } from "@widgets/command-palette";
   import { QuickOpen } from "@widgets/quick-open";
   import { EmptyWorkspace } from "@widgets/empty-workspace";
@@ -20,6 +20,7 @@
   let isQuickOpenOpen = $state(false);
   let isEditing = $state(true);
   let isVimMode = $state(false);
+  let markdownViewMode = $state<MarkdownViewMode>("live");
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
 
@@ -37,6 +38,7 @@
   let loadedContents = $state<Record<string, string>>({});
   let savedContents = $state<Record<string, string>>({});
   let loadingPaths = $state<Record<string, boolean>>({});
+  let tabEncodings = $state<Record<string, string>>({});
 
   // Contador para generar IDs únicos de pestañas vacías
   let emptyTabCounter = 0;
@@ -68,6 +70,26 @@
     tabSelections[path] = info;
   }
 
+  function handleChangeMarkdownView(newMode: MarkdownViewMode) {
+    markdownViewMode = newMode;
+    if (newMode === "reading") {
+      isEditing = false;
+    } else {
+      isEditing = true;
+    }
+  }
+
+  function toggleMarkdownViewMode() {
+    const current = !isEditing ? "reading" : markdownViewMode;
+    if (current === "live") {
+      handleChangeMarkdownView("source");
+    } else if (current === "source") {
+      handleChangeMarkdownView("reading");
+    } else {
+      handleChangeMarkdownView("live");
+    }
+  }
+
   async function ensureContentLoaded(path: string) {
     if (!path || path.startsWith("empty:") || loadedContents[path] !== undefined || loadingPaths[path]) return;
 
@@ -78,21 +100,26 @@
           relative_path: string;
           title: string;
           content: string;
+          encoding?: string;
         }>("read_note_content", { relativePath: path });
 
         const fetchedContent = noteData?.content ?? "";
+        const fetchedEncoding = noteData?.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         loadedContents[path] = fetchedContent;
         savedContents[path] = fetchedContent;
+        tabEncodings[path] = fetchedEncoding;
       } catch (e) {
         console.error(`Error al cargar contenido de ${path} desde Rust:`, e);
         loadedContents[path] = "";
         savedContents[path] = "";
+        tabEncodings[path] = "---";
       } finally {
         loadingPaths[path] = false;
       }
     } else {
       loadedContents[path] = "";
       savedContents[path] = "";
+      tabEncodings[path] = "---";
     }
   }
 
@@ -144,6 +171,7 @@
     delete savedContents[path];
     delete loadingPaths[path];
     delete tabSelections[path];
+    delete tabEncodings[path];
 
     // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía
     if (openTabPaths.length === 0) {
@@ -158,6 +186,7 @@
     savedContents = {};
     loadingPaths = {};
     tabSelections = {};
+    tabEncodings = {};
     handleNewEmptyTab();
   }
 
@@ -169,6 +198,27 @@
 
   let activeContent = $derived(
     activeTabPath && !activeTabPath.startsWith("empty:") ? loadedContents[activeTabPath] ?? "" : ""
+  );
+
+  let currentEncoding = $derived(
+    activeTabPath && !activeTabPath.startsWith("empty:") && tabEncodings[activeTabPath]
+      ? tabEncodings[activeTabPath]
+      : "---"
+  );
+
+  let isMarkdownFile = $derived(
+    Boolean(
+      activeTabPath &&
+      !activeTabPath.startsWith("empty:") &&
+      (
+        activeTabPath.endsWith(".md") ||
+        activeTabPath.endsWith(".markdown") ||
+        (currentVaultItem.relative_path && (
+          currentVaultItem.relative_path.endsWith(".md") ||
+          currentVaultItem.relative_path.endsWith(".markdown")
+        ))
+      )
+    )
   );
 
   let tabsInfo = $derived(
@@ -249,6 +299,7 @@
                 relative_path: { 0?: string } | string;
                 title: string;
                 content?: string;
+                encoding?: string;
               }>
             >("get_vault_notes");
 
@@ -322,7 +373,7 @@
     }, delay);
   }
 
-  async function persistVaultItemToRust(vaultItem: VaultItem) {
+  async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
@@ -330,6 +381,8 @@
     const path = vaultItem.relative_path;
     if (!isConnectedToRust || !vaultItem.title || !path) return;
     const contentToSave = loadedContents[path] ?? "";
+    const currentTabEnc = tabEncodings[path];
+    const enc = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : "UTF-8");
 
     syncState = "saving";
     try {
@@ -337,12 +390,24 @@
         relativePath: path,
         title: vaultItem.title,
         content: contentToSave,
+        encoding: enc,
       });
       savedContents[path] = contentToSave;
+      tabEncodings[path] = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : enc);
       syncState = "synced";
     } catch (e) {
       console.error("Error al guardar el archivo en Rust:", e);
       syncState = "error";
+    }
+  }
+
+  async function handleChangeEncoding(newEncoding: string) {
+    if (!activeTabPath || activeTabPath.startsWith("empty:")) {
+      return;
+    }
+    tabEncodings[activeTabPath] = newEncoding;
+    if (currentVaultItem && currentVaultItem.relative_path) {
+      await persistVaultItemToRust(currentVaultItem, newEncoding);
     }
   }
 
@@ -357,6 +422,7 @@
     const initialContent = "# Nuevo Archivo\n\nEscribe tu contenido aquí...";
     vaultItems.push(newVaultItem);
     loadedContents[newRelPath] = initialContent;
+    tabEncodings[newRelPath] = "---";
 
     const targetEmptyPath = emptyTabPathToReplace || (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null);
     if (targetEmptyPath && openTabPaths.includes(targetEmptyPath)) {
@@ -422,7 +488,18 @@
         shortcut: "Ctrl+E",
         action: () => {
           isEditing = !isEditing;
+          if (!isEditing) {
+            markdownViewMode = "reading";
+          } else if (markdownViewMode === "reading") {
+            markdownViewMode = "live";
+          }
         },
+      },
+      {
+        id: "cmd-toggle-markdown-view",
+        name: "Alternar vista Markdown (En vivo / Fuente / Lectura)",
+        category: "Vista",
+        action: toggleMarkdownViewMode,
       },
       {
         id: "cmd-save-file",
@@ -501,6 +578,7 @@
         loadedContents = {};
         savedContents = {};
         tabSelections = {};
+        tabEncodings = {};
         recentFiles = vaultItems.map(v => v.relative_path);
         handleNewEmptyTab();
       }
@@ -577,6 +655,13 @@
       onAction={(actionId) => {
         if (actionId === 'new-file') createNewVaultItem();
         else if (actionId === 'quick-open') isQuickOpenOpen = true;
+      }}
+      onToggleView={() => {
+        if (!isEditing) {
+          markdownViewMode = "reading";
+        } else if (markdownViewMode === "reading") {
+          markdownViewMode = "live";
+        }
       }}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {
@@ -658,6 +743,7 @@
                       {content}
                       readOnly={!isEditing}
                       vimMode={isVimMode}
+                      viewMode={!isEditing ? 'reading' : markdownViewMode}
                       onChange={(updatedMarkdown: string) => {
                         loadedContents[tabPath] = updatedMarkdown;
                         debouncedPersistVaultItemToRust(vaultItem);
@@ -685,8 +771,14 @@
       hasSelection={vaultItems.length > 0 && !!activeTabPath && currentSelection.hasSelection}
       syncStatus={syncState}
       isVimMode={isVimMode}
+      encoding={currentEncoding}
+      isMarkdownFile={isMarkdownFile}
+      markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
       onToggleVim={() => (isVimMode = !isVimMode)}
+      onToggleMarkdownView={toggleMarkdownViewMode}
+      onChangeMarkdownView={handleChangeMarkdownView}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
+      onChangeEncoding={handleChangeEncoding}
     />
   </main>
 
