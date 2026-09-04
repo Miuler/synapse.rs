@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { isTauriEnvironment } from '@shared/api';
   import type { TabItem } from '@entities/vault-item';
@@ -11,6 +12,7 @@
     showSaveButton?: boolean;
     onSelectTab?: (path: string) => void;
     onCloseTab?: (path: string) => void;
+    onCloseAllTabs?: () => void;
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
@@ -26,6 +28,7 @@
     showSaveButton = false,
     onSelectTab,
     onCloseTab,
+    onCloseAllTabs,
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
@@ -33,9 +36,109 @@
     onAction
   }: Props = $props();
 
+  let tabsScrollRef = $state<HTMLDivElement | null>(null);
+  let menuContainerRef = $state<HTMLDivElement | null>(null);
+  let canScrollLeft = $state(false);
+  let canScrollRight = $state(false);
+  let isTabsMenuOpen = $state(false);
+
   function triggerAction(actionId: string) {
     if (onAction) onAction(actionId);
   }
+
+  function checkScroll() {
+    if (!tabsScrollRef) return;
+    canScrollLeft = tabsScrollRef.scrollLeft > 2;
+    canScrollRight =
+      tabsScrollRef.scrollLeft <
+      tabsScrollRef.scrollWidth - tabsScrollRef.clientWidth - 2;
+  }
+
+  function scrollLeft() {
+    if (tabsScrollRef) {
+      tabsScrollRef.scrollBy({ left: -200, behavior: 'smooth' });
+    }
+  }
+
+  function scrollRight() {
+    if (tabsScrollRef) {
+      tabsScrollRef.scrollBy({ left: 200, behavior: 'smooth' });
+    }
+  }
+
+  function handleWheel(e: WheelEvent) {
+    if (!tabsScrollRef) return;
+    if (e.deltaY !== 0 && e.deltaX === 0) {
+      e.preventDefault();
+      tabsScrollRef.scrollLeft += e.deltaY;
+      checkScroll();
+    }
+  }
+
+  function handleCloseAll() {
+    isTabsMenuOpen = false;
+    if (onCloseAllTabs) {
+      onCloseAllTabs();
+    } else if (onCloseTab && tabs) {
+      for (const t of [...tabs]) {
+        onCloseTab(t.path);
+      }
+    }
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    if (
+      isTabsMenuOpen &&
+      menuContainerRef &&
+      !menuContainerRef.contains(e.target as Node)
+    ) {
+      isTabsMenuOpen = false;
+    }
+  }
+
+  $effect(() => {
+    const currentPath = activeTabPath;
+    const currentTabs = tabs;
+    tick().then(() => {
+      checkScroll();
+      if (tabsScrollRef && currentPath) {
+        const tabsList = tabsScrollRef.querySelectorAll('.tab-title-container');
+        for (const el of tabsList) {
+          if ((el as HTMLElement).dataset.path === currentPath) {
+            (el as HTMLElement).scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'nearest',
+            });
+            break;
+          }
+        }
+      }
+    });
+  });
+
+  onMount(() => {
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('resize', checkScroll);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (tabsScrollRef && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        checkScroll();
+      });
+      resizeObserver.observe(tabsScrollRef);
+    }
+
+    checkScroll();
+
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('resize', checkScroll);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  });
 
   async function handleWindowControl(action: 'minimize' | 'maximize' | 'close') {
     if (!isTauriEnvironment()) return;
@@ -51,22 +154,43 @@
 </script>
 
 <header class="editor-header" data-tauri-drag-region>
-  <div class="left-section">
-    <div class="nav-buttons">
-      <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- BOTONES DE NAVEGACIÓN ATRÁS / ADELANTE -->
+  <div class="nav-buttons">
+    <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+    <button type="button" class="icon-btn" onclick={() => triggerAction('nav-forward')} title="Navegar adelante">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ÁREA CENTRAL DE PESTAÑAS: OCUPA SOLO EL ESPACIO DISPONIBLE Y SOPORTA SCROLL CON FLECHAS -->
+  <div class="tabs-area-wrapper">
+    {#if canScrollLeft}
+      <button
+        type="button"
+        class="tab-scroll-btn left"
+        onclick={scrollLeft}
+        title="Desplazar pestañas a la izquierda"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <button type="button" class="icon-btn" onclick={() => triggerAction('nav-forward')} title="Navegar adelante">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </button>
-    </div>
+    {/if}
 
-    {#if tabs && tabs.length > 0}
-      <div class="tabs-bar">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="tabs-scroll-container"
+      bind:this={tabsScrollRef}
+      onscroll={checkScroll}
+      onwheel={handleWheel}
+    >
+      {#if tabs && tabs.length > 0}
         {#each tabs as tab (tab.path)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -74,6 +198,7 @@
             class="tab-title-container"
             class:active={tab.path === activeTabPath}
             class:is-dirty={tab.isDirty}
+            data-path={tab.path}
             onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
           >
             <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,25 +222,122 @@
             </button>
           </div>
         {/each}
-      </div>
-    {:else if title}
-      <div class="tab-title-container active">
-        <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
+      {:else if title}
+        <div class="tab-title-container active">
+          <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span class="tab-title">{title}</span>
+          <button
+            type="button"
+            class="close-tab-btn"
+            onclick={() => { if (onCloseTab) onCloseTab(''); }}
+            title="Cerrar pestaña"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      {/if}
+    </div>
+
+    {#if canScrollRight}
+      <button
+        type="button"
+        class="tab-scroll-btn right"
+        onclick={scrollRight}
+        title="Desplazar pestañas a la derecha"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
         </svg>
-        <span class="tab-title">{title}</span>
-        <button type="button" class="close-tab-btn" onclick={() => { if (onCloseTab) onCloseTab(''); }} title="Cerrar pestaña">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      </button>
+    {/if}
+  </div>
+
+  <!-- SECCIÓN DERECHA -->
+  <div class="right-section">
+    <!-- MENÚ DESPLEGABLE PARA LISTAR TODAS LAS PESTAÑAS Y BOTÓN DE CERRAR TODAS -->
+    <!-- AL COSTADO IZQUIERDO DE LOS BOTONES DE GRABAR Y EDITAR -->
+    {#if tabs && tabs.length > 0}
+      <div class="tabs-actions-group" bind:this={menuContainerRef}>
+        <button
+          type="button"
+          class="icon-btn tab-dropdown-trigger"
+          class:active={isTabsMenuOpen}
+          onclick={(e) => {
+            e.stopPropagation();
+            isTabsMenuOpen = !isTabsMenuOpen;
+          }}
+          title="Listar todas las pestañas abiertas"
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          class="icon-btn close-all-trigger"
+          onclick={handleCloseAll}
+          title="Cerrar todas las pestañas"
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
             <line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
+
+        {#if isTabsMenuOpen}
+          <div class="tabs-dropdown-menu">
+            <div class="dropdown-header">
+              <span>Pestañas abiertas ({tabs.length})</span>
+              <button type="button" class="dropdown-close-all-btn" onclick={handleCloseAll}>
+                Cerrar todas
+              </button>
+            </div>
+            <div class="dropdown-tabs-list">
+              {#each tabs as tab (tab.path)}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="dropdown-tab-item"
+                  class:active={tab.path === activeTabPath}
+                  onclick={() => {
+                    if (onSelectTab) onSelectTab(tab.path);
+                    isTabsMenuOpen = false;
+                  }}
+                >
+                  <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                  <button
+                    type="button"
+                    class="dropdown-tab-close"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      if (onCloseTab) onCloseTab(tab.path);
+                    }}
+                    title="Cerrar pestaña"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
-  </div>
 
-  <div class="right-section">
     {#if showSaveButton}
       <button
         type="button"
@@ -200,31 +422,81 @@
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 10px;
     user-select: none;
-  }
-
-  .left-section,
-  .right-section {
-    display: flex;
-    align-items: center;
     gap: 8px;
+    position: relative;
   }
 
   .nav-buttons {
     display: flex;
+    align-items: center;
     gap: 2px;
+    flex-shrink: 0;
   }
 
-  .tabs-bar {
+  .tabs-area-wrapper {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .tabs-scroll-container {
     display: flex;
     align-items: center;
     gap: 4px;
     overflow-x: auto;
-    max-width: calc(100vw - 340px);
+    overflow-y: hidden;
+    width: 100%;
+    height: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-behavior: smooth;
     padding: 2px 0;
-    scrollbar-width: thin;
+  }
+
+  .tabs-scroll-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-scroll-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 26px;
+    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    color: var(--text-secondary, #656d76);
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 2;
+    transition: all 0.15s ease;
+    padding: 0;
+  }
+
+  .tab-scroll-btn:hover {
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #1f2328);
+    border-color: var(--accent, #0969da);
+  }
+
+  .tab-scroll-btn.left {
+    margin-right: 4px;
+  }
+
+  .tab-scroll-btn.right {
+    margin-left: 4px;
+  }
+
+  .tab-scroll-btn svg {
+    width: 12px;
+    height: 12px;
   }
 
   .tab-title-container {
@@ -239,6 +511,7 @@
     transition: all 0.15s ease;
     white-space: nowrap;
     opacity: 0.75;
+    flex-shrink: 0;
   }
 
   .tab-title-container:hover {
@@ -257,6 +530,7 @@
     width: 14px;
     height: 14px;
     color: var(--accent, #0969da);
+    flex-shrink: 0;
   }
 
   .tab-title {
@@ -279,6 +553,7 @@
     cursor: pointer;
     margin-left: 4px;
     transition: all 0.15s ease;
+    flex-shrink: 0;
   }
 
   .close-tab-btn:hover {
@@ -287,6 +562,156 @@
   }
 
   .close-tab-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .right-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .tabs-actions-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-right: 6px;
+    margin-right: 4px;
+    border-right: 1px solid var(--border-primary, #d0d7de);
+  }
+
+  .tab-dropdown-trigger.active {
+    background-color: var(--bg-secondary, #f6f8fa);
+    color: var(--accent, #0969da);
+  }
+
+  .close-all-trigger:hover {
+    color: #cf222e;
+    background-color: rgba(207, 34, 46, 0.1);
+  }
+
+  .tabs-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 260px;
+    max-height: 360px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: dropdown-fade 0.15s ease;
+  }
+
+  @keyframes dropdown-fade {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-secondary, #f6f8fa);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #656d76);
+  }
+
+  .dropdown-close-all-btn {
+    background: transparent;
+    border: none;
+    color: #cf222e;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .dropdown-close-all-btn:hover {
+    background: rgba(207, 34, 46, 0.1);
+  }
+
+  .dropdown-tabs-list {
+    overflow-y: auto;
+    max-height: 300px;
+    padding: 4px 0;
+  }
+
+  .dropdown-tab-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+    font-size: 13px;
+    color: var(--text-primary, #1f2328);
+  }
+
+  .dropdown-tab-item:hover {
+    background: var(--bg-secondary, #f6f8fa);
+  }
+
+  .dropdown-tab-item.active {
+    background: rgba(9, 105, 218, 0.08);
+    color: var(--accent, #0969da);
+    font-weight: 500;
+  }
+
+  .dropdown-file-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--accent, #0969da);
+  }
+
+  .dropdown-tab-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dropdown-tab-close {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.15s ease;
+  }
+
+  .dropdown-tab-close:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary, #1f2328);
+  }
+
+  .dropdown-tab-close svg {
     width: 12px;
     height: 12px;
   }
@@ -361,8 +786,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-left: 8px;
-    padding-left: 8px;
+    margin-left: 6px;
+    padding-left: 6px;
     border-left: 1px solid var(--border-primary, #d0d7de);
   }
 

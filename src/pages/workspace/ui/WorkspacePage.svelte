@@ -88,6 +88,14 @@
     delete loadingPaths[path];
   }
 
+  function closeAllTabs() {
+    openTabPaths = [];
+    activeTabPath = null;
+    loadedContents = {};
+    savedContents = {};
+    loadingPaths = {};
+  }
+
   let currentVaultItem = $derived(
     activeTabPath && vaultItems.length > 0
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || { id: "0", title: "", relative_path: "" }
@@ -401,6 +409,7 @@
           currentVaultItem.relative_path.endsWith(".excalidraw.json"))}
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
+      onCloseAllTabs={closeAllTabs}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {
           persistVaultItemToRust(currentVaultItem);

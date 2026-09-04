@@ -17,6 +17,7 @@
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "dagre-d3-es": "^7.0.14",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.1",
     "typescript": "~6.0.2",
