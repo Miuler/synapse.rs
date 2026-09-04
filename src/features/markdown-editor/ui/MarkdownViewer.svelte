@@ -9,12 +9,23 @@
   import { vim } from '@replit/codemirror-vim';
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
 
+  export interface SelectionInfo {
+    hasSelection: boolean;
+    selectedWords: number;
+    selectedChars: number;
+    selectedLines: number;
+    selectedCols: number;
+    cursorLine: number;
+    cursorCol: number;
+  }
+
   interface Props {
     content: string;
     isMarkdown?: boolean;
     readOnly?: boolean;
     vimMode?: boolean;
     onChange?: (markdown: string) => void;
+    onSelectionChange?: (info: SelectionInfo) => void;
   }
 
   let {
@@ -23,6 +34,7 @@
     readOnly = false,
     vimMode = false,
     onChange,
+    onSelectionChange,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -41,6 +53,50 @@
 
   export function getView(): EditorView | null {
     return editorView;
+  }
+
+  function emitSelectionInfo(state: EditorState) {
+    if (!onSelectionChange) return;
+
+    const mainSel = state.selection.main;
+    const hasSelection = !mainSel.empty;
+    const head = mainSel.head;
+    const cursorLineObj = state.doc.lineAt(head);
+    const cursorLine = cursorLineObj.number;
+    const cursorCol = head - cursorLineObj.from + 1;
+
+    if (hasSelection) {
+      const from = mainSel.from;
+      const to = mainSel.to;
+      const selectedText = state.sliceDoc(from, to);
+      const fromLine = state.doc.lineAt(from);
+      const toLine = state.doc.lineAt(to);
+      const selectedLines = toLine.number - fromLine.number + 1;
+      const selectedChars = selectedText.length;
+      const selectedCols = selectedLines === 1 ? (to - from) : selectedChars;
+      const trimmed = selectedText.trim();
+      const selectedWords = trimmed ? trimmed.split(/\s+/).length : 0;
+
+      onSelectionChange({
+        hasSelection: true,
+        selectedWords,
+        selectedChars,
+        selectedLines,
+        selectedCols,
+        cursorLine,
+        cursorCol,
+      });
+    } else {
+      onSelectionChange({
+        hasSelection: false,
+        selectedWords: 0,
+        selectedChars: 0,
+        selectedLines: 1,
+        selectedCols: 0,
+        cursorLine,
+        cursorCol,
+      });
+    }
   }
 
   const markdownHighlightStyle = HighlightStyle.define([
@@ -141,6 +197,9 @@
         lastContent = newText;
         if (onChange) onChange(newText);
       }
+      if (update.selectionSet || update.docChanged) {
+        emitSelectionInfo(update.state);
+      }
     });
 
     const state = EditorState.create({
@@ -162,6 +221,8 @@
       state,
       parent: containerRef,
     });
+
+    emitSelectionInfo(editorView.state);
   }
 
   onMount(() => {
@@ -215,6 +276,7 @@
           changes: { from: 0, to: editorView.state.doc.length, insert: c },
         });
         isInternalUpdate = false;
+        emitSelectionInfo(editorView.state);
       }
     }
   });

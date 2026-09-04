@@ -32,6 +32,33 @@
   let savedContents = $state<Record<string, string>>({});
   let loadingPaths = $state<Record<string, boolean>>({});
 
+  // Seguimiento de selección y cursor por cada pestaña
+  interface SelectionInfo {
+    hasSelection: boolean;
+    selectedWords: number;
+    selectedChars: number;
+    selectedLines: number;
+    selectedCols: number;
+    cursorLine: number;
+    cursorCol: number;
+  }
+
+  const defaultSelection: SelectionInfo = {
+    hasSelection: false,
+    selectedWords: 0,
+    selectedChars: 0,
+    selectedLines: 1,
+    selectedCols: 0,
+    cursorLine: 1,
+    cursorCol: 1,
+  };
+
+  let tabSelections = $state<Record<string, SelectionInfo>>({});
+
+  function handleSelectionChange(path: string, info: SelectionInfo) {
+    tabSelections[path] = info;
+  }
+
   async function ensureContentLoaded(path: string) {
     if (!path || loadedContents[path] !== undefined || loadingPaths[path]) return;
 
@@ -82,10 +109,11 @@
         }
       }
     }
-    // Liberar memoria del contenido cuando la pestaña se cierra
+    // Liberar memoria del contenido y selecciones cuando la pestaña se cierra
     delete loadedContents[path];
     delete savedContents[path];
     delete loadingPaths[path];
+    delete tabSelections[path];
   }
 
   function closeAllTabs() {
@@ -94,6 +122,7 @@
     loadedContents = {};
     savedContents = {};
     loadingPaths = {};
+    tabSelections = {};
   }
 
   let currentVaultItem = $derived(
@@ -122,13 +151,36 @@
     })
   );
 
-  // Contadores calculados reactivamente sobre el contenido activo
-  let wordCount = $derived(
+  // Selección activa actual
+  let currentSelection = $derived<SelectionInfo>(
+    (activeTabPath && tabSelections[activeTabPath])
+      ? tabSelections[activeTabPath]
+      : defaultSelection
+  );
+
+  // Contadores calculados reactivamente sobre todo el documento
+  let docWordCount = $derived(
     activeContent && activeContent.trim()
       ? activeContent.trim().split(/\s+/).length
       : 0
   );
-  let charCount = $derived(activeContent ? activeContent.length : 0);
+  let docCharCount = $derived(activeContent ? activeContent.length : 0);
+
+  // Dos comportamientos:
+  // 1) Si no hay selección: cuenta sobre todo el documento y posición del cursor (Lín, Col)
+  // 2) Si hay texto seleccionado: cuenta palabras, caracteres, líneas y columnas sobre la selección
+  let displayWordCount = $derived(
+    currentSelection.hasSelection ? currentSelection.selectedWords : docWordCount
+  );
+  let displayCharCount = $derived(
+    currentSelection.hasSelection ? currentSelection.selectedChars : docCharCount
+  );
+  let displayLine = $derived(
+    currentSelection.hasSelection ? currentSelection.selectedLines : currentSelection.cursorLine
+  );
+  let displayCol = $derived(
+    currentSelection.hasSelection ? currentSelection.selectedCols : currentSelection.cursorCol
+  );
 
   let editorContainerRef = $state<HTMLDivElement | null>(null);
 
@@ -181,12 +233,14 @@
             activeTabPath = null;
             loadedContents = {};
             savedContents = {};
+            tabSelections = {};
           } else {
             vaultItems = [];
             openTabPaths = [];
             activeTabPath = null;
             loadedContents = {};
             savedContents = {};
+            tabSelections = {};
           }
         } catch (e) {
           console.warn("Error al cargar lista de archivos de Rust:", e);
@@ -194,11 +248,13 @@
           vaultItems = [];
           loadedContents = {};
           savedContents = {};
+          tabSelections = {};
         }
       } else {
         vaultItems = [];
         loadedContents = {};
         savedContents = {};
+        tabSelections = {};
       }
     }
 
@@ -343,6 +399,7 @@
         activeTabPath = null;
         loadedContents = {};
         savedContents = {};
+        tabSelections = {};
       }
     } catch (e) {
       console.error('Error al abrir la carpeta de la bóveda:', e);
@@ -489,6 +546,7 @@
                     loadedContents[tabPath] = updatedContent;
                     debouncedPersistVaultItemToRust(vaultItem);
                   }}
+                  onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                 />
               {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
                 <ExcalidrawViewer
@@ -513,10 +571,11 @@
                     {content}
                     readOnly={!isEditing}
                     vimMode={isVimMode}
-                    onChange={(updatedMarkdown) => {
+                    onChange={(updatedMarkdown: string) => {
                       loadedContents[tabPath] = updatedMarkdown;
                       debouncedPersistVaultItemToRust(vaultItem);
                     }}
+                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                     isMarkdown={!vaultItem.relative_path ||
                       vaultItem.relative_path.endsWith(".md") ||
                       vaultItem.relative_path.endsWith(".markdown")}
@@ -531,12 +590,11 @@
 
     <!-- BARRA DE ESTADO INFERIOR -->
     <StatusBar
-      wordCount={vaultItems.length > 0 ? wordCount : 0}
-      charCount={vaultItems.length > 0 ? charCount : 0}
-      line={vaultItems.length > 0 ? 1 : 0}
-      col={vaultItems.length > 0 && activeContent
-        ? activeContent.length
-        : 0}
+      wordCount={vaultItems.length > 0 && activeTabPath ? displayWordCount : 0}
+      charCount={vaultItems.length > 0 && activeTabPath ? displayCharCount : 0}
+      line={vaultItems.length > 0 && activeTabPath ? displayLine : 0}
+      col={vaultItems.length > 0 && activeTabPath ? displayCol : 0}
+      hasSelection={vaultItems.length > 0 && !!activeTabPath && currentSelection.hasSelection}
       syncStatus={syncState}
       isVimMode={isVimMode}
       onToggleVim={() => (isVimMode = !isVimMode)}

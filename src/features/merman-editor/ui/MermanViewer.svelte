@@ -8,9 +8,10 @@
     readOnly?: boolean;
     vimMode?: boolean;
     onChange?: (content: string) => void;
+    onSelectionChange?: (info: any) => void;
   }
 
-  let { content = '', readOnly = false, vimMode = false, onChange }: Props = $props();
+  let { content = '', readOnly = false, vimMode = false, onChange, onSelectionChange }: Props = $props();
 
   let svgContent = $state('');
   let isReady = $state(false);
@@ -330,6 +331,9 @@
           mode="mermaid"
           onChange={(newVal) => {
             if (onChange) onChange(newVal);
+          }}
+          onSelectionChange={(info) => {
+            if (onSelectionChange) onSelectionChange(info);
           }}
         />
       </div>

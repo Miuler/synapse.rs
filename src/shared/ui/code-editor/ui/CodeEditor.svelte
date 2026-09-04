@@ -9,15 +9,33 @@
   import { searchKeymap, search, openSearchPanel } from '@codemirror/search';
   import { vim } from '@replit/codemirror-vim';
 
+  export interface SelectionInfo {
+    hasSelection: boolean;
+    selectedWords: number;
+    selectedChars: number;
+    selectedLines: number;
+    selectedCols: number;
+    cursorLine: number;
+    cursorCol: number;
+  }
+
   interface Props {
     content: string;
     readOnly?: boolean;
     vimMode?: boolean;
     mode?: 'markdown' | 'mermaid';
     onChange?: (content: string) => void;
+    onSelectionChange?: (info: SelectionInfo) => void;
   }
 
-  let { content = '', readOnly = false, vimMode = false, mode = 'markdown', onChange }: Props = $props();
+  let {
+    content = '',
+    readOnly = false,
+    vimMode = false,
+    mode = 'markdown',
+    onChange,
+    onSelectionChange,
+  }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let editorView: EditorView | null = null;
@@ -29,6 +47,50 @@
   export function triggerSearch() {
     if (editorView) {
       openSearchPanel(editorView);
+    }
+  }
+
+  function emitSelectionInfo(state: EditorState) {
+    if (!onSelectionChange) return;
+
+    const mainSel = state.selection.main;
+    const hasSelection = !mainSel.empty;
+    const head = mainSel.head;
+    const cursorLineObj = state.doc.lineAt(head);
+    const cursorLine = cursorLineObj.number;
+    const cursorCol = head - cursorLineObj.from + 1;
+
+    if (hasSelection) {
+      const from = mainSel.from;
+      const to = mainSel.to;
+      const selectedText = state.sliceDoc(from, to);
+      const fromLine = state.doc.lineAt(from);
+      const toLine = state.doc.lineAt(to);
+      const selectedLines = toLine.number - fromLine.number + 1;
+      const selectedChars = selectedText.length;
+      const selectedCols = selectedLines === 1 ? (to - from) : selectedChars;
+      const trimmed = selectedText.trim();
+      const selectedWords = trimmed ? trimmed.split(/\s+/).length : 0;
+
+      onSelectionChange({
+        hasSelection: true,
+        selectedWords,
+        selectedChars,
+        selectedLines,
+        selectedCols,
+        cursorLine,
+        cursorCol,
+      });
+    } else {
+      onSelectionChange({
+        hasSelection: false,
+        selectedWords: 0,
+        selectedChars: 0,
+        selectedLines: 1,
+        selectedCols: 0,
+        cursorLine,
+        cursorCol,
+      });
     }
   }
 
@@ -101,6 +163,9 @@
         const newText = update.state.doc.toString();
         lastContent = newText;
         if (onChange) onChange(newText);
+      }
+      if (update.selectionSet || update.docChanged) {
+        emitSelectionInfo(update.state);
       }
     });
 
@@ -188,6 +253,8 @@
       parent: containerRef,
     });
 
+    emitSelectionInfo(editorView.state);
+
     return () => {
       if (editorView) {
         editorView.destroy();
@@ -215,6 +282,7 @@
           changes: { from: 0, to: editorView.state.doc.length, insert: c },
         });
         isInternalUpdate = false;
+        emitSelectionInfo(editorView.state);
       }
     }
   });

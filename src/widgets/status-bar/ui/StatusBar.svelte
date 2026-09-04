@@ -4,6 +4,7 @@
     charCount?: number;
     line?: number;
     col?: number;
+    hasSelection?: boolean;
     syncStatus?: 'synced' | 'saving' | 'error';
     isVimMode?: boolean;
     onToggleVim?: () => void;
@@ -15,6 +16,7 @@
     charCount = 0,
     line = 0,
     col = 0,
+    hasSelection = false,
     syncStatus = 'synced',
     isVimMode = false,
     onToggleVim,
@@ -56,15 +58,26 @@
       <span>{isVimMode ? 'ON' : 'OFF'}</span>
     </button>
     <div class="divider"></div>
-    <div class="status-item">
+    {#if hasSelection}
+      <span class="selection-badge">sel</span>
+    {/if}
+    <div
+      class="status-item"
+      title={hasSelection ? "Palabras en la selección actual" : "Palabras en todo el documento"}
+    >
       <span>{wordCount} palabras</span>
     </div>
-    <div class="divider"></div>
-    <div class="status-item">
+    <div
+      class="status-item"
+      title={hasSelection ? "Caracteres en la selección actual" : "Caracteres en todo el documento"}
+    >
       <span>{charCount} caracteres</span>
     </div>
     <div class="divider"></div>
-    <div class="status-item">
+    <div
+      class="status-item"
+      title={hasSelection ? "Líneas y columnas/caracteres en la selección" : "Posición del cursor: Línea y Columna"}
+    >
       <span>Lín {line}, Col {col}</span>
     </div>
     <div class="divider"></div>
@@ -142,6 +155,17 @@
   .vim-btn.active .vim-badge {
     background: var(--accent, #0969da);
     color: #ffffff;
+  }
+
+  .selection-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+    background: var(--accent-bg, rgba(9, 105, 218, 0.12));
+    color: var(--accent, #0969da);
+    border-radius: 3px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .divider {
