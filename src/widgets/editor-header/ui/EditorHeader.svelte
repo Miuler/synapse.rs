@@ -472,6 +472,7 @@
             class:active={tab.path === activeTabPath}
             class:is-dirty={tab.isDirty}
             data-path={tab.path}
+            title={tab.abs_path || tab.path}
             onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
             onauxclick={(e) => handleTabAuxClick(e, tab.path)}
             onmousedown={handleTabMouseDown}
@@ -633,6 +634,7 @@
                     class="dropdown-tab-item"
                     class:active={tab.path === activeTabPath}
                     class:selected={index === selectedIndex}
+                    title={tab.abs_path || tab.path}
                     onmouseenter={() => { selectedIndex = index; }}
                     onclick={() => selectTabAndClose(tab.path)}
                     onauxclick={(e) => handleTabAuxClick(e, tab.path)}

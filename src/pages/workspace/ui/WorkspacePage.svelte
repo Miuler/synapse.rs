@@ -11,9 +11,10 @@
   import { MermanViewer } from "@features/merman-editor";
   import { ExcalidrawViewer } from "@features/excalidraw-editor";
   import { ImageViewer } from "@features/image-viewer";
-  import type { VaultItem } from "@entities/vault-item";
+  import type { VaultItem, OpenedNote } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
-  import { invokeTauri, isTauriEnvironment } from "@shared/api";
+  import { invokeTauri, isTauriEnvironment, type RealNote } from "@shared/api";
+  import { convertFileSrc } from "@tauri-apps/api/core";
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
@@ -35,11 +36,8 @@
   // Lista de rutas de archivos abiertos recientemente para Ctrl+O (Quick Open)
   let recentFiles = $state<string[]>([]);
 
-  // Mapa reactivo de contenidos cargados BAJO DEMANDA sólo para las pestañas abiertas
-  let loadedContents = $state<Record<string, string>>({});
-  let savedContents = $state<Record<string, string>>({});
-  let loadingPaths = $state<Record<string, boolean>>({});
-  let tabEncodings = $state<Record<string, string>>({});
+  // Mapa reactivo unificado de notas abiertas bajo demanda con todos sus datos consolidados
+  let openedNotes = $state<Record<string, OpenedNote>>({});
 
   // Contador para generar IDs únicos de pestañas vacías
   let emptyTabCounter = 0;
@@ -92,36 +90,53 @@
   }
 
   async function ensureContentLoaded(path: string) {
-    if (!path || path.startsWith("empty:") || loadedContents[path] !== undefined || loadingPaths[path]) return;
+    if (!path || path.startsWith("empty:")) return;
+    if (openedNotes[path] && !openedNotes[path].isLoading && openedNotes[path].content !== undefined) return;
+
+    const vaultItem = vaultItems.find((v) => v.relative_path === path);
+    const initialAbsPath = vaultItem?.abs_path;
+
+    if (!openedNotes[path]) {
+      openedNotes[path] = {
+        relative_path: path,
+        abs_path: initialAbsPath,
+        title: vaultItem?.title || path,
+        content: "",
+        savedContent: "",
+        encoding: "---",
+        isLoading: true,
+      };
+    } else {
+      openedNotes[path].isLoading = true;
+    }
 
     if (isTauriEnvironment()) {
-      loadingPaths[path] = true;
       try {
-        const noteData = await invokeTauri<{
-          relative_path: string;
-          abs_path: string;
-          title: string;
-          content: string;
-          encoding?: string;
-        }>("read_note_content", { relativePath: path });
+        const noteData = await invokeTauri<RealNote>("read_note_content", { relativePath: path });
 
         const fetchedContent = noteData?.content ?? "";
         const fetchedEncoding = noteData?.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
-        loadedContents[path] = fetchedContent;
-        savedContents[path] = fetchedContent;
-        tabEncodings[path] = fetchedEncoding;
+        const fetchedAbsPath = noteData?.abs_path || initialAbsPath;
+
+        openedNotes[path] = {
+          relative_path: path,
+          abs_path: fetchedAbsPath,
+          title: noteData?.title || vaultItem?.title || path,
+          content: fetchedContent,
+          savedContent: fetchedContent,
+          encoding: fetchedEncoding,
+          isLoading: false,
+        };
       } catch (e) {
         console.error(`Error al cargar contenido de ${path} desde Rust:`, e);
-        loadedContents[path] = "";
-        savedContents[path] = "";
-        tabEncodings[path] = "---";
-      } finally {
-        loadingPaths[path] = false;
+        if (openedNotes[path]) {
+          openedNotes[path].isLoading = false;
+        }
       }
     } else {
-      loadedContents[path] = "";
-      savedContents[path] = "";
-      tabEncodings[path] = "---";
+      if (openedNotes[path]) {
+        openedNotes[path].isLoading = false;
+      }
     }
   }
 
@@ -130,6 +145,15 @@
     const emptyTabPath = `empty://${emptyTabCounter}-${Date.now()}`;
     openTabPaths.push(emptyTabPath);
     activeTabPath = emptyTabPath;
+    openedNotes[emptyTabPath] = {
+      relative_path: emptyTabPath,
+      abs_path: undefined,
+      title: "Nueva pestaña",
+      content: "",
+      savedContent: "",
+      encoding: "---",
+      isLoading: false,
+    };
   }
 
   function selectTab(path: string) {
@@ -138,6 +162,7 @@
       const idx = openTabPaths.indexOf(activeTabPath);
       if (idx !== -1) {
         openTabPaths[idx] = path;
+        delete openedNotes[activeTabPath];
         delete tabSelections[activeTabPath];
       } else {
         openTabPaths.push(path);
@@ -168,12 +193,9 @@
         }
       }
     }
-    // Liberar memoria del contenido y selecciones cuando la pestaña se cierra
-    delete loadedContents[path];
-    delete savedContents[path];
-    delete loadingPaths[path];
+    // Liberar memoria consolidada de la nota y selecciones
+    delete openedNotes[path];
     delete tabSelections[path];
-    delete tabEncodings[path];
 
     // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía
     if (openTabPaths.length === 0) {
@@ -184,28 +206,32 @@
   function closeAllTabs() {
     openTabPaths = [];
     activeTabPath = null;
-    loadedContents = {};
-    savedContents = {};
-    loadingPaths = {};
+    openedNotes = {};
     tabSelections = {};
-    tabEncodings = {};
     handleNewEmptyTab();
   }
 
+  let activeNote = $derived(
+    activeTabPath ? openedNotes[activeTabPath] : undefined
+  );
+
   let currentVaultItem = $derived(
     activeTabPath && !activeTabPath.startsWith("empty:") && vaultItems.length > 0
-      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || { id: "0", title: "", relative_path: "" }
-      : { id: "0", title: "", relative_path: "" }
+      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || {
+          id: "0",
+          title: activeNote?.title || "",
+          relative_path: activeTabPath,
+          abs_path: activeNote?.abs_path,
+        }
+      : { id: "0", title: "", relative_path: "", abs_path: undefined }
   );
 
   let activeContent = $derived(
-    activeTabPath && !activeTabPath.startsWith("empty:") ? loadedContents[activeTabPath] ?? "" : ""
+    activeNote ? activeNote.content : ""
   );
 
   let currentEncoding = $derived(
-    activeTabPath && !activeTabPath.startsWith("empty:") && tabEncodings[activeTabPath]
-      ? tabEncodings[activeTabPath]
-      : "---"
+    activeNote ? activeNote.encoding : "---"
   );
 
   let isMarkdownFile = $derived(
@@ -229,18 +255,17 @@
         return {
           path,
           title: "Nueva pestaña",
+          abs_path: undefined,
           isDirty: false,
         };
       }
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
-      const isDirty = vaultItem
-        ? loadedContents[path] !== undefined &&
-          savedContents[path] !== undefined &&
-          loadedContents[path] !== savedContents[path]
-        : false;
+      const note = openedNotes[path];
+      const isDirty = note ? note.content !== note.savedContent : false;
       return {
         path,
-        title: vaultItem ? vaultItem.title || vaultItem.relative_path : path,
+        abs_path: note?.abs_path || vaultItem?.abs_path,
+        title: note?.title || vaultItem?.title || path,
         isDirty,
       };
     })
@@ -296,14 +321,7 @@
       if (isTauriEnvironment()) {
         try {
           const realNotes =
-            await invokeTauri<
-              Array<{
-                relative_path: { 0?: string } | string;
-                title: string;
-                content?: string;
-                encoding?: string;
-              }>
-            >("get_vault_notes");
+            await invokeTauri<RealNote[]>("get_vault_notes");
 
           if (realNotes && Array.isArray(realNotes)) {
             isConnectedToRust = true;
@@ -314,15 +332,16 @@
               } else if (
                 n.relative_path &&
                 typeof n.relative_path === "object" &&
-                n.relative_path[0]
+                (n.relative_path as unknown as string[])[0]
               ) {
-                relPath = n.relative_path[0];
+                relPath = (n.relative_path as unknown as string[])[0];
               }
 
               return {
                 id: String(index + 1),
                 title: n.title,
                 relative_path: relPath,
+                abs_path: n.abs_path,
               };
             });
 
@@ -382,8 +401,10 @@
     }
     const path = vaultItem.relative_path;
     if (!isConnectedToRust || !vaultItem.title || !path) return;
-    const contentToSave = loadedContents[path] ?? "";
-    const currentTabEnc = tabEncodings[path];
+
+    const note = openedNotes[path];
+    const contentToSave = note ? note.content : "";
+    const currentTabEnc = note ? note.encoding : "---";
     const enc = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : "UTF-8");
 
     syncState = "saving";
@@ -394,8 +415,12 @@
         content: contentToSave,
         encoding: enc,
       });
-      savedContents[path] = contentToSave;
-      tabEncodings[path] = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : enc);
+      if (openedNotes[path]) {
+        openedNotes[path].savedContent = contentToSave;
+        if (targetEncoding) {
+          openedNotes[path].encoding = targetEncoding;
+        }
+      }
       syncState = "synced";
     } catch (e) {
       console.error("Error al guardar el archivo en Rust:", e);
@@ -407,7 +432,9 @@
     if (!activeTabPath || activeTabPath.startsWith("empty:")) {
       return;
     }
-    tabEncodings[activeTabPath] = newEncoding;
+    if (openedNotes[activeTabPath]) {
+      openedNotes[activeTabPath].encoding = newEncoding;
+    }
     if (currentVaultItem && currentVaultItem.relative_path) {
       await persistVaultItemToRust(currentVaultItem, newEncoding);
     }
@@ -420,16 +447,25 @@
       id: String(vaultItems.length + 1),
       title: newTitle,
       relative_path: newRelPath,
+      abs_path: undefined,
     };
     const initialContent = "# Nuevo Archivo\n\nEscribe tu contenido aquí...";
     vaultItems.push(newVaultItem);
-    loadedContents[newRelPath] = initialContent;
-    tabEncodings[newRelPath] = "---";
+    openedNotes[newRelPath] = {
+      relative_path: newRelPath,
+      abs_path: undefined,
+      title: newTitle,
+      content: initialContent,
+      savedContent: "",
+      encoding: "---",
+      isLoading: false,
+    };
 
     const targetEmptyPath = emptyTabPathToReplace || (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null);
     if (targetEmptyPath && openTabPaths.includes(targetEmptyPath)) {
       const idx = openTabPaths.indexOf(targetEmptyPath);
       openTabPaths[idx] = newRelPath;
+      delete openedNotes[targetEmptyPath];
       delete tabSelections[targetEmptyPath];
     } else {
       openTabPaths.push(newRelPath);
@@ -451,23 +487,14 @@
       },
       {
         id: "cmd-new-file",
-        name: "Crear nuevo archivo / nota",
+        name: "Crear nuevo archivo",
         category: "Archivo",
         shortcut: "Ctrl+N",
         action: () => createNewVaultItem(),
       },
       {
-        id: "cmd-quick-open",
-        name: "Abrir archivo rápidamente...",
-        category: "Archivo",
-        shortcut: "Ctrl+O",
-        action: () => {
-          isQuickOpenOpen = true;
-        },
-      },
-      {
         id: "cmd-close-tab",
-        name: "Cerrar pestaña activa",
+        name: "Cerrar pestaña actual",
         category: "Pestañas",
         shortcut: "Ctrl+W",
         action: () => {
@@ -475,26 +502,17 @@
         },
       },
       {
-        id: "cmd-open-palette",
-        name: "Abrir paleta de comandos",
-        category: "Sistema",
-        shortcut: "Ctrl+P",
-        action: () => {
-          isPaletteOpen = true;
-        },
+        id: "cmd-close-all-tabs",
+        name: "Cerrar todas las pestañas",
+        category: "Pestañas",
+        action: closeAllTabs,
       },
       {
-        id: "cmd-toggle-view",
-        name: "Alternar entre modo Edición y Lectura",
-        category: "Vista",
-        shortcut: "Ctrl+E",
+        id: "cmd-toggle-vim",
+        name: "Alternar modo Vim",
+        category: "Editor",
         action: () => {
-          isEditing = !isEditing;
-          if (!isEditing) {
-            markdownViewMode = "reading";
-          } else if (markdownViewMode === "reading") {
-            markdownViewMode = "live";
-          }
+          isVimMode = !isVimMode;
         },
       },
       {
@@ -559,28 +577,31 @@
   async function handleOpenVaultFolder() {
     if (!isTauriEnvironment()) return;
     try {
-      const newNotes = await invokeTauri<Array<{ relative_path: { 0?: string } | string; title: string; content?: string }> | null>('select_vault_folder');
+      const newNotes = await invokeTauri<RealNote[] | null>('select_vault_folder');
       if (newNotes && Array.isArray(newNotes)) {
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
             relPath = n.relative_path;
-          } else if (n.relative_path && typeof n.relative_path === 'object' && n.relative_path[0]) {
-            relPath = n.relative_path[0];
+          } else if (
+            n.relative_path &&
+            typeof n.relative_path === 'object' &&
+            (n.relative_path as unknown as string[])[0]
+          ) {
+            relPath = (n.relative_path as unknown as string[])[0];
           }
 
           return {
             id: String(index + 1),
             title: n.title,
-            relative_path: relPath
+            relative_path: relPath,
+            abs_path: n.abs_path,
           };
         });
         openTabPaths = [];
         activeTabPath = null;
-        loadedContents = {};
-        savedContents = {};
+        openedNotes = {};
         tabSelections = {};
-        tabEncodings = {};
         recentFiles = vaultItems.map(v => v.relative_path);
         handleNewEmptyTab();
       }
@@ -696,95 +717,111 @@
               />
             </div>
           {:else}
-            {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath)}
-            {@const content = loadedContents[tabPath]}
-            {@const isLoading = loadingPaths[tabPath]}
+            {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath) || {
+              id: "0",
+              title: openedNotes[tabPath]?.title || tabPath,
+              relative_path: tabPath,
+              abs_path: openedNotes[tabPath]?.abs_path,
+            }}
+            {@const note = openedNotes[tabPath]}
+            {@const content = note?.content ?? ""}
+            {@const isLoading = note?.isLoading ?? false}
 
-            {#if vaultItem}
-              <div
-                class="tab-pane"
-                class:hidden={tabPath !== activeTabPath}
-                class:full-pane={tabPath.endsWith(".mmd") ||
-                  tabPath.endsWith(".mermaid") ||
-                  tabPath.endsWith(".png") ||
-                  tabPath.endsWith(".webp") ||
-                  tabPath.endsWith(".jpg") ||
-                  tabPath.endsWith(".jpeg") ||
-                  tabPath.endsWith(".gif") ||
-                  tabPath.endsWith(".bmp") ||
-                  tabPath.endsWith(".svg") ||
-                  tabPath.endsWith(".ico") ||
-                  tabPath.endsWith(".avif") ||
-                  tabPath.endsWith(".excalidraw") ||
-                  tabPath.endsWith(".excalidraw.json")}
-              >
-                {#if isLoading || content === undefined}
-                  <div class="content-loading">
-                    <span class="spinner"></span>
-                    <span>Cargando contenido desde disco...</span>
-                  </div>
-                {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
-                  <MermanViewer
+            <div
+              class="tab-pane"
+              class:hidden={tabPath !== activeTabPath}
+              class:full-pane={tabPath.endsWith(".mmd") ||
+                tabPath.endsWith(".mermaid") ||
+                tabPath.endsWith(".png") ||
+                tabPath.endsWith(".webp") ||
+                tabPath.endsWith(".jpg") ||
+                tabPath.endsWith(".jpeg") ||
+                tabPath.endsWith(".gif") ||
+                tabPath.endsWith(".bmp") ||
+                tabPath.endsWith(".svg") ||
+                tabPath.endsWith(".ico") ||
+                tabPath.endsWith(".avif") ||
+                tabPath.endsWith(".excalidraw") ||
+                tabPath.endsWith(".excalidraw.json")}
+            >
+              {#if isLoading}
+                <div class="content-loading">
+                  <span class="spinner"></span>
+                  <span>Cargando contenido desde disco...</span>
+                </div>
+              {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
+                <MermanViewer
+                  {content}
+                  readOnly={!isEditing}
+                  vimMode={isVimMode}
+                  onChange={(updatedContent) => {
+                    if (openedNotes[tabPath]) {
+                      openedNotes[tabPath].content = updatedContent;
+                    }
+                    debouncedPersistVaultItemToRust(vaultItem);
+                  }}
+                  onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                />
+              {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
+                <ExcalidrawViewer
+                  {content}
+                  readOnly={!isEditing}
+                  onChange={(updatedContent) => {
+                    if (openedNotes[tabPath]) {
+                      openedNotes[tabPath].content = updatedContent;
+                    }
+                    debouncedPersistVaultItemToRust(vaultItem);
+                  }}
+                />
+              {:else if tabPath.endsWith(".md") || tabPath.endsWith(".markdown")}
+                <input
+                  type="text"
+                  class="editor-title-input"
+                  bind:value={vaultItem.title}
+                  oninput={() => {
+                    if (openedNotes[tabPath]) {
+                      openedNotes[tabPath].title = vaultItem.title;
+                    }
+                    persistVaultItemToRust(vaultItem);
+                  }}
+                  placeholder="Título del archivo..."
+                />
+
+                <div class="editor-main-content">
+                  <MarkdownViewer
                     {content}
                     readOnly={!isEditing}
                     vimMode={isVimMode}
-                    onChange={(updatedContent) => {
-                      loadedContents[tabPath] = updatedContent;
+                    viewMode={!isEditing ? 'reading' : markdownViewMode}
+                    onChange={(updatedMarkdown: string) => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = updatedMarkdown;
+                      }
                       debouncedPersistVaultItemToRust(vaultItem);
                     }}
                     onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                    isMarkdown={true}
                   />
-                {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
-                  <ExcalidrawViewer
-                    {content}
-                    readOnly={!isEditing}
-                    onChange={(updatedContent) => {
-                      loadedContents[tabPath] = updatedContent;
-                      debouncedPersistVaultItemToRust(vaultItem);
-                    }}
-                  />
-                {:else if tabPath.endsWith(".md") || tabPath.endsWith(".markdown")}
-                  <input
-                    type="text"
-                    class="editor-title-input"
-                    bind:value={vaultItem.title}
-                    oninput={() => persistVaultItemToRust(vaultItem)}
-                    placeholder="Título del archivo..."
-                  />
-
-                  <div class="editor-main-content">
-                    <MarkdownViewer
-                      {content}
-                      readOnly={!isEditing}
-                      vimMode={isVimMode}
-                      viewMode={!isEditing ? 'reading' : markdownViewMode}
-                      onChange={(updatedMarkdown: string) => {
-                        loadedContents[tabPath] = updatedMarkdown;
-                        debouncedPersistVaultItemToRust(vaultItem);
-                      }}
-                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                      isMarkdown={!vaultItem.relative_path ||
-                        vaultItem.relative_path.endsWith(".md") ||
-                        vaultItem.relative_path.endsWith(".markdown")}
-                    />
-                  </div>
-                {:else if tabPath.endsWith(".png") ||
-                  tabPath.endsWith(".webp") ||
-                  tabPath.endsWith(".jpg") ||
-                  tabPath.endsWith(".jpeg") ||
-                  tabPath.endsWith(".gif") ||
-                  tabPath.endsWith(".bmp") ||
-                  tabPath.endsWith(".svg") ||
-                  tabPath.endsWith(".ico") ||
-                  tabPath.endsWith(".avif")}
-                  <ImageViewer src={`file:///${tabPath}`} alt={vaultItem.title || tabPath} />
-                {:else}
-                  <div class="editor-main-content">
-                    <pre style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
-                  </div>
-                {/if}
-              </div>
-            {/if}
+                </div>
+              {:else if tabPath.endsWith(".png") ||
+                tabPath.endsWith(".webp") ||
+                tabPath.endsWith(".jpg") ||
+                tabPath.endsWith(".jpeg") ||
+                tabPath.endsWith(".gif") ||
+                tabPath.endsWith(".bmp") ||
+                tabPath.endsWith(".svg") ||
+                tabPath.endsWith(".ico") ||
+                tabPath.endsWith(".avif")}
+                <ImageViewer
+                  src={`file:///${note?.abs_path}`}
+                  alt={vaultItem.title || tabPath}
+                />
+              {:else}
+                <div class="editor-main-content">
+                  <pre style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
+                </div>
+              {/if}
+            </div>
           {/if}
         {/each}
       {/if}
