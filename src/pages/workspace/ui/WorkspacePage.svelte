@@ -9,8 +9,10 @@
   import { VaultExplorer } from "@features/vault-explorer";
   import { MarkdownViewer } from "@features/markdown-editor";
   import { MermanViewer } from "@features/merman-editor";
+  import { MermaidViewer } from "@features/mermaid-editor";
   import { ExcalidrawViewer } from "@features/excalidraw-editor";
   import { ImageViewer } from "@features/image-viewer";
+  import { appSettings } from "@entities/settings";
   import type { VaultItem, OpenedNote } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
   import { invokeTauri, isTauriEnvironment, type RealNote } from "@shared/api";
@@ -557,6 +559,30 @@
         action: toggleMarkdownViewMode,
       },
       {
+        id: "cmd-toggle-mermaid-engine",
+        name: "Alternar motor de diagramas Mermaid (Mermaid.js / Merman)",
+        category: "Configuración",
+        action: () => {
+          appSettings.toggleMermaidRenderer();
+        },
+      },
+      {
+        id: "cmd-set-mermaid-engine-mermaidjs",
+        name: "Configurar motor Mermaid: Usar Mermaid.js",
+        category: "Configuración",
+        action: () => {
+          appSettings.setMermaidRenderer("mermaidjs");
+        },
+      },
+      {
+        id: "cmd-set-mermaid-engine-merman",
+        name: "Configurar motor Mermaid: Usar Merman (WASM)",
+        category: "Configuración",
+        action: () => {
+          appSettings.setMermaidRenderer("merman");
+        },
+      },
+      {
         id: "cmd-save-file",
         name: "Guardar / Grabar archivo actual",
         category: "Archivo",
@@ -612,7 +638,7 @@
   async function handleOpenVaultFolder() {
     if (!isTauriEnvironment()) return;
     try {
-      const newNotes = await invokeTauri<RealNote[] | null>('select_vault_folder');
+      const newNotes = await invokeTauri<RealNote[]>('select_vault_folder');
       if (newNotes && Array.isArray(newNotes)) {
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
@@ -742,7 +768,7 @@
         />
       {:else}
         {#each openTabPaths as tabPath (tabPath)}
-          {#if tabPath.startsWith("empty:")}
+          {#if tabPath.startsWith("empty:")}\
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
@@ -778,18 +804,33 @@
                   <span>Cargando contenido desde disco...</span>
                 </div>
               {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
-                <MermanViewer
-                  {content}
-                  readOnly={!isEditing}
-                  vimMode={isVimMode}
-                  onChange={(updatedContent) => {
-                    if (openedNotes[tabPath]) {
-                      openedNotes[tabPath].content = updatedContent;
-                    }
-                    debouncedPersistVaultItemToRust(vaultItem);
-                  }}
-                  onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                />
+                {#if appSettings.mermaidRenderer === 'mermaidjs'}
+                  <MermaidViewer
+                    {content}
+                    readOnly={!isEditing}
+                    vimMode={isVimMode}
+                    onChange={(updatedContent) => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = updatedContent;
+                      }
+                      debouncedPersistVaultItemToRust(vaultItem);
+                    }}
+                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                  />
+                {:else}
+                  <MermanViewer
+                    {content}
+                    readOnly={!isEditing}
+                    vimMode={isVimMode}
+                    onChange={(updatedContent) => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = updatedContent;
+                      }
+                      debouncedPersistVaultItemToRust(vaultItem);
+                    }}
+                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                  />
+                {/if}
               {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
                 <ExcalidrawViewer
                   {content}
