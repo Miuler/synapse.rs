@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-  import { isTauriEnvironment } from '@shared/api';
+  import { isTauriEnvironment } from '@shared/repositories';
   import type { TabItem } from '@entities/vault-item';
   import type { MarkdownViewMode } from '@widgets/status-bar';
 

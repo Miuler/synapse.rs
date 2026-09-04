@@ -14,16 +14,15 @@
   import { ImageViewer } from "@features/image-viewer";
   import { appSettings } from "@entities/settings";
   import {
-    fileTypesManager,
     isImageFile,
     isMarkdownFile,
     isDiagramFile,
     isDrawingFile,
   } from "@entities/file-type";
+  import { loadSupportedFileTypesUseCase } from "@shared/use-cases";
   import type { VaultItem, OpenedNote } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
-  import { invokeTauri, isTauriEnvironment, type RealNote } from "@shared/api";
-  import { convertFileSrc } from "@tauri-apps/api/core";
+  import { vaultRepository } from "@shared/repositories";
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
@@ -105,7 +104,7 @@
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
     const initialAbsPath = vaultItem?.abs_path;
 
-    // Para imágenes no se requiere leer contenido vía Rust IPC; convertFileSrc se encarga directamente
+    // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga
     if (isImageFile(path)) {
       openedNotes[path] = {
         relative_path: path,
@@ -133,30 +132,29 @@
       openedNotes[path].isLoading = true;
     }
 
-    if (isTauriEnvironment()) {
-      try {
-        const noteData = await invokeTauri<RealNote>("read_note_content", { relativePath: path });
-
-        const fetchedContent = noteData?.content ?? "";
-        const fetchedEncoding = noteData?.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
-        const fetchedAbsPath = noteData?.abs_path || initialAbsPath;
+    try {
+      const noteData = await vaultRepository.readNote(path);
+      if (noteData) {
+        const fetchedContent = noteData.content ?? "";
+        const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
+        const fetchedAbsPath = noteData.abs_path || initialAbsPath;
 
         openedNotes[path] = {
           relative_path: path,
           abs_path: fetchedAbsPath,
-          title: noteData?.title || vaultItem?.title || path,
+          title: noteData.title || vaultItem?.title || path,
           content: fetchedContent,
           savedContent: fetchedContent,
           encoding: fetchedEncoding,
           isLoading: false,
         };
-      } catch (e) {
-        console.error(`Error al cargar contenido de ${path} desde Rust:`, e);
+      } else {
         if (openedNotes[path]) {
           openedNotes[path].isLoading = false;
         }
       }
-    } else {
+    } catch (e) {
+      console.error(`Error al cargar contenido de ${path} desde la bóveda:`, e);
       if (openedNotes[path]) {
         openedNotes[path].isLoading = false;
       }
@@ -346,63 +344,55 @@
     });
   });
 
-  // Carga únicamente de metadatos desde Rust (Tauri IPC) al montar
+  // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
   onMount(() => {
     window.scrollTo(0, 0);
 
-    // Cargar la configuración de tipos soportados desde Tauri
-    fileTypesManager.initFromTauri();
+    // Cargar la configuración de tipos soportados a través del use case
+    loadSupportedFileTypesUseCase();
 
     async function fetchNotesFromBackend() {
-      if (isTauriEnvironment()) {
-        try {
-          const realNotes =
-            await invokeTauri<RealNote[]>("get_vault_notes");
+      try {
+        const notes = await vaultRepository.getNotes();
+        isConnectedToRust = vaultRepository.isConnected();
 
-          if (realNotes && Array.isArray(realNotes)) {
-            isConnectedToRust = true;
-            vaultItems = realNotes.map((n, index) => {
-              let relPath = `${n.title}.md`;
-              if (typeof n.relative_path === "string") {
-                relPath = n.relative_path;
-              } else if (
-                n.relative_path &&
-                typeof n.relative_path === "object" &&
-                (n.relative_path as unknown as string[])[0]
-              ) {
-                relPath = (n.relative_path as unknown as string[])[0];
-              }
-
-              return {
-                id: String(index + 1),
-                title: n.title,
-                relative_path: relPath,
-                abs_path: n.abs_path,
-              };
-            });
-
-            if (recentFiles.length === 0 && vaultItems.length > 0) {
-              recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+        if (notes && Array.isArray(notes) && notes.length > 0) {
+          vaultItems = notes.map((n, index) => {
+            let relPath = `${n.title}.md`;
+            if (typeof n.relative_path === "string") {
+              relPath = n.relative_path;
+            } else if (
+              n.relative_path &&
+              typeof n.relative_path === "object" &&
+              (n.relative_path as unknown as string[])[0]
+            ) {
+              relPath = (n.relative_path as unknown as string[])[0];
             }
 
-            if (openTabPaths.length === 0) {
-              handleNewEmptyTab();
-            }
-          } else {
-            vaultItems = [];
-            if (openTabPaths.length === 0) {
-              handleNewEmptyTab();
-            }
+            return {
+              id: String(index + 1),
+              title: n.title,
+              relative_path: relPath,
+              abs_path: n.abs_path,
+            };
+          });
+
+          if (recentFiles.length === 0 && vaultItems.length > 0) {
+            recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
           }
-        } catch (e) {
-          console.warn("Error al cargar lista de archivos de Rust:", e);
-          isConnectedToRust = false;
+
+          if (openTabPaths.length === 0) {
+            handleNewEmptyTab();
+          }
+        } else {
           vaultItems = [];
           if (openTabPaths.length === 0) {
             handleNewEmptyTab();
           }
         }
-      } else {
+      } catch (e) {
+        console.warn("Error al cargar lista de archivos de la bóveda:", e);
+        isConnectedToRust = false;
         vaultItems = [];
         if (openTabPaths.length === 0) {
           handleNewEmptyTab();
@@ -448,7 +438,7 @@
 
     syncState = "saving";
     try {
-      await invokeTauri("save_note_content", {
+      await vaultRepository.saveNote({
         relativePath: path,
         title: vaultItem.title,
         content: contentToSave,
@@ -462,7 +452,7 @@
       }
       syncState = "synced";
     } catch (e) {
-      console.error("Error al guardar el archivo en Rust:", e);
+      console.error("Error al guardar el archivo en la bóveda:", e);
       syncState = "error";
     }
   }
@@ -638,10 +628,9 @@
   }
 
   async function handleOpenVaultFolder() {
-    if (!isTauriEnvironment()) return;
     try {
-      const newNotes = await invokeTauri<RealNote[]>('select_vault_folder');
-      if (newNotes && Array.isArray(newNotes)) {
+      const newNotes = await vaultRepository.selectVaultFolder();
+      if (newNotes && Array.isArray(newNotes) && newNotes.length > 0) {
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
@@ -872,7 +861,7 @@
                 </div>
               {:else if isImageFile(tabPath)}
                 <ImageViewer
-                  src={note?.abs_path ? convertFileSrc(note.abs_path) : (content || tabPath)}
+                  src={note?.abs_path ? vaultRepository.resolveAssetUrl(note.abs_path) : (content || tabPath)}
                   alt={vaultItem.title || tabPath}
                   {content}
                 />

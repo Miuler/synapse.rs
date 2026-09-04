@@ -1,5 +1,3 @@
-import { invokeTauri, isTauriEnvironment } from '@shared/api';
-
 export interface SupportedFileTypes {
   images: string[];
   markdown: string[];
@@ -16,28 +14,23 @@ export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = {
   code: ['rs'],
 };
 
+/**
+ * Entidad pura que gestiona el estado y las reglas de dominio
+ * sobre los tipos y extensiones de archivo soportados.
+ * No tiene dependencias de servicios externos ni de infraestructura (I/O).
+ */
 class FileTypesManager {
   fileTypes = $state<SupportedFileTypes>(DEFAULT_SUPPORTED_FILE_TYPES);
-  isLoadedFromTauri = $state<boolean>(false);
+  isLoaded = $state<boolean>(false);
 
-  constructor() {
-    this.initFromTauri();
-  }
-
-  async initFromTauri(): Promise<SupportedFileTypes> {
-    if (isTauriEnvironment()) {
-      try {
-        const types = await invokeTauri<SupportedFileTypes>('get_supported_file_types');
-        if (types && Array.isArray(types.images)) {
-          this.fileTypes = types;
-          this.isLoadedFromTauri = true;
-          return types;
-        }
-      } catch (err) {
-        console.warn('No se pudo cargar SupportedFileTypes desde Tauri, usando defaults:', err);
-      }
+  /**
+   * Actualiza el estado de la entidad con nuevos tipos soportados provistos externamente.
+   */
+  setSupportedFileTypes(types: SupportedFileTypes): void {
+    if (types && Array.isArray(types.images)) {
+      this.fileTypes = types;
+      this.isLoaded = true;
     }
-    return this.fileTypes;
   }
 
   getAllExtensions(): string[] {
