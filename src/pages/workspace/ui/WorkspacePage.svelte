@@ -96,6 +96,21 @@
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
     const initialAbsPath = vaultItem?.abs_path;
 
+    // Para imágenes no se requiere leer contenido vía Rust IPC; convertFileSrc se encarga directamente
+    const isImage = /\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path);
+    if (isImage) {
+      openedNotes[path] = {
+        relative_path: path,
+        abs_path: initialAbsPath,
+        title: vaultItem?.title || path,
+        content: "",
+        savedContent: "",
+        encoding: "binary",
+        isLoading: false,
+      };
+      return;
+    }
+
     if (!openedNotes[path]) {
       openedNotes[path] = {
         relative_path: path,
@@ -401,6 +416,9 @@
     }
     const path = vaultItem.relative_path;
     if (!isConnectedToRust || !vaultItem.title || !path) return;
+
+    // Proteger archivos binarios de imágenes de sobreescrituras accidentales
+    if (/\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path)) return;
 
     const note = openedNotes[path];
     const contentToSave = note ? note.content : "";
@@ -813,7 +831,7 @@
                 tabPath.endsWith(".ico") ||
                 tabPath.endsWith(".avif")}
                 <ImageViewer
-                  src={`file:///${note?.abs_path}`}
+                  src={note?.abs_path ? convertFileSrc(note.abs_path) : (content || tabPath)}
                   alt={vaultItem.title || tabPath}
                 />
               {:else}
