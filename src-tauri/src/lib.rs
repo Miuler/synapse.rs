@@ -43,6 +43,7 @@ pub fn run() {
 
     #[cfg(target_os = "linux")]
     {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         let options = ApplyWorkaroundOptions::default().force_disable_nv_explicit_sync(true);
         apply_workaround_with_options(options);
     }

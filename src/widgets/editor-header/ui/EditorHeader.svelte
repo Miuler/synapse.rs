@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { isTauriEnvironment } from '@shared/api';
   import type { TabItem } from '@entities/vault-item';
   import type { MarkdownViewMode } from '@widgets/status-bar';
@@ -367,20 +367,23 @@
 
   $effect(() => {
     const currentPath = activeTabPath;
-    const currentTabs = tabs;
+    const _currentTabs = tabs;
     tick().then(() => {
       checkScroll();
       if (tabsScrollRef && currentPath) {
-        const tabsList = tabsScrollRef.querySelectorAll('.tab-title-container');
-        for (const el of tabsList) {
-          if ((el as HTMLElement).dataset.path === currentPath) {
-            (el as HTMLElement).scrollIntoView({
-              behavior: 'smooth',
-              block: 'nearest',
-              inline: 'nearest',
-            });
-            break;
+        try {
+          const activeTabEl = tabsScrollRef.querySelector<HTMLElement>(`.tab-title-container[data-path="${CSS.escape(currentPath)}"]`);
+          if (activeTabEl) {
+            const containerRect = tabsScrollRef.getBoundingClientRect();
+            const tabRect = activeTabEl.getBoundingClientRect();
+            if (tabRect.left < containerRect.left) {
+              tabsScrollRef.scrollLeft -= (containerRect.left - tabRect.left + 12);
+            } else if (tabRect.right > containerRect.right) {
+              tabsScrollRef.scrollLeft += (tabRect.right - containerRect.right + 12);
+            }
           }
+        } catch {
+          // Si el selector falla, no romper nada
         }
       }
     });
@@ -412,14 +415,21 @@
   });
 
   async function handleWindowControl(action: 'minimize' | 'maximize' | 'close') {
-    if (!isTauriEnvironment()) return;
-    const appWindow = getCurrentWindow();
-    if (action === 'minimize') {
-      await appWindow.minimize();
-    } else if (action === 'maximize') {
-      await appWindow.toggleMaximize();
-    } else if (action === 'close') {
-      await appWindow.close();
+    if (!isTauriEnvironment()) {
+      console.warn("handleWindowControl invocado fuera del entorno Tauri");
+      return;
+    }
+    try {
+      const appWindow = getCurrentWebviewWindow();
+      if (action === 'minimize') {
+        await appWindow.minimize();
+      } else if (action === 'maximize') {
+        await appWindow.toggleMaximize();
+      } else if (action === 'close') {
+        await appWindow.close();
+      }
+    } catch (err) {
+      console.error(`Error al ejecutar control de ventana (${action}):`, err);
     }
   }
 
@@ -824,18 +834,38 @@
     </button>
 
     <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
-    <div class="window-controls">
-      <button type="button" class="win-btn minimize" onclick={() => handleWindowControl('minimize')} title="Minimizar">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="window-controls"
+      data-tauri-drag-region="false"
+      onmousedown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        class="win-btn minimize"
+        onclick={(e) => { e.stopPropagation(); handleWindowControl('minimize'); }}
+        title="Minimizar"
+      >
         <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
       </button>
-      <button type="button" class="win-btn maximize" onclick={() => handleWindowControl('maximize')} title="Maximizar / Restaurar">
+      <button
+        type="button"
+        class="win-btn maximize"
+        onclick={(e) => { e.stopPropagation(); handleWindowControl('maximize'); }}
+        title="Maximizar / Restaurar"
+      >
         <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="5" y="5" width="14" height="14" rx="1"/>
         </svg>
       </button>
-      <button type="button" class="win-btn close" onclick={() => handleWindowControl('close')} title="Cerrar">
+      <button
+        type="button"
+        class="win-btn close"
+        onclick={(e) => { e.stopPropagation(); handleWindowControl('close'); }}
+        title="Cerrar"
+      >
         <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>

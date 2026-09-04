@@ -332,6 +332,7 @@
 
   // Carga únicamente de metadatos desde Rust (Tauri IPC) al montar
   onMount(() => {
+    window.scrollTo(0, 0);
     async function fetchNotesFromBackend() {
       if (isTauriEnvironment()) {
         try {
@@ -879,10 +880,17 @@
 
 <style>
   .workspace-layout {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
+    flex-direction: row;
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    overscroll-behavior: none;
     background-color: var(--bg-primary, #ffffff);
   }
 
