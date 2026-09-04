@@ -89,6 +89,11 @@
     }
   }
 
+  function isImage(path: string | null | undefined): boolean {
+    if (!path) return false;
+    return /\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path);
+  }
+
   async function ensureContentLoaded(path: string) {
     if (!path || path.startsWith("empty:")) return;
     if (openedNotes[path] && !openedNotes[path].isLoading && openedNotes[path].content !== undefined) return;
@@ -97,8 +102,7 @@
     const initialAbsPath = vaultItem?.abs_path;
 
     // Para imágenes no se requiere leer contenido vía Rust IPC; convertFileSrc se encarga directamente
-    const isImage = /\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path);
-    if (isImage) {
+    if (isImage(path)) {
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -264,6 +268,18 @@
     )
   );
 
+  let hasActiveContent = $derived(
+    Boolean(
+      activeTabPath &&
+      openTabPaths.includes(activeTabPath) &&
+      !isImage(activeTabPath) &&
+      activeNote &&
+      !activeNote.isLoading &&
+      typeof activeNote.content === "string" &&
+      activeNote.content.trim().length > 0
+    )
+  );
+
   let tabsInfo = $derived(
     openTabPaths.map((path) => {
       if (path.startsWith("empty:")) {
@@ -419,7 +435,7 @@
     if (!isConnectedToRust || !vaultItem.title || !path) return;
 
     // Proteger archivos binarios de imágenes de sobreescrituras accidentales
-    if (/\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path)) return;
+    if (isImage(path)) return;
 
     const note = openedNotes[path];
     const contentToSave = note ? note.content : "";
@@ -680,6 +696,7 @@
       tabs={tabsInfo}
       {activeTabPath}
       {isMarkdownFile}
+      showViewToggle={hasActiveContent}
       markdownViewMode={!isEditing ? "reading" : markdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}
       title={activeTabPath?.startsWith("empty:") ? "Nueva pestaña" : (currentVaultItem.relative_path || currentVaultItem.title)}
@@ -751,15 +768,7 @@
               class:hidden={tabPath !== activeTabPath}
               class:full-pane={tabPath.endsWith(".mmd") ||
                 tabPath.endsWith(".mermaid") ||
-                tabPath.endsWith(".png") ||
-                tabPath.endsWith(".webp") ||
-                tabPath.endsWith(".jpg") ||
-                tabPath.endsWith(".jpeg") ||
-                tabPath.endsWith(".gif") ||
-                tabPath.endsWith(".bmp") ||
-                tabPath.endsWith(".svg") ||
-                tabPath.endsWith(".ico") ||
-                tabPath.endsWith(".avif") ||
+                isImage(tabPath) ||
                 tabPath.endsWith(".excalidraw") ||
                 tabPath.endsWith(".excalidraw.json")}
             >
@@ -822,15 +831,7 @@
                     isMarkdown={true}
                   />
                 </div>
-              {:else if tabPath.endsWith(".png") ||
-                tabPath.endsWith(".webp") ||
-                tabPath.endsWith(".jpg") ||
-                tabPath.endsWith(".jpeg") ||
-                tabPath.endsWith(".gif") ||
-                tabPath.endsWith(".bmp") ||
-                tabPath.endsWith(".svg") ||
-                tabPath.endsWith(".ico") ||
-                tabPath.endsWith(".avif")}
+              {:else if isImage(tabPath)}
                 <ImageViewer
                   src={note?.abs_path ? convertFileSrc(note.abs_path) : (content || tabPath)}
                   alt={vaultItem.title || tabPath}

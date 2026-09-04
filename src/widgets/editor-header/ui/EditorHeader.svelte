@@ -15,6 +15,7 @@
     isMarkdownFile?: boolean;
     markdownViewMode?: MarkdownViewMode;
     showSaveButton?: boolean;
+    showViewToggle?: boolean;
     onSelectTab?: (path: string) => void;
     onCloseTab?: (path: string) => void;
     onCloseAllTabs?: () => void;
@@ -37,6 +38,7 @@
     isMarkdownFile = false,
     markdownViewMode = 'live',
     showSaveButton = false,
+    showViewToggle = false,
     onSelectTab,
     onCloseTab,
     onCloseAllTabs,
@@ -624,27 +626,29 @@
       </button>
     {/if}
 
-    <!-- BOTÓN PRINCIPAL EDICIÓN / LECTURA (SIEMPRE VISIBLE) -->
-    <button
-      type="button"
-      class="view-toggle-btn"
-      onclick={() => {
-        isEditing = !isEditing;
-        if (onToggleView) onToggleView();
-      }}
-      title={isEditing ? "Cambiar a modo Lectura" : "Cambiar a modo Edición"}
-    >
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        {#if isEditing}
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-        {:else}
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        {/if}
-      </svg>
-      <span>{isEditing ? "Edición" : "Lectura"}</span>
-    </button>
+    <!-- BOTÓN PRINCIPAL EDICIÓN / LECTURA (SOLO CUANDO HAY TAB ABIERTO CON CONTENIDO) -->
+    {#if showViewToggle}
+      <button
+        type="button"
+        class="view-toggle-btn"
+        onclick={() => {
+          isEditing = !isEditing;
+          if (onToggleView) onToggleView();
+        }}
+        title={isEditing ? "Cambiar a modo Lectura" : "Cambiar a modo Edición"}
+      >
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          {#if isEditing}
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          {:else}
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          {/if}
+        </svg>
+        <span>{isEditing ? "Edición" : "Lectura"}</span>
+      </button>
+    {/if}
 
     <button type="button" class="icon-btn" onclick={() => { if (onSplitView) onSplitView(); }} title="Dividir panel verticalmente">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
