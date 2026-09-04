@@ -846,6 +846,7 @@
                 <div class="editor-main-content">
                   <MarkdownViewer
                     {content}
+                    filePath={tabPath}
                     readOnly={!isEditing}
                     vimMode={isVimMode}
                     viewMode={!isEditing ? 'reading' : markdownViewMode}

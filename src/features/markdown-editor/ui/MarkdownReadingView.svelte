@@ -1,17 +1,18 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Marked } from 'marked';
-  import { renderMermaidSvg, ensureMerman } from '@features/merman-editor';
+  import { resolveIncludes } from '../lib/include-resolver';
+  import { renderUnifiedDiagramSvg } from '../lib/render-diagram';
 
   interface Props {
     content: string;
+    filePath?: string | null;
   }
 
-  let { content = '' }: Props = $props();
+  let { content = '', filePath = null }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
-  let isMermanReady = $state(false);
 
   const marked = new Marked();
 
@@ -43,16 +44,28 @@
       const body = card.querySelector('.reading-mermaid-body');
       if (!body) continue;
 
-      const { svg, error } = renderMermaidSvg(code);
-      if (error) {
+      try {
+        const resolvedCode = await resolveIncludes(code, filePath);
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode);
+        if (error) {
+          body.innerHTML = `
+            <div class="reading-mermaid-error">
+              <div class="error-badge">Error de sintaxis Mermaid</div>
+              <pre>${escapeHtml(error)}</pre>
+            </div>
+          `;
+        } else if (svg) {
+          body.innerHTML = `<div class="reading-mermaid-svg">${svg}</div>`;
+        } else {
+          body.innerHTML = `<div class="reading-mermaid-empty">Diagrama vacío</div>`;
+        }
+      } catch (e) {
         body.innerHTML = `
           <div class="reading-mermaid-error">
-            <div class="error-badge">Error de sintaxis Mermaid</div>
-            <pre>${escapeHtml(error)}</pre>
+            <div class="error-badge">Error al procesar diagrama</div>
+            <pre>${escapeHtml(String(e))}</pre>
           </div>
         `;
-      } else if (svg) {
-        body.innerHTML = `<div class="reading-mermaid-svg">${svg}</div>`;
       }
     }
   }
@@ -66,14 +79,8 @@
       .replace(/'/g, '&#039;');
   }
 
-  onMount(async () => {
-    try {
-      await ensureMerman();
-      isMermanReady = true;
-      renderDiagrams();
-    } catch (e) {
-      console.error('Error al inicializar Merman:', e);
-    }
+  onMount(() => {
+    renderDiagrams();
   });
 
   $effect(() => {
@@ -82,9 +89,7 @@
     renderedHtml = typeof parsed === 'string' ? parsed : '';
 
     tick().then(() => {
-      if (isMermanReady) {
-        renderDiagrams();
-      }
+      renderDiagrams();
     });
   });
 </script>
@@ -282,5 +287,11 @@
   :global(.reading-mermaid-loading) {
     font-size: 12px;
     color: var(--text-secondary, #656d76);
+  }
+
+  :global(.reading-mermaid-empty) {
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+    font-style: italic;
   }
 </style>

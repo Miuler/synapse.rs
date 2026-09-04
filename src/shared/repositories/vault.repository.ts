@@ -81,7 +81,10 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     try {
-      return await invokeTauri<VaultNote>('read_note_content', { relativePath });
+      return await invokeTauri<VaultNote>('read_note_content', {
+        relativePath,
+        relative_path: relativePath,
+      });
     } catch (error) {
       console.error(`Error en TauriVaultRepository al leer ${relativePath}:`, error);
       return null;
@@ -95,6 +98,7 @@ export class TauriVaultRepository implements VaultRepository {
 
     await invokeTauri('save_note_content', {
       relativePath: params.relativePath,
+      relative_path: params.relativePath,
       title: params.title,
       content: params.content,
       encoding: params.encoding,

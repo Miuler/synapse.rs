@@ -9,7 +9,7 @@
   import { tags } from '@lezer/highlight';
   import { vim } from '@replit/codemirror-vim';
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
-  import { mermaidLivePreviewField } from '../lib/mermaid-extension';
+  import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -26,6 +26,7 @@
 
   interface Props {
     content: string;
+    filePath?: string | null;
     isMarkdown?: boolean;
     readOnly?: boolean;
     vimMode?: boolean;
@@ -36,6 +37,7 @@
 
   let {
     content = '',
+    filePath = null,
     isMarkdown = true,
     readOnly = false,
     vimMode = false,
@@ -52,6 +54,7 @@
   const readOnlyCompartment = new Compartment();
   const vimCompartment = new Compartment();
   const viewModeCompartment = new Compartment();
+  const filePathCompartment = new Compartment();
 
   export function triggerSearch() {
     if (editorView) {
@@ -293,6 +296,16 @@
     '.cm-mermaid-badge svg': {
       color: 'var(--accent, #0969da)',
     },
+    '.cm-mermaid-include-pill': {
+      fontSize: '9.5px',
+      fontWeight: '700',
+      letterSpacing: '0.03em',
+      textTransform: 'uppercase',
+      padding: '1px 6px',
+      borderRadius: '4px',
+      backgroundColor: 'rgba(9, 105, 218, 0.12)',
+      color: 'var(--accent, #0969da)',
+    },
     '.cm-mermaid-actions': {
       display: 'inline-flex',
       alignItems: 'center',
@@ -409,6 +422,7 @@
     const state = EditorState.create({
       doc: content,
       extensions: [
+        filePathCompartment.of(activeFilePathFacet.of(filePath)),
         vimCompartment.of(vimMode ? vim() : []),
         readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
         viewModeCompartment.of(getActiveExtensions(viewMode)),
@@ -439,6 +453,16 @@
     if (editorView) {
       editorView.destroy();
       editorView = null;
+    }
+  });
+
+  // Reaccionar a cambios en filePath para el contexto de includes
+  $effect(() => {
+    const fp = filePath;
+    if (editorView) {
+      editorView.dispatch({
+        effects: filePathCompartment.reconfigure(activeFilePathFacet.of(fp)),
+      });
     }
   });
 
@@ -503,7 +527,7 @@
 
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView {content} />
+    <MarkdownReadingView {content} {filePath} />
   {/if}
   <div
     class="editor-container"

@@ -1,6 +1,15 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
-import { StateField, type EditorState, type Text } from '@codemirror/state';
-import { renderMermaidSvg, ensureMerman, isMermanInitialized } from '@features/merman-editor';
+import { StateField, Facet, type EditorState, type Text } from '@codemirror/state';
+import { resolveIncludes, hasIncludeDirective } from './include-resolver';
+import { renderUnifiedDiagramSvg } from './render-diagram';
+
+/**
+ * Facet de CodeMirror para proporcionar la ruta relativa del archivo
+ * Markdown que se está editando actualmente en la bóveda.
+ */
+export const activeFilePathFacet = Facet.define<string | null, string | null>({
+  combine: (values) => (values.length > 0 ? values[values.length - 1] : null),
+});
 
 export interface MermaidBlock {
   from: number;
@@ -56,12 +65,15 @@ export function findMermaidBlocks(doc: Text): MermaidBlock[] {
 }
 
 class MermaidWidget extends WidgetType {
+  private isCancelled = false;
+
   constructor(
     readonly code: string,
     readonly from: number,
     readonly to: number,
     readonly codeFrom: number,
     readonly isPreviewOnly: boolean,
+    readonly basePath?: string | null,
   ) {
     super();
   }
@@ -71,11 +83,14 @@ class MermaidWidget extends WidgetType {
       other.code === this.code &&
       other.isPreviewOnly === this.isPreviewOnly &&
       other.from === this.from &&
-      other.to === this.to
+      other.to === this.to &&
+      other.basePath === this.basePath
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
+    this.isCancelled = false;
+
     const container = document.createElement('div');
     container.className = 'cm-mermaid-widget-wrapper';
     if (this.isPreviewOnly) {
@@ -89,11 +104,14 @@ class MermaidWidget extends WidgetType {
 
     const titleEl = document.createElement('div');
     titleEl.className = 'cm-mermaid-badge';
+
+    const hasInclude = hasIncludeDirective(this.code);
     titleEl.innerHTML = `
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
       <span>Diagrama Mermaid</span>
+      ${hasInclude ? '<span class="cm-mermaid-include-pill" title="Incrusta archivos externos con {{#include}}">Include</span>' : ''}
     `;
     header.appendChild(titleEl);
 
@@ -150,14 +168,44 @@ class MermaidWidget extends WidgetType {
       });
     }
 
-    const render = () => {
+    const render = async () => {
       if (!this.code) {
         body.innerHTML = `<div class="cm-mermaid-empty">Diagrama vacío. Añade contenido al bloque mermaid.</div>`;
         return;
       }
 
-      const { svg, error } = renderMermaidSvg(this.code);
-      if (error) {
+      body.innerHTML = `<div class="cm-mermaid-loading">Generando diagrama...</div>`;
+
+      try {
+        // 1. Resolver directivas {{#include ...}} contra el sistema de archivos del vault
+        const resolvedCode = await resolveIncludes(this.code, this.basePath);
+        if (this.isCancelled) return;
+
+        // 2. Renderizar SVG usando el motor seleccionado (Mermaid.js o Merman)
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode);
+        if (this.isCancelled) return;
+
+        if (error) {
+          body.innerHTML = `
+            <div class="cm-mermaid-error">
+              <div class="cm-mermaid-error-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>Error de sintaxis Mermaid</span>
+              </div>
+              <pre>${escapeHtml(error)}</pre>
+            </div>
+          `;
+        } else if (svg) {
+          body.innerHTML = `<div class="cm-mermaid-svg-container">${svg}</div>`;
+        } else {
+          body.innerHTML = `<div class="cm-mermaid-empty">No se pudo generar el diagrama.</div>`;
+        }
+      } catch (err) {
+        if (this.isCancelled) return;
         body.innerHTML = `
           <div class="cm-mermaid-error">
             <div class="cm-mermaid-error-title">
@@ -166,33 +214,24 @@ class MermaidWidget extends WidgetType {
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
-              <span>Error de sintaxis Mermaid</span>
+              <span>Error al procesar inclusión de archivo</span>
             </div>
-            <pre>${escapeHtml(error)}</pre>
+            <pre>${escapeHtml(String(err instanceof Error ? err.message : err))}</pre>
           </div>
         `;
-      } else if (svg) {
-        body.innerHTML = `<div class="cm-mermaid-svg-container">${svg}</div>`;
-      } else {
-        body.innerHTML = `<div class="cm-mermaid-loading">Generando diagrama...</div>`;
       }
+
+      view.requestMeasure();
     };
 
-    if (isMermanInitialized()) {
-      render();
-    } else {
-      ensureMerman()
-        .then(() => {
-          render();
-          view.requestMeasure();
-        })
-        .catch((err) => {
-          body.innerHTML = `<div class="cm-mermaid-error">Error al iniciar Merman: ${escapeHtml(String(err))}</div>`;
-        });
-    }
+    render();
 
     container.appendChild(body);
     return container;
+  }
+
+  destroy(): void {
+    this.isCancelled = true;
   }
 
   ignoreEvent(): boolean {
@@ -213,6 +252,7 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
   const widgets: any[] = [];
   const blocks = findMermaidBlocks(state.doc);
   const selectionRanges = state.selection.ranges;
+  const basePath = state.facet(activeFilePathFacet);
 
   for (const block of blocks) {
     const hasCursor = selectionRanges.some(
@@ -223,7 +263,7 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
       // Si el cursor está dentro del bloque: se muestran las líneas de código para editar
       // y se adjunta la vista previa interactiva abajo con un widget de bloque
       const deco = Decoration.widget({
-        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false),
+        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false, basePath),
         side: 1,
         block: true,
       });
@@ -232,7 +272,7 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
       // Si el cursor NO está dentro del bloque: sustituimos por completo el bloque
       // de código Markdown por la tarjeta interactiva del diagrama
       const deco = Decoration.replace({
-        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true),
+        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true, basePath),
         block: true,
       });
       widgets.push(deco.range(block.from, block.to));
@@ -246,8 +286,8 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
 
 /**
  * En CodeMirror 6, los reemplazos de bloques multilinea y decoraciones de bloque
- * DEBEN definirse mediante un StateField (y no un ViewPlugin) para que el motor
- * de renderizado del editor permita sustitución de bloques y cálculo de saltos de línea.
+ * DEBEN definirse mediante un StateField para que el motor de renderizado permita
+ * la sustitución de bloques y el cálculo dinámico de saltos de línea.
  */
 export const mermaidLivePreviewField = StateField.define<DecorationSet>({
   create(state: EditorState): DecorationSet {
