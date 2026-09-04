@@ -15,7 +15,7 @@ Aplicación de notas de conocimiento personal desarrollada en **Rust** (Tauri v2
 
 ## 🏛️ Arquitectura Frontend: Feature-Sliced Design (FSD)
 
-El código frontend dentro de `src/` sigue rigurosamente los principios de **Feature-Sliced Design (FSD)** para maximizar la mantenibilidad, escalabilidad y aislamiento entre módulos.
+El código frontend dentro de `src` sigue rigurosamente los principios de **Feature-Sliced Design (FSD)** para maximizar la mantenibilidad, escalabilidad y aislamiento entre módulos.
 
 ### 📐 Estructura de Capas (Layers) y Slices
 
@@ -59,7 +59,7 @@ src/
 
 ### ⚡ Alias de Rutas Configurados
 
-Para evitar rutas relativas compuestas (`../../..`), el proyecto cuenta con alias explícitos en `tsconfig.app.json` y `vite.config.ts`:
+Para evitar rutas relativas compuestas (`..`), el proyecto cuenta con alias explícitos en `tsconfig.app.json` y `vite.config.ts`:
 
 - `@app/*` → `src/app/*`
 - `@pages/*` → `src/pages/*`
@@ -72,7 +72,7 @@ Para evitar rutas relativas compuestas (`../../..`), el proyecto cuenta con alia
 
 ## 🧅 Arquitectura Backend: Onion Architecture
 
-El código Rust en `src-tauri/` implementa **Arquitectura Cebolla (Onion Architecture)**:
+El código Rust en `src-tauri` implementa **Arquitectura Cebolla (Onion Architecture)**:
 
 - **Domain**: Tipos del sistema de archivos, bóveda y structs base.
 - **Application Services**: Comandos IPC (`get_vault_notes`, `save_note_content`, `select_vault_folder`).

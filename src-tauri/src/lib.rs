@@ -3,9 +3,10 @@ pub mod domain;
 pub mod infrastructure;
 
 use application::use_cases::note_use_cases::NoteUseCases;
+use domain::models::file_types::SupportedFileTypes;
 use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
-    get_vault_notes, read_note_content, save_note_content, search_items_command,
+    get_supported_file_types, get_vault_notes, read_note_content, save_note_content, search_items_command,
     search_notes_command, select_vault_folder, set_active_vault_path, AppState,
 };
 use std::env;
@@ -25,21 +26,10 @@ pub fn run() {
         cwd
     };
 
-    let supported_extensions = vec![
-        "md".to_string(),
-        "markdown".to_string(),
-        "rs".to_string(),
-        "mmd".to_string(),
-        "mermaid".to_string(),
-        "excalidraw".to_string(),
-        "png".to_string(),
-        "webp".to_string(),
-        "jpg".to_string(),
-        "jpeg".to_string(),
-    ];
+    let file_types = SupportedFileTypes::default();
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
-    let app_state = AppState::new(default_vault, supported_extensions, use_cases);
+    let app_state = AppState::new(default_vault, file_types, use_cases);
 
     #[cfg(target_os = "linux")]
     {
@@ -51,6 +41,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
+            get_supported_file_types,
             get_vault_notes,
             read_note_content,
             save_note_content,

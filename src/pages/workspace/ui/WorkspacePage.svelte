@@ -13,6 +13,13 @@
   import { ExcalidrawViewer } from "@features/excalidraw-editor";
   import { ImageViewer } from "@features/image-viewer";
   import { appSettings } from "@entities/settings";
+  import {
+    fileTypesManager,
+    isImageFile,
+    isMarkdownFile,
+    isDiagramFile,
+    isDrawingFile,
+  } from "@entities/file-type";
   import type { VaultItem, OpenedNote } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
   import { invokeTauri, isTauriEnvironment, type RealNote } from "@shared/api";
@@ -91,11 +98,6 @@
     }
   }
 
-  function isImage(path: string | null | undefined): boolean {
-    if (!path) return false;
-    return /\.(png|webp|jpg|jpeg|gif|bmp|svg|ico|avif)$/i.test(path);
-  }
-
   async function ensureContentLoaded(path: string) {
     if (!path || path.startsWith("empty:")) return;
     if (openedNotes[path] && !openedNotes[path].isLoading && openedNotes[path].content !== undefined) return;
@@ -104,7 +106,7 @@
     const initialAbsPath = vaultItem?.abs_path;
 
     // Para imágenes no se requiere leer contenido vía Rust IPC; convertFileSrc se encarga directamente
-    if (isImage(path)) {
+    if (isImageFile(path)) {
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -255,17 +257,13 @@
     activeNote ? activeNote.encoding : "---"
   );
 
-  let isMarkdownFile = $derived(
+  let isMarkdownTab = $derived(
     Boolean(
       activeTabPath &&
       !activeTabPath.startsWith("empty:") &&
       (
-        activeTabPath.endsWith(".md") ||
-        activeTabPath.endsWith(".markdown") ||
-        (currentVaultItem.relative_path && (
-          currentVaultItem.relative_path.endsWith(".md") ||
-          currentVaultItem.relative_path.endsWith(".markdown")
-        ))
+        isMarkdownFile(activeTabPath) ||
+        (currentVaultItem.relative_path && isMarkdownFile(currentVaultItem.relative_path))
       )
     )
   );
@@ -274,7 +272,7 @@
     Boolean(
       activeTabPath &&
       openTabPaths.includes(activeTabPath) &&
-      !isImage(activeTabPath) &&
+      !isImageFile(activeTabPath) &&
       activeNote &&
       !activeNote.isLoading &&
       typeof activeNote.content === "string" &&
@@ -351,6 +349,10 @@
   // Carga únicamente de metadatos desde Rust (Tauri IPC) al montar
   onMount(() => {
     window.scrollTo(0, 0);
+
+    // Cargar la configuración de tipos soportados desde Tauri
+    fileTypesManager.initFromTauri();
+
     async function fetchNotesFromBackend() {
       if (isTauriEnvironment()) {
         try {
@@ -436,8 +438,8 @@
     const path = vaultItem.relative_path;
     if (!isConnectedToRust || !vaultItem.title || !path) return;
 
-    // Proteger archivos binarios de imágenes de sobreescrituras accidentales
-    if (isImage(path)) return;
+    // Proteger archivos binarios o imágenes de sobreescrituras accidentales
+    if (isImageFile(path)) return;
 
     const note = openedNotes[path];
     const contentToSave = note ? note.content : "";
@@ -721,7 +723,7 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
-      {isMarkdownFile}
+      isMarkdownFile={isMarkdownTab}
       showViewToggle={hasActiveContent}
       markdownViewMode={!isEditing ? "reading" : markdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}
@@ -730,10 +732,8 @@
         !!activeTabPath &&
         !activeTabPath.startsWith("empty:") &&
         (!currentVaultItem.relative_path ||
-          currentVaultItem.relative_path.endsWith(".md") ||
-          currentVaultItem.relative_path.endsWith(".markdown") ||
-          currentVaultItem.relative_path.endsWith(".excalidraw") ||
-          currentVaultItem.relative_path.endsWith(".excalidraw.json"))}
+          isMarkdownFile(currentVaultItem.relative_path) ||
+          isDrawingFile(currentVaultItem.relative_path))}
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
       onCloseAllTabs={closeAllTabs}
@@ -768,7 +768,7 @@
         />
       {:else}
         {#each openTabPaths as tabPath (tabPath)}
-          {#if tabPath.startsWith("empty:")}\
+          {#if tabPath.startsWith("empty:")}
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
@@ -792,18 +792,16 @@
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
-              class:full-pane={tabPath.endsWith(".mmd") ||
-                tabPath.endsWith(".mermaid") ||
-                isImage(tabPath) ||
-                tabPath.endsWith(".excalidraw") ||
-                tabPath.endsWith(".excalidraw.json")}
+              class:full-pane={isDiagramFile(tabPath) ||
+                isImageFile(tabPath) ||
+                isDrawingFile(tabPath)}
             >
               {#if isLoading}
                 <div class="content-loading">
                   <span class="spinner"></span>
                   <span>Cargando contenido desde disco...</span>
                 </div>
-              {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
+              {:else if isDiagramFile(tabPath)}
                 {#if appSettings.mermaidRenderer === 'mermaidjs'}
                   <MermaidViewer
                     {content}
@@ -831,7 +829,7 @@
                     onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                   />
                 {/if}
-              {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
+              {:else if isDrawingFile(tabPath)}
                 <ExcalidrawViewer
                   {content}
                   readOnly={!isEditing}
@@ -842,7 +840,7 @@
                     debouncedPersistVaultItemToRust(vaultItem);
                   }}
                 />
-              {:else if tabPath.endsWith(".md") || tabPath.endsWith(".markdown")}
+              {:else if isMarkdownFile(tabPath)}
                 <input
                   type="text"
                   class="editor-title-input"
@@ -872,10 +870,11 @@
                     isMarkdown={true}
                   />
                 </div>
-              {:else if isImage(tabPath)}
+              {:else if isImageFile(tabPath)}
                 <ImageViewer
                   src={note?.abs_path ? convertFileSrc(note.abs_path) : (content || tabPath)}
                   alt={vaultItem.title || tabPath}
+                  {content}
                 />
               {:else}
                 <div class="editor-main-content">
@@ -898,7 +897,7 @@
       syncStatus={syncState}
       isVimMode={isVimMode}
       encoding={currentEncoding}
-      isMarkdownFile={isMarkdownFile}
+      isMarkdownFile={isMarkdownTab}
       markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
       onToggleVim={() => (isVimMode = !isVimMode)}
       onToggleMarkdownView={toggleMarkdownViewMode}

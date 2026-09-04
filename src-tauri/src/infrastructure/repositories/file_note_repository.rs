@@ -1,3 +1,4 @@
+use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::note::Note;
 use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::value_objects::note_path::NoteRelativePath;
@@ -163,7 +164,10 @@ impl FileNoteRepository {
                 Self::walk_directory(base_vault, &path, notes, extensions)?;
             } else if path.is_file() {
                 let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                let is_supported = extensions.iter().any(|e| e == ext);
+                let is_supported = extensions.iter().any(|e| {
+                    e.eq_ignore_ascii_case(ext)
+                        || (e.contains('.') && file_name.to_lowercase().ends_with(&e.to_lowercase()))
+                });
                 if is_supported {
                     if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
                         if let Some(rel_str) = rel_path_buf.to_str() {
@@ -207,9 +211,9 @@ impl NoteRepository for FileNoteRepository {
     ) -> Result<Note, String> {
         let abs_path = self.resolve_absolute_path(vault_path, relative_path);
 
-        let extensions = ["png", "webp", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "avif"];
         let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-        let is_image = extensions.iter().any(|&e| ext_str.eq_ignore_ascii_case(e));
+        let file_types = SupportedFileTypes::default();
+        let is_image = file_types.is_image_extension(ext_str);
 
         info!("Reading note at {:?}, is_image: {}", abs_path, is_image);
         let (encoding, content) = if is_image {
@@ -245,9 +249,9 @@ impl NoteRepository for FileNoteRepository {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        let extensions = ["png", "webp", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "avif"];
         let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-        if extensions.iter().any(|&e| ext_str.eq_ignore_ascii_case(e)) {
+        let file_types = SupportedFileTypes::default();
+        if file_types.is_image_extension(ext_str) {
             // No sobreescribir imágenes binarias con texto o data URIs
             return Ok(());
         }
@@ -356,6 +360,10 @@ mod tests {
         let mut f2 = File::create(&note2_path).unwrap();
         writeln!(f2, "# Contenido 2").unwrap();
 
+        let svg_path = sub_dir.join("diagram.svg");
+        let mut f_svg = File::create(&svg_path).unwrap();
+        writeln!(f_svg, "<svg></svg>").unwrap();
+
         let ignored_path = temp_dir.join("ignored.txt");
         let mut f3 = File::create(&ignored_path).unwrap();
         writeln!(f3, "texto plano").unwrap();
@@ -372,17 +380,20 @@ mod tests {
         let mut f5 = File::create(&target_note).unwrap();
         writeln!(f5, "# Target").unwrap();
 
-        // Ejecutar walk_directory
+        // Ejecutar walk_directory con la lista de tipos soportados que incluye svg
         let mut notes = Vec::new();
-        let extensions = vec!["md".to_string(), "markdown".to_string(), "rs".to_string()];
+        let file_types = SupportedFileTypes::default();
+        let extensions = file_types.all_extensions();
         let result =
             FileNoteRepository::walk_directory(&temp_dir, &temp_dir, &mut notes, &extensions);
 
         assert!(result.is_ok());
-        assert_eq!(notes.len(), 3);
+        // note1.md, note2.markdown, file1.rs, diagram.svg
+        assert_eq!(notes.len(), 4);
 
         let titles: Vec<String> = notes.iter().map(|n| n.title.clone()).collect();
         assert!(titles.contains(&"note1".to_string()));
         assert!(titles.contains(&"note2".to_string()));
+        assert!(titles.contains(&"diagram".to_string()));
     }
 }

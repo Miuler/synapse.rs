@@ -1,4 +1,5 @@
 use crate::application::use_cases::note_use_cases::NoteUseCases;
+use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::note::Note;
 use crate::domain::services::search_service::{SearchResult, SearchService};
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
@@ -9,28 +10,33 @@ use tauri::State;
 
 pub struct AppState {
     pub active_vault_path: Mutex<PathBuf>,
-    pub supported_extensions: Vec<String>,
+    pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
 }
 
 impl AppState {
     pub fn new(
         initial_vault_path: PathBuf,
-        supported_extensions: Vec<String>,
+        file_types: SupportedFileTypes,
         note_use_cases: NoteUseCases<FileNoteRepository>,
     ) -> Self {
         Self {
             active_vault_path: Mutex::new(initial_vault_path),
-            supported_extensions,
+            file_types,
             note_use_cases,
         }
     }
 }
 
 #[tauri::command]
+pub fn get_supported_file_types(state: State<'_, AppState>) -> SupportedFileTypes {
+    state.file_types.clone()
+}
+
+#[tauri::command]
 pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    state.note_use_cases.list_notes(&vault_path, &state.supported_extensions)
+    state.note_use_cases.list_notes(&vault_path, &state.file_types.all_extensions())
 }
 
 #[tauri::command]
@@ -71,7 +77,7 @@ pub async fn select_vault_folder(state: State<'_, AppState>) -> Result<Option<Ve
         let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         *vault_path = path.clone();
         
-        let notes = state.note_use_cases.list_notes(&path, &state.supported_extensions)?;
+        let notes = state.note_use_cases.list_notes(&path, &state.file_types.all_extensions())?;
         Ok(Some(notes))
     } else {
         Ok(None)
@@ -87,7 +93,7 @@ pub fn search_items_command(query: String, items: Vec<String>) -> Vec<SearchResu
 #[tauri::command]
 pub fn search_notes_command(state: State<'_, AppState>, query: String) -> Result<Vec<SearchResult>, String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    let notes = state.note_use_cases.list_notes(&vault_path, &state.supported_extensions)?;
+    let notes = state.note_use_cases.list_notes(&vault_path, &state.file_types.all_extensions())?;
 
     let search_service = NucleoSearchService::new();
     Ok(search_service.search_notes(&query, &notes))

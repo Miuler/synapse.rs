@@ -6,7 +6,7 @@ Este proyecto combina un backend potente en **Rust** (Tauri v2) con un frontend 
 
 ## 🎨 1. Arquitectura Frontend: Feature-Sliced Design (FSD)
 
-El código web ubicado en `src/` sigue strictly **Feature-Sliced Design (FSD)**.
+El código web ubicado en `src` sigue strictly **Feature-Sliced Design (FSD)**.
 
 ### Capas (Layers) de FSD (de menor a mayor jerarquía):
 
@@ -50,7 +50,7 @@ src/
 
 ## 🧅 2. Arquitectura Backend: Arquitectura Cebolla (Onion Architecture)
 
-El backend en **Rust** (ubicado en `src-tauri/`) sigue **Onion Architecture**:
+El backend en **Rust** (ubicado en `src-tauri`) sigue **Onion Architecture**:
 
 - **Domain (Core Interno)**: Modelos de datos del vault, estructuras de archivos e interfaces base de servicios.
 - **Application Services**: Casos de uso de la aplicación (crear archivo, leer bóveda, persistencia en disco).
