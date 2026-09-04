@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { EditorView, basicSetup } from 'codemirror';
+  import { basicSetup } from 'codemirror';
+  import { EditorView, keymap } from '@codemirror/view';
   import { EditorState, Compartment } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
   import { searchKeymap, search, openSearchPanel } from '@codemirror/search';
-  import { keymap } from '@codemirror/view';
   import { vim } from '@replit/codemirror-vim';
 
   interface Props {

@@ -503,6 +503,7 @@
                   <MarkdownViewer
                     {content}
                     readOnly={!isEditing}
+                    vimMode={isVimMode}
                     onChange={(updatedMarkdown) => {
                       loadedContents[tabPath] = updatedMarkdown;
                       debouncedPersistVaultItemToRust(vaultItem);
