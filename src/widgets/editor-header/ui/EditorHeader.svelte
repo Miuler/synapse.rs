@@ -18,6 +18,7 @@
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
+    onOpenQuickOpen?: () => void;
     onSave?: () => void;
     onAction?: (actionId: string) => void;
   }
@@ -36,6 +37,7 @@
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
+    onOpenQuickOpen,
     onSave,
     onAction
   }: Props = $props();
@@ -106,17 +108,41 @@
     }
   }
 
-  function scrollSelectedIntoView() {
+  function getTabsPageSize(): number {
+    if (tabsListRef) {
+      const firstItem = tabsListRef.querySelector('.dropdown-tab-item') as HTMLElement | null;
+      if (firstItem && firstItem.offsetHeight > 0) {
+        return Math.max(1, Math.floor(tabsListRef.clientHeight / firstItem.offsetHeight));
+      }
+    }
+    return 6;
+  }
+
+  function scrollSelectedIntoView(blockMode: ScrollLogicalPosition = 'nearest') {
     if (!tabsListRef) return;
     const selectedEl = tabsListRef.querySelector('.dropdown-tab-item.selected') as HTMLElement | null;
     if (selectedEl) {
-      selectedEl.scrollIntoView({ block: 'nearest' });
+      selectedEl.scrollIntoView({ block: blockMode });
     }
   }
 
   function selectTabAndClose(path: string) {
     if (onSelectTab) onSelectTab(path);
     isTabsMenuOpen = false;
+  }
+
+  function handleTabAuxClick(e: MouseEvent, path: string) {
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onCloseTab) onCloseTab(path);
+    }
+  }
+
+  function handleTabMouseDown(e: MouseEvent) {
+    if (e.button === 1) {
+      e.preventDefault();
+    }
   }
 
   function openTabsMenu() {
@@ -144,13 +170,45 @@
       e.preventDefault();
       if (filteredTabs.length > 0) {
         selectedIndex = (selectedIndex + 1) % filteredTabs.length;
-        tick().then(scrollSelectedIntoView);
+        tick().then(() => scrollSelectedIntoView('nearest'));
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (filteredTabs.length > 0) {
         selectedIndex = (selectedIndex - 1 + filteredTabs.length) % filteredTabs.length;
-        tick().then(scrollSelectedIntoView);
+        tick().then(() => scrollSelectedIntoView('nearest'));
+      }
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        selectedIndex = 0;
+        tick().then(() => {
+          if (tabsListRef) tabsListRef.scrollTop = 0;
+          scrollSelectedIntoView('start');
+        });
+      }
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        selectedIndex = filteredTabs.length - 1;
+        tick().then(() => {
+          if (tabsListRef) tabsListRef.scrollTop = tabsListRef.scrollHeight;
+          scrollSelectedIntoView('end');
+        });
+      }
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        const pageSize = getTabsPageSize();
+        selectedIndex = Math.min(filteredTabs.length - 1, selectedIndex + pageSize);
+        tick().then(() => scrollSelectedIntoView('nearest'));
+      }
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        const pageSize = getTabsPageSize();
+        selectedIndex = Math.max(0, selectedIndex - pageSize);
+        tick().then(() => scrollSelectedIntoView('nearest'));
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -207,6 +265,14 @@
       const targetPath = activeTabPath || (tabs && tabs.length > 0 ? tabs[tabs.length - 1].path : '');
       if (targetPath && onCloseTab) {
         onCloseTab(targetPath);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onOpenQuickOpen) {
+        onOpenQuickOpen();
+      } else if (onAction) {
+        onAction('quick-open');
       }
     }
   }
@@ -319,6 +385,8 @@
             class:is-dirty={tab.isDirty}
             data-path={tab.path}
             onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
+            onauxclick={(e) => handleTabAuxClick(e, tab.path)}
+            onmousedown={handleTabMouseDown}
           >
             <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -332,7 +400,7 @@
                 e.stopPropagation();
                 if (onCloseTab) onCloseTab(tab.path);
               }}
-              title="Cerrar pestaña (Ctrl+W)"
+              title="Cerrar pestaña (Ctrl+W o click central)"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -342,7 +410,11 @@
           </div>
         {/each}
       {:else if title}
-        <div class="tab-title-container active">
+        <div
+          class="tab-title-container active"
+          onauxclick={(e) => handleTabAuxClick(e, '')}
+          onmousedown={handleTabMouseDown}
+        >
           <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -352,7 +424,7 @@
             type="button"
             class="close-tab-btn"
             onclick={() => { if (onCloseTab) onCloseTab(''); }}
-            title="Cerrar pestaña (Ctrl+W)"
+            title="Cerrar pestaña (Ctrl+W o click central)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -463,6 +535,8 @@
                     class:selected={index === selectedIndex}
                     onmouseenter={() => { selectedIndex = index; }}
                     onclick={() => selectTabAndClose(tab.path)}
+                    onauxclick={(e) => handleTabAuxClick(e, tab.path)}
+                    onmousedown={handleTabMouseDown}
                   >
                     <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -476,7 +550,7 @@
                         e.stopPropagation();
                         if (onCloseTab) onCloseTab(tab.path);
                       }}
-                      title="Cerrar pestaña (Ctrl+W)"
+                      title="Cerrar pestaña (Ctrl+W o click central)"
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>

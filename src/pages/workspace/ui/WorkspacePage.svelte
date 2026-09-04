@@ -4,6 +4,7 @@
   import { EditorHeader } from "@widgets/editor-header";
   import { StatusBar } from "@widgets/status-bar";
   import { CommandPalette } from "@widgets/command-palette";
+  import { QuickOpen } from "@widgets/quick-open";
   import { EmptyWorkspace } from "@widgets/empty-workspace";
   import { VaultExplorer } from "@features/vault-explorer";
   import { MarkdownViewer } from "@features/markdown-editor";
@@ -16,6 +17,7 @@
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
   let isPaletteOpen = $state(false);
+  let isQuickOpenOpen = $state(false);
   let isEditing = $state(true);
   let isVimMode = $state(false);
   let isConnectedToRust = $state(false);
@@ -27,6 +29,9 @@
   let activeTabPath = $state<string | null>(null);
   let sidebarWidth = $state(240);
   let isResizingSidebar = $state(false);
+
+  // Lista de rutas de archivos abiertos recientemente para Ctrl+O (Quick Open)
+  let recentFiles = $state<string[]>([]);
 
   // Mapa reactivo de contenidos cargados BAJO DEMANDA sólo para las pestañas abiertas
   let loadedContents = $state<Record<string, string>>({});
@@ -114,6 +119,7 @@
     activeTabPath = path;
     if (!path.startsWith("empty:")) {
       ensureContentLoaded(path);
+      recentFiles = [path, ...recentFiles.filter((p) => p !== path)];
     }
   }
 
@@ -266,6 +272,11 @@
                 relative_path: relPath,
               };
             });
+
+            if (recentFiles.length === 0 && vaultItems.length > 0) {
+              recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+            }
+
             if (openTabPaths.length === 0) {
               handleNewEmptyTab();
             }
@@ -356,6 +367,7 @@
       openTabPaths.push(newRelPath);
     }
     activeTabPath = newRelPath;
+    recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)];
     await persistVaultItemToRust(newVaultItem);
   }
 
@@ -375,6 +387,15 @@
         category: "Archivo",
         shortcut: "Ctrl+N",
         action: () => createNewVaultItem(),
+      },
+      {
+        id: "cmd-quick-open",
+        name: "Abrir archivo rápidamente...",
+        category: "Archivo",
+        shortcut: "Ctrl+O",
+        action: () => {
+          isQuickOpenOpen = true;
+        },
       },
       {
         id: "cmd-close-tab",
@@ -432,6 +453,12 @@
           if (activeTabPath) {
             closeTab(activeTabPath);
           }
+        } else if (key === 'o') {
+          e.preventDefault();
+          isQuickOpenOpen = true;
+        } else if (key === 'p') {
+          e.preventDefault();
+          isPaletteOpen = true;
         }
       }
     };
@@ -474,6 +501,7 @@
         loadedContents = {};
         savedContents = {};
         tabSelections = {};
+        recentFiles = vaultItems.map(v => v.relative_path);
         handleNewEmptyTab();
       }
     } catch (e) {
@@ -545,8 +573,10 @@
       onCloseAllTabs={closeAllTabs}
       onNewTab={handleNewEmptyTab}
       onNewFile={() => createNewVaultItem()}
+      onOpenQuickOpen={() => (isQuickOpenOpen = true)}
       onAction={(actionId) => {
         if (actionId === 'new-file') createNewVaultItem();
+        else if (actionId === 'quick-open') isQuickOpenOpen = true;
       }}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {
@@ -662,6 +692,14 @@
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen} />
+
+  <!-- 5. BUSCADOR RÁPIDO DE ARCHIVOS (OVERLAY CTRL+O) -->
+  <QuickOpen
+    bind:isOpen={isQuickOpenOpen}
+    {vaultItems}
+    {recentFiles}
+    onSelectFile={(path) => selectTab(path)}
+  />
 </div>
 
 <style>
