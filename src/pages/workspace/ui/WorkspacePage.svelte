@@ -10,6 +10,7 @@
   import { MarkdownViewer } from "@features/markdown-editor";
   import { MermanViewer } from "@features/merman-editor";
   import { ExcalidrawViewer } from "@features/excalidraw-editor";
+  import { ImageViewer } from "@features/image-viewer";
   import type { VaultItem } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
   import { invokeTauri, isTauriEnvironment } from "@shared/api";
@@ -98,6 +99,7 @@
       try {
         const noteData = await invokeTauri<{
           relative_path: string;
+          abs_path: string;
           title: string;
           content: string;
           encoding?: string;
@@ -637,6 +639,9 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
+      {isMarkdownFile}
+      markdownViewMode={!isEditing ? "reading" : markdownViewMode}
+      onChangeMarkdownView={handleChangeMarkdownView}
       title={activeTabPath?.startsWith("empty:") ? "Nueva pestaña" : (currentVaultItem.relative_path || currentVaultItem.title)}
       showSaveButton={isEditing &&
         !!activeTabPath &&
@@ -701,6 +706,15 @@
                 class:hidden={tabPath !== activeTabPath}
                 class:full-pane={tabPath.endsWith(".mmd") ||
                   tabPath.endsWith(".mermaid") ||
+                  tabPath.endsWith(".png") ||
+                  tabPath.endsWith(".webp") ||
+                  tabPath.endsWith(".jpg") ||
+                  tabPath.endsWith(".jpeg") ||
+                  tabPath.endsWith(".gif") ||
+                  tabPath.endsWith(".bmp") ||
+                  tabPath.endsWith(".svg") ||
+                  tabPath.endsWith(".ico") ||
+                  tabPath.endsWith(".avif") ||
                   tabPath.endsWith(".excalidraw") ||
                   tabPath.endsWith(".excalidraw.json")}
               >
@@ -729,7 +743,7 @@
                       debouncedPersistVaultItemToRust(vaultItem);
                     }}
                   />
-                {:else}
+                {:else if tabPath.endsWith(".md") || tabPath.endsWith(".markdown")}
                   <input
                     type="text"
                     class="editor-title-input"
@@ -753,6 +767,20 @@
                         vaultItem.relative_path.endsWith(".md") ||
                         vaultItem.relative_path.endsWith(".markdown")}
                     />
+                  </div>
+                {:else if tabPath.endsWith(".png") ||
+                  tabPath.endsWith(".webp") ||
+                  tabPath.endsWith(".jpg") ||
+                  tabPath.endsWith(".jpeg") ||
+                  tabPath.endsWith(".gif") ||
+                  tabPath.endsWith(".bmp") ||
+                  tabPath.endsWith(".svg") ||
+                  tabPath.endsWith(".ico") ||
+                  tabPath.endsWith(".avif")}
+                  <ImageViewer src={`file:///${tabPath}`} alt={vaultItem.title || tabPath} />
+                {:else}
+                  <div class="editor-main-content">
+                    <pre style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
                   </div>
                 {/if}
               </div>

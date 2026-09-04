@@ -18,7 +18,7 @@
   marked.use({
     renderer: {
       code({ text, lang }: { text: string; lang?: string }) {
-        if (lang === 'mermaid' || lang === 'merman') {
+        if (/^(?:mermaid|mermair|mermai|merman)$/i.test(lang?.trim() || '')) {
           return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}">
             <div class="reading-mermaid-header">
               <span class="reading-mermaid-badge">Diagrama Mermaid</span>

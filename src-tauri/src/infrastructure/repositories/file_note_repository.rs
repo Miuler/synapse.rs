@@ -3,6 +3,7 @@ use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use std::fs;
 use std::path::{Path, PathBuf};
+use log::info;
 
 pub fn detect_and_decode(bytes: &[u8]) -> (String, String) {
     if bytes.is_empty() {
@@ -90,25 +91,21 @@ pub fn encode_content(content: &str, encoding: &str) -> Vec<u8> {
             }
             out
         }
-        "ASCII" => {
-            content
-                .chars()
-                .map(|c| if c.is_ascii() { c as u8 } else { b'?' })
-                .collect()
-        }
-        "ISO-8859-1" | "LATIN1" | "LATIN-1" => {
-            content
-                .chars()
-                .map(|c| {
-                    let cp = c as u32;
-                    if cp <= 0xFF {
-                        cp as u8
-                    } else {
-                        b'?'
-                    }
-                })
-                .collect()
-        }
+        "ASCII" => content
+            .chars()
+            .map(|c| if c.is_ascii() { c as u8 } else { b'?' })
+            .collect(),
+        "ISO-8859-1" | "LATIN1" | "LATIN-1" => content
+            .chars()
+            .map(|c| {
+                let cp = c as u32;
+                if cp <= 0xFF {
+                    cp as u8
+                } else {
+                    b'?'
+                }
+            })
+            .collect(),
         "---" | "" | "UTF-8" => content.as_bytes().to_vec(),
         _ => {
             let label = encoding.trim().to_lowercase();
@@ -129,7 +126,11 @@ impl FileNoteRepository {
         Self
     }
 
-    fn resolve_absolute_path(&self, vault_path: &Path, relative_path: &NoteRelativePath) -> PathBuf {
+    fn resolve_absolute_path(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> PathBuf {
         vault_path.join(relative_path.as_str())
     }
 
@@ -173,7 +174,7 @@ impl FileNoteRepository {
                                     .and_then(|s| s.to_str())
                                     .unwrap_or(file_name)
                                     .to_string();
-                                notes.push(Note::new(rel_path, title, content));
+                                notes.push(Note::new(rel_path, path.into_string().unwrap(), title, content));
                             }
                         }
                     }
@@ -199,30 +200,61 @@ impl NoteRepository for FileNoteRepository {
         Ok(notes)
     }
 
-    fn read_note(&self, vault_path: &Path, relative_path: &NoteRelativePath) -> Result<Note, String> {
+    fn read_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<Note, String> {
         let abs_path = self.resolve_absolute_path(vault_path, relative_path);
-        let bytes = fs::read(&abs_path).map_err(|e| format!("Error al leer la nota en {:?}: {}", abs_path, e))?;
-        let (encoding, content) = detect_and_decode(&bytes);
-        
+
+        let extensions = ["png", "webp", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "avif"];
+        let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let is_image = extensions.iter().any(|&e| ext_str.eq_ignore_ascii_case(e));
+
+        info!("Reading note at {:?}, is_image: {}", abs_path, is_image);
+        let (encoding, content) = if is_image {
+            ("binary".to_string(), "".to_string())
+        } else {
+            let bytes = fs::read(&abs_path)
+                .map_err(|e| format!("Error al leer la nota en {:?}: {}", abs_path, e))?;
+            let (encoding, content) = detect_and_decode(&bytes);
+
+            (encoding, content)
+        };
+
         let title = abs_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("Sin título")
             .to_string();
 
-        Ok(Note::with_encoding(relative_path.clone(), title, content, encoding))
+        Ok(Note::with_encoding(
+            relative_path.clone(),
+            abs_path.into_string().unwrap(),
+            title,
+            content,
+            encoding,
+        ))
     }
 
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String> {
         let abs_path = self.resolve_absolute_path(vault_path, &note.relative_path);
-        
+
         // Crear directorio padre si no existe
         if let Some(parent) = abs_path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
+        let extensions = ["png", "webp", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "avif"];
+        let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        if extensions.iter().any(|&e| ext_str.eq_ignore_ascii_case(e)) {
+            // No sobreescribir imágenes binarias con texto o data URIs
+            return Ok(());
+        }
+
         let bytes = encode_content(&note.content, &note.encoding);
-        fs::write(&abs_path, bytes).map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
+        fs::write(&abs_path, bytes)
+            .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
     }
 }
 
@@ -245,8 +277,8 @@ mod tests {
     fn setup_tracing() {
         INIT.call_once(|| {
             // Establece el nivel INFO por defecto (o respeta la variable de entorno RUST_LOG si existe)
-            let filter = EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("debug"));
+            let filter =
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
             let fmt_layer = tracing_subscriber::fmt::layer().with_test_writer();
 
             let indicatif_layer = IndicatifLayer::new();
@@ -343,7 +375,8 @@ mod tests {
         // Ejecutar walk_directory
         let mut notes = Vec::new();
         let extensions = vec!["md".to_string(), "markdown".to_string(), "rs".to_string()];
-        let result = FileNoteRepository::walk_directory(&temp_dir, &temp_dir, &mut notes, &extensions);
+        let result =
+            FileNoteRepository::walk_directory(&temp_dir, &temp_dir, &mut notes, &extensions);
 
         assert!(result.is_ok());
         assert_eq!(notes.len(), 3);

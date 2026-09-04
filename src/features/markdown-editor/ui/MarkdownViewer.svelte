@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, untrack } from 'svelte';
+  import { onMount, onDestroy, untrack, tick } from 'svelte';
   import { basicSetup } from 'codemirror';
   import { EditorView, keymap } from '@codemirror/view';
   import { EditorState, Compartment } from '@codemirror/state';
@@ -9,7 +9,7 @@
   import { tags } from '@lezer/highlight';
   import { vim } from '@replit/codemirror-vim';
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
-  import { mermaidLivePreviewPlugin } from '../lib/mermaid-extension';
+  import { mermaidLivePreviewField } from '../lib/mermaid-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -107,20 +107,21 @@
     }
   }
 
-  // 1. Estilos y tema para modo Vista Previa en Vivo (Live Preview con estilos y diagramas)
+  // 1. Estilos y tema para modo Vista Previa en Vivo (Live Preview interactivo estilo Obsidian)
   const livePreviewHighlightStyle = HighlightStyle.define([
-    { tag: tags.heading1, fontSize: '1.6em', fontWeight: 'bold', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading2, fontSize: '1.35em', fontWeight: 'bold', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading3, fontSize: '1.18em', fontWeight: 'bold', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading, fontWeight: 'bold', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.heading1, fontSize: '1.8em', fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.heading2, fontSize: '1.45em', fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.heading3, fontSize: '1.25em', fontWeight: '600', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.heading, fontWeight: '600', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.processingInstruction, color: 'var(--text-secondary, #8c959f)', opacity: '0.6', fontWeight: '400' },
     { tag: tags.emphasis, fontStyle: 'italic' },
-    { tag: tags.strong, fontWeight: 'bold' },
-    { tag: tags.strikethrough, textDecoration: 'line-through' },
+    { tag: tags.strong, fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.strikethrough, textDecoration: 'line-through', color: 'var(--text-secondary, #656d76)' },
     { tag: tags.link, color: 'var(--accent, #0969da)', textDecoration: 'underline' },
     { tag: tags.url, color: 'var(--accent, #0969da)' },
-    { tag: tags.monospace, fontFamily: 'var(--code-font, monospace)', color: '#0969da' },
-    { tag: tags.quote, color: 'var(--text-secondary, #656d76)', fontStyle: 'italic' },
-    { tag: tags.keyword, color: '#cf222e', fontWeight: 'bold' },
+    { tag: tags.monospace, fontFamily: 'var(--code-font, monospace)', color: 'var(--accent, #0969da)' },
+    { tag: tags.quote, color: 'var(--text-secondary, #656d76)', fontStyle: 'italic', borderLeft: '3px solid var(--border-primary, #d0d7de)', paddingLeft: '8px' },
+    { tag: tags.keyword, color: '#cf222e', fontWeight: '600' },
     { tag: tags.comment, color: '#6e7781', fontStyle: 'italic' },
     { tag: tags.content, color: 'var(--text-primary, #1f2328)' },
   ]);
@@ -128,8 +129,8 @@
   const livePreviewTheme = EditorView.theme({
     '&': {
       fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
-      fontSize: '15px !important',
-      lineHeight: '1.65 !important',
+      fontSize: '15.5px !important',
+      lineHeight: '1.75 !important',
     },
     '.cm-scroller': {
       fontFamily: 'inherit !important',
@@ -137,15 +138,21 @@
     '.cm-content': {
       fontFamily: 'inherit !important',
     },
+    '.cm-line': {
+      fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
+      fontSize: '15.5px !important',
+      lineHeight: '1.75 !important',
+      padding: '0 4px',
+    },
   });
 
   const livePreviewExtensions = [
     livePreviewTheme,
     syntaxHighlighting(livePreviewHighlightStyle),
-    mermaidLivePreviewPlugin,
+    mermaidLivePreviewField,
   ];
 
-  // 2. Estilos y tema para modo Fuente puro (Source Mode sin widgets de diagramas)
+  // 2. Estilos y tema para modo Fuente puro (Source Mode monospaciado sin sustituciones de diagramas)
   const sourceModeHighlightStyle = HighlightStyle.define([
     { tag: tags.heading, fontWeight: 'bold', color: 'var(--accent, #0969da)' },
     { tag: tags.emphasis, fontStyle: 'italic', color: 'var(--text-primary, #1f2328)' },
@@ -158,11 +165,12 @@
     { tag: tags.keyword, color: '#cf222e', fontWeight: 'bold' },
     { tag: tags.comment, color: '#6e7781', fontStyle: 'italic' },
     { tag: tags.content, color: 'var(--text-primary, #1f2328)' },
+    { tag: tags.processingInstruction, color: 'var(--accent, #0969da)' },
   ]);
 
   const sourceModeTheme = EditorView.theme({
     '&': {
-      fontFamily: 'var(--code-font, ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace) !important',
+      fontFamily: 'var(--code-font, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace) !important',
       fontSize: '13.5px !important',
       lineHeight: '1.6 !important',
     },
@@ -175,6 +183,8 @@
     '.cm-line': {
       fontFamily: 'inherit !important',
       fontSize: '13.5px !important',
+      lineHeight: '1.6 !important',
+      padding: '0 4px',
     },
   });
 
@@ -197,9 +207,6 @@
       padding: '16px 24px',
       maxWidth: '900px',
       minHeight: '100%',
-    },
-    '.cm-line': {
-      padding: '0 4px',
     },
     '.cm-gutters': {
       backgroundColor: 'transparent',
@@ -251,34 +258,89 @@
     },
     /* Estilos del widget de diagrama Mermaid dentro de CodeMirror */
     '.cm-mermaid-widget-wrapper': {
-      margin: '12px 0 16px 0',
+      margin: '14px 0 18px 0',
       border: '1px solid var(--border-primary, #d0d7de)',
       borderRadius: '8px',
       overflow: 'hidden',
       backgroundColor: 'var(--bg-primary, #ffffff)',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+    },
+    '.cm-mermaid-widget-wrapper:hover': {
+      borderColor: 'rgba(9, 105, 218, 0.4)',
+      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.07)',
+    },
+    '.cm-mermaid-widget-wrapper.is-live-edit': {
+      borderStyle: 'dashed',
+      borderColor: 'var(--accent, #0969da)',
     },
     '.cm-mermaid-header': {
       display: 'flex',
       alignItems: 'center',
-      padding: '4px 10px',
+      justifyContent: 'space-between',
+      padding: '6px 12px',
       backgroundColor: 'var(--bg-secondary, #f6f8fa)',
       borderBottom: '1px solid var(--border-primary, #d0d7de)',
     },
     '.cm-mermaid-badge': {
       display: 'inline-flex',
       alignItems: 'center',
-      gap: '4px',
+      gap: '6px',
       fontSize: '11px',
       fontWeight: '600',
       color: 'var(--text-secondary, #656d76)',
     },
+    '.cm-mermaid-badge svg': {
+      color: 'var(--accent, #0969da)',
+    },
+    '.cm-mermaid-actions': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
+    '.cm-mermaid-edit-btn': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontSize: '11px',
+      fontWeight: '500',
+      padding: '2px 8px',
+      borderRadius: '4px',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      backgroundColor: 'var(--bg-primary, #ffffff)',
+      color: 'var(--text-secondary, #656d76)',
+      cursor: 'pointer',
+      transition: 'all 0.15s ease',
+    },
+    '.cm-mermaid-edit-btn:hover': {
+      color: 'var(--accent, #0969da)',
+      borderColor: 'var(--accent, #0969da)',
+      backgroundColor: 'rgba(9, 105, 218, 0.05)',
+    },
+    '.cm-mermaid-live-pill': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      fontSize: '10.5px',
+      fontWeight: '600',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      backgroundColor: 'rgba(9, 105, 218, 0.1)',
+      color: 'var(--accent, #0969da)',
+    },
+    '.cm-mermaid-live-dot': {
+      width: '6px',
+      height: '6px',
+      borderRadius: '50%',
+      backgroundColor: 'var(--accent, #0969da)',
+      boxShadow: '0 0 4px var(--accent, #0969da)',
+    },
     '.cm-mermaid-body': {
-      padding: '12px',
+      padding: '16px',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      minHeight: '60px',
+      minHeight: '80px',
       backgroundColor: 'var(--bg-primary, #ffffff)',
     },
     '.cm-mermaid-svg-container': {
@@ -286,33 +348,42 @@
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
+      overflowX: 'auto',
     },
     '.cm-mermaid-svg-container svg': {
       maxWidth: '100%',
       height: 'auto',
-      pointerEvents: 'none',
+    },
+    '.cm-mermaid-empty': {
+      fontSize: '12px',
+      fontStyle: 'italic',
+      color: 'var(--text-secondary, #656d76)',
     },
     '.cm-mermaid-error': {
       width: '100%',
-      padding: '8px 12px',
+      padding: '10px 14px',
       backgroundColor: '#ffebe9',
       border: '1px solid rgba(207, 34, 46, 0.3)',
       borderRadius: '6px',
       color: '#cf222e',
-      fontSize: '11px',
+      fontSize: '12px',
     },
     '.cm-mermaid-error-title': {
       fontWeight: '600',
-      display: 'block',
-      marginBottom: '4px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      marginBottom: '6px',
     },
     '.cm-mermaid-error pre': {
       margin: '0',
       whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
       fontFamily: 'var(--code-font, monospace)',
+      fontSize: '11px',
     },
     '.cm-mermaid-loading': {
-      fontSize: '11px',
+      fontSize: '12px',
       color: 'var(--text-secondary, #656d76)',
     },
   });
@@ -398,6 +469,11 @@
       editorView.dispatch({
         effects: viewModeCompartment.reconfigure(getActiveExtensions(mode)),
       });
+      if (mode !== 'reading') {
+        tick().then(() => {
+          editorView?.requestMeasure();
+        });
+      }
     }
   });
 
@@ -428,11 +504,14 @@
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
     <MarkdownReadingView {content} />
-  {:else}
-    <div class="editor-container" class:hidden={!isMarkdown} bind:this={containerRef}></div>
-    {#if !isMarkdown}
-      <pre class="plain-text">{content}</pre>
-    {/if}
+  {/if}
+  <div
+    class="editor-container"
+    class:hidden={!isMarkdown || viewMode === 'reading'}
+    bind:this={containerRef}
+  ></div>
+  {#if !isMarkdown}
+    <pre class="plain-text">{content}</pre>
   {/if}
 </div>
 

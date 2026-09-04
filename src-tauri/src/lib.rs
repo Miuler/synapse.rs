@@ -32,6 +32,10 @@ pub fn run() {
         "mmd".to_string(),
         "mermaid".to_string(),
         "excalidraw".to_string(),
+        "png".to_string(),
+        "webp".to_string(),
+        "jpg".to_string(),
+        "jpeg".to_string(),
     ];
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);

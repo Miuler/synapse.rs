@@ -1,4 +1,4 @@
-import { initMerman, renderSvg, validate } from '@mermanjs/web';
+import { initMerman, renderSvg, validate, isMermanInitialized } from '@mermanjs/web';
 
 let initPromise: Promise<unknown> | null = null;
 
@@ -25,4 +25,4 @@ export function renderMermaidSvg(code: string): { svg: string | null; error: str
   }
 }
 
-export { initMerman, renderSvg, validate };
+export { initMerman, renderSvg, validate, isMermanInitialized };

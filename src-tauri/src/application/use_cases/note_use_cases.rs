@@ -37,6 +37,7 @@ impl<R: NoteRepository> NoteUseCases<R> {
         let relative_path = NoteRelativePath::new(relative_path_str)?;
         let note = Note::with_encoding(
             relative_path,
+            "".to_string(),
             title.to_string(),
             content.to_string(),
             encoding.to_string(),
