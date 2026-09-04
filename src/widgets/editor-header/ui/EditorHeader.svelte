@@ -13,6 +13,8 @@
     onSelectTab?: (path: string) => void;
     onCloseTab?: (path: string) => void;
     onCloseAllTabs?: () => void;
+    onNewTab?: () => void;
+    onNewFile?: () => void;
     onToggleView?: () => void;
     onSplitView?: () => void;
     onOpenCommandPalette?: () => void;
@@ -29,6 +31,8 @@
     onSelectTab,
     onCloseTab,
     onCloseAllTabs,
+    onNewTab,
+    onNewFile,
     onToggleView,
     onSplitView,
     onOpenCommandPalette,
@@ -38,9 +42,36 @@
 
   let tabsScrollRef = $state<HTMLDivElement | null>(null);
   let menuContainerRef = $state<HTMLDivElement | null>(null);
+  let searchInputRef = $state<HTMLInputElement | null>(null);
+  let tabsListRef = $state<HTMLDivElement | null>(null);
+
   let canScrollLeft = $state(false);
   let canScrollRight = $state(false);
   let isTabsMenuOpen = $state(false);
+
+  let searchQuery = $state('');
+  let selectedIndex = $state(0);
+
+  let filteredTabs = $derived(
+    tabs.filter((tab) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        (tab.title && tab.title.toLowerCase().includes(q)) ||
+        (tab.path && tab.path.toLowerCase().includes(q))
+      );
+    })
+  );
+
+  $effect(() => {
+    if (filteredTabs.length > 0) {
+      if (selectedIndex >= filteredTabs.length || selectedIndex < 0) {
+        selectedIndex = 0;
+      }
+    } else {
+      selectedIndex = 0;
+    }
+  });
 
   function triggerAction(actionId: string) {
     if (onAction) onAction(actionId);
@@ -75,6 +106,63 @@
     }
   }
 
+  function scrollSelectedIntoView() {
+    if (!tabsListRef) return;
+    const selectedEl = tabsListRef.querySelector('.dropdown-tab-item.selected') as HTMLElement | null;
+    if (selectedEl) {
+      selectedEl.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function selectTabAndClose(path: string) {
+    if (onSelectTab) onSelectTab(path);
+    isTabsMenuOpen = false;
+  }
+
+  function openTabsMenu() {
+    if (!tabs || tabs.length === 0) return;
+    isTabsMenuOpen = true;
+    searchQuery = '';
+    const activeIdx = tabs.findIndex((t) => t.path === activeTabPath);
+    selectedIndex = activeIdx >= 0 ? activeIdx : 0;
+    tick().then(() => {
+      searchInputRef?.focus();
+      scrollSelectedIntoView();
+    });
+  }
+
+  function toggleTabsMenu() {
+    if (isTabsMenuOpen) {
+      isTabsMenuOpen = false;
+    } else {
+      openTabsMenu();
+    }
+  }
+
+  function handleSearchKeyDown(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        selectedIndex = (selectedIndex + 1) % filteredTabs.length;
+        tick().then(scrollSelectedIntoView);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (filteredTabs.length > 0) {
+        selectedIndex = (selectedIndex - 1 + filteredTabs.length) % filteredTabs.length;
+        tick().then(scrollSelectedIntoView);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredTabs.length > 0 && filteredTabs[selectedIndex]) {
+        selectTabAndClose(filteredTabs[selectedIndex].path);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      isTabsMenuOpen = false;
+    }
+  }
+
   function handleCloseAll() {
     isTabsMenuOpen = false;
     if (onCloseAllTabs) {
@@ -93,6 +181,33 @@
       !menuContainerRef.contains(e.target as Node)
     ) {
       isTabsMenuOpen = false;
+    }
+  }
+
+  function handleGlobalKeyDown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTabsMenu();
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onNewTab) onNewTab();
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onNewFile) {
+        onNewFile();
+      } else if (onAction) {
+        onAction('new-file');
+      }
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetPath = activeTabPath || (tabs && tabs.length > 0 ? tabs[tabs.length - 1].path : '');
+      if (targetPath && onCloseTab) {
+        onCloseTab(targetPath);
+      }
     }
   }
 
@@ -119,6 +234,7 @@
 
   onMount(() => {
     window.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleGlobalKeyDown);
     window.addEventListener('resize', checkScroll);
 
     let resizeObserver: ResizeObserver | null = null;
@@ -133,6 +249,7 @@
 
     return () => {
       window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('resize', checkScroll);
       if (resizeObserver) {
         resizeObserver.disconnect();
@@ -151,6 +268,8 @@
       await appWindow.close();
     }
   }
+
+  export { openTabsMenu, toggleTabsMenu };
 </script>
 
 <header class="editor-header" data-tauri-drag-region>
@@ -213,7 +332,7 @@
                 e.stopPropagation();
                 if (onCloseTab) onCloseTab(tab.path);
               }}
-              title="Cerrar pestaña"
+              title="Cerrar pestaña (Ctrl+W)"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -233,7 +352,7 @@
             type="button"
             class="close-tab-btn"
             onclick={() => { if (onCloseTab) onCloseTab(''); }}
-            title="Cerrar pestaña"
+            title="Cerrar pestaña (Ctrl+W)"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -242,6 +361,19 @@
           </button>
         </div>
       {/if}
+
+      <!-- BOTÓN NUEVA PESTAÑA: SIEMPRE PEGADO A LA IZQUIERDA, JUNTO AL ÚLTIMO TAB -->
+      <button
+        type="button"
+        class="new-tab-btn"
+        onclick={() => { if (onNewTab) onNewTab(); }}
+        title="Nueva pestaña (Ctrl+T)"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
     </div>
 
     {#if canScrollRight}
@@ -260,7 +392,7 @@
 
   <!-- SECCIÓN DERECHA -->
   <div class="right-section">
-    <!-- MENÚ DESPLEGABLE PARA LISTAR TODAS LAS PESTAÑAS Y BOTÓN DE CERRAR TODAS -->
+    <!-- MENÚ DESPLEGABLE PARA LISTAR Y BUSCAR TODAS LAS PESTAÑAS Y BOTÓN DE CERRAR TODAS -->
     <!-- AL COSTADO IZQUIERDO DE LOS BOTONES DE GRABAR Y EDITAR -->
     {#if tabs && tabs.length > 0}
       <div class="tabs-actions-group" bind:this={menuContainerRef}>
@@ -270,68 +402,94 @@
           class:active={isTabsMenuOpen}
           onclick={(e) => {
             e.stopPropagation();
-            isTabsMenuOpen = !isTabsMenuOpen;
+            toggleTabsMenu();
           }}
-          title="Listar todas las pestañas abiertas"
+          title="Listar y buscar pestañas abiertas (Ctrl+Shift+A)"
         >
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
 
-        <button
-          type="button"
-          class="icon-btn close-all-trigger"
-          onclick={handleCloseAll}
-          title="Cerrar todas las pestañas"
-        >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-
         {#if isTabsMenuOpen}
           <div class="tabs-dropdown-menu">
             <div class="dropdown-header">
-              <span>Pestañas abiertas ({tabs.length})</span>
+              <span>Pestañas ({filteredTabs.length}{filteredTabs.length !== tabs.length ? `/${tabs.length}` : ''})</span>
               <button type="button" class="dropdown-close-all-btn" onclick={handleCloseAll}>
                 Cerrar todas
               </button>
             </div>
-            <div class="dropdown-tabs-list">
-              {#each tabs as tab (tab.path)}
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  class="dropdown-tab-item"
-                  class:active={tab.path === activeTabPath}
+
+            <!-- CAJA DE TEXTO PARA BUSCAR RÁPIDAMENTE ENTRE LAS PESTAÑAS ABIERTAS -->
+            <div class="dropdown-search-container">
+              <svg class="dropdown-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                class="dropdown-search-input"
+                placeholder="Buscar pestaña... (Enter para abrir)"
+                bind:this={searchInputRef}
+                bind:value={searchQuery}
+                onkeydown={handleSearchKeyDown}
+              />
+              {#if searchQuery}
+                <button
+                  type="button"
+                  class="dropdown-search-clear"
                   onclick={() => {
-                    if (onSelectTab) onSelectTab(tab.path);
-                    isTabsMenuOpen = false;
+                    searchQuery = '';
+                    searchInputRef?.focus();
                   }}
+                  title="Limpiar búsqueda"
                 >
-                  <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
                   </svg>
-                  <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
-                  <button
-                    type="button"
-                    class="dropdown-tab-close"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      if (onCloseTab) onCloseTab(tab.path);
-                    }}
-                    title="Cerrar pestaña"
+                </button>
+              {/if}
+            </div>
+
+            <div class="dropdown-tabs-list" bind:this={tabsListRef}>
+              {#if filteredTabs.length > 0}
+                {#each filteredTabs as tab, index (tab.path)}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="dropdown-tab-item"
+                    class:active={tab.path === activeTabPath}
+                    class:selected={index === selectedIndex}
+                    onmouseenter={() => { selectedIndex = index; }}
+                    onclick={() => selectTabAndClose(tab.path)}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
                     </svg>
-                  </button>
+                    <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                    <button
+                      type="button"
+                      class="dropdown-tab-close"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        if (onCloseTab) onCloseTab(tab.path);
+                      }}
+                      title="Cerrar pestaña (Ctrl+W)"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  </div>
+                {/each}
+              {:else}
+                <div class="dropdown-no-results">
+                  No se encontraron pestañas abiertas
                 </div>
-              {/each}
+              {/if}
             </div>
           </div>
         {/if}
@@ -499,6 +657,35 @@
     height: 12px;
   }
 
+  .new-tab-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary, #656d76);
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 2;
+    transition: all 0.15s ease;
+    padding: 0;
+    margin-left: 0;
+  }
+
+  .new-tab-btn:hover {
+    background: var(--bg-secondary, #f6f8fa);
+    border-color: var(--border-primary, #d0d7de);
+    color: var(--text-primary, #1f2328);
+  }
+
+  .new-tab-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .tab-title-container {
     display: flex;
     align-items: center;
@@ -588,21 +775,16 @@
     color: var(--accent, #0969da);
   }
 
-  .close-all-trigger:hover {
-    color: #cf222e;
-    background-color: rgba(207, 34, 46, 0.1);
-  }
-
   .tabs-dropdown-menu {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 260px;
-    max-height: 360px;
+    width: 300px;
+    max-height: 420px;
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -649,6 +831,63 @@
     background: rgba(207, 34, 46, 0.1);
   }
 
+  .dropdown-search-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #ffffff);
+  }
+
+  .dropdown-search-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary, #656d76);
+    flex-shrink: 0;
+  }
+
+  .dropdown-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    outline: none;
+    padding: 0;
+  }
+
+  .dropdown-search-input::placeholder {
+    color: var(--text-secondary, #656d76);
+    font-size: 11px;
+  }
+
+  .dropdown-search-clear {
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-secondary, #656d76);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    transition: all 0.1s ease;
+  }
+
+  .dropdown-search-clear:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary, #1f2328);
+  }
+
+  .dropdown-search-clear svg {
+    width: 12px;
+    height: 12px;
+  }
+
   .dropdown-tabs-list {
     overflow-y: auto;
     max-height: 300px;
@@ -664,14 +903,19 @@
     transition: background 0.1s ease;
     font-size: 13px;
     color: var(--text-primary, #1f2328);
+    border-left: 2px solid transparent;
   }
 
-  .dropdown-tab-item:hover {
-    background: var(--bg-secondary, #f6f8fa);
+  .dropdown-tab-item:hover,
+  .dropdown-tab-item.selected {
+    background: rgba(9, 105, 218, 0.08);
+  }
+
+  .dropdown-tab-item.selected {
+    border-left-color: var(--accent, #0969da);
   }
 
   .dropdown-tab-item.active {
-    background: rgba(9, 105, 218, 0.08);
     color: var(--accent, #0969da);
     font-weight: 500;
   }
@@ -714,6 +958,14 @@
   .dropdown-tab-close svg {
     width: 12px;
     height: 12px;
+  }
+
+  .dropdown-no-results {
+    padding: 16px 12px;
+    text-align: center;
+    color: var(--text-secondary, #656d76);
+    font-size: 12px;
+    font-style: italic;
   }
 
   .icon-btn {

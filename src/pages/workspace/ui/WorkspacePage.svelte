@@ -4,6 +4,7 @@
   import { EditorHeader } from "@widgets/editor-header";
   import { StatusBar } from "@widgets/status-bar";
   import { CommandPalette } from "@widgets/command-palette";
+  import { EmptyWorkspace } from "@widgets/empty-workspace";
   import { VaultExplorer } from "@features/vault-explorer";
   import { MarkdownViewer } from "@features/markdown-editor";
   import { MermanViewer } from "@features/merman-editor";
@@ -31,6 +32,9 @@
   let loadedContents = $state<Record<string, string>>({});
   let savedContents = $state<Record<string, string>>({});
   let loadingPaths = $state<Record<string, boolean>>({});
+
+  // Contador para generar IDs únicos de pestañas vacías
+  let emptyTabCounter = 0;
 
   // Seguimiento de selección y cursor por cada pestaña
   interface SelectionInfo {
@@ -60,7 +64,7 @@
   }
 
   async function ensureContentLoaded(path: string) {
-    if (!path || loadedContents[path] !== undefined || loadingPaths[path]) return;
+    if (!path || path.startsWith("empty:") || loadedContents[path] !== undefined || loadingPaths[path]) return;
 
     if (isTauriEnvironment()) {
       loadingPaths[path] = true;
@@ -87,12 +91,30 @@
     }
   }
 
+  function handleNewEmptyTab() {
+    emptyTabCounter += 1;
+    const emptyTabPath = `empty://${emptyTabCounter}-${Date.now()}`;
+    openTabPaths.push(emptyTabPath);
+    activeTabPath = emptyTabPath;
+  }
+
   function selectTab(path: string) {
-    if (!openTabPaths.includes(path)) {
+    // Si la pestaña actual es una pestaña vacía y seleccionamos un archivo nuevo, lo sustituye en esa pestaña
+    if (activeTabPath && activeTabPath.startsWith("empty:") && !openTabPaths.includes(path)) {
+      const idx = openTabPaths.indexOf(activeTabPath);
+      if (idx !== -1) {
+        openTabPaths[idx] = path;
+        delete tabSelections[activeTabPath];
+      } else {
+        openTabPaths.push(path);
+      }
+    } else if (!openTabPaths.includes(path)) {
       openTabPaths.push(path);
     }
     activeTabPath = path;
-    ensureContentLoaded(path);
+    if (!path.startsWith("empty:")) {
+      ensureContentLoaded(path);
+    }
   }
 
   function closeTab(path: string) {
@@ -103,7 +125,9 @@
         if (openTabPaths.length > 0) {
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
-          if (activeTabPath) ensureContentLoaded(activeTabPath);
+          if (activeTabPath && !activeTabPath.startsWith("empty:")) {
+            ensureContentLoaded(activeTabPath);
+          }
         } else {
           activeTabPath = null;
         }
@@ -114,6 +138,11 @@
     delete savedContents[path];
     delete loadingPaths[path];
     delete tabSelections[path];
+
+    // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía
+    if (openTabPaths.length === 0) {
+      handleNewEmptyTab();
+    }
   }
 
   function closeAllTabs() {
@@ -123,20 +152,28 @@
     savedContents = {};
     loadingPaths = {};
     tabSelections = {};
+    handleNewEmptyTab();
   }
 
   let currentVaultItem = $derived(
-    activeTabPath && vaultItems.length > 0
+    activeTabPath && !activeTabPath.startsWith("empty:") && vaultItems.length > 0
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || { id: "0", title: "", relative_path: "" }
       : { id: "0", title: "", relative_path: "" }
   );
 
   let activeContent = $derived(
-    activeTabPath ? loadedContents[activeTabPath] ?? "" : ""
+    activeTabPath && !activeTabPath.startsWith("empty:") ? loadedContents[activeTabPath] ?? "" : ""
   );
 
   let tabsInfo = $derived(
     openTabPaths.map((path) => {
+      if (path.startsWith("empty:")) {
+        return {
+          path,
+          title: "Nueva pestaña",
+          isDirty: false,
+        };
+      }
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
       const isDirty = vaultItem
         ? loadedContents[path] !== undefined &&
@@ -187,7 +224,7 @@
   // Volver al inicio del documento y asegurar carga al cambiar de pestaña
   $effect(() => {
     const path = activeTabPath;
-    if (path) {
+    if (path && !path.startsWith("empty:")) {
       ensureContentLoaded(path);
     }
     tick().then(() => {
@@ -229,33 +266,34 @@
                 relative_path: relPath,
               };
             });
-            openTabPaths = [];
-            activeTabPath = null;
-            loadedContents = {};
-            savedContents = {};
-            tabSelections = {};
+            if (openTabPaths.length === 0) {
+              handleNewEmptyTab();
+            }
           } else {
             vaultItems = [];
-            openTabPaths = [];
-            activeTabPath = null;
-            loadedContents = {};
-            savedContents = {};
-            tabSelections = {};
+            if (openTabPaths.length === 0) {
+              handleNewEmptyTab();
+            }
           }
         } catch (e) {
           console.warn("Error al cargar lista de archivos de Rust:", e);
           isConnectedToRust = false;
           vaultItems = [];
-          loadedContents = {};
-          savedContents = {};
-          tabSelections = {};
+          if (openTabPaths.length === 0) {
+            handleNewEmptyTab();
+          }
         }
       } else {
         vaultItems = [];
-        loadedContents = {};
-        savedContents = {};
-        tabSelections = {};
+        if (openTabPaths.length === 0) {
+          handleNewEmptyTab();
+        }
       }
+    }
+
+    // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
+    if (openTabPaths.length === 0) {
+      handleNewEmptyTab();
     }
 
     fetchNotesFromBackend();
@@ -297,7 +335,7 @@
     }
   }
 
-  async function createNewVaultItem() {
+  async function createNewVaultItem(emptyTabPathToReplace?: string) {
     const newTitle = `Nuevo Archivo ${vaultItems.length + 1}`;
     const newRelPath = `${newTitle}.md`;
     const newVaultItem: VaultItem = {
@@ -308,7 +346,16 @@
     const initialContent = "# Nuevo Archivo\n\nEscribe tu contenido aquí...";
     vaultItems.push(newVaultItem);
     loadedContents[newRelPath] = initialContent;
-    selectTab(newRelPath);
+
+    const targetEmptyPath = emptyTabPathToReplace || (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null);
+    if (targetEmptyPath && openTabPaths.includes(targetEmptyPath)) {
+      const idx = openTabPaths.indexOf(targetEmptyPath);
+      openTabPaths[idx] = newRelPath;
+      delete tabSelections[targetEmptyPath];
+    } else {
+      openTabPaths.push(newRelPath);
+    }
+    activeTabPath = newRelPath;
     await persistVaultItemToRust(newVaultItem);
   }
 
@@ -316,11 +363,27 @@
   onMount(() => {
     commandRegistry.registerMany([
       {
+        id: "cmd-new-tab",
+        name: "Nueva pestaña vacía",
+        category: "Pestañas",
+        shortcut: "Ctrl+T",
+        action: handleNewEmptyTab,
+      },
+      {
         id: "cmd-new-file",
         name: "Crear nuevo archivo / nota",
         category: "Archivo",
         shortcut: "Ctrl+N",
-        action: createNewVaultItem,
+        action: () => createNewVaultItem(),
+      },
+      {
+        id: "cmd-close-tab",
+        name: "Cerrar pestaña activa",
+        category: "Pestañas",
+        shortcut: "Ctrl+W",
+        action: () => {
+          if (activeTabPath) closeTab(activeTabPath);
+        },
       },
       {
         id: "cmd-open-palette",
@@ -354,10 +417,21 @@
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (activeTabPath && currentVaultItem.relative_path) {
-          persistVaultItemToRust(currentVaultItem);
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 's') {
+          e.preventDefault();
+          if (activeTabPath && currentVaultItem.relative_path) {
+            persistVaultItemToRust(currentVaultItem);
+          }
+        } else if (key === 'n') {
+          e.preventDefault();
+          createNewVaultItem();
+        } else if (key === 'w') {
+          e.preventDefault();
+          if (activeTabPath) {
+            closeTab(activeTabPath);
+          }
         }
       }
     };
@@ -400,6 +474,7 @@
         loadedContents = {};
         savedContents = {};
         tabSelections = {};
+        handleNewEmptyTab();
       }
     } catch (e) {
       console.error('Error al abrir la carpeta de la bóveda:', e);
@@ -456,9 +531,10 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
-      title={currentVaultItem.relative_path || currentVaultItem.title}
+      title={activeTabPath?.startsWith("empty:") ? "Nueva pestaña" : (currentVaultItem.relative_path || currentVaultItem.title)}
       showSaveButton={isEditing &&
         !!activeTabPath &&
+        !activeTabPath.startsWith("empty:") &&
         (!currentVaultItem.relative_path ||
           currentVaultItem.relative_path.endsWith(".md") ||
           currentVaultItem.relative_path.endsWith(".markdown") ||
@@ -467,6 +543,11 @@
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
       onCloseAllTabs={closeAllTabs}
+      onNewTab={handleNewEmptyTab}
+      onNewFile={() => createNewVaultItem()}
+      onAction={(actionId) => {
+        if (actionId === 'new-file') createNewVaultItem();
+      }}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {
           persistVaultItemToRust(currentVaultItem);
@@ -478,111 +559,88 @@
     <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
     <div class="editor-container" bind:this={editorContainerRef}>
       {#if openTabPaths.length === 0 || !activeTabPath}
-        <div class="empty-workspace">
-          <svg
-            class="empty-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-            />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="9" y1="15" x2="15" y2="15" />
-          </svg>
-          <h2>
-            {vaultItems.length === 0
-              ? "No hay archivos en la bóveda"
-              : "Ningún archivo abierto"}
-          </h2>
-          <p>
-            {vaultItems.length === 0
-              ? "Crea un nuevo archivo para comenzar a escribir."
-              : "Selecciona un archivo del panel lateral para abrirlo."}
-          </p>
-          <button class="create-btn" onclick={createNewVaultItem}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Crear nuevo archivo</span>
-          </button>
-        </div>
+        <EmptyWorkspace
+          hasVaultItems={vaultItems.length > 0}
+          onCreateNew={() => createNewVaultItem()}
+        />
       {:else}
         {#each openTabPaths as tabPath (tabPath)}
-          {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath)}
-          {@const content = loadedContents[tabPath]}
-          {@const isLoading = loadingPaths[tabPath]}
-
-          {#if vaultItem}
+          {#if tabPath.startsWith("empty:")}
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
-              class:full-pane={tabPath.endsWith(".mmd") ||
-                tabPath.endsWith(".mermaid") ||
-                tabPath.endsWith(".excalidraw") ||
-                tabPath.endsWith(".excalidraw.json")}
             >
-              {#if isLoading || content === undefined}
-                <div class="content-loading">
-                  <span class="spinner"></span>
-                  <span>Cargando contenido desde disco...</span>
-                </div>
-              {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
-                <MermanViewer
-                  {content}
-                  readOnly={!isEditing}
-                  vimMode={isVimMode}
-                  onChange={(updatedContent) => {
-                    loadedContents[tabPath] = updatedContent;
-                    debouncedPersistVaultItemToRust(vaultItem);
-                  }}
-                  onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                />
-              {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
-                <ExcalidrawViewer
-                  {content}
-                  readOnly={!isEditing}
-                  onChange={(updatedContent) => {
-                    loadedContents[tabPath] = updatedContent;
-                    debouncedPersistVaultItemToRust(vaultItem);
-                  }}
-                />
-              {:else}
-                <input
-                  type="text"
-                  class="editor-title-input"
-                  bind:value={vaultItem.title}
-                  oninput={() => persistVaultItemToRust(vaultItem)}
-                  placeholder="Título del archivo..."
-                />
+              <EmptyWorkspace
+                hasVaultItems={vaultItems.length > 0}
+                onCreateNew={() => createNewVaultItem(tabPath)}
+              />
+            </div>
+          {:else}
+            {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath)}
+            {@const content = loadedContents[tabPath]}
+            {@const isLoading = loadingPaths[tabPath]}
 
-                <div class="editor-main-content">
-                  <MarkdownViewer
+            {#if vaultItem}
+              <div
+                class="tab-pane"
+                class:hidden={tabPath !== activeTabPath}
+                class:full-pane={tabPath.endsWith(".mmd") ||
+                  tabPath.endsWith(".mermaid") ||
+                  tabPath.endsWith(".excalidraw") ||
+                  tabPath.endsWith(".excalidraw.json")}
+              >
+                {#if isLoading || content === undefined}
+                  <div class="content-loading">
+                    <span class="spinner"></span>
+                    <span>Cargando contenido desde disco...</span>
+                  </div>
+                {:else if tabPath.endsWith(".mmd") || tabPath.endsWith(".mermaid")}
+                  <MermanViewer
                     {content}
                     readOnly={!isEditing}
                     vimMode={isVimMode}
-                    onChange={(updatedMarkdown: string) => {
-                      loadedContents[tabPath] = updatedMarkdown;
+                    onChange={(updatedContent) => {
+                      loadedContents[tabPath] = updatedContent;
                       debouncedPersistVaultItemToRust(vaultItem);
                     }}
                     onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                    isMarkdown={!vaultItem.relative_path ||
-                      vaultItem.relative_path.endsWith(".md") ||
-                      vaultItem.relative_path.endsWith(".markdown")}
                   />
-                </div>
-              {/if}
-            </div>
+                {:else if tabPath.endsWith(".excalidraw") || tabPath.endsWith(".excalidraw.json")}
+                  <ExcalidrawViewer
+                    {content}
+                    readOnly={!isEditing}
+                    onChange={(updatedContent) => {
+                      loadedContents[tabPath] = updatedContent;
+                      debouncedPersistVaultItemToRust(vaultItem);
+                    }}
+                  />
+                {:else}
+                  <input
+                    type="text"
+                    class="editor-title-input"
+                    bind:value={vaultItem.title}
+                    oninput={() => persistVaultItemToRust(vaultItem)}
+                    placeholder="Título del archivo..."
+                  />
+
+                  <div class="editor-main-content">
+                    <MarkdownViewer
+                      {content}
+                      readOnly={!isEditing}
+                      vimMode={isVimMode}
+                      onChange={(updatedMarkdown: string) => {
+                        loadedContents[tabPath] = updatedMarkdown;
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                      isMarkdown={!vaultItem.relative_path ||
+                        vaultItem.relative_path.endsWith(".md") ||
+                        vaultItem.relative_path.endsWith(".markdown")}
+                    />
+                  </div>
+                {/if}
+              </div>
+            {/if}
           {/if}
         {/each}
       {/if}
@@ -695,58 +753,5 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-  }
-
-  .empty-workspace {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 12px;
-    color: var(--text-secondary);
-    text-align: center;
-    user-select: none;
-  }
-
-  .empty-icon {
-    width: 56px;
-    height: 56px;
-    color: var(--border-primary);
-    margin-bottom: 8px;
-  }
-
-  .empty-workspace h2 {
-    font-size: 20px;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .empty-workspace p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin: 0;
-  }
-
-  .create-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 8px 16px;
-    background-color: var(--accent-bg);
-    color: var(--accent);
-    border: 1px solid var(--accent-border);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .create-btn:hover {
-    background-color: rgba(9, 105, 218, 0.15);
-    border-color: var(--accent);
   }
 </style>
