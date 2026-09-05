@@ -16,6 +16,11 @@ export interface SaveNoteParams {
   encoding?: string;
 }
 
+export interface SelectVaultFolderResult {
+  folder_path: string;
+  notes: VaultNote[];
+}
+
 /**
  * Contrato de repositorio para el acceso y manipulación de archivos
  * y notas dentro de las carpetas que representan una bóveda (Vault).
@@ -32,6 +37,16 @@ export interface VaultRepository {
   getNotes(): Promise<VaultNote[]>;
 
   /**
+   * Obtiene la ruta absoluta de la carpeta de la bóveda activa.
+   */
+  getActiveVaultPath(): Promise<string | null>;
+
+  /**
+   * Establece la ruta absoluta de la carpeta de la bóveda activa.
+   */
+  setActiveVaultPath(path: string): Promise<void>;
+
+  /**
    * Lee el contenido completo y metadatos de un archivo específico de la bóveda.
    */
   readNote(relativePath: string): Promise<VaultNote | null>;
@@ -43,8 +58,9 @@ export interface VaultRepository {
 
   /**
    * Abre un diálogo de selección para abrir una nueva carpeta de bóveda.
+   * Opcionalmente inicia en la ruta especificada por startingDirectory.
    */
-  selectVaultFolder(): Promise<VaultNote[]>;
+  selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null>;
 
   /**
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
@@ -72,6 +88,34 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.warn('Error en TauriVaultRepository al obtener get_vault_notes:', error);
       return [];
+    }
+  }
+
+  async getActiveVaultPath(): Promise<string | null> {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    try {
+      return await invokeTauri<string>('get_active_vault_path');
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_active_vault_path:', error);
+      return null;
+    }
+  }
+
+  async setActiveVaultPath(path: string): Promise<void> {
+    if (!this.isConnected()) {
+      return;
+    }
+
+    try {
+      await invokeTauri('set_active_vault_path', {
+        newPath: path,
+        new_path: path,
+      });
+    } catch (error) {
+      console.error('Error en TauriVaultRepository al cambiar set_active_vault_path:', error);
     }
   }
 
@@ -105,17 +149,19 @@ export class TauriVaultRepository implements VaultRepository {
     });
   }
 
-  async selectVaultFolder(): Promise<VaultNote[]> {
+  async selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null> {
     if (!this.isConnected()) {
-      return [];
+      return null;
     }
 
     try {
-      const notes = await invokeTauri<VaultNote[]>('select_vault_folder');
-      return Array.isArray(notes) ? notes : [];
+      return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', {
+        startingDirectory: startingDirectory ?? null,
+        starting_directory: startingDirectory ?? null,
+      });
     } catch (error) {
       console.error('Error en TauriVaultRepository al seleccionar carpeta de bóveda:', error);
-      return [];
+      return null;
     }
   }
 

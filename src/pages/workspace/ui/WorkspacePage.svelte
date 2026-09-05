@@ -353,6 +353,24 @@
 
     async function fetchNotesFromBackend() {
       try {
+        if (appSettings.lastOpenedFolder) {
+          try {
+            await vaultRepository.setActiveVaultPath(appSettings.lastOpenedFolder);
+          } catch (e) {
+            console.warn("No se pudo configurar la ruta de la bóveda desde settings:", e);
+          }
+        } else {
+          // Si no hay setting guardado aún, sincronizar el path actual de Rust en settings
+          try {
+            const currentPath = await vaultRepository.getActiveVaultPath();
+            if (currentPath) {
+              appSettings.setLastOpenedFolder(currentPath);
+            }
+          } catch {
+            // ignorar si no está disponible
+          }
+        }
+
         const notes = await vaultRepository.getNotes();
         isConnectedToRust = vaultRepository.isConnected();
 
@@ -515,6 +533,13 @@
         action: handleNewEmptyTab,
       },
       {
+        id: "cmd-open-folder",
+        name: "Abrir carpeta / bóveda",
+        category: "Archivo",
+        shortcut: "Ctrl+Shift+O",
+        action: handleOpenVaultFolder,
+      },
+      {
         id: "cmd-new-file",
         name: "Crear nuevo archivo",
         category: "Archivo",
@@ -588,8 +613,15 @@
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         const key = e.key.toLowerCase();
+        if (e.shiftKey) {
+          if (key === 'o') {
+            e.preventDefault();
+            handleOpenVaultFolder();
+          }
+          return;
+        }
         if (key === 's') {
           e.preventDefault();
           if (activeTabPath && currentVaultItem.relative_path) {
@@ -629,8 +661,12 @@
 
   async function handleOpenVaultFolder() {
     try {
-      const newNotes = await vaultRepository.selectVaultFolder();
-      if (newNotes && Array.isArray(newNotes) && newNotes.length > 0) {
+      const result = await vaultRepository.selectVaultFolder(appSettings.lastOpenedFolder);
+      if (result) {
+        if (result.folder_path) {
+          appSettings.setLastOpenedFolder(result.folder_path);
+        }
+        const newNotes = result.notes || [];
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {

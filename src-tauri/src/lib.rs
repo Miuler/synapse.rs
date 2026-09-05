@@ -6,8 +6,9 @@ use application::use_cases::note_use_cases::NoteUseCases;
 use domain::models::file_types::SupportedFileTypes;
 use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
-    get_supported_file_types, get_vault_notes, read_note_content, save_note_content, search_items_command,
-    search_notes_command, select_vault_folder, set_active_vault_path, AppState,
+    get_active_vault_path, get_supported_file_types, get_vault_notes, read_note_content,
+    save_note_content, search_items_command, search_notes_command, select_vault_folder,
+    set_active_vault_path, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -43,6 +44,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_supported_file_types,
             get_vault_notes,
+            get_active_vault_path,
             read_note_content,
             save_note_content,
             set_active_vault_path,
