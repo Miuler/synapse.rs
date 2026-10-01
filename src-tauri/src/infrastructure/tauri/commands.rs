@@ -160,3 +160,12 @@ pub fn search_notes_command(state: State<'_, AppState>, query: String) -> Result
     let search_service = NucleoSearchService::new();
     Ok(search_service.search_notes(&query, &notes))
 }
+
+#[tauri::command]
+pub fn toggle_devtools(window: tauri::WebviewWindow) {
+    if window.is_devtools_open() {
+        window.close_devtools();
+    } else {
+        window.open_devtools();
+    }
+}

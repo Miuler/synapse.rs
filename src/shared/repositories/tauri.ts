@@ -35,3 +35,17 @@ export function isTauriEnvironment(): boolean {
   const w = window as unknown as Record<string, unknown>;
   return '__TAURI_INTERNALS__' in w || '__TAURI__' in w;
 }
+
+/**
+ * Alterna la visibilidad de las herramientas de desarrollo (DevTools).
+ * Si ya está abierto, lo cierra; si está cerrado, lo abre.
+ */
+export async function toggleDevtools(): Promise<void> {
+  if (isTauriEnvironment()) {
+    try {
+      await invokeTauri('toggle_devtools');
+    } catch (e) {
+      console.error('Error al alternar devtools:', e);
+    }
+  }
+}

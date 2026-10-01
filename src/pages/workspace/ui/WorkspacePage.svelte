@@ -22,7 +22,7 @@
   import { loadSupportedFileTypesUseCase } from "@shared/use-cases";
   import type { VaultItem, OpenedNote } from "@entities/vault-item";
   import { commandRegistry } from "@entities/command";
-  import { vaultRepository } from "@shared/repositories";
+  import { vaultRepository, toggleDevtools } from "@shared/repositories";
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
@@ -610,15 +610,30 @@
           }
         },
       },
+      {
+        id: "cmd-toggle-devtools",
+        name: "Alternar herramientas de desarrollo (DevTools)",
+        category: "Desarrollo",
+        shortcut: "F12",
+        action: toggleDevtools,
+      },
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F12") {
+        e.preventDefault();
+        toggleDevtools();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         const key = e.key.toLowerCase();
         if (e.shiftKey) {
           if (key === 'o') {
             e.preventDefault();
             handleOpenVaultFolder();
+          } else if (key === 'i') {
+            e.preventDefault();
+            toggleDevtools();
           }
           return;
         }
