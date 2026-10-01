@@ -33,6 +33,7 @@ rfd = "0.15"
 encoding_rs = "0.8.35"
 chardetng = "1.0.0"
 base64 = "0.22"
+gix = { version = "0.73", default-features = false, features = ["status", "parallel"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "1.4.0"

@@ -21,6 +21,14 @@ export interface SelectVaultFolderResult {
   notes: VaultNote[];
 }
 
+export type GitFileStatusKind = 'modified' | 'untracked';
+
+export interface VaultGitStatus {
+  is_repo: boolean;
+  branch?: string | null;
+  statuses: Record<string, GitFileStatusKind>;
+}
+
 /**
  * Contrato de repositorio para el acceso y manipulación de archivos
  * y notas dentro de las carpetas que representan una bóveda (Vault).
@@ -61,6 +69,11 @@ export interface VaultRepository {
    * Opcionalmente inicia en la ruta especificada por startingDirectory.
    */
   selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null>;
+
+  /**
+   * Consulta el estado de Git del repositorio asociado a la bóveda.
+   */
+  getGitStatus(folderPath?: string): Promise<VaultGitStatus | null>;
 
   /**
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
@@ -161,6 +174,22 @@ export class TauriVaultRepository implements VaultRepository {
       });
     } catch (error) {
       console.error('Error en TauriVaultRepository al seleccionar carpeta de bóveda:', error);
+      return null;
+    }
+  }
+
+  async getGitStatus(folderPath?: string): Promise<VaultGitStatus | null> {
+    if (!this.isConnected()) {
+      return null;
+    }
+
+    try {
+      return await invokeTauri<VaultGitStatus>('get_vault_git_status', {
+        folderPath: folderPath ?? null,
+        folder_path: folderPath ?? null,
+      });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_vault_git_status:', error);
       return null;
     }
   }

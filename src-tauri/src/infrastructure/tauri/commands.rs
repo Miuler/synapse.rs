@@ -4,6 +4,7 @@ use crate::domain::models::note::Note;
 use crate::domain::services::search_service::{SearchResult, SearchService};
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
+use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -168,4 +169,17 @@ pub fn toggle_devtools(window: tauri::WebviewWindow) {
     } else {
         window.open_devtools();
     }
+}
+
+#[tauri::command]
+pub fn get_vault_git_status(
+    state: State<'_, AppState>,
+    folder_path: Option<String>,
+) -> Result<VaultGitStatus, String> {
+    let vault_path = match folder_path {
+        Some(p) => PathBuf::from(p),
+        None => state.active_vault_path.lock().map_err(|e| e.to_string())?.clone(),
+    };
+    let git_service = GitService::new();
+    git_service.get_vault_status(&vault_path)
 }

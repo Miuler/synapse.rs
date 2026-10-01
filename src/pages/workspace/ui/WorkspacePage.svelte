@@ -1,28 +1,28 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
-  import { Ribbon } from "@widgets/ribbon";
-  import { EditorHeader } from "@widgets/editor-header";
-  import { StatusBar, type MarkdownViewMode } from "@widgets/status-bar";
-  import { CommandPalette } from "@widgets/command-palette";
-  import { QuickOpen } from "@widgets/quick-open";
-  import { EmptyWorkspace } from "@widgets/empty-workspace";
-  import { VaultExplorer } from "@features/vault-explorer";
-  import { MarkdownViewer } from "@features/markdown-editor";
-  import { MermanViewer } from "@features/merman-editor";
-  import { MermaidViewer } from "@features/mermaid-editor";
-  import { ExcalidrawViewer } from "@features/excalidraw-editor";
-  import { ImageViewer } from "@features/image-viewer";
-  import { appSettings } from "@entities/settings";
+  import {onMount, tick} from "svelte";
+  import {Ribbon} from "@widgets/ribbon";
+  import {EditorHeader} from "@widgets/editor-header";
+  import {StatusBar, type MarkdownViewMode} from "@widgets/status-bar";
+  import {CommandPalette} from "@widgets/command-palette";
+  import {QuickOpen} from "@widgets/quick-open";
+  import {EmptyWorkspace} from "@widgets/empty-workspace";
+  import {VaultExplorer} from "@features/vault-explorer";
+  import {MarkdownViewer} from "@features/markdown-editor";
+  import {MermanViewer} from "@features/merman-editor";
+  import {MermaidViewer} from "@features/mermaid-editor";
+  import {ExcalidrawViewer} from "@features/excalidraw-editor";
+  import {ImageViewer} from "@features/image-viewer";
+  import {appSettings} from "@entities/settings";
   import {
     isImageFile,
     isMarkdownFile,
     isDiagramFile,
     isDrawingFile,
   } from "@entities/file-type";
-  import { loadSupportedFileTypesUseCase } from "@shared/use-cases";
-  import type { VaultItem, OpenedNote } from "@entities/vault-item";
-  import { commandRegistry } from "@entities/command";
-  import { vaultRepository, toggleDevtools } from "@shared/repositories";
+  import {loadSupportedFileTypesUseCase} from "@shared/use-cases";
+  import type {VaultItem, OpenedNote} from "@entities/vault-item";
+  import {commandRegistry} from "@entities/command";
+  import {vaultRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
@@ -33,6 +33,29 @@
   let markdownViewMode = $state<MarkdownViewMode>("live");
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
+
+  // Estado de control de versiones Git
+  let isGitRepo = $state(false);
+  let gitBranch = $state<string | null>(null);
+  let gitStatuses = $state<Record<string, GitFileStatusKind>>({});
+
+  async function refreshGitStatus() {
+    if (!vaultRepository.isConnected()) return;
+    try {
+      const status = await vaultRepository.getGitStatus();
+      if (status && status.is_repo) {
+        isGitRepo = true;
+        gitBranch = status.branch ?? null;
+        gitStatuses = status.statuses ?? {};
+      } else {
+        isGitRepo = false;
+        gitBranch = null;
+        gitStatuses = {};
+      }
+    } catch (e) {
+      console.warn("Error al refrescar estado de Git:", e);
+    }
+  }
 
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
   let vaultItems = $state<VaultItem[]>([]);
@@ -239,12 +262,12 @@
   let currentVaultItem = $derived(
     activeTabPath && !activeTabPath.startsWith("empty:") && vaultItems.length > 0
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || {
-          id: "0",
-          title: activeNote?.title || "",
-          relative_path: activeTabPath,
-          abs_path: activeNote?.abs_path,
-        }
-      : { id: "0", title: "", relative_path: "", abs_path: undefined }
+      id: "0",
+      title: activeNote?.title || "",
+      relative_path: activeTabPath,
+      abs_path: activeNote?.abs_path,
+    }
+      : {id: "0", title: "", relative_path: "", abs_path: undefined}
   );
 
   let activeContent = $derived(
@@ -373,6 +396,7 @@
 
         const notes = await vaultRepository.getNotes();
         isConnectedToRust = vaultRepository.isConnected();
+        await refreshGitStatus();
 
         if (notes && Array.isArray(notes) && notes.length > 0) {
           vaultItems = notes.map((n, index) => {
@@ -401,6 +425,8 @@
 
           if (openTabPaths.length === 0) {
             handleNewEmptyTab();
+            // FIXME: Validar que sea necesario llamar el refreshGitStatus despues de un handleNewEmptyTab
+            await refreshGitStatus();
           }
         } else {
           vaultItems = [];
@@ -469,6 +495,7 @@
         }
       }
       syncState = "synced";
+      refreshGitStatus();
     } catch (e) {
       console.error("Error al guardar el archivo en la bóveda:", e);
       syncState = "error";
@@ -520,6 +547,7 @@
     activeTabPath = newRelPath;
     recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)];
     await persistVaultItemToRust(newVaultItem);
+    refreshGitStatus();
   }
 
   // Registrar comandos por defecto al iniciar
@@ -617,6 +645,12 @@
         shortcut: "F12",
         action: toggleDevtools,
       },
+      {
+        id: "cmd-refresh-git",
+        name: "Actualizar estado de Git",
+        category: "Git",
+        action: refreshGitStatus,
+      },
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -659,9 +693,14 @@
         }
       }
     };
+    const handleFocus = () => {
+      refreshGitStatus();
+    };
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('keydown', handleKeyDown);
     };
   });
@@ -739,7 +778,7 @@
 
 <div class="workspace-layout">
   <!-- 1. BARRA RIBBON IZQUIERDA -->
-  <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction} />
+  <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction}/>
 
   <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
   <VaultExplorer
@@ -749,6 +788,9 @@
     {isConnectedToRust}
     {vaultItems}
     {activeTabPath}
+    {gitStatuses}
+    {isGitRepo}
+    {gitBranch}
     onSelectTab={selectTab}
     onOpenVaultFolder={handleOpenVaultFolder}
     onResizeStart={handleSidebarResizeStart}
@@ -919,7 +961,8 @@
                 />
               {:else}
                 <div class="editor-main-content">
-                  <pre style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
+                  <pre
+                    style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
                 </div>
               {/if}
             </div>
@@ -949,7 +992,7 @@
   </main>
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
-  <CommandPalette bind:isOpen={isPaletteOpen} />
+  <CommandPalette bind:isOpen={isPaletteOpen}/>
 
   <!-- 5. BUSCADOR RÁPIDO DE ARCHIVOS (OVERLAY CTRL+O) -->
   <QuickOpen
@@ -1032,7 +1075,9 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .editor-title-input {

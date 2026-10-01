@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { VaultItem } from '@entities/vault-item';
+  import type { GitFileStatusKind } from '@shared/repositories';
 
   interface Props {
     activeRibbonTab: string;
@@ -8,6 +9,9 @@
     isConnectedToRust: boolean;
     vaultItems: VaultItem[];
     activeTabPath: string | null;
+    gitStatuses?: Record<string, GitFileStatusKind>;
+    isGitRepo?: boolean;
+    gitBranch?: string | null;
     onSelectTab: (path: string) => void;
     onOpenVaultFolder: () => void;
     onResizeStart: (e: PointerEvent) => void;
@@ -22,6 +26,9 @@
     isConnectedToRust,
     vaultItems,
     activeTabPath,
+    gitStatuses = {},
+    isGitRepo = false,
+    gitBranch = null,
     onSelectTab,
     onOpenVaultFolder,
     onResizeStart,
@@ -111,14 +118,27 @@
   });
 </script>
 
-{#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}
+{#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}\
   <aside
     class="sidebar-panel"
     class:is-resizing={isResizingSidebar}
     style="width: {sidebarWidth}px;"
   >
     <div class="sidebar-header">
-      <span>{activeRibbonTab === 'files' ? 'Bóveda de Archivos' : 'Buscar'}</span>
+      <div class="sidebar-header-left">
+        <span>{activeRibbonTab === 'files' ? 'Bóveda de Archivos' : 'Buscar'}</span>
+        {#if isGitRepo && gitBranch}
+          <span class="git-branch-badge" title="Rama Git: {gitBranch}">
+            <svg class="git-branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="6" y1="3" x2="6" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+            <span class="git-branch-name">{gitBranch}</span>
+          </span>
+        {/if}
+      </div>
       {#if isConnectedToRust}
         <button
           type="button"
@@ -190,25 +210,48 @@
       {/each}
     {/if}
   {:else}
+    {@const fileGitStatus = isGitRepo && gitStatuses ? gitStatuses[node.relativePath] : undefined}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="file-tree-item file"
       class:active={node.relativePath === activeTabPath}
+      class:git-modified={fileGitStatus === 'modified'}
+      class:git-untracked={fileGitStatus === 'untracked'}
       style="padding-left: {26 + depth * 14}px;"
       onclick={() => onSelectTab(node.relativePath)}
     >
-      <svg
-        class="file-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-      </svg>
-      <span class="file-name">{node.name}</span>
+      {#if fileGitStatus === 'modified'}
+        <svg
+          class="file-icon file-icon-modified"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <circle cx="16" cy="16" r="2.5" fill="currentColor" />
+        </svg>
+      {:else}
+        <svg
+          class="file-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      {/if}
+      <span class="file-name" title={node.name}>{node.name}</span>
+
+      {#if fileGitStatus === 'modified'}
+        <span class="git-badge modified" title="Modificado en Git">M</span>
+      {:else if fileGitStatus === 'untracked'}
+        <span class="git-badge untracked" title="No controlado por Git">?</span>
+      {/if}
     </div>
   {/if}
 {/snippet}
@@ -237,6 +280,42 @@
     letter-spacing: 0.05em;
     color: var(--text-secondary, #656d76);
     border-bottom: 1px solid var(--border-primary, #d0d7de);
+    gap: 8px;
+  }
+
+  .sidebar-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .git-branch-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-secondary, #656d76);
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    max-width: 110px;
+  }
+
+  .git-branch-icon {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+  }
+
+  .git-branch-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .rust-badge-btn {
@@ -249,6 +328,7 @@
     border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
     cursor: pointer;
     transition: all 0.15s ease;
+    flex-shrink: 0;
   }
 
   .rust-badge-btn:hover {
@@ -317,14 +397,48 @@
     color: var(--text-secondary, #656d76);
   }
 
+  .file-icon-modified {
+    color: #d97706;
+  }
+
   .file-tree-item.active .file-icon {
     color: var(--accent, #0969da);
   }
 
+  .file-tree-item.git-modified:not(.active) .file-name {
+    color: #b45309;
+  }
+
+  .file-tree-item.git-untracked:not(.active) .file-name {
+    color: #15803d;
+  }
+
   .file-name {
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .git-badge {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .git-badge.modified {
+    color: #b45309;
+    background: rgba(217, 119, 6, 0.14);
+  }
+
+  .git-badge.untracked {
+    color: #15803d;
+    background: rgba(22, 163, 74, 0.14);
   }
 
   .sidebar-resizer {
