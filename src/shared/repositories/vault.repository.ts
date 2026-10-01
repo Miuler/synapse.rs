@@ -76,6 +76,11 @@ export interface VaultRepository {
   getGitStatus(folderPath?: string): Promise<VaultGitStatus | null>;
 
   /**
+   * Elimina un archivo o carpeta dentro de la bóveda.
+   */
+  deleteItem(relativePath: string): Promise<void>;
+
+  /**
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
    */
   resolveAssetUrl(path: string): string;
@@ -192,6 +197,17 @@ export class TauriVaultRepository implements VaultRepository {
       console.warn('Error en TauriVaultRepository al obtener get_vault_git_status:', error);
       return null;
     }
+  }
+
+  async deleteItem(relativePath: string): Promise<void> {
+    if (!this.isConnected()) {
+      return;
+    }
+
+    await invokeTauri('delete_vault_item', {
+      relativePath,
+      relative_path: relativePath,
+    });
   }
 
   resolveAssetUrl(path: string): string {

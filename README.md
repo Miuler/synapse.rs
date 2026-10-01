@@ -122,3 +122,8 @@ bun tauri build --target x86_64-pc-windows-msvc --runner cargo-xwin --no-bundle
 > **Ubicación del binario generado:**  
 > `src-tauri/target/x86_64-pc-windows-msvc/release/app.exe`
 
+
+
+# TODO
+
+Agregar diff2html

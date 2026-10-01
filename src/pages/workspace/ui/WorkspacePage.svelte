@@ -367,23 +367,13 @@
     });
   });
 
-  // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
-  onMount(() => {
-    window.scrollTo(0, 0);
-
-    // Cargar la configuración de tipos soportados a través del use case
-    loadSupportedFileTypesUseCase();
-
-    async function fetchNotesFromBackend() {
-      try {
-        if (appSettings.lastOpenedFolder) {
-          try {
-            await vaultRepository.setActiveVaultPath(appSettings.lastOpenedFolder);
-          } catch (e) {
-            console.warn("No se pudo configurar la ruta de la bóveda desde settings:", e);
-          }
-        } else {
-          // Si no hay setting guardado aún, sincronizar el path actual de Rust en settings
+  async function fetchNotesFromBackend() {
+    try {
+      if (appSettings.lastOpenedFolder) {
+        try {
+          await vaultRepository.setActiveVaultPath(appSettings.lastOpenedFolder);
+        } catch (e) {
+          console.warn("No se pudo configurar la ruta de la bóveda desde settings:", e);
           try {
             const currentPath = await vaultRepository.getActiveVaultPath();
             if (currentPath) {
@@ -393,56 +383,98 @@
             // ignorar si no está disponible
           }
         }
-
-        const notes = await vaultRepository.getNotes();
-        isConnectedToRust = vaultRepository.isConnected();
-        await refreshGitStatus();
-
-        if (notes && Array.isArray(notes) && notes.length > 0) {
-          vaultItems = notes.map((n, index) => {
-            let relPath = `${n.title}.md`;
-            if (typeof n.relative_path === "string") {
-              relPath = n.relative_path;
-            } else if (
-              n.relative_path &&
-              typeof n.relative_path === "object" &&
-              (n.relative_path as unknown as string[])[0]
-            ) {
-              relPath = (n.relative_path as unknown as string[])[0];
-            }
-
-            return {
-              id: String(index + 1),
-              title: n.title,
-              relative_path: relPath,
-              abs_path: n.abs_path,
-            };
-          });
-
-          if (recentFiles.length === 0 && vaultItems.length > 0) {
-            recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+      } else {
+        // Si no hay setting guardado aún, sincronizar el path actual de Rust en settings
+        try {
+          const currentPath = await vaultRepository.getActiveVaultPath();
+          if (currentPath) {
+            appSettings.setLastOpenedFolder(currentPath);
           }
-
-          if (openTabPaths.length === 0) {
-            handleNewEmptyTab();
-            // FIXME: Validar que sea necesario llamar el refreshGitStatus despues de un handleNewEmptyTab
-            await refreshGitStatus();
-          }
-        } else {
-          vaultItems = [];
-          if (openTabPaths.length === 0) {
-            handleNewEmptyTab();
-          }
+        } catch {
+          // ignorar si no está disponible
         }
-      } catch (e) {
-        console.warn("Error al cargar lista de archivos de la bóveda:", e);
-        isConnectedToRust = false;
+      }
+
+      const notes = await vaultRepository.getNotes();
+      isConnectedToRust = vaultRepository.isConnected();
+      await refreshGitStatus();
+
+      if (notes && Array.isArray(notes) && notes.length > 0) {
+        vaultItems = notes.map((n, index) => {
+          let relPath = `${n.title}.md`;
+          if (typeof n.relative_path === "string") {
+            relPath = n.relative_path;
+          } else if (
+            n.relative_path &&
+            typeof n.relative_path === "object" &&
+            (n.relative_path as unknown as string[])[0]
+          ) {
+            relPath = (n.relative_path as unknown as string[])[0];
+          }
+
+          return {
+            id: String(index + 1),
+            title: n.title,
+            relative_path: relPath,
+            abs_path: n.abs_path,
+          };
+        });
+
+        if (recentFiles.length === 0 && vaultItems.length > 0) {
+          recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+        }
+
+        if (openTabPaths.length === 0) {
+          handleNewEmptyTab();
+          // FIXME: Validar que sea necesario llamar el refreshGitStatus despues de un handleNewEmptyTab
+          await refreshGitStatus();
+        }
+      } else {
         vaultItems = [];
         if (openTabPaths.length === 0) {
           handleNewEmptyTab();
         }
       }
+    } catch (e) {
+      console.warn("Error al cargar lista de archivos de la bóveda:", e);
+      isConnectedToRust = false;
+      vaultItems = [];
+      if (openTabPaths.length === 0) {
+        handleNewEmptyTab();
+      }
     }
+  }
+
+  async function handleDeleteItem(relativePath: string, isFolder: boolean) {
+    try {
+      await vaultRepository.deleteItem(relativePath);
+
+      // Cerrar las pestañas abiertas que correspondan al archivo o estén dentro de la carpeta eliminada
+      const tabsToClose = openTabPaths.filter((path) => {
+        if (isFolder) {
+          return path === relativePath || path.startsWith(`${relativePath}/`);
+        }
+        return path === relativePath;
+      });
+
+      for (const path of tabsToClose) {
+        closeTab(path);
+      }
+
+      // Actualizar la lista de archivos de la bóveda y el estado de Git
+      await fetchNotesFromBackend();
+    } catch (e) {
+      console.error("Error al eliminar elemento de la bóveda:", e);
+      throw e;
+    }
+  }
+
+  // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
+  onMount(() => {
+    window.scrollTo(0, 0);
+
+    // Cargar la configuración de tipos soportados a través del use case
+    loadSupportedFileTypesUseCase();
 
     // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
     if (openTabPaths.length === 0) {
@@ -788,11 +820,13 @@
     {isConnectedToRust}
     {vaultItems}
     {activeTabPath}
+    vaultPath={appSettings.lastOpenedFolder}
     {gitStatuses}
     {isGitRepo}
     {gitBranch}
     onSelectTab={selectTab}
     onOpenVaultFolder={handleOpenVaultFolder}
+    onDeleteItem={handleDeleteItem}
     onResizeStart={handleSidebarResizeStart}
     onResizeMove={handleSidebarResizeMove}
     onResizeEnd={handleSidebarResizeEnd}

@@ -183,3 +183,46 @@ pub fn get_vault_git_status(
     let git_service = GitService::new();
     git_service.get_vault_status(&vault_path)
 }
+
+#[tauri::command]
+pub fn delete_vault_item(
+    state: State<'_, AppState>,
+    relative_path: String,
+) -> Result<(), String> {
+    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let clean_rel = relative_path.replace('\\', "/");
+    let mut target_path = vault_path.clone();
+    for part in clean_rel.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            return Err("Ruta no permitida con '..'".to_string());
+        }
+        target_path.push(part);
+    }
+
+    if target_path == *vault_path {
+        return Err("No se puede eliminar la raíz de la bóveda".to_string());
+    }
+
+    if !target_path.exists() {
+        return Err(format!("El elemento '{}' no existe", relative_path));
+    }
+
+    let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+    let canonical_target = target_path.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
+        return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+    }
+
+    if canonical_target.is_dir() {
+        std::fs::remove_dir_all(&canonical_target).map_err(|e| format!("Error al eliminar carpeta: {}", e))?;
+    } else if canonical_target.is_file() {
+        std::fs::remove_file(&canonical_target).map_err(|e| format!("Error al eliminar archivo: {}", e))?;
+    } else {
+        return Err("Tipo de elemento no soportado para eliminar".to_string());
+    }
+
+    Ok(())
+}
