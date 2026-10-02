@@ -655,8 +655,8 @@
                   type="button"
                   class="sidebar-collapse-btn"
                   onclick={onCollapse}
-                  title="Colapsar panel lateral (Ctrl+B)"
-                  aria-label="Colapsar panel lateral"
+                  title="Colapsar panel lateral (Alt+1, Ctrl+B)"
+                  aria-label="Colapsar panel lateral (Alt+1, Ctrl+B)"
                 >
                   <PanelLeftClose size={14} />
                 </button>

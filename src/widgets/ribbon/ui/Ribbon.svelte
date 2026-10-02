@@ -17,7 +17,7 @@
   let { activeTab = $bindable('files'), onAction }: Props = $props();
 
   const topTools = [
-    { id: 'files', label: 'Explorador de archivos', icon: 'folder' },
+    { id: 'files', label: 'Explorador de archivos (Alt+1, Ctrl+B)', icon: 'folder' },
     { id: 'search', label: 'Buscar en notas', icon: 'search' },
     { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
     { id: 'command-palette', label: 'Paleta de comandos (Ctrl+P)', icon: 'command' },

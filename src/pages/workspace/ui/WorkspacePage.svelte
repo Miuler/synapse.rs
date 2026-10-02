@@ -671,6 +671,13 @@
         action: toggleMarkdownViewMode,
       },
       {
+        id: "cmd-toggle-sidebar",
+        name: "Mostrar u ocultar explorador de archivos",
+        category: "Vista",
+        shortcut: "Alt+1, Ctrl+B",
+        action: toggleExplorer,
+      },
+      {
         id: "cmd-toggle-mermaid-engine",
         name: "Alternar motor de diagramas Mermaid (Mermaid.js / Merman)",
         category: "Configuración",
@@ -726,6 +733,13 @@
         toggleDevtools();
         return;
       }
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+          e.preventDefault();
+          toggleExplorer();
+          return;
+        }
+      }
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         const key = e.key.toLowerCase();
         if (e.shiftKey) {
@@ -762,7 +776,7 @@
           isPaletteOpen = true;
         } else if (key === 'b') {
           e.preventDefault();
-          toggleSidebar();
+          toggleExplorer();
         }
       }
     };
@@ -825,8 +839,8 @@
     }
   }
 
-  function toggleSidebar() {
-    if (activeRibbonTab) {
+  function toggleExplorer() {
+    if (activeRibbonTab === 'files') {
       activeRibbonTab = '';
     } else {
       if (sidebarWidth < 140) {
@@ -834,6 +848,10 @@
       }
       activeRibbonTab = 'files';
     }
+  }
+
+  function toggleSidebar() {
+    toggleExplorer();
   }
 
   function handleSidebarResizeStart(e: MouseEvent | PointerEvent) {
