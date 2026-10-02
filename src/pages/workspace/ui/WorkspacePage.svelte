@@ -57,11 +57,22 @@
     }
   }
 
+  function getInitialSidebarWidth(): number {
+    try {
+      const saved = localStorage.getItem('synapse_sidebar_width');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 140 && parsed <= 900) return parsed;
+      }
+    } catch {}
+    return 240;
+  }
+
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
   let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
-  let sidebarWidth = $state(240);
+  let sidebarWidth = $state<number>(getInitialSidebarWidth());
   let isResizingSidebar = $state(false);
 
   // Lista de rutas de archivos abiertos recientemente para Ctrl+O (Quick Open)
@@ -469,6 +480,30 @@
     }
   }
 
+  async function handleDeleteItems(items: Array<{ relativePath: string; isFolder: boolean }>) {
+    try {
+      for (const item of items) {
+        await vaultRepository.deleteItem(item.relativePath);
+
+        const tabsToClose = openTabPaths.filter((path) => {
+          if (item.isFolder) {
+            return path === item.relativePath || path.startsWith(`${item.relativePath}/`);
+          }
+          return path === item.relativePath;
+        });
+
+        for (const path of tabsToClose) {
+          closeTab(path);
+        }
+      }
+
+      await fetchNotesFromBackend();
+    } catch (e) {
+      console.error("Error al eliminar elementos de la bóveda:", e);
+      throw e;
+    }
+  }
+
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
   onMount(() => {
     window.scrollTo(0, 0);
@@ -722,6 +757,9 @@
         } else if (key === 'p') {
           e.preventDefault();
           isPaletteOpen = true;
+        } else if (key === 'b') {
+          e.preventDefault();
+          toggleSidebar();
         }
       }
     };
@@ -784,27 +822,56 @@
     }
   }
 
-  function handleSidebarResizeStart(e: PointerEvent) {
-    isResizingSidebar = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }
-
-  function handleSidebarResizeMove(e: PointerEvent) {
-    if (isResizingSidebar) {
-      const newWidth = e.clientX - 48;
-      sidebarWidth = Math.max(150, Math.min(newWidth, 600));
-    }
-  }
-
-  function handleSidebarResizeEnd(e: PointerEvent) {
-    if (isResizingSidebar) {
-      isResizingSidebar = false;
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignorar si el puntero se libera automáticamente
+  function toggleSidebar() {
+    if (activeRibbonTab) {
+      activeRibbonTab = '';
+    } else {
+      if (sidebarWidth < 140) {
+        sidebarWidth = 240;
       }
+      activeRibbonTab = 'files';
     }
+  }
+
+  function handleSidebarResizeStart(e: MouseEvent | PointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingSidebar = true;
+    document.body.classList.add('is-resizing-col');
+
+    const handlePointerMove = (ev: MouseEvent | PointerEvent) => {
+      const newWidth = ev.clientX - 48; // 48px ancho del ribbon
+      if (newWidth < 70) {
+        // Colapsar si se arrastra hacia el extremo izquierdo
+        activeRibbonTab = '';
+      } else {
+        if (!activeRibbonTab) {
+          activeRibbonTab = 'files';
+        }
+        const maxWidth = Math.max(300, window.innerWidth - 200);
+        sidebarWidth = Math.max(140, Math.min(newWidth, Math.min(900, maxWidth)));
+      }
+    };
+
+    const handlePointerUp = () => {
+      isResizingSidebar = false;
+      document.body.classList.remove('is-resizing-col');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+      try {
+        localStorage.setItem('synapse_sidebar_width', String(sidebarWidth));
+      } catch {}
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
   }
 </script>
 
@@ -827,13 +894,13 @@
     onSelectTab={selectTab}
     onOpenVaultFolder={handleOpenVaultFolder}
     onDeleteItem={handleDeleteItem}
+    onDeleteItems={handleDeleteItems}
     onResizeStart={handleSidebarResizeStart}
-    onResizeMove={handleSidebarResizeMove}
-    onResizeEnd={handleSidebarResizeEnd}
+    onCollapse={toggleSidebar}
   />
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
-  <main class="main-workspace">
+  <main class="main-workspace" class:is-resizing={isResizingSidebar}>
     <!-- BARRA SUPERIOR DE PESTAÑAS Y HERRAMIENTAS -->
     <EditorHeader
       bind:isEditing
@@ -1053,6 +1120,11 @@
     background-color: var(--bg-primary, #ffffff);
   }
 
+  :global(body.is-resizing-col) {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
   .main-workspace {
     flex: 1;
     display: flex;
@@ -1060,6 +1132,11 @@
     height: 100%;
     min-width: 0;
     overflow: hidden;
+  }
+
+  .main-workspace.is-resizing {
+    pointer-events: none;
+    user-select: none;
   }
 
   .editor-container {

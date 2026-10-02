@@ -44,10 +44,13 @@
           <Tooltip.Trigger>
             {#snippet child({ props })}
               <Toolbar.Button
-                class="ribbon-btn {activeTab === tool.id ? 'active' : ''}"
-                onclick={() => handleToolClick(tool.id)}
-                aria-label={tool.label}
                 {...props}
+                class="ribbon-btn {activeTab === tool.id ? 'active' : ''}"
+                onclick={(e) => {
+                  (props as Record<string, any>).onclick?.(e);
+                  handleToolClick(tool.id);
+                }}
+                aria-label={tool.label}
               >
                 {#if tool.icon === 'folder'}
                   <Folder size={18} class="icon" />
@@ -77,10 +80,13 @@
         <Tooltip.Trigger>
           {#snippet child({ props })}
             <Toolbar.Button
-              class="ribbon-btn {activeTab === 'settings' ? 'active' : ''}"
-              onclick={() => handleToolClick('settings')}
-              aria-label="Configuración"
               {...props}
+              class="ribbon-btn {activeTab === 'settings' ? 'active' : ''}"
+              onclick={(e) => {
+                (props as Record<string, any>).onclick?.(e);
+                handleToolClick('settings');
+              }}
+              aria-label="Configuración"
             >
               <Settings size={18} class="icon" />
             </Toolbar.Button>

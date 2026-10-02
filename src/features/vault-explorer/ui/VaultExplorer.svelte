@@ -3,7 +3,7 @@
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { AlertDialog, ContextMenu, Collapsible } from 'bits-ui';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -19,9 +19,11 @@
     onSelectTab: (path: string) => void;
     onOpenVaultFolder: () => void;
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
-    onResizeStart: (e: PointerEvent) => void;
-    onResizeMove: (e: PointerEvent) => void;
-    onResizeEnd: (e: PointerEvent) => void;
+    onDeleteItems?: (items: Array<{ relativePath: string; isFolder: boolean }>) => Promise<void> | void;
+    onResizeStart: (e: MouseEvent | PointerEvent) => void;
+    onResizeMove?: (e: PointerEvent) => void;
+    onResizeEnd?: (e: PointerEvent) => void;
+    onCollapse?: () => void;
   }
 
   let {
@@ -38,9 +40,11 @@
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
+    onDeleteItems,
     onResizeStart,
     onResizeMove,
     onResizeEnd,
+    onCollapse,
   }: Props = $props();
 
   let vaultFolderName = $derived.by(() => {
@@ -131,6 +135,146 @@
     }
   });
 
+  // Estado de selección múltiple
+  let selectedPaths = $state<string[]>([]);
+  let lastFocusedPath = $state<string | null>(null);
+
+  function isSelected(path: string): boolean {
+    return selectedPaths.includes(path);
+  }
+
+  // Sincronizar selección inicial con la pestaña activa si no hay selección
+  $effect(() => {
+    if (activeTabPath && selectedPaths.length === 0) {
+      selectedPaths = [activeTabPath];
+      lastFocusedPath = activeTabPath;
+    }
+  });
+
+  // Obtener la lista aplanada de nodos visibles actualmente en el árbol
+  function getVisibleNodes(nodes: VaultTreeNode[]): VaultTreeNode[] {
+    const visible: VaultTreeNode[] = [];
+    for (const node of nodes) {
+      visible.push(node);
+      if (node.isFolder && expandedFolders[node.relativePath]) {
+        visible.push(...getVisibleNodes(node.children));
+      }
+    }
+    return visible;
+  }
+
+  // Alternar selección individual con Ctrl/Cmd
+  function toggleItemSelection(path: string) {
+    if (selectedPaths.includes(path)) {
+      selectedPaths = selectedPaths.filter((p) => p !== path);
+    } else {
+      selectedPaths = [...selectedPaths, path];
+    }
+    lastFocusedPath = path;
+  }
+
+  // Selección de rango con Shift
+  function selectRange(startPath: string, endPath: string) {
+    const visible = getVisibleNodes(treeNodes);
+    const startIdx = visible.findIndex((n) => n.relativePath === startPath);
+    const endIdx = visible.findIndex((n) => n.relativePath === endPath);
+
+    if (startIdx === -1 || endIdx === -1) {
+      selectedPaths = [endPath];
+      lastFocusedPath = endPath;
+      return;
+    }
+
+    const min = Math.min(startIdx, endIdx);
+    const max = Math.max(startIdx, endIdx);
+    const range = visible.slice(min, max + 1).map((n) => n.relativePath);
+    selectedPaths = Array.from(new Set([...selectedPaths, ...range]));
+    lastFocusedPath = endPath;
+  }
+
+  // Nodos correspondientes a la selección activa
+  let selectedNodes = $derived.by(() => {
+    if (selectedPaths.length === 0) {
+      return contextMenuNode ? [contextMenuNode] : [];
+    }
+    const map: Record<string, VaultTreeNode> = {};
+    function collect(nodes: VaultTreeNode[]) {
+      for (const n of nodes) {
+        map[n.relativePath] = n;
+        if (n.isFolder) collect(n.children);
+      }
+    }
+    collect(treeNodes);
+    return selectedPaths.map((p) => map[p]).filter(Boolean);
+  });
+
+  function handleFolderClick(e: MouseEvent, node: VaultTreeNode, defaultTriggerClick?: (e: MouseEvent) => void) {
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleItemSelection(node.relativePath);
+      return;
+    }
+    if (e.shiftKey && lastFocusedPath) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectRange(lastFocusedPath, node.relativePath);
+      return;
+    }
+    selectedPaths = [node.relativePath];
+    lastFocusedPath = node.relativePath;
+    defaultTriggerClick?.(e);
+  }
+
+  function handleFileClick(e: MouseEvent, node: VaultTreeNode) {
+    if (e.metaKey || e.ctrlKey) {
+      e.stopPropagation();
+      toggleItemSelection(node.relativePath);
+      return;
+    }
+    if (e.shiftKey && lastFocusedPath) {
+      e.stopPropagation();
+      selectRange(lastFocusedPath, node.relativePath);
+      return;
+    }
+    selectedPaths = [node.relativePath];
+    lastFocusedPath = node.relativePath;
+    onSelectTab(node.relativePath);
+  }
+
+  function handleItemContextMenu(e: MouseEvent, node: VaultTreeNode) {
+    // Si el elemento no está en la selección actual, aislar la selección a este elemento
+    if (!selectedPaths.includes(node.relativePath)) {
+      selectedPaths = [node.relativePath];
+      lastFocusedPath = node.relativePath;
+    }
+    contextMenuNode = node;
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) {
+      if ((selectedNodes.length > 0 || contextMenuNode) && itemsToDelete.length === 0) {
+        e.preventDefault();
+        handlePromptDelete();
+      }
+    } else if (e.key === 'Escape') {
+      selectedPaths = [];
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const visible = getVisibleNodes(treeNodes);
+        selectedPaths = visible.map((n) => n.relativePath);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        handleCopy();
+      }
+    }
+  }
+
   // Estado del menú contextual con bits-ui
   let isContextMenuOpen = $state(false);
   let contextMenuNode = $state<VaultTreeNode | null>(null);
@@ -182,63 +326,115 @@
     }
   }
 
-  async function handleCopyRelativePath() {
-    const relPath = contextMenuNode ? contextMenuNode.relativePath : '.';
-    const ok = await copyTextToClipboard(relPath);
-    if (ok) {
-      showToast('Ruta relativa copiada al portapapeles');
+  function getSelectedRelativePaths(): string[] {
+    if (selectedPaths.length > 0) {
+      return selectedPaths;
     }
+    if (contextMenuNode) {
+      return [contextMenuNode.relativePath];
+    }
+    return [];
+  }
+
+  async function handleCopy() {
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    const text = paths.join('\n');
+    const ok = await copyTextToClipboard(text);
+    if (ok) {
+      showToast(
+        paths.length > 1
+          ? `${paths.length} rutas copiadas al portapapeles`
+          : 'Ruta copiada al portapapeles'
+      );
+    }
+  }
+
+  async function handleCopyRelativePath() {
+    await handleCopy();
   }
 
   async function handleCopyFullPath() {
-    const relPath = contextMenuNode ? contextMenuNode.relativePath : '.';
-    const itemAbsPath = contextMenuNode?.item?.abs_path;
-    const fullPath = getFullAbsolutePath(relPath, itemAbsPath);
-    const ok = await copyTextToClipboard(fullPath);
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    const fullPaths = paths.map((relPath) => {
+      const node =
+        selectedNodes.find((n) => n.relativePath === relPath) ||
+        (contextMenuNode?.relativePath === relPath ? contextMenuNode : undefined);
+      return getFullAbsolutePath(relPath, node?.item?.abs_path);
+    });
+    const text = fullPaths.join('\n');
+    const ok = await copyTextToClipboard(text);
     if (ok) {
-      showToast('Ruta completa copiada al portapapeles');
+      showToast(
+        fullPaths.length > 1
+          ? `${fullPaths.length} rutas completas copiadas al portapapeles`
+          : 'Ruta completa copiada al portapapeles'
+      );
     }
   }
 
-  // Estado del diálogo de confirmación de borrado
+  // Estado del diálogo de confirmación de borrado múltiple
   interface ItemToDelete {
     name: string;
     relativePath: string;
     isFolder: boolean;
   }
 
-  let itemToDelete = $state<ItemToDelete | null>(null);
+  let itemsToDelete = $state<ItemToDelete[]>([]);
   let isDeleting = $state(false);
 
   function handlePromptDelete() {
-    if (!contextMenuNode) return;
-    const target: ItemToDelete = {
-      name: contextMenuNode.name,
-      relativePath: contextMenuNode.relativePath,
-      isFolder: contextMenuNode.isFolder,
-    };
-    itemToDelete = target;
+    if (selectedNodes.length > 0) {
+      itemsToDelete = selectedNodes.map((n) => ({
+        name: n.name,
+        relativePath: n.relativePath,
+        isFolder: n.isFolder,
+      }));
+    } else if (contextMenuNode) {
+      itemsToDelete = [
+        {
+          name: contextMenuNode.name,
+          relativePath: contextMenuNode.relativePath,
+          isFolder: contextMenuNode.isFolder,
+        },
+      ];
+    }
   }
 
   function cancelDelete() {
     if (isDeleting) return;
-    itemToDelete = null;
+    itemsToDelete = [];
   }
 
   async function confirmDelete() {
-    if (!itemToDelete || isDeleting) return;
-    const target = itemToDelete;
+    if (itemsToDelete.length === 0 || isDeleting) return;
+    const targets = [...itemsToDelete];
     isDeleting = true;
     try {
-      if (onDeleteItem) {
-        await onDeleteItem(target.relativePath, target.isFolder);
+      if (onDeleteItems) {
+        await onDeleteItems(
+          targets.map((t) => ({ relativePath: t.relativePath, isFolder: t.isFolder }))
+        );
       } else {
-        await vaultRepository.deleteItem(target.relativePath);
+        for (const target of targets) {
+          if (onDeleteItem) {
+            await onDeleteItem(target.relativePath, target.isFolder);
+          } else {
+            await vaultRepository.deleteItem(target.relativePath);
+          }
+        }
       }
-      showToast(`"${target.name}" ha sido eliminado`);
-      itemToDelete = null;
+      showToast(
+        targets.length > 1
+          ? `${targets.length} elementos eliminados`
+          : `"${targets[0].name}" ha sido eliminado`
+      );
+      const deletedSet = new Set(targets.map((t) => t.relativePath));
+      selectedPaths = selectedPaths.filter((p) => !deletedSet.has(p));
+      itemsToDelete = [];
     } catch (err: unknown) {
-      console.error('Error al borrar elemento:', err);
+      console.error('Error al borrar elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
       showToast(`Error al borrar: ${msg}`);
     } finally {
@@ -251,11 +447,14 @@
   <ContextMenu.Root bind:open={isContextMenuOpen}>
     <ContextMenu.Trigger>
       {#snippet child({ props })}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <aside
+          {...props}
           class="sidebar-panel"
           class:is-resizing={isResizingSidebar}
-          style="width: {sidebarWidth}px;"
-          {...props}
+          style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;"
+          tabindex="0"
+          onkeydown={handleKeyDown}
         >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
@@ -278,24 +477,46 @@
                 </span>
               {/if}
             </div>
-            {#if isConnectedToRust}
-              <button
-                type="button"
-                class="rust-badge-btn"
-                onclick={onOpenVaultFolder}
-                title="Abrir carpeta / bóveda en disco"
-              >
-                RUST
-              </button>
-            {/if}
+            <div class="sidebar-header-actions">
+              {#if isConnectedToRust}
+                <button
+                  type="button"
+                  class="rust-badge-btn"
+                  onclick={onOpenVaultFolder}
+                  title="Abrir carpeta / bóveda en disco"
+                >
+                  RUST
+                </button>
+              {/if}
+              {#if onCollapse}
+                <button
+                  type="button"
+                  class="sidebar-collapse-btn"
+                  onclick={onCollapse}
+                  title="Colapsar panel lateral (Ctrl+B)"
+                  aria-label="Colapsar panel lateral"
+                >
+                  <PanelLeftClose size={14} />
+                </button>
+              {/if}
+            </div>
           </div>
 
           <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div
             class="sidebar-content"
+            onclick={(e) => {
+              if (!(e.target as HTMLElement).closest('.file-tree-item')) {
+                selectedPaths = [];
+                lastFocusedPath = null;
+              }
+            }}
             oncontextmenu={(e) => {
               if (!(e.target as HTMLElement).closest('.file-tree-item')) {
                 contextMenuNode = null;
+                selectedPaths = [];
+                lastFocusedPath = null;
               }
             }}
           >
@@ -306,12 +527,28 @@
 
           <!-- Tirador para redimensionar el panel lateral -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <div
             class="sidebar-resizer"
-            onpointerdown={onResizeStart}
-            onpointermove={onResizeMove}
-            onpointerup={onResizeEnd}
-            onpointercancel={onResizeEnd}
+            role="separator"
+            aria-orientation="vertical"
+            tabindex="-1"
+            onpointerdown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onResizeStart(e);
+            }}
+            onmousedown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onResizeStart(e);
+            }}
+            ondblclick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onCollapse) onCollapse();
+            }}
+            title="Arrastrar para cambiar tamaño (doble clic para colapsar)"
           ></div>
         </aside>
       {/snippet}
@@ -319,27 +556,52 @@
 
     <ContextMenu.Portal>
       <ContextMenu.Content class="vault-context-menu">
-        <div class="context-menu-header" title={contextMenuNode ? contextMenuNode.relativePath : (vaultPath || 'Bóveda')}>
-          {#if contextMenuNode?.isFolder}
+        <div
+          class="context-menu-header"
+          title={selectedNodes.length > 1
+            ? `${selectedNodes.length} elementos seleccionados`
+            : (contextMenuNode ? contextMenuNode.relativePath : (vaultPath || 'Bóveda'))}
+        >
+          {#if selectedNodes.length > 1}
+            <Files size={15} class="context-menu-header-icon" />
+            <span class="context-menu-header-title">
+              {selectedNodes.length} elementos seleccionados
+            </span>
+          {:else if contextMenuNode?.isFolder}
             <FolderIcon isOpen={false} name={contextMenuNode.name} size={15} class="context-menu-header-icon" />
+            <span class="context-menu-header-title">
+              {contextMenuNode.name}
+            </span>
           {:else if contextMenuNode}
             <FileIcon path={contextMenuNode.relativePath} name={contextMenuNode.name} size={15} class="context-menu-header-icon" />
+            <span class="context-menu-header-title">
+              {contextMenuNode.name}
+            </span>
           {:else}
             <FolderIcon isOpen={true} name={vaultFolderName} size={15} class="context-menu-header-icon" />
+            <span class="context-menu-header-title">
+              {vaultFolderName || 'Bóveda'}
+            </span>
           {/if}
-          <span class="context-menu-header-title">
-            {contextMenuNode ? contextMenuNode.name : (vaultFolderName || 'Bóveda')}
-          </span>
         </div>
 
         <ContextMenu.Separator class="context-menu-divider" />
 
         <ContextMenu.Item
           class="context-menu-item"
+          onSelect={handleCopy}
+        >
+          <Copy size={14} class="context-menu-item-icon" />
+          <span>{selectedPaths.length > 1 ? `Copiar (${selectedPaths.length} rutas)` : 'Copiar'}</span>
+          <span class="context-menu-shortcut">Ctrl+C</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
           onSelect={handleCopyRelativePath}
         >
           <Link size={14} class="context-menu-item-icon" />
-          <span>Copiar ruta relativa</span>
+          <span>{selectedPaths.length > 1 ? 'Copiar rutas relativas' : 'Copiar ruta relativa'}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -347,10 +609,10 @@
           onSelect={handleCopyFullPath}
         >
           <Copy size={14} class="context-menu-item-icon" />
-          <span>Copiar ruta completa</span>
+          <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
         </ContextMenu.Item>
 
-        {#if contextMenuNode}
+        {#if selectedPaths.length > 0 || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />
 
           <ContextMenu.Item
@@ -358,7 +620,8 @@
             onSelect={handlePromptDelete}
           >
             <Trash2 size={14} class="context-menu-item-icon" />
-            <span>Borrar</span>
+            <span>{selectedPaths.length > 1 ? `Borrar (${selectedPaths.length} elementos)` : 'Borrar'}</span>
+            <span class="context-menu-shortcut">Supr</span>
           </ContextMenu.Item>
         {/if}
       </ContextMenu.Content>
@@ -367,7 +630,7 @@
 {/if}
 
 <AlertDialog.Root
-  open={!!itemToDelete}
+  open={itemsToDelete.length > 0}
   onOpenChange={(open) => {
     if (!open && !isDeleting) {
       cancelDelete();
@@ -383,10 +646,30 @@
         </div>
         <div class="delete-modal-text">
           <AlertDialog.Title class="delete-modal-title">
-            ¿Eliminar {itemToDelete?.isFolder ? 'carpeta' : 'archivo'}?
+            {#if itemsToDelete.length > 1}
+              ¿Eliminar {itemsToDelete.length} elementos?
+            {:else}
+              ¿Eliminar {itemsToDelete[0]?.isFolder ? 'carpeta' : 'archivo'}?
+            {/if}
           </AlertDialog.Title>
           <AlertDialog.Description class="delete-modal-desc">
-            ¿Estás seguro de que deseas eliminar permanentemente <strong>{itemToDelete?.name}</strong>{itemToDelete?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.
+            {#if itemsToDelete.length > 1}
+              ¿Estás seguro de que deseas eliminar permanentemente estos <strong>{itemsToDelete.length}</strong> elementos y todo su contenido? Esta acción no se puede deshacer.
+              <div class="delete-modal-item-list">
+                {#each itemsToDelete.slice(0, 5) as item}
+                  <div class="delete-modal-item">
+                    • {item.name} {item.isFolder ? '(carpeta)' : ''}
+                  </div>
+                {/each}
+                {#if itemsToDelete.length > 5}
+                  <div class="delete-modal-item more">
+                    ... y {itemsToDelete.length - 5} más
+                  </div>
+                {/if}
+              </div>
+            {:else if itemsToDelete.length === 1}
+              ¿Estás seguro de que deseas eliminar permanentemente <strong>{itemsToDelete[0]?.name}</strong>{itemsToDelete[0]?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.
+            {/if}
           </AlertDialog.Description>
         </div>
       </div>
@@ -432,9 +715,11 @@
           <div
             {...props}
             class="file-tree-item folder"
-            class:context-target={isContextMenuOpen && contextMenuNode?.relativePath === node.relativePath}
+            class:selected={isSelected(node.relativePath)}
+            class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
             style="padding-left: {12 + depth * 14}px;"
-            oncontextmenu={() => { contextMenuNode = node; }}
+            onclick={(e) => handleFolderClick(e, node, (props as Record<string, any>).onclick)}
+            oncontextmenu={(e) => handleItemContextMenu(e, node)}
           >
             <ChevronRight
               class="chevron-icon {expandedFolders[node.relativePath] ? 'expanded' : ''}"
@@ -463,12 +748,13 @@
     <div
       class="file-tree-item file"
       class:active={node.relativePath === activeTabPath}
-      class:context-target={isContextMenuOpen && contextMenuNode?.relativePath === node.relativePath}
+      class:selected={isSelected(node.relativePath)}
+      class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
       class:git-modified={fileGitStatus === 'modified'}
       class:git-untracked={fileGitStatus === 'untracked'}
       style="padding-left: {26 + depth * 14}px;"
-      onclick={() => onSelectTab(node.relativePath)}
-      oncontextmenu={() => { contextMenuNode = node; }}
+      onclick={(e) => handleFileClick(e, node)}
+      oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
       <FileIcon
         path={node.relativePath}
@@ -498,6 +784,10 @@
     user-select: none;
     flex-shrink: 0;
     z-index: 5;
+  }
+
+  .sidebar-panel:focus {
+    outline: none;
   }
 
   .sidebar-header {
@@ -573,6 +863,33 @@
     color: #ffffff;
   }
 
+  .sidebar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .sidebar-collapse-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary, #1f2328);
+  }
+
   .sidebar-content {
     flex: 1;
     overflow-y: auto;
@@ -606,6 +923,15 @@
     background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
     color: var(--accent, #0969da);
     font-weight: 500;
+  }
+
+  .file-tree-item.selected {
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.14));
+    color: var(--accent, #0969da);
+  }
+
+  .file-tree-item.selected:hover {
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.2));
   }
 
   .chevron-icon {
@@ -681,18 +1007,29 @@
   .sidebar-resizer {
     position: absolute;
     top: 0;
-    right: -3px;
-    width: 6px;
+    right: -5px;
+    width: 10px;
     height: 100%;
     cursor: col-resize;
-    z-index: 20;
+    z-index: 50;
     user-select: none;
     touch-action: none;
+  }
+
+  .sidebar-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 4px;
+    width: 2px;
+    height: 100%;
+    background-color: transparent;
     transition: background-color 0.15s ease;
   }
 
-  .sidebar-resizer:hover,
-  .sidebar-panel.is-resizing .sidebar-resizer {
+  .sidebar-resizer:hover::after,
+  :global(body.is-resizing-col) .sidebar-resizer::after,
+  :global(.sidebar-panel.is-resizing) .sidebar-resizer::after {
     background-color: var(--accent, #0969da);
   }
 
@@ -802,6 +1139,13 @@
     color: #a40e26;
   }
 
+  :global(.vault-context-menu .context-menu-shortcut) {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-secondary, #656d76);
+    opacity: 0.75;
+  }
+
   /* Diálogo Modal de Confirmación de Borrado con bits-ui AlertDialog */
   :global(.delete-modal-overlay) {
     position: fixed;
@@ -904,6 +1248,33 @@
 
   :global(.delete-modal .delete-modal-desc strong) {
     color: var(--text-primary, #1f2328);
+  }
+
+  :global(.delete-modal .delete-modal-item-list) {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 12px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  :global(.delete-modal .delete-modal-item) {
+    color: var(--text-primary, #1f2328);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.delete-modal .delete-modal-item.more) {
+    color: var(--text-secondary, #656d76);
+    font-style: italic;
   }
 
   :global(.delete-modal .delete-modal-actions) {
