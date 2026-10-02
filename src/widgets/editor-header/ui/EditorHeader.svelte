@@ -5,6 +5,22 @@
   import type { TabItem } from '@entities/vault-item';
   import type { MarkdownViewMode } from '@widgets/status-bar';
   import { Popover } from 'bits-ui';
+  import { FileIcon } from '@shared/ui/icons';
+  import {
+    ChevronLeft,
+    ChevronRight,
+    ChevronDown,
+    X,
+    Plus,
+    Search,
+    Save,
+    PenLine,
+    Eye,
+    Columns2,
+    MoreHorizontal,
+    Minus,
+    Square
+  } from 'lucide-svelte';
 
   export type { MarkdownViewMode };
 
@@ -354,14 +370,10 @@
   <!-- BOTONES DE NAVEGACIÓN ATRÁS / ADELANTE -->
   <div class="nav-buttons">
     <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
+      <ChevronLeft size={16} class="icon" />
     </button>
     <button type="button" class="icon-btn" onclick={() => triggerAction('nav-forward')} title="Navegar adelante">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
+      <ChevronRight size={16} class="icon" />
     </button>
   </div>
 
@@ -374,9 +386,7 @@
         onclick={scrollLeft}
         title="Desplazar pestañas a la izquierda"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
+        <ChevronLeft size={14} />
       </button>
     {/if}
 
@@ -401,10 +411,7 @@
             onauxclick={(e) => handleTabAuxClick(e, tab.path)}
             onmousedown={handleTabMouseDown}
           >
-            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
+            <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
             <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
             <button
               type="button"
@@ -415,10 +422,7 @@
               }}
               title="Cerrar pestaña (Ctrl+W o click central)"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
+              <X size={12} />
             </button>
           </div>
         {/each}
@@ -429,10 +433,7 @@
           onauxclick={(e) => handleTabAuxClick(e, '')}
           onmousedown={handleTabMouseDown}
         >
-          <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
+          <FileIcon path="" name={title} size={14} class="file-icon" />
           <span class="tab-title">{title}</span>
           <button
             type="button"
@@ -440,10 +441,7 @@
             onclick={() => { if (onCloseTab) onCloseTab(''); }}
             title="Cerrar pestaña (Ctrl+W o click central)"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
+            <X size={12} />
           </button>
         </div>
       {/if}
@@ -455,10 +453,7 @@
         onclick={() => { if (onNewTab) onNewTab(); }}
         title="Nueva pestaña (Ctrl+T)"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+        <Plus size={14} />
       </button>
     </div>
 
@@ -469,9 +464,7 @@
         onclick={scrollRight}
         title="Desplazar pestañas a la derecha"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
+        <ChevronRight size={14} />
       </button>
       <!-- BOTÓN NUEVA PESTAÑA: SIEMPRE PEGADO A LA IZQUIERDA, JUNTO AL ÚLTIMO TAB -->
       <button
@@ -480,10 +473,7 @@
         onclick={() => { if (onNewTab) onNewTab(); }}
         title="Nueva pestaña (Ctrl+T)"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+        <Plus size={14} />
       </button>
     {/if}
   </div>
@@ -511,9 +501,7 @@
                 title="Listar y buscar pestañas abiertas (Ctrl+Shift+A)"
                 {...props}
               >
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
+                <ChevronDown size={14} class="icon" />
               </button>
             {/snippet}
           </Popover.Trigger>
@@ -529,10 +517,7 @@
 
               <!-- CAJA DE TEXTO PARA BUSCAR RÁPIDAMENTE ENTRE LAS PESTAÑAS ABIERTAS -->
               <div class="dropdown-search-container">
-                <svg class="dropdown-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
+                <Search size={14} class="dropdown-search-icon" />
                 <input
                   type="text"
                   class="dropdown-search-input"
@@ -551,10 +536,7 @@
                     }}
                     title="Limpiar búsqueda"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
+                    <X size={12} />
                   </button>
                 {/if}
               </div>
@@ -574,10 +556,7 @@
                       onauxclick={(e) => handleTabAuxClick(e, tab.path)}
                       onmousedown={handleTabMouseDown}
                     >
-                      <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                      </svg>
+                      <FileIcon path={tab.path} name={tab.title} size={14} class="dropdown-file-icon" />
                       <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                       <button
                         type="button"
@@ -588,10 +567,7 @@
                         }}
                         title="Cerrar pestaña (Ctrl+W o click central)"
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <line x1="18" y1="6" x2="6" y2="18"/>
-                          <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
+                        <X size={12} />
                       </button>
                     </div>
                   {/each}
@@ -616,11 +592,7 @@
         }}
         title="Guardar / Grabar cambios (Ctrl+S)"
       >
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-          <polyline points="17 21 17 13 7 13 7 21"/>
-          <polyline points="7 3 7 8 15 8"/>
-        </svg>
+        <Save size={14} class="icon" />
         <span>Grabar</span>
       </button>
     {/if}
@@ -636,32 +608,21 @@
         }}
         title={isEditing ? "Cambiar a modo Lectura" : "Cambiar a modo Edición"}
       >
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          {#if isEditing}
-            <path d="M12 20h9"/>
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-          {:else}
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          {/if}
-        </svg>
+        {#if isEditing}
+          <PenLine size={14} class="icon" />
+        {:else}
+          <Eye size={14} class="icon" />
+        {/if}
         <span>{isEditing ? "Edición" : "Lectura"}</span>
       </button>
     {/if}
 
     <button type="button" class="icon-btn" onclick={() => { if (onSplitView) onSplitView(); }} title="Dividir panel verticalmente">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-        <line x1="12" y1="3" x2="12" y2="21"/>
-      </svg>
+      <Columns2 size={14} class="icon" />
     </button>
 
     <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones del archivo">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="1"/>
-        <circle cx="19" cy="12" r="1"/>
-        <circle cx="5" cy="12" r="1"/>
-      </svg>
+      <MoreHorizontal size={14} class="icon" />
     </button>
 
     <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
@@ -677,9 +638,7 @@
         onclick={(e) => { e.stopPropagation(); handleWindowControl('minimize'); }}
         title="Minimizar"
       >
-        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+        <Minus size={13} class="win-icon" />
       </button>
       <button
         type="button"
@@ -687,9 +646,7 @@
         onclick={(e) => { e.stopPropagation(); handleWindowControl('maximize'); }}
         title="Maximizar / Restaurar"
       >
-        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="5" y="5" width="14" height="14" rx="1"/>
-        </svg>
+        <Square size={12} class="win-icon" />
       </button>
       <button
         type="button"
@@ -697,10 +654,7 @@
         onclick={(e) => { e.stopPropagation(); handleWindowControl('close'); }}
         title="Cerrar"
       >
-        <svg class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
+        <X size={13} class="win-icon" />
       </button>
     </div>
   </div>
@@ -791,7 +745,7 @@
     margin-left: 4px;
   }
 
-  .tab-scroll-btn svg {
+  .tab-scroll-btn :global(svg) {
     width: 12px;
     height: 12px;
   }
@@ -820,7 +774,7 @@
     color: var(--text-primary, #1f2328);
   }
 
-  .new-tab-btn svg {
+  .new-tab-btn :global(svg) {
     width: 14px;
     height: 14px;
   }
@@ -852,7 +806,7 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
-  .file-icon {
+  :global(.file-icon) {
     width: 14px;
     height: 14px;
     color: var(--accent, #0969da);
@@ -887,7 +841,7 @@
     color: var(--text-primary, #1f2328);
   }
 
-  .close-tab-btn svg {
+  .close-tab-btn :global(svg) {
     width: 12px;
     height: 12px;
   }

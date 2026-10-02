@@ -1,6 +1,15 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { DropdownMenu, Popover, Toggle } from 'bits-ui';
+  import {
+    Command,
+    Sparkles,
+    Code,
+    BookOpen,
+    ChevronDown,
+    Check,
+    Search
+  } from 'lucide-svelte';
 
   export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
@@ -171,9 +180,7 @@
       onclick={() => { if (onOpenCommandPalette) onOpenCommandPalette(); }}
       title="Abrir paleta de comandos"
     >
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>
-      </svg>
+      <Command size={14} class="icon" />
       <span>Ctrl+P</span>
     </button>
 
@@ -203,29 +210,16 @@
                 {...props}
               >
                 {#if markdownViewMode === 'live'}
-                  <!-- Ícono En vivo / Sparkles / Live Preview -->
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                  </svg>
+                  <Sparkles size={14} class="icon" />
                   <span>En vivo</span>
                 {:else if markdownViewMode === 'source'}
-                  <!-- Ícono Modo Fuente / Código -->
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="16 18 22 12 16 6"/>
-                    <polyline points="8 6 2 12 8 18"/>
-                  </svg>
+                  <Code size={14} class="icon" />
                   <span>Fuente</span>
                 {:else}
-                  <!-- Ícono Modo Lectura / Documento -->
-                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                  </svg>
+                  <BookOpen size={14} class="icon" />
                   <span>Lectura</span>
                 {/if}
-                <svg class="chevron-icon" class:open={isViewMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
+                <ChevronDown size={12} class="chevron-icon {isViewMenuOpen ? 'open' : ''}" />
               </button>
             {/snippet}
           </DropdownMenu.Trigger>
@@ -248,19 +242,11 @@
                   >
                     <div class="item-icon-box">
                       {#if item.id === 'live'}
-                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                        </svg>
+                        <Sparkles size={14} class="item-icon" />
                       {:else if item.id === 'source'}
-                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="16 18 22 12 16 6"/>
-                          <polyline points="8 6 2 12 8 18"/>
-                        </svg>
+                        <Code size={14} class="item-icon" />
                       {:else}
-                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                        </svg>
+                        <BookOpen size={14} class="item-icon" />
                       {/if}
                     </div>
 
@@ -273,9 +259,7 @@
                     </div>
 
                     {#if isCurrent}
-                      <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
+                      <Check size={14} class="check-icon" />
                     {/if}
                   </DropdownMenu.Item>
                 {/each}
@@ -347,9 +331,7 @@
               {...props}
             >
               <span class="encoding-text">{encoding || '---'}</span>
-              <svg class="chevron-icon" class:open={isEncodingMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              <ChevronDown size={12} class="chevron-icon {isEncodingMenuOpen ? 'open' : ''}" />
             </button>
           {/snippet}
         </Popover.Trigger>
@@ -362,10 +344,7 @@
             </div>
 
             <div class="encoding-search-box">
-              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
+              <Search size={14} class="search-icon" />
               <input
                 type="text"
                 class="encoding-search-input"
@@ -396,9 +375,7 @@
                       <span class="item-desc">{item.description}</span>
                     </div>
                     {#if isCurrent}
-                      <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
+                      <Check size={14} class="check-icon" />
                     {/if}
                   </button>
                 {/each}

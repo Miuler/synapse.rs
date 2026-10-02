@@ -2,6 +2,8 @@
   import type { VaultItem } from '@entities/vault-item';
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { AlertDialog, ContextMenu, Collapsible } from 'bits-ui';
+  import { FileIcon, FolderIcon } from '@shared/ui/icons';
+  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -271,12 +273,7 @@
               </span>
               {#if isGitRepo && gitBranch}
                 <span class="git-branch-badge" title="Rama Git: {gitBranch}">
-                  <svg class="git-branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="6" y1="3" x2="6" y2="15" />
-                    <circle cx="18" cy="6" r="3" />
-                    <circle cx="6" cy="18" r="3" />
-                    <path d="M18 9a9 9 0 0 1-9 9" />
-                  </svg>
+                  <GitBranch size={13} class="git-branch-icon" />
                   <span class="git-branch-name">{gitBranch}</span>
                 </span>
               {/if}
@@ -324,18 +321,11 @@
       <ContextMenu.Content class="vault-context-menu">
         <div class="context-menu-header" title={contextMenuNode ? contextMenuNode.relativePath : (vaultPath || 'Bóveda')}>
           {#if contextMenuNode?.isFolder}
-            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
-            </svg>
+            <FolderIcon isOpen={false} name={contextMenuNode.name} size={15} class="context-menu-header-icon" />
           {:else if contextMenuNode}
-            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+            <FileIcon path={contextMenuNode.relativePath} name={contextMenuNode.name} size={15} class="context-menu-header-icon" />
           {:else}
-            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
+            <FolderIcon isOpen={true} name={vaultFolderName} size={15} class="context-menu-header-icon" />
           {/if}
           <span class="context-menu-header-title">
             {contextMenuNode ? contextMenuNode.name : (vaultFolderName || 'Bóveda')}
@@ -348,10 +338,7 @@
           class="context-menu-item"
           onSelect={handleCopyRelativePath}
         >
-          <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
+          <Link size={14} class="context-menu-item-icon" />
           <span>Copiar ruta relativa</span>
         </ContextMenu.Item>
 
@@ -359,10 +346,7 @@
           class="context-menu-item"
           onSelect={handleCopyFullPath}
         >
-          <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
+          <Copy size={14} class="context-menu-item-icon" />
           <span>Copiar ruta completa</span>
         </ContextMenu.Item>
 
@@ -373,12 +357,7 @@
             class="context-menu-item delete"
             onSelect={handlePromptDelete}
           >
-            <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <line x1="10" y1="11" x2="10" y2="17" />
-              <line x1="14" y1="11" x2="14" y2="17" />
-            </svg>
+            <Trash2 size={14} class="context-menu-item-icon" />
             <span>Borrar</span>
           </ContextMenu.Item>
         {/if}
@@ -400,12 +379,7 @@
     <AlertDialog.Content class="delete-modal">
       <div class="delete-modal-header">
         <div class="delete-modal-icon-wrap">
-          <svg class="delete-modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            <line x1="10" y1="11" x2="10" y2="17" />
-            <line x1="14" y1="11" x2="14" y2="17" />
-          </svg>
+          <Trash2 size={24} class="delete-modal-icon" />
         </div>
         <div class="delete-modal-text">
           <AlertDialog.Title class="delete-modal-title">
@@ -440,9 +414,7 @@
 
 {#if toastMessage}
   <div class="vault-toast">
-    <svg class="vault-toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+    <Check size={14} class="vault-toast-icon" />
     <span>{toastMessage}</span>
   </div>
 {/if}
@@ -464,29 +436,15 @@
             style="padding-left: {12 + depth * 14}px;"
             oncontextmenu={() => { contextMenuNode = node; }}
           >
-            <svg
-              class="chevron-icon"
-              class:expanded={expandedFolders[node.relativePath]}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-            <svg
-              class="folder-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              {#if expandedFolders[node.relativePath]}
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              {:else}
-                <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
-              {/if}
-            </svg>
+            <ChevronRight
+              class="chevron-icon {expandedFolders[node.relativePath] ? 'expanded' : ''}"
+              size={12}
+            />
+            <FolderIcon
+              isOpen={!!expandedFolders[node.relativePath]}
+              name={node.name}
+              size={15}
+            />
             <span class="file-name">{node.name}</span>
           </div>
         {/snippet}
@@ -512,30 +470,12 @@
       onclick={() => onSelectTab(node.relativePath)}
       oncontextmenu={() => { contextMenuNode = node; }}
     >
-      {#if fileGitStatus === 'modified'}
-        <svg
-          class="file-icon file-icon-modified"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <circle cx="16" cy="16" r="2.5" fill="currentColor" />
-        </svg>
-      {:else}
-        <svg
-          class="file-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-      {/if}
+      <FileIcon
+        path={node.relativePath}
+        name={node.name}
+        size={14}
+        class="file-icon {fileGitStatus === 'modified' ? 'file-icon-modified' : ''}"
+      />
       <span class="file-name" title={node.name}>{node.name}</span>
 
       {#if fileGitStatus === 'modified'}

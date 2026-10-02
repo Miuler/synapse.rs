@@ -1,6 +1,7 @@
 <script lang="ts">
   import { commandRegistry, type AppCommand } from '@entities/command';
   import { Command, Dialog } from 'bits-ui';
+  import { Search } from 'lucide-svelte';
 
   interface Props {
     isOpen?: boolean;
@@ -56,10 +57,7 @@
       <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
       <Command.Root class="command-root" loop>
         <div class="input-wrapper">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
+          <Search size={16} class="search-icon" />
           <Command.Input
             class="command-input"
             bind:value={searchValue}

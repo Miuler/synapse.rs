@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Toolbar, Separator } from 'bits-ui';
+  import { AlertCircle, Minus, Plus, Maximize2 } from 'lucide-svelte';
 
   interface Props {
     src: string;
@@ -179,11 +180,7 @@
 >
   {#if hasError}
     <div class="image-error">
-      <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.7">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
+      <AlertCircle size={36} strokeWidth={1.7} />
       <p class="error-title">No se pudo cargar la imagen</p>
       <p class="error-path">{alt || src}</p>
     </div>
@@ -218,27 +215,20 @@
       {/if}
 
       <Toolbar.Button class="ctrl-btn" onclick={zoomOut} aria-label="Alejar (Ctrl + Rueda hacia abajo)">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+        <Minus size={16} />
       </Toolbar.Button>
       <Toolbar.Button class="zoom-level-btn" onclick={toggleFitOrActual} aria-label="Alternar entre Ajustar y 100%">
         {Math.round(zoom * 100)}%
       </Toolbar.Button>
       <Toolbar.Button class="ctrl-btn" onclick={zoomIn} aria-label="Acercar (Ctrl + Rueda hacia arriba)">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+        <Plus size={16} />
       </Toolbar.Button>
       <Separator.Root class="divider" orientation="vertical" />
       <Toolbar.Button class="ctrl-btn text-btn" onclick={setActualSize} aria-label="Tamaño real (1:1 / 100%)">
         1:1
       </Toolbar.Button>
       <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label="Ajustar a ventana">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-        </svg>
+        <Maximize2 size={16} />
       </Toolbar.Button>
     </Toolbar.Root>
   {/if}

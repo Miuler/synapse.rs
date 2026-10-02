@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { VaultItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
+  import { Search } from 'lucide-svelte';
+  import { FileIcon } from '@shared/ui/icons';
 
   interface Props {
     isOpen?: boolean;
@@ -101,10 +103,7 @@
       <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
       <Command.Root class="command-root" loop>
         <div class="input-wrapper">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
+          <Search size={16} class="search-icon" />
           <Command.Input
             class="command-input"
             bind:value={searchQuery}
@@ -123,12 +122,9 @@
               onSelect={() => selectFile(file.path)}
             >
               <span class="category-tag file-tag">
-                {file.isRecent && !searchQuery.trim() ? 'RECIENTE' : 'ARCHIVO'}
-              </span>
-              <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
+                {file.isRecent && !searchQuery.trim() ? 'RECIENTE' : 'ARCHIVO'
+              }</span>
+              <FileIcon path={file.path} name={file.title} size={15} class="file-icon" />
               <span class="item-name">{file.title}</span>
               <span class="item-path">{file.path}</span>
             </Command.Item>
