@@ -4,6 +4,7 @@
   import { isTauriEnvironment } from '@shared/repositories';
   import type { TabItem } from '@entities/vault-item';
   import type { MarkdownViewMode } from '@widgets/status-bar';
+  import { Popover } from 'bits-ui';
 
   export type { MarkdownViewMode };
 
@@ -245,17 +246,6 @@
     }
   }
 
-  function handleClickOutside(e: MouseEvent) {
-    if (
-      isTabsMenuOpen &&
-      menuContainerRef &&
-      !menuContainerRef.contains(e.target as Node)
-    ) {
-      isTabsMenuOpen = false;
-    }
-
-  }
-
   function handleGlobalKeyDown(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
       e.preventDefault();
@@ -316,7 +306,6 @@
   });
 
   onMount(() => {
-    window.addEventListener('click', handleClickOutside);
     window.addEventListener('keydown', handleGlobalKeyDown);
     window.addEventListener('resize', checkScroll);
 
@@ -331,7 +320,6 @@
     checkScroll();
 
     return () => {
-      window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('resize', checkScroll);
       if (resizeObserver) {
@@ -435,6 +423,7 @@
           </div>
         {/each}
       {:else if title}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="tab-title-container active"
           onauxclick={(e) => handleTabAuxClick(e, '')}
@@ -504,107 +493,117 @@
     <!-- MENÚ DESPLEGABLE PARA LISTAR Y BUSCAR TODAS LAS PESTAÑAS Y BOTÓN DE CERRAR TODAS -->
     <!-- AL COSTADO IZQUIERDO DE LOS BOTONES DE GRABAR Y EDITAR -->
     {#if tabs && tabs.length > 0}
-      <div class="tabs-actions-group" bind:this={menuContainerRef}>
-        <button
-          type="button"
-          class="icon-btn tab-dropdown-trigger"
-          class:active={isTabsMenuOpen}
-          onclick={(e) => {
-            e.stopPropagation();
-            toggleTabsMenu();
+      <div class="tabs-actions-group">
+        <Popover.Root
+          bind:open={isTabsMenuOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              openTabsMenu();
+            }
           }}
-          title="Listar y buscar pestañas abiertas (Ctrl+Shift+A)"
         >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-
-        {#if isTabsMenuOpen}
-          <div class="tabs-dropdown-menu">
-            <div class="dropdown-header">
-              <span>Pestañas ({filteredTabs.length}{filteredTabs.length !== tabs.length ? `/${tabs.length}` : ''})</span>
-              <button type="button" class="dropdown-close-all-btn" onclick={handleCloseAll}>
-                Cerrar todas
+          <Popover.Trigger>
+            {#snippet child({ props })}
+              <button
+                type="button"
+                class="icon-btn tab-dropdown-trigger"
+                class:active={isTabsMenuOpen}
+                title="Listar y buscar pestañas abiertas (Ctrl+Shift+A)"
+                {...props}
+              >
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
               </button>
-            </div>
+            {/snippet}
+          </Popover.Trigger>
 
-            <!-- CAJA DE TEXTO PARA BUSCAR RÁPIDAMENTE ENTRE LAS PESTAÑAS ABIERTAS -->
-            <div class="dropdown-search-container">
-              <svg class="dropdown-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input
-                type="text"
-                class="dropdown-search-input"
-                placeholder="Buscar pestaña... (Enter para abrir)"
-                bind:this={searchInputRef}
-                bind:value={searchQuery}
-                onkeydown={handleSearchKeyDown}
-              />
-              {#if searchQuery}
-                <button
-                  type="button"
-                  class="dropdown-search-clear"
-                  onclick={() => {
-                    searchQuery = '';
-                    searchInputRef?.focus();
-                  }}
-                  title="Limpiar búsqueda"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
+          <Popover.Portal>
+            <Popover.Content class="tabs-dropdown-menu" align="end" side="bottom" sideOffset={6}>
+              <div class="dropdown-header">
+                <span>Pestañas ({filteredTabs.length}{filteredTabs.length !== tabs.length ? `/${tabs.length}` : ''})</span>
+                <button type="button" class="dropdown-close-all-btn" onclick={handleCloseAll}>
+                  Cerrar todas
                 </button>
-              {/if}
-            </div>
+              </div>
 
-            <div class="dropdown-tabs-list" bind:this={tabsListRef}>
-              {#if filteredTabs.length > 0}
-                {#each filteredTabs as tab, index (tab.path)}
-                  <!-- svelte-ignore a11y_click_events_have_key_events -->
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <div
-                    class="dropdown-tab-item"
-                    class:active={tab.path === activeTabPath}
-                    class:selected={index === selectedIndex}
-                    title={tab.abs_path || tab.path}
-                    onmouseenter={() => { selectedIndex = index; }}
-                    onclick={() => selectTabAndClose(tab.path)}
-                    onauxclick={(e) => handleTabAuxClick(e, tab.path)}
-                    onmousedown={handleTabMouseDown}
+              <!-- CAJA DE TEXTO PARA BUSCAR RÁPIDAMENTE ENTRE LAS PESTAÑAS ABIERTAS -->
+              <div class="dropdown-search-container">
+                <svg class="dropdown-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  type="text"
+                  class="dropdown-search-input"
+                  placeholder="Buscar pestaña... (Enter para abrir)"
+                  bind:this={searchInputRef}
+                  bind:value={searchQuery}
+                  onkeydown={handleSearchKeyDown}
+                />
+                {#if searchQuery}
+                  <button
+                    type="button"
+                    class="dropdown-search-clear"
+                    onclick={() => {
+                      searchQuery = '';
+                      searchInputRef?.focus();
+                    }}
+                    title="Limpiar búsqueda"
                   >
-                    <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
-                    <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
-                    <button
-                      type="button"
-                      class="dropdown-tab-close"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        if (onCloseTab) onCloseTab(tab.path);
-                      }}
-                      title="Cerrar pestaña (Ctrl+W o click central)"
+                  </button>
+                {/if}
+              </div>
+
+              <div class="dropdown-tabs-list" bind:this={tabsListRef}>
+                {#if filteredTabs.length > 0}
+                  {#each filteredTabs as tab, index (tab.path)}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                      class="dropdown-tab-item"
+                      class:active={tab.path === activeTabPath}
+                      class:selected={index === selectedIndex}
+                      title={tab.abs_path || tab.path}
+                      onmouseenter={() => { selectedIndex = index; }}
+                      onclick={() => selectTabAndClose(tab.path)}
+                      onauxclick={(e) => handleTabAuxClick(e, tab.path)}
+                      onmousedown={handleTabMouseDown}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      <svg class="dropdown-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
                       </svg>
-                    </button>
+                      <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                      <button
+                        type="button"
+                        class="dropdown-tab-close"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          if (onCloseTab) onCloseTab(tab.path);
+                        }}
+                        title="Cerrar pestaña (Ctrl+W o click central)"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="18" y1="6" x2="6" y2="18"/>
+                          <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    </div>
+                  {/each}
+                {:else}
+                  <div class="dropdown-no-results">
+                    No se encontraron pestañas abiertas
                   </div>
-                {/each}
-              {:else}
-                <div class="dropdown-no-results">
-                  No se encontraron pestañas abiertas
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
+                {/if}
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
       </div>
     {/if}
 
@@ -710,6 +709,8 @@
 <style>
   .editor-header {
     height: 42px;
+    min-height: 42px;
+    max-height: 42px;
     flex-shrink: 0;
     background-color: var(--bg-primary, #ffffff);
     border-bottom: 1px solid var(--border-primary, #d0d7de);
@@ -719,6 +720,8 @@
     user-select: none;
     gap: 8px;
     position: relative;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .nav-buttons {
@@ -741,6 +744,7 @@
   .tabs-scroll-container {
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 4px;
     overflow-x: auto;
     overflow-y: hidden;
@@ -910,10 +914,7 @@
     color: var(--accent, #0969da);
   }
 
-  .tabs-dropdown-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
+  :global(.tabs-dropdown-menu) {
     width: 300px;
     max-height: 420px;
     background: var(--bg-primary, #ffffff);
@@ -924,6 +925,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    outline: none;
     animation: dropdown-fade 0.15s ease;
   }
 
@@ -938,7 +940,7 @@
     }
   }
 
-  .dropdown-header {
+  :global(.tabs-dropdown-menu .dropdown-header) {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -950,7 +952,7 @@
     color: var(--text-secondary, #656d76);
   }
 
-  .dropdown-close-all-btn {
+  :global(.tabs-dropdown-menu .dropdown-close-all-btn) {
     background: transparent;
     border: none;
     color: #cf222e;
@@ -962,11 +964,11 @@
     transition: all 0.15s ease;
   }
 
-  .dropdown-close-all-btn:hover {
+  :global(.tabs-dropdown-menu .dropdown-close-all-btn:hover) {
     background: rgba(207, 34, 46, 0.1);
   }
 
-  .dropdown-search-container {
+  :global(.tabs-dropdown-menu .dropdown-search-container) {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -975,14 +977,14 @@
     background: var(--bg-primary, #ffffff);
   }
 
-  .dropdown-search-icon {
+  :global(.tabs-dropdown-menu .dropdown-search-icon) {
     width: 14px;
     height: 14px;
     color: var(--text-secondary, #656d76);
     flex-shrink: 0;
   }
 
-  .dropdown-search-input {
+  :global(.tabs-dropdown-menu .dropdown-search-input) {
     flex: 1;
     min-width: 0;
     border: none;
@@ -993,12 +995,12 @@
     padding: 0;
   }
 
-  .dropdown-search-input::placeholder {
+  :global(.tabs-dropdown-menu .dropdown-search-input::placeholder) {
     color: var(--text-secondary, #656d76);
     font-size: 11px;
   }
 
-  .dropdown-search-clear {
+  :global(.tabs-dropdown-menu .dropdown-search-clear) {
     border: none;
     background: transparent;
     padding: 0;
@@ -1013,23 +1015,23 @@
     transition: all 0.1s ease;
   }
 
-  .dropdown-search-clear:hover {
+  :global(.tabs-dropdown-menu .dropdown-search-clear:hover) {
     background: rgba(0, 0, 0, 0.08);
     color: var(--text-primary, #1f2328);
   }
 
-  .dropdown-search-clear svg {
+  :global(.tabs-dropdown-menu .dropdown-search-clear svg) {
     width: 12px;
     height: 12px;
   }
 
-  .dropdown-tabs-list {
+  :global(.tabs-dropdown-menu .dropdown-tabs-list) {
     overflow-y: auto;
     max-height: 300px;
     padding: 4px 0;
   }
 
-  .dropdown-tab-item {
+  :global(.tabs-dropdown-menu .dropdown-tab-item) {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1041,35 +1043,37 @@
     border-left: 2px solid transparent;
   }
 
-  .dropdown-tab-item:hover,
-  .dropdown-tab-item.selected {
+  :global(.tabs-dropdown-menu .dropdown-tab-item:hover),
+  :global(.tabs-dropdown-menu .dropdown-tab-item.selected),
+  :global(.tabs-dropdown-menu .dropdown-tab-item[data-highlighted]) {
     background: rgba(9, 105, 218, 0.08);
   }
 
-  .dropdown-tab-item.selected {
+  :global(.tabs-dropdown-menu .dropdown-tab-item.selected),
+  :global(.tabs-dropdown-menu .dropdown-tab-item[data-highlighted]) {
     border-left-color: var(--accent, #0969da);
   }
 
-  .dropdown-tab-item.active {
+  :global(.tabs-dropdown-menu .dropdown-tab-item.active) {
     color: var(--accent, #0969da);
     font-weight: 500;
   }
 
-  .dropdown-file-icon {
+  :global(.tabs-dropdown-menu .dropdown-file-icon) {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
     color: var(--accent, #0969da);
   }
 
-  .dropdown-tab-title {
+  :global(.tabs-dropdown-menu .dropdown-tab-title) {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .dropdown-tab-close {
+  :global(.tabs-dropdown-menu .dropdown-tab-close) {
     width: 20px;
     height: 20px;
     display: flex;
@@ -1084,23 +1088,22 @@
     transition: all 0.15s ease;
   }
 
-  .dropdown-tab-close:hover {
+  :global(.tabs-dropdown-menu .dropdown-tab-close:hover) {
     opacity: 1;
     background: rgba(0, 0, 0, 0.08);
     color: var(--text-primary, #1f2328);
   }
 
-  .dropdown-tab-close svg {
+  :global(.tabs-dropdown-menu .dropdown-tab-close svg) {
     width: 12px;
     height: 12px;
   }
 
-  .dropdown-no-results {
+  :global(.tabs-dropdown-menu .dropdown-no-results) {
     padding: 16px 12px;
     text-align: center;
     color: var(--text-secondary, #656d76);
-    font-size: 12px;
-    font-style: italic;
+    font-size: 13px;
   }
 
   .icon-btn {

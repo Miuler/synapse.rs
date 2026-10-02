@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Toolbar, Separator } from 'bits-ui';
+
   interface Props {
     src: string;
     alt?: string;
@@ -205,36 +207,40 @@
     </div>
 
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="image-controls" onmousedown={(e) => e.stopPropagation()}>
+    <Toolbar.Root
+      class="image-controls"
+      aria-label="Controles de zoom de imagen"
+      onmousedown={(e) => e.stopPropagation()}
+    >
       {#if isSvg}
         <span class="format-badge" title="Formato gráfico vectorial escalable">SVG</span>
-        <div class="divider"></div>
+        <Separator.Root class="divider" orientation="vertical" />
       {/if}
 
-      <button type="button" class="ctrl-btn" onclick={zoomOut} title="Alejar (Ctrl + Rueda hacia abajo)">
+      <Toolbar.Button class="ctrl-btn" onclick={zoomOut} aria-label="Alejar (Ctrl + Rueda hacia abajo)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-      </button>
-      <button type="button" class="zoom-level-btn" onclick={toggleFitOrActual} title="Alternar entre Ajustar y 100%">
+      </Toolbar.Button>
+      <Toolbar.Button class="zoom-level-btn" onclick={toggleFitOrActual} aria-label="Alternar entre Ajustar y 100%">
         {Math.round(zoom * 100)}%
-      </button>
-      <button type="button" class="ctrl-btn" onclick={zoomIn} title="Acercar (Ctrl + Rueda hacia arriba)">
+      </Toolbar.Button>
+      <Toolbar.Button class="ctrl-btn" onclick={zoomIn} aria-label="Acercar (Ctrl + Rueda hacia arriba)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-      </button>
-      <div class="divider"></div>
-      <button type="button" class="ctrl-btn text-btn" onclick={setActualSize} title="Tamaño real (1:1 / 100%)">
+      </Toolbar.Button>
+      <Separator.Root class="divider" orientation="vertical" />
+      <Toolbar.Button class="ctrl-btn text-btn" onclick={setActualSize} aria-label="Tamaño real (1:1 / 100%)">
         1:1
-      </button>
-      <button type="button" class="ctrl-btn" onclick={fitToWindow} title="Ajustar a ventana">
+      </Toolbar.Button>
+      <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label="Ajustar a ventana">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
         </svg>
-      </button>
-    </div>
+      </Toolbar.Button>
+    </Toolbar.Root>
   {/if}
 </div>
 
@@ -312,7 +318,7 @@
     word-break: break-all;
   }
 
-  .image-controls {
+  :global(.image-controls) {
     position: absolute;
     bottom: 24px;
     left: 50%;
@@ -339,7 +345,7 @@
     border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.25));
   }
 
-  .ctrl-btn {
+  :global(.ctrl-btn) {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -353,17 +359,17 @@
     transition: background-color 0.15s ease;
   }
 
-  .ctrl-btn:hover {
+  :global(.ctrl-btn:hover) {
     background-color: var(--bg-hover, rgba(0, 0, 0, 0.08));
   }
 
-  .text-btn {
+  :global(.text-btn) {
     font-size: 11px;
     font-weight: 700;
     font-family: var(--code-font, monospace);
   }
 
-  .zoom-level-btn {
+  :global(.zoom-level-btn) {
     border: none;
     background: transparent;
     cursor: pointer;
@@ -378,12 +384,12 @@
     transition: background-color 0.15s ease, color 0.15s ease;
   }
 
-  .zoom-level-btn:hover {
+  :global(.zoom-level-btn:hover) {
     background-color: var(--bg-hover, rgba(0, 0, 0, 0.08));
     color: var(--text-primary, #24292f);
   }
 
-  .divider {
+  :global(.image-controls .divider) {
     width: 1px;
     height: 16px;
     background-color: var(--border-primary, #d0d7de);

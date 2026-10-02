@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import { DropdownMenu, Popover, Toggle } from 'bits-ui';
 
   export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
@@ -41,8 +42,6 @@
 
   // Estados para el selector de vistas Markdown
   let isViewMenuOpen = $state(false);
-  let selectedViewIndex = $state(0);
-  let viewContainerRef = $state<HTMLDivElement | null>(null);
 
   const MARKDOWN_VIEW_MODES: {
     id: MarkdownViewMode;
@@ -70,16 +69,6 @@
     },
   ];
 
-  function toggleViewMenu(e: MouseEvent) {
-    e.stopPropagation();
-    isEncodingMenuOpen = false;
-    isViewMenuOpen = !isViewMenuOpen;
-    if (isViewMenuOpen) {
-      const currentIdx = MARKDOWN_VIEW_MODES.findIndex(m => m.id === markdownViewMode);
-      selectedViewIndex = currentIdx !== -1 ? currentIdx : 0;
-    }
-  }
-
   function selectMarkdownView(mode: MarkdownViewMode) {
     isViewMenuOpen = false;
     if (onChangeMarkdownView) {
@@ -89,32 +78,10 @@
     }
   }
 
-  function handleViewKeydown(e: KeyboardEvent) {
-    if (!isViewMenuOpen) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      selectedViewIndex = (selectedViewIndex + 1) % MARKDOWN_VIEW_MODES.length;
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      selectedViewIndex = (selectedViewIndex - 1 + MARKDOWN_VIEW_MODES.length) % MARKDOWN_VIEW_MODES.length;
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const selected = MARKDOWN_VIEW_MODES[selectedViewIndex];
-      if (selected) {
-        selectMarkdownView(selected.id);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      isViewMenuOpen = false;
-    }
-  }
-
   // Estados para el selector de codificación
   let isEncodingMenuOpen = $state(false);
   let searchQuery = $state('');
   let selectedMenuIndex = $state(0);
-  let encodingContainerRef = $state<HTMLDivElement | null>(null);
   let searchInputRef = $state<HTMLInputElement | null>(null);
   let listRef = $state<HTMLDivElement | null>(null);
 
@@ -152,21 +119,6 @@
     const normId = encId.toLowerCase().replace(/[-_\s]/g, '');
     const normLabel = label.toLowerCase().replace(/[-_\s]/g, '');
     return normCurrent === normId || normCurrent === normLabel;
-  }
-
-  function toggleMenu(e: MouseEvent) {
-    e.stopPropagation();
-    isViewMenuOpen = false;
-    isEncodingMenuOpen = !isEncodingMenuOpen;
-    if (isEncodingMenuOpen) {
-      searchQuery = '';
-      const currentIdx = filteredEncodings.findIndex(e => isCurrentEncoding(e.id, e.label));
-      selectedMenuIndex = currentIdx !== -1 ? currentIdx : 0;
-      tick().then(() => {
-        if (searchInputRef) searchInputRef.focus();
-        scrollSelectedIntoView();
-      });
-    }
   }
 
   function scrollSelectedIntoView() {
@@ -209,25 +161,6 @@
       isEncodingMenuOpen = false;
     }
   }
-
-  $effect(() => {
-    if (!isEncodingMenuOpen && !isViewMenuOpen) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node;
-      if (isEncodingMenuOpen && encodingContainerRef && !encodingContainerRef.contains(target)) {
-        isEncodingMenuOpen = false;
-      }
-      if (isViewMenuOpen && viewContainerRef && !viewContainerRef.contains(target)) {
-        isViewMenuOpen = false;
-      }
-    }
-
-    document.addEventListener('pointerdown', handleClickOutside);
-    return () => {
-      document.removeEventListener('pointerdown', handleClickOutside);
-    };
-  });
 </script>
 
 <footer class="status-bar">
@@ -255,117 +188,114 @@
   <div class="right-group">
     <!-- Selector desplegable de Modo de Vista Markdown (En vivo / Fuente / Lectura) -->
     {#if isMarkdownFile}
-      <div class="md-view-container" bind:this={viewContainerRef}>
-        <button
-          type="button"
-          class="status-item clickable md-view-btn"
-          class:live-mode={markdownViewMode === 'live'}
-          class:source-mode={markdownViewMode === 'source'}
-          class:reading-mode={markdownViewMode === 'reading'}
-          class:active={isViewMenuOpen}
-          onclick={toggleViewMenu}
-          title="Cambiar modo de vista Markdown: En vivo, Fuente o Lectura"
-        >
-          {#if markdownViewMode === 'live'}
-            <!-- Ícono En vivo / Sparkles / Live Preview -->
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-            </svg>
-            <span>En vivo</span>
-          {:else if markdownViewMode === 'source'}
-            <!-- Ícono Modo Fuente / Código -->
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="16 18 22 12 16 6"/>
-              <polyline points="8 6 2 12 8 18"/>
-            </svg>
-            <span>Fuente</span>
-          {:else}
-            <!-- Ícono Modo Lectura / Documento -->
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-            <span>Lectura</span>
-          {/if}
-          <svg class="chevron-icon" class:open={isViewMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
+      <div class="md-view-container">
+        <DropdownMenu.Root bind:open={isViewMenuOpen}>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <button
+                type="button"
+                class="status-item clickable md-view-btn"
+                class:live-mode={markdownViewMode === 'live'}
+                class:source-mode={markdownViewMode === 'source'}
+                class:reading-mode={markdownViewMode === 'reading'}
+                class:active={isViewMenuOpen}
+                title="Cambiar modo de vista Markdown: En vivo, Fuente o Lectura"
+                {...props}
+              >
+                {#if markdownViewMode === 'live'}
+                  <!-- Ícono En vivo / Sparkles / Live Preview -->
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                  <span>En vivo</span>
+                {:else if markdownViewMode === 'source'}
+                  <!-- Ícono Modo Fuente / Código -->
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="16 18 22 12 16 6"/>
+                    <polyline points="8 6 2 12 8 18"/>
+                  </svg>
+                  <span>Fuente</span>
+                {:else}
+                  <!-- Ícono Modo Lectura / Documento -->
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                  </svg>
+                  <span>Lectura</span>
+                {/if}
+                <svg class="chevron-icon" class:open={isViewMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            {/snippet}
+          </DropdownMenu.Trigger>
 
-        {#if isViewMenuOpen}
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-          <div class="view-dropdown" role="dialog" aria-modal="true" tabindex="-1" onkeydown={handleViewKeydown}>
-            <div class="view-dropdown-header">
-              <span class="header-title">Vista Markdown</span>
-              <span class="header-current">
-                {markdownViewMode === 'live' ? 'En vivo' : markdownViewMode === 'source' ? 'Fuente' : 'Lectura'}
-              </span>
-            </div>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content class="view-dropdown" side="top" align="end" sideOffset={6}>
+              <div class="view-dropdown-header">
+                <span class="header-title">Vista Markdown</span>
+                <span class="header-current">
+                  {markdownViewMode === 'live' ? 'En vivo' : markdownViewMode === 'source' ? 'Fuente' : 'Lectura'}
+                </span>
+              </div>
 
-            <div class="view-options-list">
-              {#each MARKDOWN_VIEW_MODES as item, idx}
-                {@const isCurrent = markdownViewMode === item.id}
-                <button
-                  type="button"
-                  class="view-item"
-                  class:selected={idx === selectedViewIndex}
-                  class:current={isCurrent}
-                  class:mode-live={item.id === 'live'}
-                  class:mode-source={item.id === 'source'}
-                  class:mode-reading={item.id === 'reading'}
-                  onmouseenter={() => { selectedViewIndex = idx; }}
-                  onclick={() => selectMarkdownView(item.id)}
-                >
-                  <div class="item-icon-box">
-                    {#if item.id === 'live'}
-                      <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                      </svg>
-                    {:else if item.id === 'source'}
-                      <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="16 18 22 12 16 6"/>
-                        <polyline points="8 6 2 12 8 18"/>
-                      </svg>
-                    {:else}
-                      <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              <div class="view-options-list">
+                {#each MARKDOWN_VIEW_MODES as item}
+                  {@const isCurrent = markdownViewMode === item.id}
+                  <DropdownMenu.Item
+                    class="view-item {isCurrent ? 'current' : ''} mode-{item.id}"
+                    onSelect={() => selectMarkdownView(item.id)}
+                  >
+                    <div class="item-icon-box">
+                      {#if item.id === 'live'}
+                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                        </svg>
+                      {:else if item.id === 'source'}
+                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="16 18 22 12 16 6"/>
+                          <polyline points="8 6 2 12 8 18"/>
+                        </svg>
+                      {:else}
+                        <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                        </svg>
+                      {/if}
+                    </div>
+
+                    <div class="item-text">
+                      <div class="item-title-row">
+                        <span class="item-label">{item.label}</span>
+                        <span class="item-badge">{item.badge}</span>
+                      </div>
+                      <span class="item-desc">{item.description}</span>
+                    </div>
+
+                    {#if isCurrent}
+                      <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
                       </svg>
                     {/if}
-                  </div>
-
-                  <div class="item-text">
-                    <div class="item-title-row">
-                      <span class="item-label">{item.label}</span>
-                      <span class="item-badge">{item.badge}</span>
-                    </div>
-                    <span class="item-desc">{item.description}</span>
-                  </div>
-
-                  {#if isCurrent}
-                    <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
+                  </DropdownMenu.Item>
+                {/each}
+              </div>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </div>
       <div class="divider"></div>
     {/if}
 
-    <button
-      type="button"
+    <Toggle.Root
       class="status-item clickable vim-btn"
-      class:active={isVimMode}
-      onclick={() => { if (onToggleVim) onToggleVim(); }}
+      pressed={isVimMode}
+      onPressedChange={() => { if (onToggleVim) onToggleVim(); }}
       title={isVimMode ? 'Desactivar modo VIM en el editor' : 'Activar modo VIM en el editor'}
     >
       <span class="vim-badge">VIM</span>
       <span>{isVimMode ? 'ON' : 'OFF'}</span>
-    </button>
+    </Toggle.Root>
     <div class="divider"></div>
     {#if hasSelection}
       <span class="selection-badge">sel</span>
@@ -392,115 +322,136 @@
     <div class="divider"></div>
     
     <!-- Selector de Codificación de Caracteres -->
-    <div class="encoding-container" bind:this={encodingContainerRef}>
-      <button
-        type="button"
-        class="status-item clickable encoding-btn"
-        class:active={isEncodingMenuOpen}
-        onclick={toggleMenu}
-        title="Cambiar codificación del archivo y guardar con la nueva codificación"
+    <div class="encoding-container">
+      <Popover.Root
+        bind:open={isEncodingMenuOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            searchQuery = '';
+            const currentIdx = filteredEncodings.findIndex(e => isCurrentEncoding(e.id, e.label));
+            selectedMenuIndex = currentIdx !== -1 ? currentIdx : 0;
+            tick().then(() => {
+              searchInputRef?.focus();
+              scrollSelectedIntoView();
+            });
+          }
+        }}
       >
-        <span class="encoding-text">{encoding || '---'}</span>
-        <svg class="chevron-icon" class:open={isEncodingMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <button
+              type="button"
+              class="status-item clickable encoding-btn"
+              class:active={isEncodingMenuOpen}
+              title="Cambiar codificación del archivo y guardar con la nueva codificación"
+              {...props}
+            >
+              <span class="encoding-text">{encoding || '---'}</span>
+              <svg class="chevron-icon" class:open={isEncodingMenuOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          {/snippet}
+        </Popover.Trigger>
 
-      {#if isEncodingMenuOpen}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <div class="encoding-dropdown" role="dialog" aria-modal="true" tabindex="-1" onkeydown={handleKeydown}>
-          <div class="encoding-dropdown-header">
-            <span class="header-title">Guardar con codificación</span>
-            <span class="header-current">Actual: {encoding || '---'}</span>
-          </div>
+        <Popover.Portal>
+          <Popover.Content class="encoding-dropdown" side="top" align="end" sideOffset={6}>
+            <div class="encoding-dropdown-header">
+              <span class="header-title">Guardar con codificación</span>
+              <span class="header-current">Actual: {encoding || '---'}</span>
+            </div>
 
-          <div class="encoding-search-box">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input
-              type="text"
-              class="encoding-search-input"
-              placeholder="Buscar codificación..."
-              bind:value={searchQuery}
-              bind:this={searchInputRef}
-              oninput={() => { selectedMenuIndex = 0; }}
-            />
-          </div>
+            <div class="encoding-search-box">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                class="encoding-search-input"
+                placeholder="Buscar codificación..."
+                bind:value={searchQuery}
+                bind:this={searchInputRef}
+                onkeydown={handleKeydown}
+                oninput={() => { selectedMenuIndex = 0; }}
+              />
+            </div>
 
-          <div class="encoding-options-list" bind:this={listRef}>
-            {#if filteredEncodings.length === 0}
-              <div class="empty-results">No se encontraron codificaciones</div>
-            {:else}
-              {#each filteredEncodings as item, idx}
-                {@const isCurrent = isCurrentEncoding(item.id, item.label)}
-                <button
-                  type="button"
-                  class="encoding-item"
-                  class:selected={idx === selectedMenuIndex}
-                  class:current={isCurrent}
-                  onmouseenter={() => { selectedMenuIndex = idx; }}
-                  onclick={() => selectEncoding(item.id)}
-                >
-                  <div class="item-text">
-                    <span class="item-label">{item.label}</span>
-                    <span class="item-desc">{item.description}</span>
-                  </div>
-                  {#if isCurrent}
-                    <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  {/if}
-                </button>
-              {/each}
-            {/if}
-          </div>
-        </div>
-      {/if}
+            <div class="encoding-options-list" bind:this={listRef}>
+              {#if filteredEncodings.length === 0}
+                <div class="empty-results">No se encontraron codificaciones</div>
+              {:else}
+                {#each filteredEncodings as item, idx}
+                  {@const isCurrent = isCurrentEncoding(item.id, item.label)}
+                  <button
+                    type="button"
+                    class="encoding-item"
+                    class:selected={idx === selectedMenuIndex}
+                    class:current={isCurrent}
+                    onmouseenter={() => { selectedMenuIndex = idx; }}
+                    onclick={() => selectEncoding(item.id)}
+                  >
+                    <div class="item-text">
+                      <span class="item-label">{item.label}</span>
+                      <span class="item-desc">{item.description}</span>
+                    </div>
+                    {#if isCurrent}
+                      <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    {/if}
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   </div>
 </footer>
 
 <style>
   .status-bar {
-    height: 26px;
-    flex-shrink: 0;
+    height: var(--status-bar-height, 28px);
     background-color: var(--bg-secondary, #f6f8fa);
     border-top: 1px solid var(--border-primary, #d0d7de);
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
     padding: 0 12px;
     font-size: 11px;
     color: var(--text-secondary, #656d76);
     user-select: none;
-    position: relative;
+    z-index: 20;
+    flex-shrink: 0;
   }
 
-  .left-group,
-  .right-group {
+  .left-group, .right-group {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    height: 100%;
   }
 
   .status-item {
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-
-  .status-item.clickable {
+    padding: 2px 6px;
+    height: 20px;
     background: transparent;
     border: none;
-    color: var(--text-secondary, #656d76);
-    cursor: pointer;
-    padding: 2px 6px;
+    color: inherit;
+    cursor: default;
     border-radius: 4px;
     transition: all 0.15s ease;
     font-size: inherit;
     font-family: inherit;
+  }
+
+  .status-item.clickable {
+    cursor: pointer;
   }
 
   .status-item.clickable:hover,
@@ -557,10 +508,7 @@
   }
 
   /* Menú desplegable para vistas Markdown */
-  .view-dropdown {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    right: 0;
+  :global(.view-dropdown) {
     width: 290px;
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
@@ -574,7 +522,18 @@
     outline: none;
   }
 
-  .view-dropdown-header {
+  @keyframes fadeInSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  :global(.view-dropdown .view-dropdown-header) {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -583,13 +542,13 @@
     border-bottom: 1px solid var(--border-primary, #d0d7de);
   }
 
-  .view-options-list {
+  :global(.view-dropdown .view-options-list) {
     padding: 4px 0;
     display: flex;
     flex-direction: column;
   }
 
-  .view-item {
+  :global(.view-dropdown .view-item) {
     width: 100%;
     display: flex;
     align-items: center;
@@ -603,20 +562,21 @@
     outline: none;
   }
 
-  .view-item:hover,
-  .view-item.selected {
+  :global(.view-dropdown .view-item:hover),
+  :global(.view-dropdown .view-item[data-highlighted]) {
     background: rgba(0, 0, 0, 0.04);
   }
 
-  .view-item.current {
+  :global(.view-dropdown .view-item.current) {
     background: rgba(9, 105, 218, 0.05);
   }
 
-  .view-item.current.selected {
+  :global(.view-dropdown .view-item.current:hover),
+  :global(.view-dropdown .view-item.current[data-highlighted]) {
     background: rgba(9, 105, 218, 0.1);
   }
 
-  .item-icon-box {
+  :global(.view-dropdown .item-icon-box) {
     width: 28px;
     height: 28px;
     border-radius: 6px;
@@ -628,27 +588,27 @@
     color: var(--text-secondary, #656d76);
   }
 
-  .view-item.mode-live .item-icon-box {
+  :global(.view-dropdown .view-item.mode-live .item-icon-box) {
     color: #1a7f37;
     background: rgba(46, 160, 67, 0.1);
   }
 
-  .view-item.mode-source .item-icon-box {
+  :global(.view-dropdown .view-item.mode-source .item-icon-box) {
     color: var(--accent, #0969da);
     background: rgba(9, 105, 218, 0.1);
   }
 
-  .view-item.mode-reading .item-icon-box {
+  :global(.view-dropdown .view-item.mode-reading .item-icon-box) {
     color: #8250df;
     background: rgba(130, 80, 223, 0.1);
   }
 
-  .item-icon {
+  :global(.view-dropdown .item-icon) {
     width: 14px;
     height: 14px;
   }
 
-  .item-text {
+  :global(.view-dropdown .item-text) {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -656,19 +616,19 @@
     min-width: 0;
   }
 
-  .item-title-row {
+  :global(.view-dropdown .item-title-row) {
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .item-label {
+  :global(.view-dropdown .item-label) {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-primary, #1f2328);
   }
 
-  .item-badge {
+  :global(.view-dropdown .item-badge) {
     font-size: 9px;
     padding: 1px 5px;
     border-radius: 4px;
@@ -678,19 +638,19 @@
     border: 1px solid var(--border-primary, #d0d7de);
   }
 
-  .view-item.current.mode-live .item-label {
+  :global(.view-dropdown .view-item.current.mode-live .item-label) {
     color: #1a7f37;
   }
 
-  .view-item.current.mode-source .item-label {
+  :global(.view-dropdown .view-item.current.mode-source .item-label) {
     color: var(--accent, #0969da);
   }
 
-  .view-item.current.mode-reading .item-label {
+  :global(.view-dropdown .view-item.current.mode-reading .item-label) {
     color: #8250df;
   }
 
-  .item-desc {
+  :global(.view-dropdown .item-desc) {
     font-size: 10px;
     color: var(--text-secondary, #656d76);
     line-height: 1.3;
@@ -729,10 +689,7 @@
   }
 
   /* Menú flotante emergente */
-  .encoding-dropdown {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    right: 0;
+  :global(.encoding-dropdown) {
     width: 290px;
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
@@ -746,18 +703,7 @@
     outline: none;
   }
 
-  @keyframes fadeInSlideUp {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .encoding-dropdown-header {
+  :global(.encoding-dropdown .encoding-dropdown-header) {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -766,18 +712,18 @@
     border-bottom: 1px solid var(--border-primary, #d0d7de);
   }
 
-  .header-title {
+  :global(.header-title) {
     font-weight: 600;
     font-size: 11px;
     color: var(--text-primary, #1f2328);
   }
 
-  .header-current {
+  :global(.header-current) {
     font-size: 10px;
     color: var(--text-secondary, #656d76);
   }
 
-  .encoding-search-box {
+  :global(.encoding-dropdown .encoding-search-box) {
     display: flex;
     align-items: center;
     padding: 6px 10px;
@@ -786,14 +732,14 @@
     background: var(--bg-primary, #ffffff);
   }
 
-  .search-icon {
+  :global(.encoding-dropdown .search-icon) {
     width: 12px;
     height: 12px;
     color: var(--text-secondary, #656d76);
     flex-shrink: 0;
   }
 
-  .encoding-search-input {
+  :global(.encoding-dropdown .encoding-search-input) {
     flex: 1;
     border: none;
     outline: none;
@@ -802,20 +748,20 @@
     color: var(--text-primary, #1f2328);
   }
 
-  .encoding-options-list {
+  :global(.encoding-dropdown .encoding-options-list) {
     max-height: 240px;
     overflow-y: auto;
     padding: 4px 0;
   }
 
-  .empty-results {
+  :global(.encoding-dropdown .empty-results) {
     padding: 12px;
     text-align: center;
     font-size: 11px;
     color: var(--text-secondary, #656d76);
   }
 
-  .encoding-item {
+  :global(.encoding-dropdown .encoding-item) {
     width: 100%;
     display: flex;
     align-items: center;
@@ -828,16 +774,17 @@
     transition: background 0.1s ease;
   }
 
-  .encoding-item.selected {
+  :global(.encoding-dropdown .encoding-item.selected),
+  :global(.encoding-dropdown .encoding-item:hover) {
     background: var(--accent-bg, rgba(9, 105, 218, 0.08));
   }
 
-  .encoding-item.current .item-label {
+  :global(.encoding-dropdown .encoding-item.current .item-label) {
     color: var(--accent, #0969da);
     font-weight: 600;
   }
 
-  .check-icon {
+  :global(.check-icon) {
     width: 13px;
     height: 13px;
     color: var(--accent, #0969da);
@@ -848,6 +795,7 @@
     font-weight: 600;
   }
 
+  :global(.vim-btn[data-state="on"]),
   .vim-btn.active {
     color: var(--accent, #0969da);
     background: var(--accent-bg, rgba(9, 105, 218, 0.1));
@@ -862,7 +810,7 @@
     font-weight: 700;
   }
 
-  .vim-btn.active .vim-badge {
+  :global(.vim-btn[data-state="on"] .vim-badge) {
     background: var(--accent, #0969da);
     color: #ffffff;
   }
@@ -902,9 +850,11 @@
 
   .dot.saving {
     background-color: #d29922;
+    box-shadow: 0 0 6px rgba(210, 153, 34, 0.6);
   }
 
   .dot.error {
     background-color: #f85149;
+    box-shadow: 0 0 6px rgba(248, 81, 73, 0.6);
   }
 </style>

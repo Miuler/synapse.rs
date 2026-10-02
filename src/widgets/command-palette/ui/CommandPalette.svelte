@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import { commandRegistry, type AppCommand } from '@entities/command';
+  import { Command, Dialog } from 'bits-ui';
 
   interface Props {
     isOpen?: boolean;
@@ -9,14 +9,7 @@
 
   let { isOpen = $bindable(false), onClose }: Props = $props();
 
-  let searchQuery = $state('');
-  let selectedIndex = $state(0);
-  let inputElement = $state<HTMLInputElement | null>(null);
-  let commandContainerRef = $state<HTMLDivElement | null>(null);
-  let commandListRef = $state<HTMLUListElement | null>(null);
-
-  // Obtener comandos filtrados dinámicamente según searchQuery
-  let filteredCommands = $derived(commandRegistry.search(searchQuery));
+  let searchValue = $state('');
 
   // Escuchar atajo global Ctrl+P o Cmd+P para abrir/cerrar la paleta de comandos
   $effect(() => {
@@ -25,7 +18,7 @@
         e.preventDefault();
         isOpen = !isOpen;
         if (isOpen) {
-          resetState();
+          searchValue = '';
         }
       }
     };
@@ -34,32 +27,9 @@
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 
-  // Ajustar selectedIndex reactivamente
-  $effect(() => {
-    if (filteredCommands.length > 0) {
-      if (selectedIndex >= filteredCommands.length || selectedIndex < 0) {
-        selectedIndex = 0;
-      }
-    } else {
-      selectedIndex = 0;
-    }
-  });
-
-  // Enfocar input automáticamente cuando el modal se abre
-  $effect(() => {
-    if (isOpen) {
-      resetState();
-      setTimeout(() => inputElement?.focus(), 40);
-    }
-  });
-
-  function resetState() {
-    selectedIndex = 0;
-    searchQuery = '';
-  }
-
   function closePalette() {
     isOpen = false;
+    searchValue = '';
     if (onClose) onClose();
   }
 
@@ -68,141 +38,78 @@
     closePalette();
   }
 
-  function getPageSize(): number {
-    if (commandContainerRef && commandListRef) {
-      const firstItem = commandListRef.querySelector('.command-item') as HTMLElement | null;
-      if (firstItem && firstItem.offsetHeight > 0) {
-        return Math.max(1, Math.floor(commandContainerRef.clientHeight / firstItem.offsetHeight));
-      }
-    }
-    return 7;
-  }
-
-  function scrollSelectedIntoView(blockMode: ScrollLogicalPosition = 'nearest') {
-    if (!commandListRef) return;
-    const selectedEl = commandListRef.querySelector('.command-item.selected') as HTMLElement | null;
-    if (selectedEl) {
-      selectedEl.scrollIntoView({ block: blockMode });
-    }
-  }
-
-  function handleInputKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        selectedIndex = (selectedIndex + 1) % filteredCommands.length;
-        tick().then(() => scrollSelectedIntoView('nearest'));
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        selectedIndex = (selectedIndex - 1 + filteredCommands.length) % filteredCommands.length;
-        tick().then(() => scrollSelectedIntoView('nearest'));
-      }
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        selectedIndex = 0;
-        tick().then(() => {
-          if (commandContainerRef) commandContainerRef.scrollTop = 0;
-          scrollSelectedIntoView('start');
-        });
-      }
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        selectedIndex = filteredCommands.length - 1;
-        tick().then(() => {
-          if (commandContainerRef) commandContainerRef.scrollTop = commandContainerRef.scrollHeight;
-          scrollSelectedIntoView('end');
-        });
-      }
-    } else if (e.key === 'PageDown') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        const pageSize = getPageSize();
-        selectedIndex = Math.min(filteredCommands.length - 1, selectedIndex + pageSize);
-        tick().then(() => scrollSelectedIntoView('nearest'));
-      }
-    } else if (e.key === 'PageUp') {
-      e.preventDefault();
-      if (filteredCommands.length > 0) {
-        const pageSize = getPageSize();
-        selectedIndex = Math.max(0, selectedIndex - pageSize);
-        tick().then(() => scrollSelectedIntoView('nearest'));
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (filteredCommands[selectedIndex]) {
-        executeCommand(filteredCommands[selectedIndex]);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      closePalette();
-    }
-  }
+  let allCommands = $derived(commandRegistry.all);
 </script>
 
-{#if isOpen}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="backdrop" onclick={closePalette}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="palette-container" onclick={(e) => e.stopPropagation()}>
-      <div class="input-wrapper">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input
-          bind:this={inputElement}
-          bind:value={searchQuery}
-          onkeydown={handleInputKeydown}
-          placeholder="Escribe un comando o busca..."
-          type="text"
-        />
-        <span class="esc-badge">ESC</span>
-      </div>
+<Dialog.Root
+  open={isOpen}
+  onOpenChange={(open) => {
+    isOpen = open;
+    if (!open) {
+      closePalette();
+    }
+  }}
+>
+  <Dialog.Portal>
+    <Dialog.Overlay class="palette-backdrop" />
+    <Dialog.Content class="palette-container">
+      <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
+      <Command.Root class="command-root" loop>
+        <div class="input-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <Command.Input
+            class="command-input"
+            bind:value={searchValue}
+            placeholder="Escribe un comando o busca..."
+          />
+          <span class="esc-badge">ESC</span>
+        </div>
 
-      <div class="results-container" bind:this={commandContainerRef}>
-        {#if filteredCommands.length === 0}
-          <div class="empty-state">No se encontraron comandos</div>
-        {:else}
-          <ul class="command-list" bind:this={commandListRef}>
-            {#each filteredCommands as cmd, index}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <li
-                class="command-item"
-                class:selected={index === selectedIndex}
-                onclick={() => executeCommand(cmd)}
-                onmouseenter={() => (selectedIndex = index)}
-              >
-                <span class="category-tag">{cmd.category}</span>
-                <span class="command-name">{cmd.name}</span>
-                {#if cmd.shortcut}
-                  <kbd class="shortcut-badge">{cmd.shortcut}</kbd>
-                {/if}
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
+        <Command.List class="results-container">
+          <Command.Empty class="empty-state">No se encontraron comandos</Command.Empty>
 
-      <footer class="palette-footer">
-        <span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>PgUp</kbd> <kbd>PgDn</kbd> Navegar</span>
-        <span><kbd>Home</kbd> <kbd>End</kbd> Inicio/Fin</span>
-        <span><kbd>↵</kbd> Ejecutar</span>
-        <span><kbd>esc</kbd> Cerrar</span>
-      </footer>
-    </div>
-  </div>
-{/if}
+          {#each allCommands as cmd (cmd.id)}
+            <Command.Item
+              class="command-item"
+              value={`${cmd.name} ${cmd.category} ${cmd.shortcut || ''}`}
+              onSelect={() => executeCommand(cmd)}
+            >
+              <span class="category-tag">{cmd.category}</span>
+              <span class="command-name">{cmd.name}</span>
+              {#if cmd.shortcut}
+                <kbd class="shortcut-badge">{cmd.shortcut}</kbd>
+              {/if}
+            </Command.Item>
+          {/each}
+        </Command.List>
+
+        <footer class="palette-footer">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+          <span><kbd>↵</kbd> Ejecutar</span>
+          <span><kbd>esc</kbd> Cerrar</span>
+        </footer>
+      </Command.Root>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
 
 <style>
-  .backdrop {
+  :global(.sr-only) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  :global(.palette-backdrop) {
     position: fixed;
     top: 0;
     left: 0;
@@ -223,7 +130,11 @@
     to { opacity: 1; }
   }
 
-  .palette-container {
+  :global(.palette-container) {
+    position: fixed;
+    top: 14vh;
+    left: 50%;
+    transform: translateX(-50%);
     width: 620px;
     max-width: 90%;
     background-color: var(--bg-primary, #ffffff);
@@ -233,15 +144,24 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    z-index: 1001;
+    outline: none;
     animation: slideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes slideDown {
-    from { transform: translateY(-12px) scale(0.98); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
+    from { transform: translateX(-50%) translateY(-12px) scale(0.98); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
   }
 
-  .input-wrapper {
+  :global(.palette-container .command-root) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    outline: none;
+  }
+
+  :global(.palette-container .input-wrapper) {
     display: flex;
     align-items: center;
     padding: 14px 16px;
@@ -249,7 +169,7 @@
     background: var(--bg-secondary, #f6f8fa);
   }
 
-  .search-icon {
+  :global(.palette-container .search-icon) {
     width: 18px;
     height: 18px;
     color: var(--text-secondary, #656d76);
@@ -257,7 +177,7 @@
     flex-shrink: 0;
   }
 
-  input {
+  :global(.palette-container .command-input) {
     flex-grow: 1;
     background: transparent;
     border: none;
@@ -267,11 +187,11 @@
     font-family: inherit;
   }
 
-  input::placeholder {
+  :global(.palette-container .command-input::placeholder) {
     color: var(--text-secondary, #656d76);
   }
 
-  .esc-badge {
+  :global(.palette-container .esc-badge) {
     font-size: 11px;
     font-family: var(--mono, monospace);
     color: var(--text-secondary, #656d76);
@@ -281,26 +201,21 @@
     border: 1px solid var(--border-primary, #d0d7de);
   }
 
-  .results-container {
+  :global(.palette-container .results-container) {
     max-height: 320px;
     overflow-y: auto;
     padding: 6px 0;
+    outline: none;
   }
 
-  .empty-state {
+  :global(.palette-container .empty-state) {
     padding: 24px;
     text-align: center;
     color: var(--text-secondary, #656d76);
     font-size: 14px;
   }
 
-  .command-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .command-item {
+  :global(.palette-container .command-item) {
     display: flex;
     align-items: center;
     padding: 10px 16px;
@@ -308,18 +223,23 @@
     font-size: 14px;
     color: var(--text-secondary, #656d76);
     transition: background-color 0.1s ease, color 0.1s ease;
+    user-select: none;
+    outline: none;
   }
 
-  .command-item.selected {
+  :global(.palette-container .command-item:hover),
+  :global(.palette-container .command-item[data-selected]),
+  :global(.palette-container .command-item[data-highlighted]) {
     background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
     color: var(--text-primary, #1f2328);
   }
 
-  .command-item.selected .category-tag {
+  :global(.palette-container .command-item[data-selected] .category-tag),
+  :global(.palette-container .command-item[data-highlighted] .category-tag) {
     color: var(--accent, #0969da);
   }
 
-  .category-tag {
+  :global(.palette-container .category-tag) {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -329,11 +249,11 @@
     min-width: 80px;
   }
 
-  .command-name {
+  :global(.palette-container .command-name) {
     flex-grow: 1;
   }
 
-  .shortcut-badge {
+  :global(.palette-container .shortcut-badge) {
     font-family: var(--mono, monospace);
     font-size: 11px;
     background: var(--bg-secondary, #f6f8fa);
@@ -343,7 +263,7 @@
     border: 1px solid var(--border-primary, #d0d7de);
   }
 
-  .palette-footer {
+  :global(.palette-container .palette-footer) {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
@@ -354,7 +274,7 @@
     color: var(--text-secondary, #656d76);
   }
 
-  .palette-footer kbd {
+  :global(.palette-container .palette-footer kbd) {
     font-family: var(--mono, monospace);
     background: var(--bg-secondary, #f6f8fa);
     padding: 1px 4px;

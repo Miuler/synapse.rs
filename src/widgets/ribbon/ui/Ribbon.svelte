@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Toolbar, Tooltip } from 'bits-ui';
+
   interface Props {
     activeTab?: string;
     onAction?: (actionId: string) => void;
@@ -26,61 +28,81 @@
   }
 </script>
 
-<aside class="ribbon" aria-label="Barra de herramientas lateral">
-  <div class="top-actions">
-    {#each topTools as tool}
-      <button
-        type="button"
-        class="ribbon-btn"
-        class:active={activeTab === tool.id}
-        onclick={() => handleToolClick(tool.id)}
-        aria-label={tool.label}
-      >
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          {#if tool.icon === 'folder'}
-            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>
-          {:else if tool.icon === 'search'}
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          {:else if tool.icon === 'file-plus'}
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
-          {:else if tool.icon === 'command'}
-            <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>
-          {:else if tool.icon === 'graph'}
-            <circle cx="18" cy="5" r="3"/>
-            <circle cx="6" cy="12" r="3"/>
-            <circle cx="18" cy="19" r="3"/>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-          {/if}
-        </svg>
-        <span class="tooltip">{tool.label}</span>
-      </button>
-    {/each}
-  </div>
+<Tooltip.Provider delayDuration={200}>
+  <Toolbar.Root class="ribbon" orientation="vertical" aria-label="Barra de herramientas lateral">
+    <div class="top-actions">
+      {#each topTools as tool}
+        <Tooltip.Root>
+          <Tooltip.Trigger>
+            {#snippet child({ props })}
+              <Toolbar.Button
+                class="ribbon-btn {activeTab === tool.id ? 'active' : ''}"
+                onclick={() => handleToolClick(tool.id)}
+                aria-label={tool.label}
+                {...props}
+              >
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  {#if tool.icon === 'folder'}
+                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>
+                  {:else if tool.icon === 'search'}
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  {:else if tool.icon === 'file-plus'}
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                  {:else if tool.icon === 'command'}
+                    <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/>
+                  {:else if tool.icon === 'graph'}
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  {/if}
+                </svg>
+              </Toolbar.Button>
+            {/snippet}
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
+              {tool.label}
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      {/each}
+    </div>
 
-  <div class="bottom-actions">
-    <button
-      type="button"
-      class="ribbon-btn"
-      class:active={activeTab === 'settings'}
-      onclick={() => handleToolClick('settings')}
-      aria-label="Configuración"
-    >
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-      <span class="tooltip">Configuración</span>
-    </button>
-  </div>
-</aside>
+    <div class="bottom-actions">
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Toolbar.Button
+              class="ribbon-btn {activeTab === 'settings' ? 'active' : ''}"
+              onclick={() => handleToolClick('settings')}
+              aria-label="Configuración"
+              {...props}
+            >
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </Toolbar.Button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
+            Configuración
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </div>
+  </Toolbar.Root>
+</Tooltip.Provider>
 
 <style>
-  .ribbon {
+  :global(.ribbon) {
     width: 48px;
     height: 100%;
     background-color: var(--bg-secondary, #f6f8fa);
@@ -104,7 +126,7 @@
     align-items: center;
   }
 
-  .ribbon-btn {
+  :global(.ribbon-btn) {
     position: relative;
     width: 36px;
     height: 36px;
@@ -117,19 +139,20 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
   }
 
-  .ribbon-btn:hover {
+  :global(.ribbon-btn:hover) {
     color: var(--text-primary, #1f2328);
     background-color: rgba(0, 0, 0, 0.05);
   }
 
-  .ribbon-btn.active {
+  :global(.ribbon-btn.active) {
     color: var(--accent, #0969da);
     background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
   }
 
-  .ribbon-btn.active::before {
+  :global(.ribbon-btn.active::before) {
     content: '';
     position: absolute;
     left: -6px;
@@ -144,26 +167,27 @@
     height: 20px;
   }
 
-  .tooltip {
-    position: absolute;
-    left: 50px;
-    background: #ffffff;
-    color: #1f2328;
+  :global(.ribbon-tooltip) {
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #1f2328);
     padding: 5px 10px;
     border-radius: 6px;
     font-size: 12px;
     white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateX(-6px);
-    transition: all 0.18s ease;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--border-primary, #d0d7de);
-    z-index: 100;
+    z-index: 1000;
+    animation: tooltip-fade 0.15s ease-out;
   }
 
-  .ribbon-btn:hover .tooltip {
-    opacity: 1;
-    transform: translateX(0);
+  @keyframes tooltip-fade {
+    from {
+      opacity: 0;
+      transform: translateX(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 </style>

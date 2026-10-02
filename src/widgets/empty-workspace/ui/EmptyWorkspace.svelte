@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from 'bits-ui';
+
   interface Props {
     hasVaultItems?: boolean;
     onCreateNew?: () => void;
@@ -35,7 +37,7 @@
       : "Selecciona un archivo del panel lateral para abrirlo."}
   </p>
   {#if onCreateNew}
-    <button type="button" class="create-btn" onclick={onCreateNew}>
+    <Button.Root type="button" class="create-btn" onclick={onCreateNew}>
       <svg
         width="16"
         height="16"
@@ -48,7 +50,7 @@
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
       <span>Crear nuevo archivo</span>
-    </button>
+    </Button.Root>
   {/if}
 </div>
 
@@ -86,7 +88,7 @@
     margin: 0;
   }
 
-  .create-btn {
+  :global(.create-btn) {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -99,11 +101,13 @@
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .create-btn:hover {
-    background-color: rgba(9, 105, 218, 0.15);
+  :global(.create-btn:hover) {
+    background-color: var(--accent, #0969da);
+    color: #ffffff;
     border-color: var(--accent, #0969da);
+    box-shadow: 0 4px 12px rgba(9, 105, 218, 0.2);
   }
 </style>

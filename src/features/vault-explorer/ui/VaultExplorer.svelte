@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { VaultItem } from '@entities/vault-item';
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
+  import { AlertDialog, ContextMenu, Collapsible } from 'bits-ui';
 
   interface Props {
     activeRibbonTab: string;
@@ -128,20 +129,9 @@
     }
   });
 
-  // Estado del menú contextual
-  interface ContextMenuState {
-    isOpen: boolean;
-    x: number;
-    y: number;
-    node: VaultTreeNode | null;
-  }
-
-  let contextMenu = $state<ContextMenuState>({
-    isOpen: false,
-    x: 0,
-    y: 0,
-    node: null,
-  });
+  // Estado del menú contextual con bits-ui
+  let isContextMenuOpen = $state(false);
+  let contextMenuNode = $state<VaultTreeNode | null>(null);
 
   let toastMessage = $state<string | null>(null);
   let toastTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -153,27 +143,6 @@
       toastMessage = null;
       toastTimeout = null;
     }, 2000);
-  }
-
-  function handleContextMenu(e: MouseEvent, node?: VaultTreeNode | null) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const menuWidth = 230;
-    const menuHeight = 120;
-    const posX = Math.min(e.clientX, window.innerWidth - menuWidth - 8);
-    const posY = Math.min(e.clientY, window.innerHeight - menuHeight - 8);
-
-    contextMenu = {
-      isOpen: true,
-      x: Math.max(8, posX),
-      y: Math.max(8, posY),
-      node: node ?? null,
-    };
-  }
-
-  function closeContextMenu() {
-    contextMenu.isOpen = false;
   }
 
   function getFullAbsolutePath(relativePath: string, itemAbsPath?: string): string {
@@ -212,8 +181,7 @@
   }
 
   async function handleCopyRelativePath() {
-    const relPath = contextMenu.node ? contextMenu.node.relativePath : '.';
-    closeContextMenu();
+    const relPath = contextMenuNode ? contextMenuNode.relativePath : '.';
     const ok = await copyTextToClipboard(relPath);
     if (ok) {
       showToast('Ruta relativa copiada al portapapeles');
@@ -221,48 +189,14 @@
   }
 
   async function handleCopyFullPath() {
-    const relPath = contextMenu.node ? contextMenu.node.relativePath : '.';
-    const itemAbsPath = contextMenu.node?.item?.abs_path;
+    const relPath = contextMenuNode ? contextMenuNode.relativePath : '.';
+    const itemAbsPath = contextMenuNode?.item?.abs_path;
     const fullPath = getFullAbsolutePath(relPath, itemAbsPath);
-    closeContextMenu();
     const ok = await copyTextToClipboard(fullPath);
     if (ok) {
       showToast('Ruta completa copiada al portapapeles');
     }
   }
-
-  // Cerrar menú contextual al hacer click fuera, scroll, resize o presionar Escape
-  $effect(() => {
-    if (!contextMenu.isOpen) return;
-
-    function handlePointerDown(e: PointerEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('.vault-context-menu')) return;
-      closeContextMenu();
-    }
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        closeContextMenu();
-      }
-    }
-
-    function handleScrollOrResize() {
-      closeContextMenu();
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown, true);
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true);
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-    };
-  });
 
   // Estado del diálogo de confirmación de borrado
   interface ItemToDelete {
@@ -275,13 +209,12 @@
   let isDeleting = $state(false);
 
   function handlePromptDelete() {
-    if (!contextMenu.node) return;
+    if (!contextMenuNode) return;
     const target: ItemToDelete = {
-      name: contextMenu.node.name,
-      relativePath: contextMenu.node.relativePath,
-      isFolder: contextMenu.node.isFolder,
+      name: contextMenuNode.name,
+      relativePath: contextMenuNode.relativePath,
+      isFolder: contextMenuNode.isFolder,
     };
-    closeContextMenu();
     itemToDelete = target;
   }
 
@@ -310,173 +243,161 @@
       isDeleting = false;
     }
   }
-
-  // Atajos de teclado para el diálogo de confirmación de borrado
-  $effect(() => {
-    if (!itemToDelete) return;
-
-    function handleModalKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        cancelDelete();
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        confirmDelete();
-      }
-    }
-
-    window.addEventListener('keydown', handleModalKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleModalKeyDown);
-    };
-  });
 </script>
 
 {#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}
-  <aside
-    class="sidebar-panel"
-    class:is-resizing={isResizingSidebar}
-    style="width: {sidebarWidth}px;"
-  >
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="sidebar-header" oncontextmenu={(e) => handleContextMenu(e, null)}>
-      <div class="sidebar-header-left">
-        <span
-          class="sidebar-title"
-          title={activeRibbonTab === 'files' ? (vaultPath || 'Bóveda de Archivos') : 'Buscar'}
+  <ContextMenu.Root bind:open={isContextMenuOpen}>
+    <ContextMenu.Trigger>
+      {#snippet child({ props })}
+        <aside
+          class="sidebar-panel"
+          class:is-resizing={isResizingSidebar}
+          style="width: {sidebarWidth}px;"
+          {...props}
         >
-          {activeRibbonTab === 'files' ? vaultFolderName : 'Buscar'}
-        </span>
-        {#if isGitRepo && gitBranch}
-          <span class="git-branch-badge" title="Rama Git: {gitBranch}">
-            <svg class="git-branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="6" y1="3" x2="6" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 1-9 9" />
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="sidebar-header"
+            oncontextmenu={() => {
+              contextMenuNode = null;
+            }}
+          >
+            <div class="sidebar-header-left">
+              <span
+                class="sidebar-title"
+                title={activeRibbonTab === 'files' ? (vaultPath || 'Bóveda de Archivos') : 'Buscar'}
+              >
+                {activeRibbonTab === 'files' ? vaultFolderName : 'Buscar'}
+              </span>
+              {#if isGitRepo && gitBranch}
+                <span class="git-branch-badge" title="Rama Git: {gitBranch}">
+                  <svg class="git-branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="6" y1="3" x2="6" y2="15" />
+                    <circle cx="18" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M18 9a9 9 0 0 1-9 9" />
+                  </svg>
+                  <span class="git-branch-name">{gitBranch}</span>
+                </span>
+              {/if}
+            </div>
+            {#if isConnectedToRust}
+              <button
+                type="button"
+                class="rust-badge-btn"
+                onclick={onOpenVaultFolder}
+                title="Abrir carpeta / bóveda en disco"
+              >
+                RUST
+              </button>
+            {/if}
+          </div>
+
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="sidebar-content"
+            oncontextmenu={(e) => {
+              if (!(e.target as HTMLElement).closest('.file-tree-item')) {
+                contextMenuNode = null;
+              }
+            }}
+          >
+            {#each treeNodes as rootNode (rootNode.relativePath)}
+              {@render renderNode(rootNode, 0)}
+            {/each}
+          </div>
+
+          <!-- Tirador para redimensionar el panel lateral -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="sidebar-resizer"
+            onpointerdown={onResizeStart}
+            onpointermove={onResizeMove}
+            onpointerup={onResizeEnd}
+            onpointercancel={onResizeEnd}
+          ></div>
+        </aside>
+      {/snippet}
+    </ContextMenu.Trigger>
+
+    <ContextMenu.Portal>
+      <ContextMenu.Content class="vault-context-menu">
+        <div class="context-menu-header" title={contextMenuNode ? contextMenuNode.relativePath : (vaultPath || 'Bóveda')}>
+          {#if contextMenuNode?.isFolder}
+            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
             </svg>
-            <span class="git-branch-name">{gitBranch}</span>
+          {:else if contextMenuNode}
+            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          {:else}
+            <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          {/if}
+          <span class="context-menu-header-title">
+            {contextMenuNode ? contextMenuNode.name : (vaultFolderName || 'Bóveda')}
           </span>
-        {/if}
-      </div>
-      {#if isConnectedToRust}
-        <button
-          type="button"
-          class="rust-badge-btn"
-          onclick={onOpenVaultFolder}
-          title="Abrir carpeta / bóveda en disco"
+        </div>
+
+        <ContextMenu.Separator class="context-menu-divider" />
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={handleCopyRelativePath}
         >
-          RUST
-        </button>
-      {/if}
-    </div>
+          <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+          <span>Copiar ruta relativa</span>
+        </ContextMenu.Item>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="sidebar-content" oncontextmenu={(e) => handleContextMenu(e, null)}>
-      {#each treeNodes as rootNode (rootNode.relativePath)}
-        {@render renderNode(rootNode, 0)}
-      {/each}
-    </div>
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={handleCopyFullPath}
+        >
+          <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>Copiar ruta completa</span>
+        </ContextMenu.Item>
 
-    <!-- Tirador para redimensionar el panel lateral -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="sidebar-resizer"
-      onpointerdown={onResizeStart}
-      onpointermove={onResizeMove}
-      onpointerup={onResizeEnd}
-      onpointercancel={onResizeEnd}
-    ></div>
-  </aside>
+        {#if contextMenuNode}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item delete"
+            onSelect={handlePromptDelete}
+          >
+            <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+            <span>Borrar</span>
+          </ContextMenu.Item>
+        {/if}
+      </ContextMenu.Content>
+    </ContextMenu.Portal>
+  </ContextMenu.Root>
 {/if}
 
-{#if contextMenu.isOpen}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="vault-context-menu"
-    style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
-    onpointerdown={(e) => e.stopPropagation()}
-    oncontextmenu={(e) => e.preventDefault()}
-  >
-    <div class="context-menu-header" title={contextMenu.node ? contextMenu.node.relativePath : (vaultPath || 'Bóveda')}>
-      {#if contextMenu.node?.isFolder}
-        <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
-        </svg>
-      {:else if contextMenu.node}
-        <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-      {:else}
-        <svg class="context-menu-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-      {/if}
-      <span class="context-menu-header-title">
-        {contextMenu.node ? contextMenu.node.name : (vaultFolderName || 'Bóveda')}
-      </span>
-    </div>
-
-    <div class="context-menu-divider"></div>
-
-    <button
-      type="button"
-      class="context-menu-item"
-      onclick={handleCopyRelativePath}
-      title="Copiar ruta relativa al directorio del vault"
-    >
-      <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-      </svg>
-      <span>Copiar ruta relativa</span>
-    </button>
-
-    <button
-      type="button"
-      class="context-menu-item"
-      onclick={handleCopyFullPath}
-      title="Copiar ruta completa desde la raíz"
-    >
-      <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-      </svg>
-      <span>Copiar ruta completa</span>
-    </button>
-
-    {#if contextMenu.node}
-      <div class="context-menu-divider"></div>
-
-      <button
-        type="button"
-        class="context-menu-item delete"
-        onclick={handlePromptDelete}
-        title="Eliminar este {contextMenu.node.isFolder ? 'directorio' : 'archivo'}"
-      >
-        <svg class="context-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          <line x1="10" y1="11" x2="10" y2="17" />
-          <line x1="14" y1="11" x2="14" y2="17" />
-        </svg>
-        <span>Borrar</span>
-      </button>
-    {/if}
-  </div>
-{/if}
-
-{#if itemToDelete}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="delete-modal-overlay" onpointerdown={cancelDelete}>
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="delete-modal"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onpointerdown={(e) => e.stopPropagation()}
-    >
+<AlertDialog.Root
+  open={!!itemToDelete}
+  onOpenChange={(open) => {
+    if (!open && !isDeleting) {
+      cancelDelete();
+    }
+  }}
+>
+  <AlertDialog.Portal>
+    <AlertDialog.Overlay class="delete-modal-overlay" />
+    <AlertDialog.Content class="delete-modal">
       <div class="delete-modal-header">
         <div class="delete-modal-icon-wrap">
           <svg class="delete-modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -487,33 +408,35 @@
           </svg>
         </div>
         <div class="delete-modal-text">
-          <h3 class="delete-modal-title">¿Eliminar {itemToDelete.isFolder ? 'carpeta' : 'archivo'}?</h3>
-          <p class="delete-modal-desc">
-            ¿Estás seguro de que deseas eliminar permanentemente <strong>{itemToDelete.name}</strong>{itemToDelete.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.
-          </p>
+          <AlertDialog.Title class="delete-modal-title">
+            ¿Eliminar {itemToDelete?.isFolder ? 'carpeta' : 'archivo'}?
+          </AlertDialog.Title>
+          <AlertDialog.Description class="delete-modal-desc">
+            ¿Estás seguro de que deseas eliminar permanentemente <strong>{itemToDelete?.name}</strong>{itemToDelete?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.
+          </AlertDialog.Description>
         </div>
       </div>
       <div class="delete-modal-actions">
-        <button
-          type="button"
+        <AlertDialog.Cancel
           class="delete-modal-btn cancel"
-          onclick={cancelDelete}
           disabled={isDeleting}
         >
           Cancelar
-        </button>
-        <button
-          type="button"
+        </AlertDialog.Cancel>
+        <AlertDialog.Action
           class="delete-modal-btn confirm"
-          onclick={confirmDelete}
+          onclick={(e) => {
+            e.preventDefault();
+            confirmDelete();
+          }}
           disabled={isDeleting}
         >
           {isDeleting ? 'Eliminando...' : 'Eliminar'}
-        </button>
+        </AlertDialog.Action>
       </div>
-    </div>
-  </div>
-{/if}
+    </AlertDialog.Content>
+  </AlertDialog.Portal>
+</AlertDialog.Root>
 
 {#if toastMessage}
   <div class="vault-toast">
@@ -526,46 +449,55 @@
 
 {#snippet renderNode(node: VaultTreeNode, depth: number)}
   {#if node.isFolder}
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="file-tree-item folder"
-      class:context-target={contextMenu.isOpen && contextMenu.node?.relativePath === node.relativePath}
-      style="padding-left: {12 + depth * 14}px;"
-      onclick={() => toggleFolder(node.relativePath)}
-      oncontextmenu={(e) => handleContextMenu(e, node)}
+    <Collapsible.Root
+      open={!!expandedFolders[node.relativePath]}
+      onOpenChange={() => toggleFolder(node.relativePath)}
     >
-      <svg
-        class="chevron-icon"
-        class:expanded={expandedFolders[node.relativePath]}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
-      <svg
-        class="folder-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        {#if expandedFolders[node.relativePath]}
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        {:else}
-          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
-        {/if}
-      </svg>
-      <span class="file-name">{node.name}</span>
-    </div>
+      <Collapsible.Trigger>
+        {#snippet child({ props })}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            {...props}
+            class="file-tree-item folder"
+            class:context-target={isContextMenuOpen && contextMenuNode?.relativePath === node.relativePath}
+            style="padding-left: {12 + depth * 14}px;"
+            oncontextmenu={() => { contextMenuNode = node; }}
+          >
+            <svg
+              class="chevron-icon"
+              class:expanded={expandedFolders[node.relativePath]}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            <svg
+              class="folder-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              {#if expandedFolders[node.relativePath]}
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              {:else}
+                <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z" />
+              {/if}
+            </svg>
+            <span class="file-name">{node.name}</span>
+          </div>
+        {/snippet}
+      </Collapsible.Trigger>
 
-    {#if expandedFolders[node.relativePath]}
-      {#each node.children as child (child.relativePath)}
-        {@render renderNode(child, depth + 1)}
-      {/each}
-    {/if}
+      <Collapsible.Content>
+        {#each node.children as child (child.relativePath)}
+          {@render renderNode(child, depth + 1)}
+        {/each}
+      </Collapsible.Content>
+    </Collapsible.Root>
   {:else}
     {@const fileGitStatus = isGitRepo && gitStatuses ? gitStatuses[node.relativePath] : undefined}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -573,12 +505,12 @@
     <div
       class="file-tree-item file"
       class:active={node.relativePath === activeTabPath}
-      class:context-target={contextMenu.isOpen && contextMenu.node?.relativePath === node.relativePath}
+      class:context-target={isContextMenuOpen && contextMenuNode?.relativePath === node.relativePath}
       class:git-modified={fileGitStatus === 'modified'}
       class:git-untracked={fileGitStatus === 'untracked'}
       style="padding-left: {26 + depth * 14}px;"
       onclick={() => onSelectTab(node.relativePath)}
-      oncontextmenu={(e) => handleContextMenu(e, node)}
+      oncontextmenu={() => { contextMenuNode = node; }}
     >
       {#if fileGitStatus === 'modified'}
         <svg
@@ -829,9 +761,8 @@
     color: var(--accent, #0969da);
   }
 
-  /* Menú Contextual (Click Derecho) */
-  .vault-context-menu {
-    position: fixed;
+  /* Menú Contextual (Click Derecho con bits-ui) */
+  :global(.vault-context-menu) {
     min-width: 220px;
     max-width: 320px;
     background: var(--bg-primary, #ffffff);
@@ -843,6 +774,7 @@
     display: flex;
     flex-direction: column;
     user-select: none;
+    outline: none;
     animation: context-menu-fade 0.1s ease-out;
   }
 
@@ -857,7 +789,7 @@
     }
   }
 
-  .context-menu-header {
+  :global(.vault-context-menu .context-menu-header) {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -868,14 +800,14 @@
     min-width: 0;
   }
 
-  .context-menu-header-icon {
+  :global(.vault-context-menu .context-menu-header-icon) {
     width: 13px;
     height: 13px;
     flex-shrink: 0;
     color: var(--text-secondary, #656d76);
   }
 
-  .context-menu-header-title {
+  :global(.vault-context-menu .context-menu-header-title) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -883,13 +815,13 @@
     letter-spacing: normal;
   }
 
-  .context-menu-divider {
+  :global(.vault-context-menu .context-menu-divider) {
     height: 1px;
     background: var(--border-primary, #d0d7de);
     margin: 3px 0;
   }
 
-  .context-menu-item {
+  :global(.vault-context-menu .context-menu-item) {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -904,30 +836,34 @@
     width: 100%;
     transition: background 0.1s ease, color 0.1s ease;
     font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
   }
 
-  .context-menu-item:hover {
+  :global(.vault-context-menu .context-menu-item:hover),
+  :global(.vault-context-menu .context-menu-item[data-highlighted]) {
     background: var(--accent-bg, rgba(9, 105, 218, 0.08));
     color: var(--accent, #0969da);
   }
 
-  .context-menu-item-icon {
+  :global(.vault-context-menu .context-menu-item-icon) {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
   }
 
-  .context-menu-item.delete {
+  :global(.vault-context-menu .context-menu-item.delete) {
     color: #cf222e;
   }
 
-  .context-menu-item.delete:hover {
+  :global(.vault-context-menu .context-menu-item.delete:hover),
+  :global(.vault-context-menu .context-menu-item.delete[data-highlighted]) {
     background: rgba(207, 34, 46, 0.1);
     color: #a40e26;
   }
 
-  /* Diálogo Modal de Confirmación de Borrado */
-  .delete-modal-overlay {
+  /* Diálogo Modal de Confirmación de Borrado con bits-ui AlertDialog */
+  :global(.delete-modal-overlay) {
     position: fixed;
     top: 0;
     left: 0;
@@ -947,7 +883,7 @@
     to { opacity: 1; }
   }
 
-  .delete-modal {
+  :global(.delete-modal) {
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 10px;
@@ -959,26 +895,33 @@
     flex-direction: column;
     gap: 16px;
     animation: modal-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10002;
+    outline: none;
+    box-sizing: border-box;
   }
 
   @keyframes modal-scale-in {
     from {
       opacity: 0;
-      transform: scale(0.95) translateY(4px);
+      transform: translate(-50%, -50%) scale(0.95);
     }
     to {
       opacity: 1;
-      transform: scale(1) translateY(0);
+      transform: translate(-50%, -50%) scale(1);
     }
   }
 
-  .delete-modal-header {
+  :global(.delete-modal .delete-modal-header) {
     display: flex;
     gap: 14px;
     align-items: flex-start;
   }
 
-  .delete-modal-icon-wrap {
+  :global(.delete-modal .delete-modal-icon-wrap) {
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -990,12 +933,12 @@
     flex-shrink: 0;
   }
 
-  .delete-modal-icon {
+  :global(.delete-modal .delete-modal-icon) {
     width: 18px;
     height: 18px;
   }
 
-  .delete-modal-text {
+  :global(.delete-modal .delete-modal-text) {
     flex: 1;
     min-width: 0;
     display: flex;
@@ -1003,7 +946,7 @@
     gap: 6px;
   }
 
-  .delete-modal-title {
+  :global(.delete-modal .delete-modal-title) {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-primary, #1f2328);
@@ -1011,7 +954,7 @@
     line-height: 1.25;
   }
 
-  .delete-modal-desc {
+  :global(.delete-modal .delete-modal-desc) {
     font-size: 13px;
     color: var(--text-secondary, #656d76);
     line-height: 1.45;
@@ -1019,18 +962,18 @@
     word-break: break-word;
   }
 
-  .delete-modal-desc strong {
+  :global(.delete-modal .delete-modal-desc strong) {
     color: var(--text-primary, #1f2328);
   }
 
-  .delete-modal-actions {
+  :global(.delete-modal .delete-modal-actions) {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     margin-top: 4px;
   }
 
-  .delete-modal-btn {
+  :global(.delete-modal .delete-modal-btn) {
     padding: 7px 14px;
     border-radius: 6px;
     font-size: 13px;
@@ -1039,29 +982,30 @@
     transition: all 0.15s ease;
     border: 1px solid transparent;
     font-family: inherit;
+    outline: none;
   }
 
-  .delete-modal-btn.cancel {
+  :global(.delete-modal .delete-modal-btn.cancel) {
     background: var(--bg-secondary, #f6f8fa);
     color: var(--text-primary, #1f2328);
     border-color: var(--border-primary, #d0d7de);
   }
 
-  .delete-modal-btn.cancel:hover:not(:disabled) {
+  :global(.delete-modal .delete-modal-btn.cancel:hover:not(:disabled)) {
     background: var(--border-primary, #d0d7de);
   }
 
-  .delete-modal-btn.confirm {
+  :global(.delete-modal .delete-modal-btn.confirm) {
     background: #cf222e;
     color: #ffffff;
     border-color: #a40e26;
   }
 
-  .delete-modal-btn.confirm:hover:not(:disabled) {
+  :global(.delete-modal .delete-modal-btn.confirm:hover:not(:disabled)) {
     background: #a40e26;
   }
 
-  .delete-modal-btn:disabled {
+  :global(.delete-modal .delete-modal-btn:disabled) {
     opacity: 0.6;
     cursor: not-allowed;
   }

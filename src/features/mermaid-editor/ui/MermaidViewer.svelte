@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { Toolbar, Toggle, Separator } from 'bits-ui';
   import { CodeEditor } from '@shared/ui/code-editor';
   import {
     ensureMermaidJs,
@@ -423,22 +424,22 @@
     <canvas bind:this={canvasRef} class="laser-canvas"></canvas>
   </div>
   
-  <div class="zoom-controls">
-    <button 
-      class="laser-toggle-btn" 
-      class:active={isLaserMode} 
-      onclick={() => (isLaserMode = !isLaserMode)} 
+  <Toolbar.Root class="zoom-controls" aria-label="Controles de zoom y puntero láser">
+    <Toggle.Root 
+      class="laser-toggle-btn {isLaserMode ? 'active' : ''}" 
+      pressed={isLaserMode}
+      onPressedChange={(pressed) => (isLaserMode = pressed)} 
       title="Activar / Desactivar Puntero Láser"
     >
       <span class="laser-dot"></span>
       Láser
-    </button>
-    <div class="separator"></div>
-    <button onclick={() => scale = Math.max(0.1, scale / 1.2)}>-</button>
+    </Toggle.Root>
+    <Separator.Root class="separator" orientation="vertical" />
+    <Toolbar.Button onclick={() => scale = Math.max(0.1, scale / 1.2)} aria-label="Reducir zoom">-</Toolbar.Button>
     <span>{Math.round(scale * 100)}%</span>
-    <button onclick={() => scale = Math.min(10, scale * 1.2)}>+</button>
-    <button class="reset-btn" onclick={() => { scale = 1; panX = 0; panY = 0; }}>Reset</button>
-  </div>
+    <Toolbar.Button onclick={() => scale = Math.min(10, scale * 1.2)} aria-label="Aumentar zoom">+</Toolbar.Button>
+    <Toolbar.Button class="reset-btn" onclick={() => { scale = 1; panX = 0; panY = 0; }} aria-label="Restablecer zoom">Reset</Toolbar.Button>
+  </Toolbar.Root>
 </div>
 
 <style>
@@ -664,7 +665,7 @@
     padding: 20px;
   }
   
-  .zoom-controls {
+  :global(.zoom-controls) {
     position: absolute;
     bottom: 24px;
     right: 24px;
@@ -679,7 +680,7 @@
     z-index: 10;
   }
 
-  .laser-toggle-btn {
+  :global(.laser-toggle-btn) {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -698,25 +699,25 @@
     transition: background-color 0.2s ease;
   }
 
-  .laser-toggle-btn.active {
+  :global(.laser-toggle-btn.active) {
     background-color: rgba(255, 30, 60, 0.15) !important;
     color: #e0002b !important;
     border: 1px solid rgba(255, 30, 60, 0.3);
   }
 
-  .laser-toggle-btn.active .laser-dot {
+  :global(.laser-toggle-btn.active .laser-dot) {
     background-color: #ff0033;
     box-shadow: 0 0 8px #ff0033;
   }
 
-  .separator {
+  :global(.zoom-controls .separator) {
     width: 1px;
     height: 16px;
     background-color: var(--border-primary, #d0d7de);
     margin: 0 4px;
   }
   
-  .zoom-controls button {
+  :global(.zoom-controls button) {
     background: none;
     border: none;
     cursor: pointer;
@@ -727,23 +728,22 @@
     font-weight: 500;
   }
   
-  .zoom-controls button:hover {
+  :global(.zoom-controls button:hover) {
     background: rgba(0,0,0,0.05);
   }
   
-  .zoom-controls span {
+  :global(.zoom-controls span) {
     font-size: 13px;
     min-width: 45px;
     text-align: center;
-    font-family: var(--code-font, monospace);
-    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
   }
-  
-  .reset-btn {
-    font-size: 13px !important;
-    margin-left: 8px;
+
+  :global(.zoom-controls .reset-btn) {
+    font-size: 12px;
+    margin-left: 4px;
     border-left: 1px solid var(--border-primary, #d0d7de) !important;
-    border-radius: 0 !important;
-    padding-left: 12px !important;
+    border-radius: 0 4px 4px 0 !important;
+    padding-left: 8px !important;
   }
 </style>
