@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { AlertDialog, ContextMenu, Collapsible } from 'bits-ui';
@@ -135,9 +136,12 @@
     }
   });
 
-  // Estado de selección múltiple
+  // Estado de selección múltiple y navegación
   let selectedPaths = $state<string[]>([]);
   let lastFocusedPath = $state<string | null>(null);
+  let anchorPath = $state<string | null>(null);
+  let sidebarPanelEl = $state<HTMLElement | null>(null);
+  let sidebarContentEl = $state<HTMLElement | null>(null);
 
   function isSelected(path: string): boolean {
     return selectedPaths.includes(path);
@@ -148,6 +152,7 @@
     if (activeTabPath && selectedPaths.length === 0) {
       selectedPaths = [activeTabPath];
       lastFocusedPath = activeTabPath;
+      anchorPath = activeTabPath;
     }
   });
 
@@ -163,6 +168,23 @@
     return visible;
   }
 
+  function scrollPathIntoView(path: string) {
+    tick().then(() => {
+      if (!sidebarContentEl) return;
+      const selector = `[data-path="${CSS.escape(path)}"]`;
+      const el = sidebarContentEl.querySelector<HTMLElement>(selector);
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+
+  function handleActivateNode(node: VaultTreeNode) {
+    if (node.isFolder) {
+      toggleFolder(node.relativePath);
+    } else {
+      onSelectTab(node.relativePath);
+    }
+  }
+
   // Alternar selección individual con Ctrl/Cmd
   function toggleItemSelection(path: string) {
     if (selectedPaths.includes(path)) {
@@ -171,6 +193,7 @@
       selectedPaths = [...selectedPaths, path];
     }
     lastFocusedPath = path;
+    anchorPath = path;
   }
 
   // Selección de rango con Shift
@@ -182,14 +205,63 @@
     if (startIdx === -1 || endIdx === -1) {
       selectedPaths = [endPath];
       lastFocusedPath = endPath;
+      anchorPath = endPath;
       return;
     }
 
     const min = Math.min(startIdx, endIdx);
     const max = Math.max(startIdx, endIdx);
     const range = visible.slice(min, max + 1).map((n) => n.relativePath);
-    selectedPaths = Array.from(new Set([...selectedPaths, ...range]));
+    selectedPaths = range;
     lastFocusedPath = endPath;
+  }
+
+  function navigateTree(direction: 'up' | 'down', e: KeyboardEvent) {
+    const visible = getVisibleNodes(treeNodes);
+    if (visible.length === 0) return;
+
+    let currentIndex = -1;
+    if (lastFocusedPath) {
+      currentIndex = visible.findIndex((n) => n.relativePath === lastFocusedPath);
+    }
+    if (currentIndex === -1 && selectedPaths.length > 0) {
+      currentIndex = visible.findIndex((n) => selectedPaths.includes(n.relativePath));
+    }
+    if (currentIndex === -1 && activeTabPath) {
+      currentIndex = visible.findIndex((n) => n.relativePath === activeTabPath);
+    }
+
+    let newIndex: number;
+    if (direction === 'down') {
+      if (currentIndex === -1) {
+        newIndex = 0;
+      } else {
+        newIndex = Math.min(currentIndex + 1, visible.length - 1);
+      }
+    } else {
+      if (currentIndex === -1) {
+        newIndex = visible.length - 1;
+      } else {
+        newIndex = Math.max(currentIndex - 1, 0);
+      }
+    }
+
+    const targetNode = visible[newIndex];
+    if (!targetNode) return;
+
+    e.preventDefault();
+
+    if (e.shiftKey) {
+      const anchor = anchorPath || lastFocusedPath || targetNode.relativePath;
+      anchorPath = anchor;
+      selectRange(anchor, targetNode.relativePath);
+    } else {
+      selectedPaths = [targetNode.relativePath];
+      lastFocusedPath = targetNode.relativePath;
+      anchorPath = targetNode.relativePath;
+    }
+
+    scrollPathIntoView(targetNode.relativePath);
   }
 
   // Nodos correspondientes a la selección activa
@@ -209,6 +281,7 @@
   });
 
   function handleFolderClick(e: MouseEvent, node: VaultTreeNode, defaultTriggerClick?: (e: MouseEvent) => void) {
+    sidebarPanelEl?.focus();
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
       e.stopPropagation();
@@ -218,15 +291,17 @@
     if (e.shiftKey && lastFocusedPath) {
       e.preventDefault();
       e.stopPropagation();
-      selectRange(lastFocusedPath, node.relativePath);
+      selectRange(anchorPath || lastFocusedPath, node.relativePath);
       return;
     }
     selectedPaths = [node.relativePath];
     lastFocusedPath = node.relativePath;
+    anchorPath = node.relativePath;
     defaultTriggerClick?.(e);
   }
 
   function handleFileClick(e: MouseEvent, node: VaultTreeNode) {
+    sidebarPanelEl?.focus();
     if (e.metaKey || e.ctrlKey) {
       e.stopPropagation();
       toggleItemSelection(node.relativePath);
@@ -234,24 +309,33 @@
     }
     if (e.shiftKey && lastFocusedPath) {
       e.stopPropagation();
-      selectRange(lastFocusedPath, node.relativePath);
+      selectRange(anchorPath || lastFocusedPath, node.relativePath);
       return;
     }
     selectedPaths = [node.relativePath];
     lastFocusedPath = node.relativePath;
+    anchorPath = node.relativePath;
     onSelectTab(node.relativePath);
   }
 
   function handleItemContextMenu(e: MouseEvent, node: VaultTreeNode) {
-    // Si el elemento no está en la selección actual, aislar la selección a este elemento
+    sidebarPanelEl?.focus();
     if (!selectedPaths.includes(node.relativePath)) {
       selectedPaths = [node.relativePath];
       lastFocusedPath = node.relativePath;
+      anchorPath = node.relativePath;
     }
     contextMenuNode = node;
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (itemsToDelete.length > 0 || isContextMenuOpen) return;
+
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      return;
+    }
+
     if (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) {
       if ((selectedNodes.length > 0 || contextMenuNode) && itemsToDelete.length === 0) {
         e.preventDefault();
@@ -259,19 +343,95 @@
       }
     } else if (e.key === 'Escape') {
       selectedPaths = [];
-    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
-      const target = e.target as HTMLElement;
-      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-        e.preventDefault();
+      anchorPath = null;
+    } else if (e.key === 'ArrowDown') {
+      navigateTree('down', e);
+    } else if (e.key === 'ArrowUp') {
+      navigateTree('up', e);
+    } else if (e.key === 'ArrowRight') {
+      if (lastFocusedPath) {
         const visible = getVisibleNodes(treeNodes);
-        selectedPaths = visible.map((n) => n.relativePath);
+        const node = visible.find((n) => n.relativePath === lastFocusedPath);
+        if (node && node.isFolder) {
+          e.preventDefault();
+          if (!expandedFolders[node.relativePath]) {
+            expandedFolders[node.relativePath] = true;
+          } else if (node.children.length > 0) {
+            const firstChild = node.children[0];
+            selectedPaths = [firstChild.relativePath];
+            lastFocusedPath = firstChild.relativePath;
+            anchorPath = firstChild.relativePath;
+            scrollPathIntoView(firstChild.relativePath);
+          }
+        }
       }
-    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-      const target = e.target as HTMLElement;
-      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+    } else if (e.key === 'ArrowLeft') {
+      if (lastFocusedPath) {
+        const visible = getVisibleNodes(treeNodes);
+        const node = visible.find((n) => n.relativePath === lastFocusedPath);
+        if (node && node.isFolder && expandedFolders[node.relativePath]) {
+          e.preventDefault();
+          expandedFolders[node.relativePath] = false;
+        } else if (node) {
+          const slashIdx = node.relativePath.lastIndexOf('/');
+          if (slashIdx !== -1) {
+            const parentRelPath = node.relativePath.slice(0, slashIdx);
+            const parentNode = visible.find((n) => n.relativePath === parentRelPath);
+            if (parentNode) {
+              e.preventDefault();
+              selectedPaths = [parentNode.relativePath];
+              lastFocusedPath = parentNode.relativePath;
+              anchorPath = parentNode.relativePath;
+              scrollPathIntoView(parentNode.relativePath);
+            }
+          }
+        }
+      }
+    } else if (e.key === 'Enter') {
+      if (lastFocusedPath) {
+        const visible = getVisibleNodes(treeNodes);
+        const node = visible.find((n) => n.relativePath === lastFocusedPath);
+        if (node) {
+          e.preventDefault();
+          handleActivateNode(node);
+        }
+      }
+    } else if (e.key === ' ') {
+      if (lastFocusedPath) {
+        const visible = getVisibleNodes(treeNodes);
+        const node = visible.find((n) => n.relativePath === lastFocusedPath);
+        if (node) {
+          e.preventDefault();
+          handleActivateNode(node);
+        }
+      }
+    } else if (e.key === 'Home') {
+      const visible = getVisibleNodes(treeNodes);
+      if (visible.length > 0) {
         e.preventDefault();
-        handleCopy();
+        const first = visible[0];
+        selectedPaths = [first.relativePath];
+        lastFocusedPath = first.relativePath;
+        anchorPath = first.relativePath;
+        scrollPathIntoView(first.relativePath);
       }
+    } else if (e.key === 'End') {
+      const visible = getVisibleNodes(treeNodes);
+      if (visible.length > 0) {
+        e.preventDefault();
+        const last = visible[visible.length - 1];
+        selectedPaths = [last.relativePath];
+        lastFocusedPath = last.relativePath;
+        anchorPath = last.relativePath;
+        scrollPathIntoView(last.relativePath);
+      }
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      const visible = getVisibleNodes(treeNodes);
+      selectedPaths = visible.map((n) => n.relativePath);
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      handleCopy();
     }
   }
 
@@ -407,6 +567,67 @@
     itemsToDelete = [];
   }
 
+  let cancelButtonEl = $state<HTMLButtonElement | null>(null);
+  let confirmButtonEl = $state<HTMLButtonElement | null>(null);
+  let dialogContentEl = $state<HTMLElement | null>(null);
+
+  function focusCancelButton() {
+    requestAnimationFrame(() => {
+      if (cancelButtonEl) {
+        cancelButtonEl.focus();
+      } else {
+        const btn = dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.cancel');
+        btn?.focus();
+      }
+    });
+  }
+
+  $effect(() => {
+    if (itemsToDelete.length > 0) {
+      focusCancelButton();
+    }
+  });
+
+  function handleDeleteModalKeyDown(e: KeyboardEvent) {
+    if (isDeleting) return;
+
+    const cancelBtn = cancelButtonEl || dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.cancel');
+    const confirmBtn = confirmButtonEl || dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.confirm');
+
+    if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault();
+      if (document.activeElement === cancelBtn) {
+        confirmBtn?.focus();
+      } else {
+        cancelBtn?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
+      e.preventDefault();
+      if (document.activeElement === confirmBtn) {
+        cancelBtn?.focus();
+      } else {
+        confirmBtn?.focus();
+      }
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (document.activeElement === cancelBtn) {
+        confirmBtn?.focus();
+      } else {
+        cancelBtn?.focus();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (document.activeElement === confirmBtn) {
+        confirmDelete();
+      } else {
+        cancelDelete();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelDelete();
+    }
+  }
+
   async function confirmDelete() {
     if (itemsToDelete.length === 0 || isDeleting) return;
     const targets = [...itemsToDelete];
@@ -449,6 +670,7 @@
       {#snippet child({ props })}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <aside
+          bind:this={sidebarPanelEl}
           {...props}
           class="sidebar-panel"
           class:is-resizing={isResizingSidebar}
@@ -464,30 +686,25 @@
             }}
           >
             <div class="sidebar-header-left">
-              <span
-                class="sidebar-title"
+              <button
+                // class="sidebar-title"
+                class="rust-badge-btn"
+                onclick={onOpenVaultFolder}
                 title={activeRibbonTab === 'files' ? (vaultPath || 'Bóveda de Archivos') : 'Buscar'}
               >
                 {activeRibbonTab === 'files' ? vaultFolderName : 'Buscar'}
-              </span>
+              </button>
               {#if isGitRepo && gitBranch}
-                <span class="git-branch-badge" title="Rama Git: {gitBranch}">
-                  <GitBranch size={13} class="git-branch-icon" />
-                  <span class="git-branch-name">{gitBranch}</span>
+                <span
+                  class="git-branch-badge"
+                  title="Rama Git: {gitBranch}"
+                  >
+                    <GitBranch size={13} class="git-branch-icon" />
+                    <span class="git-branch-name">{gitBranch}</span>
                 </span>
               {/if}
             </div>
             <div class="sidebar-header-actions">
-              {#if isConnectedToRust}
-                <button
-                  type="button"
-                  class="rust-badge-btn"
-                  onclick={onOpenVaultFolder}
-                  title="Abrir carpeta / bóveda en disco"
-                >
-                  RUST
-                </button>
-              {/if}
               {#if onCollapse}
                 <button
                   type="button"
@@ -505,18 +722,23 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div
+            bind:this={sidebarContentEl}
             class="sidebar-content"
             onclick={(e) => {
+              sidebarPanelEl?.focus();
               if (!(e.target as HTMLElement).closest('.file-tree-item')) {
                 selectedPaths = [];
                 lastFocusedPath = null;
+                anchorPath = null;
               }
             }}
             oncontextmenu={(e) => {
+              sidebarPanelEl?.focus();
               if (!(e.target as HTMLElement).closest('.file-tree-item')) {
                 contextMenuNode = null;
                 selectedPaths = [];
                 lastFocusedPath = null;
+                anchorPath = null;
               }
             }}
           >
@@ -639,7 +861,15 @@
 >
   <AlertDialog.Portal>
     <AlertDialog.Overlay class="delete-modal-overlay" />
-    <AlertDialog.Content class="delete-modal">
+    <AlertDialog.Content
+      bind:ref={dialogContentEl}
+      class="delete-modal"
+      onOpenAutoFocus={(e) => {
+        e.preventDefault();
+        focusCancelButton();
+      }}
+      onkeydown={handleDeleteModalKeyDown}
+    >
       <div class="delete-modal-header">
         <div class="delete-modal-icon-wrap">
           <Trash2 size={24} class="delete-modal-icon" />
@@ -675,12 +905,15 @@
       </div>
       <div class="delete-modal-actions">
         <AlertDialog.Cancel
+          bind:ref={cancelButtonEl}
           class="delete-modal-btn cancel"
           disabled={isDeleting}
+          onclick={cancelDelete}
         >
           Cancelar
         </AlertDialog.Cancel>
         <AlertDialog.Action
+          bind:ref={confirmButtonEl}
           class="delete-modal-btn confirm"
           onclick={(e) => {
             e.preventDefault();
@@ -714,6 +947,7 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             {...props}
+            data-path={node.relativePath}
             class="file-tree-item folder"
             class:selected={isSelected(node.relativePath)}
             class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
@@ -746,6 +980,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      data-path={node.relativePath}
       class="file-tree-item file"
       class:active={node.relativePath === activeTabPath}
       class:selected={isSelected(node.relativePath)}
@@ -812,12 +1047,6 @@
     overflow: hidden;
   }
 
-  .sidebar-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .git-branch-badge {
     display: inline-flex;
     align-items: center;
@@ -846,12 +1075,11 @@
   }
 
   .rust-badge-btn {
-    font-size: 9px;
     font-weight: 700;
     background: var(--accent-bg, rgba(9, 105, 218, 0.1));
     color: var(--accent, #0969da);
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 6px;
+    border-radius: 5px;
     border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
     cursor: pointer;
     transition: all 0.15s ease;
@@ -932,6 +1160,12 @@
 
   .file-tree-item.selected:hover {
     background-color: var(--accent-bg, rgba(9, 105, 218, 0.2));
+  }
+
+  .sidebar-panel:focus .file-tree-item.selected,
+  .sidebar-panel:focus-visible .file-tree-item.selected {
+    outline: 1px solid var(--accent, #0969da);
+    outline-offset: -1px;
   }
 
   .chevron-icon {
@@ -1306,6 +1540,13 @@
     background: var(--border-primary, #d0d7de);
   }
 
+  :global(.delete-modal .delete-modal-btn.cancel:focus),
+  :global(.delete-modal .delete-modal-btn.cancel:focus-visible) {
+    outline: 2px solid var(--accent, #0969da);
+    outline-offset: 2px;
+    border-color: var(--accent, #0969da);
+  }
+
   :global(.delete-modal .delete-modal-btn.confirm) {
     background: #cf222e;
     color: #ffffff;
@@ -1314,6 +1555,17 @@
 
   :global(.delete-modal .delete-modal-btn.confirm:hover:not(:disabled)) {
     background: #a40e26;
+  }
+
+  :global(.delete-modal .delete-modal-btn.confirm:focus),
+  :global(.delete-modal .delete-modal-btn.confirm:focus-visible) {
+    outline: 2px solid #cf222e;
+    outline-offset: 2px;
+    border-color: #a40e26;
+  }
+
+  :global(.delete-modal .delete-modal-btn:focus:not(:focus-visible):active) {
+    outline: none;
   }
 
   :global(.delete-modal .delete-modal-btn:disabled) {

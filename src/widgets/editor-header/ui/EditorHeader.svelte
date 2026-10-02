@@ -267,33 +267,6 @@
       e.preventDefault();
       e.stopPropagation();
       toggleTabsMenu();
-    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (onNewTab) onNewTab();
-    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'n' || e.key === 'N')) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (onNewFile) {
-        onNewFile();
-      } else if (onAction) {
-        onAction('new-file');
-      }
-    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
-      e.preventDefault();
-      e.stopPropagation();
-      const targetPath = activeTabPath || (tabs && tabs.length > 0 ? tabs[tabs.length - 1].path : '');
-      if (targetPath && onCloseTab) {
-        onCloseTab(targetPath);
-      }
-    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (onOpenQuickOpen) {
-        onOpenQuickOpen();
-      } else if (onAction) {
-        onAction('quick-open');
-      }
     }
   }
 
@@ -420,7 +393,7 @@
                 e.stopPropagation();
                 if (onCloseTab) onCloseTab(tab.path);
               }}
-              title="Cerrar pestaña (Ctrl+W o click central)"
+              title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
             >
               <X size={12} />
             </button>
@@ -439,7 +412,7 @@
             type="button"
             class="close-tab-btn"
             onclick={() => { if (onCloseTab) onCloseTab(''); }}
-            title="Cerrar pestaña (Ctrl+W o click central)"
+            title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
           >
             <X size={12} />
           </button>
@@ -565,7 +538,7 @@
                           e.stopPropagation();
                           if (onCloseTab) onCloseTab(tab.path);
                         }}
-                        title="Cerrar pestaña (Ctrl+W o click central)"
+                        title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
                       >
                         <X size={12} />
                       </button>

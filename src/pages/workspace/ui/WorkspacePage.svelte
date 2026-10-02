@@ -645,7 +645,7 @@
         id: "cmd-close-tab",
         name: "Cerrar pestaña actual",
         category: "Pestañas",
-        shortcut: "Ctrl+W",
+        shortcut: "Ctrl+W, Ctrl+F4",
         action: () => {
           if (activeTabPath) closeTab(activeTabPath);
         },
@@ -746,7 +746,10 @@
         } else if (key === 'n') {
           e.preventDefault();
           createNewVaultItem();
-        } else if (key === 'w') {
+        } else if (key === 't') {
+          e.preventDefault();
+          handleNewEmptyTab();
+        } else if (key === 'w' || key === 'f4') {
           e.preventDefault();
           if (activeTabPath) {
             closeTab(activeTabPath);
