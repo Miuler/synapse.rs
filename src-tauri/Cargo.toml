@@ -18,22 +18,22 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.11.5", features = ["protocol-asset", "devtools"] }
-tauri-plugin-log = "2"
+serde_json = "1.0.151"
+serde = { version = "1.0.229", features = ["derive"] }
+tauri = { version = "2.12.1", features = ["protocol-asset", "devtools"] }
+tauri-plugin-log = "2.10.0"
 nucleo-matcher = "0.3"
-log = "0.4"
-indicatif = { version = "0.18", features = ["tokio"] }
+log = "0.4.34"
+indicatif = { version = "0.18.6", features = ["tokio"] }
 tracing-indicatif = "0.3.14"
 indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
-rfd = "0.15"
-encoding_rs = "0.8.35"
+rfd = "0.17.2"
+encoding_rs = "0.8.42"
 chardetng = "1.0.0"
-base64 = "0.22"
-gix = { version = "0.73", default-features = false, features = ["status", "parallel"] }
+base64 = "0.23.1"
+gix = { version = "0.88.0", default-features = false, features = ["status", "parallel", "sha1"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-webkit2gtk-nvidia-quirk = "1.4.0"
+webkit2gtk-nvidia-quirk = "2.2.0"

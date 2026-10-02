@@ -202,11 +202,16 @@
     '&': {
       height: '100%',
       width: '100%',
+      flex: '1 1 auto',
+      minHeight: '0',
       backgroundColor: 'transparent',
       color: 'var(--text-primary, #1f2328)',
     },
     '.cm-scroller': {
       overflow: 'auto',
+      height: '100%',
+      flex: '1 1 auto',
+      minHeight: '0',
     },
     '.cm-content': {
       padding: '16px 24px',
@@ -527,28 +532,33 @@
       }
     });
 
-    const state = EditorState.create({
-      doc: content,
-      extensions: [
-        filePathCompartment.of(activeFilePathFacet.of(filePath)),
-        vimCompartment.of(vimMode ? vim() : []),
-        readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
-        viewModeCompartment.of(getActiveExtensions(viewMode)),
-        basicSetup,
-        markdown({ codeLanguages: [mermaidLanguageDescription] }),
-        EditorView.lineWrapping,
-        keymap.of(searchKeymap as any),
-        updateListener,
-        baseEditorTheme,
-      ],
-    });
+    try {
+      const state = EditorState.create({
+        doc: content,
+        extensions: [
+          filePathCompartment.of(activeFilePathFacet.of(filePath)),
+          vimCompartment.of(vimMode ? vim() : []),
+          readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
+          viewModeCompartment.of(getActiveExtensions(viewMode)),
+          basicSetup,
+          markdown({ codeLanguages: [mermaidLanguageDescription] }),
+          EditorView.lineWrapping,
+          keymap.of(searchKeymap as any),
+          updateListener,
+          baseEditorTheme,
+        ],
+      });
 
-    editorView = new EditorView({
-      state,
-      parent: containerRef,
-    });
+      editorView = new EditorView({
+        state,
+        parent: containerRef,
+      });
 
-    emitSelectionInfo(editorView.state);
+      emitSelectionInfo(editorView.state);
+      editorView.requestMeasure();
+    } catch (e) {
+      console.error('Error al inicializar CodeMirror en MarkdownViewer:', e);
+    }
   }
 
   onMount(() => {
@@ -562,6 +572,18 @@
       editorView.destroy();
       editorView = null;
     }
+  });
+
+  // Observar redimensionamiento y transición de display:none a visible
+  $effect(() => {
+    if (!containerRef) return;
+    const ro = new ResizeObserver(() => {
+      if (editorView && containerRef && containerRef.clientHeight > 0) {
+        editorView.requestMeasure();
+      }
+    });
+    ro.observe(containerRef);
+    return () => ro.disconnect();
   });
 
   // Reaccionar a cambios en filePath para el contexto de includes
@@ -594,7 +616,7 @@
     }
   });
 
-  // Reaccionar a cambios en viewMode (Modo Fuente vs Modo Vista Previa)
+  // Reaccionar a cambios en viewMode (Modo Fuente vs Modo Vista Previa vs Modo Lectura)
   $effect(() => {
     const mode = viewMode;
     if (editorView) {
@@ -651,6 +673,7 @@
   .editor-wrapper {
     width: 100%;
     height: 100%;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -661,6 +684,7 @@
   .editor-container {
     width: 100%;
     height: 100%;
+    flex: 1;
     min-height: 0;
     overflow: hidden;
     box-sizing: border-box;

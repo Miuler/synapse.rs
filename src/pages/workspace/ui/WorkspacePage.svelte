@@ -996,7 +996,7 @@
               {:else}
                 <div class="editor-main-content">
                   <pre
-                    style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap;">{content}</pre>
+                    style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap; overflow-y: auto; height: 100%;">{content}</pre>
                 </div>
               {/if}
             </div>
@@ -1134,6 +1134,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    height: 100%;
+    overflow: hidden;
   }
 </style>

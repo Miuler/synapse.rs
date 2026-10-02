@@ -249,39 +249,44 @@ function escapeHtml(str: string): string {
 }
 
 function buildMermaidDecorations(state: EditorState): DecorationSet {
-  const widgets: any[] = [];
-  const blocks = findMermaidBlocks(state.doc);
-  const selectionRanges = state.selection.ranges;
-  const basePath = state.facet(activeFilePathFacet);
+  try {
+    const widgets: any[] = [];
+    const blocks = findMermaidBlocks(state.doc);
+    const selectionRanges = state.selection.ranges;
+    const basePath = state.facet(activeFilePathFacet);
 
-  for (const block of blocks) {
-    const hasCursor = selectionRanges.some(
-      (r) => r.from <= block.to && r.to >= block.from
-    );
+    for (const block of blocks) {
+      const hasCursor = selectionRanges.some(
+        (r) => r.from <= block.to && r.to >= block.from
+      );
 
-    if (hasCursor) {
-      // Si el cursor está dentro del bloque: se muestran las líneas de código para editar
-      // y se adjunta la vista previa interactiva abajo con un widget de bloque
-      const deco = Decoration.widget({
-        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false, basePath),
-        side: 1,
-        block: true,
-      });
-      widgets.push(deco.range(block.to));
-    } else {
-      // Si el cursor NO está dentro del bloque: sustituimos por completo el bloque
-      // de código Markdown por la tarjeta interactiva del diagrama
-      const deco = Decoration.replace({
-        widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true, basePath),
-        block: true,
-      });
-      widgets.push(deco.range(block.from, block.to));
+      if (hasCursor) {
+        // Si el cursor está dentro del bloque: se muestran las líneas de código para editar
+        // y se adjunta la vista previa interactiva abajo con un widget de bloque
+        const deco = Decoration.widget({
+          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false, basePath),
+          side: 1,
+          block: true,
+        });
+        widgets.push(deco.range(block.to));
+      } else {
+        // Si el cursor NO está dentro del bloque: sustituimos por completo el bloque
+        // de código Markdown por la tarjeta interactiva del diagrama
+        const deco = Decoration.replace({
+          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true, basePath),
+          block: true,
+        });
+        widgets.push(deco.range(block.from, block.to));
+      }
     }
-  }
 
-  // Ordenar rangos de menor a mayor inicio para Decoration.set
-  widgets.sort((a, b) => a.from - b.from);
-  return Decoration.set(widgets, true);
+    // Ordenar rangos de menor a mayor inicio para Decoration.set
+    widgets.sort((a, b) => a.from - b.from);
+    return Decoration.set(widgets, true);
+  } catch (err) {
+    console.error('Error al generar decoraciones de Mermaid en vivo:', err);
+    return Decoration.none;
+  }
 }
 
 /**

@@ -151,32 +151,37 @@ function escapeHtml(str: string): string {
 }
 
 function buildImageDecorations(state: EditorState): DecorationSet {
-  const widgets: any[] = [];
-  const selectionRanges = state.selection.ranges;
-  const basePath = state.facet(activeFilePathFacet);
-  const doc = state.doc;
+  try {
+    const widgets: any[] = [];
+    const selectionRanges = state.selection.ranges;
+    const basePath = state.facet(activeFilePathFacet);
+    const doc = state.doc;
 
-  for (let i = 1; i <= doc.lines; i++) {
-    const line = doc.line(i);
-    const tokens = extractImageTokens(line.text, line.from);
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      const tokens = extractImageTokens(line.text, line.from);
 
-    for (const token of tokens) {
-      const hasCursor = selectionRanges.some(
-        (r) => r.from <= token.to && r.to >= token.from
-      );
+      for (const token of tokens) {
+        const hasCursor = selectionRanges.some(
+          (r) => r.from <= token.to && r.to >= token.from
+        );
 
-      if (!hasCursor) {
-        const deco = Decoration.replace({
-          widget: new ImageWidget(token, basePath),
-          inclusive: false,
-        });
-        widgets.push(deco.range(token.from, token.to));
+        if (!hasCursor) {
+          const deco = Decoration.replace({
+            widget: new ImageWidget(token, basePath),
+            inclusive: false,
+          });
+          widgets.push(deco.range(token.from, token.to));
+        }
       }
     }
-  }
 
-  widgets.sort((a, b) => a.from - b.from);
-  return Decoration.set(widgets, true);
+    widgets.sort((a, b) => a.from - b.from);
+    return Decoration.set(widgets, true);
+  } catch (err) {
+    console.error('Error al generar decoraciones de imágenes en vivo:', err);
+    return Decoration.none;
+  }
 }
 
 export const imageLivePreviewField = StateField.define<DecorationSet>({
