@@ -2,7 +2,8 @@
   import { tick } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
-  import { AlertDialog, ContextMenu, Collapsible } from 'bits-ui';
+  import { ContextMenu, Collapsible } from 'bits-ui';
+  import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
   import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files } from 'lucide-svelte';
 
@@ -543,6 +544,7 @@
 
   let itemsToDelete = $state<ItemToDelete[]>([]);
   let isDeleting = $state(false);
+  let isDeleteDialogOpen = $state(false);
 
   function handlePromptDelete() {
     if (selectedNodes.length > 0) {
@@ -551,6 +553,7 @@
         relativePath: n.relativePath,
         isFolder: n.isFolder,
       }));
+      isDeleteDialogOpen = true;
     } else if (contextMenuNode) {
       itemsToDelete = [
         {
@@ -559,73 +562,14 @@
           isFolder: contextMenuNode.isFolder,
         },
       ];
+      isDeleteDialogOpen = true;
     }
   }
 
   function cancelDelete() {
     if (isDeleting) return;
+    isDeleteDialogOpen = false;
     itemsToDelete = [];
-  }
-
-  let cancelButtonEl = $state<HTMLButtonElement | null>(null);
-  let confirmButtonEl = $state<HTMLButtonElement | null>(null);
-  let dialogContentEl = $state<HTMLElement | null>(null);
-
-  function focusCancelButton() {
-    requestAnimationFrame(() => {
-      if (cancelButtonEl) {
-        cancelButtonEl.focus();
-      } else {
-        const btn = dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.cancel');
-        btn?.focus();
-      }
-    });
-  }
-
-  $effect(() => {
-    if (itemsToDelete.length > 0) {
-      focusCancelButton();
-    }
-  });
-
-  function handleDeleteModalKeyDown(e: KeyboardEvent) {
-    if (isDeleting) return;
-
-    const cancelBtn = cancelButtonEl || dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.cancel');
-    const confirmBtn = confirmButtonEl || dialogContentEl?.querySelector<HTMLButtonElement>('.delete-modal-btn.confirm');
-
-    if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
-      e.preventDefault();
-      if (document.activeElement === cancelBtn) {
-        confirmBtn?.focus();
-      } else {
-        cancelBtn?.focus();
-      }
-    } else if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
-      e.preventDefault();
-      if (document.activeElement === confirmBtn) {
-        cancelBtn?.focus();
-      } else {
-        confirmBtn?.focus();
-      }
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (document.activeElement === cancelBtn) {
-        confirmBtn?.focus();
-      } else {
-        cancelBtn?.focus();
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (document.activeElement === confirmBtn) {
-        confirmDelete();
-      } else {
-        cancelDelete();
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cancelDelete();
-    }
   }
 
   async function confirmDelete() {
@@ -654,6 +598,7 @@
       const deletedSet = new Set(targets.map((t) => t.relativePath));
       selectedPaths = selectedPaths.filter((p) => !deletedSet.has(p));
       itemsToDelete = [];
+      isDeleteDialogOpen = false;
     } catch (err: unknown) {
       console.error('Error al borrar elemento(s):', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -851,82 +796,40 @@
   </ContextMenu.Root>
 {/if}
 
-<AlertDialog.Root
-  open={itemsToDelete.length > 0}
-  onOpenChange={(open) => {
-    if (!open && !isDeleting) {
-      cancelDelete();
-    }
-  }}
+<ConfirmDialog
+  bind:open={isDeleteDialogOpen}
+  title={itemsToDelete.length > 1
+    ? `¿Eliminar ${itemsToDelete.length} elementos?`
+    : `¿Eliminar ${itemsToDelete[0]?.isFolder ? 'carpeta' : 'archivo'}?`}
+  description={itemsToDelete.length > 1
+    ? `¿Estás seguro de que deseas eliminar permanentemente estos ${itemsToDelete.length} elementos y todo su contenido? Esta acción no se puede deshacer.`
+    : itemsToDelete.length === 1
+      ? `¿Estás seguro de que deseas eliminar permanentemente "${itemsToDelete[0]?.name}"${itemsToDelete[0]?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.`
+      : ''}
+  confirmText="Eliminar"
+  loadingText="Eliminando..."
+  cancelText="Cancelar"
+  variant="danger"
+  icon={Trash2}
+  loading={isDeleting}
+  onConfirm={confirmDelete}
+  onCancel={cancelDelete}
 >
-  <AlertDialog.Portal>
-    <AlertDialog.Overlay class="delete-modal-overlay" />
-    <AlertDialog.Content
-      bind:ref={dialogContentEl}
-      class="delete-modal"
-      onOpenAutoFocus={(e) => {
-        e.preventDefault();
-        focusCancelButton();
-      }}
-      onkeydown={handleDeleteModalKeyDown}
-    >
-      <div class="delete-modal-header">
-        <div class="delete-modal-icon-wrap">
-          <Trash2 size={24} class="delete-modal-icon" />
+  {#if itemsToDelete.length > 1}
+    <div class="confirm-dialog-item-list">
+      {#each itemsToDelete.slice(0, 5) as item}
+        <div class="confirm-dialog-item">
+          • {item.name} {item.isFolder ? '(carpeta)' : ''}
         </div>
-        <div class="delete-modal-text">
-          <AlertDialog.Title class="delete-modal-title">
-            {#if itemsToDelete.length > 1}
-              ¿Eliminar {itemsToDelete.length} elementos?
-            {:else}
-              ¿Eliminar {itemsToDelete[0]?.isFolder ? 'carpeta' : 'archivo'}?
-            {/if}
-          </AlertDialog.Title>
-          <AlertDialog.Description class="delete-modal-desc">
-            {#if itemsToDelete.length > 1}
-              ¿Estás seguro de que deseas eliminar permanentemente estos <strong>{itemsToDelete.length}</strong> elementos y todo su contenido? Esta acción no se puede deshacer.
-              <div class="delete-modal-item-list">
-                {#each itemsToDelete.slice(0, 5) as item}
-                  <div class="delete-modal-item">
-                    • {item.name} {item.isFolder ? '(carpeta)' : ''}
-                  </div>
-                {/each}
-                {#if itemsToDelete.length > 5}
-                  <div class="delete-modal-item more">
-                    ... y {itemsToDelete.length - 5} más
-                  </div>
-                {/if}
-              </div>
-            {:else if itemsToDelete.length === 1}
-              ¿Estás seguro de que deseas eliminar permanentemente <strong>{itemsToDelete[0]?.name}</strong>{itemsToDelete[0]?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.
-            {/if}
-          </AlertDialog.Description>
+      {/each}
+      {#if itemsToDelete.length > 5}
+        <div class="confirm-dialog-item more">
+          ... y {itemsToDelete.length - 5} más
         </div>
-      </div>
-      <div class="delete-modal-actions">
-        <AlertDialog.Cancel
-          bind:ref={cancelButtonEl}
-          class="delete-modal-btn cancel"
-          disabled={isDeleting}
-          onclick={cancelDelete}
-        >
-          Cancelar
-        </AlertDialog.Cancel>
-        <AlertDialog.Action
-          bind:ref={confirmButtonEl}
-          class="delete-modal-btn confirm"
-          onclick={(e) => {
-            e.preventDefault();
-            confirmDelete();
-          }}
-          disabled={isDeleting}
-        >
-          {isDeleting ? 'Eliminando...' : 'Eliminar'}
-        </AlertDialog.Action>
-      </div>
-    </AlertDialog.Content>
-  </AlertDialog.Portal>
-</AlertDialog.Root>
+      {/if}
+    </div>
+  {/if}
+</ConfirmDialog>
 
 {#if toastMessage}
   <div class="vault-toast">
@@ -1380,198 +1283,7 @@
     opacity: 0.75;
   }
 
-  /* Diálogo Modal de Confirmación de Borrado con bits-ui AlertDialog */
-  :global(.delete-modal-overlay) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10001;
-    animation: overlay-fade-in 0.15s ease-out;
-  }
 
-  @keyframes overlay-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  :global(.delete-modal) {
-    background: var(--bg-primary, #ffffff);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 420px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    animation: modal-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10002;
-    outline: none;
-    box-sizing: border-box;
-  }
-
-  @keyframes modal-scale-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -50%) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-  }
-
-  :global(.delete-modal .delete-modal-header) {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-  }
-
-  :global(.delete-modal .delete-modal-icon-wrap) {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(207, 34, 46, 0.12);
-    color: #cf222e;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  :global(.delete-modal .delete-modal-icon) {
-    width: 18px;
-    height: 18px;
-  }
-
-  :global(.delete-modal .delete-modal-text) {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  :global(.delete-modal .delete-modal-title) {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary, #1f2328);
-    margin: 0;
-    line-height: 1.25;
-  }
-
-  :global(.delete-modal .delete-modal-desc) {
-    font-size: 13px;
-    color: var(--text-secondary, #656d76);
-    line-height: 1.45;
-    margin: 0;
-    word-break: break-word;
-  }
-
-  :global(.delete-modal .delete-modal-desc strong) {
-    color: var(--text-primary, #1f2328);
-  }
-
-  :global(.delete-modal .delete-modal-item-list) {
-    margin-top: 10px;
-    padding: 8px 12px;
-    background-color: var(--bg-secondary, #f6f8fa);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 6px;
-    max-height: 120px;
-    overflow-y: auto;
-    font-size: 12px;
-    text-align: left;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  :global(.delete-modal .delete-modal-item) {
-    color: var(--text-primary, #1f2328);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  :global(.delete-modal .delete-modal-item.more) {
-    color: var(--text-secondary, #656d76);
-    font-style: italic;
-  }
-
-  :global(.delete-modal .delete-modal-actions) {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 4px;
-  }
-
-  :global(.delete-modal .delete-modal-btn) {
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    border: 1px solid transparent;
-    font-family: inherit;
-    outline: none;
-  }
-
-  :global(.delete-modal .delete-modal-btn.cancel) {
-    background: var(--bg-secondary, #f6f8fa);
-    color: var(--text-primary, #1f2328);
-    border-color: var(--border-primary, #d0d7de);
-  }
-
-  :global(.delete-modal .delete-modal-btn.cancel:hover:not(:disabled)) {
-    background: var(--border-primary, #d0d7de);
-  }
-
-  :global(.delete-modal .delete-modal-btn.cancel:focus),
-  :global(.delete-modal .delete-modal-btn.cancel:focus-visible) {
-    outline: 2px solid var(--accent, #0969da);
-    outline-offset: 2px;
-    border-color: var(--accent, #0969da);
-  }
-
-  :global(.delete-modal .delete-modal-btn.confirm) {
-    background: #cf222e;
-    color: #ffffff;
-    border-color: #a40e26;
-  }
-
-  :global(.delete-modal .delete-modal-btn.confirm:hover:not(:disabled)) {
-    background: #a40e26;
-  }
-
-  :global(.delete-modal .delete-modal-btn.confirm:focus),
-  :global(.delete-modal .delete-modal-btn.confirm:focus-visible) {
-    outline: 2px solid #cf222e;
-    outline-offset: 2px;
-    border-color: #a40e26;
-  }
-
-  :global(.delete-modal .delete-modal-btn:focus:not(:focus-visible):active) {
-    outline: none;
-  }
-
-  :global(.delete-modal .delete-modal-btn:disabled) {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
 
   /* Notificación Toast rápida */
   .vault-toast {
