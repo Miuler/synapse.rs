@@ -918,6 +918,7 @@
     onDeleteItems={handleDeleteItems}
     onResizeStart={handleSidebarResizeStart}
     onCollapse={toggleSidebar}
+    onRefreshGit={refreshGitStatus}
   />
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->

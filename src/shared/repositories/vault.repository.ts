@@ -21,12 +21,18 @@ export interface SelectVaultFolderResult {
   notes: VaultNote[];
 }
 
-export type GitFileStatusKind = 'modified' | 'untracked';
+export interface GitFileStatus {
+  index?: string | null;
+  worktree?: string | null;
+  is_stashed?: boolean;
+}
+
+export type GitFileStatusKind = GitFileStatus;
 
 export interface VaultGitStatus {
   is_repo: boolean;
   branch?: string | null;
-  statuses: Record<string, GitFileStatusKind>;
+  statuses: Record<string, GitFileStatus>;
 }
 
 /**

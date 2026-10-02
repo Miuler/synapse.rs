@@ -26,6 +26,7 @@
     onResizeMove?: (e: PointerEvent) => void;
     onResizeEnd?: (e: PointerEvent) => void;
     onCollapse?: () => void;
+    onRefreshGit?: () => Promise<void> | void;
   }
 
   let {
@@ -47,7 +48,34 @@
     onResizeMove,
     onResizeEnd,
     onCollapse,
+    onRefreshGit,
   }: Props = $props();
+
+  function getGitStatusInfo(raw: unknown): {
+    index: string | null;
+    worktree: string | null;
+    is_stashed: boolean;
+  } | null {
+    if (!raw) return null;
+    if (typeof raw === 'string') {
+      if (raw === 'modified') return { index: null, worktree: 'M', is_stashed: false };
+      if (raw === 'untracked') return { index: null, worktree: '?', is_stashed: false };
+      if (raw === 'staged') return { index: 'M', worktree: null, is_stashed: false };
+      if (raw === 'staged_modified' || raw === 'modified_staged') return { index: 'M', worktree: 'M', is_stashed: false };
+      if (raw === 'stashed') return { index: null, worktree: null, is_stashed: true };
+      if (raw === 'stashed_modified' || raw === 'modified_stashed') return { index: null, worktree: 'M', is_stashed: true };
+      return null;
+    }
+    if (typeof raw === 'object') {
+      const s = raw as Record<string, unknown>;
+      const index = typeof s.index === 'string' ? s.index : null;
+      const worktree = typeof s.worktree === 'string' ? s.worktree : null;
+      const is_stashed = Boolean(s.is_stashed);
+      if (!index && !worktree && !is_stashed) return null;
+      return { index, worktree, is_stashed };
+    }
+    return null;
+  }
 
   let vaultFolderName = $derived.by(() => {
     if (!vaultPath) return 'Bóveda de Archivos';
@@ -640,13 +668,15 @@
                 {activeRibbonTab === 'files' ? vaultFolderName : 'Buscar'}
               </button>
               {#if isGitRepo && gitBranch}
-                <span
+                <button
+                  type="button"
                   class="git-branch-badge"
-                  title="Rama Git: {gitBranch}"
-                  >
-                    <GitBranch size={13} class="git-branch-icon" />
-                    <span class="git-branch-name">{gitBranch}</span>
-                </span>
+                  onclick={onRefreshGit}
+                  title="Rama Git: {gitBranch} (Clic para refrescar)"
+                >
+                  <GitBranch size={13} class="git-branch-icon" />
+                  <span class="git-branch-name">{gitBranch}</span>
+                </button>
               {/if}
             </div>
             <div class="sidebar-header-actions">
@@ -879,7 +909,8 @@
       </Collapsible.Content>
     </Collapsible.Root>
   {:else}
-    {@const fileGitStatus = isGitRepo && gitStatuses ? gitStatuses[node.relativePath] : undefined}
+    {@const rawGitStatus = isGitRepo && gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[node.relativePath.replace(/^\.\//, '')]) : undefined}
+    {@const fileGitStatus = getGitStatusInfo(rawGitStatus)}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -888,8 +919,10 @@
       class:active={node.relativePath === activeTabPath}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
-      class:git-modified={fileGitStatus === 'modified'}
-      class:git-untracked={fileGitStatus === 'untracked'}
+      class:git-staged={fileGitStatus?.index && !fileGitStatus?.worktree}
+      class:git-modified={fileGitStatus?.worktree === 'M'}
+      class:git-untracked={fileGitStatus?.worktree === '?'}
+      class:git-stashed={fileGitStatus?.is_stashed && !fileGitStatus?.index && !fileGitStatus?.worktree}
       style="padding-left: {26 + depth * 14}px;"
       onclick={(e) => handleFileClick(e, node)}
       oncontextmenu={(e) => handleItemContextMenu(e, node)}
@@ -898,14 +931,28 @@
         path={node.relativePath}
         name={node.name}
         size={14}
-        class="file-icon {fileGitStatus === 'modified' ? 'file-icon-modified' : ''}"
+        class="file-icon {fileGitStatus?.worktree === 'M' ? 'file-icon-modified' : fileGitStatus?.index ? 'file-icon-staged' : fileGitStatus?.worktree === '?' ? 'file-icon-untracked' : fileGitStatus?.is_stashed ? 'file-icon-stashed' : ''}"
       />
       <span class="file-name" title={node.name}>{node.name}</span>
 
-      {#if fileGitStatus === 'modified'}
-        <span class="git-badge modified" title="Modificado en Git">M</span>
-      {:else if fileGitStatus === 'untracked'}
-        <span class="git-badge untracked" title="No controlado por Git">?</span>
+      {#if fileGitStatus}
+        <div class="git-badges-group">
+          {#if fileGitStatus.index === 'M'}
+            <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
+          {:else if fileGitStatus.index === 'A'}
+            <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
+          {/if}
+
+          {#if fileGitStatus.worktree === 'M'}
+            <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
+          {:else if fileGitStatus.worktree === '?'}
+            <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
+          {/if}
+
+          {#if fileGitStatus.is_stashed}
+            <span class="git-badge stashed" title="En Stash de Git">S</span>
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}
@@ -1098,7 +1145,19 @@
   }
 
   .file-icon-modified {
-    color: #d97706;
+    color: #dc2626;
+  }
+
+  .file-icon-staged {
+    color: #16a34a;
+  }
+
+  .file-icon-untracked {
+    color: #ca8a04;
+  }
+
+  .file-icon-stashed {
+    color: #7c3aed;
   }
 
   .file-tree-item.active .file-icon {
@@ -1106,11 +1165,19 @@
   }
 
   .file-tree-item.git-modified:not(.active) .file-name {
-    color: #b45309;
+    color: #dc2626;
+  }
+
+  .file-tree-item.git-staged:not(.active) .file-name {
+    color: #16a34a;
   }
 
   .file-tree-item.git-untracked:not(.active) .file-name {
-    color: #15803d;
+    color: #ca8a04;
+  }
+
+  .file-tree-item.git-stashed:not(.active) .file-name {
+    color: #7c3aed;
   }
 
   .file-name {
@@ -1119,6 +1186,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .git-badges-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .git-badges-group .git-badge {
+    margin-left: 0;
   }
 
   .git-badge {
@@ -1131,14 +1210,24 @@
     flex-shrink: 0;
   }
 
+  .git-badge.staged {
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.16);
+  }
+
   .git-badge.modified {
-    color: #b45309;
-    background: rgba(217, 119, 6, 0.14);
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.16);
   }
 
   .git-badge.untracked {
-    color: #15803d;
-    background: rgba(22, 163, 74, 0.14);
+    color: #ca8a04;
+    background: rgba(202, 138, 4, 0.16);
+  }
+
+  .git-badge.stashed {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.16);
   }
 
   .sidebar-resizer {
