@@ -882,20 +882,28 @@
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F12") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         toggleDevtools();
         return;
       }
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           toggleExplorer();
           return;
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           navigateBack();
           return;
         } else if (e.key === 'ArrowRight') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           navigateForward();
           return;
         }
@@ -905,38 +913,65 @@
         if (e.shiftKey) {
           if (key === 'o') {
             e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             handleOpenVaultFolder();
+            return;
           } else if (key === 'i') {
             e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             toggleDevtools();
+            return;
           }
           return;
         }
         if (key === 's') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           if (activeTabPath && currentVaultItem.relative_path) {
             persistVaultItemToRust(currentVaultItem);
           }
+          return;
         } else if (key === 'n') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           createNewVaultItem();
+          return;
         } else if (key === 't') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           handleNewEmptyTab();
+          return;
         } else if (key === 'w' || key === 'f4') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           if (activeTabPath) {
             closeTab(activeTabPath);
           }
+          return;
         } else if (key === 'o') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           isQuickOpenOpen = true;
+          return;
         } else if (key === 'p') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           isPaletteOpen = true;
+          return;
         } else if (key === 'b') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           toggleExplorer();
+          return;
         }
       }
     };
@@ -973,7 +1008,7 @@
       refreshGitStatus();
     };
     window.addEventListener('focus', handleFocus);
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('mousedown', handleMouseNavDown, true);
     window.addEventListener('mouseup', handleMouseNavUp, true);
     window.addEventListener('pointerup', handleMouseNavUp, true);
@@ -981,7 +1016,7 @@
 
     return () => {
       window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('mousedown', handleMouseNavDown, true);
       window.removeEventListener('mouseup', handleMouseNavUp, true);
       window.removeEventListener('pointerup', handleMouseNavUp, true);

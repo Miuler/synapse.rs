@@ -62,6 +62,12 @@
         excalidrawAPI = api;
       },
       viewModeEnabled: isReadOnly,
+      handleKeyboardGlobally: false,
+      UIOptions: {
+        canvasActions: {
+          loadScene: false,
+        },
+      },
       onChange: (elements: readonly any[], appState: any, files: any) => {
         if (isReadOnly) return;
 
@@ -124,9 +130,21 @@
       }
     }
   });
+
+  function handleContainerKeyDownCapture(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }
+  }
 </script>
 
-<div class="excalidraw-container" bind:this={containerRef}></div>
+<div
+  class="excalidraw-container"
+  bind:this={containerRef}
+  onkeydowncapture={handleContainerKeyDownCapture}
+></div>
 
 <style>
   .excalidraw-container {
