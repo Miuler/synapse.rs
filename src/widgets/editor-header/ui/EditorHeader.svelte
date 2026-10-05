@@ -33,6 +33,10 @@
     markdownViewMode?: MarkdownViewMode;
     showSaveButton?: boolean;
     showViewToggle?: boolean;
+    canGoBack?: boolean;
+    canGoForward?: boolean;
+    onNavigateBack?: () => void;
+    onNavigateForward?: () => void;
     onSelectTab?: (path: string) => void;
     onCloseTab?: (path: string) => void;
     onCloseAllTabs?: () => void;
@@ -56,6 +60,10 @@
     markdownViewMode = 'live',
     showSaveButton = false,
     showViewToggle = false,
+    canGoBack = false,
+    canGoForward = false,
+    onNavigateBack,
+    onNavigateForward,
     onSelectTab,
     onCloseTab,
     onCloseAllTabs,
@@ -342,10 +350,28 @@
 <header class="editor-header" data-tauri-drag-region>
   <!-- BOTONES DE NAVEGACIÓN ATRÁS / ADELANTE -->
   <div class="nav-buttons">
-    <button type="button" class="icon-btn" onclick={() => triggerAction('nav-back')} title="Navegar atrás">
+    <button
+      type="button"
+      class="icon-btn"
+      disabled={!canGoBack}
+      onclick={() => {
+        if (onNavigateBack) onNavigateBack();
+        else triggerAction('nav-back');
+      }}
+      title={canGoBack ? "Navegar atrás entre pestañas (Alt+Flecha izquierda o Botón 3 del ratón)" : "Navegar atrás"}
+    >
       <ChevronLeft size={16} class="icon" />
     </button>
-    <button type="button" class="icon-btn" onclick={() => triggerAction('nav-forward')} title="Navegar adelante">
+    <button
+      type="button"
+      class="icon-btn"
+      disabled={!canGoForward}
+      onclick={() => {
+        if (onNavigateForward) onNavigateForward();
+        else triggerAction('nav-forward');
+      }}
+      title={canGoForward ? "Navegar adelante entre pestañas (Alt+Flecha derecha o Botón 4 del ratón)" : "Navegar adelante"}
+    >
       <ChevronRight size={16} class="icon" />
     </button>
   </div>
@@ -1050,6 +1076,12 @@
   .icon-btn:hover {
     color: var(--text-primary, #1f2328);
     background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 
   .view-toggle-btn {

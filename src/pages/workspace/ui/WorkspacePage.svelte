@@ -107,6 +107,100 @@
 
   let tabSelections = $state<Record<string, SelectionInfo>>({});
 
+  // Límite máximo de entradas en el historial para control óptimo de memoria (~5-10 KB)
+  const MAX_TAB_HISTORY = 100;
+
+  // Historial de navegación de pestañas (Back / Forward)
+  let tabHistory = $state<string[]>([]);
+  let tabHistoryIndex = $state<number>(-1);
+  let isNavigatingHistory = false;
+  let lastNavTime = 0;
+
+  // Registro de la posición física (índice en la barra de pestañas) de los archivos cerrados
+  let lastClosedTabIndex = $state<Record<string, number>>({});
+
+  let canGoBack = $derived(tabHistoryIndex > 0);
+
+  let canGoForward = $derived(
+    tabHistoryIndex >= 0 && tabHistoryIndex < tabHistory.length - 1
+  );
+
+  function recordTabVisit(path: string) {
+    if (isNavigatingHistory || !path) return;
+    if (tabHistoryIndex >= 0 && tabHistoryIndex < tabHistory.length && tabHistory[tabHistoryIndex] === path) {
+      return;
+    }
+    let truncated = tabHistory.slice(0, tabHistoryIndex + 1);
+    truncated.push(path);
+    if (truncated.length > MAX_TAB_HISTORY) {
+      truncated = truncated.slice(truncated.length - MAX_TAB_HISTORY);
+    }
+    tabHistory = truncated;
+    tabHistoryIndex = truncated.length - 1;
+  }
+
+  function navigateBack() {
+    if (tabHistoryIndex <= 0) return;
+    const targetIndex = tabHistoryIndex - 1;
+    tabHistoryIndex = targetIndex;
+    const targetPath = tabHistory[targetIndex];
+    isNavigatingHistory = true;
+    selectTab(targetPath);
+    isNavigatingHistory = false;
+  }
+
+  function navigateForward() {
+    if (tabHistoryIndex >= tabHistory.length - 1) return;
+    const targetIndex = tabHistoryIndex + 1;
+    tabHistoryIndex = targetIndex;
+    const targetPath = tabHistory[targetIndex];
+    isNavigatingHistory = true;
+    selectTab(targetPath);
+    isNavigatingHistory = false;
+  }
+
+  function safeNavigateBack() {
+    const now = performance.now();
+    if (now - lastNavTime < 150) return;
+    lastNavTime = now;
+    navigateBack();
+  }
+
+  function safeNavigateForward() {
+    const now = performance.now();
+    if (now - lastNavTime < 150) return;
+    lastNavTime = now;
+    navigateForward();
+  }
+
+  function removeTabFromHistory(path: string) {
+    const newHistory: string[] = [];
+    let newIndex = -1;
+    for (let i = 0; i < tabHistory.length; i++) {
+      const item = tabHistory[i];
+      if (item !== path) {
+        if (newHistory.length === 0 || newHistory[newHistory.length - 1] !== item) {
+          if (i <= tabHistoryIndex) {
+            newIndex = newHistory.length;
+          }
+          newHistory.push(item);
+        }
+      }
+    }
+    tabHistory = newHistory;
+    if (tabHistory.length === 0) {
+      tabHistoryIndex = -1;
+    } else {
+      tabHistoryIndex = Math.max(0, Math.min(newIndex, tabHistory.length - 1));
+      if (activeTabPath) {
+        const found = tabHistory.lastIndexOf(activeTabPath);
+        if (found !== -1) {
+          tabHistoryIndex = found;
+        }
+      }
+    }
+  }
+
   function handleSelectionChange(path: string, info: SelectionInfo) {
     tabSelections[path] = info;
   }
@@ -209,9 +303,13 @@
       encoding: "---",
       isLoading: false,
     };
+    recordTabVisit(emptyTabPath);
   }
 
   function selectTab(path: string) {
+    if (!path) return;
+    const previousActivePath = activeTabPath;
+
     // Si la pestaña actual es una pestaña vacía y seleccionamos un archivo nuevo, lo sustituye en esa pestaña
     if (activeTabPath && activeTabPath.startsWith("empty:") && !openTabPaths.includes(path)) {
       const idx = openTabPaths.indexOf(activeTabPath);
@@ -219,23 +317,38 @@
         openTabPaths[idx] = path;
         delete openedNotes[activeTabPath];
         delete tabSelections[activeTabPath];
+        if (previousActivePath) {
+          tabHistory = tabHistory.map((p) => (p === previousActivePath ? path : p));
+        }
       } else {
         openTabPaths.push(path);
       }
     } else if (!openTabPaths.includes(path)) {
-      openTabPaths.push(path);
+      const savedIndex = lastClosedTabIndex[path];
+      if (savedIndex !== undefined && savedIndex >= 0) {
+        const insertAt = Math.min(savedIndex, openTabPaths.length);
+        openTabPaths.splice(insertAt, 0, path);
+      } else {
+        openTabPaths.push(path);
+      }
     }
     activeTabPath = path;
     if (!path.startsWith("empty:")) {
       ensureContentLoaded(path);
       recentFiles = [path, ...recentFiles.filter((p) => p !== path)];
     }
+    recordTabVisit(path);
   }
 
   function closeTab(path: string) {
     const idx = openTabPaths.indexOf(path);
     if (idx !== -1) {
       openTabPaths.splice(idx, 1);
+      // Guardar la posición previa en la barra de pestañas para reabrirla exactamente donde estaba
+      if (!path.startsWith("empty:")) {
+        lastClosedTabIndex[path] = idx;
+      }
+
       if (activeTabPath === path) {
         if (openTabPaths.length > 0) {
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
@@ -246,11 +359,26 @@
         } else {
           activeTabPath = null;
         }
+
+        // Si la pestaña cerrada era la activa, sincronizar tabHistoryIndex con la nueva pestaña activa
+        if (activeTabPath && !path.startsWith("empty:")) {
+          const foundIdx = tabHistory.slice(0, tabHistoryIndex).lastIndexOf(activeTabPath);
+          if (foundIdx !== -1) {
+            tabHistoryIndex = foundIdx;
+          }
+        }
       }
     }
-    // Liberar memoria consolidada de la nota y selecciones
+    // Liberar memoria consolidada del contenido de la nota para mantener bajo consumo de RAM
     delete openedNotes[path];
-    delete tabSelections[path];
+    // Se conserva tabSelections[path] para preservar la posición del cursor si se reabre
+
+    // Solo las pestañas temporales vacías se retiran del historial
+    if (path.startsWith("empty:")) {
+      removeTabFromHistory(path);
+      delete lastClosedTabIndex[path];
+      delete tabSelections[path];
+    }
 
     // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía
     if (openTabPaths.length === 0) {
@@ -263,6 +391,8 @@
     activeTabPath = null;
     openedNotes = {};
     tabSelections = {};
+    tabHistory = [];
+    tabHistoryIndex = -1;
     handleNewEmptyTab();
   }
 
@@ -471,6 +601,9 @@
       for (const path of tabsToClose) {
         closeTab(path);
       }
+      removeTabFromHistory(relativePath);
+      delete lastClosedTabIndex[relativePath];
+      delete tabSelections[relativePath];
 
       // Actualizar la lista de archivos de la bóveda y el estado de Git
       await fetchNotesFromBackend();
@@ -495,6 +628,9 @@
         for (const path of tabsToClose) {
           closeTab(path);
         }
+        removeTabFromHistory(item.relativePath);
+        delete lastClosedTabIndex[item.relativePath];
+        delete tabSelections[item.relativePath];
       }
 
       await fetchNotesFromBackend();
@@ -608,11 +744,13 @@
       openTabPaths[idx] = newRelPath;
       delete openedNotes[targetEmptyPath];
       delete tabSelections[targetEmptyPath];
+      tabHistory = tabHistory.map((p) => (p === targetEmptyPath ? newRelPath : p));
     } else {
       openTabPaths.push(newRelPath);
     }
     activeTabPath = newRelPath;
     recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)];
+    recordTabVisit(newRelPath);
     await persistVaultItemToRust(newVaultItem);
     refreshGitStatus();
   }
@@ -725,6 +863,20 @@
         category: "Git",
         action: refreshGitStatus,
       },
+      {
+        id: "cmd-nav-back",
+        name: "Navegar atrás entre pestañas",
+        category: "Navegación",
+        shortcut: "Alt+Left",
+        action: navigateBack,
+      },
+      {
+        id: "cmd-nav-forward",
+        name: "Navegar adelante entre pestañas",
+        category: "Navegación",
+        shortcut: "Alt+Right",
+        action: navigateForward,
+      },
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -737,6 +889,14 @@
         if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
           e.preventDefault();
           toggleExplorer();
+          return;
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigateBack();
+          return;
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigateForward();
           return;
         }
       }
@@ -780,15 +940,52 @@
         }
       }
     };
+
+    // Control de navegación con botones laterales del ratón (Back / Forward)
+    // Código Wayland / Linux: 275 (BTN_SIDE) -> Mouse button 3
+    // Código Wayland / Linux: 276 (BTN_EXTRA) -> Mouse button 4
+    const handleMouseNavDown = (e: MouseEvent | PointerEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+      }
+    };
+
+    const handleMouseNavUp = (e: MouseEvent | PointerEvent) => {
+      if (e.button === 3) {
+        e.preventDefault();
+        e.stopPropagation();
+        safeNavigateBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        safeNavigateForward();
+      }
+    };
+
+    const handleAuxClick = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
     const handleFocus = () => {
       refreshGitStatus();
     };
     window.addEventListener('focus', handleFocus);
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handleMouseNavDown, true);
+    window.addEventListener('mouseup', handleMouseNavUp, true);
+    window.addEventListener('pointerup', handleMouseNavUp, true);
+    window.addEventListener('auxclick', handleAuxClick, true);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handleMouseNavDown, true);
+      window.removeEventListener('mouseup', handleMouseNavUp, true);
+      window.removeEventListener('pointerup', handleMouseNavUp, true);
+      window.removeEventListener('auxclick', handleAuxClick, true);
     };
   });
 
@@ -832,6 +1029,8 @@
         openedNotes = {};
         tabSelections = {};
         recentFiles = vaultItems.map(v => v.relative_path);
+        tabHistory = [];
+        tabHistoryIndex = -1;
         handleNewEmptyTab();
       }
     } catch (e) {
@@ -928,6 +1127,10 @@
       bind:isEditing
       tabs={tabsInfo}
       {activeTabPath}
+      {canGoBack}
+      {canGoForward}
+      onNavigateBack={navigateBack}
+      onNavigateForward={navigateForward}
       isMarkdownFile={isMarkdownTab}
       showViewToggle={hasActiveContent}
       markdownViewMode={!isEditing ? "reading" : markdownViewMode}
@@ -946,7 +1149,9 @@
       onNewFile={() => createNewVaultItem()}
       onOpenQuickOpen={() => (isQuickOpenOpen = true)}
       onAction={(actionId) => {
-        if (actionId === 'new-file') createNewVaultItem();
+        if (actionId === 'nav-back') navigateBack();
+        else if (actionId === 'nav-forward') navigateForward();
+        else if (actionId === 'new-file') createNewVaultItem();
         else if (actionId === 'quick-open') isQuickOpenOpen = true;
       }}
       onToggleView={() => {
