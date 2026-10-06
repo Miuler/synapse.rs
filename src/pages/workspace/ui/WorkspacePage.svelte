@@ -78,6 +78,7 @@
               content: noteData.content ?? "",
               savedContent: noteData.content ?? "",
               isLoading: false,
+              isLoaded: true,
             };
           }
         } catch (e) {
@@ -146,6 +147,7 @@
               encoding: noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---",
               abs_path: noteData.abs_path || openedNotes[openPath]?.abs_path,
               isLoading: false,
+              isLoaded: true,
               viewMode: currentMode,
               lastReloaded: Date.now(),
             };
@@ -351,6 +353,7 @@
               savedContent: "",
               encoding: "---",
               isLoading: false,
+              isLoaded: false,
               viewMode: mode,
             };
           } else {
@@ -431,7 +434,7 @@
 
   async function ensureContentLoaded(path: string) {
     if (!path || path.startsWith("empty:")) return;
-    if (openedNotes[path] && !openedNotes[path].isLoading && openedNotes[path].content !== undefined) return;
+    if (openedNotes[path] && openedNotes[path].isLoaded && !openedNotes[path].isLoading) return;
 
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
     const initialAbsPath = vaultItem?.abs_path;
@@ -447,6 +450,7 @@
         savedContent: "",
         encoding: "binary",
         isLoading: false,
+        isLoaded: true,
         viewMode: currentMode,
       };
       return;
@@ -462,6 +466,7 @@
         savedContent: "",
         encoding: "---",
         isLoading: true,
+        isLoaded: false,
         viewMode: defaultMode,
       };
     } else {
@@ -484,6 +489,7 @@
           savedContent: fetchedContent,
           encoding: fetchedEncoding,
           isLoading: false,
+          isLoaded: true,
           viewMode: currentMode,
         };
       } else {
@@ -512,6 +518,7 @@
       savedContent: "",
       encoding: "---",
       isLoading: false,
+      isLoaded: true,
     };
     recordTabVisit(emptyTabPath);
   }
@@ -895,6 +902,7 @@
                   savedContent: noteData.content ?? "",
                   encoding: noteData.encoding || "---",
                   isLoading: false,
+                  isLoaded: true,
                   viewMode: currentMode,
                 };
               }
@@ -1014,6 +1022,7 @@
       savedContent: "",
       encoding: "---",
       isLoading: false,
+      isLoaded: true,
     };
 
     const targetEmptyPath = emptyTabPathToReplace || (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null);

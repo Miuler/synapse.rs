@@ -23,6 +23,7 @@ export interface OpenedNote {
   savedContent: string;
   encoding: string;
   isLoading: boolean;
+  isLoaded?: boolean;
   viewMode?: 'reading' | 'live' | 'source';
   lastReloaded?: number;
 }
