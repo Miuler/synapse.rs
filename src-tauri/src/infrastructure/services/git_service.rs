@@ -1,6 +1,6 @@
-use std::path::Path;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct GitFileStatus {
@@ -53,7 +53,11 @@ impl GitService {
         }
 
         for commit_id in commit_ids {
-            let commit = match repo.find_object(commit_id).ok().and_then(|o| o.try_into_commit().ok()) {
+            let commit = match repo
+                .find_object(commit_id)
+                .ok()
+                .and_then(|o| o.try_into_commit().ok())
+            {
                 Some(c) => c,
                 None => continue,
             };
@@ -64,7 +68,11 @@ impl GitService {
             }
 
             // Parent 0 is the commit on top of which the stash was created
-            if let Some(parent0) = repo.find_object(parents[0]).ok().and_then(|o| o.try_into_commit().ok()) {
+            if let Some(parent0) = repo
+                .find_object(parents[0])
+                .ok()
+                .and_then(|o| o.try_into_commit().ok())
+            {
                 if let (Ok(p_tree), Ok(s_tree)) = (parent0.tree(), commit.tree()) {
                     if let Ok(mut diff) = p_tree.changes() {
                         let _ = diff.for_each_to_obtain_tree(&s_tree, |change| {
@@ -84,7 +92,11 @@ impl GitService {
 
             // Parent 2 (if present) contains untracked files stashed with `git stash -u`
             if parents.len() > 2 {
-                if let Some(parent2) = repo.find_object(parents[2]).ok().and_then(|o| o.try_into_commit().ok()) {
+                if let Some(parent2) = repo
+                    .find_object(parents[2])
+                    .ok()
+                    .and_then(|o| o.try_into_commit().ok())
+                {
                     if let Ok(u_tree) = parent2.tree() {
                         let empty_tree = repo.empty_tree();
                         if let Ok(mut diff) = empty_tree.changes() {
@@ -131,7 +143,11 @@ impl GitService {
             }
         };
 
-        let branch = repo.head_name().ok().flatten().map(|n| n.shorten().to_string());
+        let branch = repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map(|n| n.shorten().to_string());
 
         let platform = match repo.status(gix::progress::Discard) {
             Ok(p) => p,
@@ -226,7 +242,8 @@ impl GitService {
             return Ok(());
         }
 
-        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let mut cmd = std::process::Command::new("git");
@@ -241,7 +258,9 @@ impl GitService {
             }
         }
 
-        let output = cmd.output().map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("git add falló: {}", stderr.trim()));
@@ -255,7 +274,8 @@ impl GitService {
             return Ok(());
         }
 
-        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let mut cmd = std::process::Command::new("git");
@@ -270,7 +290,9 @@ impl GitService {
             }
         }
 
-        let output = cmd.output().map_err(|e| format!("Error al ejecutar git restore: {}", e))?;
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Error al ejecutar git restore: {}", e))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("git restore falló: {}", stderr.trim()));
@@ -284,7 +306,8 @@ impl GitService {
             return Ok(());
         }
 
-        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let mut cmd = std::process::Command::new("git");
@@ -300,7 +323,9 @@ impl GitService {
             }
         }
 
-        let output = cmd.output().map_err(|e| format!("Error al ejecutar git restore --staged: {}", e))?;
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Error al ejecutar git restore --staged: {}", e))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("git restore --staged falló: {}", stderr.trim()));
@@ -316,7 +341,13 @@ mod tests {
 
     #[test]
     fn test_git_stash_status() {
-        let temp_dir = std::env::temp_dir().join(format!("synapse_git_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&temp_dir).unwrap();
 
         let run_cmd = |args: &[&str]| {

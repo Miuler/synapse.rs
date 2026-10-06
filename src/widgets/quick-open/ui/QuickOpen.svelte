@@ -3,6 +3,7 @@
   import { Command, Dialog } from 'bits-ui';
   import { Search } from 'lucide-svelte';
   import { FileIcon } from '@shared/ui/icons';
+  import { vaultRepository, type SearchResult } from '@shared/repositories';
 
   interface Props {
     isOpen?: boolean;
@@ -20,7 +21,13 @@
     onClose
   }: Props = $props();
 
+  // Constante de paginado para carga bajo demanda en scroll
+  const PAGE_SIZE = 25;
+
   let searchQuery = $state('');
+  let nucleoResults = $state<SearchResult[]>([]);
+  let visibleCount = $state(PAGE_SIZE);
+  let listContainerEl = $state<HTMLElement | null>(null);
 
   interface FileItemDisplay {
     id: string;
@@ -29,11 +36,21 @@
     isRecent?: boolean;
   }
 
-  // Prepara los archivos de la bóveda para la lista
-  let fileList = $derived.by<FileItemDisplay[]>(() => {
+  // Prepara los candidatos completos para la lista
+  let allCandidates = $derived.by<FileItemDisplay[]>(() => {
+    if (searchQuery.trim().length > 0) {
+      return nucleoResults.map((r) => ({
+        id: r.note_path || r.text,
+        title: r.text,
+        path: r.note_path || r.text,
+        isRecent: false,
+      }));
+    }
+
     const list: FileItemDisplay[] = [];
     const addedPaths = new Set<string>();
 
+    // 1. Si no hay búsqueda, PRIORIDAD a los últimos archivos que abrió el usuario
     for (const path of recentFiles) {
       if (!path || path.startsWith('empty:') || addedPaths.has(path)) continue;
       const item = vaultItems.find((v) => v.relative_path === path);
@@ -46,6 +63,7 @@
       addedPaths.add(path);
     }
 
+    // 2. Añadir el resto de archivos de la bóveda para permitir explorarlos paginados
     for (const item of vaultItems) {
       if (!item.relative_path || item.relative_path.startsWith('empty:') || addedPaths.has(item.relative_path)) continue;
       list.push({
@@ -60,6 +78,39 @@
     return list;
   });
 
+  // Lista visible en el DOM recortada al tamaño de página (apertura instantánea sin retrasos)
+  let fileList = $derived(allCandidates.slice(0, visibleCount));
+
+  // Reiniciar el límite de página visible al abrir o cambiar la búsqueda
+  $effect(() => {
+    const _q = searchQuery;
+    const _open = isOpen;
+    visibleCount = PAGE_SIZE;
+    if (listContainerEl) {
+      listContainerEl.scrollTop = 0;
+    }
+  });
+
+  // Búsqueda interactiva ultrarrápida con Nucleo en Rust
+  $effect(() => {
+    const q = searchQuery.trim();
+    if (!q || !isOpen) {
+      nucleoResults = [];
+      return;
+    }
+
+    let active = true;
+    vaultRepository.searchNotes(q).then((results) => {
+      if (active) {
+        nucleoResults = results;
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  });
+
   // Atajo global Ctrl+O o Cmd+O para abrir/cerrar el diálogo de archivos
   $effect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
@@ -68,6 +119,7 @@
         isOpen = !isOpen;
         if (isOpen) {
           searchQuery = '';
+          visibleCount = PAGE_SIZE;
         }
       }
     };
@@ -76,9 +128,28 @@
     return () => window.removeEventListener('keydown', handleKeydown);
   });
 
+  function handleScroll(e: Event) {
+    const target = e.currentTarget as HTMLElement;
+    if (!target) return;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom < 100 && visibleCount < allCandidates.length) {
+      visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
+    }
+  }
+
+  function handleKeydownRoot(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown' && visibleCount < allCandidates.length) {
+      const highlighted = listContainerEl?.querySelector('[data-highlighted], [data-selected]');
+      if (highlighted && highlighted.nextElementSibling === null) {
+        visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
+      }
+    }
+  }
+
   function closeDialog() {
     isOpen = false;
     searchQuery = '';
+    visibleCount = PAGE_SIZE;
     if (onClose) onClose();
   }
 
@@ -101,7 +172,12 @@
     <Dialog.Overlay class="palette-backdrop" />
     <Dialog.Content class="palette-container">
       <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
-      <Command.Root class="command-root" loop>
+      <Command.Root
+        class="command-root"
+        loop
+        shouldFilter={!searchQuery.trim()}
+        onkeydown={handleKeydownRoot}
+      >
         <div class="input-wrapper">
           <Search size={16} class="search-icon" />
           <Command.Input
@@ -112,7 +188,11 @@
           <span class="esc-badge">ESC</span>
         </div>
 
-        <Command.List class="results-container">
+        <Command.List
+          bind:ref={listContainerEl}
+          class="results-container"
+          onscroll={handleScroll}
+        >
           <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
 
           {#each fileList as file (file.id)}
@@ -122,13 +202,19 @@
               onSelect={() => selectFile(file.path)}
             >
               <span class="category-tag file-tag">
-                {file.isRecent && !searchQuery.trim() ? 'RECIENTE' : 'ARCHIVO'
-              }</span>
+                {file.isRecent && !searchQuery.trim() ? 'RECIENTE' : 'ARCHIVO'}
+              </span>
               <FileIcon path={file.path} name={file.title} size={15} class="file-icon" />
               <span class="item-name">{file.title}</span>
               <span class="item-path">{file.path}</span>
             </Command.Item>
           {/each}
+
+          {#if visibleCount < allCandidates.length}
+            <div class="scroll-more-indicator">
+              Mostrando {visibleCount} de {allCandidates.length} archivos (desplázate para cargar más)
+            </div>
+          {/if}
         </Command.List>
 
         <footer class="palette-footer">
@@ -337,5 +423,15 @@
     border-radius: 3px;
     color: var(--text-primary, #1f2328);
     border: 1px solid var(--border-primary, #d0d7de);
+  }
+
+  :global(.palette-container .scroll-more-indicator) {
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-secondary, #656d76);
+    border-top: 1px dashed var(--border-primary, #d0d7de);
+    background: var(--bg-secondary, #f6f8fa);
+    user-select: none;
   }
 </style>

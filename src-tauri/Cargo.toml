@@ -23,6 +23,13 @@ serde = { version = "1.0.229", features = ["derive"] }
 tauri = { version = "2.12.1", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2.10.0"
 nucleo-matcher = "0.3"
+nucleo = "0.5"
+dashmap = { version = "6.1", features = ["serde"] }
+bincode = { version = "2.0.0-rc.3", features = ["serde"] }
+compact_str = { version = "0.8", features = ["serde"] }
+jwalk = "0.8"
+notify = "6.1"
+pulldown-cmark = "0.12"
 log = "0.4.34"
 indicatif = { version = "0.18.6", features = ["tokio"] }
 tracing-indicatif = "0.3.14"

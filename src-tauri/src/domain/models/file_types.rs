@@ -22,6 +22,8 @@ impl Default for SupportedFileTypes {
                 "svg".to_string(),
                 "ico".to_string(),
                 "avif".to_string(),
+                "tiff".to_string(),
+                "tif".to_string(),
             ],
             markdown: vec![
                 "md".to_string(),
@@ -34,9 +36,20 @@ impl Default for SupportedFileTypes {
             drawings: vec![
                 "excalidraw".to_string(),
                 "excalidraw.json".to_string(),
+                "excalidraw.svg".to_string(),
+                "excalidraw.png".to_string(),
             ],
             code: vec![
                 "rs".to_string(),
+                "ts".to_string(),
+                "js".to_string(),
+                "json".to_string(),
+                "toml".to_string(),
+                "yaml".to_string(),
+                "yml".to_string(),
+                "css".to_string(),
+                "html".to_string(),
+                "csv".to_string(),
             ],
         }
     }
@@ -72,11 +85,8 @@ impl SupportedFileTypes {
     pub fn is_supported_file(&self, filename: &str) -> bool {
         let lower = filename.to_lowercase();
         self.all_extensions().iter().any(|ext| {
-            if ext.contains('.') {
-                lower.ends_with(&format!(".{}", ext.to_lowercase()))
-            } else {
-                lower.ends_with(&format!(".{}", ext.to_lowercase()))
-            }
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
         })
     }
 }

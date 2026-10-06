@@ -1,8 +1,8 @@
 use crate::domain::models::note::Note;
 use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::value_objects::note_path::NoteRelativePath;
-use std::path::Path;
 use log::debug;
+use std::path::Path;
 
 /// Casos de uso de la aplicación para gestionar notas.
 pub struct NoteUseCases<R: NoteRepository> {
@@ -14,8 +14,15 @@ impl<R: NoteRepository> NoteUseCases<R> {
         Self { repository }
     }
 
-    pub fn list_notes(&self, vault_path: &Path, extensions: &[String]) -> Result<Vec<Note>, String> {
-        debug!("list_notes in: {:?} with extensions: {:?}", vault_path, extensions);
+    pub fn list_notes(
+        &self,
+        vault_path: &Path,
+        extensions: &[String],
+    ) -> Result<Vec<Note>, String> {
+        debug!(
+            "list_notes in: {:?} with extensions: {:?}",
+            vault_path, extensions
+        );
         let notes = self.repository.list_notes(vault_path, extensions)?;
         debug!("notes.len: {}", notes.len());
         Ok(notes)

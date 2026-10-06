@@ -35,6 +35,20 @@ export interface VaultGitStatus {
   statuses: Record<string, GitFileStatus>;
 }
 
+export interface VaultEntryNode {
+  name: string;
+  relative_path: string;
+  is_folder: boolean;
+  title?: string;
+}
+
+export interface SearchResult {
+  text: string;
+  score: number;
+  match_indices: number[];
+  note_path?: string;
+}
+
 /**
  * Contrato de repositorio para el acceso y manipulación de archivos
  * y notas dentro de las carpetas que representan una bóveda (Vault).
@@ -49,6 +63,17 @@ export interface VaultRepository {
    * Obtiene la lista de notas/archivos presentes en la bóveda actual.
    */
   getNotes(): Promise<VaultNote[]>;
+
+  /**
+   * Obtiene los elementos directos (hijos) de una carpeta o de la raíz de la bóveda
+   * consultando el caché en memoria de Rust de forma inmediata (sub-miligramo/sub-ms).
+   */
+  getDirectoryChildren(parentPath?: string): Promise<VaultEntryNode[]>;
+
+  /**
+   * Realiza una búsqueda difusa interactiva utilizando el motor nucleo en Rust en memoria.
+   */
+  searchNotes(query: string): Promise<SearchResult[]>;
 
   /**
    * Obtiene la ruta absoluta de la carpeta de la bóveda activa.
@@ -126,6 +151,39 @@ export class TauriVaultRepository implements VaultRepository {
       return Array.isArray(notes) ? notes : [];
     } catch (error) {
       console.warn('Error en TauriVaultRepository al obtener get_vault_notes:', error);
+      return [];
+    }
+  }
+
+  async getDirectoryChildren(parentPath?: string): Promise<VaultEntryNode[]> {
+    if (!this.isConnected()) {
+      return [];
+    }
+
+    try {
+      const children = await invokeTauri<VaultEntryNode[]>('get_vault_directory_children', {
+        parentPath: parentPath ?? null,
+        parent_path: parentPath ?? null,
+      });
+      return Array.isArray(children) ? children : [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_vault_directory_children:', error);
+      return [];
+    }
+  }
+
+  async searchNotes(query: string): Promise<SearchResult[]> {
+    if (!this.isConnected()) {
+      return [];
+    }
+
+    try {
+      const results = await invokeTauri<SearchResult[]>('search_notes_command', {
+        query,
+      });
+      return Array.isArray(results) ? results : [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al buscar notas con nucleo:', error);
       return [];
     }
   }

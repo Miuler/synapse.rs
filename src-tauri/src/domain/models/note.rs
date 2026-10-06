@@ -17,7 +17,12 @@ pub struct Note {
 }
 
 impl Note {
-    pub fn new(relative_path: NoteRelativePath, abs_path: String, title: String, content: String) -> Self {
+    pub fn new(
+        relative_path: NoteRelativePath,
+        abs_path: String,
+        title: String,
+        content: String,
+    ) -> Self {
         Self {
             relative_path,
             abs_path,

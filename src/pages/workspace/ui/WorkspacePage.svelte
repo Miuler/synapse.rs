@@ -1157,7 +1157,7 @@
         activeTabPath = null;
         openedNotes = {};
         tabSelections = {};
-        recentFiles = vaultItems.map(v => v.relative_path);
+        recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
         tabHistory = [];
         tabHistoryIndex = -1;
         handleNewEmptyTab();

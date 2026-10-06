@@ -30,7 +30,11 @@ pub trait NoteRepository: Send + Sync {
     /// # Retorno
     /// * `Ok(Note)`: La entidad de dominio `Note` instanciada con su contenido y metadatos.
     /// * `Err(String)`: Mensaje descriptivo si el archivo no existe o no pudo ser leído.
-    fn read_note(&self, vault_path: &Path, relative_path: &NoteRelativePath) -> Result<Note, String>;
+    fn read_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<Note, String>;
 
     /// Guarda o actualiza una nota en el medio de almacenamiento persistente.
     ///

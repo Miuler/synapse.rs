@@ -1,15 +1,17 @@
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
+pub mod navigation;
 
 use application::use_cases::note_use_cases::NoteUseCases;
 use domain::models::file_types::SupportedFileTypes;
 use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
-    get_active_vault_path, get_supported_file_types, get_vault_notes, read_note_content,
-    save_note_content, search_items_command, search_notes_command, select_vault_folder,
-    set_active_vault_path, toggle_devtools, get_vault_git_status, delete_vault_item,
-    git_add_paths, git_restore_paths, git_restore_staged_paths, get_system_theme, AppState,
+    delete_vault_item, get_active_vault_path, get_supported_file_types, get_system_theme,
+    get_vault_directory_children, get_vault_git_status, get_vault_notes, git_add_paths,
+    git_restore_paths, git_restore_staged_paths, read_note_content, save_note_content,
+    search_items_command, search_notes_command, select_vault_folder, set_active_vault_path,
+    toggle_devtools, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -45,6 +47,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_supported_file_types,
             get_vault_notes,
+            get_vault_directory_children,
             get_active_vault_path,
             read_note_content,
             save_note_content,

@@ -8,7 +8,10 @@ impl NoteRelativePath {
     pub fn new(path: &str) -> Result<Self, String> {
         // Prevención de seguridad: no permitir navegación fuera de la bóveda
         if path.contains("..") {
-            return Err("Ruta no válida: no se permite navegación fuera de la bóveda (Path Traversal)".to_string());
+            return Err(
+                "Ruta no válida: no se permite navegación fuera de la bóveda (Path Traversal)"
+                    .to_string(),
+            );
         }
 
         // Normalización de la ruta

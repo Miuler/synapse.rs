@@ -2,9 +2,9 @@ use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::note::Note;
 use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::value_objects::note_path::NoteRelativePath;
+use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
-use log::info;
 
 pub fn detect_and_decode(bytes: &[u8]) -> (String, String) {
     if bytes.is_empty() {
@@ -166,7 +166,8 @@ impl FileNoteRepository {
                 let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
                 let is_supported = extensions.iter().any(|e| {
                     e.eq_ignore_ascii_case(ext)
-                        || (e.contains('.') && file_name.to_lowercase().ends_with(&e.to_lowercase()))
+                        || (e.contains('.')
+                            && file_name.to_lowercase().ends_with(&e.to_lowercase()))
                 });
                 if is_supported {
                     if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
@@ -178,7 +179,12 @@ impl FileNoteRepository {
                                     .and_then(|s| s.to_str())
                                     .unwrap_or(file_name)
                                     .to_string();
-                                notes.push(Note::new(rel_path, path.into_string().unwrap(), title, content));
+                                notes.push(Note::new(
+                                    rel_path,
+                                    path.into_string().unwrap(),
+                                    title,
+                                    content,
+                                ));
                             }
                         }
                     }
@@ -211,7 +217,10 @@ impl NoteRepository for FileNoteRepository {
     ) -> Result<Note, String> {
         let abs_path = self.resolve_absolute_path(vault_path, relative_path);
 
-        let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let ext_str = abs_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
         let file_types = SupportedFileTypes::default();
         let is_image = file_types.is_image_extension(ext_str);
 
@@ -249,7 +258,10 @@ impl NoteRepository for FileNoteRepository {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        let ext_str = abs_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let ext_str = abs_path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
         let file_types = SupportedFileTypes::default();
         if file_types.is_image_extension(ext_str) {
             // No sobreescribir imágenes binarias con texto o data URIs

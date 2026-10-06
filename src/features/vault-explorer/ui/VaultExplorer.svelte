@@ -97,11 +97,54 @@
   // Estado de carpetas expandidas (por defecto TODAS colapsadas)
   let expandedFolders = $state<Record<string, boolean>>({});
 
-  function toggleFolder(folderPath: string) {
-    expandedFolders[folderPath] = !expandedFolders[folderPath];
+  // Caché de hijos de carpetas cargados bajo demanda desde Rust DashMap
+  let folderChildren = $state<Record<string, VaultTreeNode[]>>({});
+
+  export function getChildren(node: VaultTreeNode): VaultTreeNode[] {
+    return folderChildren[node.relativePath] || node.children || [];
   }
 
-  // Construir el árbol jerárquico a partir de la lista plana de vaultItems
+  async function loadDirectory(parentPath: string = '') {
+    if (!isConnectedToRust) return;
+    try {
+      const entries = await vaultRepository.getDirectoryChildren(parentPath);
+      const nodes: VaultTreeNode[] = entries.map((entry) => ({
+        name: entry.name,
+        relativePath: entry.relative_path,
+        isFolder: entry.is_folder,
+        item: entry.is_folder
+          ? undefined
+          : {
+              id: entry.relative_path,
+              title: entry.title || entry.name.replace(/\.[^/.]+$/, ''),
+              relative_path: entry.relative_path,
+            },
+        children: [],
+      }));
+      folderChildren[parentPath] = nodes;
+    } catch (err) {
+      console.error(`Error al cargar directorio '${parentPath}':`, err);
+    }
+  }
+
+  // Carga inicial de la raíz y al cambiar de bóveda activa
+  $effect(() => {
+    const _path = vaultPath;
+    const _connected = isConnectedToRust;
+    if (_connected) {
+      loadDirectory('');
+    }
+  });
+
+  async function toggleFolder(folderPath: string) {
+    const nextState = !expandedFolders[folderPath];
+    expandedFolders[folderPath] = nextState;
+    if (nextState && !folderChildren[folderPath]) {
+      await loadDirectory(folderPath);
+    }
+  }
+
+  // Construir el árbol jerárquico a partir de la lista plana de vaultItems (fallback)
   let treeNodes = $derived.by(() => {
     const rootNodes: VaultTreeNode[] = [];
     const nodeMap: Record<string, VaultTreeNode> = {};
@@ -154,6 +197,13 @@
     return rootNodes;
   });
 
+  // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback
+  let displayTreeNodes = $derived(
+    folderChildren[''] && folderChildren[''].length > 0
+      ? folderChildren['']
+      : treeNodes
+  );
+
   // Expandir carpetas padres automáticamente cuando un archivo se selecciona como pestaña activa
   $effect(() => {
     const path = activeTabPath;
@@ -163,6 +213,9 @@
       for (let i = 0; i < parts.length - 1; i++) {
         currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
         expandedFolders[currentPath] = true;
+        if (!folderChildren[currentPath]) {
+          loadDirectory(currentPath);
+        }
       }
     }
   });
@@ -196,7 +249,7 @@
     for (const node of nodes) {
       visible.push(node);
       if (node.isFolder && expandedFolders[node.relativePath]) {
-        visible.push(...getVisibleNodes(node.children));
+        visible.push(...getVisibleNodes(getChildren(node)));
       }
     }
     return visible;
@@ -232,7 +285,7 @@
 
   // Selección de rango con Shift
   function selectRange(startPath: string, endPath: string) {
-    const visible = getVisibleNodes(treeNodes);
+    const visible = getVisibleNodes(displayTreeNodes);
     const startIdx = visible.findIndex((n) => n.relativePath === startPath);
     const endIdx = visible.findIndex((n) => n.relativePath === endPath);
 
@@ -251,7 +304,7 @@
   }
 
   function navigateTree(direction: 'up' | 'down', e: KeyboardEvent) {
-    const visible = getVisibleNodes(treeNodes);
+    const visible = getVisibleNodes(displayTreeNodes);
     if (visible.length === 0) return;
 
     let currentIndex = -1;
@@ -307,10 +360,10 @@
     function collect(nodes: VaultTreeNode[]) {
       for (const n of nodes) {
         map[n.relativePath] = n;
-        if (n.isFolder) collect(n.children);
+        if (n.isFolder) collect(getChildren(n));
       }
     }
-    collect(treeNodes);
+    collect(displayTreeNodes);
     return selectedPaths.map((p) => map[p]).filter(Boolean);
   });
 
@@ -384,24 +437,27 @@
       navigateTree('up', e);
     } else if (e.key === 'ArrowRight') {
       if (lastFocusedPath) {
-        const visible = getVisibleNodes(treeNodes);
+        const visible = getVisibleNodes(displayTreeNodes);
         const node = visible.find((n) => n.relativePath === lastFocusedPath);
         if (node && node.isFolder) {
           e.preventDefault();
           if (!expandedFolders[node.relativePath]) {
-            expandedFolders[node.relativePath] = true;
-          } else if (node.children.length > 0) {
-            const firstChild = node.children[0];
-            selectedPaths = [firstChild.relativePath];
-            lastFocusedPath = firstChild.relativePath;
-            anchorPath = firstChild.relativePath;
-            scrollPathIntoView(firstChild.relativePath);
+            toggleFolder(node.relativePath);
+          } else {
+            const children = getChildren(node);
+            if (children.length > 0) {
+              const firstChild = children[0];
+              selectedPaths = [firstChild.relativePath];
+              lastFocusedPath = firstChild.relativePath;
+              anchorPath = firstChild.relativePath;
+              scrollPathIntoView(firstChild.relativePath);
+            }
           }
         }
       }
     } else if (e.key === 'ArrowLeft') {
       if (lastFocusedPath) {
-        const visible = getVisibleNodes(treeNodes);
+        const visible = getVisibleNodes(displayTreeNodes);
         const node = visible.find((n) => n.relativePath === lastFocusedPath);
         if (node && node.isFolder && expandedFolders[node.relativePath]) {
           e.preventDefault();
@@ -423,7 +479,7 @@
       }
     } else if (e.key === 'Enter') {
       if (lastFocusedPath) {
-        const visible = getVisibleNodes(treeNodes);
+        const visible = getVisibleNodes(displayTreeNodes);
         const node = visible.find((n) => n.relativePath === lastFocusedPath);
         if (node) {
           e.preventDefault();
@@ -432,7 +488,7 @@
       }
     } else if (e.key === ' ') {
       if (lastFocusedPath) {
-        const visible = getVisibleNodes(treeNodes);
+        const visible = getVisibleNodes(displayTreeNodes);
         const node = visible.find((n) => n.relativePath === lastFocusedPath);
         if (node) {
           e.preventDefault();
@@ -440,7 +496,7 @@
         }
       }
     } else if (e.key === 'Home') {
-      const visible = getVisibleNodes(treeNodes);
+      const visible = getVisibleNodes(displayTreeNodes);
       if (visible.length > 0) {
         e.preventDefault();
         const first = visible[0];
@@ -450,7 +506,7 @@
         scrollPathIntoView(first.relativePath);
       }
     } else if (e.key === 'End') {
-      const visible = getVisibleNodes(treeNodes);
+      const visible = getVisibleNodes(displayTreeNodes);
       if (visible.length > 0) {
         e.preventDefault();
         const last = visible[visible.length - 1];
@@ -461,7 +517,7 @@
       }
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
-      const visible = getVisibleNodes(treeNodes);
+      const visible = getVisibleNodes(displayTreeNodes);
       selectedPaths = visible.map((n) => n.relativePath);
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
@@ -884,7 +940,7 @@
               }
             }}
           >
-            {#each treeNodes as rootNode (rootNode.relativePath)}
+            {#each displayTreeNodes as rootNode (rootNode.relativePath)}
               {@render renderNode(rootNode, 0)}
             {/each}
           </div>
@@ -1136,11 +1192,13 @@
         {/snippet}
       </Collapsible.Trigger>
 
-      <Collapsible.Content>
-        {#each node.children as child (child.relativePath)}
-          {@render renderNode(child, depth + 1)}
-        {/each}
-      </Collapsible.Content>
+      {#if expandedFolders[node.relativePath]}
+        <Collapsible.Content>
+          {#each getChildren(node) as child (child.relativePath)}
+            {@render renderNode(child, depth + 1)}
+          {/each}
+        </Collapsible.Content>
+      {/if}
     </Collapsible.Root>
   {:else}
     {@const rawGitStatus = isGitRepo && gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[node.relativePath.replace(/^\.\//, '')]) : undefined}
