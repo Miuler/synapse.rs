@@ -63,6 +63,15 @@ pub fn open_vault_components(
     };
 
     let indexer = FtsIndexer::start(vault_path, file_types, Arc::clone(&tantivy_index));
+    let handle_for_fts = Arc::clone(&app_handle);
+    indexer.set_on_status_change(Arc::new(move |status| {
+        if let Ok(guard) = handle_for_fts.lock() {
+            if let Some(ref handle) = *guard {
+                use tauri::Emitter;
+                let _ = handle.emit("vault:indexing-status", &status);
+            }
+        }
+    }));
     engine.register_observer(Arc::clone(&indexer) as Arc<dyn crate::domain::events::vault_events::VaultChangeObserver>);
 
     let use_cases = FullTextSearchUseCases::new(tantivy_index);
@@ -850,13 +859,7 @@ pub async fn full_text_search(
             hits: Vec::new(),
             total_hits: 0,
             elapsed_ms: 0.0,
-            status: FullTextIndexStatus {
-                indexed_docs: 0,
-                pending: 0,
-                is_indexing: false,
-                in_memory_fallback: false,
-                last_error: None,
-            },
+            status: FullTextIndexStatus::default(),
         });
     };
 
@@ -882,13 +885,7 @@ pub async fn full_text_search(
 pub fn get_full_text_index_status(state: State<'_, AppState>) -> Result<FullTextIndexStatus, String> {
     let guard = state.full_text.lock().map_err(|e| e.to_string())?;
     let Some(ref ft_components) = *guard else {
-        return Ok(FullTextIndexStatus {
-            indexed_docs: 0,
-            pending: 0,
-            is_indexing: false,
-            in_memory_fallback: false,
-            last_error: None,
-        });
+        return Ok(FullTextIndexStatus::default());
     };
     Ok(ft_components.indexer.status())
 }

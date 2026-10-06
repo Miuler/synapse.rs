@@ -20,6 +20,8 @@ enum IndexerCmd {
     Shutdown,
 }
 
+pub type StatusCallback = Arc<dyn Fn(FullTextIndexStatus) + Send + Sync>;
+
 pub struct FtsIndexer {
     tx: mpsc::Sender<IndexerCmd>,
     worker_handle: Mutex<Option<thread::JoinHandle<()>>>,
@@ -27,6 +29,11 @@ pub struct FtsIndexer {
     pending_count: Arc<AtomicUsize>,
     is_indexing: Arc<AtomicBool>,
     last_error: Arc<Mutex<Option<String>>>,
+    current_file: Arc<Mutex<Option<String>>>,
+    total_to_index: Arc<AtomicUsize>,
+    indexed_in_batch: Arc<AtomicUsize>,
+    recent_files: Arc<Mutex<Vec<String>>>,
+    on_status_change: Arc<Mutex<Option<StatusCallback>>>,
 }
 
 impl FtsIndexer {
@@ -40,6 +47,11 @@ impl FtsIndexer {
         let pending_count = Arc::new(AtomicUsize::new(0));
         let is_indexing = Arc::new(AtomicBool::new(false));
         let last_error = Arc::new(Mutex::new(None));
+        let current_file = Arc::new(Mutex::new(None));
+        let total_to_index = Arc::new(AtomicUsize::new(0));
+        let indexed_in_batch = Arc::new(AtomicUsize::new(0));
+        let recent_files = Arc::new(Mutex::new(Vec::new()));
+        let on_status_change: Arc<Mutex<Option<StatusCallback>>> = Arc::new(Mutex::new(None));
 
         let worker_vault_path = vault_path;
         let worker_file_types = file_types;
@@ -47,6 +59,11 @@ impl FtsIndexer {
         let worker_pending = Arc::clone(&pending_count);
         let worker_is_indexing = Arc::clone(&is_indexing);
         let worker_last_error = Arc::clone(&last_error);
+        let worker_current_file = Arc::clone(&current_file);
+        let worker_total_to_index = Arc::clone(&total_to_index);
+        let worker_indexed_in_batch = Arc::clone(&indexed_in_batch);
+        let worker_recent_files = Arc::clone(&recent_files);
+        let worker_on_status_change = Arc::clone(&on_status_change);
 
         let handle = thread::Builder::new()
             .name("fts-indexer".to_string())
@@ -56,12 +73,47 @@ impl FtsIndexer {
                 let mut last_activity = Instant::now();
                 let debounce_dur = Duration::from_millis(350);
 
+                let notify = {
+                    let idx = Arc::clone(&worker_index);
+                    let pend = Arc::clone(&worker_pending);
+                    let is_idx = Arc::clone(&worker_is_indexing);
+                    let err_l = Arc::clone(&worker_last_error);
+                    let cur_f = Arc::clone(&worker_current_file);
+                    let tot_i = Arc::clone(&worker_total_to_index);
+                    let idx_b = Arc::clone(&worker_indexed_in_batch);
+                    let rec_f = Arc::clone(&worker_recent_files);
+                    let cb_l = Arc::clone(&worker_on_status_change);
+                    move || {
+                        if let Ok(guard) = cb_l.lock() {
+                            if let Some(ref cb) = *guard {
+                                let status = FullTextIndexStatus {
+                                    indexed_docs: idx.num_docs(),
+                                    pending: pend.load(Ordering::SeqCst),
+                                    is_indexing: is_idx.load(Ordering::SeqCst),
+                                    in_memory_fallback: idx.is_in_memory(),
+                                    last_error: err_l.lock().ok().and_then(|l| l.clone()),
+                                    current_file: cur_f.lock().ok().and_then(|l| l.clone()),
+                                    total_to_index: tot_i.load(Ordering::SeqCst),
+                                    indexed_in_batch: idx_b.load(Ordering::SeqCst),
+                                    recent_files: rec_f.lock().ok().map(|l| l.clone()).unwrap_or_default(),
+                                };
+                                cb(status);
+                            }
+                        }
+                    }
+                };
+
                 let process_batch = |upserts: &mut HashSet<String>,
                                      removes: &mut HashSet<String>,
                                      vault: &Path,
                                      ft: &SupportedFileTypes,
                                      idx: &TantivyFullTextIndex,
-                                     err_lock: &Arc<Mutex<Option<String>>>| {
+                                     err_lock: &Arc<Mutex<Option<String>>>,
+                                     cur_f: &Arc<Mutex<Option<String>>>,
+                                     tot_i: &Arc<AtomicUsize>,
+                                     idx_b: &Arc<AtomicUsize>,
+                                     rec_f: &Arc<Mutex<Vec<String>>>,
+                                     notify_fn: &(dyn Fn() + Send + Sync)| {
                     if upserts.is_empty() && removes.is_empty() {
                         return;
                     }
@@ -95,6 +147,11 @@ impl FtsIndexer {
                     // 2. Procesar inserciones / modificaciones concurrentemente
                     if !upserts.is_empty() {
                         let targets: Vec<String> = upserts.drain().collect();
+                        let targets_len = targets.len();
+                        tot_i.store(targets_len, Ordering::SeqCst);
+                        idx_b.store(0, Ordering::SeqCst);
+                        notify_fn();
+
                         let docs: Vec<FullTextDocument> = targets
                             .into_par_iter()
                             .filter_map(|rel_str| {
@@ -107,6 +164,22 @@ impl FtsIndexer {
                                 let bytes = fs::read(&abs).ok()?;
                                 let (kind, title, body) =
                                     content_extractor::extract(Path::new(&rel_str), &bytes, ft)?;
+
+                                let count = idx_b.fetch_add(1, Ordering::SeqCst) + 1;
+                                if let Ok(mut l) = cur_f.lock() {
+                                    *l = Some(rel_str.clone());
+                                }
+                                if let Ok(mut r) = rec_f.lock() {
+                                    if !r.contains(&rel_str) {
+                                        if r.len() >= 10 {
+                                            r.remove(0);
+                                        }
+                                        r.push(rel_str.clone());
+                                    }
+                                }
+                                if count % 5 == 0 || count == targets_len {
+                                    notify_fn();
+                                }
 
                                 let mtime_nanos = meta
                                     .modified()
@@ -140,6 +213,13 @@ impl FtsIndexer {
                             *l = Some(format!("Error en commit FTS: {}", e));
                         }
                     }
+
+                    if let Ok(mut l) = cur_f.lock() {
+                        *l = None;
+                    }
+                    tot_i.store(0, Ordering::SeqCst);
+                    idx_b.store(0, Ordering::SeqCst);
+                    notify_fn();
                 };
 
                 loop {
@@ -153,8 +233,10 @@ impl FtsIndexer {
                                     }
                                 }
                                 VaultChange::Removed(paths) => {
+                                    for p in &paths {
+                                        pending_upserts.remove(p);
+                                    }
                                     for p in paths {
-                                        pending_upserts.remove(&p);
                                         pending_removes.insert(p);
                                     }
                                 }
@@ -162,20 +244,29 @@ impl FtsIndexer {
                             last_activity = Instant::now();
                             worker_pending
                                 .store(pending_upserts.len() + pending_removes.len(), Ordering::SeqCst);
+                            notify();
                         }
                         Ok(IndexerCmd::FullSync) => {
                             worker_is_indexing.store(true, Ordering::SeqCst);
+                            notify();
                             perform_full_sync(
                                 &worker_vault_path,
                                 &worker_file_types,
                                 &worker_index,
                                 &worker_last_error,
+                                &worker_current_file,
+                                &worker_total_to_index,
+                                &worker_indexed_in_batch,
+                                &worker_recent_files,
+                                &notify,
                             );
                             worker_is_indexing.store(false, Ordering::SeqCst);
                             worker_pending.store(0, Ordering::SeqCst);
+                            notify();
                         }
                         Ok(IndexerCmd::Rebuild) => {
                             worker_is_indexing.store(true, Ordering::SeqCst);
+                            notify();
                             let _ = worker_index.delete_all();
                             let _ = worker_index.commit();
                             perform_full_sync(
@@ -183,9 +274,15 @@ impl FtsIndexer {
                                 &worker_file_types,
                                 &worker_index,
                                 &worker_last_error,
+                                &worker_current_file,
+                                &worker_total_to_index,
+                                &worker_indexed_in_batch,
+                                &worker_recent_files,
+                                &notify,
                             );
                             worker_is_indexing.store(false, Ordering::SeqCst);
                             worker_pending.store(0, Ordering::SeqCst);
+                            notify();
                         }
                         Ok(IndexerCmd::Shutdown) => {
                             // Flush final antes de salir
@@ -196,6 +293,11 @@ impl FtsIndexer {
                                 &worker_file_types,
                                 &worker_index,
                                 &worker_last_error,
+                                &worker_current_file,
+                                &worker_total_to_index,
+                                &worker_indexed_in_batch,
+                                &worker_recent_files,
+                                &notify,
                             );
                             break;
                         }
@@ -210,9 +312,15 @@ impl FtsIndexer {
                                     &worker_file_types,
                                     &worker_index,
                                     &worker_last_error,
+                                    &worker_current_file,
+                                    &worker_total_to_index,
+                                    &worker_indexed_in_batch,
+                                    &worker_recent_files,
+                                    &notify,
                                 );
                                 worker_is_indexing.store(false, Ordering::SeqCst);
                                 worker_pending.store(0, Ordering::SeqCst);
+                                notify();
                             }
                         }
                         Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -230,12 +338,23 @@ impl FtsIndexer {
             pending_count,
             is_indexing,
             last_error,
+            current_file,
+            total_to_index,
+            indexed_in_batch,
+            recent_files,
+            on_status_change,
         });
 
         // Disparar sincronización inicial en segundo plano
         let _ = indexer.tx.send(IndexerCmd::FullSync);
 
         indexer
+    }
+
+    pub fn set_on_status_change(&self, cb: StatusCallback) {
+        if let Ok(mut lock) = self.on_status_change.lock() {
+            *lock = Some(cb);
+        }
     }
 
     pub fn status(&self) -> FullTextIndexStatus {
@@ -245,6 +364,10 @@ impl FtsIndexer {
             is_indexing: self.is_indexing.load(Ordering::SeqCst),
             in_memory_fallback: self.index.is_in_memory(),
             last_error: self.last_error.lock().ok().and_then(|l| l.clone()),
+            current_file: self.current_file.lock().ok().and_then(|l| l.clone()),
+            total_to_index: self.total_to_index.load(Ordering::SeqCst),
+            indexed_in_batch: self.indexed_in_batch.load(Ordering::SeqCst),
+            recent_files: self.recent_files.lock().ok().map(|l| l.clone()).unwrap_or_default(),
         }
     }
 
@@ -277,6 +400,11 @@ fn perform_full_sync(
     file_types: &SupportedFileTypes,
     index: &TantivyFullTextIndex,
     error_lock: &Arc<Mutex<Option<String>>>,
+    cur_f: &Arc<Mutex<Option<String>>>,
+    tot_i: &Arc<AtomicUsize>,
+    idx_b: &Arc<AtomicUsize>,
+    rec_f: &Arc<Mutex<Vec<String>>>,
+    notify_fn: &(dyn Fn() + Send + Sync),
 ) {
     let indexed = match index.indexed_versions() {
         Ok(v) => v,
@@ -372,6 +500,11 @@ fn perform_full_sync(
 
     // 2. Indexar archivos nuevos o modificados en paralelo con rayon
     if !to_index_paths.is_empty() {
+        let total = to_index_paths.len();
+        tot_i.store(total, Ordering::SeqCst);
+        idx_b.store(0, Ordering::SeqCst);
+        notify_fn();
+
         let docs: Vec<FullTextDocument> = to_index_paths
             .into_par_iter()
             .filter_map(|(rel_str, mtime_nanos)| {
@@ -379,6 +512,22 @@ fn perform_full_sync(
                 let bytes = fs::read(&abs).ok()?;
                 let (kind, title, body) =
                     content_extractor::extract(Path::new(&rel_str), &bytes, file_types)?;
+
+                let count = idx_b.fetch_add(1, Ordering::SeqCst) + 1;
+                if let Ok(mut l) = cur_f.lock() {
+                    *l = Some(rel_str.clone());
+                }
+                if let Ok(mut r) = rec_f.lock() {
+                    if !r.contains(&rel_str) {
+                        if r.len() >= 10 {
+                            r.remove(0);
+                        }
+                        r.push(rel_str.clone());
+                    }
+                }
+                if count % 5 == 0 || count == total {
+                    notify_fn();
+                }
 
                 Some(FullTextDocument {
                     path: rel_str,
@@ -403,4 +552,11 @@ fn perform_full_sync(
     if !to_delete.is_empty() || seen_paths.len() != indexed.len() {
         let _ = index.commit();
     }
+
+    if let Ok(mut l) = cur_f.lock() {
+        *l = None;
+    }
+    tot_i.store(0, Ordering::SeqCst);
+    idx_b.store(0, Ordering::SeqCst);
+    notify_fn();
 }

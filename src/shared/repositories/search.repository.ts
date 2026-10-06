@@ -22,6 +22,10 @@ export interface FullTextIndexStatus {
   is_indexing: boolean;
   in_memory_fallback: boolean;
   last_error?: string | null;
+  current_file?: string | null;
+  total_to_index?: number;
+  indexed_in_batch?: number;
+  recent_files?: string[];
 }
 
 export interface FullTextSearchResponse {

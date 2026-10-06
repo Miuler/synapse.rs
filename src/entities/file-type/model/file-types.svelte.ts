@@ -1,4 +1,4 @@
-import supportedFilesRaw from '../../../../supported_files.jsonc?raw';
+import configRaw from '../../../../config.jsonc?raw';
 
 export interface SupportedFileTypes {
   images: string[];
@@ -6,6 +6,18 @@ export interface SupportedFileTypes {
   diagrams: string[];
   drawings: string[];
   code: string[];
+}
+
+export interface IgnoredConfig {
+  directories: string[];
+  suffixes: string[];
+  prefixes: string[];
+  files: string[];
+}
+
+export interface AppConfig {
+  supported_files: SupportedFileTypes;
+  ignored: IgnoredConfig;
 }
 
 function parseJsonc<T>(raw: string): T {
@@ -16,7 +28,10 @@ function parseJsonc<T>(raw: string): T {
   return JSON.parse(cleaned);
 }
 
-export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = parseJsonc<SupportedFileTypes>(supportedFilesRaw);
+const parsedConfig = parseJsonc<AppConfig>(configRaw);
+export const DEFAULT_APP_CONFIG: AppConfig = parsedConfig;
+export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = parsedConfig.supported_files;
+export const DEFAULT_IGNORED_CONFIG: IgnoredConfig = parsedConfig.ignored;
 
 /**
  * Entidad pura que gestiona el estado y las reglas de dominio

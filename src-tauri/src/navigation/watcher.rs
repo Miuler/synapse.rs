@@ -35,37 +35,21 @@ pub struct ParsedFileMeta {
     pub created_nanos: Option<u128>,
 }
 
+use crate::domain::models::config::IgnoredConfig;
+
+pub fn default_ignored_config() -> &'static IgnoredConfig {
+    static CONFIG: std::sync::OnceLock<IgnoredConfig> = std::sync::OnceLock::new();
+    CONFIG.get_or_init(|| crate::domain::models::config::AppConfig::default().ignored)
+}
+
 /// Determines if a directory or file name should be completely ignored (build artifacts, dependencies, etc.)
 pub fn is_ignored_dir_or_file(name: &str) -> bool {
-    name.starts_with('.')
-        || name.eq_ignore_ascii_case("node_modules")
-        || name.eq_ignore_ascii_case("target")
-        || name.eq_ignore_ascii_case("dist")
-        || name.eq_ignore_ascii_case("build")
-        || name.eq_ignore_ascii_case(".git")
-        || name.eq_ignore_ascii_case(".synapse")
-        || name.eq_ignore_ascii_case(".idea")
-        || name.eq_ignore_ascii_case(".vscode")
+    default_ignored_config().is_ignored_dir_or_file(name)
 }
 
 /// Determines if a path component or name represents a hidden or temporary file that should be ignored.
 pub fn should_ignore_path(rel_path: &Path) -> bool {
-    // Ignore any path containing hidden components (.git, .synapse, .obsidian, etc.) or ignored folders
-    for component in rel_path.components() {
-        let comp_str = component.as_os_str().to_string_lossy();
-        if is_ignored_dir_or_file(&comp_str) {
-            return true;
-        }
-    }
-
-    if let Some(file_name) = rel_path.file_name().and_then(|n| n.to_str()) {
-        // Ignore backup and temp editor files: foo.md~, #foo.md#, foo.tmp
-        if file_name.ends_with('~') || file_name.ends_with(".tmp") || file_name.starts_with('#') {
-            return true;
-        }
-    }
-
-    false
+    default_ignored_config().should_ignore_path(rel_path)
 }
 
 /// Processes a debounced batch of filesystem events using Rayon for concurrent parsing.
@@ -102,10 +86,15 @@ pub fn process_events_batch(
 
         if abs_path.exists() {
             if abs_path.is_dir() {
-                // If a directory was created/modified, walk it for supported files (pruning ignored dirs)
+                // If a directory was created/modified, only shallow walk non-ignored subfolders (max depth 3)
+                // rather than traversing the entire vault.
                 for entry_res in jwalk::WalkDir::new(abs_path)
+                    .max_depth(3)
                     .skip_hidden(true)
-                    .process_read_dir(|_depth, _path, _state, children| {
+                    .process_read_dir(|depth, _path, _state, children| {
+                        if depth.is_none() {
+                            return;
+                        }
                         children.retain(|entry_res| {
                             entry_res
                                 .as_ref()
@@ -144,7 +133,18 @@ pub fn process_events_batch(
         } else {
             // Path does not exist on disk: either a deleted file or a deleted directory
             let rel_str = rel_path.to_string_lossy().replace('\\', "/");
-            deleted_paths.insert(rel_str);
+            let compact_del = CompactString::new(&rel_str);
+            // Only consider it a deleted path if it was actually tracked in path_index
+            // or is a directory prefix of tracked notes.
+            if path_index.contains_key(&compact_del) {
+                deleted_paths.insert(rel_str);
+            } else {
+                let dir_prefix = format!("{}/", rel_str);
+                let is_tracked_dir = notes.iter().any(|item| item.value().path.starts_with(&dir_prefix));
+                if is_tracked_dir {
+                    deleted_paths.insert(rel_str);
+                }
+            }
         }
     }
 

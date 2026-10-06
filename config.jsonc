@@ -1,0 +1,106 @@
+{
+  // Tipos de archivos soportados clasificados por categoría
+  "supported_files": {
+    // Formatos de imágenes soportadas
+    "images": [
+      "png",
+      "webp",
+      "jpg",
+      "jpeg",
+      "gif",
+      "bmp",
+      "svg",
+      "ico",
+      "avif",
+      "tiff",
+      "tif"
+    ],
+
+    // Notas Markdown (indexadas y renderizadas con soporte de edición/lectura)
+    "markdown": [
+      "md",
+      "markdown"
+    ],
+
+    // Diagramas Mermaid
+    "diagrams": [
+      "mmd",
+      "mermaid"
+    ],
+
+    // Dibujos y bocetos Excalidraw
+    "drawings": [
+      "excalidraw",
+      "excalidraw.json",
+      "excalidraw.svg",
+      "excalidraw.png"
+    ],
+
+    // Código fuente y texto estructurado
+    "code": [
+      "rs",
+      "ts",
+      "js",
+      "json",
+      "toml",
+      "yaml",
+      "yml",
+      "css",
+      "html",
+      "csv",
+      "cbl",
+      "cob"
+    ]
+  },
+
+  // Reglas de exclusión para ignorar dependencias, temporales y carpetas del sistema
+  "ignored": {
+    // Carpetas que deben ser completamente ignoradas y nunca recorridas
+    "directories": [
+      "node_modules",
+      "target",
+      "dist",
+      "build",
+      "out",
+      "coverage",
+      "vendor",
+      "bin",
+      "obj",
+      "bower_components",
+      "__pycache__",
+      ".git",
+      ".synapse",
+      ".idea",
+      ".vscode",
+      ".obsidian",
+      ".trash",
+      ".cache",
+      "cache"
+    ],
+
+    // Sufijos y extensiones de archivos temporales, copias de seguridad o de bloqueo
+    "suffixes": [
+      "~",
+      ".tmp",
+      ".temp",
+      ".swp",
+      ".swo",
+      ".bak",
+      ".lock",
+      ".part",
+      ".crdownload"
+    ],
+
+    // Prefijos de archivos temporales de editores
+    "prefixes": [
+      "#",
+      ".#"
+    ],
+
+    // Nombres exactos de archivos que se deben ignorar
+    "files": [
+      "thumbs.db",
+      ".ds_store"
+    ]
+  }
+}

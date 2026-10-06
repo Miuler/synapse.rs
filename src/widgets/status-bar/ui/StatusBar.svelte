@@ -11,8 +11,15 @@
     Search,
     Sun,
     Moon,
+    Database,
+    Loader2,
+    AlertCircle,
+    FileText,
+    RefreshCw,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
+  import { searchRepository, type FullTextIndexStatus } from '@shared/repositories';
+  import { listen } from '@tauri-apps/api/event';
 
   export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
@@ -173,6 +180,56 @@
       isEncodingMenuOpen = false;
     }
   }
+
+  // Estados para el monitor de indexación de fondo
+  let indexStatus = $state<FullTextIndexStatus | null>(null);
+  let isIndexingMenuOpen = $state(false);
+  let isRebuilding = $state(false);
+
+  async function refreshIndexStatus() {
+    try {
+      const s = await searchRepository.getStatus();
+      if (s) {
+        indexStatus = s;
+      }
+    } catch {}
+  }
+
+  async function handleRebuildIndex() {
+    if (isRebuilding) return;
+    try {
+      isRebuilding = true;
+      await searchRepository.rebuildIndex();
+      await refreshIndexStatus();
+    } catch (e) {
+      console.error('Error al reconstruir índice:', e);
+    } finally {
+      isRebuilding = false;
+    }
+  }
+
+  $effect(() => {
+    refreshIndexStatus();
+
+    let unlisten: (() => void) | undefined;
+    listen<FullTextIndexStatus>('vault:indexing-status', (event) => {
+      indexStatus = event.payload;
+    }).then((u) => {
+      unlisten = u;
+    });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  });
+
+  $effect(() => {
+    if (!indexStatus?.is_indexing) return;
+    const interval = setInterval(async () => {
+      await refreshIndexStatus();
+    }, 800);
+    return () => clearInterval(interval);
+  });
 </script>
 
 <footer class="status-bar">
@@ -192,6 +249,159 @@
     <div class="status-item">
       <span class="dot {syncStatus}"></span>
       <span>{syncStatus === 'synced' ? 'Guardado' : syncStatus === 'saving' ? 'Guardando...' : 'Error de guardado'}</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Monitor de Indexación en Segundo Plano -->
+    <div class="indexing-container">
+      <Popover.Root
+        bind:open={isIndexingMenuOpen}
+        onOpenChange={(open) => {
+          if (open) refreshIndexStatus();
+        }}
+      >
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <button
+              type="button"
+              class="status-item clickable indexing-btn"
+              class:indexing={indexStatus?.is_indexing}
+              class:error={Boolean(indexStatus?.last_error)}
+              class:active={isIndexingMenuOpen}
+              title="Estado de indexación y búsqueda en segundo plano (clic para ver progreso)"
+              {...props}
+            >
+              {#if indexStatus?.is_indexing}
+                <Loader2 size={13} class="icon spin indexing-icon" />
+                <span class="indexing-text">
+                  Indexando
+                  {#if indexStatus.total_to_index && indexStatus.total_to_index > 0}
+                    ({indexStatus.indexed_in_batch || 0}/{indexStatus.total_to_index})
+                  {/if}
+                </span>
+              {:else if indexStatus?.last_error}
+                <AlertCircle size={13} class="icon error-icon" />
+                <span>Error índice</span>
+              {:else}
+                <Database size={13} class="icon" />
+                <span>Índice al día</span>
+              {/if}
+            </button>
+          {/snippet}
+        </Popover.Trigger>
+
+        <Popover.Portal>
+          <Popover.Content class="indexing-popover" side="top" align="start" sideOffset={6}>
+            <div class="popover-header">
+              <div class="header-left">
+                <Database size={14} class="header-icon" />
+                <span class="header-title">Índice de Búsqueda</span>
+              </div>
+              <span
+                class="status-pill"
+                class:pill-indexing={indexStatus?.is_indexing}
+                class:pill-ready={!indexStatus?.is_indexing && !indexStatus?.last_error}
+                class:pill-error={Boolean(indexStatus?.last_error)}
+              >
+                {#if indexStatus?.is_indexing}
+                  <span class="pulse-dot"></span>
+                  Indexando
+                {:else if indexStatus?.last_error}
+                  Error
+                {:else}
+                  Al día
+                {/if}
+              </span>
+            </div>
+
+            <div class="popover-body">
+              {#if indexStatus?.is_indexing}
+                <div class="progress-section">
+                  <div class="progress-info">
+                    <span class="progress-title">Indexando documentos...</span>
+                    <span class="progress-count">
+                      {indexStatus.indexed_in_batch || 0} de {indexStatus.total_to_index || 0}
+                    </span>
+                  </div>
+                  <div class="progress-bar-bg">
+                    <div
+                      class="progress-bar-fill"
+                      style="width: {indexStatus.total_to_index ? Math.min(100, Math.round(((indexStatus.indexed_in_batch || 0) / indexStatus.total_to_index) * 100)) : 0}%"
+                    ></div>
+                  </div>
+                </div>
+
+                {#if indexStatus.current_file}
+                  <div class="current-file-section">
+                    <span class="section-label">Procesando ahora:</span>
+                    <div class="file-badge">
+                      <FileText size={12} class="file-icon" />
+                      <span class="file-name" title={indexStatus.current_file}>{indexStatus.current_file}</span>
+                    </div>
+                  </div>
+                {/if}
+              {:else}
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <span class="stat-num">{indexStatus?.indexed_docs || 0}</span>
+                    <span class="stat-label">Documentos indexados</span>
+                  </div>
+                  <div class="stat-card">
+                    <span class="stat-num">{indexStatus?.pending || 0}</span>
+                    <span class="stat-label">Pendientes en cola</span>
+                  </div>
+                </div>
+
+                <div class="engine-info">
+                  <span class="engine-label">Motor:</span>
+                  <span class="engine-value">
+                    {indexStatus?.in_memory_fallback ? 'Memoria RAM (Fallback)' : 'Tantivy en disco (.synapse/fts)'}
+                  </span>
+                </div>
+              {/if}
+
+              {#if indexStatus?.recent_files && indexStatus.recent_files.length > 0}
+                <div class="recent-files-section">
+                  <span class="section-label">Archivos procesados recientemente:</span>
+                  <div class="recent-files-list">
+                    {#each indexStatus.recent_files.slice(-5).reverse() as file}
+                      <div class="recent-file-item">
+                        <FileText size={12} class="recent-file-icon" />
+                        <span class="recent-file-name" title={file}>{file}</span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              {#if indexStatus?.last_error}
+                <div class="error-box">
+                  <AlertCircle size={14} class="error-box-icon" />
+                  <span>{indexStatus.last_error}</span>
+                </div>
+              {/if}
+            </div>
+
+            <div class="popover-footer">
+              <button
+                type="button"
+                class="rebuild-btn"
+                disabled={isRebuilding || indexStatus?.is_indexing}
+                onclick={handleRebuildIndex}
+              >
+                {#if isRebuilding}
+                  <Loader2 size={13} class="icon spin" />
+                  <span>Reconstruyendo...</span>
+                {:else}
+                  <RefreshCw size={13} class="icon" />
+                  <span>Reindexar bóveda</span>
+                {/if}
+              </button>
+            </div>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   </div>
 
@@ -865,5 +1075,331 @@
   .dot.error {
     background-color: #f85149;
     box-shadow: 0 0 6px rgba(248, 81, 73, 0.6);
+  }
+
+  /* Contenedor y botón de indexación */
+  .indexing-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .indexing-btn {
+    font-weight: 500;
+    gap: 5px;
+    display: flex;
+    align-items: center;
+  }
+
+  .indexing-btn.indexing {
+    color: var(--accent, #0969da);
+    background: rgba(9, 105, 218, 0.08);
+    font-weight: 600;
+  }
+
+  .indexing-btn.error {
+    color: #cf222e;
+    background: rgba(207, 34, 46, 0.08);
+  }
+
+  .indexing-icon {
+    color: var(--accent, #0969da);
+  }
+
+  .error-icon {
+    color: #cf222e;
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Popover flotante de estado de indexación */
+  :global(.indexing-popover) {
+    width: 320px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 8px;
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInSlideUp 0.15s ease-out;
+    outline: none;
+  }
+
+  :global(.indexing-popover .popover-header) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-secondary, #f6f8fa);
+    border-bottom: 1px solid var(--border-primary, #d0d7de);
+  }
+
+  :global(.indexing-popover .header-left) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  :global(.indexing-popover .header-icon) {
+    color: var(--accent, #0969da);
+  }
+
+  :global(.indexing-popover .header-title) {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+  }
+
+  :global(.indexing-popover .status-pill) {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 12px;
+  }
+
+  :global(.indexing-popover .pill-ready) {
+    background: rgba(46, 160, 67, 0.12);
+    color: #1a7f37;
+    border: 1px solid rgba(46, 160, 67, 0.25);
+  }
+
+  :global(.indexing-popover .pill-indexing) {
+    background: rgba(9, 105, 218, 0.12);
+    color: var(--accent, #0969da);
+    border: 1px solid rgba(9, 105, 218, 0.25);
+  }
+
+  :global(.indexing-popover .pill-error) {
+    background: rgba(207, 34, 46, 0.12);
+    color: #cf222e;
+    border: 1px solid rgba(207, 34, 46, 0.25);
+  }
+
+  :global(.indexing-popover .pulse-dot) {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent, #0969da);
+    animation: pulse 1.2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.85);
+    }
+  }
+
+  :global(.indexing-popover .popover-body) {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  :global(.indexing-popover .progress-section) {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  :global(.indexing-popover .progress-info) {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-primary, #1f2328);
+  }
+
+  :global(.indexing-popover .progress-title) {
+    font-weight: 500;
+  }
+
+  :global(.indexing-popover .progress-count) {
+    font-weight: 600;
+    color: var(--accent, #0969da);
+  }
+
+  :global(.indexing-popover .progress-bar-bg) {
+    width: 100%;
+    height: 6px;
+    background: var(--border-primary, #d0d7de);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  :global(.indexing-popover .progress-bar-fill) {
+    height: 100%;
+    background: var(--accent, #0969da);
+    border-radius: 3px;
+    transition: width 0.2s ease;
+  }
+
+  :global(.indexing-popover .current-file-section) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  :global(.indexing-popover .section-label) {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary, #656d76);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  :global(.indexing-popover .file-badge) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-primary, #1f2328);
+    overflow: hidden;
+  }
+
+  :global(.indexing-popover .file-name) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.indexing-popover .stats-grid) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  :global(.indexing-popover .stat-card) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 6px;
+  }
+
+  :global(.indexing-popover .stat-num) {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary, #1f2328);
+  }
+
+  :global(.indexing-popover .stat-label) {
+    font-size: 10px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  :global(.indexing-popover .engine-info) {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-secondary, #656d76);
+    padding: 0 2px;
+  }
+
+  :global(.indexing-popover .engine-value) {
+    font-weight: 500;
+  }
+
+  :global(.indexing-popover .recent-files-section) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  :global(.indexing-popover .recent-files-list) {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+
+  :global(.indexing-popover .recent-file-item) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-secondary, #656d76);
+    overflow: hidden;
+  }
+
+  :global(.indexing-popover .recent-file-name) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.indexing-popover .error-box) {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(207, 34, 46, 0.08);
+    border: 1px solid rgba(207, 34, 46, 0.25);
+    color: #cf222e;
+    font-size: 10px;
+  }
+
+  :global(.indexing-popover .popover-footer) {
+    padding: 8px 12px;
+    background: var(--bg-secondary, #f6f8fa);
+    border-top: 1px solid var(--border-primary, #d0d7de);
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  :global(.indexing-popover .rebuild-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  :global(.indexing-popover .rebuild-btn:hover:not(:disabled)) {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    border-color: var(--accent, #0969da);
+    color: var(--accent, #0969da);
+  }
+
+  :global(.indexing-popover .rebuild-btn:disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>

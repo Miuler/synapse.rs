@@ -86,6 +86,10 @@ pub struct FullTextIndexStatus {
     pub is_indexing: bool,
     pub in_memory_fallback: bool,
     pub last_error: Option<String>,
+    pub current_file: Option<String>,
+    pub total_to_index: usize,
+    pub indexed_in_batch: usize,
+    pub recent_files: Vec<String>,
 }
 
 /// Respuesta completa de una búsqueda full-text.

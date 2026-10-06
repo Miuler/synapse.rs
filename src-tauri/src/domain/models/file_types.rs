@@ -11,8 +11,7 @@ pub struct SupportedFileTypes {
 
 impl Default for SupportedFileTypes {
     fn default() -> Self {
-        const RAW_JSONC: &str = include_str!("../../../../supported_files.jsonc");
-        serde_json_lenient::from_str(RAW_JSONC).expect("Error al deserializar supported_files.jsonc")
+        crate::domain::models::config::AppConfig::default().supported_files
     }
 }
 

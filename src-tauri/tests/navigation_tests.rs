@@ -816,12 +816,15 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
     let _ = fs::remove_dir_all(&test_dir);
     let _ = fs::create_dir_all(test_dir.join(".git"));
     let _ = fs::create_dir_all(test_dir.join(".synapse"));
+    let _ = fs::create_dir_all(test_dir.join(".obsidian").join("plugins"));
+    let _ = fs::create_dir_all(test_dir.join("node_modules").join("package"));
+    let _ = fs::create_dir_all(test_dir.join("target").join("debug"));
     let cache_file = test_dir.join("cache.bin");
 
     let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
     engine.spawn_fs_watcher(std::time::Duration::from_millis(50));
 
-    // Create hidden and temporary editor files
+    // Create hidden, node_modules, target, lock, and temporary editor files
     {
         let mut f1 = File::create(test_dir.join(".git").join("config")).unwrap();
         writeln!(f1, "[core]").unwrap();
@@ -837,14 +840,42 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
 
         let mut f5 = File::create(test_dir.join("backup.md~")).unwrap();
         writeln!(f5, "# Backup Note").unwrap();
+
+        let mut f6 = File::create(test_dir.join("node_modules").join("package").join("readme.md")).unwrap();
+        writeln!(f6, "# Node Modules Readme").unwrap();
+
+        let mut f7 = File::create(test_dir.join("target").join("debug").join("info.md")).unwrap();
+        writeln!(f7, "# Target Info").unwrap();
+
+        let mut f8 = File::create(test_dir.join(".obsidian").join("plugins").join("data.json")).unwrap();
+        writeln!(f8, "{{}}").unwrap();
+
+        let mut f9 = File::create(test_dir.join("sync.lock")).unwrap();
+        writeln!(f9, "lock").unwrap();
+
+        let mut f10 = File::create(test_dir.join("document.swp")).unwrap();
+        writeln!(f10, "swap").unwrap();
     }
 
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    std::thread::sleep(std::time::Duration::from_millis(250));
 
     assert!(
         engine.notes.is_empty(),
-        "Hidden directories, dotfiles, and temporary editor files must be ignored"
+        "Hidden directories, dotfiles, node_modules, target, and temporary/lock files must be ignored"
     );
+
+    // Verify helper unit functions directly
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new(".")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
+    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sync.lock")));
+    assert!(!app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
 
     engine.shutdown();
     let _ = fs::remove_dir_all(&test_dir);
