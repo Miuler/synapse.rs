@@ -778,4 +778,247 @@ impl NavigationEngine {
         self.shutdown_flag.store(true, Ordering::SeqCst);
         let _ = self.save_cache();
     }
+
+    /// Forces reloading metadata into DashMap for given paths (files or directories).
+    /// If a path is a directory (or empty string/root), reloads all files in that directory
+    /// and its subdirectories, removes deleted files, and updates the nucleo search index.
+    pub fn reload_paths(&self, paths: &[String]) -> Result<Vec<String>, String> {
+        let mut reloaded_files = std::collections::BTreeSet::new();
+
+        let target_paths: Vec<String> = if paths.is_empty() {
+            vec![String::new()]
+        } else {
+            paths.to_vec()
+        };
+
+        for raw_path in target_paths {
+            let clean_rel = raw_path
+                .trim_matches('/')
+                .replace('\\', "/");
+            let full_path = if clean_rel.is_empty() || clean_rel == "." {
+                self.vault_path.clone()
+            } else {
+                self.vault_path.join(&clean_rel)
+            };
+
+            if !full_path.exists() {
+                // If the path does not exist on disk, remove it and any children from DashMap
+                let mut deleted_ids = Vec::new();
+                for item in self.notes.iter() {
+                    let note_path = item.value().path.as_str();
+                    let is_match = if clean_rel.is_empty() || clean_rel == "." {
+                        true
+                    } else {
+                        note_path == clean_rel || note_path.starts_with(&format!("{}/", clean_rel))
+                    };
+                    if is_match {
+                        deleted_ids.push(*item.key());
+                    }
+                }
+                for id in deleted_ids {
+                    if let Some((_, removed)) = self.notes.remove(&id) {
+                        self.path_index.remove(&removed.path);
+                    }
+                }
+                continue;
+            }
+
+            if full_path.is_dir() {
+                let mut files_in_dir = Vec::new();
+                collect_supported_files_recursive(&full_path, &self.file_types, &mut files_in_dir);
+
+                let mut seen_in_dir = HashSet::new();
+                for p in files_in_dir {
+                    let rel_path_str = match p.strip_prefix(&self.vault_path) {
+                        Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                        Err(_) => continue,
+                    };
+
+                    eprintln!("[D1] before reload_file_into_dashmap for {:?}", rel_path_str);
+                    self.reload_file_into_dashmap(&p, &rel_path_str);
+                    eprintln!("[D2] after reload_file_into_dashmap for {:?}", rel_path_str);
+                    seen_in_dir.insert(rel_path_str.clone());
+                    reloaded_files.insert(rel_path_str);
+                }
+
+                // Remove deleted files within this directory scope
+                eprintln!("[D3] checking deletions");
+                let mut deleted_ids = Vec::new();
+                for item in self.notes.iter() {
+                    let note_path = item.value().path.as_str();
+                    let in_scope = if clean_rel.is_empty() || clean_rel == "." {
+                        true
+                    } else {
+                        note_path == clean_rel || note_path.starts_with(&format!("{}/", clean_rel))
+                    };
+                    if in_scope && !seen_in_dir.contains(note_path) {
+                        deleted_ids.push(*item.key());
+                    }
+                }
+                eprintln!("[D4] removing {} deleted notes", deleted_ids.len());
+                for id in deleted_ids {
+                    if let Some((_, removed)) = self.notes.remove(&id) {
+                        self.path_index.remove(&removed.path);
+                    }
+                }
+                eprintln!("[D5] removed deleted notes");
+            } else if full_path.is_file() {
+                let file_name = match full_path.file_name().and_then(|s| s.to_str()) {
+                    Some(name) => name,
+                    None => continue,
+                };
+                if !file_name.starts_with('.') && self.file_types.is_supported_file(file_name) {
+                    let rel_path_str = match full_path.strip_prefix(&self.vault_path) {
+                        Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                        Err(_) => clean_rel.clone(),
+                    };
+                    self.reload_file_into_dashmap(&full_path, &rel_path_str);
+                    reloaded_files.insert(rel_path_str);
+                }
+            }
+        }
+
+        if let Ok(mut nucleo_lock) = self.nucleo.lock() {
+            nucleo_lock.restart(false);
+            populate_nucleo_from_dashmap(&self.notes, &mut nucleo_lock);
+        }
+
+        self.mark_dirty();
+        Ok(reloaded_files.into_iter().collect())
+    }
+
+    /// Internal helper to force reload a single file's metadata from disk into DashMap.
+    fn reload_file_into_dashmap(&self, path: &std::path::Path, rel_path_str: &str) {
+        let meta = match path.metadata() {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let size_bytes = meta.len();
+        let mtime_nanos: u128 = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+
+        let created_nanos: Option<u128> = meta
+            .created()
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos());
+
+        let file_stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Untitled");
+
+        let file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Untitled");
+
+        let is_markdown = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
+            .unwrap_or(false);
+
+        let title = if is_markdown {
+            let content = std::fs::read_to_string(path).unwrap_or_default();
+            extract_title_from_markdown(&content, file_stem)
+        } else {
+            file_name.to_string()
+        };
+
+        let compact_title = CompactString::new(&title);
+        let compact_path = CompactString::new(rel_path_str);
+
+        let (note_id, note_meta) = if let Some(id_ref) = self.path_index.get(&compact_path) {
+            let existing_id = *id_ref.value();
+            drop(id_ref);
+
+            let (prev_last_opened, prev_is_open, prev_tab_order, prev_is_active, prev_view_mode) = {
+                let meta_opt = self.notes.get(&existing_id);
+                let vals = if let Some(ref existing_meta) = meta_opt {
+                    (
+                        existing_meta.last_opened_nanos,
+                        existing_meta.is_open,
+                        existing_meta.tab_order,
+                        existing_meta.is_active_tab,
+                        existing_meta.view_mode.clone(),
+                    )
+                } else {
+                    (None, false, None, false, None)
+                };
+                drop(meta_opt);
+                vals
+            };
+
+            (
+                existing_id,
+                NoteMeta {
+                    id: existing_id,
+                    path: compact_path.clone(),
+                    title: compact_title.clone(),
+                    mtime_nanos,
+                    size_bytes,
+                    created_nanos,
+                    last_opened_nanos: prev_last_opened,
+                    is_open: prev_is_open,
+                    tab_order: prev_tab_order,
+                    is_active_tab: prev_is_active,
+                    view_mode: prev_view_mode,
+                },
+            )
+        } else {
+            let new_id = self.next_id.fetch_add(1, Ordering::Relaxed);
+            self.path_index.insert(compact_path.clone(), new_id);
+            (
+                new_id,
+                NoteMeta {
+                    id: new_id,
+                    path: compact_path.clone(),
+                    title: compact_title.clone(),
+                    mtime_nanos,
+                    size_bytes,
+                    created_nanos,
+                    last_opened_nanos: None,
+                    is_open: false,
+                    tab_order: None,
+                    is_active_tab: false,
+                    view_mode: Some(CompactString::new("reading")),
+                },
+            )
+        };
+
+        self.notes.insert(note_id, note_meta);
+    }
 }
+
+fn collect_supported_files_recursive(
+    dir: &std::path::Path,
+    file_types: &SupportedFileTypes,
+    out: &mut Vec<PathBuf>,
+) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file_name = match path.file_name().and_then(|s| s.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+            if file_name.starts_with('.') {
+                continue;
+            }
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    collect_supported_files_recursive(&path, file_types, out);
+                } else if ft.is_file() && file_types.is_supported_file(file_name) {
+                    out.push(path);
+                }
+            }
+        }
+    }
+}
+

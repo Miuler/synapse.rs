@@ -641,3 +641,17 @@ pub fn get_system_theme(window: tauri::WebviewWindow) -> String {
 
     "dark".to_string()
 }
+
+#[tauri::command]
+pub fn reload_vault_items(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let engine = state
+        .navigation_engine
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    engine.reload_paths(&paths)
+}
+

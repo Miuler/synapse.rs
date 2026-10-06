@@ -650,3 +650,61 @@ fn test_vault_ui_state_sidebar_and_expanded_folders_persistence() {
 
     let _ = fs::remove_dir_all(&test_dir);
 }
+
+#[test]
+fn test_reload_paths_files_and_directories() {
+    let test_dir = std::env::temp_dir().join("synapse_reload_paths_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(test_dir.join("docs").join("sub"));
+    let cache_file = test_dir.join("cache.bin");
+
+    // Create initial files
+    let root_file = test_dir.join("root.md");
+    let mut f0 = File::create(&root_file).unwrap();
+    writeln!(f0, "# Root Title\nInitial root").unwrap();
+
+    let guide_file = test_dir.join("docs").join("guide.md");
+    let mut f1 = File::create(&guide_file).unwrap();
+    writeln!(f1, "# Guide v1\nInitial guide").unwrap();
+
+    let deep_file = test_dir.join("docs").join("sub").join("deep.md");
+    let mut f2 = File::create(&deep_file).unwrap();
+    writeln!(f2, "# Deep Note\nDeep content").unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file);
+    engine.reconcile_sync();
+    assert_eq!(engine.notes.len(), 3);
+
+    // 1. Test single file reload
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let mut f0_mod = File::create(&root_file).unwrap();
+    writeln!(f0_mod, "# Updated Root\nNew content here").unwrap();
+
+    let reloaded = engine.reload_paths(&["root.md".to_string()]).unwrap();
+    assert_eq!(reloaded, vec!["root.md"]);
+    let root_id = *engine.path_index.get("root.md").unwrap().value();
+    let root_title = engine.notes.get(&root_id).unwrap().title.clone();
+    assert_eq!(root_title.as_str(), "Updated Root");
+
+    // 2. Test directory reload: modify guide.md, and reload "docs"
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let mut f1_mod = File::create(&guide_file).unwrap();
+    writeln!(f1_mod, "# Guide v2 Recharged\nFresh guide content").unwrap();
+
+    let reloaded_dir = engine.reload_paths(&["docs".to_string()]).unwrap();
+    assert!(reloaded_dir.contains(&"docs/guide.md".to_string()));
+    assert!(reloaded_dir.contains(&"docs/sub/deep.md".to_string()));
+    let guide_id = *engine.path_index.get("docs/guide.md").unwrap().value();
+    let guide_title = engine.notes.get(&guide_id).unwrap().title.clone();
+    assert_eq!(guide_title.as_str(), "Guide v2 Recharged");
+
+    // 3. Test directory reload with deleted file: remove deep.md
+    fs::remove_file(&deep_file).unwrap();
+    let reloaded_after_delete = engine.reload_paths(&["docs".to_string()]).unwrap();
+    assert!(!reloaded_after_delete.contains(&"docs/sub/deep.md".to_string()));
+    assert!(!engine.path_index.contains_key("docs/sub/deep.md"));
+    assert_eq!(engine.notes.len(), 2);
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+

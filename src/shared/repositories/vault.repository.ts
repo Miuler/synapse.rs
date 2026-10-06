@@ -185,6 +185,13 @@ export interface VaultRepository {
   deleteItem(relativePath: string): Promise<void>;
 
   /**
+   * Fuerza la recarga en memoria y en DashMap de uno o más archivos o directorios
+   * (incluyendo todos sus subdirectorios y metadatos).
+   * Retorna las rutas relativas de los archivos afectados.
+   */
+  reloadVaultItems(paths: string[]): Promise<string[]>;
+
+  /**
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
    */
   resolveAssetUrl(path: string): string;
@@ -461,6 +468,22 @@ export class TauriVaultRepository implements VaultRepository {
       relativePath,
       relative_path: relativePath,
     });
+  }
+
+  async reloadVaultItems(paths: string[]): Promise<string[]> {
+    if (!this.isConnected()) {
+      return [];
+    }
+
+    try {
+      const reloaded = await invokeTauri<string[]>('reload_vault_items', {
+        paths,
+      });
+      return Array.isArray(reloaded) ? reloaded : [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al recargar elementos de la bóveda:', error);
+      return [];
+    }
   }
 
   resolveAssetUrl(path: string): string {

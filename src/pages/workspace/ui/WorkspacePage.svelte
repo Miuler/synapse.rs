@@ -26,6 +26,7 @@
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
+  let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
   let isQuickOpenOpen = $state(false);
   let isEditing = $state(false);
@@ -75,6 +76,78 @@
         }
       }
     }
+    await refreshGitStatus();
+  }
+
+  async function handleReloadItems(targets: string[], reloadedFiles?: string[]) {
+    // 1. Recargar metadatos generales de notas de la bóveda
+    try {
+      const notes = await vaultRepository.getNotes();
+      if (notes && Array.isArray(notes)) {
+        vaultItems = notes.map((n, index) => {
+          let relPath = `${n.title}.md`;
+          if (typeof n.relative_path === "string") {
+            relPath = n.relative_path;
+          } else if (
+            n.relative_path &&
+            typeof n.relative_path === "object" &&
+            (n.relative_path as unknown as string[])[0]
+          ) {
+            relPath = (n.relative_path as unknown as string[])[0];
+          }
+
+          return {
+            id: String(index + 1),
+            title: n.title,
+            relative_path: relPath,
+            abs_path: n.abs_path,
+          };
+        });
+      }
+    } catch (e) {
+      console.error("Error al refrescar lista de notas:", e);
+    }
+
+    // 2. Refrescar archivos abiertos en memoria si coinciden con los objetivos
+    const isTargetMatch = (openPath: string): boolean => {
+      if (targets.includes('') || targets.includes('.')) return true;
+      if (reloadedFiles && reloadedFiles.includes(openPath)) return true;
+      for (const t of targets) {
+        if (!t) return true;
+        const cleanT = t.replace(/^\.\//, '').replace(/\\/g, '/');
+        const cleanOpen = openPath.replace(/^\.\//, '').replace(/\\/g, '/');
+        if (cleanOpen === cleanT) return true;
+        if (cleanOpen.startsWith(`${cleanT}/`)) return true;
+      }
+      return false;
+    };
+
+    for (const openPath of openTabPaths) {
+      if (openPath.startsWith("empty:")) continue;
+      if (isTargetMatch(openPath)) {
+        try {
+          const noteData = await vaultRepository.readNote(openPath);
+          if (noteData) {
+            const currentMode = openedNotes[openPath]?.viewMode || "reading";
+            openedNotes[openPath] = {
+              ...openedNotes[openPath],
+              title: noteData.title || openPath,
+              content: noteData.content ?? "",
+              savedContent: noteData.content ?? "",
+              encoding: noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---",
+              abs_path: noteData.abs_path || openedNotes[openPath]?.abs_path,
+              isLoading: false,
+              viewMode: currentMode,
+              lastReloaded: Date.now(),
+            };
+          }
+        } catch (e) {
+          console.error(`Error al recargar archivo en memoria ${openPath}:`, e);
+        }
+      }
+    }
+
+    // 3. Refrescar estado de Git
     await refreshGitStatus();
   }
 
@@ -1026,6 +1099,38 @@
         },
       },
       {
+        id: "cmd-reload-active-file",
+        name: "Archivo: Recargar archivo actual desde el disco",
+        category: "Archivo",
+        shortcut: "Ctrl+R",
+        action: async () => {
+          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          await handleReloadItems([activeTabPath]);
+        },
+      },
+      {
+        id: "cmd-reload-vault",
+        name: "Bóveda: Recargar toda la bóveda y refrescar metadatos",
+        category: "Bóveda",
+        shortcut: "Ctrl+Shift+R",
+        action: async () => {
+          await handleReloadItems(['']);
+        },
+      },
+      {
+        id: "cmd-locate-active-file",
+        name: "Explorador: Ubicar archivo actual en el árbol",
+        category: "Navegación",
+        shortcut: "Alt+L",
+        action: async () => {
+          if (activeRibbonTab !== 'files') {
+            activeRibbonTab = 'files';
+          }
+          await tick();
+          vaultExplorerRef?.locateActiveFile();
+        },
+      },
+      {
         id: "cmd-nav-back",
         name: "Navegar atrás entre pestañas",
         category: "Navegación",
@@ -1092,6 +1197,17 @@
           e.stopPropagation();
           e.stopImmediatePropagation();
           navigateForward();
+          return;
+        } else if (e.key.toLowerCase() === 'l') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          if (activeRibbonTab !== 'files') {
+            activeRibbonTab = 'files';
+          }
+          tick().then(() => {
+            vaultExplorerRef?.locateActiveFile();
+          });
           return;
         }
       }
@@ -1341,6 +1457,7 @@
 
   <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
   <VaultExplorer
+    bind:this={vaultExplorerRef}
     {activeRibbonTab}
     {sidebarWidth}
     {isResizingSidebar}
@@ -1359,6 +1476,7 @@
     onCollapse={toggleSidebar}
     onRefreshGit={refreshGitStatus}
     onGitRestore={handleGitRestoreFiles}
+    onReloadItems={handleReloadItems}
   />
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
@@ -1448,87 +1566,91 @@
                   <span class="spinner"></span>
                   <span>Cargando contenido desde disco...</span>
                 </div>
-              {:else if isDiagramFile(tabPath)}
-                {#if appSettings.mermaidRenderer === 'mermaidjs'}
-                  <MermaidViewer
-                    {content}
-                    readOnly={!isEditing}
-                    vimMode={isVimMode}
-                    onChange={(updatedContent) => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = updatedContent;
-                      }
-                      debouncedPersistVaultItemToRust(vaultItem);
-                    }}
-                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                  />
-                {:else}
-                  <MermanViewer
-                    {content}
-                    readOnly={!isEditing}
-                    vimMode={isVimMode}
-                    onChange={(updatedContent) => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = updatedContent;
-                      }
-                      debouncedPersistVaultItemToRust(vaultItem);
-                    }}
-                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                  />
-                {/if}
-              {:else if isDrawingFile(tabPath)}
-                <ExcalidrawViewer
-                  {content}
-                  readOnly={!isEditing}
-                  onChange={(updatedContent) => {
-                    if (openedNotes[tabPath]) {
-                      openedNotes[tabPath].content = updatedContent;
-                    }
-                    debouncedPersistVaultItemToRust(vaultItem);
-                  }}
-                />
-              {:else if isMarkdownFile(tabPath)}
-                <input
-                  type="text"
-                  class="editor-title-input"
-                  bind:value={vaultItem.title}
-                  oninput={() => {
-                    if (openedNotes[tabPath]) {
-                      openedNotes[tabPath].title = vaultItem.title;
-                    }
-                    persistVaultItemToRust(vaultItem);
-                  }}
-                  placeholder="Título del archivo..."
-                />
-
-                <div class="editor-main-content">
-                  <MarkdownViewer
-                    {content}
-                    filePath={tabPath}
-                    readOnly={!isEditing}
-                    vimMode={isVimMode}
-                    viewMode={!isEditing ? 'reading' : markdownViewMode}
-                    onChange={(updatedMarkdown: string) => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = updatedMarkdown;
-                      }
-                      debouncedPersistVaultItemToRust(vaultItem);
-                    }}
-                    onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                    isMarkdown={true}
-                  />
-                </div>
-              {:else if isImageFile(tabPath)}
-                <ImageViewer
-                  src={note?.abs_path ? vaultRepository.resolveAssetUrl(note.abs_path) : (content || tabPath)}
-                  alt={vaultItem.title || tabPath}
-                  {content}
-                />
               {:else}
-                <div class="editor-main-content">
-                  <pre
-                    style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap; overflow-y: auto; height: 100%;">{content}</pre>
-                </div>
+                {#key note?.lastReloaded}
+                  {#if isDiagramFile(tabPath)}
+                    {#if appSettings.mermaidRenderer === 'mermaidjs'}
+                      <MermaidViewer
+                        {content}
+                        readOnly={!isEditing}
+                        vimMode={isVimMode}
+                        onChange={(updatedContent) => {
+                          if (openedNotes[tabPath]) {
+                            openedNotes[tabPath].content = updatedContent;
+                          }
+                          debouncedPersistVaultItemToRust(vaultItem);
+                        }}
+                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                      />
+                    {:else}
+                      <MermanViewer
+                        {content}
+                        readOnly={!isEditing}
+                        vimMode={isVimMode}
+                        onChange={(updatedContent) => {
+                          if (openedNotes[tabPath]) {
+                            openedNotes[tabPath].content = updatedContent;
+                          }
+                          debouncedPersistVaultItemToRust(vaultItem);
+                        }}
+                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                      />
+                    {/if}
+                  {:else if isDrawingFile(tabPath)}
+                    <ExcalidrawViewer
+                      {content}
+                      readOnly={!isEditing}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                    />
+                  {:else if isMarkdownFile(tabPath)}
+                    <input
+                      type="text"
+                      class="editor-title-input"
+                      bind:value={vaultItem.title}
+                      oninput={() => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].title = vaultItem.title;
+                        }
+                        persistVaultItemToRust(vaultItem);
+                      }}
+                      placeholder="Título del archivo..."
+                    />
+
+                    <div class="editor-main-content">
+                      <MarkdownViewer
+                        {content}
+                        filePath={tabPath}
+                        readOnly={!isEditing}
+                        vimMode={isVimMode}
+                        viewMode={!isEditing ? 'reading' : markdownViewMode}
+                        onChange={(updatedMarkdown: string) => {
+                          if (openedNotes[tabPath]) {
+                            openedNotes[tabPath].content = updatedMarkdown;
+                          }
+                          debouncedPersistVaultItemToRust(vaultItem);
+                        }}
+                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                        isMarkdown={true}
+                      />
+                    </div>
+                  {:else if isImageFile(tabPath)}
+                    <ImageViewer
+                      src={note?.abs_path ? `${vaultRepository.resolveAssetUrl(note.abs_path)}?t=${note.lastReloaded || 0}` : (content || tabPath)}
+                      alt={vaultItem.title || tabPath}
+                      {content}
+                    />
+                  {:else}
+                    <div class="editor-main-content">
+                      <pre
+                        style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap; overflow-y: auto; height: 100%;">{content}</pre>
+                    </div>
+                  {/if}
+                {/key}
               {/if}
             </div>
           {/if}

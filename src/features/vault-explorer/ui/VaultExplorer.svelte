@@ -5,7 +5,7 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -28,6 +28,7 @@
     onCollapse?: () => void;
     onRefreshGit?: () => Promise<void> | void;
     onGitRestore?: (paths: string[]) => Promise<void> | void;
+    onReloadItems?: (paths: string[], reloadedFiles?: string[]) => Promise<void> | void;
   }
 
   let {
@@ -51,6 +52,7 @@
     onCollapse,
     onRefreshGit,
     onGitRestore,
+    onReloadItems,
   }: Props = $props();
 
   function getGitStatusInfo(raw: unknown): {
@@ -298,6 +300,59 @@
       const el = sidebarContentEl.querySelector<HTMLElement>(selector);
       el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
+  }
+
+  export async function locateActiveFile(targetPath?: string) {
+    const pathToLocate = targetPath || activeTabPath;
+    if (!pathToLocate || pathToLocate.startsWith('empty:')) {
+      showToast('No hay ningún archivo activo para ubicar');
+      return;
+    }
+
+    if (!folderChildren[''] || folderChildren[''].length === 0) {
+      await loadDirectory('');
+    }
+
+    const parts = pathToLocate.split('/').filter(Boolean);
+    let currentPath = '';
+    let changed = false;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+      if (!folderChildren[currentPath]) {
+        await loadDirectory(currentPath);
+      }
+      if (!expandedFolders[currentPath]) {
+        expandedFolders[currentPath] = true;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      persistExpandedFolders();
+    }
+
+    selectedPaths = [pathToLocate];
+    lastFocusedPath = pathToLocate;
+    anchorPath = pathToLocate;
+
+    await tick();
+
+    setTimeout(() => {
+      if (!sidebarContentEl) return;
+      const selector = `[data-path="${CSS.escape(pathToLocate)}"]`;
+      const el = sidebarContentEl.querySelector<HTMLElement>(selector);
+      if (el) {
+        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        el.classList.remove('locate-highlight');
+        void el.offsetWidth;
+        el.classList.add('locate-highlight');
+        setTimeout(() => {
+          el?.classList.remove('locate-highlight');
+        }, 1800);
+      }
+      sidebarPanelEl?.focus();
+    }, 60);
   }
 
   function handleActivateNode(node: VaultTreeNode) {
@@ -559,6 +614,12 @@
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
       handleCopy();
+    } else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+      e.preventDefault();
+      handleReload();
+    } else if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+      e.preventDefault();
+      locateActiveFile();
     }
   }
 
@@ -661,6 +722,95 @@
           ? `${fullPaths.length} rutas completas copiadas al portapapeles`
           : 'Ruta completa copiada al portapapeles'
       );
+    }
+  }
+
+  let isReloading = $state(false);
+
+  let reloadMenuLabel = $derived.by(() => {
+    const paths = getSelectedRelativePaths();
+    if (paths.length > 1) {
+      return `Recargar (${paths.length} elementos)`;
+    }
+    const isFolder =
+      (contextMenuNode && contextMenuNode.isFolder) ||
+      (paths.length === 1 && selectedNodes.some((n) => n.relativePath === paths[0] && n.isFolder));
+    if (isFolder) {
+      return 'Recargar carpeta';
+    }
+    if (contextMenuNode || paths.length === 1) {
+      return 'Recargar archivo';
+    }
+    return 'Recargar bóveda';
+  });
+
+  async function reloadDirectoryAndSubdirectories(dirPath: string) {
+    await loadDirectory(dirPath);
+    const prefix = dirPath ? `${dirPath}/` : '';
+    for (const folder of Object.keys(expandedFolders)) {
+      if (expandedFolders[folder]) {
+        if (!dirPath || folder === dirPath || folder.startsWith(prefix)) {
+          await loadDirectory(folder);
+        }
+      }
+    }
+  }
+
+  async function handleReload() {
+    if (isReloading) return;
+    const paths = getSelectedRelativePaths();
+    const targets = paths.length > 0 ? paths : [''];
+    isReloading = true;
+    try {
+      const reloadedFiles = await vaultRepository.reloadVaultItems(targets);
+
+      const refreshedParents = new Set<string>();
+      for (const t of targets) {
+        if (!t || t === '.') {
+          await reloadDirectoryAndSubdirectories('');
+          refreshedParents.add('');
+          break;
+        }
+
+        const isFolder =
+          selectedNodes.some((n) => n.relativePath === t && n.isFolder) ||
+          (contextMenuNode?.relativePath === t && contextMenuNode.isFolder);
+
+        if (isFolder) {
+          await reloadDirectoryAndSubdirectories(t);
+        } else {
+          const slash = t.lastIndexOf('/');
+          const parentDir = slash !== -1 ? t.slice(0, slash) : '';
+          if (!refreshedParents.has(parentDir)) {
+            refreshedParents.add(parentDir);
+            await loadDirectory(parentDir);
+          }
+        }
+      }
+
+      const isSingleFolder =
+        targets.length === 1 &&
+        (contextMenuNode?.isFolder || selectedNodes.some((n) => n.relativePath === targets[0] && n.isFolder));
+
+      showToast(
+        targets.length > 1
+          ? `${targets.length} elementos recargados`
+          : targets[0] === ''
+            ? 'Bóveda recargada'
+            : isSingleFolder
+              ? 'Carpeta recargada'
+              : 'Archivo recargado'
+      );
+
+      if (onReloadItems) {
+        await onReloadItems(targets, reloadedFiles);
+      }
+    } catch (err: unknown) {
+      console.error('Error al recargar elemento(s):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al recargar: ${msg}`);
+    } finally {
+      isReloading = false;
     }
   }
 
@@ -940,6 +1090,16 @@
               {/if}
             </div>
             <div class="sidebar-header-actions">
+              <button
+                type="button"
+                class="sidebar-action-btn"
+                onclick={() => locateActiveFile()}
+                title="Ubicar archivo activo (Alt+L)"
+                aria-label="Ubicar archivo activo"
+                disabled={!activeTabPath || activeTabPath.startsWith('empty:')}
+              >
+                <Crosshair size={14} />
+              </button>
               {#if onCollapse}
                 <button
                   type="button"
@@ -1041,6 +1201,17 @@
             </span>
           {/if}
         </div>
+
+        <ContextMenu.Separator class="context-menu-divider" />
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={handleReload}
+        >
+          <RefreshCw size={14} class="context-menu-item-icon" />
+          <span>{reloadMenuLabel}</span>
+          <span class="context-menu-shortcut">Ctrl+R</span>
+        </ContextMenu.Item>
 
         <ContextMenu.Separator class="context-menu-divider" />
 
@@ -1377,7 +1548,8 @@
     flex-shrink: 0;
   }
 
-  .sidebar-collapse-btn {
+  .sidebar-collapse-btn,
+  .sidebar-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1392,9 +1564,35 @@
     transition: all 0.15s ease;
   }
 
-  .sidebar-collapse-btn:hover {
+  .sidebar-collapse-btn:hover,
+  .sidebar-action-btn:hover:not(:disabled) {
     background: var(--hover-bg, rgba(0, 0, 0, 0.06));
     color: var(--text-primary, #1f2328);
+  }
+
+  .sidebar-action-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  @keyframes locate-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(9, 105, 218, 0.6);
+      background-color: var(--accent-bg, rgba(9, 105, 218, 0.28));
+    }
+    50% {
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.35);
+      background-color: var(--accent-bg, rgba(9, 105, 218, 0.38));
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(9, 105, 218, 0);
+      background-color: var(--accent-bg, rgba(9, 105, 218, 0.14));
+    }
+  }
+
+  :global(.file-tree-item.locate-highlight) {
+    animation: locate-pulse 1.4s ease-out !important;
+    outline: 1px solid var(--accent, #0969da);
   }
 
   .sidebar-content {
