@@ -11,6 +11,7 @@
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
+  import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -155,6 +156,8 @@
     syntaxHighlighting(livePreviewHighlightStyle),
     mermaidLivePreviewField,
     imageLivePreviewField,
+    tableRawField,
+    tableLivePreviewField,
   ];
 
   // 2. Estilos y tema para modo Fuente puro (Source Mode monospaciado sin sustituciones de diagramas)
@@ -511,6 +514,52 @@
     '.cm-mermaid-loading': {
       fontSize: '12px',
       color: 'var(--text-secondary, #656d76)',
+    },
+    /* Estilos del widget de tabla interactiva */
+    '.cm-table-widget-container': {
+      display: 'block',
+      margin: '12px 0 16px 0',
+      maxWidth: '100%',
+    },
+    '.cm-table-source-banner': {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '6px 12px',
+      backgroundColor: 'var(--bg-secondary, #f6f8fa)',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      borderBottom: 'none',
+      borderRadius: '6px 6px 0 0',
+      margin: '14px 0 0 0',
+    },
+    '.cm-table-banner-info': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '11.5px',
+      fontWeight: '600',
+      color: 'var(--text-secondary, #656d76)',
+    },
+    '.cm-table-banner-info svg': {
+      color: 'var(--accent, #0969da)',
+    },
+    '.cm-table-banner-btn': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '5px',
+      fontSize: '11px',
+      fontWeight: '500',
+      padding: '2px 8px',
+      borderRadius: '4px',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      backgroundColor: 'var(--bg-primary, #ffffff)',
+      color: 'var(--accent, #0969da)',
+      cursor: 'pointer',
+      transition: 'all 0.15s ease',
+    },
+    '.cm-table-banner-btn:hover': {
+      backgroundColor: 'rgba(9, 105, 218, 0.08)',
+      borderColor: 'var(--accent, #0969da)',
     },
   });
 

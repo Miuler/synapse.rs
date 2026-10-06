@@ -4,4 +4,6 @@ export * from './lib/render-diagram';
 export * from './lib/mermaid-extension';
 export * from './lib/image-resolver';
 export * from './lib/image-extension';
+export * from './lib/table-parser';
+export * from './lib/table-extension';
 export { MarkdownViewer };
