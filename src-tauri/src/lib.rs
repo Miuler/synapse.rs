@@ -8,7 +8,8 @@ use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
     get_active_vault_path, get_supported_file_types, get_vault_notes, read_note_content,
     save_note_content, search_items_command, search_notes_command, select_vault_folder,
-    set_active_vault_path, toggle_devtools, get_vault_git_status, delete_vault_item, AppState,
+    set_active_vault_path, toggle_devtools, get_vault_git_status, delete_vault_item,
+    git_add_paths, git_restore_paths, git_restore_staged_paths, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -53,7 +54,10 @@ pub fn run() {
             search_notes_command,
             toggle_devtools,
             get_vault_git_status,
-            delete_vault_item
+            delete_vault_item,
+            git_add_paths,
+            git_restore_paths,
+            git_restore_staged_paths
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

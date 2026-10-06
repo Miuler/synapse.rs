@@ -226,3 +226,33 @@ pub fn delete_vault_item(
 
     Ok(())
 }
+
+#[tauri::command]
+pub fn git_add_paths(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
+    let git_service = GitService::new();
+    git_service.git_add(&vault_path, &paths)
+}
+
+#[tauri::command]
+pub fn git_restore_paths(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
+    let git_service = GitService::new();
+    git_service.git_restore(&vault_path, &paths)
+}
+
+#[tauri::command]
+pub fn git_restore_staged_paths(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
+    let git_service = GitService::new();
+    git_service.git_restore_staged(&vault_path, &paths)
+}

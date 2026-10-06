@@ -5,7 +5,7 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -27,6 +27,7 @@
     onResizeEnd?: (e: PointerEvent) => void;
     onCollapse?: () => void;
     onRefreshGit?: () => Promise<void> | void;
+    onGitRestore?: (paths: string[]) => Promise<void> | void;
   }
 
   let {
@@ -49,6 +50,7 @@
     onResizeEnd,
     onCollapse,
     onRefreshGit,
+    onGitRestore,
   }: Props = $props();
 
   function getGitStatusInfo(raw: unknown): {
@@ -176,12 +178,15 @@
     return selectedPaths.includes(path);
   }
 
-  // Sincronizar selección inicial con la pestaña activa si no hay selección
+  // Sincronizar selección inicial con la pestaña activa únicamente cuando cambie la pestaña
+  let prevActiveTab = $state<string | null>(null);
   $effect(() => {
-    if (activeTabPath && selectedPaths.length === 0) {
-      selectedPaths = [activeTabPath];
-      lastFocusedPath = activeTabPath;
-      anchorPath = activeTabPath;
+    const current = activeTabPath;
+    if (current && current !== prevActiveTab) {
+      prevActiveTab = current;
+      selectedPaths = [current];
+      lastFocusedPath = current;
+      anchorPath = current;
     }
   });
 
@@ -516,6 +521,9 @@
   }
 
   function getSelectedRelativePaths(): string[] {
+    if (contextMenuNode && (!selectedPaths.includes(contextMenuNode.relativePath) || selectedPaths.length <= 1)) {
+      return [contextMenuNode.relativePath];
+    }
     if (selectedPaths.length > 0) {
       return selectedPaths;
     }
@@ -635,6 +643,162 @@
       isDeleting = false;
     }
   }
+
+  function getFileGitStatus(relPath: string) {
+    const clean = relPath.replace(/^\.\//, '');
+    const forward = clean.replace(/\\/g, '/');
+    const backslash = clean.replace(/\//g, '\\');
+    const raw = gitStatuses
+      ? (gitStatuses[relPath] ?? gitStatuses[clean] ?? gitStatuses[forward] ?? gitStatuses[backslash])
+      : undefined;
+    return getGitStatusInfo(raw);
+  }
+
+  function getEligiblePathsForGit(
+    predicate: (status: NonNullable<ReturnType<typeof getGitStatusInfo>>) => boolean
+  ): string[] {
+    const rawPaths = getSelectedRelativePaths();
+    if (!isGitRepo || !gitStatuses || rawPaths.length === 0) return [];
+
+    const eligible: string[] = [];
+    for (const p of rawPaths) {
+      const cleanPath = p.replace(/^\.\//, '');
+      const s = getFileGitStatus(cleanPath);
+      if (s && predicate(s)) {
+        eligible.push(p);
+        continue;
+      }
+
+      // Si es una carpeta, verificar si algún archivo dentro de ella cumple la condición
+      const isFolder =
+        selectedNodes.some((n) => n.relativePath === p && n.isFolder) ||
+        (contextMenuNode?.relativePath === p && contextMenuNode.isFolder);
+
+      if (isFolder) {
+        const forward = cleanPath.replace(/\\/g, '/');
+        const prefix = forward.endsWith('/') ? forward : `${forward}/`;
+        const hasMatch = Object.entries(gitStatuses).some(([key, raw]) => {
+          const cleanKey = key.replace(/^\.\//, '').replace(/\\/g, '/');
+          if (cleanKey.startsWith(prefix)) {
+            const fs = getGitStatusInfo(raw);
+            return fs ? predicate(fs) : false;
+          }
+          return false;
+        });
+
+        if (hasMatch) {
+          eligible.push(p);
+        }
+      }
+    }
+
+    return eligible;
+  }
+
+  // Rutas elegibles para Git Add: modificados (que no estén en stash) o no versionados (untracked)
+  let gitAddPaths = $derived(
+    getEligiblePathsForGit((status) => {
+      const isModifiedNotStashed = status.worktree === 'M' && !status.is_stashed;
+      const isUntracked = status.worktree === '?' && !status.is_stashed;
+      return isModifiedNotStashed || isUntracked;
+    })
+  );
+
+  // Rutas elegibles para Git Restore: modificados en el árbol de trabajo (worktree === 'M')
+  let gitRestorePaths = $derived(
+    getEligiblePathsForGit((status) => status.worktree === 'M')
+  );
+
+  // Rutas elegibles para Git Restore --staged: archivos en stage (index !== null)
+  let gitRestoreStagedPaths = $derived(
+    getEligiblePathsForGit((status) => Boolean(status.index))
+  );
+
+  let canGitAdd = $derived(gitAddPaths.length > 0);
+  let canGitRestore = $derived(gitRestorePaths.length > 0);
+  let canGitRestoreStaged = $derived(gitRestoreStagedPaths.length > 0);
+
+  // Acciones de Git sobre archivos seleccionados
+  async function handleGitAdd() {
+    const paths = gitAddPaths.length > 0 ? gitAddPaths : getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    try {
+      await vaultRepository.gitAdd(paths);
+      showToast(
+        paths.length > 1
+          ? `${paths.length} elementos añadidos al stage (git add)`
+          : 'Elemento añadido al stage (git add)'
+      );
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al ejecutar git add:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git add: ${msg}`);
+    }
+  }
+
+  async function handleGitRestoreStaged() {
+    const paths = gitRestoreStagedPaths.length > 0 ? gitRestoreStagedPaths : getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    try {
+      await vaultRepository.gitRestoreStaged(paths);
+      showToast(
+        paths.length > 1
+          ? `${paths.length} elementos desmarcados de stage (git restore --staged)`
+          : 'Elemento desmarcado de stage (git restore --staged)'
+      );
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al ejecutar git restore --staged:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git restore --staged: ${msg}`);
+    }
+  }
+
+  let isRestoreDialogOpen = $state(false);
+  let isRestoring = $state(false);
+  let itemsToRestore = $state<string[]>([]);
+
+  function handlePromptGitRestore() {
+    const paths = gitRestorePaths.length > 0 ? gitRestorePaths : getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    itemsToRestore = paths;
+    isRestoreDialogOpen = true;
+  }
+
+  function cancelGitRestore() {
+    if (isRestoring) return;
+    isRestoreDialogOpen = false;
+    itemsToRestore = [];
+  }
+
+  async function confirmGitRestore() {
+    if (itemsToRestore.length === 0 || isRestoring) return;
+    const targets = [...itemsToRestore];
+    isRestoring = true;
+    try {
+      await vaultRepository.gitRestore(targets);
+      showToast(
+        targets.length > 1
+          ? `${targets.length} elementos restaurados (git restore)`
+          : 'Elemento restaurado (git restore)'
+      );
+      if (onGitRestore) {
+        await onGitRestore(targets);
+      }
+      if (onRefreshGit) {
+        onRefreshGit();
+      }
+      itemsToRestore = [];
+      isRestoreDialogOpen = false;
+    } catch (err: unknown) {
+      console.error('Error al restaurar con git restore:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git restore: ${msg}`);
+    } finally {
+      isRestoring = false;
+    }
+  }
 </script>
 
 {#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}
@@ -656,6 +820,9 @@
             class="sidebar-header"
             oncontextmenu={() => {
               contextMenuNode = null;
+              selectedPaths = [];
+              lastFocusedPath = null;
+              anchorPath = null;
             }}
           >
             <div class="sidebar-header-left">
@@ -809,6 +976,40 @@
           <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
         </ContextMenu.Item>
 
+        {#if isGitRepo && (canGitAdd || canGitRestoreStaged || canGitRestore)}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          {#if canGitAdd}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={handleGitAdd}
+            >
+              <Plus size={14} class="context-menu-item-icon" />
+              <span>{gitAddPaths.length > 1 ? `Git Add (${gitAddPaths.length} elementos)` : 'Git Add'}</span>
+            </ContextMenu.Item>
+          {/if}
+
+          {#if canGitRestoreStaged}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={handleGitRestoreStaged}
+            >
+              <Undo2 size={14} class="context-menu-item-icon" />
+              <span>{gitRestoreStagedPaths.length > 1 ? `Git Restore --staged (${gitRestoreStagedPaths.length} elementos)` : 'Git Restore --staged'}</span>
+            </ContextMenu.Item>
+          {/if}
+
+          {#if canGitRestore}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={handlePromptGitRestore}
+            >
+              <RotateCcw size={14} class="context-menu-item-icon" />
+              <span>{gitRestorePaths.length > 1 ? `Git Restore (${gitRestorePaths.length} elementos)` : 'Git Restore'}</span>
+            </ContextMenu.Item>
+          {/if}
+        {/if}
+
         {#if selectedPaths.length > 0 || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />
 
@@ -855,6 +1056,39 @@
       {#if itemsToDelete.length > 5}
         <div class="confirm-dialog-item more">
           ... y {itemsToDelete.length - 5} más
+        </div>
+      {/if}
+    </div>
+  {/if}
+</ConfirmDialog>
+
+<ConfirmDialog
+  bind:open={isRestoreDialogOpen}
+  title={itemsToRestore.length > 1
+    ? `¿Restaurar ${itemsToRestore.length} elementos con Git?`
+    : `¿Restaurar "${itemsToRestore[0] || ''}" con Git?`}
+  description={itemsToRestore.length > 1
+    ? `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de estos ${itemsToRestore.length} elementos? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`
+    : `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de "${itemsToRestore[0] || ''}"? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`}
+  confirmText="Restaurar cambios"
+  loadingText="Restaurando..."
+  cancelText="Cancelar"
+  variant="danger"
+  icon={RotateCcw}
+  loading={isRestoring}
+  onConfirm={confirmGitRestore}
+  onCancel={cancelGitRestore}
+>
+  {#if itemsToRestore.length > 1}
+    <div class="confirm-dialog-item-list">
+      {#each itemsToRestore.slice(0, 5) as path}
+        <div class="confirm-dialog-item">
+          • {path}
+        </div>
+      {/each}
+      {#if itemsToRestore.length > 5}
+        <div class="confirm-dialog-item more">
+          ... y {itemsToRestore.length - 5} más
         </div>
       {/if}
     </div>

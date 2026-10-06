@@ -57,6 +57,27 @@
     }
   }
 
+  async function handleGitRestoreFiles(paths: string[]) {
+    for (const p of paths) {
+      if (openedNotes[p]) {
+        try {
+          const noteData = await vaultRepository.readNote(p);
+          if (noteData) {
+            openedNotes[p] = {
+              ...openedNotes[p],
+              content: noteData.content ?? "",
+              savedContent: noteData.content ?? "",
+              isLoading: false,
+            };
+          }
+        } catch (e) {
+          console.error("Error al recargar archivo restaurado:", e);
+        }
+      }
+    }
+    await refreshGitStatus();
+  }
+
   function getInitialSidebarWidth(): number {
     try {
       const saved = localStorage.getItem('synapse_sidebar_width');
@@ -864,6 +885,48 @@
         action: refreshGitStatus,
       },
       {
+        id: "cmd-git-add-active",
+        name: "Git: Preparar archivo actual (git add)",
+        category: "Git",
+        action: async () => {
+          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          try {
+            await vaultRepository.gitAdd([activeTabPath]);
+            await refreshGitStatus();
+          } catch (e) {
+            console.error("Error en git add:", e);
+          }
+        },
+      },
+      {
+        id: "cmd-git-restore-staged-active",
+        name: "Git: Despreparar archivo actual (git restore --staged)",
+        category: "Git",
+        action: async () => {
+          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          try {
+            await vaultRepository.gitRestoreStaged([activeTabPath]);
+            await refreshGitStatus();
+          } catch (e) {
+            console.error("Error en git restore --staged:", e);
+          }
+        },
+      },
+      {
+        id: "cmd-git-restore-active",
+        name: "Git: Restaurar archivo actual (git restore)",
+        category: "Git",
+        action: async () => {
+          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          try {
+            await vaultRepository.gitRestore([activeTabPath]);
+            await handleGitRestoreFiles([activeTabPath]);
+          } catch (e) {
+            console.error("Error en git restore:", e);
+          }
+        },
+      },
+      {
         id: "cmd-nav-back",
         name: "Navegar atrás entre pestañas",
         category: "Navegación",
@@ -1153,6 +1216,7 @@
     onResizeStart={handleSidebarResizeStart}
     onCollapse={toggleSidebar}
     onRefreshGit={refreshGitStatus}
+    onGitRestore={handleGitRestoreFiles}
   />
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->

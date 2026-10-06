@@ -220,6 +220,94 @@ impl GitService {
             statuses,
         })
     }
+
+    pub fn git_add(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("add");
+        cmd.arg("--");
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                cmd.arg(clean);
+            }
+        }
+
+        let output = cmd.output().map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git add falló: {}", stderr.trim()));
+        }
+
+        Ok(())
+    }
+
+    pub fn git_restore(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("restore");
+        cmd.arg("--");
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                cmd.arg(clean);
+            }
+        }
+
+        let output = cmd.output().map_err(|e| format!("Error al ejecutar git restore: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git restore falló: {}", stderr.trim()));
+        }
+
+        Ok(())
+    }
+
+    pub fn git_restore_staged(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("restore");
+        cmd.arg("--staged");
+        cmd.arg("--");
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                cmd.arg(clean);
+            }
+        }
+
+        let output = cmd.output().map_err(|e| format!("Error al ejecutar git restore --staged: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git restore --staged falló: {}", stderr.trim()));
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

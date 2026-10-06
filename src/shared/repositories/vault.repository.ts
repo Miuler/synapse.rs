@@ -82,6 +82,21 @@ export interface VaultRepository {
   getGitStatus(folderPath?: string): Promise<VaultGitStatus | null>;
 
   /**
+   * Ejecuta `git add` sobre una o más rutas dentro de la bóveda.
+   */
+  gitAdd(paths: string[]): Promise<void>;
+
+  /**
+   * Ejecuta `git restore` para descartar cambios en el área de trabajo.
+   */
+  gitRestore(paths: string[]): Promise<void>;
+
+  /**
+   * Ejecuta `git restore --staged` para desmarcar cambios del stage.
+   */
+  gitRestoreStaged(paths: string[]): Promise<void>;
+
+  /**
    * Elimina un archivo o carpeta dentro de la bóveda.
    */
   deleteItem(relativePath: string): Promise<void>;
@@ -203,6 +218,30 @@ export class TauriVaultRepository implements VaultRepository {
       console.warn('Error en TauriVaultRepository al obtener get_vault_git_status:', error);
       return null;
     }
+  }
+
+  async gitAdd(paths: string[]): Promise<void> {
+    if (!this.isConnected() || paths.length === 0) {
+      return;
+    }
+
+    await invokeTauri('git_add_paths', { paths });
+  }
+
+  async gitRestore(paths: string[]): Promise<void> {
+    if (!this.isConnected() || paths.length === 0) {
+      return;
+    }
+
+    await invokeTauri('git_restore_paths', { paths });
+  }
+
+  async gitRestoreStaged(paths: string[]): Promise<void> {
+    if (!this.isConnected() || paths.length === 0) {
+      return;
+    }
+
+    await invokeTauri('git_restore_staged_paths', { paths });
   }
 
   async deleteItem(relativePath: string): Promise<void> {
