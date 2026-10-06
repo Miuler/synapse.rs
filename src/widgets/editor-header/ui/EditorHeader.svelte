@@ -602,8 +602,11 @@
         type="button"
         class="view-toggle-btn"
         onclick={() => {
-          isEditing = !isEditing;
-          if (onToggleView) onToggleView();
+          if (onToggleView) {
+            onToggleView();
+          } else {
+            isEditing = !isEditing;
+          }
         }}
         title={isEditing ? "Cambiar a modo Lectura" : "Cambiar a modo Edición"}
       >

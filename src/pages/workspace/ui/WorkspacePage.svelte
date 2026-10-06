@@ -330,7 +330,8 @@
         for (const tab of state.open_tabs) {
           if (!tab.path) continue;
           openTabPaths.push(tab.path);
-          const mode = (tab.view_mode as MarkdownViewMode) || "reading";
+          const defaultMode: MarkdownViewMode = isDrawingFile(tab.path) ? "live" : "reading";
+          const mode = (tab.view_mode as MarkdownViewMode) || defaultMode;
           const vItem = vaultItems.find((v) => v.relative_path === tab.path);
           if (!openedNotes[tab.path]) {
             openedNotes[tab.path] = {
@@ -354,7 +355,8 @@
             : openTabPaths[0];
 
           activeTabPath = targetActive;
-          const activeMode = openedNotes[targetActive]?.viewMode || "reading";
+          const defaultActiveMode: MarkdownViewMode = isDrawingFile(targetActive) ? "live" : "reading";
+          const activeMode = openedNotes[targetActive]?.viewMode || defaultActiveMode;
           markdownViewMode = activeMode;
           isEditing = activeMode !== "reading";
           ensureContentLoaded(targetActive);
@@ -397,6 +399,27 @@
     }
   }
 
+  function toggleViewMode() {
+    if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+
+    if (isMarkdownFile(activeTabPath)) {
+      if (!isEditing) {
+        handleChangeMarkdownView(markdownViewMode === "reading" ? "live" : markdownViewMode);
+      } else {
+        handleChangeMarkdownView("reading");
+      }
+    } else {
+      const nextEditing = !isEditing;
+      isEditing = nextEditing;
+      const nextMode: MarkdownViewMode = nextEditing ? "live" : "reading";
+      markdownViewMode = nextMode;
+      if (openedNotes[activeTabPath]) {
+        openedNotes[activeTabPath].viewMode = nextMode;
+      }
+      persistTabsState();
+    }
+  }
+
   async function ensureContentLoaded(path: string) {
     if (!path || path.startsWith("empty:")) return;
     if (openedNotes[path] && !openedNotes[path].isLoading && openedNotes[path].content !== undefined) return;
@@ -421,6 +444,7 @@
     }
 
     if (!openedNotes[path]) {
+      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -429,7 +453,7 @@
         savedContent: "",
         encoding: "---",
         isLoading: true,
-        viewMode: "reading",
+        viewMode: defaultMode,
       };
     } else {
       openedNotes[path].isLoading = true;
@@ -511,7 +535,8 @@
     }
     activeTabPath = path;
     if (!path.startsWith("empty:")) {
-      const mode = openedNotes[path]?.viewMode || "reading";
+      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
+      const mode = openedNotes[path]?.viewMode || defaultMode;
       markdownViewMode = mode;
       isEditing = mode !== "reading";
       ensureContentLoaded(path);
@@ -536,7 +561,8 @@
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
           if (activeTabPath && !activeTabPath.startsWith("empty:")) {
-            const nextMode = openedNotes[activeTabPath]?.viewMode || "reading";
+            const defaultNextMode: MarkdownViewMode = isDrawingFile(activeTabPath) ? "live" : "reading";
+            const nextMode = openedNotes[activeTabPath]?.viewMode || defaultNextMode;
             markdownViewMode = nextMode;
             isEditing = nextMode !== "reading";
             ensureContentLoaded(activeTabPath);
@@ -1514,7 +1540,7 @@
         else if (actionId === 'quick-open') isQuickOpenOpen = true;
       }}
       onToggleView={() => {
-        toggleMarkdownViewMode();
+        toggleViewMode();
       }}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {

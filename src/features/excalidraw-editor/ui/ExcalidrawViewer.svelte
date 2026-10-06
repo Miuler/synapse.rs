@@ -25,24 +25,34 @@
     if (!raw || !raw.trim()) {
       return {
         elements: [],
-        appState: { viewModeEnabled: isReadOnly },
+        appState: {
+          viewModeEnabled: isReadOnly,
+          activeTool: isReadOnly ? { type: 'hand' } : { type: 'selection' },
+        },
         files: {},
       };
     }
     try {
       const parsed = JSON.parse(raw);
+      const appState = parsed.appState ? { ...parsed.appState } : {};
+      appState.viewModeEnabled = isReadOnly;
+      // Si estamos en modo edición (no readOnly), asegurarnos de que la herramienta activa no quede atascada en mano
+      if (!isReadOnly && (appState.activeTool?.type === 'hand' || !appState.activeTool)) {
+        appState.activeTool = { type: 'selection' };
+      }
       return {
         elements: parsed.elements || [],
-        appState: parsed.appState
-          ? { ...parsed.appState, viewModeEnabled: isReadOnly }
-          : { viewModeEnabled: isReadOnly },
+        appState,
         files: parsed.files || {},
       };
     } catch (e) {
       console.warn('Error al parsear contenido Excalidraw:', e);
       return {
         elements: [],
-        appState: { viewModeEnabled: isReadOnly },
+        appState: {
+          viewModeEnabled: isReadOnly,
+          activeTool: isReadOnly ? { type: 'hand' } : { type: 'selection' },
+        },
         files: {},
       };
     }
@@ -60,6 +70,9 @@
       initialData,
       excalidrawAPI: (api: any) => {
         excalidrawAPI = api;
+        if (!isReadOnly && api?.setActiveTool) {
+          api.setActiveTool({ type: 'selection' });
+        }
       },
       viewModeEnabled: isReadOnly,
       handleKeyboardGlobally: false,
@@ -102,6 +115,19 @@
     });
 
     root.render(reactElement);
+
+    if (excalidrawAPI) {
+      excalidrawAPI.updateScene({
+        elements: initialData.elements,
+        appState: {
+          viewModeEnabled: isReadOnly,
+          ...(isReadOnly ? {} : { activeTool: { type: 'selection' } }),
+        },
+      });
+      if (!isReadOnly && excalidrawAPI.setActiveTool) {
+        excalidrawAPI.setActiveTool({ type: 'selection' });
+      }
+    }
   }
 
   onMount(() => {
@@ -119,15 +145,13 @@
   $effect(() => {
     const c = content;
     const r = readOnly;
-    if (root && containerRef && (c !== untrack(() => lastContent) || r !== untrack(() => lastReadOnly))) {
+    const contentChanged = c !== untrack(() => lastContent);
+    const readOnlyChanged = r !== untrack(() => lastReadOnly);
+
+    if (root && containerRef && (contentChanged || readOnlyChanged)) {
       lastContent = c;
       lastReadOnly = r;
-      if (excalidrawAPI) {
-        const parsed = parseInitialData(c, r);
-        excalidrawAPI.updateScene(parsed);
-      } else {
-        renderReactApp(c, r);
-      }
+      renderReactApp(c, r);
     }
   });
 
