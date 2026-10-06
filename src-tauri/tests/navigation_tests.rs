@@ -28,6 +28,10 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             size_bytes: 42,
             created_nanos: Some(123450000),
             last_opened_nanos: Some(123456799),
+            is_open: true,
+            tab_order: Some(0),
+            is_active_tab: true,
+            view_mode: Some(CompactString::new("reading")),
         },
     );
     map.insert(
@@ -40,6 +44,10 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             size_bytes: 100,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
 
@@ -100,6 +108,10 @@ fn test_populate_nucleo_and_matching() {
             size_bytes: 10,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
     map.insert(
@@ -112,6 +124,10 @@ fn test_populate_nucleo_and_matching() {
             size_bytes: 20,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
 
@@ -156,6 +172,10 @@ fn test_cold_start_hydration_timing_sub_10ms() {
                 size_bytes: 500 + i as u64,
                 created_nanos: None,
                 last_opened_nanos: None,
+                is_open: false,
+                tab_order: None,
+                is_active_tab: false,
+                view_mode: None,
             },
         );
     }
@@ -280,6 +300,10 @@ fn test_debounce_persistence_worker() {
             size_bytes: 678,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
     engine.mark_dirty();
@@ -325,6 +349,10 @@ fn test_dashmap_directory_children_resolution() {
             size_bytes: 10,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
     engine.notes.insert(
@@ -337,6 +365,10 @@ fn test_dashmap_directory_children_resolution() {
             size_bytes: 20,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
     engine.notes.insert(
@@ -349,6 +381,10 @@ fn test_dashmap_directory_children_resolution() {
             size_bytes: 30,
             created_nanos: None,
             last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
         },
     );
 
@@ -499,6 +535,64 @@ fn test_record_opened_and_metadata_persistence() {
     let loaded_map = load_cache_from_disk(&cache_file).expect("Cache should load");
     let loaded_meta = loaded_map.iter().next().unwrap().value().clone();
     assert_eq!(loaded_meta.last_opened_nanos, meta_after.last_opened_nanos);
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
+fn test_open_tabs_state_and_reading_mode_persistence() {
+    use app_lib::navigation::engine::OpenTabDto;
+
+    let test_dir = std::env::temp_dir().join("synapse_open_tabs_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    File::create(test_dir.join("doc1.md")).unwrap();
+    File::create(test_dir.join("doc2.md")).unwrap();
+    File::create(test_dir.join("doc3.md")).unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+    engine.reconcile_sync();
+
+    // Initially no tabs are open, default mode is "reading"
+    let initial_state = engine.get_open_tabs_state();
+    assert!(initial_state.open_tabs.is_empty());
+    assert_eq!(initial_state.active_tab, None);
+
+    // Save open tabs: doc1 (reading) and doc2 (live), with doc2 active
+    let tabs = vec![
+        OpenTabDto {
+            path: "doc1.md".to_string(),
+            view_mode: None, // should default to "reading"
+        },
+        OpenTabDto {
+            path: "doc2.md".to_string(),
+            view_mode: Some("live".to_string()),
+        },
+    ];
+    engine.save_open_tabs_state(&tabs, Some("doc2.md"));
+
+    let open_state = engine.get_open_tabs_state();
+    assert_eq!(open_state.open_tabs.len(), 2);
+    assert_eq!(open_state.open_tabs[0].path, "doc1.md");
+    assert_eq!(open_state.open_tabs[0].view_mode.as_deref(), Some("reading"));
+    assert_eq!(open_state.open_tabs[1].path, "doc2.md");
+    assert_eq!(open_state.open_tabs[1].view_mode.as_deref(), Some("live"));
+    assert_eq!(open_state.active_tab.as_deref(), Some("doc2.md"));
+
+    // Save cache and reload in a fresh engine (simulating app restart)
+    engine.save_cache().expect("Cache should save");
+
+    let fresh_engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+    let restored_state = fresh_engine.get_open_tabs_state();
+
+    assert_eq!(restored_state.open_tabs.len(), 2);
+    assert_eq!(restored_state.open_tabs[0].path, "doc1.md");
+    assert_eq!(restored_state.open_tabs[0].view_mode.as_deref(), Some("reading"));
+    assert_eq!(restored_state.open_tabs[1].path, "doc2.md");
+    assert_eq!(restored_state.open_tabs[1].view_mode.as_deref(), Some("live"));
+    assert_eq!(restored_state.active_tab.as_deref(), Some("doc2.md"));
 
     let _ = fs::remove_dir_all(&test_dir);
 }

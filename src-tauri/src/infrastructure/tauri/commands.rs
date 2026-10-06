@@ -6,7 +6,7 @@ use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
 use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
-use crate::navigation::engine::NavigationEngine;
+use crate::navigation::engine::{NavigationEngine, OpenTabDto, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -391,6 +391,36 @@ pub fn get_recent_notes_command(
     let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
     let recent = engine.get_recent_notes(limit.unwrap_or(15));
     Ok(recent.into_iter().map(|n| n.path.to_string()).collect())
+}
+
+#[tauri::command]
+pub fn save_open_tabs_state(
+    state: State<'_, AppState>,
+    tabs: Vec<OpenTabDto>,
+    active_tab: Option<String>,
+) -> Result<(), String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    engine.save_open_tabs_state(&tabs, active_tab.as_deref());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_open_tabs_state(
+    state: State<'_, AppState>,
+) -> Result<WorkspaceOpenTabsState, String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    Ok(engine.get_open_tabs_state())
+}
+
+#[tauri::command]
+pub fn set_note_view_mode(
+    state: State<'_, AppState>,
+    relative_path: String,
+    view_mode: String,
+) -> Result<(), String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    engine.set_note_view_mode(&relative_path, &view_mode);
+    Ok(())
 }
 
 #[tauri::command]

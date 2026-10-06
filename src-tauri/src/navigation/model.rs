@@ -14,4 +14,12 @@ pub struct NoteMeta {
     pub created_nanos: Option<u128>,     // Timestamp de creación (cuándo se creó en el filesystem)
     #[serde(default)]
     pub last_opened_nanos: Option<u128>, // Timestamp de cuándo se abrió en un tab para ver
+    #[serde(default)]
+    pub is_open: bool,                   // Si el archivo estaba abierto en una pestaña (open tab)
+    #[serde(default)]
+    pub tab_order: Option<u32>,          // Orden de la pestaña abierta
+    #[serde(default)]
+    pub is_active_tab: bool,             // Si era la pestaña activa seleccionada en pantalla
+    #[serde(default)]
+    pub view_mode: Option<CompactString>, // Modo del archivo ("reading", "live", "source")
 }

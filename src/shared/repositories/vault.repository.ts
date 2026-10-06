@@ -51,6 +51,16 @@ export interface SearchResult {
   last_opened_nanos?: number;
 }
 
+export interface OpenTabDto {
+  path: string;
+  view_mode?: string;
+}
+
+export interface WorkspaceOpenTabsState {
+  open_tabs: OpenTabDto[];
+  active_tab?: string | null;
+}
+
 /**
  * Contrato de repositorio para el acceso y manipulación de archivos
  * y notas dentro de las carpetas que representan una bóveda (Vault).
@@ -60,6 +70,16 @@ export interface VaultRepository {
    * Indica si la fuente de datos / backend subyacente está disponible.
    */
   isConnected(): boolean;
+
+  /**
+   * Guarda el estado de pestañas abiertas, orden, pestaña activa y modo de vista en DashMap / .synapse/cache.bin.
+   */
+  saveOpenTabsState(tabs: OpenTabDto[], activeTab?: string | null): Promise<void>;
+
+  /**
+   * Obtiene el estado restaurado de pestañas abiertas desde DashMap / .synapse/cache.bin.
+   */
+  getOpenTabsState(): Promise<WorkspaceOpenTabsState | null>;
 
   /**
    * Registra que una nota o archivo fue abierto para consulta/edición.
@@ -151,6 +171,31 @@ export interface VaultRepository {
 export class TauriVaultRepository implements VaultRepository {
   isConnected(): boolean {
     return isTauriEnvironment();
+  }
+
+  async saveOpenTabsState(tabs: OpenTabDto[], activeTab?: string | null): Promise<void> {
+    if (!this.isConnected()) return;
+
+    try {
+      await invokeTauri('save_open_tabs_state', {
+        tabs,
+        activeTab: activeTab ?? null,
+        active_tab: activeTab ?? null,
+      });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al guardar save_open_tabs_state:', error);
+    }
+  }
+
+  async getOpenTabsState(): Promise<WorkspaceOpenTabsState | null> {
+    if (!this.isConnected()) return null;
+
+    try {
+      return await invokeTauri<WorkspaceOpenTabsState>('get_open_tabs_state');
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_open_tabs_state:', error);
+      return null;
+    }
   }
 
   async recordNoteOpened(relativePath: string): Promise<void> {

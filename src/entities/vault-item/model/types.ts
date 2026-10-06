@@ -23,4 +23,5 @@ export interface OpenedNote {
   savedContent: string;
   encoding: string;
   isLoading: boolean;
+  viewMode?: 'reading' | 'live' | 'source';
 }

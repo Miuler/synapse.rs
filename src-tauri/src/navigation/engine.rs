@@ -2,6 +2,7 @@ use compact_str::CompactString;
 use dashmap::DashMap;
 use nucleo::{Config, Nucleo, Utf32String};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -13,6 +14,18 @@ use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{NoteId, NoteMeta};
 use super::storage;
 use crate::domain::models::file_types::SupportedFileTypes;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct OpenTabDto {
+    pub path: String,
+    pub view_mode: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceOpenTabsState {
+    pub open_tabs: Vec<OpenTabDto>,
+    pub active_tab: Option<String>,
+}
 
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
 pub fn extract_title_from_markdown(content: &str, file_stem: &str) -> String {
@@ -241,16 +254,26 @@ impl NavigationEngine {
                 drop(id_ref);
                 seen_ids.insert(existing_id);
 
-                let (is_unchanged, prev_last_opened) =
-                    if let Some(existing_meta) = self.notes.get(&existing_id) {
-                        (
-                            existing_meta.mtime_nanos == mtime_nanos
-                                && existing_meta.size_bytes == size_bytes,
-                            existing_meta.last_opened_nanos,
-                        )
-                    } else {
-                        (false, None)
-                    };
+                let (
+                    is_unchanged,
+                    prev_last_opened,
+                    prev_is_open,
+                    prev_tab_order,
+                    prev_is_active,
+                    prev_view_mode,
+                ) = if let Some(existing_meta) = self.notes.get(&existing_id) {
+                    (
+                        existing_meta.mtime_nanos == mtime_nanos
+                            && existing_meta.size_bytes == size_bytes,
+                        existing_meta.last_opened_nanos,
+                        existing_meta.is_open,
+                        existing_meta.tab_order,
+                        existing_meta.is_active_tab,
+                        existing_meta.view_mode.clone(),
+                    )
+                } else {
+                    (false, None, false, None, false, None)
+                };
 
                 if is_unchanged {
                     stats.unchanged += 1;
@@ -271,6 +294,10 @@ impl NavigationEngine {
                         size_bytes,
                         created_nanos,
                         last_opened_nanos: prev_last_opened,
+                        is_open: prev_is_open,
+                        tab_order: prev_tab_order,
+                        is_active_tab: prev_is_active,
+                        view_mode: prev_view_mode,
                     };
 
                     self.notes.insert(existing_id, note_meta);
@@ -310,6 +337,10 @@ impl NavigationEngine {
                     size_bytes,
                     created_nanos,
                     last_opened_nanos: None,
+                    is_open: false,
+                    tab_order: None,
+                    is_active_tab: false,
+                    view_mode: Some(CompactString::new("reading")),
                 };
 
                 self.path_index.insert(compact_path.clone(), new_id);
@@ -447,6 +478,84 @@ impl NavigationEngine {
 
         recent.sort_by(|a, b| b.last_opened_nanos.cmp(&a.last_opened_nanos));
         recent.into_iter().take(limit).collect()
+    }
+
+    /// Saves the open tabs state, tab order, active tab, and view modes in the DashMap entries.
+    pub fn save_open_tabs_state(&self, tabs: &[OpenTabDto], active_path: Option<&str>) {
+        let mut open_map = std::collections::HashMap::new();
+        for (idx, tab) in tabs.iter().enumerate() {
+            open_map.insert(tab.path.as_str(), (idx as u32, tab.view_mode.as_deref()));
+        }
+
+        for mut item in self.notes.iter_mut() {
+            let note = item.value_mut();
+            let path_str = note.path.as_str();
+            if let Some(&(order, mode_opt)) = open_map.get(path_str) {
+                note.is_open = true;
+                note.tab_order = Some(order);
+                note.is_active_tab = active_path == Some(path_str);
+                let effective_mode = mode_opt.unwrap_or("reading");
+                note.view_mode = Some(CompactString::new(effective_mode));
+            } else {
+                note.is_open = false;
+                note.tab_order = None;
+                note.is_active_tab = false;
+            }
+        }
+        self.mark_dirty();
+    }
+
+    /// Retrieves the restored open tabs state from the DashMap entries.
+    pub fn get_open_tabs_state(&self) -> WorkspaceOpenTabsState {
+        let mut open_notes: Vec<NoteMeta> = self
+            .notes
+            .iter()
+            .filter(|item| item.value().is_open)
+            .map(|item| item.value().clone())
+            .collect();
+
+        // Sort by tab_order
+        open_notes.sort_by_key(|n| n.tab_order.unwrap_or(u32::MAX));
+
+        let mut active_tab = None;
+        let mut open_tabs = Vec::with_capacity(open_notes.len());
+
+        for note in open_notes {
+            if note.is_active_tab {
+                active_tab = Some(note.path.to_string());
+            }
+            let mode = note
+                .view_mode
+                .as_ref()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "reading".to_string());
+            open_tabs.push(OpenTabDto {
+                path: note.path.to_string(),
+                view_mode: Some(mode),
+            });
+        }
+
+        if active_tab.is_none() && !open_tabs.is_empty() {
+            active_tab = Some(open_tabs[0].path.clone());
+        }
+
+        WorkspaceOpenTabsState {
+            open_tabs,
+            active_tab,
+        }
+    }
+
+    /// Sets view mode for a specific note.
+    pub fn set_note_view_mode(&self, relative_path: &str, view_mode: &str) {
+        let compact_path = CompactString::new(relative_path);
+        if let Some(id_ref) = self.path_index.get(&compact_path) {
+            let id = *id_ref.value();
+            drop(id_ref);
+            if let Some(mut meta_entry) = self.notes.get_mut(&id) {
+                meta_entry.view_mode = Some(CompactString::new(view_mode));
+                self.mark_dirty();
+            }
+        }
     }
 
     /// Interactive fuzzy search with strict prioritization:

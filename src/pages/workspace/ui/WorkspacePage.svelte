@@ -28,9 +28,9 @@
   let activeRibbonTab = $state("files");
   let isPaletteOpen = $state(false);
   let isQuickOpenOpen = $state(false);
-  let isEditing = $state(true);
+  let isEditing = $state(false);
   let isVimMode = $state(false);
-  let markdownViewMode = $state<MarkdownViewMode>("live");
+  let markdownViewMode = $state<MarkdownViewMode>("reading");
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
 
@@ -222,6 +222,67 @@
     }
   }
 
+  let saveTabsTimeout: ReturnType<typeof setTimeout> | null = null;
+  function persistTabsState() {
+    if (!isConnectedToRust) return;
+    if (saveTabsTimeout) clearTimeout(saveTabsTimeout);
+    saveTabsTimeout = setTimeout(() => {
+      const tabs = openTabPaths
+        .filter((p) => p && !p.startsWith("empty:"))
+        .map((p) => ({
+          path: p,
+          view_mode: openedNotes[p]?.viewMode || "reading",
+        }));
+      const active = activeTabPath && !activeTabPath.startsWith("empty:") ? activeTabPath : null;
+      vaultRepository.saveOpenTabsState(tabs, active);
+    }, 250);
+  }
+
+  async function restoreOpenTabsState(): Promise<boolean> {
+    try {
+      const state = await vaultRepository.getOpenTabsState();
+      if (state && state.open_tabs && state.open_tabs.length > 0) {
+        openTabPaths = [];
+        for (const tab of state.open_tabs) {
+          if (!tab.path) continue;
+          openTabPaths.push(tab.path);
+          const mode = (tab.view_mode as MarkdownViewMode) || "reading";
+          const vItem = vaultItems.find((v) => v.relative_path === tab.path);
+          if (!openedNotes[tab.path]) {
+            openedNotes[tab.path] = {
+              relative_path: tab.path,
+              abs_path: vItem?.abs_path,
+              title: vItem?.title || tab.path,
+              content: "",
+              savedContent: "",
+              encoding: "---",
+              isLoading: false,
+              viewMode: mode,
+            };
+          } else {
+            openedNotes[tab.path].viewMode = mode;
+          }
+        }
+
+        if (openTabPaths.length > 0) {
+          const targetActive = state.active_tab && openTabPaths.includes(state.active_tab)
+            ? state.active_tab
+            : openTabPaths[0];
+
+          activeTabPath = targetActive;
+          const activeMode = openedNotes[targetActive]?.viewMode || "reading";
+          markdownViewMode = activeMode;
+          isEditing = activeMode !== "reading";
+          ensureContentLoaded(targetActive);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("Error al restaurar pestañas abiertas desde DashMap:", e);
+    }
+    return false;
+  }
+
   function handleSelectionChange(path: string, info: SelectionInfo) {
     tabSelections[path] = info;
   }
@@ -232,6 +293,12 @@
       isEditing = false;
     } else {
       isEditing = true;
+    }
+    if (activeTabPath && !activeTabPath.startsWith("empty:")) {
+      if (openedNotes[activeTabPath]) {
+        openedNotes[activeTabPath].viewMode = newMode;
+      }
+      persistTabsState();
     }
   }
 
@@ -255,6 +322,7 @@
 
     // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga
     if (isImageFile(path)) {
+      const currentMode = openedNotes[path]?.viewMode || "reading";
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -263,6 +331,7 @@
         savedContent: "",
         encoding: "binary",
         isLoading: false,
+        viewMode: currentMode,
       };
       return;
     }
@@ -276,6 +345,7 @@
         savedContent: "",
         encoding: "---",
         isLoading: true,
+        viewMode: "reading",
       };
     } else {
       openedNotes[path].isLoading = true;
@@ -287,6 +357,7 @@
         const fetchedContent = noteData.content ?? "";
         const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
+        const currentMode = openedNotes[path]?.viewMode || "reading";
 
         openedNotes[path] = {
           relative_path: path,
@@ -296,6 +367,7 @@
           savedContent: fetchedContent,
           encoding: fetchedEncoding,
           isLoading: false,
+          viewMode: currentMode,
         };
       } else {
         if (openedNotes[path]) {
@@ -355,11 +427,15 @@
     }
     activeTabPath = path;
     if (!path.startsWith("empty:")) {
+      const mode = openedNotes[path]?.viewMode || "reading";
+      markdownViewMode = mode;
+      isEditing = mode !== "reading";
       ensureContentLoaded(path);
       recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
       vaultRepository.recordNoteOpened(path);
     }
     recordTabVisit(path);
+    persistTabsState();
   }
 
   function closeTab(path: string) {
@@ -376,6 +452,9 @@
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
           if (activeTabPath && !activeTabPath.startsWith("empty:")) {
+            const nextMode = openedNotes[activeTabPath]?.viewMode || "reading";
+            markdownViewMode = nextMode;
+            isEditing = nextMode !== "reading";
             ensureContentLoaded(activeTabPath);
           }
         } else {
@@ -406,6 +485,7 @@
     if (openTabPaths.length === 0) {
       handleNewEmptyTab();
     }
+    persistTabsState();
   }
 
   function closeAllTabs() {
@@ -416,6 +496,7 @@
     tabHistory = [];
     tabHistoryIndex = -1;
     handleNewEmptyTab();
+    persistTabsState();
   }
 
   let activeNote = $derived(
@@ -591,8 +672,10 @@
         }
 
         if (openTabPaths.length === 0) {
-          handleNewEmptyTab();
-          // FIXME: Validar que sea necesario llamar el refreshGitStatus despues de un handleNewEmptyTab
+          const restored = await restoreOpenTabsState();
+          if (!restored) {
+            handleNewEmptyTab();
+          }
           await refreshGitStatus();
         }
       } else {
@@ -1169,7 +1252,10 @@
         });
         tabHistory = [];
         tabHistoryIndex = -1;
-        handleNewEmptyTab();
+        const restored = await restoreOpenTabsState();
+        if (!restored) {
+          handleNewEmptyTab();
+        }
       }
     } catch (e) {
       console.error('Error al abrir la carpeta de la bóveda:', e);
@@ -1294,11 +1380,7 @@
         else if (actionId === 'quick-open') isQuickOpenOpen = true;
       }}
       onToggleView={() => {
-        if (!isEditing) {
-          markdownViewMode = "reading";
-        } else if (markdownViewMode === "reading") {
-          markdownViewMode = "live";
-        }
+        toggleMarkdownViewMode();
       }}
       onSave={() => {
         if (activeTabPath && currentVaultItem.relative_path) {

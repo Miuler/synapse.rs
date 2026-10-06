@@ -7,11 +7,12 @@ use application::use_cases::note_use_cases::NoteUseCases;
 use domain::models::file_types::SupportedFileTypes;
 use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
-    delete_vault_item, get_active_vault_path, get_recent_notes_command, get_supported_file_types,
-    get_system_theme, get_vault_directory_children, get_vault_git_status, get_vault_notes,
-    git_add_paths, git_restore_paths, git_restore_staged_paths, read_note_content,
-    record_note_opened, save_note_content, search_items_command, search_notes_command,
-    select_vault_folder, set_active_vault_path, toggle_devtools, AppState,
+    delete_vault_item, get_active_vault_path, get_open_tabs_state, get_recent_notes_command,
+    get_supported_file_types, get_system_theme, get_vault_directory_children,
+    get_vault_git_status, get_vault_notes, git_add_paths, git_restore_paths,
+    git_restore_staged_paths, read_note_content, record_note_opened, save_note_content,
+    save_open_tabs_state, search_items_command, search_notes_command, select_vault_folder,
+    set_active_vault_path, set_note_view_mode, toggle_devtools, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -49,11 +50,14 @@ pub fn run() {
             get_vault_notes,
             get_vault_directory_children,
             get_active_vault_path,
+            get_open_tabs_state,
             get_recent_notes_command,
             read_note_content,
             record_note_opened,
             save_note_content,
+            save_open_tabs_state,
             set_active_vault_path,
+            set_note_view_mode,
             select_vault_folder,
             search_items_command,
             search_notes_command,
