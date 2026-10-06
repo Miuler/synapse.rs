@@ -1147,9 +1147,12 @@
         id: "cmd-locate-active-file",
         name: "Explorador: Ubicar archivo actual en el árbol",
         category: "Navegación",
-        shortcut: "Alt+L",
+        shortcut: "Ctrl+Alt+1, Alt+L",
         action: async () => {
           if (activeRibbonTab !== 'files') {
+            if (sidebarWidth < 140) {
+              sidebarWidth = 240;
+            }
             activeRibbonTab = 'files';
           }
           await tick();
@@ -1205,6 +1208,23 @@
         toggleDevtools();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey) {
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          if (activeRibbonTab !== 'files') {
+            if (sidebarWidth < 140) {
+              sidebarWidth = 240;
+            }
+            activeRibbonTab = 'files';
+          }
+          tick().then(() => {
+            vaultExplorerRef?.locateActiveFile();
+          });
+          return;
+        }
+      }
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
           e.preventDefault();
@@ -1229,6 +1249,9 @@
           e.stopPropagation();
           e.stopImmediatePropagation();
           if (activeRibbonTab !== 'files') {
+            if (sidebarWidth < 140) {
+              sidebarWidth = 240;
+            }
             activeRibbonTab = 'files';
           }
           tick().then(() => {

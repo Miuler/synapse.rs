@@ -617,7 +617,10 @@
     } else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
       e.preventDefault();
       handleReload();
-    } else if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+    } else if (
+      (e.altKey && (e.key === 'l' || e.key === 'L')) ||
+      ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1'))
+    ) {
       e.preventDefault();
       locateActiveFile();
     }
@@ -1094,7 +1097,7 @@
                 type="button"
                 class="sidebar-action-btn"
                 onclick={() => locateActiveFile()}
-                title="Ubicar archivo activo (Alt+L)"
+                title="Ubicar archivo activo (Ctrl+Alt+1, Alt+L)"
                 aria-label="Ubicar archivo activo"
                 disabled={!activeTabPath || activeTabPath.startsWith('empty:')}
               >
