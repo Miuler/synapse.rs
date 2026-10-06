@@ -836,7 +836,7 @@
   }
 
   .close-tab-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.1));
     color: var(--text-primary, #1f2328);
   }
 
@@ -873,7 +873,7 @@
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -1043,7 +1043,7 @@
 
   :global(.tabs-dropdown-menu .dropdown-tab-close:hover) {
     opacity: 1;
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.08));
     color: var(--text-primary, #1f2328);
   }
 
@@ -1075,7 +1075,7 @@
 
   .icon-btn:hover {
     color: var(--text-primary, #1f2328);
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
   }
 
   .icon-btn:disabled {
@@ -1101,7 +1101,7 @@
   }
 
   .view-toggle-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
     color: var(--accent, #0969da);
     border-color: var(--accent, #0969da);
   }
@@ -1156,7 +1156,7 @@
 
   .win-btn:hover {
     color: var(--text-primary, #1f2328);
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
   }
 
   .win-btn.close:hover {

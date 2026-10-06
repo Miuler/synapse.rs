@@ -244,7 +244,7 @@
     font-size: 85%;
     padding: 0.2em 0.4em;
     margin: 0;
-    background-color: rgba(175, 184, 193, 0.2);
+    background-color: var(--code-inline-bg, rgba(175, 184, 193, 0.2));
     border-radius: 4px;
   }
 
@@ -271,7 +271,7 @@
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid var(--border-primary, #d0d7de);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--card-shadow, 0 2px 8px rgba(0, 0, 0, 0.04));
     background-color: var(--bg-primary, #ffffff);
   }
 
@@ -293,7 +293,7 @@
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
     background-color: var(--bg-primary, #ffffff);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--card-shadow, 0 2px 8px rgba(0, 0, 0, 0.04));
     overflow: hidden;
   }
 
@@ -334,9 +334,10 @@
   :global(.reading-mermaid-error) {
     width: 100%;
     padding: 10px;
-    background-color: #ffebe9;
+    background-color: var(--error-bg, #ffebe9);
+    border: 1px solid var(--error-border, rgba(207, 34, 46, 0.3));
     border-radius: 6px;
-    color: #cf222e;
+    color: var(--error-text, #cf222e);
     font-size: 12px;
   }
 

@@ -6,8 +6,11 @@
     FilePlus,
     Command,
     Network,
-    Settings
+    Settings,
+    Sun,
+    Moon,
   } from 'lucide-svelte';
+  import { appSettings } from '@entities/settings';
 
   interface Props {
     activeTab?: string;
@@ -81,6 +84,30 @@
           {#snippet child({ props })}
             <Toolbar.Button
               {...props}
+              class="ribbon-btn"
+              onclick={() => appSettings.cycleTheme()}
+              aria-label="Cambiar tema (Claro / Oscuro / Sistema)"
+            >
+              {#if appSettings.resolvedTheme === 'dark'}
+                <Moon size={18} class="icon" />
+              {:else}
+                <Sun size={18} class="icon" />
+              {/if}
+            </Toolbar.Button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
+            Tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para cambiar)
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Toolbar.Button
+              {...props}
               class="ribbon-btn {activeTab === 'settings' ? 'active' : ''}"
               onclick={(e) => {
                 (props as Record<string, any>).onclick?.(e);
@@ -145,7 +172,7 @@
 
   :global(.ribbon-btn:hover) {
     color: var(--text-primary, #1f2328);
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
   }
 
   :global(.ribbon-btn.active) {
@@ -175,7 +202,7 @@
     border-radius: 6px;
     font-size: 12px;
     white-space: nowrap;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--popover-shadow, 0 8px 20px rgba(0, 0, 0, 0.1));
     border: 1px solid var(--border-primary, #d0d7de);
     z-index: 1000;
     animation: tooltip-fade 0.15s ease-out;

@@ -138,7 +138,7 @@
     background-color: var(--bg-primary, #ffffff);
     border-radius: 12px;
     border: 1px solid var(--border-primary, #d0d7de);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--modal-shadow, 0 24px 48px rgba(0, 0, 0, 0.1));
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -266,7 +266,7 @@
     flex-wrap: wrap;
     gap: 12px;
     padding: 8px 16px;
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: var(--footer-bg, rgba(0, 0, 0, 0.03));
     border-top: 1px solid var(--border-primary, #d0d7de);
     font-size: 11px;
     color: var(--text-secondary, #656d76);

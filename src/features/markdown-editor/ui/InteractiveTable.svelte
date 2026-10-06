@@ -385,13 +385,13 @@
     border-radius: 8px;
     overflow: hidden;
     background-color: var(--bg-primary, #ffffff);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--card-shadow, 0 2px 8px rgba(0, 0, 0, 0.04));
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .table-card:hover {
     border-color: rgba(9, 105, 218, 0.35);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--card-shadow-hover, 0 4px 12px rgba(0, 0, 0, 0.06));
   }
 
   .table-card-header {
@@ -602,11 +602,11 @@
   }
 
   .table-data-row:nth-child(2n) {
-    background-color: rgba(246, 248, 250, 0.5);
+    background-color: var(--table-alt-row, rgba(246, 248, 250, 0.5));
   }
 
   .table-data-row:hover {
-    background-color: rgba(9, 105, 218, 0.02);
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.04));
   }
 
   .table-data-cell {
@@ -630,7 +630,7 @@
   }
 
   .table-input:hover {
-    background-color: rgba(0, 0, 0, 0.02);
+    background-color: var(--hover-bg-subtle, rgba(0, 0, 0, 0.02));
   }
 
   .table-input:focus {

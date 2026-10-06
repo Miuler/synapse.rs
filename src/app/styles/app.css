@@ -1,30 +1,132 @@
 :root {
+  color-scheme: light dark;
+
+  /* Colores Principales (Tema Claro) */
   --bg-primary: #ffffff;
   --bg-secondary: #f6f8fa;
-  --bg-tertiary: #ffffff;
+  --bg-tertiary: #f0f2f5;
   --text-primary: #1f2328;
   --text-secondary: #656d76;
   --border-primary: #d0d7de;
+  --border-subtle: rgba(0, 0, 0, 0.06);
+
+  /* Acentos y Enlaces */
   --accent: #0969da;
   --accent-bg: rgba(9, 105, 218, 0.1);
   --accent-border: rgba(9, 105, 218, 0.5);
-  
+
+  /* Estados Interactivos */
+  --hover-bg: rgba(0, 0, 0, 0.05);
+  --hover-bg-subtle: rgba(0, 0, 0, 0.03);
+  --active-bg: rgba(0, 0, 0, 0.08);
+  --footer-bg: rgba(0, 0, 0, 0.03);
+  --badge-bg: rgba(0, 0, 0, 0.06);
+  --code-inline-bg: rgba(175, 184, 193, 0.2);
+  --table-alt-row: rgba(246, 248, 250, 0.5);
+
+  /* Sombras */
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --modal-shadow: 0 24px 48px rgba(0, 0, 0, 0.1);
+  --popover-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  /* Resaltado de Sintaxis */
+  --syntax-keyword: #cf222e;
+  --syntax-comment: #6e7781;
+  --syntax-string: #0a3069;
+  --syntax-function: #8250df;
+  --syntax-variable: #953800;
+  --syntax-type: #116329;
+  --syntax-number: #0550ae;
+
+  /* Alertas y Errores */
+  --error-bg: #ffebe9;
+  --error-text: #cf222e;
+  --error-border: rgba(207, 34, 46, 0.3);
+
   --cyan: #0969da;
   --orange: #ff9933;
   --main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
 
-  /* Aliases for quick migration */
+  /* Aliases de retrocompatibilidad */
   --bg-dark: var(--bg-secondary);
   --gradient-start: var(--bg-secondary);
   --gradient-end: var(--bg-primary);
   --text-h: var(--text-primary);
 }
 
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Colores Principales (Tema Oscuro) */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8d96a0;
+  --border-primary: #30363d;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+
+  /* Acentos y Enlaces */
+  --accent: #58a6ff;
+  --accent-bg: rgba(56, 139, 253, 0.15);
+  --accent-border: rgba(56, 139, 253, 0.4);
+
+  /* Estados Interactivos */
+  --hover-bg: rgba(255, 255, 255, 0.08);
+  --hover-bg-subtle: rgba(255, 255, 255, 0.04);
+  --active-bg: rgba(255, 255, 255, 0.12);
+  --footer-bg: rgba(255, 255, 255, 0.03);
+  --badge-bg: rgba(255, 255, 255, 0.08);
+  --code-inline-bg: rgba(110, 118, 129, 0.4);
+  --table-alt-row: rgba(255, 255, 255, 0.02);
+
+  /* Sombras en Modo Oscuro */
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --modal-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  --popover-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Resaltado de Sintaxis en Modo Oscuro */
+  --syntax-keyword: #ff7b72;
+  --syntax-comment: #8b949e;
+  --syntax-string: #a5d6ff;
+  --syntax-function: #d2a8ff;
+  --syntax-variable: #ffa657;
+  --syntax-type: #7ee787;
+  --syntax-number: #79c0ff;
+
+  /* Alertas y Errores en Modo Oscuro */
+  --error-bg: rgba(248, 81, 73, 0.15);
+  --error-text: #f85149;
+  --error-border: rgba(248, 81, 73, 0.4);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-primary) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary);
 }
 
 html, body {

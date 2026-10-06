@@ -140,19 +140,19 @@
 
   // Tema de colores de sintaxis (Syntax Highlighting)
   const customHighlightStyle = HighlightStyle.define([
-    { tag: tags.heading, color: '#0969da', fontWeight: 'bold' },
+    { tag: tags.heading, color: 'var(--accent, #0969da)', fontWeight: 'bold' },
     { tag: tags.emphasis, fontStyle: 'italic' },
     { tag: tags.strong, fontWeight: 'bold' },
-    { tag: tags.keyword, color: '#cf222e', fontWeight: 'bold' },
-    { tag: tags.comment, color: '#6e7781', fontStyle: 'italic' },
-    { tag: tags.string, color: '#0a3069' },
-    { tag: tags.variableName, color: '#953800' },
-    { tag: tags.typeName, color: '#116329', fontWeight: 'bold' },
-    { tag: tags.link, color: '#0969da', textDecoration: 'underline' },
-    { tag: tags.url, color: '#0969da' },
-    { tag: tags.number, color: '#0550ae' },
-    { tag: tags.operator, color: '#0550ae', fontWeight: 'bold' },
-    { tag: tags.meta, color: '#8c959f' },
+    { tag: tags.keyword, color: 'var(--syntax-keyword, #cf222e)', fontWeight: 'bold' },
+    { tag: tags.comment, color: 'var(--syntax-comment, #6e7781)', fontStyle: 'italic' },
+    { tag: tags.string, color: 'var(--syntax-string, #0a3069)' },
+    { tag: tags.variableName, color: 'var(--syntax-variable, #953800)' },
+    { tag: tags.typeName, color: 'var(--syntax-type, #116329)', fontWeight: 'bold' },
+    { tag: tags.link, color: 'var(--accent, #0969da)', textDecoration: 'underline' },
+    { tag: tags.url, color: 'var(--accent, #0969da)' },
+    { tag: tags.number, color: 'var(--syntax-number, #0550ae)' },
+    { tag: tags.operator, color: 'var(--syntax-number, #0550ae)', fontWeight: 'bold' },
+    { tag: tags.meta, color: 'var(--text-secondary, #8c959f)' },
   ]);
 
   onMount(() => {

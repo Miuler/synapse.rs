@@ -940,6 +940,31 @@
         shortcut: "Alt+Right",
         action: navigateForward,
       },
+      {
+        id: "cmd-toggle-theme",
+        name: "Alternar tema (Claro / Oscuro)",
+        category: "Apariencia",
+        shortcut: "Ctrl+Shift+T",
+        action: () => appSettings.toggleTheme(),
+      },
+      {
+        id: "cmd-theme-system",
+        name: "Tema: Seguir sistema operativo (Auto)",
+        category: "Apariencia",
+        action: () => appSettings.setTheme('system'),
+      },
+      {
+        id: "cmd-theme-dark",
+        name: "Tema: Modo oscuro",
+        category: "Apariencia",
+        action: () => appSettings.setTheme('dark'),
+      },
+      {
+        id: "cmd-theme-light",
+        name: "Tema: Modo claro",
+        category: "Apariencia",
+        action: () => appSettings.setTheme('light'),
+      },
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -985,6 +1010,12 @@
             e.stopPropagation();
             e.stopImmediatePropagation();
             toggleDevtools();
+            return;
+          } else if (key === 't') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            appSettings.toggleTheme();
             return;
           }
           return;

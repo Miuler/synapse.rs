@@ -1240,7 +1240,7 @@
     text-transform: none;
     letter-spacing: normal;
     color: var(--text-secondary, #656d76);
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--badge-bg, rgba(0, 0, 0, 0.06));
     padding: 1px 5px;
     border-radius: 4px;
     max-width: 110px;
@@ -1298,7 +1298,7 @@
   }
 
   .sidebar-collapse-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.06));
     color: var(--text-primary, #1f2328);
   }
 
@@ -1322,7 +1322,7 @@
   }
 
   .file-tree-item:hover {
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.04));
     color: var(--text-primary, #1f2328);
   }
 
@@ -1505,7 +1505,7 @@
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.16));
     padding: 4px;
     z-index: 9999;
     display: flex;
@@ -1614,8 +1614,9 @@
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--text-primary, #1f2328);
-    color: var(--bg-primary, #ffffff);
+    background: var(--bg-tertiary, #1f2328);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
     padding: 6px 14px;
     border-radius: 6px;
     font-size: 12px;
@@ -1623,7 +1624,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--popover-shadow, 0 4px 14px rgba(0, 0, 0, 0.25));
     z-index: 10000;
     pointer-events: none;
     animation: toast-fade-in 0.15s ease-out;

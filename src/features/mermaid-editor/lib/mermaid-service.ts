@@ -1,31 +1,53 @@
 import mermaid, { type MermaidConfig } from 'mermaid';
 
 let isInitialized = false;
+let currentTheme = 'default';
 let renderCounter = 0;
 
 /**
- * Inicializa la configuración global de Mermaid.js
+ * Actualiza el tema de Mermaid.js según el modo claro u oscuro
  */
-export function initMermaidJs(config?: MermaidConfig): void {
-  if (!isInitialized) {
+export function updateMermaidTheme(isDark: boolean): void {
+  const targetTheme = isDark ? 'dark' : 'default';
+  if (targetTheme !== currentTheme || !isInitialized) {
+    currentTheme = targetTheme;
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'loose',
-      theme: 'default',
+      theme: targetTheme as any,
       fontFamily: 'inherit',
       suppressErrorRendering: true,
-      ...config,
     });
     isInitialized = true;
   }
 }
 
 /**
+ * Inicializa la configuración global de Mermaid.js
+ */
+export function initMermaidJs(config?: MermaidConfig): void {
+  const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+  currentTheme = isDark ? 'dark' : 'default';
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: currentTheme as any,
+    fontFamily: 'inherit',
+    suppressErrorRendering: true,
+    ...config,
+  });
+  isInitialized = true;
+}
+
+/**
  * Asegura que Mermaid.js esté inicializado antes de su uso
  */
 export async function ensureMermaidJs(config?: MermaidConfig): Promise<void> {
+  const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
   if (!isInitialized) {
     initMermaidJs(config);
+  } else {
+    updateMermaidTheme(isDark);
   }
 }
 

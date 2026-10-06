@@ -8,8 +8,11 @@
     BookOpen,
     ChevronDown,
     Check,
-    Search
+    Search,
+    Sun,
+    Moon,
   } from 'lucide-svelte';
+  import { appSettings } from '@entities/settings';
 
   export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
@@ -385,6 +388,23 @@
         </Popover.Portal>
       </Popover.Root>
     </div>
+
+    <div class="divider"></div>
+
+    <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
+    <button
+      type="button"
+      class="status-item clickable theme-btn"
+      onclick={() => appSettings.cycleTheme()}
+      title="Cambiar tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para alternar)"
+    >
+      {#if appSettings.resolvedTheme === 'dark'}
+        <Moon size={13} class="icon theme-icon" />
+      {:else}
+        <Sun size={13} class="icon theme-icon" />
+      {/if}
+      <span class="theme-text">{appSettings.theme === 'system' ? 'Auto' : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
+    </button>
   </div>
 </footer>
 
@@ -433,8 +453,20 @@
 
   .status-item.clickable:hover,
   .status-item.clickable.active {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
     color: var(--accent, #0969da);
+  }
+
+  .theme-btn {
+    font-weight: 500;
+  }
+
+  .theme-icon {
+    color: var(--accent, #0969da);
+  }
+
+  .theme-text {
+    font-size: 11px;
   }
 
   /* Contenedor del selector de vista Markdown */
@@ -490,7 +522,7 @@
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
     z-index: 1000;
     overflow: hidden;
     display: flex;
@@ -541,7 +573,7 @@
 
   :global(.view-dropdown .view-item:hover),
   :global(.view-dropdown .view-item[data-highlighted]) {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--hover-bg, rgba(0, 0, 0, 0.04));
   }
 
   :global(.view-dropdown .view-item.current) {
@@ -671,7 +703,7 @@
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.14));
     z-index: 1000;
     overflow: hidden;
     display: flex;
