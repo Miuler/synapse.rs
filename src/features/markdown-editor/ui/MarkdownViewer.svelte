@@ -33,6 +33,7 @@
     readOnly?: boolean;
     vimMode?: boolean;
     viewMode?: MarkdownViewMode;
+    scrollToTerms?: string[];
     onChange?: (markdown: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
   }
@@ -44,6 +45,7 @@
     readOnly = false,
     vimMode = false,
     viewMode = 'live',
+    scrollToTerms = [],
     onChange,
     onSelectionChange,
   }: Props = $props();
@@ -58,6 +60,8 @@
   const viewModeCompartment = new Compartment();
   const filePathCompartment = new Compartment();
 
+  let readingViewRef = $state<any>(null);
+
   export function triggerSearch() {
     if (editorView) {
       openSearchPanel(editorView as any);
@@ -67,6 +71,37 @@
   export function getView(): EditorView | null {
     return editorView;
   }
+
+  export function scrollToMatch(terms: string[]) {
+    if (!terms || terms.length === 0) return;
+    if (viewMode === 'reading') {
+      readingViewRef?.scrollToMatch(terms);
+      return;
+    }
+    if (!editorView) return;
+    const doc = editorView.state.doc.toString().toLowerCase();
+    for (const term of terms) {
+      const cleanTerm = term.trim().toLowerCase();
+      if (!cleanTerm) continue;
+      const index = doc.indexOf(cleanTerm);
+      if (index !== -1) {
+        editorView.dispatch({
+          selection: { anchor: index, head: index + cleanTerm.length },
+          scrollIntoView: true,
+        });
+        editorView.focus();
+        break;
+      }
+    }
+  }
+
+  $effect(() => {
+    if (scrollToTerms && scrollToTerms.length > 0) {
+      tick().then(() => {
+        scrollToMatch(scrollToTerms);
+      });
+    }
+  });
 
   function emitSelectionInfo(state: EditorState) {
     if (!onSelectionChange) return;
@@ -707,7 +742,7 @@
 
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView {content} {filePath} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} />
   {/if}
   <div
     class="editor-container"

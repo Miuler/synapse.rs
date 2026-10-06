@@ -1,9 +1,13 @@
+use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::domain::models::file_types::SupportedFileTypes;
+use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
 use crate::domain::models::note::Note;
 use crate::domain::services::search_service::{SearchResult, SearchService};
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
+use crate::infrastructure::search::fts_indexer::FtsIndexer;
+use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
@@ -13,12 +17,61 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
+pub struct FullTextComponents {
+    pub use_cases: FullTextSearchUseCases<TantivyFullTextIndex>,
+    pub indexer: Arc<FtsIndexer>,
+}
+
 pub struct AppState {
     pub active_vault_path: Mutex<PathBuf>,
     pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
     pub navigation_engine: Mutex<Arc<NavigationEngine>>,
+    pub full_text: Mutex<Arc<FullTextComponents>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+}
+
+pub fn open_vault_components(
+    vault_path: PathBuf,
+    file_types: SupportedFileTypes,
+    app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+) -> (Arc<NavigationEngine>, Arc<FullTextComponents>) {
+    let cache_path = vault_path.join(".synapse").join("cache.bin");
+    let engine = NavigationEngine::start_with_file_types(
+        vault_path.clone(),
+        cache_path,
+        file_types.clone(),
+    );
+
+    let handle_for_fs = Arc::clone(&app_handle);
+    engine.set_on_fs_change(Arc::new(move |evt| {
+        if let Ok(guard) = handle_for_fs.lock() {
+            if let Some(ref handle) = *guard {
+                use tauri::Emitter;
+                let _ = handle.emit("vault:files-changed", &evt);
+            }
+        }
+    }));
+
+    let fts_dir = vault_path.join(".synapse").join("fts");
+    let tantivy_index = match TantivyFullTextIndex::open_or_create(&fts_dir) {
+        Ok(idx) => Arc::new(idx),
+        Err(e) => {
+            log::warn!("No se pudo abrir índice FTS en disco ({}), usando fallback en RAM", e);
+            Arc::new(TantivyFullTextIndex::in_memory().expect("Fallo al crear índice FTS en RAM"))
+        }
+    };
+
+    let indexer = FtsIndexer::start(vault_path, file_types, Arc::clone(&tantivy_index));
+    engine.register_observer(Arc::clone(&indexer) as Arc<dyn crate::domain::events::vault_events::VaultChangeObserver>);
+
+    let use_cases = FullTextSearchUseCases::new(tantivy_index);
+    let full_text = Arc::new(FullTextComponents {
+        use_cases,
+        indexer,
+    });
+
+    (engine, full_text)
 }
 
 impl AppState {
@@ -27,18 +80,19 @@ impl AppState {
         file_types: SupportedFileTypes,
         note_use_cases: NoteUseCases<FileNoteRepository>,
     ) -> Self {
-        let cache_path = initial_vault_path.join(".synapse").join("cache.bin");
-        let engine = NavigationEngine::start_with_file_types(
+        let app_handle = Arc::new(Mutex::new(None));
+        let (engine, full_text) = open_vault_components(
             initial_vault_path.clone(),
-            cache_path,
             file_types.clone(),
+            Arc::clone(&app_handle),
         );
         Self {
             active_vault_path: Mutex::new(initial_vault_path),
             file_types,
             note_use_cases,
             navigation_engine: Mutex::new(engine),
-            app_handle: Arc::new(Mutex::new(None)),
+            full_text: Mutex::new(full_text),
+            app_handle,
         }
     }
 }
@@ -259,23 +313,16 @@ pub fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Re
     };
 
     *vault_path = target_dir.clone();
-    let cache_path = target_dir.join(".synapse").join("cache.bin");
-    let new_engine = NavigationEngine::start_with_file_types(
+    let (new_engine, new_ft) = open_vault_components(
         target_dir,
-        cache_path,
         state.file_types.clone(),
+        Arc::clone(&state.app_handle),
     );
-    if let Ok(lock) = state.app_handle.lock() {
-        if let Some(ref handle) = *lock {
-            let h = handle.clone();
-            new_engine.set_on_fs_change(Arc::new(move |evt| {
-                use tauri::Emitter;
-                let _ = h.emit("vault:files-changed", &evt);
-            }));
-        }
-    }
     if let Ok(mut engine_lock) = state.navigation_engine.lock() {
         *engine_lock = new_engine;
+    }
+    if let Ok(mut ft_lock) = state.full_text.lock() {
+        *ft_lock = new_ft;
     }
     Ok(())
 }
@@ -324,23 +371,16 @@ pub async fn select_vault_folder(
         let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         *vault_path = path.clone();
 
-        let cache_path = path.join(".synapse").join("cache.bin");
-        let new_engine = NavigationEngine::start_with_file_types(
+        let (new_engine, new_ft) = open_vault_components(
             path.clone(),
-            cache_path,
             state.file_types.clone(),
+            Arc::clone(&state.app_handle),
         );
-        if let Ok(lock) = state.app_handle.lock() {
-            if let Some(ref handle) = *lock {
-                let h = handle.clone();
-                new_engine.set_on_fs_change(Arc::new(move |evt| {
-                    use tauri::Emitter;
-                    let _ = h.emit("vault:files-changed", &evt);
-                }));
-            }
-        }
         if let Ok(mut engine_lock) = state.navigation_engine.lock() {
             *engine_lock = new_engine.clone();
+        }
+        if let Ok(mut ft_lock) = state.full_text.lock() {
+            *ft_lock = new_ft;
         }
 
         let mut notes = Vec::with_capacity(new_engine.notes.len());
@@ -674,4 +714,43 @@ pub fn reload_vault_items(
         .clone();
     engine.reload_paths(&paths)
 }
+
+#[tauri::command]
+pub async fn full_text_search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<usize>,
+) -> Result<FullTextSearchResponse, String> {
+    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+
+    let start = std::time::Instant::now();
+    let res = tauri::async_runtime::spawn_blocking(move || {
+        let (hits, total_hits) = ft_components.use_cases.search(&query, limit)?;
+        let status = ft_components.indexer.status();
+        let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+        Ok(FullTextSearchResponse {
+            hits,
+            total_hits,
+            elapsed_ms,
+            status,
+        })
+    })
+    .await
+    .map_err(|e| format!("Error en tarea de búsqueda: {}", e))?;
+
+    res
+}
+
+#[tauri::command]
+pub fn get_full_text_index_status(state: State<'_, AppState>) -> Result<FullTextIndexStatus, String> {
+    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+    Ok(ft_components.indexer.status())
+}
+
+#[tauri::command]
+pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String> {
+    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+    ft_components.indexer.rebuild()
+}
+
 

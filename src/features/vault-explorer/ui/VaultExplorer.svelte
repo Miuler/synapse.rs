@@ -1051,7 +1051,7 @@
   }
 </script>
 
-{#if activeRibbonTab === 'files' || activeRibbonTab === 'search'}
+{#if activeRibbonTab === 'files'}
   <ContextMenu.Root bind:open={isContextMenuOpen}>
     <ContextMenu.Trigger>
       {#snippet child({ props })}
@@ -1080,9 +1080,9 @@
                 // class="sidebar-title"
                 class="rust-badge-btn"
                 onclick={onOpenVaultFolder}
-                title={activeRibbonTab === 'files' ? (vaultPath || 'Bóveda de Archivos') : 'Buscar'}
+                title={vaultPath || 'Bóveda de Archivos'}
               >
-                {activeRibbonTab === 'files' ? vaultFolderName : 'Buscar'}
+                {vaultFolderName}
               </button>
               {#if isGitRepo && gitBranch}
                 <button

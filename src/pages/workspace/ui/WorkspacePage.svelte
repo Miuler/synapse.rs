@@ -5,6 +5,7 @@
   import {StatusBar, type MarkdownViewMode} from "@widgets/status-bar";
   import {CommandPalette} from "@widgets/command-palette";
   import {QuickOpen} from "@widgets/quick-open";
+  import {FullTextSearch} from "@widgets/full-text-search";
   import {EmptyWorkspace} from "@widgets/empty-workspace";
   import {VaultExplorer} from "@features/vault-explorer";
   import {MarkdownViewer} from "@features/markdown-editor";
@@ -22,7 +23,7 @@
   import {loadSupportedFileTypesUseCase} from "@shared/use-cases";
   import type {VaultItem, OpenedNote} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
-  import {vaultRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
+  import {vaultRepository, searchRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
   import {listen} from "@tauri-apps/api/event";
 
   interface VaultFsChangeEvent {
@@ -35,6 +36,8 @@
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
   let isQuickOpenOpen = $state(false);
+  let isFullTextSearchOpen = $state(false);
+  let pendingScrollTerms = $state<Record<string, string[]>>({});
   let isEditing = $state(false);
   let isVimMode = $state(false);
   let markdownViewMode = $state<MarkdownViewMode>("reading");
@@ -1209,6 +1212,23 @@
         },
       },
       {
+        id: "cmd-search-fulltext",
+        name: "Buscar en el contenido de las notas (FTS)",
+        category: "Búsqueda",
+        shortcut: "Ctrl+Shift+F",
+        action: () => {
+          isFullTextSearchOpen = true;
+        },
+      },
+      {
+        id: "cmd-rebuild-fts-index",
+        name: "Reconstruir índice de búsqueda full-text",
+        category: "Búsqueda",
+        action: async () => {
+          await searchRepository.rebuildIndex();
+        },
+      },
+      {
         id: "cmd-locate-active-file",
         name: "Explorador: Ubicar archivo actual en el árbol",
         category: "Navegación",
@@ -1346,6 +1366,12 @@
             e.stopImmediatePropagation();
             appSettings.toggleTheme();
             return;
+          } else if (key === 'f') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            isFullTextSearchOpen = true;
+            return;
           }
           return;
         }
@@ -1452,7 +1478,25 @@
       isPaletteOpen = true;
     } else if (actionId === "new-note") {
       createNewVaultItem();
+    } else if (actionId === "quick-open") {
+      isQuickOpenOpen = true;
+    } else if (actionId === "search") {
+      isFullTextSearchOpen = true;
     }
+  }
+
+  function handleSelectFullTextHit(path: string, matchedTerms: string[]) {
+    if (matchedTerms && matchedTerms.length > 0) {
+      pendingScrollTerms[path] = [...matchedTerms];
+    }
+    selectTab(path);
+  }
+
+  function handleSelectQuickOpenFile(path: string, matchedTerms?: string[]) {
+    if (matchedTerms && matchedTerms.length > 0) {
+      pendingScrollTerms[path] = [...matchedTerms];
+    }
+    selectTab(path);
   }
 
   async function handleOpenVaultFolder() {
@@ -1742,6 +1786,7 @@
                         readOnly={!isEditing}
                         vimMode={isVimMode}
                         viewMode={!isEditing ? 'reading' : markdownViewMode}
+                        scrollToTerms={pendingScrollTerms[tabPath]}
                         onChange={(updatedMarkdown: string) => {
                           if (openedNotes[tabPath]) {
                             openedNotes[tabPath].content = updatedMarkdown;
@@ -1800,7 +1845,13 @@
     bind:isOpen={isQuickOpenOpen}
     {vaultItems}
     {recentFiles}
-    onSelectFile={(path) => selectTab(path)}
+    onSelectFile={handleSelectQuickOpenFile}
+  />
+
+  <!-- 6. BÚSQUEDA EN EL CONTENIDO DE NOTAS (FULL-TEXT SEARCH CTRL+SHIFT+F) -->
+  <FullTextSearch
+    bind:isOpen={isFullTextSearchOpen}
+    onSelectHit={handleSelectFullTextHit}
   />
 </div>
 

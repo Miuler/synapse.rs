@@ -1,15 +1,20 @@
 <script lang="ts">
   import type { VaultItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
-  import { Search } from 'lucide-svelte';
+  import { Search, TextSearch } from 'lucide-svelte';
   import { FileIcon } from '@shared/ui/icons';
-  import { vaultRepository, type SearchResult } from '@shared/repositories';
+  import {
+    vaultRepository,
+    searchRepository,
+    type SearchResult,
+    type FullTextHit,
+  } from '@shared/repositories';
 
   interface Props {
     isOpen?: boolean;
     vaultItems?: VaultItem[];
     recentFiles?: string[];
-    onSelectFile?: (path: string) => void;
+    onSelectFile?: (path: string, matchedTerms?: string[]) => void;
     onClose?: () => void;
   }
 
@@ -28,6 +33,14 @@
   let nucleoResults = $state<SearchResult[]>([]);
   let visibleCount = $state(PAGE_SIZE);
   let listContainerEl = $state<HTMLElement | null>(null);
+
+  // Modo búsqueda full-text si la consulta inicia con '?'
+  const isFtsMode = $derived(searchQuery.startsWith('?'));
+  const ftsQuery = $derived(isFtsMode ? searchQuery.slice(1).trim() : '');
+  let ftsResults = $state<FullTextHit[]>([]);
+  let ftsTotalHits = $state(0);
+  let ftsElapsedMs = $state(0);
+  let isFtsLoading = $state(false);
 
   // Estadísticas de total de archivos y filtrados en memoria
   let totalFiles = $state<number>(0);
@@ -212,10 +225,10 @@
     }
   });
 
-  // Búsqueda interactiva ultrarrápida con Nucleo en Rust
+  // Búsqueda interactiva ultrarrápida con Nucleo en Rust (solo cuando no es modo FTS)
   $effect(() => {
     const q = searchQuery.trim();
-    if (!q || !isOpen) {
+    if (!q || !isOpen || isFtsMode) {
       nucleoResults = [];
       matchedFiles = totalFiles;
       return;
@@ -232,6 +245,53 @@
 
     return () => {
       active = false;
+    };
+  });
+
+  // Búsqueda interactiva Full-Text con Tantivy cuando inicia con '?'
+  $effect(() => {
+    if (!isOpen || !isFtsMode) {
+      ftsResults = [];
+      ftsTotalHits = 0;
+      ftsElapsedMs = 0;
+      isFtsLoading = false;
+      return;
+    }
+
+    const q = ftsQuery;
+    if (!q) {
+      ftsResults = [];
+      ftsTotalHits = 0;
+      ftsElapsedMs = 0;
+      isFtsLoading = false;
+      return;
+    }
+
+    isFtsLoading = true;
+    let active = true;
+
+    const timer = setTimeout(() => {
+      searchRepository
+        .search(q, 50)
+        .then((resp) => {
+          if (active) {
+            ftsResults = resp.hits;
+            ftsTotalHits = resp.total_hits;
+            ftsElapsedMs = resp.elapsed_ms;
+            isFtsLoading = false;
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            console.error('Error en búsqueda FTS desde QuickOpen:', err);
+            isFtsLoading = false;
+          }
+        });
+    }, 120);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
     };
   });
 
@@ -277,8 +337,8 @@
     if (onClose) onClose();
   }
 
-  function selectFile(path: string) {
-    if (onSelectFile) onSelectFile(path);
+  function selectFile(path: string, matchedTerms?: string[]) {
+    if (onSelectFile) onSelectFile(path, matchedTerms);
     closeDialog();
   }
 </script>
@@ -324,16 +384,26 @@
       <Command.Root
         class="quick-open-command-root"
         loop
-        shouldFilter={!searchQuery.trim()}
+        shouldFilter={!isFtsMode && !searchQuery.trim()}
         onkeydown={handleKeydownRoot}
       >
-        <div class="quick-open-input-wrapper">
-          <Search size={16} class="search-icon" />
+        <div class="quick-open-input-wrapper" class:is-fts={isFtsMode}>
+          {#if isFtsMode}
+            <TextSearch size={16} class="search-icon fts-active-icon" />
+          {:else}
+            <Search size={16} class="search-icon" />
+          {/if}
           <Command.Input
             class="command-input"
             bind:value={searchQuery}
-            placeholder="Buscar archivo por nombre... (Ctrl+O)"
+            placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : "Buscar archivo por nombre... (Ctrl+O, escribe '?' para contenido)"}
           />
+          {#if isFtsMode}
+            <span class="fts-indicator-badge">FTS</span>
+          {/if}
+          {#if isFtsLoading}
+            <span class="quick-fts-spinner"></span>
+          {/if}
           <span class="esc-badge">ESC</span>
         </div>
 
@@ -342,37 +412,96 @@
           class="quick-open-results-container"
           onscroll={handleScroll}
         >
-          <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
-
-          {#each fileList as file, i (file.id)}
-            <!-- Líneas de sección solo si existen archivos recientes -->
-            {#if hasRecents && i === 0 && file.isRecent}
-              <div class="section-divider">
-                <span class="section-divider-label">Recientes</span>
+          {#if isFtsMode}
+            {#if ftsQuery.length === 0}
+              <div class="fts-mode-hint">
+                <div class="fts-hint-title">
+                  <TextSearch size={15} />
+                  <span>Búsqueda Full-Text activada</span>
+                </div>
+                <p class="fts-hint-desc">
+                  Escribe cualquier término tras el signo <code>?</code> para buscar en el interior de tus notas, diagramas y código.
+                </p>
+                <div class="fts-hint-tags">
+                  <span>Ej: <code>?servidor</code></span>
+                  <span><code>?"frase exacta"</code></span>
+                  <span><code>?kind:markdown</code></span>
+                </div>
               </div>
-            {:else if hasRecents && !file.isRecent && (i === 0 || fileList[i - 1]?.isRecent)}
-              <div class="section-divider">
-                <span class="section-divider-label">Archivos</span>
+            {:else if ftsResults.length === 0 && !isFtsLoading}
+              <Command.Empty class="empty-state">
+                No se encontraron coincidencias en el contenido para <strong>"{ftsQuery}"</strong>
+              </Command.Empty>
+            {:else}
+              {#each ftsResults as hit (hit.note_path)}
+                <Command.Item
+                  class="palette-item quick-fts-item"
+                  value={hit.note_path}
+                  onSelect={() => selectFile(hit.note_path, hit.matched_terms)}
+                >
+                  <div class="quick-fts-main">
+                    <div class="quick-fts-header">
+                      <FileIcon path={hit.note_path} size={15} class="file-icon" />
+                      <span class="item-name">
+                        {#each hit.title as seg}
+                          {#if seg.highlighted}
+                            <mark class="quick-fts-mark">{seg.text}</mark>
+                          {:else}
+                            {seg.text}
+                          {/if}
+                        {/each}
+                      </span>
+                      <span class="quick-fts-kind {hit.kind}">{hit.kind}</span>
+                      <span class="item-path">{hit.note_path}</span>
+                    </div>
+                    {#if hit.snippet && hit.snippet.length > 0}
+                      <div class="quick-fts-snippet">
+                        {#each hit.snippet as seg}
+                          {#if seg.highlighted}
+                            <mark class="quick-fts-mark">{seg.text}</mark>
+                          {:else}
+                            {seg.text}
+                          {/if}
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                </Command.Item>
+              {/each}
+            {/if}
+          {:else}
+            <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
+
+            {#each fileList as file, i (file.id)}
+              <!-- Líneas de sección solo si existen archivos recientes -->
+              {#if hasRecents && i === 0 && file.isRecent}
+                <div class="section-divider">
+                  <span class="section-divider-label">Recientes</span>
+                </div>
+              {:else if hasRecents && !file.isRecent && (i === 0 || fileList[i - 1]?.isRecent)}
+                <div class="section-divider">
+                  <span class="section-divider-label">Archivos</span>
+                </div>
+              {/if}
+
+              <Command.Item
+                class="palette-item"
+                value={`${file.fileName} ${file.title} ${file.path}`}
+                onSelect={() => selectFile(file.path)}
+              >
+                <FileIcon path={file.path} name={file.fileName} size={15} class="file-icon" />
+                <span class="item-name">{file.fileName}</span>
+                <span class="item-path">
+                  {file.path}{file.title && file.title !== file.fileName && file.title !== file.fileName.replace(/\.[^/.]+$/, '') ? ` · ${file.title}` : ''}
+                </span>
+              </Command.Item>
+            {/each}
+
+            {#if visibleCount < allCandidates.length}
+              <div class="scroll-more-indicator">
+                Mostrando {visibleCount} de {allCandidates.length} archivos (desplázate para cargar más)
               </div>
             {/if}
-
-            <Command.Item
-              class="palette-item"
-              value={`${file.fileName} ${file.title} ${file.path}`}
-              onSelect={() => selectFile(file.path)}
-            >
-              <FileIcon path={file.path} name={file.fileName} size={15} class="file-icon" />
-              <span class="item-name">{file.fileName}</span>
-              <span class="item-path">
-                {file.path}{file.title && file.title !== file.fileName && file.title !== file.fileName.replace(/\.[^/.]+$/, '') ? ` · ${file.title}` : ''}
-              </span>
-            </Command.Item>
-          {/each}
-
-          {#if visibleCount < allCandidates.length}
-            <div class="scroll-more-indicator">
-              Mostrando {visibleCount} de {allCandidates.length} archivos (desplázate para cargar más)
-            </div>
           {/if}
         </Command.List>
 
@@ -383,7 +512,13 @@
             <span><kbd>esc</kbd> Cerrar</span>
           </div>
           <div class="footer-stats">
-            {#if searchQuery.trim().length > 0}
+            {#if isFtsMode}
+              {#if ftsQuery.length > 0}
+                <span>{ftsTotalHits.toLocaleString()} {ftsTotalHits === 1 ? 'coincidencia' : 'coincidencias'} ({ftsElapsedMs.toFixed(1)} ms) en contenido</span>
+              {:else}
+                <span>Modo Full-Text (?...)</span>
+              {/if}
+            {:else if searchQuery.trim().length > 0}
               <span>{matchedFiles.toLocaleString()} de {totalFiles.toLocaleString()} archivos</span>
             {:else if totalFiles > 0}
               <span>{totalFiles.toLocaleString()} archivos</span>
@@ -729,5 +864,148 @@
     border-top: 1px dashed var(--border-primary, #d0d7de);
     background: var(--bg-secondary, #f6f8fa);
     user-select: none;
+  }
+
+  :global(.quick-open-container .quick-open-input-wrapper.is-fts) {
+    border-bottom: 2px solid var(--accent, #0969da);
+  }
+
+  :global(.quick-open-container .fts-active-icon) {
+    color: var(--accent, #0969da) !important;
+  }
+
+  :global(.quick-open-container .fts-indicator-badge) {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--mono, monospace);
+    color: var(--accent, #0969da);
+    background: rgba(9, 105, 218, 0.12);
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid rgba(9, 105, 218, 0.25);
+    flex-shrink: 0;
+  }
+
+  :global(.quick-open-container .quick-fts-spinner) {
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--border-primary, #d0d7de);
+    border-top-color: var(--accent, #0969da);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .fts-mode-hint {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  .fts-hint-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent, #0969da);
+  }
+
+  .fts-hint-desc {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .fts-hint-desc code,
+  .fts-hint-tags code {
+    font-family: var(--mono, monospace);
+    background: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--text-primary, #1f2328);
+  }
+
+  .fts-hint-tags {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .quick-fts-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .quick-fts-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .quick-fts-kind {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+
+  .quick-fts-kind.markdown {
+    background: rgba(9, 105, 218, 0.12);
+    color: var(--accent, #0969da);
+  }
+
+  .quick-fts-kind.mermaid {
+    background: rgba(227, 98, 9, 0.12);
+    color: #e36209;
+  }
+
+  .quick-fts-kind.code {
+    background: rgba(130, 80, 223, 0.12);
+    color: #8250df;
+  }
+
+  .quick-fts-kind.excalidraw {
+    background: rgba(26, 127, 55, 0.12);
+    color: #1a7f37;
+  }
+
+  .quick-fts-snippet {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary, #656d76);
+    padding-left: 24px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+
+  :global(.quick-open-container mark.quick-fts-mark) {
+    background-color: var(--search-match-bg, rgba(234, 179, 8, 0.35));
+    color: inherit;
+    font-weight: 600;
+    border-radius: 2px;
+    padding: 0 1px;
   }
 </style>

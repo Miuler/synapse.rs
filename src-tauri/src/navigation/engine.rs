@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -14,6 +14,7 @@ use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{NoteId, NoteMeta};
 use super::storage;
 use super::watcher::VaultFsWatcher;
+use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::models::file_types::SupportedFileTypes;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -95,6 +96,7 @@ pub struct NavigationEngine {
     pub expanded_folders: Arc<DashMap<CompactString, bool>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
     pub on_fs_change: Arc<Mutex<Option<super::watcher::ChangeCallback>>>,
+    pub observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
 }
 
 impl NavigationEngine {
@@ -175,6 +177,23 @@ impl NavigationEngine {
             expanded_folders: Arc::new(expanded_folders),
             fs_watcher: Arc::new(Mutex::new(None)),
             on_fs_change: Arc::new(Mutex::new(None)),
+            observers: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+
+    /// Registers an observer to receive vault change events.
+    pub fn register_observer(&self, observer: Arc<dyn VaultChangeObserver>) {
+        if let Ok(mut lock) = self.observers.write() {
+            lock.push(observer);
+        }
+    }
+
+    /// Dispatches a change event to all registered observers.
+    pub fn notify_observers(&self, change: VaultChange) {
+        if let Ok(lock) = self.observers.read() {
+            for obs in lock.iter() {
+                obs.on_vault_change(change.clone());
+            }
         }
     }
 
@@ -221,6 +240,7 @@ impl NavigationEngine {
             self.file_types.clone(),
             Arc::clone(&self.shutdown_flag),
             Arc::clone(&self.on_fs_change),
+            Arc::clone(&self.observers),
         ) {
             Ok(watcher) => {
                 if let Ok(mut lock) = self.fs_watcher.lock() {
@@ -243,6 +263,8 @@ impl NavigationEngine {
     pub fn reconcile_sync(&self) -> ReconciliationStats {
         let mut stats = ReconciliationStats::default();
         let mut seen_ids = HashSet::new();
+        let mut upserted_paths = Vec::new();
+        let mut deleted_paths = Vec::new();
 
         let injector = match self.nucleo.lock() {
             Ok(n) => n.injector(),
@@ -371,6 +393,7 @@ impl NavigationEngine {
                     self.notes.insert(existing_id, note_meta);
                     self.mark_dirty();
                     stats.modified += 1;
+                    upserted_paths.push(compact_path.to_string());
 
                     injector.push(existing_id, move |_target, cols| {
                         if compact_title.as_str() == compact_path.as_str() {
@@ -415,6 +438,7 @@ impl NavigationEngine {
                 self.notes.insert(new_id, note_meta);
                 self.mark_dirty();
                 stats.added += 1;
+                upserted_paths.push(compact_path.to_string());
 
                 injector.push(new_id, move |_target, cols| {
                     if compact_title.as_str() == compact_path.as_str() {
@@ -445,6 +469,7 @@ impl NavigationEngine {
                     self.path_index.remove(&removed.path);
                     self.mark_dirty();
                     stats.deleted += 1;
+                    deleted_paths.push(removed.path.to_string());
                 }
             }
 
@@ -453,6 +478,13 @@ impl NavigationEngine {
                 nucleo_lock.restart(false);
                 populate_nucleo_from_dashmap(&self.notes, &mut nucleo_lock);
             }
+        }
+
+        if !upserted_paths.is_empty() {
+            self.notify_observers(VaultChange::Upserted(upserted_paths));
+        }
+        if !deleted_paths.is_empty() {
+            self.notify_observers(VaultChange::Removed(deleted_paths));
         }
 
         stats
@@ -837,6 +869,7 @@ impl NavigationEngine {
     /// and its subdirectories, removes deleted files, and updates the nucleo search index.
     pub fn reload_paths(&self, paths: &[String]) -> Result<Vec<String>, String> {
         let mut reloaded_files = std::collections::BTreeSet::new();
+        let mut deleted_files = Vec::new();
 
         let target_paths: Vec<String> = if paths.is_empty() {
             vec![String::new()]
@@ -871,6 +904,7 @@ impl NavigationEngine {
                 for id in deleted_ids {
                     if let Some((_, removed)) = self.notes.remove(&id) {
                         self.path_index.remove(&removed.path);
+                        deleted_files.push(removed.path.to_string());
                     }
                 }
                 continue;
@@ -912,6 +946,7 @@ impl NavigationEngine {
                 for id in deleted_ids {
                     if let Some((_, removed)) = self.notes.remove(&id) {
                         self.path_index.remove(&removed.path);
+                        deleted_files.push(removed.path.to_string());
                     }
                 }
                 eprintln!("[D5] removed deleted notes");
@@ -936,8 +971,16 @@ impl NavigationEngine {
             populate_nucleo_from_dashmap(&self.notes, &mut nucleo_lock);
         }
 
+        let reloaded_list: Vec<String> = reloaded_files.iter().cloned().collect();
+        if !reloaded_list.is_empty() {
+            self.notify_observers(VaultChange::Upserted(reloaded_list.clone()));
+        }
+        if !deleted_files.is_empty() {
+            self.notify_observers(VaultChange::Removed(deleted_files));
+        }
+
         self.mark_dirty();
-        Ok(reloaded_files.into_iter().collect())
+        Ok(reloaded_list)
     }
 
     /// Internal helper to force reload a single file's metadata from disk into DashMap.

@@ -8,9 +8,10 @@
   interface Props {
     content: string;
     filePath?: string | null;
+    scrollToTerms?: string[];
   }
 
-  let { content = '', filePath = null }: Props = $props();
+  let { content = '', filePath = null, scrollToTerms = [] }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
@@ -119,6 +120,26 @@
     renderImages();
   });
 
+  export function scrollToMatch(terms: string[]) {
+    if (!containerRef || !terms || terms.length === 0) return;
+    for (const term of terms) {
+      const cleanTerm = term.trim().toLowerCase();
+      if (!cleanTerm) continue;
+      const walker = document.createTreeWalker(containerRef, NodeFilter.SHOW_TEXT);
+      let node: Node | null = walker.nextNode();
+      while (node) {
+        if (node.textContent && node.textContent.toLowerCase().includes(cleanTerm)) {
+          const parent = node.parentElement;
+          if (parent) {
+            parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+        }
+        node = walker.nextNode();
+      }
+    }
+  }
+
   $effect(() => {
     const raw = content;
     const parsed = marked.parse(raw);
@@ -127,7 +148,18 @@
     tick().then(() => {
       renderDiagrams();
       renderImages();
+      if (scrollToTerms && scrollToTerms.length > 0) {
+        scrollToMatch(scrollToTerms);
+      }
     });
+  });
+
+  $effect(() => {
+    if (scrollToTerms && scrollToTerms.length > 0 && renderedHtml) {
+      tick().then(() => {
+        scrollToMatch(scrollToTerms);
+      });
+    }
   });
 </script>
 

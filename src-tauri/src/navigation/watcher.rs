@@ -14,7 +14,9 @@ use std::time::{Duration, Instant, SystemTime};
 use super::engine::extract_title_from_markdown;
 use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{NoteId, NoteMeta};
+use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::models::file_types::SupportedFileTypes;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VaultFsChangeEvent {
@@ -54,6 +56,7 @@ pub fn should_ignore_path(rel_path: &Path) -> bool {
 }
 
 /// Processes a debounced batch of filesystem events using Rayon for concurrent parsing.
+#[allow(clippy::too_many_arguments)]
 pub fn process_events_batch(
     vault_path: &Path,
     file_types: &SupportedFileTypes,
@@ -64,6 +67,7 @@ pub fn process_events_batch(
     last_mutation: &Arc<Mutex<Instant>>,
     next_id: &Arc<AtomicU32>,
     on_change: &Arc<Mutex<Option<ChangeCallback>>>,
+    observers: &Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
     events: Vec<DebouncedEvent>,
 ) {
     if events.is_empty() {
@@ -322,17 +326,29 @@ pub fn process_events_batch(
         }
         dirty_flag.store(true, Ordering::Release);
 
+        let modified_paths: Vec<String> = parsed_items
+            .into_iter()
+            .map(|p| p.compact_path.to_string())
+            .collect();
+        let deleted_paths_list: Vec<String> = deleted_paths.into_iter().collect();
+
         if let Ok(guard) = on_change.lock() {
             if let Some(ref cb) = *guard {
-                let modified_paths: Vec<String> = parsed_items
-                    .into_iter()
-                    .map(|p| p.compact_path.to_string())
-                    .collect();
-                let deleted_paths_list: Vec<String> = deleted_paths.into_iter().collect();
                 cb(VaultFsChangeEvent {
-                    paths: modified_paths,
-                    deleted: deleted_paths_list,
+                    paths: modified_paths.clone(),
+                    deleted: deleted_paths_list.clone(),
                 });
+            }
+        }
+
+        if let Ok(lock) = observers.read() {
+            for obs in lock.iter() {
+                if !modified_paths.is_empty() {
+                    obs.on_vault_change(VaultChange::Upserted(modified_paths.clone()));
+                }
+                if !deleted_paths_list.is_empty() {
+                    obs.on_vault_change(VaultChange::Removed(deleted_paths_list.clone()));
+                }
             }
         }
     }
@@ -347,6 +363,7 @@ pub struct VaultFsWatcher {
 }
 
 impl VaultFsWatcher {
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         vault_path: PathBuf,
         debounce_duration: Duration,
@@ -359,6 +376,7 @@ impl VaultFsWatcher {
         file_types: SupportedFileTypes,
         shutdown_flag: Arc<AtomicBool>,
         on_change: Arc<Mutex<Option<ChangeCallback>>>,
+        observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let (tx, rx) = mpsc::channel::<Vec<DebouncedEvent>>();
 
@@ -381,6 +399,7 @@ impl VaultFsWatcher {
         let worker_vault_path = vault_path;
         let worker_shutdown = Arc::clone(&shutdown_flag);
         let worker_on_change = Arc::clone(&on_change);
+        let worker_observers = Arc::clone(&observers);
 
         let worker_handle = std::thread::Builder::new()
             .name("vault-fs-parser".to_string())
@@ -401,6 +420,7 @@ impl VaultFsWatcher {
                             &last_mutation,
                             &next_id,
                             &worker_on_change,
+                            &worker_observers,
                             events,
                         );
                     }

@@ -3,6 +3,7 @@
   import {
     Folder,
     Search,
+    TextSearch,
     FilePlus,
     Command,
     Network,
@@ -21,14 +22,15 @@
 
   const topTools = [
     { id: 'files', label: 'Explorador de archivos (Alt+1, Ctrl+B)', icon: 'folder' },
-    { id: 'search', label: 'Buscar en notas', icon: 'search' },
+    { id: 'quick-open', label: 'Buscar archivo por nombre (Ctrl+O)', icon: 'search' },
+    { id: 'search', label: 'Buscar en el contenido de las notas (Ctrl+Shift+F)', icon: 'text-search' },
     { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
     { id: 'command-palette', label: 'Paleta de comandos (Ctrl+P)', icon: 'command' },
     { id: 'graph', label: 'Vista de gráfico', icon: 'graph' },
   ];
 
   function handleToolClick(id: string) {
-    if (id === 'files' || id === 'search') {
+    if (id === 'files') {
       if (activeTab === id) {
         activeTab = '';
       } else {
@@ -59,6 +61,8 @@
                   <Folder size={18} class="icon" />
                 {:else if tool.icon === 'search'}
                   <Search size={18} class="icon" />
+                {:else if tool.icon === 'text-search'}
+                  <TextSearch size={18} class="icon" />
                 {:else if tool.icon === 'file-plus'}
                   <FilePlus size={18} class="icon" />
                 {:else if tool.icon === 'command'}
