@@ -35,12 +35,25 @@ pub struct ParsedFileMeta {
     pub created_nanos: Option<u128>,
 }
 
+/// Determines if a directory or file name should be completely ignored (build artifacts, dependencies, etc.)
+pub fn is_ignored_dir_or_file(name: &str) -> bool {
+    name.starts_with('.')
+        || name.eq_ignore_ascii_case("node_modules")
+        || name.eq_ignore_ascii_case("target")
+        || name.eq_ignore_ascii_case("dist")
+        || name.eq_ignore_ascii_case("build")
+        || name.eq_ignore_ascii_case(".git")
+        || name.eq_ignore_ascii_case(".synapse")
+        || name.eq_ignore_ascii_case(".idea")
+        || name.eq_ignore_ascii_case(".vscode")
+}
+
 /// Determines if a path component or name represents a hidden or temporary file that should be ignored.
 pub fn should_ignore_path(rel_path: &Path) -> bool {
-    // Ignore any path containing hidden components (.git, .synapse, .obsidian, etc.)
+    // Ignore any path containing hidden components (.git, .synapse, .obsidian, etc.) or ignored folders
     for component in rel_path.components() {
         let comp_str = component.as_os_str().to_string_lossy();
-        if comp_str.starts_with('.') {
+        if is_ignored_dir_or_file(&comp_str) {
             return true;
         }
     }
@@ -89,8 +102,21 @@ pub fn process_events_batch(
 
         if abs_path.exists() {
             if abs_path.is_dir() {
-                // If a directory was created/modified, walk it for supported files
-                for entry_res in jwalk::WalkDir::new(abs_path).skip_hidden(true) {
+                // If a directory was created/modified, walk it for supported files (pruning ignored dirs)
+                for entry_res in jwalk::WalkDir::new(abs_path)
+                    .skip_hidden(true)
+                    .process_read_dir(|_depth, _path, _state, children| {
+                        children.retain(|entry_res| {
+                            entry_res
+                                .as_ref()
+                                .map(|e| {
+                                    let name = e.file_name.to_string_lossy();
+                                    !is_ignored_dir_or_file(&name)
+                                })
+                                .unwrap_or(false)
+                        });
+                    })
+                {
                     if let Ok(entry) = entry_res {
                         if entry.file_type.is_file() {
                             let entry_path = entry.path();

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
@@ -82,7 +82,7 @@
   }
 
   let vaultFolderName = $derived.by(() => {
-    if (!vaultPath) return 'Bóveda de Archivos';
+    if (!vaultPath) return 'Abrir Bóveda';
     const cleanPath = vaultPath.replace(/[\\/]+$/, '');
     const segments = cleanPath.split(/[\\/]/).filter(Boolean);
     return segments.pop() || vaultPath;
@@ -235,25 +235,31 @@
       : treeNodes
   );
 
-  // Expandir carpetas padres automáticamente cuando un archivo se selecciona como pestaña activa
+  // Expandir carpetas padres automáticamente SOLO cuando cambia la pestaña activa
+  let prevAutoExpandedTab = $state<string | null>(null);
   $effect(() => {
     const path = activeTabPath;
-    if (path && path.includes('/')) {
-      const parts = path.split('/').filter(Boolean);
-      let currentPath = '';
-      let changed = false;
-      for (let i = 0; i < parts.length - 1; i++) {
-        currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
-        if (!expandedFolders[currentPath]) {
-          expandedFolders[currentPath] = true;
-          changed = true;
-        }
-        if (!folderChildren[currentPath]) {
-          loadDirectory(currentPath);
-        }
-      }
-      if (changed) {
-        persistExpandedFolders();
+    if (path !== prevAutoExpandedTab) {
+      prevAutoExpandedTab = path;
+      if (path && path.includes('/')) {
+        untrack(() => {
+          const parts = path.split('/').filter(Boolean);
+          let currentPath = '';
+          let changed = false;
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+            if (!expandedFolders[currentPath]) {
+              expandedFolders[currentPath] = true;
+              changed = true;
+            }
+            if (!folderChildren[currentPath]) {
+              loadDirectory(currentPath);
+            }
+          }
+          if (changed) {
+            persistExpandedFolders();
+          }
+        });
       }
     }
   });

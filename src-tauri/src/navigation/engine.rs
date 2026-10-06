@@ -274,8 +274,23 @@ impl NavigationEngine {
             }
         };
 
-        // Parallel walk using jwalk
-        for entry_res in jwalk::WalkDir::new(&self.vault_path).skip_hidden(true) {
+        // Parallel walk using jwalk, pruning ignored directories immediately
+        for entry_res in jwalk::WalkDir::new(&self.vault_path)
+            .skip_hidden(true)
+            .process_read_dir(|depth, _path, _state, children| {
+                if depth.is_none() {
+                    return;
+                }
+                children.retain(|entry_res| {
+                    if let Ok(entry) = entry_res {
+                        let name = entry.file_name.to_string_lossy();
+                        !crate::navigation::watcher::is_ignored_dir_or_file(&name)
+                    } else {
+                        true
+                    }
+                });
+            })
+        {
             let entry = match entry_res {
                 Ok(e) => e,
                 Err(_) => continue,

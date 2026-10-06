@@ -46,7 +46,12 @@ fn test_full_text_indexer_workflow_and_persistence() {
     let indexer = FtsIndexer::start(vault_path.clone(), file_types.clone(), Arc::clone(&index));
 
     // Esperar sincronización inicial
-    thread::sleep(Duration::from_millis(600));
+    for _ in 0..30 {
+        if index.num_docs() == 3 {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
 
     // Comprobar que los 3 documentos están indexados
     assert_eq!(index.num_docs(), 3);

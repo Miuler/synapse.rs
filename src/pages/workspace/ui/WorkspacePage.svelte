@@ -732,32 +732,17 @@
 
   async function fetchNotesFromBackend() {
     try {
-      if (appSettings.lastOpenedFolder) {
-        try {
-          await vaultRepository.setActiveVaultPath(appSettings.lastOpenedFolder);
-        } catch (e) {
-          console.warn("No se pudo configurar la ruta de la bóveda desde settings:", e);
-          try {
-            const currentPath = await vaultRepository.getActiveVaultPath();
-            if (currentPath) {
-              appSettings.setLastOpenedFolder(currentPath);
-            }
-          } catch {
-            // ignorar si no está disponible
-          }
+      const activePath = await vaultRepository.getActiveVaultPath();
+      if (!activePath) {
+        vaultItems = [];
+        isConnectedToRust = vaultRepository.isConnected();
+        if (openTabPaths.length === 0) {
+          handleNewEmptyTab();
         }
-      } else {
-        // Si no hay setting guardado aún, sincronizar el path actual de Rust en settings
-        try {
-          const currentPath = await vaultRepository.getActiveVaultPath();
-          if (currentPath) {
-            appSettings.setLastOpenedFolder(currentPath);
-          }
-        } catch {
-          // ignorar si no está disponible
-        }
+        return;
       }
 
+      appSettings.setLastOpenedFolder(activePath);
       const notes = await vaultRepository.getNotes();
       isConnectedToRust = vaultRepository.isConnected();
       await refreshGitStatus();
@@ -880,7 +865,13 @@
       handleNewEmptyTab();
     }
 
-    fetchNotesFromBackend();
+    vaultRepository.getActiveVaultPath().then(async (activePath) => {
+      if (!activePath) {
+        await handleOpenVaultFolder();
+      } else {
+        await fetchNotesFromBackend();
+      }
+    });
 
     let unlistenFsChange: (() => void) | undefined;
     listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {

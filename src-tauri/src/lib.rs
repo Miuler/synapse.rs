@@ -16,7 +16,6 @@ use infrastructure::tauri::commands::{
     set_active_vault_path, set_note_view_mode, toggle_devtools, AppState,
 };
 use std::env;
-use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 //use webkit2gtk_nvidia_quirk::ApplyWorkaroundOptions;
@@ -25,18 +24,10 @@ use webkit2gtk_nvidia_quirk::{apply_workaround_with_options, ApplyWorkaroundOpti
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Escaneamos por defecto la raíz del proyecto actual
-    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let default_vault = if cwd.ends_with("src-tauri") {
-        cwd.parent().unwrap_or(&cwd).to_path_buf()
-    } else {
-        cwd
-    };
-
     let file_types = SupportedFileTypes::default();
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
-    let app_state = AppState::new(default_vault, file_types, use_cases);
+    let app_state = AppState::empty(file_types, use_cases);
 
     #[cfg(target_os = "linux")]
     {
@@ -84,12 +75,14 @@ pub fn run() {
             if let Ok(mut h) = state.app_handle.lock() {
                 *h = Some(handle.clone());
             }
-            if let Ok(engine) = state.navigation_engine.lock() {
-                let h = handle.clone();
-                engine.set_on_fs_change(std::sync::Arc::new(move |evt| {
-                    use tauri::Emitter;
-                    let _ = h.emit("vault:files-changed", &evt);
-                }));
+            if let Ok(guard) = state.navigation_engine.lock() {
+                if let Some(ref engine) = *guard {
+                    let h = handle.clone();
+                    engine.set_on_fs_change(std::sync::Arc::new(move |evt| {
+                        use tauri::Emitter;
+                        let _ = h.emit("vault:files-changed", &evt);
+                    }));
+                }
             }
 
             if cfg!(debug_assertions) {

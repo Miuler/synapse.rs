@@ -23,11 +23,11 @@ pub struct FullTextComponents {
 }
 
 pub struct AppState {
-    pub active_vault_path: Mutex<PathBuf>,
+    pub active_vault_path: Mutex<Option<PathBuf>>,
     pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
-    pub navigation_engine: Mutex<Arc<NavigationEngine>>,
-    pub full_text: Mutex<Arc<FullTextComponents>>,
+    pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
+    pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
@@ -75,6 +75,20 @@ pub fn open_vault_components(
 }
 
 impl AppState {
+    pub fn empty(
+        file_types: SupportedFileTypes,
+        note_use_cases: NoteUseCases<FileNoteRepository>,
+    ) -> Self {
+        Self {
+            active_vault_path: Mutex::new(None),
+            file_types,
+            note_use_cases,
+            navigation_engine: Mutex::new(None),
+            full_text: Mutex::new(None),
+            app_handle: Arc::new(Mutex::new(None)),
+        }
+    }
+
     pub fn new(
         initial_vault_path: PathBuf,
         file_types: SupportedFileTypes,
@@ -87,11 +101,11 @@ impl AppState {
             Arc::clone(&app_handle),
         );
         Self {
-            active_vault_path: Mutex::new(initial_vault_path),
+            active_vault_path: Mutex::new(Some(initial_vault_path)),
             file_types,
             note_use_cases,
-            navigation_engine: Mutex::new(engine),
-            full_text: Mutex::new(full_text),
+            navigation_engine: Mutex::new(Some(engine)),
+            full_text: Mutex::new(Some(full_text)),
             app_handle,
         }
     }
@@ -118,8 +132,11 @@ pub fn get_supported_file_types(state: State<'_, AppState>) -> SupportedFileType
 
 #[tauri::command]
 pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> {
-    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let (Some(vault_path), Some(engine)) = (vault_guard.as_ref(), engine_guard.as_ref()) else {
+        return Ok(Vec::new());
+    };
 
     let mut notes = Vec::with_capacity(engine.notes.len());
     for item in engine.notes.iter() {
@@ -144,8 +161,11 @@ pub fn get_vault_directory_children(
     state: State<'_, AppState>,
     parent_path: Option<String>,
 ) -> Result<Vec<VaultEntryNode>, String> {
-    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let (Some(vault_path), Some(engine)) = (vault_guard.as_ref(), engine_guard.as_ref()) else {
+        return Ok(Vec::new());
+    };
 
     let clean_parent = parent_path
         .map(|p| p.trim_matches('/').replace('\\', "/"))
@@ -204,8 +224,8 @@ pub fn get_vault_directory_children(
     if let Ok(entries) = std::fs::read_dir(&disk_dir) {
         for entry in entries.flatten() {
             let file_name = entry.file_name().to_string_lossy().to_string();
-            if file_name.starts_with('.') {
-                continue; // Skip hidden dirs like .git, .synapse
+            if crate::navigation::watcher::is_ignored_dir_or_file(&file_name) {
+                continue; // Skip hidden dirs and build/dependency folders
             }
             if let Ok(ft) = entry.file_type() {
                 if ft.is_dir() {
@@ -251,9 +271,9 @@ pub fn get_vault_directory_children(
 }
 
 #[tauri::command]
-pub fn get_active_vault_path(state: State<'_, AppState>) -> Result<String, String> {
+pub fn get_active_vault_path(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    Ok(vault_path.to_string_lossy().to_string())
+    Ok(vault_path.as_ref().map(|p| p.to_string_lossy().to_string()))
 }
 
 #[tauri::command]
@@ -261,10 +281,15 @@ pub fn read_note_content(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<Note, String> {
-    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    let note = state.note_use_cases.read_note(&vault_path, &relative_path)?;
-    if let Ok(engine) = state.navigation_engine.lock() {
-        engine.record_opened(&relative_path);
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *vault_guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let note = state.note_use_cases.read_note(vault_path, &relative_path)?;
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.record_opened(&relative_path);
+        }
     }
     Ok(note)
 }
@@ -274,8 +299,10 @@ pub fn record_note_opened(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<(), String> {
-    if let Ok(engine) = state.navigation_engine.lock() {
-        engine.record_opened(&relative_path);
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.record_opened(&relative_path);
+        }
     }
     Ok(())
 }
@@ -288,21 +315,25 @@ pub fn save_note_content(
     content: String,
     encoding: Option<String>,
 ) -> Result<(), String> {
-    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?.clone();
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *vault_guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
     let enc = encoding.unwrap_or_else(|| "UTF-8".to_string());
     state
         .note_use_cases
-        .save_note(&vault_path, &relative_path, &title, &content, &enc)?;
+        .save_note(vault_path, &relative_path, &title, &content, &enc)?;
 
-    if let Ok(engine) = state.navigation_engine.lock() {
-        engine.reconcile_sync();
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.reconcile_sync();
+        }
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Result<(), String> {
-    let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Result<(), String> {
     let path = PathBuf::from(&new_path);
     let target_dir = if path.is_dir() {
         path
@@ -312,17 +343,43 @@ pub fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Re
         path
     };
 
-    *vault_path = target_dir.clone();
+    if !target_dir.exists() || !target_dir.is_dir() {
+        return Err("Ruta de bóveda inválida o no existe".to_string());
+    }
+
+    let synapse_dir = target_dir.join(".synapse");
+    if !synapse_dir.exists() {
+        let confirmed = rfd::AsyncMessageDialog::new()
+            .set_title("Advertencia de Bóveda")
+            .set_description(format!(
+                "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                target_dir.display()
+            ))
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .show()
+            .await;
+
+        if confirmed != rfd::MessageDialogResult::Yes {
+            return Err("Apertura de bóveda cancelada por el usuario".to_string());
+        }
+
+        if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
+            return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+        }
+    }
+
+    let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    *vault_path = Some(target_dir.clone());
     let (new_engine, new_ft) = open_vault_components(
         target_dir,
         state.file_types.clone(),
         Arc::clone(&state.app_handle),
     );
     if let Ok(mut engine_lock) = state.navigation_engine.lock() {
-        *engine_lock = new_engine;
+        *engine_lock = Some(new_engine);
     }
     if let Ok(mut ft_lock) = state.full_text.lock() {
-        *ft_lock = new_ft;
+        *ft_lock = Some(new_ft);
     }
     Ok(())
 }
@@ -348,13 +405,15 @@ pub async fn select_vault_folder(
         })
         .or_else(|| {
             state.active_vault_path.lock().ok().and_then(|p| {
-                if p.is_dir() {
-                    Some(p.clone())
-                } else if p.is_file() {
-                    p.parent().map(|parent| parent.to_path_buf())
-                } else {
-                    None
-                }
+                p.as_ref().and_then(|path| {
+                    if path.is_dir() {
+                        Some(path.clone())
+                    } else if path.is_file() {
+                        path.parent().map(|parent| parent.to_path_buf())
+                    } else {
+                        None
+                    }
+                })
             })
         });
 
@@ -368,8 +427,29 @@ pub async fn select_vault_folder(
         let path = folder_handle.path().to_path_buf();
         let folder_path_str = path.to_string_lossy().to_string();
 
+        let synapse_dir = path.join(".synapse");
+        if !synapse_dir.exists() {
+            let confirmed = rfd::AsyncMessageDialog::new()
+                .set_title("Advertencia de Bóveda")
+                .set_description(format!(
+                    "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                    path.display()
+                ))
+                .set_buttons(rfd::MessageButtons::YesNo)
+                .show()
+                .await;
+
+            if confirmed != rfd::MessageDialogResult::Yes {
+                return Ok(None);
+            }
+
+            if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
+                return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+            }
+        }
+
         let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-        *vault_path = path.clone();
+        *vault_path = Some(path.clone());
 
         let (new_engine, new_ft) = open_vault_components(
             path.clone(),
@@ -377,10 +457,10 @@ pub async fn select_vault_folder(
             Arc::clone(&state.app_handle),
         );
         if let Ok(mut engine_lock) = state.navigation_engine.lock() {
-            *engine_lock = new_engine.clone();
+            *engine_lock = Some(new_engine.clone());
         }
         if let Ok(mut ft_lock) = state.full_text.lock() {
-            *ft_lock = new_ft;
+            *ft_lock = Some(new_ft);
         }
 
         let mut notes = Vec::with_capacity(new_engine.notes.len());
@@ -426,7 +506,14 @@ pub fn search_notes_command(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<QuickOpenSearchResult, String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(QuickOpenSearchResult {
+            results: Vec::new(),
+            total_files: 0,
+            matched_files: 0,
+        });
+    };
     let (matches, total_files, matched_files) = engine.search_with_stats(&query, 50);
     let recent_notes = engine.get_recent_notes(15);
     let recent_set: std::collections::HashSet<compact_str::CompactString> =
@@ -456,7 +543,10 @@ pub fn search_notes_command(
 
 #[tauri::command]
 pub fn get_vault_files_count(state: State<'_, AppState>) -> Result<usize, String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(0);
+    };
     Ok(engine.notes.len())
 }
 
@@ -465,7 +555,10 @@ pub fn get_recent_notes_command(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<String>, String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(Vec::new());
+    };
     let recent = engine.get_recent_notes(limit.unwrap_or(15));
     Ok(recent.into_iter().map(|n| n.path.to_string()).collect())
 }
@@ -476,8 +569,10 @@ pub fn save_open_tabs_state(
     tabs: Vec<OpenTabDto>,
     active_tab: Option<String>,
 ) -> Result<(), String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
-    engine.save_open_tabs_state(&tabs, active_tab.as_deref());
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    if let Some(ref engine) = *guard {
+        engine.save_open_tabs_state(&tabs, active_tab.as_deref());
+    }
     Ok(())
 }
 
@@ -485,7 +580,13 @@ pub fn save_open_tabs_state(
 pub fn get_open_tabs_state(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceOpenTabsState, String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(WorkspaceOpenTabsState {
+            open_tabs: Vec::new(),
+            active_tab: None,
+        });
+    };
     Ok(engine.get_open_tabs_state())
 }
 
@@ -495,8 +596,10 @@ pub fn set_note_view_mode(
     relative_path: String,
     view_mode: String,
 ) -> Result<(), String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
-    engine.set_note_view_mode(&relative_path, &view_mode);
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    if let Some(ref engine) = *guard {
+        engine.set_note_view_mode(&relative_path, &view_mode);
+    }
     Ok(())
 }
 
@@ -506,8 +609,10 @@ pub fn save_vault_ui_state(
     sidebar_width: Option<u32>,
     expanded_folders: Option<Vec<String>>,
 ) -> Result<(), String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
-    engine.save_vault_ui_state(sidebar_width, expanded_folders);
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    if let Some(ref engine) = *guard {
+        engine.save_vault_ui_state(sidebar_width, expanded_folders);
+    }
     Ok(())
 }
 
@@ -515,7 +620,10 @@ pub fn save_vault_ui_state(
 pub fn get_vault_ui_state(
     state: State<'_, AppState>,
 ) -> Result<VaultUiState, String> {
-    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(VaultUiState::default());
+    };
     Ok(engine.get_vault_ui_state())
 }
 
@@ -535,11 +643,19 @@ pub fn get_vault_git_status(
 ) -> Result<VaultGitStatus, String> {
     let vault_path = match folder_path {
         Some(p) => PathBuf::from(p),
-        None => state
-            .active_vault_path
-            .lock()
-            .map_err(|e| e.to_string())?
-            .clone(),
+        None => {
+            let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+            match *guard {
+                Some(ref p) => p.clone(),
+                None => {
+                    return Ok(VaultGitStatus {
+                        is_repo: false,
+                        branch: None,
+                        statuses: Default::default(),
+                    });
+                }
+            }
+        }
     };
     let git_service = GitService::new();
     git_service.get_vault_status(&vault_path)
@@ -547,7 +663,10 @@ pub fn get_vault_git_status(
 
 #[tauri::command]
 pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> Result<(), String> {
-    let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
     let clean_rel = relative_path.replace('\\', "/");
     let mut target_path = vault_path.clone();
     for part in clean_rel.split('/') {
@@ -584,8 +703,10 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
         return Err("Tipo de elemento no soportado para eliminar".to_string());
     }
 
-    if let Ok(engine) = state.navigation_engine.lock() {
-        engine.reconcile_sync();
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.reconcile_sync();
+        }
     }
 
     Ok(())
@@ -593,24 +714,22 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
 
 #[tauri::command]
 pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
-    let vault_path = state
-        .active_vault_path
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
     let git_service = GitService::new();
-    git_service.git_add(&vault_path, &paths)
+    git_service.git_add(vault_path, &paths)
 }
 
 #[tauri::command]
 pub fn git_restore_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
-    let vault_path = state
-        .active_vault_path
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
     let git_service = GitService::new();
-    git_service.git_restore(&vault_path, &paths)
+    git_service.git_restore(vault_path, &paths)
 }
 
 #[tauri::command]
@@ -618,13 +737,12 @@ pub fn git_restore_staged_paths(
     state: State<'_, AppState>,
     paths: Vec<String>,
 ) -> Result<(), String> {
-    let vault_path = state
-        .active_vault_path
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
     let git_service = GitService::new();
-    git_service.git_restore_staged(&vault_path, &paths)
+    git_service.git_restore_staged(vault_path, &paths)
 }
 
 #[tauri::command]
@@ -707,11 +825,13 @@ pub fn reload_vault_items(
     state: State<'_, AppState>,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    let engine = state
+    let guard = state
         .navigation_engine
         .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
+        .map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(Vec::new());
+    };
     engine.reload_paths(&paths)
 }
 
@@ -721,7 +841,24 @@ pub async fn full_text_search(
     query: String,
     limit: Option<usize>,
 ) -> Result<FullTextSearchResponse, String> {
-    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+    let ft_components = {
+        let guard = state.full_text.lock().map_err(|e| e.to_string())?;
+        guard.clone()
+    };
+    let Some(ft_components) = ft_components else {
+        return Ok(FullTextSearchResponse {
+            hits: Vec::new(),
+            total_hits: 0,
+            elapsed_ms: 0.0,
+            status: FullTextIndexStatus {
+                indexed_docs: 0,
+                pending: 0,
+                is_indexing: false,
+                in_memory_fallback: false,
+                last_error: None,
+            },
+        });
+    };
 
     let start = std::time::Instant::now();
     let res = tauri::async_runtime::spawn_blocking(move || {
@@ -743,13 +880,25 @@ pub async fn full_text_search(
 
 #[tauri::command]
 pub fn get_full_text_index_status(state: State<'_, AppState>) -> Result<FullTextIndexStatus, String> {
-    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.full_text.lock().map_err(|e| e.to_string())?;
+    let Some(ref ft_components) = *guard else {
+        return Ok(FullTextIndexStatus {
+            indexed_docs: 0,
+            pending: 0,
+            is_indexing: false,
+            in_memory_fallback: false,
+            last_error: None,
+        });
+    };
     Ok(ft_components.indexer.status())
 }
 
 #[tauri::command]
 pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String> {
-    let ft_components = state.full_text.lock().map_err(|e| e.to_string())?.clone();
+    let guard = state.full_text.lock().map_err(|e| e.to_string())?;
+    let Some(ref ft_components) = *guard else {
+        return Ok(());
+    };
     ft_components.indexer.rebuild()
 }
 
