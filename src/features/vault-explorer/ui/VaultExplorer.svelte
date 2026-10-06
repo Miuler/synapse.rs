@@ -127,12 +127,40 @@
     }
   }
 
+  let persistFoldersTimer: ReturnType<typeof setTimeout> | null = null;
+  function persistExpandedFolders() {
+    if (!isConnectedToRust) return;
+    if (persistFoldersTimer) clearTimeout(persistFoldersTimer);
+    persistFoldersTimer = setTimeout(async () => {
+      const expandedList = Object.entries(expandedFolders)
+        .filter(([_, isExpanded]) => isExpanded)
+        .map(([path]) => path);
+      await vaultRepository.saveVaultUiState(undefined, expandedList);
+    }, 250);
+  }
+
+  async function restoreExpandedFolders() {
+    if (!isConnectedToRust) return;
+    try {
+      const uiState = await vaultRepository.getVaultUiState();
+      if (uiState?.expanded_folders && uiState.expanded_folders.length > 0) {
+        for (const folder of uiState.expanded_folders) {
+          expandedFolders[folder] = true;
+          await loadDirectory(folder);
+        }
+      }
+    } catch (err) {
+      console.error('Error al restaurar carpetas expandidas:', err);
+    }
+  }
+
   // Carga inicial de la raíz y al cambiar de bóveda activa
   $effect(() => {
     const _path = vaultPath;
     const _connected = isConnectedToRust;
     if (_connected) {
       loadDirectory('');
+      restoreExpandedFolders();
     }
   });
 
@@ -142,6 +170,7 @@
     if (nextState && !folderChildren[folderPath]) {
       await loadDirectory(folderPath);
     }
+    persistExpandedFolders();
   }
 
   // Construir el árbol jerárquico a partir de la lista plana de vaultItems (fallback)
@@ -210,12 +239,19 @@
     if (path && path.includes('/')) {
       const parts = path.split('/').filter(Boolean);
       let currentPath = '';
+      let changed = false;
       for (let i = 0; i < parts.length - 1; i++) {
         currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
-        expandedFolders[currentPath] = true;
+        if (!expandedFolders[currentPath]) {
+          expandedFolders[currentPath] = true;
+          changed = true;
+        }
         if (!folderChildren[currentPath]) {
           loadDirectory(currentPath);
         }
+      }
+      if (changed) {
+        persistExpandedFolders();
       }
     }
   });
@@ -462,6 +498,7 @@
         if (node && node.isFolder && expandedFolders[node.relativePath]) {
           e.preventDefault();
           expandedFolders[node.relativePath] = false;
+          persistExpandedFolders();
         } else if (node) {
           const slashIdx = node.relativePath.lastIndexOf('/');
           if (slashIdx !== -1) {

@@ -6,7 +6,7 @@ use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
 use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
-use crate::navigation::engine::{NavigationEngine, OpenTabDto, WorkspaceOpenTabsState};
+use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -354,13 +354,20 @@ pub fn search_items_command(query: String, items: Vec<String>) -> Vec<SearchResu
     search_service.search_items(&query, &items)
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct QuickOpenSearchResult {
+    pub results: Vec<SearchResult>,
+    pub total_files: usize,
+    pub matched_files: usize,
+}
+
 #[tauri::command]
 pub fn search_notes_command(
     state: State<'_, AppState>,
     query: String,
-) -> Result<Vec<SearchResult>, String> {
+) -> Result<QuickOpenSearchResult, String> {
     let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
-    let matches = engine.search(&query, 50);
+    let (matches, total_files, matched_files) = engine.search_with_stats(&query, 50);
     let recent_notes = engine.get_recent_notes(15);
     let recent_set: std::collections::HashSet<compact_str::CompactString> =
         recent_notes.into_iter().map(|n| n.path).collect();
@@ -380,7 +387,17 @@ pub fn search_notes_command(
             }
         })
         .collect();
-    Ok(results)
+    Ok(QuickOpenSearchResult {
+        results,
+        total_files,
+        matched_files,
+    })
+}
+
+#[tauri::command]
+pub fn get_vault_files_count(state: State<'_, AppState>) -> Result<usize, String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    Ok(engine.notes.len())
 }
 
 #[tauri::command]
@@ -421,6 +438,25 @@ pub fn set_note_view_mode(
     let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
     engine.set_note_view_mode(&relative_path, &view_mode);
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_vault_ui_state(
+    state: State<'_, AppState>,
+    sidebar_width: Option<u32>,
+    expanded_folders: Option<Vec<String>>,
+) -> Result<(), String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    engine.save_vault_ui_state(sidebar_width, expanded_folders);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_vault_ui_state(
+    state: State<'_, AppState>,
+) -> Result<VaultUiState, String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    Ok(engine.get_vault_ui_state())
 }
 
 #[tauri::command]

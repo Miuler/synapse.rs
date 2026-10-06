@@ -51,6 +51,12 @@ export interface SearchResult {
   last_opened_nanos?: number;
 }
 
+export interface QuickOpenSearchResult {
+  results: SearchResult[];
+  total_files: number;
+  matched_files: number;
+}
+
 export interface OpenTabDto {
   path: string;
   view_mode?: string;
@@ -59,6 +65,11 @@ export interface OpenTabDto {
 export interface WorkspaceOpenTabsState {
   open_tabs: OpenTabDto[];
   active_tab?: string | null;
+}
+
+export interface VaultUiState {
+  sidebar_width?: number | null;
+  expanded_folders: string[];
 }
 
 /**
@@ -82,6 +93,16 @@ export interface VaultRepository {
   getOpenTabsState(): Promise<WorkspaceOpenTabsState | null>;
 
   /**
+   * Guarda el estado de la UI del explorador (ancho de panel lateral y carpetas expandidas) en .synapse/workspace.json.
+   */
+  saveVaultUiState(sidebarWidth?: number | null, expandedFolders?: string[]): Promise<void>;
+
+  /**
+   * Obtiene el estado de la UI del explorador (ancho de panel lateral y carpetas expandidas) desde .synapse/workspace.json.
+   */
+  getVaultUiState(): Promise<VaultUiState | null>;
+
+  /**
    * Registra que una nota o archivo fue abierto para consulta/edición.
    */
   recordNoteOpened(relativePath: string): Promise<void>;
@@ -103,9 +124,14 @@ export interface VaultRepository {
   getDirectoryChildren(parentPath?: string): Promise<VaultEntryNode[]>;
 
   /**
+   * Obtiene la cantidad total de archivos indexados en la bóveda actual desde la memoria de Rust.
+   */
+  getVaultFilesCount(): Promise<number>;
+
+  /**
    * Realiza una búsqueda difusa interactiva utilizando el motor nucleo en Rust en memoria.
    */
-  searchNotes(query: string): Promise<SearchResult[]>;
+  searchNotes(query: string): Promise<QuickOpenSearchResult>;
 
   /**
    * Obtiene la ruta absoluta de la carpeta de la bóveda activa.
@@ -198,6 +224,32 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
+  async saveVaultUiState(sidebarWidth?: number | null, expandedFolders?: string[]): Promise<void> {
+    if (!this.isConnected()) return;
+
+    try {
+      await invokeTauri('save_vault_ui_state', {
+        sidebarWidth: sidebarWidth ?? null,
+        sidebar_width: sidebarWidth ?? null,
+        expandedFolders: expandedFolders ?? null,
+        expanded_folders: expandedFolders ?? null,
+      });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al guardar save_vault_ui_state:', error);
+    }
+  }
+
+  async getVaultUiState(): Promise<VaultUiState | null> {
+    if (!this.isConnected()) return null;
+
+    try {
+      return await invokeTauri<VaultUiState>('get_vault_ui_state');
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_vault_ui_state:', error);
+      return null;
+    }
+  }
+
   async recordNoteOpened(relativePath: string): Promise<void> {
     if (!this.isConnected() || !relativePath || relativePath.startsWith('empty:')) {
       return;
@@ -260,19 +312,29 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
-  async searchNotes(query: string): Promise<SearchResult[]> {
+  async getVaultFilesCount(): Promise<number> {
+    if (!this.isConnected()) return 0;
+    try {
+      const count = await invokeTauri<number>('get_vault_files_count');
+      return typeof count === 'number' ? count : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  async searchNotes(query: string): Promise<QuickOpenSearchResult> {
     if (!this.isConnected()) {
-      return [];
+      return { results: [], total_files: 0, matched_files: 0 };
     }
 
     try {
-      const results = await invokeTauri<SearchResult[]>('search_notes_command', {
+      const resp = await invokeTauri<QuickOpenSearchResult>('search_notes_command', {
         query,
       });
-      return Array.isArray(results) ? results : [];
+      return resp || { results: [], total_files: 0, matched_files: 0 };
     } catch (error) {
       console.warn('Error en TauriVaultRepository al buscar notas con nucleo:', error);
-      return [];
+      return { results: [], total_files: 0, matched_files: 0 };
     }
   }
 

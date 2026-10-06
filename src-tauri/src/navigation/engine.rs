@@ -27,6 +27,12 @@ pub struct WorkspaceOpenTabsState {
     pub active_tab: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct VaultUiState {
+    pub sidebar_width: Option<u32>,
+    pub expanded_folders: Vec<String>,
+}
+
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
 pub fn extract_title_from_markdown(content: &str, file_stem: &str) -> String {
     let parser = Parser::new(content);
@@ -84,6 +90,8 @@ pub struct NavigationEngine {
     pub last_mutation: Arc<Mutex<Instant>>,
     pub shutdown_flag: Arc<AtomicBool>,
     pub file_types: SupportedFileTypes,
+    pub sidebar_width: Arc<AtomicU32>,
+    pub expanded_folders: Arc<DashMap<CompactString, bool>>,
 }
 
 impl NavigationEngine {
@@ -130,6 +138,25 @@ impl NavigationEngine {
             path_index.insert(item.value().path.clone(), id);
         }
 
+        let mut initial_sidebar_width = 240u32;
+        let expanded_folders = DashMap::new();
+
+        if let Some(parent) = cache_path.parent() {
+            let workspace_file = parent.join("workspace.json");
+            if workspace_file.exists() {
+                if let Ok(content) = std::fs::read_to_string(&workspace_file) {
+                    if let Ok(ui_state) = serde_json::from_str::<VaultUiState>(&content) {
+                        if let Some(w) = ui_state.sidebar_width {
+                            initial_sidebar_width = w;
+                        }
+                        for folder in ui_state.expanded_folders {
+                            expanded_folders.insert(CompactString::new(folder), true);
+                        }
+                    }
+                }
+            }
+        }
+
         Self {
             vault_path,
             cache_path,
@@ -141,6 +168,8 @@ impl NavigationEngine {
             last_mutation: Arc::new(Mutex::new(Instant::now())),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             file_types,
+            sidebar_width: Arc::new(AtomicU32::new(initial_sidebar_width)),
+            expanded_folders: Arc::new(expanded_folders),
         }
     }
 
@@ -440,6 +469,7 @@ impl NavigationEngine {
     /// Explicit save hook for app shutdown or manual flush.
     pub fn save_cache(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         storage::save_cache_to_disk(&self.cache_path, &self.notes)?;
+        self.save_workspace_ui_disk();
         self.dirty_flag.store(false, Ordering::Release);
         Ok(())
     }
@@ -558,11 +588,61 @@ impl NavigationEngine {
         }
     }
 
+    /// Saves workspace UI state (sidebar width, expanded folders) to .synapse/workspace.json on disk.
+    pub fn save_workspace_ui_disk(&self) {
+        if let Some(parent) = self.cache_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+            let workspace_file = parent.join("workspace.json");
+            let ui_state = self.get_vault_ui_state();
+            if let Ok(json) = serde_json::to_string_pretty(&ui_state) {
+                let _ = std::fs::write(&workspace_file, json);
+            }
+        }
+    }
+
+    /// Updates the vault UI state in memory and persists it to .synapse/workspace.json.
+    pub fn save_vault_ui_state(
+        &self,
+        sidebar_width: Option<u32>,
+        expanded_folders: Option<Vec<String>>,
+    ) {
+        if let Some(width) = sidebar_width {
+            self.sidebar_width.store(width, Ordering::SeqCst);
+        }
+        if let Some(folders) = expanded_folders {
+            self.expanded_folders.clear();
+            for folder in folders {
+                self.expanded_folders.insert(CompactString::new(folder), true);
+            }
+        }
+        self.save_workspace_ui_disk();
+        self.mark_dirty();
+    }
+
+    /// Retrieves the current vault UI state from DashMap and atomic state.
+    pub fn get_vault_ui_state(&self) -> VaultUiState {
+        let width = self.sidebar_width.load(Ordering::SeqCst);
+        let mut folders: Vec<String> = self
+            .expanded_folders
+            .iter()
+            .filter(|item| *item.value())
+            .map(|item| item.key().to_string())
+            .collect();
+        folders.sort();
+        VaultUiState {
+            sidebar_width: if width > 0 { Some(width) } else { None },
+            expanded_folders: folders,
+        }
+    }
+
     /// Interactive fuzzy search with strict prioritization:
     /// 1. Files where the file name matches or contains the query come first.
     /// 2. Within each group, files opened recently (last_opened_nanos) come first.
     /// 3. Alphabetical order by file name (case-insensitive) for non-recent / equal recency.
-    pub fn search(&self, query: &str, limit: usize) -> Vec<NoteMeta> {
+    ///
+    /// Returns (matches, total_files_count, matched_files_count)
+    pub fn search_with_stats(&self, query: &str, limit: usize) -> (Vec<NoteMeta>, usize, usize) {
+        let total_files = self.notes.len();
         let trimmed_query = query.trim();
         if trimmed_query.is_empty() {
             let mut all_notes: Vec<NoteMeta> =
@@ -578,12 +658,13 @@ impl NavigationEngine {
                 let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
                 name_a.to_lowercase().cmp(&name_b.to_lowercase())
             });
-            return all_notes.into_iter().take(limit).collect();
+            let matches = all_notes.into_iter().take(limit).collect();
+            return (matches, total_files, total_files);
         }
 
         let mut nucleo = match self.nucleo.lock() {
             Ok(n) => n,
-            Err(_) => return Vec::new(),
+            Err(_) => return (Vec::new(), total_files, 0),
         };
 
         nucleo.pattern.reparse(
@@ -596,6 +677,7 @@ impl NavigationEngine {
 
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
+        let matched_count = snapshot.matched_item_count() as usize;
         let query_lower = trimmed_query.to_lowercase();
 
         let mut candidates = Vec::new();
@@ -606,6 +688,7 @@ impl NavigationEngine {
                 candidates.push((meta.clone(), nucleo_rank));
             }
         }
+        drop(nucleo);
 
         candidates.sort_by(|(a, rank_a), (b, rank_b)| {
             let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
@@ -682,7 +765,12 @@ impl NavigationEngine {
             rank_a.cmp(rank_b)
         });
 
-        candidates.into_iter().map(|(meta, _)| meta).take(limit).collect()
+        let matches = candidates.into_iter().map(|(meta, _)| meta).take(limit).collect();
+        (matches, total_files, matched_count)
+    }
+
+    pub fn search(&self, query: &str, limit: usize) -> Vec<NoteMeta> {
+        self.search_with_stats(query, limit).0
     }
 
     /// Requests background threads to terminate.

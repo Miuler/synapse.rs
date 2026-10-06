@@ -89,6 +89,17 @@
     return 240;
   }
 
+  async function restoreSidebarWidth() {
+    try {
+      const uiState = await vaultRepository.getVaultUiState();
+      if (uiState?.sidebar_width && uiState.sidebar_width >= 140 && uiState.sidebar_width <= 900) {
+        sidebarWidth = uiState.sidebar_width;
+      }
+    } catch (e) {
+      console.error("Error al restaurar ancho del panel lateral:", e);
+    }
+  }
+
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
   let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
@@ -672,6 +683,7 @@
         }
 
         if (openTabPaths.length === 0) {
+          await restoreSidebarWidth();
           const restored = await restoreOpenTabsState();
           if (!restored) {
             handleNewEmptyTab();
@@ -1252,6 +1264,7 @@
         });
         tabHistory = [];
         tabHistoryIndex = -1;
+        await restoreSidebarWidth();
         const restored = await restoreOpenTabsState();
         if (!restored) {
           handleNewEmptyTab();
@@ -1308,6 +1321,9 @@
       window.removeEventListener('mouseup', handlePointerUp);
       try {
         localStorage.setItem('synapse_sidebar_width', String(sidebarWidth));
+        if (sidebarWidth >= 140) {
+          vaultRepository.saveVaultUiState(sidebarWidth);
+        }
       } catch {}
     };
 

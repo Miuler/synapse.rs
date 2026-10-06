@@ -596,3 +596,57 @@ fn test_open_tabs_state_and_reading_mode_persistence() {
 
     let _ = fs::remove_dir_all(&test_dir);
 }
+
+#[test]
+fn test_vault_ui_state_sidebar_and_expanded_folders_persistence() {
+    let test_dir = std::env::temp_dir().join("synapse_vault_ui_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let synapse_dir = test_dir.join(".synapse");
+    let _ = fs::create_dir_all(&synapse_dir);
+    let cache_file = synapse_dir.join("cache.bin");
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+
+    // Initially default width is 240 and no expanded folders
+    let initial_ui = engine.get_vault_ui_state();
+    assert_eq!(initial_ui.sidebar_width, Some(240));
+    assert!(initial_ui.expanded_folders.is_empty());
+
+    // Save customized UI state: sidebar width 310, expanded folders ["docs", "docs/guides"]
+    engine.save_vault_ui_state(
+        Some(310),
+        Some(vec!["docs".to_string(), "docs/guides".to_string()]),
+    );
+
+    let current_ui = engine.get_vault_ui_state();
+    assert_eq!(current_ui.sidebar_width, Some(310));
+    assert_eq!(
+        current_ui.expanded_folders,
+        vec!["docs".to_string(), "docs/guides".to_string()]
+    );
+
+    // Verify workspace.json was written to .synapse
+    let workspace_json = synapse_dir.join("workspace.json");
+    assert!(workspace_json.exists());
+
+    // Reload in a completely fresh engine instance (simulating app relaunch)
+    let fresh_engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+    let restored_ui = fresh_engine.get_vault_ui_state();
+
+    assert_eq!(restored_ui.sidebar_width, Some(310));
+    assert_eq!(
+        restored_ui.expanded_folders,
+        vec!["docs".to_string(), "docs/guides".to_string()]
+    );
+
+    // Test partial update: only change sidebar width
+    fresh_engine.save_vault_ui_state(Some(275), None);
+    let updated_ui = fresh_engine.get_vault_ui_state();
+    assert_eq!(updated_ui.sidebar_width, Some(275));
+    assert_eq!(
+        updated_ui.expanded_folders,
+        vec!["docs".to_string(), "docs/guides".to_string()]
+    );
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
