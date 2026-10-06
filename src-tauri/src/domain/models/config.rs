@@ -16,6 +16,9 @@ pub struct IgnoredConfig {
 
 impl IgnoredConfig {
     pub fn is_ignored_dir_or_file(&self, name: &str) -> bool {
+        if name.is_empty() || name == "." || name == ".." {
+            return false;
+        }
         name.starts_with('.')
             || self.directories.iter().any(|d| d.eq_ignore_ascii_case(name))
             || self.files.iter().any(|f| f.eq_ignore_ascii_case(name))
@@ -29,9 +32,11 @@ impl IgnoredConfig {
 
         // Ignore any path containing hidden components or ignored folders
         for component in rel_path.components() {
-            let comp_str = component.as_os_str().to_string_lossy();
-            if self.is_ignored_dir_or_file(&comp_str) {
-                return true;
+            if let std::path::Component::Normal(comp) = component {
+                let comp_str = comp.to_string_lossy();
+                if self.is_ignored_dir_or_file(&comp_str) {
+                    return true;
+                }
             }
         }
 
@@ -95,11 +100,17 @@ mod tests {
         assert!(config.ignored.should_ignore_path(Path::new("")));
         assert!(config.ignored.should_ignore_path(Path::new(".")));
         assert!(config.ignored.should_ignore_path(Path::new("node_modules/pkg/index.js")));
+        assert!(config.ignored.should_ignore_path(Path::new(".git/config")));
         assert!(config.ignored.should_ignore_path(Path::new("docs/.git/config")));
+        assert!(config.ignored.should_ignore_path(Path::new(".obsidian/workspace.json")));
+        assert!(config.ignored.should_ignore_path(Path::new(".cache/foo")));
+        assert!(config.ignored.should_ignore_path(Path::new(".anything_hidden/note.md")));
+        assert!(config.ignored.should_ignore_path(Path::new("sub/.hidden/note.md")));
         assert!(config.ignored.should_ignore_path(Path::new("draft.tmp")));
         assert!(config.ignored.should_ignore_path(Path::new("backup.md~")));
         assert!(config.ignored.should_ignore_path(Path::new("#autosave.md#")));
         assert!(config.ignored.should_ignore_path(Path::new("sync.lock")));
         assert!(!config.ignored.should_ignore_path(Path::new("docs/intro.md")));
+        assert!(!config.ignored.should_ignore_path(Path::new("./docs/intro.md")));
     }
 }

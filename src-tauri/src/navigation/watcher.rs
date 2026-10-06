@@ -1,7 +1,6 @@
 use compact_str::CompactString;
 use dashmap::DashMap;
-use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, DebouncedEvent, Debouncer};
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nucleo::{Nucleo, Utf32String};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -52,9 +51,9 @@ pub fn should_ignore_path(rel_path: &Path) -> bool {
     default_ignored_config().should_ignore_path(rel_path)
 }
 
-/// Processes a debounced batch of filesystem events using Rayon for concurrent parsing.
+/// Processes a batch of filesystem paths using Rayon for concurrent metadata parsing and index updates.
 #[allow(clippy::too_many_arguments)]
-pub fn process_events_batch(
+pub fn process_paths_batch(
     vault_path: &Path,
     file_types: &SupportedFileTypes,
     notes: &Arc<DashMap<NoteId, NoteMeta>>,
@@ -65,17 +64,16 @@ pub fn process_events_batch(
     next_id: &Arc<AtomicU32>,
     on_change: &Arc<Mutex<Option<ChangeCallback>>>,
     observers: &Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
-    events: Vec<DebouncedEvent>,
+    paths: Vec<PathBuf>,
 ) {
-    if events.is_empty() {
+    if paths.is_empty() {
         return;
     }
 
     let mut existing_paths = HashSet::new();
     let mut deleted_paths = HashSet::new();
 
-    for event in events {
-        let abs_path = &event.path;
+    for abs_path in paths {
         let Ok(rel_path) = abs_path.strip_prefix(vault_path) else {
             continue;
         };
@@ -86,36 +84,48 @@ pub fn process_events_batch(
 
         if abs_path.exists() {
             if abs_path.is_dir() {
-                // If a directory was created/modified, only shallow walk non-ignored subfolders (max depth 3)
-                // rather than traversing the entire vault.
-                for entry_res in jwalk::WalkDir::new(abs_path)
-                    .max_depth(3)
-                    .skip_hidden(true)
-                    .process_read_dir(|depth, _path, _state, children| {
-                        if depth.is_none() {
-                            return;
-                        }
-                        children.retain(|entry_res| {
-                            entry_res
-                                .as_ref()
-                                .map(|e| {
-                                    let name = e.file_name.to_string_lossy();
-                                    !is_ignored_dir_or_file(&name)
-                                })
-                                .unwrap_or(false)
-                        });
-                    })
-                {
-                    if let Ok(entry) = entry_res {
-                        if entry.file_type.is_file() {
-                            let entry_path = entry.path();
-                            if let Ok(sub_rel) = entry_path.strip_prefix(vault_path) {
-                                if !should_ignore_path(sub_rel) {
-                                    if let Some(name) =
-                                        entry_path.file_name().and_then(|s| s.to_str())
-                                    {
-                                        if file_types.is_supported_file(name) {
-                                            existing_paths.insert(entry_path);
+                // Check if this directory is already known in our index.
+                // If it already has notes indexed under this directory prefix, DO NOT re-walk it.
+                // This completely prevents infinite inotify IN_OPEN feedback loops on existing directories!
+                let rel_str = rel_path.to_string_lossy().replace('\\', "/");
+                let dir_prefix = if rel_str.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}/", rel_str.trim_end_matches('/'))
+                };
+
+                let is_already_known = !dir_prefix.is_empty()
+                    && notes.iter().any(|item| item.value().path.starts_with(&dir_prefix));
+
+                if !is_already_known && !rel_str.is_empty() {
+                    for entry_res in jwalk::WalkDir::new(abs_path)
+                        .skip_hidden(true)
+                        .process_read_dir(|depth, _path, _state, children| {
+                            if depth.is_none() {
+                                return;
+                            }
+                            children.retain(|entry_res| {
+                                entry_res
+                                    .as_ref()
+                                    .map(|e| {
+                                        let name = e.file_name.to_string_lossy();
+                                        !is_ignored_dir_or_file(&name)
+                                    })
+                                    .unwrap_or(false)
+                            });
+                        })
+                    {
+                        if let Ok(entry) = entry_res {
+                            if entry.file_type.is_file() {
+                                let entry_path = entry.path();
+                                if let Ok(sub_rel) = entry_path.strip_prefix(vault_path) {
+                                    if !should_ignore_path(sub_rel) {
+                                        if let Some(name) =
+                                            entry_path.file_name().and_then(|s| s.to_str())
+                                        {
+                                            if file_types.is_supported_file(name) {
+                                                existing_paths.insert(entry_path);
+                                            }
                                         }
                                     }
                                 }
@@ -381,10 +391,9 @@ pub fn process_events_batch(
 }
 
 /// Filesystem watcher backed by native reactive OS notifications (notify v6+)
-/// coalesced via notify-debouncer-mini, piping events to a worker thread and
-/// rayon thread pool for concurrent metadata parsing and index updating.
+/// with in-memory coalescing/debouncing and Rayon thread pool for concurrent metadata parsing.
 pub struct VaultFsWatcher {
-    debouncer: Option<Debouncer<RecommendedWatcher>>,
+    watcher: Option<RecommendedWatcher>,
     worker_handle: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -404,23 +413,75 @@ impl VaultFsWatcher {
         on_change: Arc<Mutex<Option<ChangeCallback>>>,
         observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let (tx, rx) = mpsc::channel::<Vec<DebouncedEvent>>();
+        let (tx, rx) = mpsc::channel::<PathBuf>();
+        let filter_vault_path = vault_path.clone();
 
-        let mut debouncer =
-            new_debouncer(debounce_duration, move |res: DebounceEventResult| match res {
-                Ok(events) => {
-                    if !events.is_empty() {
-                        let _ = tx.send(events);
+        let mut watcher = RecommendedWatcher::new(
+            move |res: notify::Result<Event>| match res {
+                Ok(event) => {
+                    // Strictly ignore access/read/open/close-nowrite events
+                    match event.kind {
+                        EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+                        _ => return,
+                    }
+
+                    for path in event.paths {
+                        if let Ok(rel) = path.strip_prefix(&filter_vault_path) {
+                            if !should_ignore_path(rel) {
+                                let _ = tx.send(path);
+                            }
+                        }
                     }
                 }
                 Err(err) => {
                     eprintln!("[VaultFsWatcher] notify error: {:?}", err);
                 }
-            })?;
+            },
+            Config::default(),
+        )?;
 
-        debouncer
-            .watcher()
-            .watch(&vault_path, RecursiveMode::Recursive)?;
+        watcher.watch(&vault_path, RecursiveMode::Recursive)?;
+
+        // Immediately unwatch all ignored directory trees (.git, .obsidian, .synapse, node_modules, target, etc.)
+        // so the OS kernel never delivers inotify open/access/modify events for background tool/editor operations.
+        let ignored_roots = Arc::new(Mutex::new(Vec::new()));
+        let roots_collector = Arc::clone(&ignored_roots);
+
+        for _ in jwalk::WalkDir::new(&vault_path)
+            .skip_hidden(false)
+            .process_read_dir(move |depth, _path, _state, children| {
+                if depth.is_none() {
+                    return;
+                }
+                let mut ignored = Vec::new();
+                children.retain(|e| {
+                    if let Ok(entry) = e {
+                        let name = entry.file_name.to_string_lossy();
+                        if is_ignored_dir_or_file(&name) {
+                            if entry.file_type.is_dir() {
+                                ignored.push(entry.path());
+                            }
+                            false
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    }
+                });
+                if !ignored.is_empty() {
+                    if let Ok(mut lock) = roots_collector.lock() {
+                        lock.extend(ignored);
+                    }
+                }
+            })
+        {}
+
+        if let Ok(lock) = ignored_roots.lock() {
+            for dir in lock.iter() {
+                let _ = watcher.unwatch(dir);
+            }
+        }
 
         let worker_vault_path = vault_path;
         let worker_shutdown = Arc::clone(&shutdown_flag);
@@ -429,14 +490,50 @@ impl VaultFsWatcher {
 
         let worker_handle = std::thread::Builder::new()
             .name("vault-fs-parser".to_string())
-            .spawn(move || loop {
-                if worker_shutdown.load(Ordering::Relaxed) {
-                    break;
-                }
+            .spawn(move || {
+                let mut pending_paths = HashSet::new();
 
-                match rx.recv_timeout(Duration::from_millis(200)) {
-                    Ok(events) => {
-                        process_events_batch(
+                loop {
+                    if worker_shutdown.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    if pending_paths.is_empty() {
+                        match rx.recv_timeout(Duration::from_millis(200)) {
+                            Ok(path) => {
+                                pending_paths.insert(path);
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {
+                                continue;
+                            }
+                            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                                break;
+                            }
+                        }
+                    }
+
+                    // Coalesce events within the debounce window
+                    let deadline = Instant::now() + debounce_duration;
+                    while let Some(time_left) = deadline.checked_duration_since(Instant::now()) {
+                        if time_left.is_zero() {
+                            break;
+                        }
+                        match rx.recv_timeout(time_left) {
+                            Ok(path) => {
+                                pending_paths.insert(path);
+                            }
+                            Err(mpsc::RecvTimeoutError::Timeout) => {
+                                break;
+                            }
+                            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                                break;
+                            }
+                        }
+                    }
+
+                    if !pending_paths.is_empty() {
+                        let paths_to_process: Vec<PathBuf> = pending_paths.drain().collect();
+                        process_paths_batch(
                             &worker_vault_path,
                             &file_types,
                             &notes,
@@ -447,26 +544,20 @@ impl VaultFsWatcher {
                             &next_id,
                             &worker_on_change,
                             &worker_observers,
-                            events,
+                            paths_to_process,
                         );
-                    }
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
-                        continue;
-                    }
-                    Err(mpsc::RecvTimeoutError::Disconnected) => {
-                        break;
                     }
                 }
             })?;
 
         Ok(Self {
-            debouncer: Some(debouncer),
+            watcher: Some(watcher),
             worker_handle: Some(worker_handle),
         })
     }
 
     pub fn stop(&mut self) {
-        self.debouncer.take();
+        self.watcher.take();
         if let Some(handle) = self.worker_handle.take() {
             let _ = handle.join();
         }
