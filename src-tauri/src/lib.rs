@@ -9,7 +9,7 @@ use infrastructure::tauri::commands::{
     get_active_vault_path, get_supported_file_types, get_vault_notes, read_note_content,
     save_note_content, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, toggle_devtools, get_vault_git_status, delete_vault_item,
-    git_add_paths, git_restore_paths, git_restore_staged_paths, AppState,
+    git_add_paths, git_restore_paths, git_restore_staged_paths, get_system_theme, AppState,
 };
 use std::env;
 use std::path::PathBuf;
@@ -57,7 +57,8 @@ pub fn run() {
             delete_vault_item,
             git_add_paths,
             git_restore_paths,
-            git_restore_staged_paths
+            git_restore_staged_paths,
+            get_system_theme
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

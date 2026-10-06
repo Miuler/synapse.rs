@@ -256,3 +256,75 @@ pub fn git_restore_staged_paths(
     let git_service = GitService::new();
     git_service.git_restore_staged(&vault_path, &paths)
 }
+
+#[tauri::command]
+pub fn get_system_theme(window: tauri::WebviewWindow) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        // 1. Try freedesktop portal via busctl (standard Wayland / XDG portal)
+        if let Ok(output) = std::process::Command::new("busctl")
+            .args([
+                "--user",
+                "call",
+                "org.freedesktop.portal.Desktop",
+                "/org/freedesktop/portal/desktop",
+                "org.freedesktop.portal.Settings",
+                "Read",
+                "ss",
+                "org.freedesktop.appearance",
+                "color-scheme",
+            ])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout.contains("u 1") {
+                    return "dark".to_string();
+                } else if stdout.contains("u 2") {
+                    return "light".to_string();
+                }
+            }
+        }
+
+        // 2. Try gsettings color-scheme (GNOME / Hyde / desktop interface)
+        if let Ok(output) = std::process::Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+                if stdout.contains("dark") {
+                    return "dark".to_string();
+                } else if stdout.contains("light") {
+                    return "light".to_string();
+                }
+            }
+        }
+
+        // 3. Try gsettings gtk-theme
+        if let Ok(output) = std::process::Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
+            .output()
+        {
+            if output.status.success() {
+                let theme = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+                if theme.contains("dark") || theme.contains("black") || theme.contains("night") {
+                    return "dark".to_string();
+                } else if theme.contains("light") || theme.contains("white") {
+                    return "light".to_string();
+                }
+            }
+        }
+    }
+
+    if let Ok(theme) = window.theme() {
+        return match theme {
+            tauri::Theme::Dark => "dark".to_string(),
+            tauri::Theme::Light => "light".to_string(),
+            _ => "dark".to_string(),
+        };
+    }
+
+    "dark".to_string()
+}
+

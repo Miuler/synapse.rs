@@ -1,3 +1,5 @@
+import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
+
 export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
@@ -45,15 +47,60 @@ class SettingsManager {
   systemTheme = $state<ResolvedTheme>('light');
 
   constructor() {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      this.systemTheme = mq.matches ? 'dark' : 'light';
-      mq.addEventListener('change', (e) => {
-        this.systemTheme = e.matches ? 'dark' : 'light';
-        this.applyTheme();
+    if (typeof window !== 'undefined') {
+      if (window.matchMedia) {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        this.systemTheme = mq.matches ? 'dark' : 'light';
+        mq.addEventListener('change', (e) => {
+          this.systemTheme = e.matches ? 'dark' : 'light';
+          this.applyTheme();
+        });
+      }
+
+      // Consulta al backend en Linux/Tauri (Hyprland / Hyde / XDG Desktop Portal / gsettings)
+      this.checkSystemTheme();
+
+      // Al recuperar el foco de la ventana (p.ej. al cambiar de tema en terminal o Hyde)
+      window.addEventListener('focus', () => {
+        if (this.settings.theme === 'system') {
+          this.checkSystemTheme();
+        }
       });
+
+      // Polling ligero cada 3s para sincronización en tiempo real
+      window.setInterval(() => {
+        if (this.settings.theme === 'system') {
+          this.checkSystemTheme();
+        }
+      }, 3000);
     }
     this.applyTheme();
+  }
+
+  async checkSystemTheme(): Promise<void> {
+    if (isTauriEnvironment()) {
+      try {
+        const theme = await invokeTauri<string>('get_system_theme');
+        if (theme === 'dark' || theme === 'light') {
+          if (this.systemTheme !== theme) {
+            this.systemTheme = theme;
+            this.applyTheme();
+          }
+          return;
+        }
+      } catch (e) {
+        // Fallback al navegador
+      }
+    }
+
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const theme = mq.matches ? 'dark' : 'light';
+      if (this.systemTheme !== theme) {
+        this.systemTheme = theme;
+        this.applyTheme();
+      }
+    }
   }
 
   get theme(): ThemeMode {
@@ -67,6 +114,9 @@ class SettingsManager {
   setTheme(theme: ThemeMode) {
     this.settings.theme = theme;
     this.persist();
+    if (theme === 'system') {
+      this.checkSystemTheme();
+    }
     this.applyTheme();
   }
 
