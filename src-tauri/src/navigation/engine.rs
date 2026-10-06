@@ -204,6 +204,21 @@ impl NavigationEngine {
         }
     }
 
+    /// Emits a filesystem change event to the frontend from within the process.
+    ///
+    /// Needed for changes made by the app itself (copy, paste, etc.): once the engine has
+    /// already indexed them, the watcher sees identical mtime/size and skips the notification.
+    pub fn emit_fs_change(&self, paths: Vec<String>, deleted: Vec<String>) {
+        if paths.is_empty() && deleted.is_empty() {
+            return;
+        }
+        if let Ok(guard) = self.on_fs_change.lock() {
+            if let Some(ref cb) = *guard {
+                cb(super::watcher::VaultFsChangeEvent { paths, deleted });
+            }
+        }
+    }
+
     /// Creates and starts the engine with secondary thread reconciliation and persistence debounce.
     pub fn start(vault_path: PathBuf, cache_path: PathBuf) -> Arc<Self> {
         Self::start_with_file_types(vault_path, cache_path, SupportedFileTypes::default())
@@ -494,6 +509,9 @@ impl NavigationEngine {
                 populate_nucleo_from_dashmap(&self.notes, &mut nucleo_lock);
             }
         }
+
+        // Notificar al frontend: el watcher ignorará estos cambios porque ya quedaron indexados
+        self.emit_fs_change(upserted_paths.clone(), deleted_paths.clone());
 
         if !upserted_paths.is_empty() {
             self.notify_observers(VaultChange::Upserted(upserted_paths));
@@ -987,6 +1005,8 @@ impl NavigationEngine {
         }
 
         let reloaded_list: Vec<String> = reloaded_files.iter().cloned().collect();
+        // Notificar al frontend: el watcher ignorará estos cambios porque ya quedaron indexados
+        self.emit_fs_change(reloaded_list.clone(), deleted_files.clone());
         if !reloaded_list.is_empty() {
             self.notify_observers(VaultChange::Upserted(reloaded_list.clone()));
         }

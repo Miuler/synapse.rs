@@ -185,6 +185,12 @@ export interface VaultRepository {
   deleteItem(relativePath: string): Promise<void>;
 
   /**
+   * Copia (pega) archivos o carpetas dentro de `destDir`. Si el destino es la misma
+   * carpeta de origen se agrega `.copy` al nombre. Retorna las rutas creadas.
+   */
+  copyItems(paths: string[], destDir: string): Promise<string[]>;
+
+  /**
    * Fuerza la recarga en memoria y en DashMap de uno o más archivos o directorios
    * (incluyendo todos sus subdirectorios y metadatos).
    * Retorna las rutas relativas de los archivos afectados.
@@ -468,6 +474,19 @@ export class TauriVaultRepository implements VaultRepository {
       relativePath,
       relative_path: relativePath,
     });
+  }
+
+  async copyItems(paths: string[], destDir: string): Promise<string[]> {
+    if (!this.isConnected() || paths.length === 0) {
+      return [];
+    }
+
+    const created = await invokeTauri<string[]>('copy_vault_items', {
+      paths,
+      destDir,
+      dest_dir: destDir,
+    });
+    return Array.isArray(created) ? created : [];
   }
 
   async reloadVaultItems(paths: string[]): Promise<string[]> {

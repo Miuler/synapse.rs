@@ -8,6 +8,7 @@ use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
 use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
+use crate::infrastructure::services::file_system_service::FileSystemService;
 use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
@@ -719,6 +720,37 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
     }
 
     Ok(())
+}
+
+/// Pega (copia) los elementos indicados dentro de `dest_dir`.
+/// Retorna las rutas relativas de los nuevos elementos creados.
+#[tauri::command]
+pub fn copy_vault_items(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    dest_dir: String,
+) -> Result<Vec<String>, String> {
+    let vault_path = {
+        let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        match *guard {
+            Some(ref p) => p.clone(),
+            None => return Err("No hay ninguna bóveda abierta".to_string()),
+        }
+    };
+
+    let mut created = Vec::with_capacity(paths.len());
+    for source in &paths {
+        created.push(FileSystemService::copy_item(&vault_path, source, &dest_dir)?);
+    }
+
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            // Indexa sólo lo creado (incluye contenido de carpetas) y notifica al frontend
+            let _ = engine.reload_paths(&created);
+        }
+    }
+
+    Ok(created)
 }
 
 #[tauri::command]

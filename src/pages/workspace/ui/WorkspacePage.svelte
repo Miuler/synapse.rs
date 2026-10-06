@@ -892,7 +892,7 @@
           if (isClean) {
             try {
               const noteData = await vaultRepository.readNote(changedPath);
-              if (noteData) {
+              if (noteData && (noteData.content ?? "") !== (openedNotes[changedPath]?.savedContent ?? null)) {
                 const currentMode = openedNotes[changedPath]?.viewMode || (isDrawingFile(changedPath) ? "live" : "reading");
                 openedNotes[changedPath] = {
                   relative_path: changedPath,

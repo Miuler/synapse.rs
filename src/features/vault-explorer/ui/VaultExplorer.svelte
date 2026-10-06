@@ -5,7 +5,7 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -620,6 +620,9 @@
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
       handleCopy();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+      e.preventDefault();
+      handlePaste(true);
     } else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
       e.preventDefault();
       handleReload();
@@ -696,11 +699,78 @@
     return [];
   }
 
-  async function handleCopy() {
+  // Portapapeles interno de archivos/carpetas preparados para pegar
+  let copiedPaths = $state<string[]>([]);
+  let isPasting = $state(false);
+
+  function handleCopy() {
     const paths = getSelectedRelativePaths();
     if (paths.length === 0) return;
-    const text = paths.join('\n');
-    const ok = await copyTextToClipboard(text);
+    copiedPaths = [...paths];
+    showToast(
+      paths.length > 1
+        ? `${paths.length} elementos listos para pegar`
+        : 'Elemento listo para pegar'
+    );
+  }
+
+  function isFolderPath(path: string): boolean {
+    if (contextMenuNode?.relativePath === path) return contextMenuNode.isFolder;
+    const node = selectedNodes.find((n) => n.relativePath === path);
+    if (node) return node.isFolder;
+    return getVisibleNodes(displayTreeNodes).some((n) => n.relativePath === path && n.isFolder);
+  }
+
+  function parentDir(path: string): string {
+    const slash = path.lastIndexOf('/');
+    return slash !== -1 ? path.slice(0, slash) : '';
+  }
+
+  // Carpeta destino: carpeta clicada, carpeta padre del archivo clicado, o raíz
+  function getPasteDestination(fromKeyboard: boolean): string {
+    const target = fromKeyboard
+      ? (lastFocusedPath ?? selectedPaths[0] ?? null)
+      : (contextMenuNode?.relativePath ?? null);
+    if (!target) return '';
+    return isFolderPath(target) ? target : parentDir(target);
+  }
+
+  async function handlePaste(fromKeyboard = false) {
+    if (copiedPaths.length === 0 || isPasting) return;
+    const destDir = getPasteDestination(fromKeyboard);
+    isPasting = true;
+    try {
+      const created = await vaultRepository.copyItems(copiedPaths, destDir);
+      if (destDir && !expandedFolders[destDir]) {
+        expandedFolders[destDir] = true;
+        persistExpandedFolders();
+      }
+      await reloadDirectoryAndSubdirectories(destDir);
+      if (created.length > 0) {
+        selectedPaths = created;
+        lastFocusedPath = created[created.length - 1];
+        anchorPath = created[0];
+        scrollPathIntoView(lastFocusedPath);
+      }
+      showToast(
+        created.length > 1
+          ? `${created.length} elementos pegados`
+          : `Pegado como "${created[0]?.split('/').pop() ?? ''}"`
+      );
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al pegar elemento(s):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al pegar: ${msg}`);
+    } finally {
+      isPasting = false;
+    }
+  }
+
+  async function handleCopyRelativePath() {
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    const ok = await copyTextToClipboard(paths.join('\n'));
     if (ok) {
       showToast(
         paths.length > 1
@@ -708,10 +778,6 @@
           : 'Ruta copiada al portapapeles'
       );
     }
-  }
-
-  async function handleCopyRelativePath() {
-    await handleCopy();
   }
 
   async function handleCopyFullPath() {
@@ -1233,8 +1299,18 @@
           onSelect={handleCopy}
         >
           <Copy size={14} class="context-menu-item-icon" />
-          <span>{selectedPaths.length > 1 ? `Copiar (${selectedPaths.length} rutas)` : 'Copiar'}</span>
+          <span>{selectedPaths.length > 1 ? `Copiar (${selectedPaths.length} elementos)` : 'Copiar'}</span>
           <span class="context-menu-shortcut">Ctrl+C</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          disabled={copiedPaths.length === 0 || isPasting}
+          onSelect={() => handlePaste(false)}
+        >
+          <ClipboardPaste size={14} class="context-menu-item-icon" />
+          <span>{copiedPaths.length > 1 ? `Pegar (${copiedPaths.length} elementos)` : 'Pegar'}</span>
+          <span class="context-menu-shortcut">Ctrl+V</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -1887,6 +1963,11 @@
   :global(.vault-context-menu .context-menu-item[data-highlighted]) {
     background: var(--accent-bg, rgba(9, 105, 218, 0.08));
     color: var(--accent, #0969da);
+  }
+
+  :global(.vault-context-menu .context-menu-item[data-disabled]) {
+    opacity: 0.45;
+    pointer-events: none;
   }
 
   :global(.vault-context-menu .context-menu-item-icon) {
