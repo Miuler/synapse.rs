@@ -16,6 +16,7 @@ use infrastructure::tauri::commands::{
 };
 use std::env;
 use std::path::PathBuf;
+use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 //use webkit2gtk_nvidia_quirk::ApplyWorkaroundOptions;
 #[cfg(target_os = "linux")]
@@ -74,6 +75,19 @@ pub fn run() {
             get_system_theme
         ])
         .setup(|app| {
+            let handle = app.handle().clone();
+            let state = app.state::<AppState>();
+            if let Ok(mut h) = state.app_handle.lock() {
+                *h = Some(handle.clone());
+            }
+            if let Ok(engine) = state.navigation_engine.lock() {
+                let h = handle.clone();
+                engine.set_on_fs_change(std::sync::Arc::new(move |evt| {
+                    use tauri::Emitter;
+                    let _ = h.emit("vault:files-changed", &evt);
+                }));
+            }
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

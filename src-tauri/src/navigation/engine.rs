@@ -13,6 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{NoteId, NoteMeta};
 use super::storage;
+use super::watcher::VaultFsWatcher;
 use crate::domain::models::file_types::SupportedFileTypes;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -92,6 +93,8 @@ pub struct NavigationEngine {
     pub file_types: SupportedFileTypes,
     pub sidebar_width: Arc<AtomicU32>,
     pub expanded_folders: Arc<DashMap<CompactString, bool>>,
+    pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
+    pub on_fs_change: Arc<Mutex<Option<super::watcher::ChangeCallback>>>,
 }
 
 impl NavigationEngine {
@@ -170,6 +173,15 @@ impl NavigationEngine {
             file_types,
             sidebar_width: Arc::new(AtomicU32::new(initial_sidebar_width)),
             expanded_folders: Arc::new(expanded_folders),
+            fs_watcher: Arc::new(Mutex::new(None)),
+            on_fs_change: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Sets the callback for filesystem change events (e.g. for emitting Tauri events to frontend).
+    pub fn set_on_fs_change(&self, cb: super::watcher::ChangeCallback) {
+        if let Ok(mut lock) = self.on_fs_change.lock() {
+            *lock = Some(cb);
         }
     }
 
@@ -188,10 +200,37 @@ impl NavigationEngine {
         engine
     }
 
-    /// Spawns the secondary reconciliation thread and periodic debounce worker.
+    /// Spawns the secondary reconciliation thread, periodic debounce worker, and filesystem watcher.
     pub fn start_background_workers(self: &Arc<Self>) {
         self.spawn_reconciliation();
         self.spawn_debounce_worker(Duration::from_secs(3));
+        self.spawn_fs_watcher(Duration::from_millis(250));
+    }
+
+    /// Spawns the native filesystem watcher with debounce coalescing and rayon thread pool parsing.
+    pub fn spawn_fs_watcher(self: &Arc<Self>, debounce_duration: Duration) {
+        match VaultFsWatcher::start(
+            self.vault_path.clone(),
+            debounce_duration,
+            Arc::clone(&self.notes),
+            Arc::clone(&self.path_index),
+            Arc::clone(&self.nucleo),
+            Arc::clone(&self.dirty_flag),
+            Arc::clone(&self.last_mutation),
+            Arc::clone(&self.next_id),
+            self.file_types.clone(),
+            Arc::clone(&self.shutdown_flag),
+            Arc::clone(&self.on_fs_change),
+        ) {
+            Ok(watcher) => {
+                if let Ok(mut lock) = self.fs_watcher.lock() {
+                    *lock = Some(watcher);
+                }
+            }
+            Err(err) => {
+                eprintln!("[NavigationEngine] Warning: Failed to initialize FS watcher: {}", err);
+            }
+        }
     }
 
     /// Step 2: Background reconciliation runner using `jwalk::WalkDir`.
@@ -776,8 +815,22 @@ impl NavigationEngine {
     /// Requests background threads to terminate.
     pub fn shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
+        if let Ok(mut lock) = self.fs_watcher.lock() {
+            if let Some(mut watcher) = lock.take() {
+                watcher.stop();
+            }
+        }
         let _ = self.save_cache();
     }
+}
+
+impl Drop for NavigationEngine {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+impl NavigationEngine {
 
     /// Forces reloading metadata into DashMap for given paths (files or directories).
     /// If a path is a directory (or empty string/root), reloads all files in that directory

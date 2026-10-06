@@ -708,3 +708,188 @@ fn test_reload_paths_files_and_directories() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_fs_watcher_creation_modification_and_deletion() {
+    use std::io::Write;
+
+    let test_dir = std::env::temp_dir().join("synapse_fs_watcher_crud_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+    engine.spawn_fs_watcher(std::time::Duration::from_millis(50));
+
+    // 1. Create a file on disk
+    let file_path = test_dir.join("watcher_test.md");
+    {
+        let mut f = File::create(&file_path).unwrap();
+        writeln!(f, "# Initial Dynamic Title\nBody content here").unwrap();
+    }
+
+    // Wait for debounce (50ms) + rayon processing (~150ms)
+    std::thread::sleep(std::time::Duration::from_millis(250));
+
+    assert!(
+        engine.path_index.contains_key("watcher_test.md"),
+        "Watcher should index created file in path_index"
+    );
+    let id = *engine.path_index.get("watcher_test.md").unwrap().value();
+    let initial_meta = engine.notes.get(&id).unwrap().clone();
+    assert_eq!(initial_meta.title.as_str(), "Initial Dynamic Title");
+
+    // Search via nucleo should find it
+    let search_res = engine.search("Initial Dynamic", 5);
+    assert_eq!(search_res.len(), 1);
+    assert_eq!(search_res[0].path.as_str(), "watcher_test.md");
+
+    // 2. Modify the file on disk (H1 title change)
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    {
+        let mut f = File::create(&file_path).unwrap();
+        writeln!(f, "# Modified Title Rayon\nUpdated body").unwrap();
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(250));
+
+    let updated_meta = engine.notes.get(&id).unwrap().clone();
+    assert_eq!(updated_meta.title.as_str(), "Modified Title Rayon");
+
+    let search_updated = engine.search("Modified Title", 5);
+    assert_eq!(search_updated.len(), 1);
+    assert_eq!(search_updated[0].path.as_str(), "watcher_test.md");
+
+    // 3. Delete the file from disk
+    fs::remove_file(&file_path).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(250));
+
+    assert!(
+        !engine.path_index.contains_key("watcher_test.md"),
+        "Watcher should remove deleted file from path_index"
+    );
+    assert_eq!(engine.notes.len(), 0);
+
+    let search_deleted = engine.search("Modified Title", 5);
+    assert!(search_deleted.is_empty());
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
+fn test_fs_watcher_debounce_coalescing_rapid_writes() {
+    use std::io::Write;
+
+    let test_dir = std::env::temp_dir().join("synapse_fs_watcher_debounce_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+    engine.spawn_fs_watcher(std::time::Duration::from_millis(100));
+
+    let rapid_file = test_dir.join("rapid_editor_save.md");
+
+    // Simulate 5 rapid editor saves within 30ms total (debouncer should coalesce them)
+    for i in 1..=5 {
+        let mut f = File::create(&rapid_file).unwrap();
+        writeln!(f, "# Version {}", i).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    // Wait for the debounce window (100ms) to fire and process
+    std::thread::sleep(std::time::Duration::from_millis(300));
+
+    assert_eq!(engine.notes.len(), 1);
+    let note = engine.notes.iter().next().unwrap().value().clone();
+    assert_eq!(note.title.as_str(), "Version 5");
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
+fn test_fs_watcher_ignores_hidden_and_temp_files() {
+    use std::io::Write;
+
+    let test_dir = std::env::temp_dir().join("synapse_fs_watcher_ignore_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(test_dir.join(".git"));
+    let _ = fs::create_dir_all(test_dir.join(".synapse"));
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+    engine.spawn_fs_watcher(std::time::Duration::from_millis(50));
+
+    // Create hidden and temporary editor files
+    {
+        let mut f1 = File::create(test_dir.join(".git").join("config")).unwrap();
+        writeln!(f1, "[core]").unwrap();
+
+        let mut f2 = File::create(test_dir.join(".synapse").join("workspace.json")).unwrap();
+        writeln!(f2, "{{}}").unwrap();
+
+        let mut f3 = File::create(test_dir.join(".hidden_note.md")).unwrap();
+        writeln!(f3, "# Hidden Note").unwrap();
+
+        let mut f4 = File::create(test_dir.join("editor.md.tmp")).unwrap();
+        writeln!(f4, "# Temporary Note").unwrap();
+
+        let mut f5 = File::create(test_dir.join("backup.md~")).unwrap();
+        writeln!(f5, "# Backup Note").unwrap();
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
+    assert!(
+        engine.notes.is_empty(),
+        "Hidden directories, dotfiles, and temporary editor files must be ignored"
+    );
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
+fn test_fs_watcher_directory_recursive_addition_and_removal() {
+    use std::io::Write;
+
+    let test_dir = std::env::temp_dir().join("synapse_fs_watcher_dir_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+    engine.spawn_fs_watcher(std::time::Duration::from_millis(50));
+
+    // Create a folder hierarchy with files
+    let sub_dir = test_dir.join("project").join("docs");
+    fs::create_dir_all(&sub_dir).unwrap();
+
+    let f1_path = sub_dir.join("arch.md");
+    let f2_path = sub_dir.join("spec.md");
+    {
+        let mut f1 = File::create(&f1_path).unwrap();
+        writeln!(f1, "# Architecture Document").unwrap();
+        let mut f2 = File::create(&f2_path).unwrap();
+        writeln!(f2, "# Specifications").unwrap();
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(300));
+
+    assert_eq!(engine.notes.len(), 2);
+    assert!(engine.path_index.contains_key("project/docs/arch.md"));
+    assert!(engine.path_index.contains_key("project/docs/spec.md"));
+
+    // Delete the entire "project" folder
+    fs::remove_dir_all(test_dir.join("project")).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(300));
+
+    assert_eq!(engine.notes.len(), 0);
+    assert!(!engine.path_index.contains_key("project/docs/arch.md"));
+    assert!(!engine.path_index.contains_key("project/docs/spec.md"));
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+

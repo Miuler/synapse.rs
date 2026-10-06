@@ -23,6 +23,12 @@
   import type {VaultItem, OpenedNote} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
+  import {listen} from "@tauri-apps/api/event";
+
+  interface VaultFsChangeEvent {
+    paths: string[];
+    deleted: string[];
+  }
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
@@ -872,6 +878,65 @@
     }
 
     fetchNotesFromBackend();
+
+    let unlistenFsChange: (() => void) | undefined;
+    listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {
+      const { paths, deleted } = event.payload;
+
+      // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
+      for (const changedPath of paths) {
+        if (openTabPaths.includes(changedPath)) {
+          const note = openedNotes[changedPath];
+          const isClean = !note || note.content === note.savedContent;
+          if (isClean) {
+            try {
+              const noteData = await vaultRepository.readNote(changedPath);
+              if (noteData) {
+                const currentMode = openedNotes[changedPath]?.viewMode || (isDrawingFile(changedPath) ? "live" : "reading");
+                openedNotes[changedPath] = {
+                  relative_path: changedPath,
+                  abs_path: noteData.abs_path,
+                  title: noteData.title || changedPath,
+                  content: noteData.content ?? "",
+                  savedContent: noteData.content ?? "",
+                  encoding: noteData.encoding || "---",
+                  isLoading: false,
+                  viewMode: currentMode,
+                };
+              }
+            } catch (e) {
+              console.warn(`Error al recargar archivo modificado externamente: ${changedPath}`, e);
+            }
+          }
+        }
+      }
+
+      // 2. Si se eliminaron archivos que están abiertos
+      for (const delPath of deleted) {
+        const affectedTabs = openTabPaths.filter((p) => p === delPath || p.startsWith(`${delPath}/`));
+        for (const tabPath of affectedTabs) {
+          const note = openedNotes[tabPath];
+          if (!note || note.content === note.savedContent) {
+            closeTab(tabPath);
+          }
+        }
+      }
+
+      // 3. Refrescar notas, estado de Git y árbol del explorador
+      await fetchNotesFromBackend();
+      await refreshGitStatus();
+      if (vaultExplorerRef?.refreshTree) {
+        await vaultExplorerRef.refreshTree();
+      }
+    }).then((unsub) => {
+      unlistenFsChange = unsub;
+    });
+
+    return () => {
+      if (unlistenFsChange) {
+        unlistenFsChange();
+      }
+    };
   });
 
   // Estado de Auto-Guardado

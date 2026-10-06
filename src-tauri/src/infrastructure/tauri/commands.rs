@@ -18,6 +18,7 @@ pub struct AppState {
     pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
     pub navigation_engine: Mutex<Arc<NavigationEngine>>,
+    pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
 impl AppState {
@@ -37,6 +38,7 @@ impl AppState {
             file_types,
             note_use_cases,
             navigation_engine: Mutex::new(engine),
+            app_handle: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -263,6 +265,15 @@ pub fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Re
         cache_path,
         state.file_types.clone(),
     );
+    if let Ok(lock) = state.app_handle.lock() {
+        if let Some(ref handle) = *lock {
+            let h = handle.clone();
+            new_engine.set_on_fs_change(Arc::new(move |evt| {
+                use tauri::Emitter;
+                let _ = h.emit("vault:files-changed", &evt);
+            }));
+        }
+    }
     if let Ok(mut engine_lock) = state.navigation_engine.lock() {
         *engine_lock = new_engine;
     }
@@ -319,6 +330,15 @@ pub async fn select_vault_folder(
             cache_path,
             state.file_types.clone(),
         );
+        if let Ok(lock) = state.app_handle.lock() {
+            if let Some(ref handle) = *lock {
+                let h = handle.clone();
+                new_engine.set_on_fs_change(Arc::new(move |evt| {
+                    use tauri::Emitter;
+                    let _ = h.emit("vault:files-changed", &evt);
+                }));
+            }
+        }
         if let Ok(mut engine_lock) = state.navigation_engine.lock() {
             *engine_lock = new_engine.clone();
         }

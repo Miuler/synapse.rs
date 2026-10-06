@@ -747,7 +747,7 @@
     return 'Recargar bóveda';
   });
 
-  async function reloadDirectoryAndSubdirectories(dirPath: string) {
+  export async function reloadDirectoryAndSubdirectories(dirPath: string) {
     await loadDirectory(dirPath);
     const prefix = dirPath ? `${dirPath}/` : '';
     for (const folder of Object.keys(expandedFolders)) {
@@ -757,6 +757,10 @@
         }
       }
     }
+  }
+
+  export async function refreshTree() {
+    await reloadDirectoryAndSubdirectories('');
   }
 
   async function handleReload() {
