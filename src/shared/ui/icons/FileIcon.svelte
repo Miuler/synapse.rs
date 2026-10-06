@@ -12,6 +12,8 @@
     type IconProps
   } from 'lucide-svelte';
 
+  import { fileTypesManager } from '@entities/file-type';
+
   interface Props {
     path?: string;
     name?: string;
@@ -41,6 +43,16 @@
     if (fileName === '.gitignore' || fileName === '.gitmodules') return 'git';
     if (fileName.endsWith('.lock') || fileName.endsWith('.lockb')) return 'config';
 
+    // Variantes específicas con iconos propios
+    if (fileExt === 'rs') return 'rust';
+    if (fileExt === 'json') return 'json';
+
+    // Integración automática con la lista de tipos soportados (supported_files.json)
+    if (fileTypesManager.isMarkdownFile(fileName) || fileExt === 'txt') return 'markdown';
+    if (fileTypesManager.isImageFile(fileName)) return 'image';
+    if (fileTypesManager.isDiagramFile(fileName) || fileTypesManager.isDrawingFile(fileName) || fileExt === 'canvas') return 'diagram';
+    if (fileTypesManager.isCodeFile(fileName)) return 'code';
+
     switch (fileExt) {
       case 'md':
       case 'markdown':
@@ -57,8 +69,6 @@
       case 'go':
       case 'c':
       case 'cpp':
-      case 'cbl':
-      case 'cob':
       case 'sh':
       case 'bash':
         return 'code';

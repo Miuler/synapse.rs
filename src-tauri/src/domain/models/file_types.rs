@@ -11,49 +11,8 @@ pub struct SupportedFileTypes {
 
 impl Default for SupportedFileTypes {
     fn default() -> Self {
-        Self {
-            images: vec![
-                "png".to_string(),
-                "webp".to_string(),
-                "jpg".to_string(),
-                "jpeg".to_string(),
-                "gif".to_string(),
-                "bmp".to_string(),
-                "svg".to_string(),
-                "ico".to_string(),
-                "avif".to_string(),
-                "tiff".to_string(),
-                "tif".to_string(),
-            ],
-            markdown: vec![
-                "md".to_string(),
-                "markdown".to_string(),
-            ],
-            diagrams: vec![
-                "mmd".to_string(),
-                "mermaid".to_string(),
-            ],
-            drawings: vec![
-                "excalidraw".to_string(),
-                "excalidraw.json".to_string(),
-                "excalidraw.svg".to_string(),
-                "excalidraw.png".to_string(),
-            ],
-            code: vec![
-                "rs".to_string(),
-                "ts".to_string(),
-                "js".to_string(),
-                "json".to_string(),
-                "toml".to_string(),
-                "yaml".to_string(),
-                "yml".to_string(),
-                "css".to_string(),
-                "html".to_string(),
-                "csv".to_string(),
-                "cbl".to_string(),
-                "cob".to_string(),
-            ],
-        }
+        const RAW_JSON: &str = include_str!("../../../../supported_files.json");
+        serde_json::from_str(RAW_JSON).expect("Error al deserializar supported_files.json")
     }
 }
 

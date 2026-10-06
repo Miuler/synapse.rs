@@ -1,3 +1,5 @@
+import supportedFilesJson from '../../../../supported_files.json';
+
 export interface SupportedFileTypes {
   images: string[];
   markdown: string[];
@@ -6,13 +8,7 @@ export interface SupportedFileTypes {
   code: string[];
 }
 
-export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = {
-  images: ['png', 'webp', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'ico', 'avif', 'tiff', 'tif'],
-  markdown: ['md', 'markdown'],
-  diagrams: ['mmd', 'mermaid'],
-  drawings: ['excalidraw', 'excalidraw.json', 'excalidraw.svg', 'excalidraw.png'],
-  code: ['rs', 'ts', 'js', 'json', 'toml', 'yaml', 'yml', 'css', 'html', 'csv', 'cbl', 'cob'],
-};
+export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = supportedFilesJson;
 
 /**
  * Entidad pura que gestiona el estado y las reglas de dominio

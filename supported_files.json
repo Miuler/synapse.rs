@@ -1,0 +1,43 @@
+{
+  "images": [
+    "png",
+    "webp",
+    "jpg",
+    "jpeg",
+    "gif",
+    "bmp",
+    "svg",
+    "ico",
+    "avif",
+    "tiff",
+    "tif"
+  ],
+  "markdown": [
+    "md",
+    "markdown"
+  ],
+  "diagrams": [
+    "mmd",
+    "mermaid"
+  ],
+  "drawings": [
+    "excalidraw",
+    "excalidraw.json",
+    "excalidraw.svg",
+    "excalidraw.png"
+  ],
+  "code": [
+    "rs",
+    "ts",
+    "js",
+    "json",
+    "toml",
+    "yaml",
+    "yml",
+    "css",
+    "html",
+    "csv",
+    "cbl",
+    "cob"
+  ]
+}
