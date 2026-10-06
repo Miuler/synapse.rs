@@ -21,6 +21,8 @@ impl SearchService for NucleoSearchService {
                     score: 0,
                     match_indices: Vec::new(),
                     note_path: None,
+                    is_recent: None,
+                    last_opened_nanos: None,
                 })
                 .collect();
         }
@@ -40,6 +42,8 @@ impl SearchService for NucleoSearchService {
                     score: score as u32,
                     match_indices: indices.into_iter().map(|idx| idx as u32).collect(),
                     note_path: None,
+                    is_recent: None,
+                    last_opened_nanos: None,
                 });
             }
         }
@@ -58,6 +62,8 @@ impl SearchService for NucleoSearchService {
                     score: 0,
                     match_indices: Vec::new(),
                     note_path: Some(n.relative_path.as_str().to_string()),
+                    is_recent: None,
+                    last_opened_nanos: None,
                 })
                 .collect();
         }
@@ -94,6 +100,8 @@ impl SearchService for NucleoSearchService {
                     score: score as u32,
                     match_indices: indices.into_iter().map(|idx| idx as u32).collect(),
                     note_path: Some(note.relative_path.as_str().to_string()),
+                    is_recent: None,
+                    last_opened_nanos: None,
                 });
             }
         }

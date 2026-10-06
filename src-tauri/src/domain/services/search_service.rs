@@ -17,6 +17,14 @@ pub struct SearchResult {
 
     /// Ruta relativa de la nota asociada a la coincidencia (si aplica).
     pub note_path: Option<String>,
+
+    /// Indica si fue abierta recientemente
+    #[serde(default)]
+    pub is_recent: Option<bool>,
+
+    /// Timestamp en nanosegundos de cuándo se abrió por última vez
+    #[serde(default)]
+    pub last_opened_nanos: Option<u128>,
 }
 
 /// Puerto (Trait) del servicio de búsqueda difusa dentro de la Capa de Dominio.

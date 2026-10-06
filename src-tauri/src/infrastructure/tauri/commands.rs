@@ -206,7 +206,22 @@ pub fn read_note_content(
     relative_path: String,
 ) -> Result<Note, String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    state.note_use_cases.read_note(&vault_path, &relative_path)
+    let note = state.note_use_cases.read_note(&vault_path, &relative_path)?;
+    if let Ok(engine) = state.navigation_engine.lock() {
+        engine.record_opened(&relative_path);
+    }
+    Ok(note)
+}
+
+#[tauri::command]
+pub fn record_note_opened(
+    state: State<'_, AppState>,
+    relative_path: String,
+) -> Result<(), String> {
+    if let Ok(engine) = state.navigation_engine.lock() {
+        engine.record_opened(&relative_path);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -346,17 +361,36 @@ pub fn search_notes_command(
 ) -> Result<Vec<SearchResult>, String> {
     let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
     let matches = engine.search(&query, 50);
+    let recent_notes = engine.get_recent_notes(15);
+    let recent_set: std::collections::HashSet<compact_str::CompactString> =
+        recent_notes.into_iter().map(|n| n.path).collect();
+
     let results = matches
         .into_iter()
         .enumerate()
-        .map(|(idx, m)| SearchResult {
-            text: m.title.to_string(),
-            score: (1000_u32).saturating_sub(idx as u32 * 10),
-            match_indices: Vec::new(),
-            note_path: Some(m.path.to_string()),
+        .map(|(idx, m)| {
+            let is_recent = recent_set.contains(&m.path);
+            SearchResult {
+                text: m.title.to_string(),
+                score: (1000_u32).saturating_sub(idx as u32 * 10),
+                match_indices: Vec::new(),
+                note_path: Some(m.path.to_string()),
+                is_recent: Some(is_recent),
+                last_opened_nanos: m.last_opened_nanos,
+            }
         })
         .collect();
     Ok(results)
+}
+
+#[tauri::command]
+pub fn get_recent_notes_command(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<String>, String> {
+    let engine = state.navigation_engine.lock().map_err(|e| e.to_string())?.clone();
+    let recent = engine.get_recent_notes(limit.unwrap_or(15));
+    Ok(recent.into_iter().map(|n| n.path.to_string()).collect())
 }
 
 #[tauri::command]

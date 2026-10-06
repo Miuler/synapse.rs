@@ -47,6 +47,8 @@ export interface SearchResult {
   score: number;
   match_indices: number[];
   note_path?: string;
+  is_recent?: boolean;
+  last_opened_nanos?: number;
 }
 
 /**
@@ -58,6 +60,16 @@ export interface VaultRepository {
    * Indica si la fuente de datos / backend subyacente está disponible.
    */
   isConnected(): boolean;
+
+  /**
+   * Registra que una nota o archivo fue abierto para consulta/edición.
+   */
+  recordNoteOpened(relativePath: string): Promise<void>;
+
+  /**
+   * Obtiene la lista de rutas relativas de las notas abiertas recientemente en Synapse.
+   */
+  getRecentNotes(limit?: number): Promise<string[]>;
 
   /**
    * Obtiene la lista de notas/archivos presentes en la bóveda actual.
@@ -139,6 +151,37 @@ export interface VaultRepository {
 export class TauriVaultRepository implements VaultRepository {
   isConnected(): boolean {
     return isTauriEnvironment();
+  }
+
+  async recordNoteOpened(relativePath: string): Promise<void> {
+    if (!this.isConnected() || !relativePath || relativePath.startsWith('empty:')) {
+      return;
+    }
+
+    try {
+      await invokeTauri('record_note_opened', {
+        relativePath,
+        relative_path: relativePath,
+      });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al registrar record_note_opened:', error);
+    }
+  }
+
+  async getRecentNotes(limit = 15): Promise<string[]> {
+    if (!this.isConnected()) {
+      return [];
+    }
+
+    try {
+      const results = await invokeTauri<string[]>('get_recent_notes_command', {
+        limit,
+      });
+      return Array.isArray(results) ? results : [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_recent_notes:', error);
+      return [];
+    }
   }
 
   async getNotes(): Promise<VaultNote[]> {

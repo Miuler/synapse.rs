@@ -356,7 +356,8 @@
     activeTabPath = path;
     if (!path.startsWith("empty:")) {
       ensureContentLoaded(path);
-      recentFiles = [path, ...recentFiles.filter((p) => p !== path)];
+      recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
+      vaultRepository.recordNoteOpened(path);
     }
     recordTabVisit(path);
   }
@@ -582,8 +583,11 @@
           };
         });
 
-        if (recentFiles.length === 0 && vaultItems.length > 0) {
-          recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+        if (recentFiles.length === 0) {
+          const loadedRecent = await vaultRepository.getRecentNotes(15);
+          if (loadedRecent && loadedRecent.length > 0) {
+            recentFiles = loadedRecent;
+          }
         }
 
         if (openTabPaths.length === 0) {
@@ -770,7 +774,7 @@
       openTabPaths.push(newRelPath);
     }
     activeTabPath = newRelPath;
-    recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)];
+    recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)].slice(0, 15);
     recordTabVisit(newRelPath);
     await persistVaultItemToRust(newVaultItem);
     refreshGitStatus();
@@ -1157,7 +1161,12 @@
         activeTabPath = null;
         openedNotes = {};
         tabSelections = {};
-        recentFiles = vaultItems.slice(0, 10).map((v) => v.relative_path);
+        recentFiles = [];
+        vaultRepository.getRecentNotes(15).then((recents) => {
+          if (recents && recents.length > 0) {
+            recentFiles = recents;
+          }
+        });
         tabHistory = [];
         tabHistoryIndex = -1;
         handleNewEmptyTab();

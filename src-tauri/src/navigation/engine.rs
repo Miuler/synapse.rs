@@ -219,6 +219,12 @@ impl NavigationEngine {
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
 
+            let created_nanos: Option<u128> = meta
+                .created()
+                .ok()
+                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos());
+
             let file_stem = path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -235,12 +241,16 @@ impl NavigationEngine {
                 drop(id_ref);
                 seen_ids.insert(existing_id);
 
-                let is_unchanged = if let Some(existing_meta) = self.notes.get(&existing_id) {
-                    existing_meta.mtime_nanos == mtime_nanos
-                        && existing_meta.size_bytes == size_bytes
-                } else {
-                    false
-                };
+                let (is_unchanged, prev_last_opened) =
+                    if let Some(existing_meta) = self.notes.get(&existing_id) {
+                        (
+                            existing_meta.mtime_nanos == mtime_nanos
+                                && existing_meta.size_bytes == size_bytes,
+                            existing_meta.last_opened_nanos,
+                        )
+                    } else {
+                        (false, None)
+                    };
 
                 if is_unchanged {
                     stats.unchanged += 1;
@@ -259,6 +269,8 @@ impl NavigationEngine {
                         title: compact_title.clone(),
                         mtime_nanos,
                         size_bytes,
+                        created_nanos,
+                        last_opened_nanos: prev_last_opened,
                     };
 
                     self.notes.insert(existing_id, note_meta);
@@ -296,6 +308,8 @@ impl NavigationEngine {
                     title: compact_title.clone(),
                     mtime_nanos,
                     size_bytes,
+                    created_nanos,
+                    last_opened_nanos: None,
                 };
 
                 self.path_index.insert(compact_path.clone(), new_id);
@@ -399,8 +413,65 @@ impl NavigationEngine {
         Ok(())
     }
 
-    /// Quick search through nucleo interactive fuzzy matcher.
+    /// Records that a note was opened (e.g. in an active tab or preview).
+    pub fn record_opened(&self, relative_path: &str) {
+        let compact_path = CompactString::new(relative_path);
+        if let Some(id_ref) = self.path_index.get(&compact_path) {
+            let id = *id_ref.value();
+            drop(id_ref);
+            if let Some(mut meta_entry) = self.notes.get_mut(&id) {
+                let now_nanos = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .ok()
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                meta_entry.last_opened_nanos = Some(now_nanos);
+                self.mark_dirty();
+            }
+        }
+    }
+
+    /// Returns the most recently opened notes (up to limit), ordered by last_opened_nanos descending.
+    pub fn get_recent_notes(&self, limit: usize) -> Vec<NoteMeta> {
+        let mut recent: Vec<NoteMeta> = self
+            .notes
+            .iter()
+            .filter_map(|item| {
+                if item.value().last_opened_nanos.is_some() {
+                    Some(item.value().clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        recent.sort_by(|a, b| b.last_opened_nanos.cmp(&a.last_opened_nanos));
+        recent.into_iter().take(limit).collect()
+    }
+
+    /// Interactive fuzzy search with strict prioritization:
+    /// 1. Files where the file name matches or contains the query come first.
+    /// 2. Within each group, files opened recently (last_opened_nanos) come first.
+    /// 3. Alphabetical order by file name (case-insensitive) for non-recent / equal recency.
     pub fn search(&self, query: &str, limit: usize) -> Vec<NoteMeta> {
+        let trimmed_query = query.trim();
+        if trimmed_query.is_empty() {
+            let mut all_notes: Vec<NoteMeta> =
+                self.notes.iter().map(|item| item.value().clone()).collect();
+            all_notes.sort_by(|a, b| {
+                match (a.last_opened_nanos, b.last_opened_nanos) {
+                    (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
+                    (Some(_), None) => return std::cmp::Ordering::Less,
+                    (None, Some(_)) => return std::cmp::Ordering::Greater,
+                    _ => {}
+                }
+                let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
+                let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
+                name_a.to_lowercase().cmp(&name_b.to_lowercase())
+            });
+            return all_notes.into_iter().take(limit).collect();
+        }
+
         let mut nucleo = match self.nucleo.lock() {
             Ok(n) => n,
             Err(_) => return Vec::new(),
@@ -408,7 +479,7 @@ impl NavigationEngine {
 
         nucleo.pattern.reparse(
             0,
-            query,
+            trimmed_query,
             nucleo::pattern::CaseMatching::Ignore,
             nucleo::pattern::Normalization::Smart,
             false,
@@ -416,16 +487,93 @@ impl NavigationEngine {
 
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
-        let mut results = Vec::new();
+        let query_lower = trimmed_query.to_lowercase();
 
-        for item in snapshot.matched_items(..).take(limit) {
+        let mut candidates = Vec::new();
+        // Take up to 1000 matched items and preserve their original nucleo rank
+        for (nucleo_rank, item) in snapshot.matched_items(..).take(1000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
-                results.push(meta.clone());
+                candidates.push((meta.clone(), nucleo_rank));
             }
         }
 
-        results
+        candidates.sort_by(|(a, rank_a), (b, rank_b)| {
+            let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
+            let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
+            let name_a_lower = name_a.to_lowercase();
+            let name_b_lower = name_b.to_lowercase();
+
+            let stem_a_lower = match name_a_lower.rsplit_once('.') {
+                Some((stem, _)) => stem,
+                None => name_a_lower.as_str(),
+            };
+            let stem_b_lower = match name_b_lower.rsplit_once('.') {
+                Some((stem, _)) => stem,
+                None => name_b_lower.as_str(),
+            };
+
+            let title_a_lower = a.title.to_lowercase();
+            let title_b_lower = b.title.to_lowercase();
+
+            // Compute match tier:
+            // 0: Exact filename/stem match
+            // 1: Filename contains query
+            // 2: Title contains query
+            // 3: Folder or fuzzy match
+            let tier = |name_lower: &str, stem_lower: &str, title_lower: &str| -> u8 {
+                if stem_lower == query_lower {
+                    0
+                } else if name_lower.contains(&query_lower) {
+                    1
+                } else if title_lower.contains(&query_lower) {
+                    2
+                } else {
+                    3
+                }
+            };
+
+            let tier_a = tier(&name_a_lower, stem_a_lower, &title_a_lower);
+            let tier_b = tier(&name_b_lower, stem_b_lower, &title_b_lower);
+
+            let is_filename_a = tier_a <= 1;
+            let is_filename_b = tier_b <= 1;
+
+            // Rule 1: Prioritize matches by file name first
+            if is_filename_a != is_filename_b {
+                return if is_filename_a {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Greater
+                };
+            }
+
+            // Rule 2: If both match by file name (or within same group), recently opened files first
+            match (a.last_opened_nanos, b.last_opened_nanos) {
+                (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
+                (Some(_), None) => return std::cmp::Ordering::Less,
+                (None, Some(_)) => return std::cmp::Ordering::Greater,
+                _ => {}
+            }
+
+            // If neither was opened (or opened at the exact same time):
+            if tier_a != tier_b {
+                return tier_a.cmp(&tier_b);
+            }
+
+            // Rule 3: For filename matches, alphabetical order by file name
+            if is_filename_a {
+                let cmp_name = name_a_lower.cmp(&name_b_lower);
+                if cmp_name != std::cmp::Ordering::Equal {
+                    return cmp_name;
+                }
+            }
+
+            // For other tiers, respect nucleo score ranking
+            rank_a.cmp(rank_b)
+        });
+
+        candidates.into_iter().map(|(meta, _)| meta).take(limit).collect()
     }
 
     /// Requests background threads to terminate.

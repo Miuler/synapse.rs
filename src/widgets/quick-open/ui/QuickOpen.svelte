@@ -39,12 +39,16 @@
   // Prepara los candidatos completos para la lista
   let allCandidates = $derived.by<FileItemDisplay[]>(() => {
     if (searchQuery.trim().length > 0) {
-      return nucleoResults.map((r) => ({
-        id: r.note_path || r.text,
-        title: r.text,
-        path: r.note_path || r.text,
-        isRecent: false,
-      }));
+      return nucleoResults.map((r) => {
+        const path = r.note_path || r.text;
+        const isRecent = Boolean(r.is_recent || recentFiles.includes(path));
+        return {
+          id: path,
+          title: r.text,
+          path: path,
+          isRecent,
+        };
+      });
     }
 
     const list: FileItemDisplay[] = [];
@@ -202,7 +206,7 @@
               onSelect={() => selectFile(file.path)}
             >
               <span class="category-tag file-tag">
-                {file.isRecent && !searchQuery.trim() ? 'RECIENTE' : 'ARCHIVO'}
+                {file.isRecent ? 'RECIENTE' : 'ARCHIVO'}
               </span>
               <FileIcon path={file.path} name={file.title} size={15} class="file-icon" />
               <span class="item-name">{file.title}</span>
