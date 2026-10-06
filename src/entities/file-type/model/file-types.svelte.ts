@@ -1,4 +1,4 @@
-import supportedFilesJson from '../../../../supported_files.json';
+import supportedFilesRaw from '../../../../supported_files.jsonc?raw';
 
 export interface SupportedFileTypes {
   images: string[];
@@ -8,7 +8,15 @@ export interface SupportedFileTypes {
   code: string[];
 }
 
-export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = supportedFilesJson;
+function parseJsonc<T>(raw: string): T {
+  const cleaned = raw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n\r]*/g, '')
+    .replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(cleaned);
+}
+
+export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = parseJsonc<SupportedFileTypes>(supportedFilesRaw);
 
 /**
  * Entidad pura que gestiona el estado y las reglas de dominio

@@ -1,4 +1,5 @@
 {
+  // Formatos de imágenes soportadas
   "images": [
     "png",
     "webp",
@@ -12,20 +13,28 @@
     "tiff",
     "tif"
   ],
+
+  // Notas Markdown (indexadas y renderizadas con soporte de edición/lectura)
   "markdown": [
     "md",
     "markdown"
   ],
+
+  // Diagramas Mermaid
   "diagrams": [
     "mmd",
     "mermaid"
   ],
+
+  // Dibujos y bocetos Excalidraw
   "drawings": [
     "excalidraw",
     "excalidraw.json",
     "excalidraw.svg",
     "excalidraw.png"
   ],
+
+  // Código fuente y texto estructurado
   "code": [
     "rs",
     "ts",

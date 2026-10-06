@@ -19,12 +19,13 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 serde_json = "1.0.151"
+serde_jsonrc = "0.1.0"
 serde = { version = "1.0.229", features = ["derive"] }
 tauri = { version = "2.12.1", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2.10.0"
 nucleo-matcher = "0.3"
 nucleo = "0.5"
-dashmap = { version = "6.1", features = ["serde"] }
+dashmap = { version = "6.2", features = ["serde"] }
 bincode = { version = "2.0.0-rc.3", features = ["serde"] }
 compact_str = { version = "0.8", features = ["serde"] }
 jwalk = "0.8"

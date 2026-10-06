@@ -11,8 +11,8 @@ pub struct SupportedFileTypes {
 
 impl Default for SupportedFileTypes {
     fn default() -> Self {
-        const RAW_JSON: &str = include_str!("../../../../supported_files.json");
-        serde_json::from_str(RAW_JSON).expect("Error al deserializar supported_files.json")
+        const RAW_JSONC: &str = include_str!("../../../../supported_files.jsonc");
+        serde_jsonrc::from_str(RAW_JSONC).expect("Error al deserializar supported_files.jsonc")
     }
 }
 
