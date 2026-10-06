@@ -201,4 +201,17 @@ mod tests {
         binary[50] = 0;
         assert!(extract(path, &binary, &file_types).is_none());
     }
+
+    #[test]
+    fn test_extract_cobol_file() {
+        let cobol_src = "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO-WORLD.\n       PROCEDURE DIVISION.\n           DISPLAY 'HELLO COBOL'.\n           STOP RUN.";
+        let file_types = SupportedFileTypes::default();
+        let path = Path::new("subfolder/hello.cbl");
+        let res = extract(path, cobol_src.as_bytes(), &file_types);
+        assert!(res.is_some());
+        let (kind, title, body) = res.unwrap();
+        assert_eq!(kind, DocumentKind::Code);
+        assert_eq!(title, "hello.cbl");
+        assert!(body.contains("HELLO COBOL"));
+    }
 }

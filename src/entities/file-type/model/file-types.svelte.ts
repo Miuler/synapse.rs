@@ -11,7 +11,7 @@ export const DEFAULT_SUPPORTED_FILE_TYPES: SupportedFileTypes = {
   markdown: ['md', 'markdown'],
   diagrams: ['mmd', 'mermaid'],
   drawings: ['excalidraw', 'excalidraw.json', 'excalidraw.svg', 'excalidraw.png'],
-  code: ['rs', 'ts', 'js', 'json', 'toml', 'yaml', 'yml', 'css', 'html', 'csv'],
+  code: ['rs', 'ts', 'js', 'json', 'toml', 'yaml', 'yml', 'css', 'html', 'csv', 'cbl', 'cob'],
 };
 
 /**

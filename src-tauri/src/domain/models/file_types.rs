@@ -50,6 +50,8 @@ impl Default for SupportedFileTypes {
                 "css".to_string(),
                 "html".to_string(),
                 "csv".to_string(),
+                "cbl".to_string(),
+                "cob".to_string(),
             ],
         }
     }
@@ -113,5 +115,8 @@ mod tests {
         assert!(all.contains(&"png".to_string()));
         assert!(all.contains(&"md".to_string()));
         assert!(all.contains(&"mermaid".to_string()));
+        assert!(all.contains(&"cbl".to_string()));
+        assert!(types.is_supported_file("program.cbl"));
+        assert!(types.is_supported_file("payroll.CBL"));
     }
 }

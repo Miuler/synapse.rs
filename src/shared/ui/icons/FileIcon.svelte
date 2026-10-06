@@ -57,6 +57,8 @@
       case 'go':
       case 'c':
       case 'cpp':
+      case 'cbl':
+      case 'cob':
       case 'sh':
       case 'bash':
         return 'code';
