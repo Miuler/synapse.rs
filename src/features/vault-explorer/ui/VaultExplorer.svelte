@@ -5,7 +5,7 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -705,16 +705,6 @@
   let copiedPaths = $state<string[]>([]);
   let isPasting = $state(false);
 
-  function handleCopy() {
-    const paths = getSelectedRelativePaths();
-    if (paths.length === 0) return;
-    copiedPaths = [...paths];
-    showToast(
-      paths.length > 1
-        ? `${paths.length} elementos listos para pegar`
-        : 'Elemento listo para pegar'
-    );
-  }
 
   function isFolderPath(path: string): boolean {
     if (contextMenuNode?.relativePath === path) return contextMenuNode.isFolder;
@@ -728,13 +718,115 @@
     return slash !== -1 ? path.slice(0, slash) : '';
   }
 
-  // Carpeta destino: carpeta clicada, carpeta padre del archivo clicado, o raíz
-  function getPasteDestination(fromKeyboard: boolean): string {
+  // Carpeta destino: carpeta seleccionada, carpeta contenedora del archivo seleccionado, o raíz
+  function getTargetDirectory(fromKeyboard: boolean = false): string {
     const target = fromKeyboard
       ? (lastFocusedPath ?? selectedPaths[0] ?? null)
-      : (contextMenuNode?.relativePath ?? null);
+      : (contextMenuNode?.relativePath ?? lastFocusedPath ?? selectedPaths[0] ?? null);
     if (!target) return '';
     return isFolderPath(target) ? target : parentDir(target);
+  }
+
+  function getPasteDestination(fromKeyboard: boolean): string {
+    return getTargetDirectory(fromKeyboard);
+  }
+
+  let isCreatingNote = $state(false);
+
+  async function handleNewNote(fromKeyboard: boolean | unknown = false) {
+    if (isCreatingNote) return;
+    isCreatingNote = true;
+
+    try {
+      const isKbd = typeof fromKeyboard === 'boolean' ? fromKeyboard : false;
+      const destDir = getTargetDirectory(isKbd);
+
+      // Generar nombre único para la nueva nota (evita sobreescritura accidental)
+      const baseTitle = 'Sin título';
+      let title = baseTitle;
+      let candidateRelPath = destDir ? `${destDir}/${title}.md` : `${title}.md`;
+      let counter = 1;
+
+      const existingPaths = new Set(vaultItems.map((item) => item.relative_path));
+      if (folderChildren[destDir]) {
+        for (const child of folderChildren[destDir]) {
+          existingPaths.add(child.relativePath);
+        }
+      }
+
+      while (existingPaths.has(candidateRelPath)) {
+        title = `${baseTitle} ${counter}`;
+        candidateRelPath = destDir ? `${destDir}/${title}.md` : `${title}.md`;
+        counter++;
+      }
+
+      // Guardar la nueva nota en el backend
+      await vaultRepository.saveNote({
+        relativePath: candidateRelPath,
+        title,
+        content: '',
+        encoding: 'UTF-8',
+      });
+
+      // Expandir recursivamente todas las carpetas ancestro
+      const parts = candidateRelPath.split('/').filter(Boolean);
+      let curr = '';
+      let changed = false;
+      for (let i = 0; i < parts.length - 1; i++) {
+        curr = curr ? `${curr}/${parts[i]}` : parts[i];
+        if (!folderChildren[curr]) {
+          await loadDirectory(curr);
+        }
+        if (!expandedFolders[curr]) {
+          expandedFolders[curr] = true;
+          changed = true;
+        }
+      }
+      if (changed) {
+        persistExpandedFolders();
+      }
+
+      // Recargar la carpeta en el explorador
+      await reloadDirectoryAndSubdirectories(destDir);
+
+      // Notificar recarga a la bóveda / WorkspacePage para actualizar vaultItems
+      const reloaded = await vaultRepository.reloadVaultItems([candidateRelPath]);
+      if (onReloadItems) {
+        await onReloadItems([destDir || ''], reloaded);
+      }
+
+      // Seleccionar y enfocar la nueva nota en el árbol del explorador
+      selectedPaths = [candidateRelPath];
+      lastFocusedPath = candidateRelPath;
+      anchorPath = candidateRelPath;
+      scrollPathIntoView(candidateRelPath);
+
+      // Abrir la nueva nota en una pestaña activa
+      onSelectTab(candidateRelPath);
+
+      showToast(`Nueva nota creada: "${title}.md"`);
+
+      if (onRefreshGit) {
+        await onRefreshGit();
+      }
+    } catch (err: unknown) {
+      console.error('Error al crear nueva nota:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al crear nueva nota: ${msg}`);
+    } finally {
+      isCreatingNote = false;
+    }
+  }
+
+  function handleCopy() {
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    copiedPaths = [...paths];
+    showToast(
+      paths.length > 1
+        ? `${paths.length} elementos listos para pegar`
+        : 'Elemento listo para pegar'
+    );
   }
 
   async function handlePaste(fromKeyboard = false) {
@@ -1315,7 +1407,7 @@
           class="context-menu-item"
           onSelect={handleReload}
         >
-          <RefreshCw size={14} class="context-menu-item-icon" />
+          <RefreshCw class="context-menu-item-icon" />
           <span>{reloadMenuLabel}</span>
           <span class="context-menu-shortcut">Ctrl+R</span>
         </ContextMenu.Item>
@@ -1324,9 +1416,20 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          onSelect={handleNewNote}
+        >
+          <FilePlus class="context-menu-item-icon" />
+          <span>Nueva nota</span>
+          <!--<span class="context-menu-shortcut">Ctrl+C</span>-->
+        </ContextMenu.Item>
+
+        <ContextMenu.Separator class="context-menu-divider" />
+
+        <ContextMenu.Item
+          class="context-menu-item"
           onSelect={handleCopy}
         >
-          <Copy size={14} class="context-menu-item-icon" />
+          <Copy class="context-menu-item-icon" />
           <span>{selectedPaths.length > 1 ? `Copiar (${selectedPaths.length} elementos)` : 'Copiar'}</span>
           <span class="context-menu-shortcut">Ctrl+C</span>
         </ContextMenu.Item>
@@ -1336,7 +1439,7 @@
           disabled={copiedPaths.length === 0 || isPasting}
           onSelect={() => handlePaste(false)}
         >
-          <ClipboardPaste size={14} class="context-menu-item-icon" />
+          <ClipboardPaste class="context-menu-item-icon" />
           <span>{copiedPaths.length > 1 ? `Pegar (${copiedPaths.length} elementos)` : 'Pegar'}</span>
           <span class="context-menu-shortcut">Ctrl+V</span>
         </ContextMenu.Item>
@@ -1345,7 +1448,7 @@
           class="context-menu-item"
           onSelect={handleCopyRelativePath}
         >
-          <Link size={14} class="context-menu-item-icon" />
+          <Link class="context-menu-item-icon" />
           <span>{selectedPaths.length > 1 ? 'Copiar rutas relativas' : 'Copiar ruta relativa'}</span>
         </ContextMenu.Item>
 
@@ -1353,7 +1456,7 @@
           class="context-menu-item"
           onSelect={handleCopyFullPath}
         >
-          <Copy size={14} class="context-menu-item-icon" />
+          <Copy class="context-menu-item-icon" />
           <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
         </ContextMenu.Item>
 
@@ -1365,7 +1468,7 @@
               class="context-menu-item"
               onSelect={handleGitAdd}
             >
-              <Plus size={14} class="context-menu-item-icon" />
+              <Plus class="context-menu-item-icon" />
               <span>{gitAddPaths.length > 1 ? `Git Add (${gitAddPaths.length} elementos)` : 'Git Add'}</span>
             </ContextMenu.Item>
           {/if}
@@ -1375,7 +1478,7 @@
               class="context-menu-item"
               onSelect={handleGitRestoreStaged}
             >
-              <Undo2 size={14} class="context-menu-item-icon" />
+              <Undo2 class="context-menu-item-icon" />
               <span>{gitRestoreStagedPaths.length > 1 ? `Git Restore --staged (${gitRestoreStagedPaths.length} elementos)` : 'Git Restore --staged'}</span>
             </ContextMenu.Item>
           {/if}
@@ -1385,7 +1488,7 @@
               class="context-menu-item"
               onSelect={handlePromptGitRestore}
             >
-              <RotateCcw size={14} class="context-menu-item-icon" />
+              <RotateCcw class="context-menu-item-icon" />
               <span>{gitRestorePaths.length > 1 ? `Git Restore (${gitRestorePaths.length} elementos)` : 'Git Restore'}</span>
             </ContextMenu.Item>
           {/if}
@@ -1399,7 +1502,7 @@
               class="context-menu-item"
               onSelect={handleRename}
             >
-              <Pencil size={14} class="context-menu-item-icon" />
+              <Pencil class="context-menu-item-icon" />
               <span>Renombrar</span>
             </ContextMenu.Item>
           {/if}
@@ -1408,7 +1511,7 @@
             class="context-menu-item delete"
             onSelect={handlePromptDelete}
           >
-            <Trash2 size={14} class="context-menu-item-icon" />
+            <Trash2 class="context-menu-item-icon" />
             <span>{selectedPaths.length > 1 ? `Borrar (${selectedPaths.length} elementos)` : 'Borrar'}</span>
             <span class="context-menu-shortcut">Supr</span>
           </ContextMenu.Item>
@@ -1488,7 +1591,7 @@
 
 {#if toastMessage}
   <div class="vault-toast">
-    <Check size={14} class="vault-toast-icon" />
+    <Check class="vault-toast-icon" />
     <span>{toastMessage}</span>
   </div>
 {/if}
