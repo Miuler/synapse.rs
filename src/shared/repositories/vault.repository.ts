@@ -9,6 +9,21 @@ export interface VaultNote {
   encoding?: string;
 }
 
+export interface VaultFileStat {
+  ctime: number | null;
+  mtime: number;
+  size: number;
+}
+
+export interface VaultFile {
+  path: string;
+  name: string;
+  basename: string;
+  extension: string;
+  parent?: string;
+  stat: VaultFileStat;
+}
+
 export interface SaveNoteParams {
   relativePath: string;
   title: string;
@@ -117,6 +132,9 @@ export interface VaultRepository {
    */
   getNotes(): Promise<VaultNote[]>;
 
+  /** Obtiene únicamente metadatos desde el índice DashMap, sin contenido. */
+  getVaultFiles(): Promise<VaultFile[]>;
+
   /**
    * Obtiene los elementos directos (hijos) de una carpeta o de la raíz de la bóveda
    * consultando el caché en memoria de Rust de forma inmediata (sub-miligramo/sub-ms).
@@ -183,6 +201,9 @@ export interface VaultRepository {
    * Elimina un archivo o carpeta dentro de la bóveda.
    */
   deleteItem(relativePath: string): Promise<void>;
+
+  /** Renombra un archivo o carpeta conservándolo en su carpeta actual. */
+  renameItem(relativePath: string, newName: string): Promise<string>;
 
   /**
    * Copia (pega) archivos o carpetas dentro de `destDir`. Si el destino es la misma
@@ -304,6 +325,18 @@ export class TauriVaultRepository implements VaultRepository {
       return Array.isArray(notes) ? notes : [];
     } catch (error) {
       console.warn('Error en TauriVaultRepository al obtener get_vault_notes:', error);
+      return [];
+    }
+  }
+
+  async getVaultFiles(): Promise<VaultFile[]> {
+    if (!this.isConnected()) return [];
+
+    try {
+      const files = await invokeTauri<VaultFile[]>('get_vault_files');
+      return Array.isArray(files) ? files : [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener get_vault_files:', error);
       return [];
     }
   }
@@ -473,6 +506,19 @@ export class TauriVaultRepository implements VaultRepository {
     await invokeTauri('delete_vault_item', {
       relativePath,
       relative_path: relativePath,
+    });
+  }
+
+  async renameItem(relativePath: string, newName: string): Promise<string> {
+    if (!this.isConnected()) {
+      throw new Error('No hay conexión con la bóveda');
+    }
+
+    return await invokeTauri<string>('rename_vault_item', {
+      relativePath,
+      relative_path: relativePath,
+      newName,
+      new_name: newName,
     });
   }
 

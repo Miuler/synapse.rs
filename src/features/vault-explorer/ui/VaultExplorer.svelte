@@ -5,7 +5,7 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair } from 'lucide-svelte';
+  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -22,6 +22,7 @@
     onOpenVaultFolder: () => void;
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
     onDeleteItems?: (items: Array<{ relativePath: string; isFolder: boolean }>) => Promise<void> | void;
+    onRenameItem?: (relativePath: string, newName: string) => Promise<string> | string | void;
     onResizeStart: (e: MouseEvent | PointerEvent) => void;
     onResizeMove?: (e: PointerEvent) => void;
     onResizeEnd?: (e: PointerEvent) => void;
@@ -46,6 +47,7 @@
     onOpenVaultFolder,
     onDeleteItem,
     onDeleteItems,
+    onRenameItem,
     onResizeStart,
     onResizeMove,
     onResizeEnd,
@@ -924,6 +926,32 @@
     }
   }
 
+  async function handleRename() {
+    // Renombrar sólo un archivo evita resultados ambiguos al haber selección múltiple.
+    if (!contextMenuNode || contextMenuNode.isFolder || selectedPaths.length > 1) return;
+
+    const oldName = contextMenuNode.name;
+    const newName = window.prompt('Nuevo nombre del archivo:', oldName)?.trim();
+    if (!newName || newName === oldName) return;
+
+    try {
+      const renamedPath = onRenameItem
+        ? await onRenameItem(contextMenuNode.relativePath, newName)
+        : await vaultRepository.renameItem(contextMenuNode.relativePath, newName);
+      const finalPath = typeof renamedPath === 'string' ? renamedPath : contextMenuNode.relativePath;
+      selectedPaths = [finalPath];
+      lastFocusedPath = finalPath;
+      anchorPath = finalPath;
+      await loadDirectory(parentDir(finalPath));
+      showToast(`Renombrado como "${newName}"`);
+      if (onRefreshGit) await onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al renombrar archivo:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al renombrar: ${msg}`);
+    }
+  }
+
   function cancelDelete() {
     if (isDeleting) return;
     isDeleteDialogOpen = false;
@@ -1365,6 +1393,16 @@
 
         {#if selectedPaths.length > 0 || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />
+
+          {#if contextMenuNode && !contextMenuNode.isFolder && selectedPaths.length <= 1}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={handleRename}
+            >
+              <Pencil size={14} class="context-menu-item-icon" />
+              <span>Renombrar</span>
+            </ContextMenu.Item>
+          {/if}
 
           <ContextMenu.Item
             class="context-menu-item delete"

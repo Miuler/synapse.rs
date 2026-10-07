@@ -222,7 +222,8 @@ impl NoteRepository for FileNoteRepository {
             .and_then(|ext| ext.to_str())
             .unwrap_or("");
         let file_types = SupportedFileTypes::default();
-        let is_image = file_types.is_image_extension(ext_str);
+        let file_name = abs_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
 
         info!("Reading note at {:?}, is_image: {}", abs_path, is_image);
         let (encoding, content) = if is_image {
@@ -263,7 +264,8 @@ impl NoteRepository for FileNoteRepository {
             .and_then(|ext| ext.to_str())
             .unwrap_or("");
         let file_types = SupportedFileTypes::default();
-        if file_types.is_image_extension(ext_str) {
+        let file_name = abs_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name) {
             // No sobreescribir imágenes binarias con texto o data URIs
             return Ok(());
         }
@@ -407,5 +409,38 @@ mod tests {
         assert!(titles.contains(&"note1".to_string()));
         assert!(titles.contains(&"note2".to_string()));
         assert!(titles.contains(&"diagram".to_string()));
+    }
+
+    #[test]
+    fn test_save_and_read_excalidraw_file() {
+        use crate::domain::repositories::note_repository::NoteRepository;
+        let temp_dir = std::env::temp_dir().join("synapse_excalidraw_test");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let repo = FileNoteRepository::new();
+        let rel_path_str = "diagrams/flow.excalidraw";
+        let rel_path = NoteRelativePath::new(rel_path_str).unwrap();
+        let json_content = r#"{"type":"excalidraw","version":2,"elements":[{"id":"1","type":"rectangle"}]}"#;
+
+        let note_to_save = Note::with_encoding(
+            rel_path.clone(),
+            "".to_string(),
+            "flow".to_string(),
+            json_content.to_string(),
+            "UTF-8".to_string(),
+        );
+
+        let save_res = repo.save_note(&temp_dir, &note_to_save);
+        assert!(save_res.is_ok(), "Guardar note excalidraw falló: {:?}", save_res);
+
+        let read_res = repo.read_note(&temp_dir, &rel_path);
+        assert!(read_res.is_ok(), "Leer note excalidraw falló: {:?}", read_res);
+
+        let loaded = read_res.unwrap();
+        assert_eq!(loaded.content, json_content);
+        assert!(loaded.encoding == "UTF-8" || loaded.encoding == "ASCII");
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

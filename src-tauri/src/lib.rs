@@ -9,9 +9,9 @@ use infrastructure::repositories::file_note_repository::FileNoteRepository;
 use infrastructure::tauri::commands::{
     copy_vault_items, delete_vault_item, full_text_search, get_active_vault_path, get_full_text_index_status,
     get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
-    get_vault_directory_children, get_vault_files_count, get_vault_git_status, get_vault_notes,
+    get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
     get_vault_ui_state, git_add_paths, git_restore_paths, git_restore_staged_paths,
-    read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, save_note_content,
+    read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, set_note_view_mode, toggle_devtools, AppState,
 };
@@ -41,6 +41,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_supported_file_types,
             get_vault_notes,
+            get_vault_files,
             get_vault_files_count,
             get_vault_directory_children,
             get_active_vault_path,
@@ -60,6 +61,7 @@ pub fn run() {
             toggle_devtools,
             get_vault_git_status,
             delete_vault_item,
+            rename_vault_item,
             copy_vault_items,
             git_add_paths,
             git_restore_paths,

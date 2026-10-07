@@ -32,6 +32,23 @@ pub struct AppState {
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultFileStatDto {
+    pub ctime: Option<u128>,
+    pub mtime: u128,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VaultFileDto {
+    pub path: String,
+    pub name: String,
+    pub basename: String,
+    pub extension: String,
+    pub parent: Option<String>,
+    pub stat: VaultFileStatDto,
+}
+
 pub fn open_vault_components(
     vault_path: PathBuf,
     file_types: SupportedFileTypes,
@@ -164,6 +181,35 @@ pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> 
     }
     notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
     Ok(notes)
+}
+
+#[tauri::command]
+pub fn get_vault_files(state: State<'_, AppState>) -> Result<Vec<VaultFileDto>, String> {
+    let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(engine) = engine_guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+
+    Ok(engine.notes.iter().map(|entry| {
+        let meta = entry.value();
+        let path = meta.path.to_string();
+        let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+        let basename = name.rsplit_once('.').map(|(base, _)| base).unwrap_or(&name).to_string();
+        let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("").to_string();
+        let parent = path.rfind('/').map(|index| path[..index].to_string());
+        VaultFileDto {
+            path,
+            name,
+            basename,
+            extension,
+            parent,
+            stat: VaultFileStatDto {
+                ctime: meta.created_nanos.map(|value| value / 1_000_000),
+                mtime: meta.mtime_nanos / 1_000_000,
+                size: meta.size_bytes,
+            },
+        }
+    }).collect())
 }
 
 #[tauri::command]
@@ -722,6 +768,29 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
     Ok(())
 }
 
+#[tauri::command]
+pub fn rename_vault_item(
+    state: State<'_, AppState>,
+    relative_path: String,
+    new_name: String,
+) -> Result<String, String> {
+    let vault_path = {
+        let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        match *guard {
+            Some(ref path) => path.clone(),
+            None => return Err("No hay ninguna bóveda abierta".to_string()),
+        }
+    };
+
+    let renamed_path = FileSystemService::rename_item(&vault_path, &relative_path, &new_name)?;
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.reconcile_sync();
+        }
+    }
+    Ok(renamed_path)
+}
+
 /// Pega (copia) los elementos indicados dentro de `dest_dir`.
 /// Retorna las rutas relativas de los nuevos elementos creados.
 #[tauri::command]
@@ -930,5 +999,3 @@ pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String>
     };
     ft_components.indexer.rebuild()
 }
-
-

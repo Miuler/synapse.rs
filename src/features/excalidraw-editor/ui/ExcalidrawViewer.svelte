@@ -9,17 +9,19 @@
     content: string;
     readOnly?: boolean;
     onChange?: (content: string) => void;
+    onSave?: (content?: string) => void;
   }
 
-  let { content = '', readOnly = false, onChange }: Props = $props();
+  let { content = '', readOnly = false, onChange, onSave }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let root: Root | null = null;
   let excalidrawAPI = $state<any>(null);
-  let isMounted = false;
 
-  let lastContent = $state(untrack(() => content));
-  let lastReadOnly = $state(untrack(() => readOnly));
+  // Guardar la última cadena de contenido emitida o recibida
+  let lastContent = untrack(() => content);
+  let lastReadOnly = untrack(() => readOnly);
+  let isInternalUpdate = false;
 
   function parseInitialData(raw: string, isReadOnly: boolean) {
     if (!raw || !raw.trim()) {
@@ -58,6 +60,63 @@
     }
   }
 
+  function serializeSceneData(elements: readonly any[], appState: any, files: any): string {
+    return JSON.stringify(
+      {
+        type: 'excalidraw',
+        version: 2,
+        source: 'synapse',
+        elements: elements || [],
+        appState: {
+          theme: appState?.theme,
+          viewBackgroundColor: appState?.viewBackgroundColor,
+          gridSize: appState?.gridSize,
+        },
+        files: files || {},
+      },
+      null,
+      2
+    );
+  }
+
+  export function getCurrentSerializedScene(): string {
+    let elements: readonly any[] = [];
+    let appState: any = {};
+    let files: any = {};
+
+    if (excalidrawAPI) {
+      elements = excalidrawAPI.getSceneElements?.() || [];
+      appState = excalidrawAPI.getAppState?.() || {};
+      files = excalidrawAPI.getFiles?.() || {};
+    } else {
+      const parsed = parseInitialData(content, readOnly);
+      elements = parsed.elements;
+      appState = parsed.appState;
+      files = parsed.files;
+    }
+
+    const serialized = serializeSceneData(elements, appState, files);
+    lastContent = serialized;
+    isInternalUpdate = true;
+    return serialized;
+  }
+
+  export function saveCurrentScene(): string {
+    const serialized = getCurrentSerializedScene();
+    if (onChange) {
+      onChange(serialized);
+    }
+    if (onSave) {
+      onSave(serialized);
+    }
+    return serialized;
+  }
+
+  function triggerSave() {
+    if (readOnly) return;
+    saveCurrentScene();
+  }
+
   function renderReactApp(data: string, isReadOnly: boolean) {
     if (!containerRef) return;
     if (!root) {
@@ -70,6 +129,9 @@
       initialData,
       excalidrawAPI: (api: any) => {
         excalidrawAPI = api;
+        if (initialData.files && Object.keys(initialData.files).length > 0) {
+          api.addFiles?.(Object.values(initialData.files));
+        }
         if (!isReadOnly && api?.setActiveTool) {
           api.setActiveTool({ type: 'selection' });
         }
@@ -79,62 +141,47 @@
       UIOptions: {
         canvasActions: {
           loadScene: false,
+          saveToActiveFile: false,
+          saveAsImage: false,
+          export: {
+            saveFileToDisk: false,
+          },
         },
       },
       onChange: (elements: readonly any[], appState: any, files: any) => {
         if (isReadOnly) return;
 
-        // Evitar emitir guarda en el primer render de montaje si no ha habido interacción
-        if (!isMounted) {
-          isMounted = true;
-          return;
-        }
-
-        const serialized = JSON.stringify(
-          {
-            type: 'excalidraw',
-            version: 2,
-            source: 'synapse',
-            elements,
-            appState: {
-              theme: appState.theme,
-              viewBackgroundColor: appState.viewBackgroundColor,
-              gridSize: appState.gridSize,
-            },
-            files,
-          },
-          null,
-          2
-        );
+        const serialized = serializeSceneData(elements, appState, files);
 
         if (serialized !== lastContent) {
           lastContent = serialized;
+          isInternalUpdate = true;
           if (onChange) onChange(serialized);
         }
       }
     });
 
     root.render(reactElement);
-
-    if (excalidrawAPI) {
-      excalidrawAPI.updateScene({
-        elements: initialData.elements,
-        appState: {
-          viewModeEnabled: isReadOnly,
-          ...(isReadOnly ? {} : { activeTool: { type: 'selection' } }),
-        },
-      });
-      if (!isReadOnly && excalidrawAPI.setActiveTool) {
-        excalidrawAPI.setActiveTool({ type: 'selection' });
-      }
-    }
   }
 
   onMount(() => {
+    lastContent = content;
+    lastReadOnly = readOnly;
     renderReactApp(content, readOnly);
   });
 
   onDestroy(() => {
+    if (!readOnly && excalidrawAPI) {
+      try {
+        const serialized = getCurrentSerializedScene();
+        if (serialized !== lastContent) {
+          lastContent = serialized;
+          if (onChange) onChange(serialized);
+        }
+      } catch (err) {
+        console.warn('Error al vaciar Excalidraw al destruir:', err);
+      }
+    }
     if (root) {
       root.unmount();
       root = null;
@@ -145,21 +192,55 @@
   $effect(() => {
     const c = content;
     const r = readOnly;
-    const contentChanged = c !== untrack(() => lastContent);
-    const readOnlyChanged = r !== untrack(() => lastReadOnly);
+
+    // Si la actualización vino del propio onChange de este visor, no resetear la escena
+    if (isInternalUpdate) {
+      isInternalUpdate = false;
+      lastContent = c;
+      lastReadOnly = r;
+      return;
+    }
+
+    const contentChanged = c !== lastContent;
+    const readOnlyChanged = r !== lastReadOnly;
 
     if (root && containerRef && (contentChanged || readOnlyChanged)) {
       lastContent = c;
       lastReadOnly = r;
-      renderReactApp(c, r);
+
+      if (excalidrawAPI) {
+        const parsed = parseInitialData(c, r);
+        excalidrawAPI.updateScene({
+          elements: parsed.elements,
+          appState: {
+            ...parsed.appState,
+            viewModeEnabled: r,
+            ...(r ? {} : { activeTool: { type: 'selection' } }),
+          },
+        });
+        if (parsed.files && Object.keys(parsed.files).length > 0) {
+          excalidrawAPI.addFiles?.(Object.values(parsed.files));
+        }
+      } else {
+        renderReactApp(c, r);
+      }
     }
   });
 
   function handleContainerKeyDownCapture(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'o') {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+    if (isCtrlOrMeta && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (key === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        triggerSave();
+      } else if (key === 'o') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
     }
   }
 </script>

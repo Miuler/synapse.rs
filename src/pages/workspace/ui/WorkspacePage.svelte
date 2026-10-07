@@ -439,8 +439,8 @@
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
     const initialAbsPath = vaultItem?.abs_path;
 
-    // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga
-    if (isImageFile(path)) {
+    // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga (excepto dibujos)
+    if (isImageFile(path) && !isDrawingFile(path)) {
       const currentMode = openedNotes[path]?.viewMode || "reading";
       openedNotes[path] = {
         relative_path: path,
@@ -479,7 +479,7 @@
         const fetchedContent = noteData.content ?? "";
         const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
-        const currentMode = openedNotes[path]?.viewMode || "reading";
+        const currentMode = openedNotes[path]?.viewMode || (isDrawingFile(path) ? "live" : "reading");
 
         openedNotes[path] = {
           relative_path: path,
@@ -598,6 +598,8 @@
     }
     // Liberar memoria consolidada del contenido de la nota para mantener bajo consumo de RAM
     delete openedNotes[path];
+    delete excalidrawViewers[path];
+    delete recentSaveTimestamps[path];
     // Se conserva tabSelections[path] para preservar la posición del cursor si se reabre
 
     // Solo las pestañas temporales vacías se retiran del historial
@@ -618,6 +620,8 @@
     openTabPaths = [];
     activeTabPath = null;
     openedNotes = {};
+    excalidrawViewers = {};
+    recentSaveTimestamps = {};
     tabSelections = {};
     tabHistory = [];
     tabHistoryIndex = -1;
@@ -629,15 +633,18 @@
     activeTabPath ? openedNotes[activeTabPath] : undefined
   );
 
+  let excalidrawViewers = $state<Record<string, any>>({});
+  let recentSaveTimestamps: Record<string, number> = {};
+
   let currentVaultItem = $derived(
-    activeTabPath && !activeTabPath.startsWith("empty:") && vaultItems.length > 0
+    activeTabPath && !activeTabPath.startsWith("empty:")
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || {
-      id: "0",
-      title: activeNote?.title || "",
-      relative_path: activeTabPath,
-      abs_path: activeNote?.abs_path,
-    }
-      : {id: "0", title: "", relative_path: "", abs_path: undefined}
+          id: "0",
+          title: activeNote?.title || activeTabPath.split("/").pop() || activeTabPath,
+          relative_path: activeTabPath,
+          abs_path: activeNote?.abs_path,
+        }
+      : { id: "0", title: "", relative_path: "", abs_path: undefined }
   );
 
   let activeContent = $derived(
@@ -860,6 +867,32 @@
     }
   }
 
+  async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
+    const renamedPath = await vaultRepository.renameItem(relativePath, newName);
+
+    // Conservar abierta la pestaña y su contenido bajo la nueva ruta.
+    if (openedNotes[relativePath]) {
+      openedNotes[renamedPath] = openedNotes[relativePath];
+      delete openedNotes[relativePath];
+    }
+    openTabPaths = openTabPaths.map((path) => path === relativePath ? renamedPath : path);
+    if (activeTabPath === relativePath) activeTabPath = renamedPath;
+    if (tabSelections[relativePath]) {
+      tabSelections[renamedPath] = tabSelections[relativePath];
+      delete tabSelections[relativePath];
+    }
+    tabHistory = tabHistory.map((path) => path === relativePath ? renamedPath : path);
+    recentFiles = recentFiles.map((path) => path === relativePath ? renamedPath : path);
+    if (lastClosedTabIndex[relativePath] !== undefined) {
+      lastClosedTabIndex[renamedPath] = lastClosedTabIndex[relativePath];
+      delete lastClosedTabIndex[relativePath];
+    }
+
+    await fetchNotesFromBackend();
+    persistTabsState();
+    return renamedPath;
+  }
+
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
   onMount(() => {
     window.scrollTo(0, 0);
@@ -887,6 +920,11 @@
       // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
       for (const changedPath of paths) {
         if (openTabPaths.includes(changedPath)) {
+          // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
+          if (Date.now() - (recentSaveTimestamps[changedPath] || 0) < 2500) {
+            continue;
+          }
+
           const note = openedNotes[changedPath];
           const isClean = !note || note.content === note.savedContent;
           if (isClean) {
@@ -959,10 +997,23 @@
       saveTimeout = null;
     }
     const path = vaultItem.relative_path;
-    if (!isConnectedToRust || !vaultItem.title || !path) return;
+    const title = vaultItem.title || path?.split('/').pop() || path;
+    if ((!isConnectedToRust && !vaultRepository.isConnected()) || !path) return;
 
-    // Proteger archivos binarios o imágenes de sobreescrituras accidentales
-    if (isImageFile(path)) return;
+    // Proteger archivos binarios o imágenes de sobreescrituras accidentales (excepto dibujos)
+    if (isImageFile(path) && !isDrawingFile(path)) return;
+
+    // Si es un dibujo, sincronizar inmediatamente la escena más fresca del visor Excalidraw
+    if (isDrawingFile(path) && excalidrawViewers[path]?.getCurrentSerializedScene) {
+      try {
+        const freshContent = excalidrawViewers[path].getCurrentSerializedScene();
+        if (freshContent && openedNotes[path]) {
+          openedNotes[path].content = freshContent;
+        }
+      } catch (err) {
+        console.warn("Error al extraer escena actual de Excalidraw:", err);
+      }
+    }
 
     const note = openedNotes[path];
     const contentToSave = note ? note.content : "";
@@ -973,10 +1024,11 @@
     try {
       await vaultRepository.saveNote({
         relativePath: path,
-        title: vaultItem.title,
+        title: title,
         content: contentToSave,
         encoding: enc,
       });
+      recentSaveTimestamps[path] = Date.now();
       if (openedNotes[path]) {
         openedNotes[path].savedContent = contentToSave;
         if (targetEncoding) {
@@ -1630,6 +1682,7 @@
     onOpenVaultFolder={handleOpenVaultFolder}
     onDeleteItem={handleDeleteItem}
     onDeleteItems={handleDeleteItems}
+    onRenameItem={handleRenameItem}
     onResizeStart={handleSidebarResizeStart}
     onCollapse={toggleSidebar}
     onRefreshGit={refreshGitStatus}
@@ -1756,6 +1809,7 @@
                     {/if}
                   {:else if isDrawingFile(tabPath)}
                     <ExcalidrawViewer
+                      bind:this={excalidrawViewers[tabPath]}
                       {content}
                       readOnly={!isEditing}
                       onChange={(updatedContent) => {
@@ -1763,6 +1817,12 @@
                           openedNotes[tabPath].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSave={(savedContent) => {
+                        if (savedContent && openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = savedContent;
+                        }
+                        persistVaultItemToRust(vaultItem);
                       }}
                     />
                   {:else if isMarkdownFile(tabPath)}

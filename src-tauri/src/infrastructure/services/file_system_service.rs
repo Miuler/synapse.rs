@@ -95,6 +95,40 @@ impl FileSystemService {
 
         Ok(Self::to_relative(vault_path, &target))
     }
+
+    /// Renombra un elemento sin moverlo fuera de su carpeta actual.
+    pub fn rename_item(vault_path: &Path, source_rel: &str, new_name: &str) -> Result<String, String> {
+        let new_name = new_name.trim();
+        if new_name.is_empty() || new_name == "." || new_name == ".." {
+            return Err("El nombre no puede estar vacío".to_string());
+        }
+        if new_name.contains('/') || new_name.contains('\\') {
+            return Err("El nombre no puede contener separadores de ruta".to_string());
+        }
+
+        let source = Self::resolve(vault_path, source_rel)?;
+        if source == vault_path || !source.exists() {
+            return Err(format!("El elemento '{}' no existe", source_rel));
+        }
+
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_source = source.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical_source.starts_with(&canonical_vault) {
+            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+        }
+
+        let parent = source.parent().ok_or_else(|| "Elemento sin carpeta padre".to_string())?;
+        let target = parent.join(new_name);
+        if target == source {
+            return Ok(Self::to_relative(vault_path, &source));
+        }
+        if target.exists() {
+            return Err(format!("Ya existe un elemento llamado '{}'", new_name));
+        }
+
+        fs::rename(&source, &target).map_err(|e| format!("Error al renombrar elemento: {}", e))?;
+        Ok(Self::to_relative(vault_path, &target))
+    }
 }
 
 #[cfg(test)]
