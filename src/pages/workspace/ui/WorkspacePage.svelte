@@ -25,6 +25,7 @@
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
   import {listen} from "@tauri-apps/api/event";
+  import {BreadCrumb} from "@widgets/breadcrumb";
 
   interface VaultFsChangeEvent {
     paths: string[];
@@ -1764,7 +1765,6 @@
             {@const note = openedNotes[tabPath]}
             {@const content = note?.content ?? ""}
             {@const isLoading = note?.isLoading ?? false}
-
             <div
               class="tab-pane"
               class:hidden={tabPath !== activeTabPath}
@@ -1772,6 +1772,11 @@
                 isImageFile(tabPath) ||
                 isDrawingFile(tabPath)}
             >
+              <BreadCrumb
+                path={tabPath}
+                onNavigateFolder={(folderPath) => vaultExplorerRef?.locateActiveFile(folderPath)}
+                onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
+              />
               {#if isLoading}
                 <div class="content-loading">
                   <span class="spinner"></span>
