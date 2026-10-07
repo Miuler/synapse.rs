@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {debug, info, warn, error} from '@tauri-apps/plugin-log';
   import {onMount, tick} from "svelte";
   import {Ribbon} from "@widgets/ribbon";
   import {EditorHeader} from "@widgets/editor-header";
@@ -1117,7 +1118,10 @@
         name: "Crear nuevo archivo",
         category: "Archivo",
         shortcut: "Ctrl+N",
-        action: () => createNewVaultItem(),
+        action: () => {
+          info(`activeTabPath: ${activeTabPath}`);
+          createNewVaultItem();
+        },
       },
       {
         id: "cmd-close-tab",
@@ -1437,6 +1441,7 @@
           }
           return;
         } else if (key === 'n') {
+          info(`activeTabPath: ${activeTabPath}`);
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();

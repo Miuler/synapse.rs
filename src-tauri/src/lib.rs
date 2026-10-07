@@ -36,7 +36,22 @@ pub fn run() {
         apply_workaround_with_options(options);
     }
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    if cfg!(debug_assertions) {
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::default()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Webview),
+                ])
+                .level(log::LevelFilter::Debug)
+                .build(),
+        );
+    }
+
+    builder
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             get_supported_file_types,
@@ -88,18 +103,6 @@ pub fn run() {
                 }
             }
 
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .targets([
-                            Target::new(TargetKind::Stdout),
-                            // Target::new(TargetKind::LogDir { fallback_to_logs: true }),
-                            Target::new(TargetKind::Webview),
-                        ])
-                        .level(log::LevelFilter::Debug)
-                        .build(),
-                )?;
-            }
             Ok(())
         })
         .run(tauri::generate_context!())
