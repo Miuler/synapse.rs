@@ -1903,7 +1903,7 @@
                     </div>
                   {:else if isImageFile(tabPath)}
                     <ImageViewer
-                      src={note?.abs_path ? `${vaultRepository.resolveAssetUrl(note.abs_path)}?t=${note.lastReloaded || 0}` : (content || tabPath)}
+                      src={note?.abs_path || tabPath}
                       alt={vaultItem.title || tabPath}
                       {content}
                     />

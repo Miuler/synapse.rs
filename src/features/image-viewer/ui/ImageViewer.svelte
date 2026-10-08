@@ -14,34 +14,97 @@
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
   let resolvedSrc = $state('');
+  let isLoading = $state(true);
+  let hasLoaded = $state(false);
+  let hasError = $state(false);
 
   $effect(() => {
     let isCurrent = true;
     const currentSrc = src;
     if (!currentSrc) {
       resolvedSrc = '';
+      isLoading = false;
+      hasError = false;
       return;
     }
 
-    if (/^(?:https?:\/\/|data:|blob:|asset:\/\/)/i.test(currentSrc)) {
+    if (/^(?:https?:\/\/|data:|blob:)/i.test(currentSrc)) {
       resolvedSrc = currentSrc;
+      isLoading = false;
+      hasError = false;
       return;
     }
+
+    isLoading = true;
+    hasError = false;
 
     if (vaultRepository.isConnected()) {
-      vaultRepository.resolveAssetFilePath(currentSrc).then((absPath) => {
+      vaultRepository.readAssetDataUrl(currentSrc).then((dataUrl) => {
         if (!isCurrent) return;
-        if (absPath) {
-          resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
+        if (dataUrl) {
+          resolvedSrc = dataUrl;
+          isLoading = false;
+          hasError = false;
         } else {
-          resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+          console.error('[ImageViewer] El backend no devolvió una Data URL; se reintentará resolviendo la ruta.', {
+            src: currentSrc,
+          });
+          vaultRepository.resolveAssetFilePath(currentSrc).then((absPath) => {
+            if (!isCurrent) return;
+            if (absPath) {
+              vaultRepository.readAssetDataUrl(absPath).then((retryDataUrl) => {
+                if (!isCurrent) return;
+                if (retryDataUrl) {
+                  resolvedSrc = retryDataUrl;
+                  isLoading = false;
+                  hasError = false;
+                } else {
+                  console.error('[ImageViewer] El reintento como Data URL falló; se usará el protocolo asset.', {
+                    src: currentSrc,
+                    absPath,
+                  });
+                  resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
+                  isLoading = false;
+                }
+              }).catch((error) => {
+                if (!isCurrent) return;
+                console.error('[ImageViewer] Falló el reintento de leer el asset como Data URL.', {
+                  src: currentSrc,
+                  absPath,
+                  error,
+                });
+                resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
+                isLoading = false;
+              });
+            } else {
+              console.error('[ImageViewer] No se pudo resolver la ruta absoluta de la imagen.', {
+                src: currentSrc,
+              });
+              hasError = true;
+              isLoading = false;
+            }
+          }).catch((error) => {
+            if (!isCurrent) return;
+            console.error('[ImageViewer] Error resolviendo la ruta absoluta de la imagen.', {
+              src: currentSrc,
+              error,
+            });
+            hasError = true;
+            isLoading = false;
+          });
         }
-      }).catch(() => {
+      }).catch((error) => {
         if (!isCurrent) return;
-        resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+        console.error('[ImageViewer] Error leyendo la imagen como Data URL.', {
+          src: currentSrc,
+          error,
+        });
+        hasError = true;
+        isLoading = false;
       });
     } else {
       resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+      isLoading = false;
     }
 
     return () => {
@@ -59,9 +122,6 @@
   let isDragging = $state(false);
   let dragStartX = 0;
   let dragStartY = 0;
-
-  let hasLoaded = $state(false);
-  let hasError = $state(false);
 
   let isSvg = $derived(
     src.toLowerCase().includes('.svg') ||
@@ -87,7 +147,7 @@
     const nw = img.naturalWidth;
     const nh = img.naturalHeight;
 
-    if (nw > 0 && nh > 0) {
+    if (nw > 0 && nw !== undefined && nh > 0 && nh !== undefined) {
       naturalWidth = nw;
       naturalHeight = nh;
     } else {
@@ -104,24 +164,31 @@
     panY = 0;
     hasLoaded = true;
     hasError = false;
+    isLoading = false;
   }
 
-  function handleImageError() {
+  function handleImageError(event: Event) {
+    const image = event.currentTarget as HTMLImageElement;
+    console.error('[ImageViewer] El WebView no pudo decodificar o cargar la imagen.', {
+      requestedSrc: src,
+      resolvedSrc,
+      elementSrc: image.currentSrc || image.src,
+      alt,
+    });
     hasError = true;
     hasLoaded = false;
+    isLoading = false;
   }
 
-  // Reiniciar cuando cambia la imagen
+  // Reiniciar cuando cambia la imagen resuelta
   $effect(() => {
-    const active = resolvedSrc || src;
-    if (active) {
+    if (resolvedSrc) {
       naturalWidth = 0;
       naturalHeight = 0;
       zoom = 1;
       panX = 0;
       panY = 0;
       hasLoaded = false;
-      hasError = false;
     }
   });
 
@@ -215,7 +282,12 @@
   aria-label="Visor de imagen"
   style="cursor: {isDragging ? 'grabbing' : 'grab'};"
 >
-  {#if hasError}
+  {#if isLoading}
+    <div class="image-loading">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Cargando imagen...</p>
+    </div>
+  {:else if hasError || !resolvedSrc}
     <div class="image-error">
       <AlertCircle size={36} strokeWidth={1.7} />
       <p class="error-title">No se pudo cargar la imagen</p>
@@ -228,7 +300,7 @@
     >
       <img
         bind:this={imgRef}
-        src={resolvedSrc || src}
+        src={resolvedSrc}
         {alt}
         onload={handleImageLoad}
         onerror={handleImageError}
@@ -317,6 +389,36 @@
 
   img.is-svg {
     image-rendering: auto;
+  }
+
+  .image-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-secondary, #656d76);
+    user-select: none;
+  }
+
+  .loading-text {
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .loading-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
+    border-top-color: var(--accent, #0969da);
+    border-radius: 50%;
+    animation: img-spin 0.8s linear infinite;
+  }
+
+  @keyframes img-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .image-error {

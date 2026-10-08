@@ -244,6 +244,12 @@ export interface VaultRepository {
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
    */
   resolveAssetUrl(path: string): string;
+
+  /**
+   * Lee el archivo de imagen como una Data URL (data:image/...;base64,...).
+   * Compatible al 100% con WebView nativo, Tauri, Web y Android sin problemas de CORS ni protocolos bloqueados.
+   */
+  readAssetDataUrl(src: string, baseFile?: string | null): Promise<string | null>;
 }
 
 /**
@@ -606,13 +612,31 @@ export class TauriVaultRepository implements VaultRepository {
   async resolveAssetFilePath(src: string, baseFile?: string | null): Promise<string | null> {
     if (!this.isConnected() || !src) return null;
     try {
-      return await invokeTauri<string | null>('resolve_asset_file_path', {
+      const resolved = await invokeTauri<string | null>('resolve_asset_file_path', {
+        src,
+        baseFile: baseFile ?? null,
+        base_file: baseFile ?? null,
+      });
+      if (!resolved) {
+        console.error('El backend no pudo resolver la ruta del asset.', { src, baseFile });
+      }
+      return resolved;
+    } catch (error) {
+      console.error('Error al resolver ruta de asset en bóveda:', { src, baseFile, error });
+      return null;
+    }
+  }
+
+  async readAssetDataUrl(src: string, baseFile?: string | null): Promise<string | null> {
+    if (!this.isConnected() || !src) return null;
+    try {
+      return await invokeTauri<string | null>('read_asset_data_url', {
         src,
         baseFile: baseFile ?? null,
         base_file: baseFile ?? null,
       });
     } catch (error) {
-      console.warn('Error al resolver ruta de asset en bóveda:', error);
+      console.error('Error al leer asset data URL:', { src, baseFile, error });
       return null;
     }
   }

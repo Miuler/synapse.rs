@@ -128,9 +128,14 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
     return imageUrlCache.get(cacheKey)!;
   }
 
-  // 1. Resolver ruta absoluta a través del backend Rust (DashMap en memoria y verificación en disco)
+  // 1. Resolver ruta a través del backend Rust (Data URL directa o DashMap)
   if (vaultRepository.isConnected()) {
     try {
+      const dataUrl = await vaultRepository.readAssetDataUrl(cleanSrc, basePath);
+      if (dataUrl) {
+        imageUrlCache.set(cacheKey, dataUrl);
+        return dataUrl;
+      }
       const absPath = await vaultRepository.resolveAssetFilePath(cleanSrc, basePath);
       if (absPath) {
         const url = vaultRepository.resolveAssetUrl(absPath);
@@ -138,7 +143,7 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
         return url;
       }
     } catch (err) {
-      console.warn(`Error resolviendo ruta absoluta para imagen "${cleanSrc}":`, err);
+      console.warn(`Error resolviendo ruta para imagen "${cleanSrc}":`, err);
     }
   }
 

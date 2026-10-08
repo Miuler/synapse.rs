@@ -11,7 +11,7 @@ use infrastructure::tauri::commands::{
     get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
     get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
     get_vault_ui_state, git_add_paths, git_restore_paths, git_restore_staged_paths,
-    read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
+    read_asset_data_url, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
     render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, set_note_view_mode, toggle_devtools, AppState,
@@ -90,7 +90,8 @@ pub fn run() {
             resolve_vault_link,
             resolve_vault_links,
             render_markdown_wikilinks,
-            resolve_asset_file_path
+            resolve_asset_file_path,
+            read_asset_data_url
         ])
         .setup(|app| {
             let handle = app.handle().clone();
