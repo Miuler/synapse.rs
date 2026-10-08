@@ -153,6 +153,10 @@
           await loadDirectory(folder);
         }
       }
+      if (sidebarContentEl && savedScrollTop > 0) {
+        await tick();
+        sidebarContentEl.scrollTop = savedScrollTop;
+      }
     } catch (err) {
       console.error('Error al restaurar carpetas expandidas:', err);
     }
@@ -272,6 +276,71 @@
   let anchorPath = $state<string | null>(null);
   let sidebarPanelEl = $state<HTMLElement | null>(null);
   let sidebarContentEl = $state<HTMLElement | null>(null);
+
+  // Retención de posición de scroll del explorador
+  function getScrollStorageKey(): string {
+    return `synapse_vault_scroll_${vaultPath || 'default'}`;
+  }
+
+  function getInitialScrollTop(): number {
+    try {
+      const val = localStorage.getItem(getScrollStorageKey());
+      return val ? Math.max(0, parseFloat(val)) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  let savedScrollTop = getInitialScrollTop();
+  let isRestoringScroll = $state(false);
+
+  $effect(() => {
+    const _p = vaultPath;
+    savedScrollTop = getInitialScrollTop();
+  });
+
+  // Guardar y restaurar la posición exacta del scroll al alternar el explorador
+  let prevRibbonTab: string | null = null;
+  $effect(() => {
+    const current = activeRibbonTab;
+    if (prevRibbonTab === null) {
+      prevRibbonTab = current;
+      return;
+    }
+    if (prevRibbonTab === 'files' && current !== 'files') {
+      // Al cerrar el explorador: capturar la posición actual antes de que se oculte
+      if (sidebarContentEl && sidebarContentEl.scrollTop > 0) {
+        savedScrollTop = sidebarContentEl.scrollTop;
+        try {
+          localStorage.setItem(getScrollStorageKey(), String(savedScrollTop));
+        } catch {}
+      }
+    } else if (prevRibbonTab !== 'files' && current === 'files') {
+      // Al reabrir el explorador: restaurar exactamente al mismo punto
+      const target = savedScrollTop;
+      if (target > 0) {
+        isRestoringScroll = true;
+        const applyScroll = () => {
+          if (sidebarContentEl) {
+            sidebarContentEl.scrollTop = target;
+          }
+        };
+        applyScroll();
+        tick().then(applyScroll);
+        requestAnimationFrame(() => {
+          applyScroll();
+          requestAnimationFrame(() => {
+            applyScroll();
+            setTimeout(() => {
+              applyScroll();
+              isRestoringScroll = false;
+            }, 60);
+          });
+        });
+      }
+    }
+    prevRibbonTab = current;
+  });
 
   function isSelected(path: string): boolean {
     return selectedPaths.includes(path);
@@ -1243,20 +1312,20 @@
   }
 </script>
 
-{#if activeRibbonTab === 'files'}
-  <ContextMenu.Root bind:open={isContextMenuOpen}>
-    <ContextMenu.Trigger>
-      {#snippet child({ props })}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <aside
-          bind:this={sidebarPanelEl}
-          {...props}
-          class="sidebar-panel"
-          class:is-resizing={isResizingSidebar}
-          style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;"
-          tabindex="0"
-          onkeydown={handleKeyDown}
-        >
+<ContextMenu.Root bind:open={isContextMenuOpen}>
+  <ContextMenu.Trigger>
+    {#snippet child({ props })}
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <aside
+        bind:this={sidebarPanelEl}
+        {...props}
+        class="sidebar-panel"
+        class:is-resizing={isResizingSidebar}
+        class:is-hidden={activeRibbonTab !== 'files'}
+        style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;"
+        tabindex="0"
+        onkeydown={handleKeyDown}
+      >
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="sidebar-header"
@@ -1318,6 +1387,14 @@
           <div
             bind:this={sidebarContentEl}
             class="sidebar-content"
+            onscroll={(e) => {
+              if (activeRibbonTab !== 'files' || isRestoringScroll) return;
+              const top = e.currentTarget.scrollTop;
+              savedScrollTop = top;
+              try {
+                localStorage.setItem(getScrollStorageKey(), String(top));
+              } catch {}
+            }}
             onclick={(e) => {
               sidebarPanelEl?.focus();
               if (!(e.target as HTMLElement).closest('.file-tree-item')) {
@@ -1519,7 +1596,6 @@
       </ContextMenu.Content>
     </ContextMenu.Portal>
   </ContextMenu.Root>
-{/if}
 
 <ConfirmDialog
   bind:open={isDeleteDialogOpen}
@@ -1699,6 +1775,10 @@
     user-select: none;
     flex-shrink: 0;
     z-index: 5;
+  }
+
+  .sidebar-panel.is-hidden {
+    display: none !important;
   }
 
   .sidebar-panel:focus {
