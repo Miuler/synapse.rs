@@ -24,7 +24,7 @@
   import {loadSupportedFileTypesUseCase} from "@shared/use-cases";
   import type {VaultItem, OpenedNote} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
-  import {vaultRepository, searchRepository, toggleDevtools, type GitFileStatusKind} from "@shared/repositories";
+  import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
   import {listen} from "@tauri-apps/api/event";
   import {BreadCrumb} from "@widgets/breadcrumb";
 
@@ -115,6 +115,13 @@
             abs_path: n.abs_path,
           };
         });
+
+        // Sincronizar abs_path en pestañas que se abrieron antes de cargar vaultItems
+        for (const item of vaultItems) {
+          if (openedNotes[item.relative_path] && !openedNotes[item.relative_path].abs_path && item.abs_path) {
+            openedNotes[item.relative_path].abs_path = item.abs_path;
+          }
+        }
       }
     } catch (e) {
       console.error("Error al refrescar lista de notas:", e);
@@ -439,10 +446,18 @@
     if (openedNotes[path] && openedNotes[path].isLoaded && !openedNotes[path].isLoading) return;
 
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
-    const initialAbsPath = vaultItem?.abs_path;
+    let initialAbsPath = vaultItem?.abs_path;
 
     // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga (excepto dibujos)
     if (isImageFile(path) && !isDrawingFile(path)) {
+      if (!initialAbsPath) {
+        try {
+          initialAbsPath = (await vaultRepository.resolveAssetFilePath(path)) ?? undefined;
+        } catch (e) {
+          console.warn(`Error resolviendo ruta absoluta para imagen ${path}:`, e);
+        }
+      }
+
       const currentMode = openedNotes[path]?.viewMode || "reading";
       openedNotes[path] = {
         relative_path: path,
@@ -563,6 +578,20 @@
     }
     recordTabVisit(path);
     persistTabsState();
+  }
+
+  function handleNavigateLink(targetPath: string) {
+    if (!targetPath) return;
+    const [filePath, anchor] = targetPath.split('#');
+    const cleanPath = filePath.trim();
+    if (cleanPath) {
+      selectTab(cleanPath);
+      if (anchor) {
+        pendingScrollTerms[cleanPath] = [anchor.trim()];
+      }
+    } else if (anchor && activeTabPath) {
+      pendingScrollTerms[activeTabPath] = [anchor.trim()];
+    }
   }
 
   function closeTab(path: string) {
@@ -916,63 +945,67 @@
     });
 
     let unlistenFsChange: (() => void) | undefined;
-    listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {
-      const { paths, deleted } = event.payload;
+    if (isTauriEnvironment()) {
+      listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {
+        const { paths, deleted } = event.payload;
 
-      // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
-      for (const changedPath of paths) {
-        if (openTabPaths.includes(changedPath)) {
-          // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
-          if (Date.now() - (recentSaveTimestamps[changedPath] || 0) < 2500) {
-            continue;
-          }
+        // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
+        for (const changedPath of paths) {
+          if (openTabPaths.includes(changedPath)) {
+            // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
+            if (Date.now() - (recentSaveTimestamps[changedPath] || 0) < 2500) {
+              continue;
+            }
 
-          const note = openedNotes[changedPath];
-          const isClean = !note || note.content === note.savedContent;
-          if (isClean) {
-            try {
-              const noteData = await vaultRepository.readNote(changedPath);
-              if (noteData && (noteData.content ?? "") !== (openedNotes[changedPath]?.savedContent ?? null)) {
-                const currentMode = openedNotes[changedPath]?.viewMode || (isDrawingFile(changedPath) ? "live" : "reading");
-                openedNotes[changedPath] = {
-                  relative_path: changedPath,
-                  abs_path: noteData.abs_path,
-                  title: noteData.title || changedPath,
-                  content: noteData.content ?? "",
-                  savedContent: noteData.content ?? "",
-                  encoding: noteData.encoding || "---",
-                  isLoading: false,
-                  isLoaded: true,
-                  viewMode: currentMode,
-                };
+            const note = openedNotes[changedPath];
+            const isClean = !note || note.content === note.savedContent;
+            if (isClean) {
+              try {
+                const noteData = await vaultRepository.readNote(changedPath);
+                if (noteData && (noteData.content ?? "") !== (openedNotes[changedPath]?.savedContent ?? null)) {
+                  const currentMode = openedNotes[changedPath]?.viewMode || (isDrawingFile(changedPath) ? "live" : "reading");
+                  openedNotes[changedPath] = {
+                    relative_path: changedPath,
+                    abs_path: noteData.abs_path,
+                    title: noteData.title || changedPath,
+                    content: noteData.content ?? "",
+                    savedContent: noteData.content ?? "",
+                    encoding: noteData.encoding || "---",
+                    isLoading: false,
+                    isLoaded: true,
+                    viewMode: currentMode,
+                  };
+                }
+              } catch (e) {
+                console.warn(`Error al recargar archivo modificado externamente: ${changedPath}`, e);
               }
-            } catch (e) {
-              console.warn(`Error al recargar archivo modificado externamente: ${changedPath}`, e);
             }
           }
         }
-      }
 
-      // 2. Si se eliminaron archivos que están abiertos
-      for (const delPath of deleted) {
-        const affectedTabs = openTabPaths.filter((p) => p === delPath || p.startsWith(`${delPath}/`));
-        for (const tabPath of affectedTabs) {
-          const note = openedNotes[tabPath];
-          if (!note || note.content === note.savedContent) {
-            closeTab(tabPath);
+        // 2. Si se eliminaron archivos que están abiertos
+        for (const delPath of deleted) {
+          const affectedTabs = openTabPaths.filter((p) => p === delPath || p.startsWith(`${delPath}/`));
+          for (const tabPath of affectedTabs) {
+            const note = openedNotes[tabPath];
+            if (!note || note.content === note.savedContent) {
+              closeTab(tabPath);
+            }
           }
         }
-      }
 
-      // 3. Refrescar notas, estado de Git y árbol del explorador
-      await fetchNotesFromBackend();
-      await refreshGitStatus();
-      if (vaultExplorerRef?.refreshTree) {
-        await vaultExplorerRef.refreshTree();
-      }
-    }).then((unsub) => {
-      unlistenFsChange = unsub;
-    });
+        // 3. Refrescar notas, estado de Git y árbol del explorador
+        await fetchNotesFromBackend();
+        await refreshGitStatus();
+        if (vaultExplorerRef?.refreshTree) {
+          await vaultExplorerRef.refreshTree();
+        }
+      }).then((unsub) => {
+        unlistenFsChange = unsub;
+      }).catch((e) => {
+        console.warn('Error escuchando cambios de sistema de archivos:', e);
+      });
+    }
 
     return () => {
       if (unlistenFsChange) {
@@ -1857,6 +1890,7 @@
                         vimMode={isVimMode}
                         viewMode={!isEditing ? 'reading' : markdownViewMode}
                         scrollToTerms={pendingScrollTerms[tabPath]}
+                        onNavigate={handleNavigateLink}
                         onChange={(updatedMarkdown: string) => {
                           if (openedNotes[tabPath]) {
                             openedNotes[tabPath].content = updatedMarkdown;

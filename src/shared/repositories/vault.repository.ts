@@ -219,6 +219,28 @@ export interface VaultRepository {
   reloadVaultItems(paths: string[]): Promise<string[]>;
 
   /**
+   * Resuelve la ruta relativa completa de un enlace o WikiLink ([[...]]) desde el DashMap de Rust.
+   * Si no incluye extensión, se autocompleta con .md.
+   */
+  resolveVaultLink(link: string): Promise<string | null>;
+
+  /**
+   * Resuelve múltiples enlaces simultáneamente utilizando el DashMap de Rust.
+   */
+  resolveVaultLinks(links: string[]): Promise<Record<string, string>>;
+
+  /**
+   * Transforma contenido Markdown sustituyendo los WikiLinks ([[...]]) por enlaces estándar
+   * con las rutas resueltas desde el DashMap en memoria de Rust.
+   */
+  renderMarkdownWikilinks(content: string): Promise<string>;
+
+  /**
+   * Resuelve una referencia de imagen o asset (por DashMap, relativa o absoluta) a su ruta absoluta en disco.
+   */
+  resolveAssetFilePath(src: string, baseFile?: string | null): Promise<string | null>;
+
+  /**
    * Resuelve una ruta absoluta del sistema de archivos a una URL segura para el WebView.
    */
   resolveAssetUrl(path: string): string;
@@ -557,6 +579,52 @@ export class TauriVaultRepository implements VaultRepository {
       return convertFileSrc(path);
     } catch {
       return path;
+    }
+  }
+
+  async resolveVaultLink(link: string): Promise<string | null> {
+    if (!this.isConnected() || !link) return null;
+    try {
+      return await invokeTauri<string | null>('resolve_vault_link', { link });
+    } catch (error) {
+      console.warn('Error al resolver enlace de bóveda:', error);
+      return null;
+    }
+  }
+
+  async resolveVaultLinks(links: string[]): Promise<Record<string, string>> {
+    if (!this.isConnected() || !links || links.length === 0) return {};
+    try {
+      const res = await invokeTauri<Record<string, string>>('resolve_vault_links', { links });
+      return res || {};
+    } catch (error) {
+      console.warn('Error al resolver enlaces de bóveda:', error);
+      return {};
+    }
+  }
+
+  async resolveAssetFilePath(src: string, baseFile?: string | null): Promise<string | null> {
+    if (!this.isConnected() || !src) return null;
+    try {
+      return await invokeTauri<string | null>('resolve_asset_file_path', {
+        src,
+        baseFile: baseFile ?? null,
+        base_file: baseFile ?? null,
+      });
+    } catch (error) {
+      console.warn('Error al resolver ruta de asset en bóveda:', error);
+      return null;
+    }
+  }
+
+  async renderMarkdownWikilinks(content: string): Promise<string> {
+    if (!this.isConnected() || !content) return content;
+    try {
+      const res = await invokeTauri<string>('render_markdown_wikilinks', { content });
+      return typeof res === 'string' ? res : content;
+    } catch (error) {
+      console.warn('Error al renderizar wikilinks en markdown:', error);
+      return content;
     }
   }
 }

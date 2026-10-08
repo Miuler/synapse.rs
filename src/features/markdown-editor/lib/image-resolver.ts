@@ -70,26 +70,28 @@ export function extractImageTokens(lineText: string, lineOffset = 0): ImageToken
     });
   }
 
-  // 2. Formato WikiLink: ![[path|alt]]
-  const wikiRegex = /!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
+  // 2. Formato WikiLink: ![[path|alt]] o [[path|alt]] (para archivos de imagen)
+  const wikiRegex = /!?\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
   for (const match of lineText.matchAll(wikiRegex)) {
     if (match.index === undefined) continue;
     const raw = match[0];
     const src = match[1]?.trim() || '';
     const rawAlt = match[2]?.trim() || '';
 
+    const filePart = src.split('#')[0].trim();
+
     // Solo considerar imágenes comunes si es sintaxis wiki
-    const isImageExt = /\.(?:png|jpe?g|webp|gif|svg|bmp|ico|avif)$/i.test(src);
+    const isImageExt = /\.(?:png|jpe?g|webp|gif|svg|bmp|ico|avif|tiff?)$/i.test(filePart);
     if (!isImageExt) continue;
 
-    const { cleanAlt, width, height } = parseImageDimensions(rawAlt || src);
+    const { cleanAlt, width, height } = parseImageDimensions(rawAlt || filePart);
 
     tokens.push({
       from: lineOffset + match.index,
       to: lineOffset + match.index + raw.length,
       raw,
       src,
-      alt: cleanAlt || src,
+      alt: cleanAlt || filePart,
       width,
       height,
     });
@@ -103,8 +105,18 @@ export function extractImageTokens(lineText: string, lineOffset = 0): ImageToken
  * para ser consumida de forma segura por el WebView.
  */
 export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | null): Promise<string> {
-  const cleanSrc = rawSrc.trim().replace(/^['"]|['"]$/g, '');
+  let cleanSrc = rawSrc.trim().replace(/^['"]|['"]$/g, '');
   if (!cleanSrc) return '';
+
+  // Quitar posible ancla (#seccion) para la carga física de la imagen
+  cleanSrc = cleanSrc.split('#')[0].trim();
+
+  // Decodificar posibles caracteres escapados (por ejemplo %20 para espacios)
+  try {
+    cleanSrc = decodeURIComponent(cleanSrc);
+  } catch {
+    // Mantener original si la decodificación falla
+  }
 
   // Protocolos remotos o URLs ya preparadas
   if (/^(?:https?:\/\/|data:|blob:|asset:\/\/)/i.test(cleanSrc)) {
@@ -116,30 +128,22 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
     return imageUrlCache.get(cacheKey)!;
   }
 
-  const resolvedPath = resolveRelativePath(cleanSrc, basePath);
-  const rootPath = cleanSrc.replace(/^\.\//, '').replace(/^\/+/, '');
-
-  try {
-    // 1. Consultar si Rust ya conoce el abs_path de esta nota/archivo
-    let note = await vaultRepository.readNote(resolvedPath);
-
-    if ((!note || !note.abs_path) && rootPath !== resolvedPath) {
-      const rootNote = await vaultRepository.readNote(rootPath);
-      if (rootNote && rootNote.abs_path) {
-        note = rootNote;
+  // 1. Resolver ruta absoluta a través del backend Rust (DashMap en memoria y verificación en disco)
+  if (vaultRepository.isConnected()) {
+    try {
+      const absPath = await vaultRepository.resolveAssetFilePath(cleanSrc, basePath);
+      if (absPath) {
+        const url = vaultRepository.resolveAssetUrl(absPath);
+        imageUrlCache.set(cacheKey, url);
+        return url;
       }
+    } catch (err) {
+      console.warn(`Error resolviendo ruta absoluta para imagen "${cleanSrc}":`, err);
     }
-
-    if (note && note.abs_path) {
-      const url = vaultRepository.resolveAssetUrl(note.abs_path);
-      imageUrlCache.set(cacheKey, url);
-      return url;
-    }
-  } catch (err) {
-    console.warn(`No se pudo resolver abs_path de la imagen "${cleanSrc}":`, err);
   }
 
-  // Fallback directo a través de resolveAssetUrl
+  // 2. Fallback para entorno desconectado o pruebas
+  const resolvedPath = resolveRelativePath(cleanSrc, basePath);
   const fallbackUrl = vaultRepository.resolveAssetUrl(resolvedPath);
   return fallbackUrl;
 }

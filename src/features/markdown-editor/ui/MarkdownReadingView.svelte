@@ -4,14 +4,16 @@
   import { resolveIncludes } from '../lib/include-resolver';
   import { renderUnifiedDiagramSvg } from '../lib/render-diagram';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
+  import { resolveMarkdownWikilinks } from '../lib/link-resolver';
 
   interface Props {
     content: string;
     filePath?: string | null;
     scrollToTerms?: string[];
+    onNavigate?: (path: string) => void;
   }
 
-  let { content = '', filePath = null, scrollToTerms = [] }: Props = $props();
+  let { content = '', filePath = null, scrollToTerms = [], onNavigate }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
@@ -20,6 +22,11 @@
 
   marked.use({
     renderer: {
+      link({ href, title, text }: { href: string; title?: string | null; text: string }) {
+        const safeHref = href || '';
+        const isExternal = /^(?:https?:\/\/|mailto:|tel:)/i.test(safeHref);
+        return `<a href="${escapeHtml(safeHref)}" class="${isExternal ? 'external-link' : 'internal-link'}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} ${title ? `title="${escapeHtml(title)}"` : ''} data-internal-path="${escapeHtml(safeHref)}">${text}</a>`;
+      },
       image({ href, title, text }: { href: string; title?: string | null; text: string }) {
         const { cleanAlt, width, height } = parseImageDimensions(text || '');
         const style = [
@@ -27,9 +34,18 @@
           height ? `height: ${height};` : '',
         ].filter(Boolean).join(' ');
 
-        return `<figure class="reading-image-figure" data-raw-src="${encodeURIComponent(href)}" data-alt="${encodeURIComponent(cleanAlt)}" data-title="${encodeURIComponent(title || '')}">
+        let cleanHref = href || '';
+        try {
+          cleanHref = decodeURI(cleanHref);
+        } catch {
+          // Mantener original si falla
+        }
+
+        const isReady = /^(?:https?:\/\/|data:|blob:|asset:\/\/)/i.test(cleanHref);
+
+        return `<figure class="reading-image-figure" data-raw-src="${escapeHtml(cleanHref)}" data-alt="${escapeHtml(cleanAlt)}" data-title="${escapeHtml(title || '')}">
           <div class="reading-image-container">
-            <img class="reading-image-el" alt="${escapeHtml(cleanAlt)}" ${title ? `title="${escapeHtml(title)}"` : ''} ${style ? `style="${style}"` : ''} loading="lazy" />
+            <img class="reading-image-el" ${isReady ? `src="${escapeHtml(cleanHref)}"` : ''} alt="${escapeHtml(cleanAlt)}" ${title ? `title="${escapeHtml(title)}"` : ''} ${style ? `style="${style}"` : ''} loading="lazy" />
           </div>
           ${cleanAlt ? `<figcaption class="reading-image-caption">${escapeHtml(cleanAlt)}</figcaption>` : ''}
         </figure>`;
@@ -54,14 +70,14 @@
     if (!containerRef) return;
     const figures = containerRef.querySelectorAll<HTMLElement>('.reading-image-figure');
     for (const fig of figures) {
-      const rawSrc = decodeURIComponent(fig.getAttribute('data-raw-src') || '');
+      const rawSrc = fig.getAttribute('data-raw-src') || '';
       if (!rawSrc) continue;
       const img = fig.querySelector<HTMLImageElement>('.reading-image-el');
       if (!img) continue;
 
       try {
         const resolvedUrl = await resolveVaultImageUrl(rawSrc, filePath);
-        if (resolvedUrl) {
+        if (resolvedUrl && img.src !== resolvedUrl) {
           img.src = resolvedUrl;
         }
       } catch (err) {
@@ -106,7 +122,8 @@
     }
   }
 
-  function escapeHtml(str: string): string {
+  function escapeHtml(str: unknown): string {
+    if (typeof str !== 'string') return '';
     return str
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -140,18 +157,60 @@
     }
   }
 
+  function handleContainerClick(event: MouseEvent) {
+    const target = (event.target as HTMLElement).closest('a');
+    if (!target) return;
+
+    const href = target.getAttribute('href');
+    if (!href) return;
+
+    const isExternal = /^(?:https?:\/\/|mailto:|tel:)/i.test(href);
+    if (!isExternal) {
+      event.preventDefault();
+      event.stopPropagation();
+      const internalPath = target.getAttribute('data-internal-path') || href;
+      const decoded = decodeURI(internalPath);
+      if (onNavigate) {
+        onNavigate(decoded);
+      }
+    }
+  }
+
   $effect(() => {
     const raw = content;
-    const parsed = marked.parse(raw);
-    renderedHtml = typeof parsed === 'string' ? parsed : '';
+    let isCurrent = true;
 
-    tick().then(() => {
+    resolveMarkdownWikilinks(raw).then(async (transformed) => {
+      if (!isCurrent) return;
+      try {
+        const parsed = await marked.parse(transformed);
+        renderedHtml = typeof parsed === 'string' ? parsed : '';
+      } catch (err) {
+        console.error('Error parseando markdown en modo lectura:', err);
+        renderedHtml = escapeHtml(transformed);
+      }
+
+      await tick();
+      if (!isCurrent) return;
       renderDiagrams();
       renderImages();
       if (scrollToTerms && scrollToTerms.length > 0) {
         scrollToMatch(scrollToTerms);
       }
+    }).catch((err) => {
+      console.error('Error resolviendo wikilinks en modo lectura:', err);
+      if (!isCurrent) return;
+      try {
+        const parsed = marked.parse(raw);
+        renderedHtml = typeof parsed === 'string' ? (parsed as string) : '';
+      } catch {
+        renderedHtml = escapeHtml(raw);
+      }
     });
+
+    return () => {
+      isCurrent = false;
+    };
   });
 
   $effect(() => {
@@ -164,7 +223,9 @@
 </script>
 
 <div class="markdown-reading-wrapper" bind:this={containerRef}>
-  <article class="markdown-body">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <article class="markdown-body" onclick={handleContainerClick}>
     {#if renderedHtml}
       {@html renderedHtml}
     {:else}
@@ -288,6 +349,20 @@
   :global(.markdown-body a) {
     color: var(--accent, #0969da);
     text-decoration: underline;
+  }
+
+  :global(.markdown-body a.internal-link) {
+    color: var(--accent, #0969da);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s ease, text-decoration-color 0.15s ease;
+  }
+
+  :global(.markdown-body a.internal-link:hover) {
+    opacity: 0.8;
+    text-decoration-thickness: 2px;
   }
 
   /* Figuras e imágenes en modo lectura */

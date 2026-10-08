@@ -226,6 +226,10 @@ impl NoteRepository for FileNoteRepository {
         let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
 
         info!("Reading note at {:?}, is_image: {}", abs_path, is_image);
+        if !abs_path.is_file() {
+            return Err(format!("El archivo no existe en {:?}", abs_path));
+        }
+
         let (encoding, content) = if is_image {
             ("binary".to_string(), "".to_string())
         } else {

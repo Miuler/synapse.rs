@@ -12,6 +12,7 @@
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
+  import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -34,6 +35,7 @@
     vimMode?: boolean;
     viewMode?: MarkdownViewMode;
     scrollToTerms?: string[];
+    onNavigate?: (path: string) => void;
     onChange?: (markdown: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
   }
@@ -46,6 +48,7 @@
     vimMode = false,
     viewMode = 'live',
     scrollToTerms = [],
+    onNavigate,
     onChange,
     onSelectionChange,
   }: Props = $props();
@@ -59,6 +62,7 @@
   const vimCompartment = new Compartment();
   const viewModeCompartment = new Compartment();
   const filePathCompartment = new Compartment();
+  const onNavigateCompartment = new Compartment();
 
   let readingViewRef = $state<any>(null);
 
@@ -184,6 +188,21 @@
       lineHeight: '1.75 !important',
       padding: '0 4px',
     },
+    '.cm-wikilink-widget': {
+      display: 'inline-flex',
+      alignItems: 'baseline',
+      verticalAlign: 'baseline',
+    },
+    '.cm-wikilink-anchor': {
+      color: 'var(--accent, #0969da) !important',
+      textDecoration: 'underline !important',
+      textUnderlineOffset: '3px',
+      cursor: 'pointer',
+      fontWeight: '500',
+    },
+    '.cm-wikilink-anchor:hover': {
+      opacity: '0.8',
+    },
   });
 
   const livePreviewExtensions = [
@@ -193,6 +212,7 @@
     imageLivePreviewField,
     tableRawField,
     tableLivePreviewField,
+    wikilinkLivePreviewField,
   ];
 
   // 2. Estilos y tema para modo Fuente puro (Source Mode monospaciado sin sustituciones de diagramas)
@@ -622,6 +642,7 @@
         doc: content,
         extensions: [
           filePathCompartment.of(activeFilePathFacet.of(filePath)),
+          onNavigateCompartment.of(onNavigateFacet.of(onNavigate || (() => {}))),
           vimCompartment.of(vimMode ? vim() : []),
           readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
           viewModeCompartment.of(getActiveExtensions(viewMode)),
@@ -701,6 +722,16 @@
     }
   });
 
+  // Reaccionar a cambios en onNavigate
+  $effect(() => {
+    const nav = onNavigate;
+    if (editorView) {
+      editorView.dispatch({
+        effects: onNavigateCompartment.reconfigure(onNavigateFacet.of(nav || (() => {}))),
+      });
+    }
+  });
+
   // Reaccionar a cambios en viewMode (Modo Fuente vs Modo Vista Previa vs Modo Lectura)
   $effect(() => {
     const mode = viewMode;
@@ -742,7 +773,7 @@
 
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {onNavigate} />
   {/if}
   <div
     class="editor-container"

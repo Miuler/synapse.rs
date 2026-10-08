@@ -1125,6 +1125,74 @@ impl NavigationEngine {
 
         self.notes.insert(note_id, note_meta);
     }
+
+    /// Resuelve la ruta completa de un enlace o WikiLink (`[[...]]`) dentro de la bóveda utilizando el DashMap.
+    /// Si el objetivo no incluye extensión, se autocompleta con `.md` para buscarlo.
+    /// Retorna la ruta relativa completa normalizada si se encuentra en el DashMap (`self.notes`).
+    pub fn resolve_link_path(&self, raw_target: &str) -> Option<String> {
+        let (target_with_ext, anchor) = crate::domain::services::link_resolution::normalize_link_target(raw_target);
+        if target_with_ext.is_empty() {
+            return None;
+        }
+
+        let attach_anchor = |path: &str| -> String {
+            match &anchor {
+                Some(a) if !path.contains('#') => format!("{}#{}", path, a),
+                _ => path.to_string(),
+            }
+        };
+
+        // 1. Búsqueda exacta en path_index (O(1))
+        let compact = CompactString::new(&target_with_ext);
+        if let Some(id_ref) = self.path_index.get(&compact) {
+            let id = *id_ref.value();
+            drop(id_ref);
+            if let Some(meta) = self.notes.get(&id) {
+                return Some(attach_anchor(meta.path.as_str()));
+            }
+        }
+
+        // 2. Búsqueda en DashMap por coincidencia de nombre de archivo o sufijo (ej. "sub/nota.md" vs "nota.md")
+        let target_suffix = format!("/{}", target_with_ext);
+        for item in self.notes.iter() {
+            let note_path = item.value().path.as_str();
+            if note_path == target_with_ext || note_path.ends_with(&target_suffix) {
+                return Some(attach_anchor(note_path));
+            }
+        }
+
+        // 3. Fallback tolerante: Búsqueda insensible a mayúsculas/minúsculas en DashMap
+        let target_lower = target_with_ext.to_lowercase();
+        let suffix_lower = format!("/{}", target_lower);
+        for item in self.notes.iter() {
+            let note_path = item.value().path.as_str();
+            let path_lower = note_path.to_lowercase();
+            if path_lower == target_lower || path_lower.ends_with(&suffix_lower) {
+                return Some(attach_anchor(note_path));
+            }
+        }
+
+        None
+    }
+
+    /// Resuelve múltiples enlaces simultáneamente utilizando el DashMap.
+    pub fn resolve_link_paths(&self, raw_targets: &[String]) -> std::collections::HashMap<String, String> {
+        let mut map = std::collections::HashMap::with_capacity(raw_targets.len());
+        for target in raw_targets {
+            if let Some(resolved) = self.resolve_link_path(target) {
+                map.insert(target.clone(), resolved);
+            }
+        }
+        map
+    }
+
+    /// Transforma el contenido Markdown sustituyendo las referencias WikiLink `[[...]]`
+    /// por enlaces Markdown estándar cuyas rutas son extraídas directamente del DashMap.
+    pub fn render_wikilinks_in_markdown(&self, content: &str) -> String {
+        crate::domain::services::link_resolution::transform_markdown_wikilinks(content, |target| {
+            self.resolve_link_path(target)
+        })
+    }
 }
 
 fn collect_supported_files_recursive(

@@ -924,3 +924,102 @@ fn test_fs_watcher_directory_recursive_addition_and_removal() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_dashmap_link_resolution_and_markdown_rendering() {
+    let test_dir = std::env::temp_dir().join("synapse_test_wikilink_dashmap");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+
+    // Create files physically on disk
+    fs::create_dir_all(test_dir.join("documentos/manuales")).unwrap();
+    fs::write(test_dir.join("documentos/manuales/NOMBRE ARCHIVO.txt"), "texto").unwrap();
+    fs::create_dir_all(test_dir.join("guias")).unwrap();
+    fs::write(test_dir.join("guias/Mi Nota.md"), "# Mi Nota\ncontenido").unwrap();
+    fs::create_dir_all(test_dir.join("assets/img")).unwrap();
+    fs::write(test_dir.join("assets/img/FILE.png"), [0x89, 0x50, 0x4E, 0x47]).unwrap();
+
+    // Manually insert notes into DashMap with various nested paths
+    engine.notes.insert(
+        1,
+        NoteMeta {
+            id: 1,
+            path: CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"),
+            title: CompactString::new("NOMBRE ARCHIVO"),
+            mtime_nanos: 100,
+            size_bytes: 50,
+            created_nanos: None,
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
+        },
+    );
+    engine.path_index.insert(CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"), 1);
+
+    engine.notes.insert(
+        2,
+        NoteMeta {
+            id: 2,
+            path: CompactString::new("guias/Mi Nota.md"),
+            title: CompactString::new("Mi Nota"),
+            mtime_nanos: 200,
+            size_bytes: 80,
+            created_nanos: None,
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
+        },
+    );
+    engine.notes.insert(
+        3,
+        NoteMeta {
+            id: 3,
+            path: CompactString::new("assets/img/FILE.png"),
+            title: CompactString::new("FILE"),
+            mtime_nanos: 300,
+            size_bytes: 120,
+            created_nanos: None,
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
+        },
+    );
+    engine.path_index.insert(CompactString::new("assets/img/FILE.png"), 3);
+
+    // 1. Resolve with extension: [[NOMBRE ARCHIVO.txt]]
+    let resolved_txt = engine.resolve_link_path("NOMBRE ARCHIVO.txt");
+    assert_eq!(resolved_txt, Some("documentos/manuales/NOMBRE ARCHIVO.txt".to_string()));
+
+    // 2. Resolve image path from DashMap: [[FILE.png]]
+    let resolved_img = engine.resolve_link_path("FILE.png");
+    assert_eq!(resolved_img, Some("assets/img/FILE.png".to_string()));
+
+    // 3. Resolve without extension: [[Mi Nota]] -> completes to Mi Nota.md and finds it in DashMap
+    let resolved_md = engine.resolve_link_path("Mi Nota");
+    assert_eq!(resolved_md, Some("guias/Mi Nota.md".to_string()));
+
+    // 4. Resolve with anchor: [[Mi Nota#Seccion]]
+    let resolved_anchor = engine.resolve_link_path("Mi Nota#Seccion");
+    assert_eq!(resolved_anchor, Some("guias/Mi Nota.md#Seccion".to_string()));
+
+    // 5. Render markdown content: links as [..] and images as ![..]
+    let md = "# Inicio\nVer [[NOMBRE ARCHIVO.txt]] y la imagen [[FILE.png]] junto a [[Mi Nota]].";
+    let rendered = engine.render_wikilinks_in_markdown(md);
+    assert_eq!(
+        rendered,
+        "# Inicio\nVer [NOMBRE ARCHIVO.txt](<documentos/manuales/NOMBRE ARCHIVO.txt>) y la imagen ![FILE.png](assets/img/FILE.png) junto a [Mi Nota](<guias/Mi Nota.md>)."
+    );
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Toolbar, Separator } from 'bits-ui';
   import { AlertCircle, Minus, Plus, Maximize2 } from 'lucide-svelte';
+  import { vaultRepository } from '@shared/repositories';
 
   interface Props {
     src: string;
@@ -12,6 +13,41 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
+  let resolvedSrc = $state('');
+
+  $effect(() => {
+    let isCurrent = true;
+    const currentSrc = src;
+    if (!currentSrc) {
+      resolvedSrc = '';
+      return;
+    }
+
+    if (/^(?:https?:\/\/|data:|blob:|asset:\/\/)/i.test(currentSrc)) {
+      resolvedSrc = currentSrc;
+      return;
+    }
+
+    if (vaultRepository.isConnected()) {
+      vaultRepository.resolveAssetFilePath(currentSrc).then((absPath) => {
+        if (!isCurrent) return;
+        if (absPath) {
+          resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
+        } else {
+          resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+        }
+      }).catch(() => {
+        if (!isCurrent) return;
+        resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+      });
+    } else {
+      resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+    }
+
+    return () => {
+      isCurrent = false;
+    };
+  });
 
   let naturalWidth = $state(0);
   let naturalHeight = $state(0);
@@ -77,7 +113,8 @@
 
   // Reiniciar cuando cambia la imagen
   $effect(() => {
-    if (src) {
+    const active = resolvedSrc || src;
+    if (active) {
       naturalWidth = 0;
       naturalHeight = 0;
       zoom = 1;
@@ -191,7 +228,7 @@
     >
       <img
         bind:this={imgRef}
-        {src}
+        src={resolvedSrc || src}
         {alt}
         onload={handleImageLoad}
         onerror={handleImageError}

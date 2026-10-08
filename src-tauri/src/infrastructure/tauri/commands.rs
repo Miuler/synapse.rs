@@ -14,7 +14,7 @@ use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -62,6 +62,12 @@ pub fn open_vault_components(
     );
 
     let handle_for_fs = Arc::clone(&app_handle);
+    if let Ok(guard) = app_handle.lock() {
+        if let Some(ref handle) = *guard {
+            use tauri::Manager;
+            let _ = handle.asset_protocol_scope().allow_directory(&vault_path, true);
+        }
+    }
     engine.set_on_fs_change(Arc::new(move |evt| {
         if let Ok(guard) = handle_for_fs.lock() {
             if let Some(ref handle) = *guard {
@@ -999,3 +1005,95 @@ pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String>
     };
     ft_components.indexer.rebuild()
 }
+
+#[tauri::command]
+pub fn resolve_vault_link(
+    state: State<'_, AppState>,
+    link: String,
+) -> Result<Option<String>, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(None);
+    };
+    Ok(engine.resolve_link_path(&link))
+}
+
+#[tauri::command]
+pub fn resolve_vault_links(
+    state: State<'_, AppState>,
+    links: Vec<String>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(std::collections::HashMap::new());
+    };
+    Ok(engine.resolve_link_paths(&links))
+}
+
+#[tauri::command]
+pub fn render_markdown_wikilinks(
+    state: State<'_, AppState>,
+    content: String,
+) -> Result<String, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(content);
+    };
+    Ok(engine.render_wikilinks_in_markdown(&content))
+}
+
+#[tauri::command]
+pub fn resolve_asset_file_path(
+    state: State<'_, AppState>,
+    src: String,
+    base_file: Option<String>,
+) -> Result<Option<String>, String> {
+    let clean_src = src.trim().trim_matches('\'').trim_matches('"');
+    if clean_src.is_empty() {
+        return Ok(None);
+    }
+
+    // 1. Si ya es una ruta absoluta en el sistema y es un archivo existente
+    let path_buf = PathBuf::from(clean_src);
+    if path_buf.is_absolute() && path_buf.is_file() {
+        return Ok(Some(path_buf.to_string_lossy().to_string()));
+    }
+
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *vault_guard else {
+        return Ok(None);
+    };
+
+    // 2. Intentar buscar primero en el DashMap (resolución O(1) e indexada de WikiLinks y subdirectorios)
+    let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    if let Some(ref engine) = *engine_guard {
+        if let Some(resolved_rel) = engine.resolve_link_path(clean_src) {
+            let (rel_without_anchor, _) = crate::domain::services::link_resolution::normalize_link_target(&resolved_rel);
+            let abs = vault_path.join(&rel_without_anchor);
+            if abs.is_file() {
+                return Ok(Some(abs.to_string_lossy().to_string()));
+            }
+        }
+    }
+
+    // 3. Intentar ruta relativa directa a la raíz de la bóveda
+    let clean_rel = clean_src.trim_start_matches("./").trim_start_matches('/');
+    let direct_abs = vault_path.join(clean_rel);
+    if direct_abs.is_file() {
+        return Ok(Some(direct_abs.to_string_lossy().to_string()));
+    }
+
+    // 4. Intentar ruta relativa respecto al archivo actual (base_file)
+    if let Some(ref base) = base_file {
+        let base_clean = base.trim_start_matches("./").trim_start_matches('/');
+        if let Some(parent) = Path::new(base_clean).parent() {
+            let relative_abs = vault_path.join(parent).join(clean_rel);
+            if relative_abs.is_file() {
+                return Ok(Some(relative_abs.to_string_lossy().to_string()));
+            }
+        }
+    }
+
+    Ok(None)
+}
+

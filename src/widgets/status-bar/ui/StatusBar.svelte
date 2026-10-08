@@ -18,7 +18,7 @@
     RefreshCw,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
-  import { searchRepository, type FullTextIndexStatus } from '@shared/repositories';
+  import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
   import { listen } from '@tauri-apps/api/event';
 
   export type MarkdownViewMode = 'live' | 'source' | 'reading';
@@ -212,11 +212,15 @@
     refreshIndexStatus();
 
     let unlisten: (() => void) | undefined;
-    listen<FullTextIndexStatus>('vault:indexing-status', (event) => {
-      indexStatus = event.payload;
-    }).then((u) => {
-      unlisten = u;
-    });
+    if (isTauriEnvironment()) {
+      listen<FullTextIndexStatus>('vault:indexing-status', (event) => {
+        indexStatus = event.payload;
+      }).then((u) => {
+        unlisten = u;
+      }).catch((e) => {
+        console.warn('Error escuchando eventos de indexación:', e);
+      });
+    }
 
     return () => {
       if (unlisten) unlisten();
