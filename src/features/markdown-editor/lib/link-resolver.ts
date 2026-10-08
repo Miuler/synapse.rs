@@ -60,7 +60,7 @@ export function hasWikilinks(content: string): boolean {
  * Las rutas completas se extraen directamente del DashMap de Rust en memoria.
  * Si el objetivo no incluye extensión, se autocompleta con `.md` para buscarlo en el DashMap.
  */
-export async function resolveMarkdownWikilinks(content: string): Promise<string> {
+export async function resolveMarkdownWikilinks(content: string, baseFile?: string | null): Promise<string> {
   if (!content || !hasWikilinks(content)) {
     return content;
   }
@@ -68,7 +68,7 @@ export async function resolveMarkdownWikilinks(content: string): Promise<string>
   // Si Tauri está conectado, el backend Rust realiza la resolución directa y ultrarrápida en el DashMap
   if (vaultRepository.isConnected()) {
     try {
-      const transformed = await vaultRepository.renderMarkdownWikilinks(content);
+      const transformed = await vaultRepository.renderMarkdownWikilinks(content, baseFile);
       if (typeof transformed === 'string') {
         return transformed;
       }

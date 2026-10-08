@@ -180,7 +180,7 @@
     const raw = content;
     let isCurrent = true;
 
-    resolveMarkdownWikilinks(raw).then(async (transformed) => {
+    resolveMarkdownWikilinks(raw, filePath).then(async (transformed) => {
       if (!isCurrent) return;
       try {
         const parsed = await marked.parse(transformed);

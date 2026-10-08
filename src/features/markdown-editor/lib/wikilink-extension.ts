@@ -1,6 +1,7 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { StateField, type EditorState, Facet } from '@codemirror/state';
 import { vaultRepository } from '@shared/repositories';
+import { activeFilePathFacet } from './mermaid-extension';
 import { extractWikilinkTokens, type WikilinkToken } from './link-resolver';
 
 export const onNavigateFacet = Facet.define<(path: string) => void, (path: string) => void>({
@@ -13,6 +14,7 @@ class WikilinkWidget extends WidgetType {
   constructor(
     readonly token: WikilinkToken,
     readonly resolvedPath?: string,
+    readonly basePath?: string | null,
   ) {
     super();
   }
@@ -22,7 +24,8 @@ class WikilinkWidget extends WidgetType {
       other.token.raw === this.token.raw &&
       other.token.target === this.token.target &&
       other.token.displayText === this.token.displayText &&
-      other.resolvedPath === this.resolvedPath
+      other.resolvedPath === this.resolvedPath &&
+      other.basePath === this.basePath
     );
   }
 
@@ -37,20 +40,22 @@ class WikilinkWidget extends WidgetType {
     anchor.title = this.resolvedPath || this.token.target;
     anchor.href = '#';
 
+    const cacheKey = `${this.basePath || ''}::${this.token.target}`;
+
     // Manejar clic para navegar a la nota correspondiente
     anchor.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
 
       const onNav = view.state.facet(onNavigateFacet);
-      const targetPath = this.resolvedPath || resolvedLinkCache.get(this.token.target);
+      const targetPath = this.resolvedPath || resolvedLinkCache.get(cacheKey);
 
       if (targetPath) {
         onNav(targetPath);
       } else {
-        vaultRepository.resolveVaultLink(this.token.target).then((p) => {
+        vaultRepository.resolveVaultLink(this.token.target, this.basePath).then((p) => {
           const finalPath = p || this.token.target;
-          resolvedLinkCache.set(this.token.target, finalPath);
+          resolvedLinkCache.set(cacheKey, finalPath);
           onNav(finalPath);
         });
       }
@@ -59,10 +64,10 @@ class WikilinkWidget extends WidgetType {
     span.appendChild(anchor);
 
     // Precargar en caché si aún no está
-    if (!resolvedLinkCache.has(this.token.target)) {
-      vaultRepository.resolveVaultLink(this.token.target).then((resolved) => {
+    if (!resolvedLinkCache.has(cacheKey)) {
+      vaultRepository.resolveVaultLink(this.token.target, this.basePath).then((resolved) => {
         if (resolved) {
-          resolvedLinkCache.set(this.token.target, resolved);
+          resolvedLinkCache.set(cacheKey, resolved);
           anchor.title = resolved;
         }
       });
@@ -82,6 +87,7 @@ function buildWikilinkDecorations(state: EditorState): DecorationSet {
   try {
     const widgets: any[] = [];
     const selectionRanges = state.selection.ranges;
+    const basePath = state.facet(activeFilePathFacet);
     const doc = state.doc;
 
     for (let i = 1; i <= doc.lines; i++) {
@@ -97,9 +103,10 @@ function buildWikilinkDecorations(state: EditorState): DecorationSet {
         );
 
         if (!hasCursor) {
-          const resolved = resolvedLinkCache.get(token.target);
+          const cacheKey = `${basePath || ''}::${token.target}`;
+          const resolved = resolvedLinkCache.get(cacheKey);
           const deco = Decoration.replace({
-            widget: new WikilinkWidget(token, resolved),
+            widget: new WikilinkWidget(token, resolved, basePath),
             inclusive: false,
           });
           widgets.push(deco.range(token.from, token.to));

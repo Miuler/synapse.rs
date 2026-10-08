@@ -1130,6 +1130,17 @@ impl NavigationEngine {
     /// Si el objetivo no incluye extensión, se autocompleta con `.md` para buscarlo.
     /// Retorna la ruta relativa completa normalizada si se encuentra en el DashMap (`self.notes`).
     pub fn resolve_link_path(&self, raw_target: &str) -> Option<String> {
+        self.resolve_link_path_with_base(raw_target, None)
+    }
+
+    /// Resuelve la ruta completa de un enlace o WikiLink (`[[...]]`), teniendo en cuenta la proximidad al
+    /// archivo base `base_file`.
+    /// Si existe más de un archivo con el mismo nombre, prefiere:
+    /// 1. El que esté en la misma carpeta del archivo base.
+    /// 2. El que esté en subcarpetas más cercanas.
+    /// 3. El que esté en carpetas padre más cercanas hacia la raíz.
+    /// 4. Otras carpetas del árbol.
+    pub fn resolve_link_path_with_base(&self, raw_target: &str, base_file: Option<&str>) -> Option<String> {
         let (target_with_ext, anchor) = crate::domain::services::link_resolution::normalize_link_target(raw_target);
         if target_with_ext.is_empty() {
             return None;
@@ -1142,44 +1153,81 @@ impl NavigationEngine {
             }
         };
 
-        // 1. Búsqueda exacta en path_index (O(1))
-        let compact = CompactString::new(&target_with_ext);
-        if let Some(id_ref) = self.path_index.get(&compact) {
-            let id = *id_ref.value();
-            drop(id_ref);
-            if let Some(meta) = self.notes.get(&id) {
-                return Some(attach_anchor(meta.path.as_str()));
+        // 1. Si hay archivo base, buscar primero coincidencia directa en la misma carpeta (O(1))
+        if let Some(base) = base_file {
+            let base_dir = crate::domain::services::link_resolution::get_parent_directory(base);
+            let sibling_path = if base_dir.is_empty() {
+                target_with_ext.clone()
+            } else {
+                format!("{}/{}", base_dir, target_with_ext)
+            };
+            let compact_sibling = CompactString::new(&sibling_path);
+            if let Some(id_ref) = self.path_index.get(&compact_sibling) {
+                let id = *id_ref.value();
+                drop(id_ref);
+                if let Some(meta) = self.notes.get(&id) {
+                    return Some(attach_anchor(meta.path.as_str()));
+                }
             }
         }
 
-        // 2. Búsqueda en DashMap por coincidencia de nombre de archivo o sufijo (ej. "sub/nota.md" vs "nota.md")
+        // 2. Recolectar todos los candidatos del DashMap que coincidan con target_with_ext
         let target_suffix = format!("/{}", target_with_ext);
+        let mut candidates = Vec::new();
+
         for item in self.notes.iter() {
             let note_path = item.value().path.as_str();
             if note_path == target_with_ext || note_path.ends_with(&target_suffix) {
-                return Some(attach_anchor(note_path));
+                candidates.push(note_path.to_string());
             }
         }
 
-        // 3. Fallback tolerante: Búsqueda insensible a mayúsculas/minúsculas en DashMap
-        let target_lower = target_with_ext.to_lowercase();
-        let suffix_lower = format!("/{}", target_lower);
-        for item in self.notes.iter() {
-            let note_path = item.value().path.as_str();
-            let path_lower = note_path.to_lowercase();
-            if path_lower == target_lower || path_lower.ends_with(&suffix_lower) {
-                return Some(attach_anchor(note_path));
+        // 3. Fallback tolerante: Búsqueda insensible a mayúsculas/minúsculas en DashMap si no hubo coincidencias
+        if candidates.is_empty() {
+            let target_lower = target_with_ext.to_lowercase();
+            let suffix_lower = format!("/{}", target_lower);
+            for item in self.notes.iter() {
+                let note_path = item.value().path.as_str();
+                let path_lower = note_path.to_lowercase();
+                if path_lower == target_lower || path_lower.ends_with(&suffix_lower) {
+                    candidates.push(note_path.to_string());
+                }
             }
         }
 
-        None
+        if candidates.is_empty() {
+            return None;
+        }
+
+        if candidates.len() == 1 {
+            return Some(attach_anchor(&candidates[0]));
+        }
+
+        // 4. Si hay múltiples archivos con el mismo nombre, ordenar por proximidad al archivo base:
+        // Prefiere:
+        // 1. Misma carpeta
+        // 2. Subcarpetas más cercanas
+        // 3. Carpetas padre más cercanas
+        // 4. Otras carpetas
+        candidates.sort_by(|a, b| {
+            let score_a = crate::domain::services::link_resolution::calculate_proximity_score(a, base_file);
+            let score_b = crate::domain::services::link_resolution::calculate_proximity_score(b, base_file);
+            score_a.cmp(&score_b).then_with(|| a.cmp(b))
+        });
+
+        Some(attach_anchor(&candidates[0]))
     }
 
     /// Resuelve múltiples enlaces simultáneamente utilizando el DashMap.
     pub fn resolve_link_paths(&self, raw_targets: &[String]) -> std::collections::HashMap<String, String> {
+        self.resolve_link_paths_with_base(raw_targets, None)
+    }
+
+    /// Resuelve múltiples enlaces simultáneamente considerando la proximidad al archivo base.
+    pub fn resolve_link_paths_with_base(&self, raw_targets: &[String], base_file: Option<&str>) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::with_capacity(raw_targets.len());
         for target in raw_targets {
-            if let Some(resolved) = self.resolve_link_path(target) {
+            if let Some(resolved) = self.resolve_link_path_with_base(target, base_file) {
                 map.insert(target.clone(), resolved);
             }
         }
@@ -1189,8 +1237,14 @@ impl NavigationEngine {
     /// Transforma el contenido Markdown sustituyendo las referencias WikiLink `[[...]]`
     /// por enlaces Markdown estándar cuyas rutas son extraídas directamente del DashMap.
     pub fn render_wikilinks_in_markdown(&self, content: &str) -> String {
+        self.render_wikilinks_in_markdown_with_base(content, None)
+    }
+
+    /// Transforma el contenido Markdown sustituyendo las referencias WikiLink `[[...]]`
+    /// con resolución preferencial cercana al archivo base.
+    pub fn render_wikilinks_in_markdown_with_base(&self, content: &str, base_file: Option<&str>) -> String {
         crate::domain::services::link_resolution::transform_markdown_wikilinks(content, |target| {
-            self.resolve_link_path(target)
+            self.resolve_link_path_with_base(target, base_file)
         })
     }
 }

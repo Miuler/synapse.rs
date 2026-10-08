@@ -1010,36 +1010,39 @@ pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String>
 pub fn resolve_vault_link(
     state: State<'_, AppState>,
     link: String,
+    base_file: Option<String>,
 ) -> Result<Option<String>, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(None);
     };
-    Ok(engine.resolve_link_path(&link))
+    Ok(engine.resolve_link_path_with_base(&link, base_file.as_deref()))
 }
 
 #[tauri::command]
 pub fn resolve_vault_links(
     state: State<'_, AppState>,
     links: Vec<String>,
+    base_file: Option<String>,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(std::collections::HashMap::new());
     };
-    Ok(engine.resolve_link_paths(&links))
+    Ok(engine.resolve_link_paths_with_base(&links, base_file.as_deref()))
 }
 
 #[tauri::command]
 pub fn render_markdown_wikilinks(
     state: State<'_, AppState>,
     content: String,
+    base_file: Option<String>,
 ) -> Result<String, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(content);
     };
-    Ok(engine.render_wikilinks_in_markdown(&content))
+    Ok(engine.render_wikilinks_in_markdown_with_base(&content, base_file.as_deref()))
 }
 
 fn percent_decode_str(s: &str) -> String {
@@ -1139,10 +1142,10 @@ pub fn resolve_asset_file_path_internal(
         return Ok(None);
     };
 
-    // 6. Intentar buscar en el DashMap (resolución O(1) e indexada de WikiLinks y subdirectorios)
+    // 6. Intentar buscar en el DashMap (resolución O(1) e indexada de WikiLinks y subdirectorios con proximidad)
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     if let Some(ref engine) = *engine_guard {
-        if let Some(resolved_rel) = engine.resolve_link_path(check_str) {
+        if let Some(resolved_rel) = engine.resolve_link_path_with_base(check_str, base_file) {
             let (rel_without_anchor, _) = crate::domain::services::link_resolution::normalize_link_target(&resolved_rel);
             let abs = vault_path.join(&rel_without_anchor);
             if abs.is_file() {

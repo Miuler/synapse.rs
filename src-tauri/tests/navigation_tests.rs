@@ -1022,4 +1022,91 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_duplicate_filenames_proximity_resolution() {
+    let test_dir = std::env::temp_dir().join("synapse_test_duplicate_proximity");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+
+    // Register multiple files with the SAME filename "foto.png" in different folders
+    let paths = vec![
+        "foto.png",                          // id 1: raíz
+        "docs/foto.png",                     // id 2: docs
+        "docs/sub/foto.png",                 // id 3: docs/sub (misma carpeta que la nota)
+        "docs/sub/adjuntos/foto.png",        // id 4: docs/sub/adjuntos (subcarpeta)
+        "docs/sub/adjuntos/deep/foto.png",   // id 5: subcarpeta más profunda
+        "otro/foto.png",                     // id 6: otra rama
+    ];
+
+    for (idx, p) in paths.iter().enumerate() {
+        let id = (idx + 1) as u32;
+        engine.notes.insert(
+            id,
+            NoteMeta {
+                id,
+                path: CompactString::new(*p),
+                title: CompactString::new("foto"),
+                mtime_nanos: 100,
+                size_bytes: 50,
+                created_nanos: None,
+                last_opened_nanos: None,
+                is_open: false,
+                tab_order: None,
+                is_active_tab: false,
+                view_mode: None,
+            },
+        );
+        engine.path_index.insert(CompactString::new(*p), id);
+    }
+
+    // Caso 1: Desde "docs/sub/nota.md" -> Debe preferir "docs/sub/foto.png" (misma carpeta)
+    let res1 = engine.resolve_link_path_with_base("foto.png", Some("docs/sub/nota.md"));
+    assert_eq!(res1, Some("docs/sub/foto.png".to_string()));
+
+    // Caso 2: Desde "docs/guia.md" -> Debe preferir "docs/foto.png" (misma carpeta)
+    let res2 = engine.resolve_link_path_with_base("foto.png", Some("docs/guia.md"));
+    assert_eq!(res2, Some("docs/foto.png".to_string()));
+
+    // Caso 3: Si no existe en la misma carpeta (por ejemplo desde una carpeta intermedia sin archivo directo):
+    // Desde "docs/sub/nested_folder/nota.md":
+    // Entre "docs/sub/adjuntos/foto.png", "docs/sub/foto.png", "docs/foto.png", "foto.png", "otro/foto.png":
+    // "docs/sub/foto.png" es el ancestro más cercano (1 nivel arriba) vs "docs/foto.png" (2 niveles arriba)
+    let res3 = engine.resolve_link_path_with_base("foto.png", Some("docs/sub/nested_folder/nota.md"));
+    assert_eq!(res3, Some("docs/sub/foto.png".to_string()));
+
+    // Caso 4: Preferencia de subcarpetas sobre carpetas padre:
+    // Creamos un escenario donde sólo hay una subcarpeta y una carpeta padre
+    let engine_sub = Arc::new(NavigationEngine::new(test_dir.clone(), test_dir.join("cache2.bin")));
+    engine_sub.notes.insert(1, NoteMeta {
+        id: 1,
+        path: CompactString::new("docs/foto.png"), // padre
+        title: CompactString::new("foto"),
+        mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
+        is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
+    });
+    engine_sub.path_index.insert(CompactString::new("docs/foto.png"), 1);
+
+    engine_sub.notes.insert(2, NoteMeta {
+        id: 2,
+        path: CompactString::new("docs/sub/adjuntos/foto.png"), // subcarpeta
+        title: CompactString::new("foto"),
+        mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
+        is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
+    });
+    engine_sub.path_index.insert(CompactString::new("docs/sub/adjuntos/foto.png"), 2);
+
+    // Desde "docs/sub/nota.md":
+    // Debe preferir "docs/sub/adjuntos/foto.png" (subcarpeta) sobre "docs/foto.png" (padre)
+    let res_sub = engine_sub.resolve_link_path_with_base("foto.png", Some("docs/sub/nota.md"));
+    assert_eq!(res_sub, Some("docs/sub/adjuntos/foto.png".to_string()));
+
+    engine.shutdown();
+    engine_sub.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+
 

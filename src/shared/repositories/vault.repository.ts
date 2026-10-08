@@ -220,20 +220,22 @@ export interface VaultRepository {
 
   /**
    * Resuelve la ruta relativa completa de un enlace o WikiLink ([[...]]) desde el DashMap de Rust.
-   * Si no incluye extensión, se autocompleta con .md.
+   * Si no incluye extensión, se autocompleta con .md. Si existe más de un archivo con el mismo
+   * nombre, prioriza el que esté en la misma carpeta o subcarpeta más cercana a `baseFile`.
    */
-  resolveVaultLink(link: string): Promise<string | null>;
+  resolveVaultLink(link: string, baseFile?: string | null): Promise<string | null>;
 
   /**
-   * Resuelve múltiples enlaces simultáneamente utilizando el DashMap de Rust.
+   * Resuelve múltiples enlaces simultáneamente utilizando el DashMap de Rust, priorizando
+   * archivos en la misma carpeta o subcarpetas de `baseFile`.
    */
-  resolveVaultLinks(links: string[]): Promise<Record<string, string>>;
+  resolveVaultLinks(links: string[], baseFile?: string | null): Promise<Record<string, string>>;
 
   /**
    * Transforma contenido Markdown sustituyendo los WikiLinks ([[...]]) por enlaces estándar
-   * con las rutas resueltas desde el DashMap en memoria de Rust.
+   * con las rutas resueltas desde el DashMap en memoria de Rust, con proximidad al archivo actual `baseFile`.
    */
-  renderMarkdownWikilinks(content: string): Promise<string>;
+  renderMarkdownWikilinks(content: string, baseFile?: string | null): Promise<string>;
 
   /**
    * Resuelve una referencia de imagen o asset (por DashMap, relativa o absoluta) a su ruta absoluta en disco.
@@ -588,20 +590,28 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
-  async resolveVaultLink(link: string): Promise<string | null> {
+  async resolveVaultLink(link: string, baseFile?: string | null): Promise<string | null> {
     if (!this.isConnected() || !link) return null;
     try {
-      return await invokeTauri<string | null>('resolve_vault_link', { link });
+      return await invokeTauri<string | null>('resolve_vault_link', {
+        link,
+        baseFile: baseFile ?? null,
+        base_file: baseFile ?? null,
+      });
     } catch (error) {
       console.warn('Error al resolver enlace de bóveda:', error);
       return null;
     }
   }
 
-  async resolveVaultLinks(links: string[]): Promise<Record<string, string>> {
+  async resolveVaultLinks(links: string[], baseFile?: string | null): Promise<Record<string, string>> {
     if (!this.isConnected() || !links || links.length === 0) return {};
     try {
-      const res = await invokeTauri<Record<string, string>>('resolve_vault_links', { links });
+      const res = await invokeTauri<Record<string, string>>('resolve_vault_links', {
+        links,
+        baseFile: baseFile ?? null,
+        base_file: baseFile ?? null,
+      });
       return res || {};
     } catch (error) {
       console.warn('Error al resolver enlaces de bóveda:', error);
@@ -641,10 +651,14 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
-  async renderMarkdownWikilinks(content: string): Promise<string> {
+  async renderMarkdownWikilinks(content: string, baseFile?: string | null): Promise<string> {
     if (!this.isConnected() || !content) return content;
     try {
-      const res = await invokeTauri<string>('render_markdown_wikilinks', { content });
+      const res = await invokeTauri<string>('render_markdown_wikilinks', {
+        content,
+        baseFile: baseFile ?? null,
+        base_file: baseFile ?? null,
+      });
       return typeof res === 'string' ? res : content;
     } catch (error) {
       console.warn('Error al renderizar wikilinks en markdown:', error);
