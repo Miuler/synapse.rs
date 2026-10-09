@@ -6,7 +6,7 @@
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import GitCommitDialog from './GitCommitDialog.svelte';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, GitCommitHorizontal, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -31,6 +31,7 @@
     onRefreshGit?: () => Promise<void> | void;
     onGitRestore?: (paths: string[]) => Promise<void> | void;
     onReloadItems?: (paths: string[], reloadedFiles?: string[]) => Promise<void> | void;
+    onOpenDiff?: (path: string, staged: boolean) => void;
   }
 
   let {
@@ -56,6 +57,7 @@
     onRefreshGit,
     onGitRestore,
     onReloadItems,
+    onOpenDiff,
   }: Props = $props();
 
   function getGitStatusInfo(raw: unknown): {
@@ -1241,6 +1243,47 @@
   let canGitRestoreStaged = $derived(gitRestoreStagedPaths.length > 0);
   let canGitCommit = $derived(gitCommitPaths.length > 0);
 
+  // Archivo individual objetivo para visor de diferencias (diff)
+  let targetFileForDiff = $derived.by(() => {
+    if (contextMenuNode && !contextMenuNode.isFolder) {
+      return contextMenuNode.relativePath;
+    }
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 1) {
+      const isFolder = selectedNodes.some((n) => n.relativePath === paths[0] && n.isFolder);
+      if (!isFolder) {
+        return paths[0];
+      }
+    }
+    return null;
+  });
+
+  let targetGitStatusForDiff = $derived(
+    targetFileForDiff ? getFileGitStatus(targetFileForDiff) : null
+  );
+
+  // Diff normal: cambios en árbol de trabajo o archivo rastreado
+  let canGitDiff = $derived(
+    Boolean(
+      targetFileForDiff &&
+      (targetGitStatusForDiff?.worktree || (!targetGitStatusForDiff?.index && isGitRepo))
+    )
+  );
+
+  // Diff --staged: cambios en el stage (index != null)
+  let canGitDiffStaged = $derived(
+    Boolean(
+      targetFileForDiff &&
+      Boolean(targetGitStatusForDiff?.index)
+    )
+  );
+
+  function handleOpenDiff(path: string, staged: boolean) {
+    if (onOpenDiff) {
+      onOpenDiff(path, staged);
+    }
+  }
+
   // Acciones de Git sobre archivos seleccionados
   async function handleGitAdd() {
     const paths = gitAddPaths.length > 0 ? gitAddPaths : getSelectedRelativePaths();
@@ -1596,7 +1639,7 @@
           <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
         </ContextMenu.Item>
 
-        {#if isGitRepo && (canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore)}
+        {#if isGitRepo && (canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore || targetFileForDiff)}
           <ContextMenu.Separator class="context-menu-divider" />
 
           {#if canGitCommit}
@@ -1606,6 +1649,26 @@
             >
               <GitCommitHorizontal class="context-menu-item-icon" />
               <span>{gitCommitPaths.length > 1 ? `Hacer commit (${gitCommitPaths.length} elementos)...` : 'Hacer commit...'}</span>
+            </ContextMenu.Item>
+          {/if}
+
+          {#if targetFileForDiff}
+            <ContextMenu.Item
+              class="context-menu-item"
+              disabled={!canGitDiff}
+              onSelect={() => handleOpenDiff(targetFileForDiff!, false)}
+            >
+              <GitCompare class="context-menu-item-icon" />
+              <span>Diff</span>
+            </ContextMenu.Item>
+
+            <ContextMenu.Item
+              class="context-menu-item"
+              disabled={!canGitDiffStaged}
+              onSelect={() => handleOpenDiff(targetFileForDiff!, true)}
+            >
+              <GitCompareArrows class="context-menu-item-icon" />
+              <span>Diff --staged</span>
             </ContextMenu.Item>
           {/if}
 

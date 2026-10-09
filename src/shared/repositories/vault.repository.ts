@@ -50,6 +50,16 @@ export interface VaultGitStatus {
   statuses: Record<string, GitFileStatus>;
 }
 
+export interface GitDiffResponse {
+  path: string;
+  is_staged: boolean;
+  old_file_name: string;
+  new_file_name: string;
+  old_content: string;
+  new_content: string;
+  diff: string;
+}
+
 export interface VaultEntryNode {
   name: string;
   relative_path: string;
@@ -202,6 +212,11 @@ export interface VaultRepository {
    * Ejecuta `git restore --staged` para desmarcar cambios del stage.
    */
   gitRestoreStaged(paths: string[]): Promise<void>;
+
+  /**
+   * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD.
+   */
+  getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse>;
 
   /**
    * Elimina un archivo o carpeta dentro de la bóveda.
@@ -543,6 +558,25 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     await invokeTauri('git_restore_staged_paths', { paths });
+  }
+
+  async getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse> {
+    if (!this.isConnected()) {
+      return {
+        path,
+        is_staged: staged,
+        old_file_name: path,
+        new_file_name: path,
+        old_content: '',
+        new_content: '',
+        diff: '',
+      };
+    }
+
+    return await invokeTauri<GitDiffResponse>('get_git_file_diff', {
+      path,
+      staged,
+    });
   }
 
   async deleteItem(relativePath: string): Promise<void> {

@@ -16,6 +16,17 @@ pub struct VaultGitStatus {
     pub statuses: HashMap<String, GitFileStatus>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitDiffResponse {
+    pub path: String,
+    pub is_staged: bool,
+    pub old_file_name: String,
+    pub new_file_name: String,
+    pub old_content: String,
+    pub new_content: String,
+    pub diff: String,
+}
+
 pub struct GitService;
 
 impl GitService {
@@ -387,6 +398,128 @@ impl GitService {
         let stdout = String::from_utf8_lossy(&output.stdout);
         Ok(stdout.trim().to_string())
     }
+
+    pub fn git_diff(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        staged: bool,
+    ) -> Result<GitDiffResponse, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let clean_path = path.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para diff".to_string());
+        }
+
+        let abs_path = work_dir.join(clean_path);
+
+        let mut old_content = String::new();
+        let mut new_content = String::new();
+        let mut diff = String::new();
+
+        if staged {
+            // Diff de stage: HEAD vs Index (:path)
+            let mut show_head_cmd = std::process::Command::new("git");
+            show_head_cmd.current_dir(work_dir);
+            show_head_cmd.args(["show", &format!("HEAD:{}", clean_path)]);
+            if let Ok(out) = show_head_cmd.output() {
+                if out.status.success() {
+                    old_content = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+
+            let mut show_index_cmd = std::process::Command::new("git");
+            show_index_cmd.current_dir(work_dir);
+            show_index_cmd.args(["show", &format!(":{}", clean_path)]);
+            if let Ok(out) = show_index_cmd.output() {
+                if out.status.success() {
+                    new_content = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", "--staged", "-u", "--", clean_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+        } else {
+            // Diff normal de trabajo: Index vs Worktree
+            let mut show_index_cmd = std::process::Command::new("git");
+            show_index_cmd.current_dir(work_dir);
+            show_index_cmd.args(["show", &format!(":{}", clean_path)]);
+            if let Ok(out) = show_index_cmd.output() {
+                if out.status.success() {
+                    old_content = String::from_utf8_lossy(&out.stdout).to_string();
+                } else {
+                    let mut show_head_cmd = std::process::Command::new("git");
+                    show_head_cmd.current_dir(work_dir);
+                    show_head_cmd.args(["show", &format!("HEAD:{}", clean_path)]);
+                    if let Ok(head_out) = show_head_cmd.output() {
+                        if head_out.status.success() {
+                            old_content = String::from_utf8_lossy(&head_out.stdout).to_string();
+                        }
+                    }
+                }
+            }
+
+            if abs_path.is_file() {
+                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+                    new_content = c;
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", "-u", "--", clean_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+
+            // Si diff está vacío contra el index, comprobar si hay diferencias contra HEAD
+            if diff.is_empty() {
+                let mut head_diff_cmd = std::process::Command::new("git");
+                head_diff_cmd.current_dir(work_dir);
+                head_diff_cmd.args(["diff", "HEAD", "-u", "--", clean_path]);
+                if let Ok(out) = head_diff_cmd.output() {
+                    let head_diff = String::from_utf8_lossy(&out.stdout).to_string();
+                    if !head_diff.is_empty() {
+                        diff = head_diff;
+                    }
+                }
+            }
+
+            // Si diff sigue vacío pero es un archivo nuevo sin seguimiento (untracked)
+            if diff.is_empty() && old_content.is_empty() && !new_content.is_empty() {
+                #[cfg(windows)]
+                let null_target = "NUL";
+                #[cfg(not(windows))]
+                let null_target = "/dev/null";
+
+                let mut no_idx_cmd = std::process::Command::new("git");
+                no_idx_cmd.current_dir(work_dir);
+                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, clean_path]);
+                if let Ok(out) = no_idx_cmd.output() {
+                    diff = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+        }
+
+        Ok(GitDiffResponse {
+            path: clean_path.to_string(),
+            is_staged: staged,
+            old_file_name: clean_path.to_string(),
+            new_file_name: clean_path.to_string(),
+            old_content,
+            new_content,
+            diff,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -536,6 +669,59 @@ mod tests {
         // Test empty message error
         let err = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "   ");
         assert!(err.is_err());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_diff() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_diff_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        std::fs::write(&file_a, "line 1\nline 2\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "init"]);
+
+        // 1. Modificar file_a en worktree (diff normal)
+        std::fs::write(&file_a, "line 1\nline 2 mod\nline 3\n").unwrap();
+        let git_service = GitService::new();
+        let diff_worktree = git_service.git_diff(&temp_dir, "file_a.txt", false).unwrap();
+        assert!(!diff_worktree.is_staged);
+        assert_eq!(diff_worktree.old_content, "line 1\nline 2\n");
+        assert_eq!(diff_worktree.new_content, "line 1\nline 2 mod\nline 3\n");
+        assert!(diff_worktree.diff.contains("+line 2 mod"));
+
+        // 2. Diff de stage debe estar vacío antes de add
+        let diff_staged_empty = git_service.git_diff(&temp_dir, "file_a.txt", true).unwrap();
+        assert!(diff_staged_empty.diff.is_empty());
+
+        // 3. Stage del cambio y comprobar diff staged
+        run_cmd(&["add", "file_a.txt"]);
+        let diff_staged = git_service.git_diff(&temp_dir, "file_a.txt", true).unwrap();
+        assert!(diff_staged.is_staged);
+        assert_eq!(diff_staged.old_content, "line 1\nline 2\n");
+        assert_eq!(diff_staged.new_content, "line 1\nline 2 mod\nline 3\n");
+        assert!(diff_staged.diff.contains("+line 2 mod"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

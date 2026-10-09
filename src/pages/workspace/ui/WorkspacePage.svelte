@@ -14,6 +14,7 @@
   import {MermaidViewer} from "@features/mermaid-editor";
   import {ExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
+  import {DiffViewer} from "@features/diff-viewer";
   import {appSettings} from "@entities/settings";
   import {
     isImageFile,
@@ -31,6 +32,11 @@
   interface VaultFsChangeEvent {
     paths: string[];
     deleted: string[];
+  }
+
+  function isSyntheticTab(p: string | null | undefined): boolean {
+    if (!p) return false;
+    return p.startsWith("empty:") || p.startsWith("diff:") || p.startsWith("diff-staged:");
   }
 
   // Estados reactivos con Runas de Svelte 5
@@ -142,7 +148,7 @@
     };
 
     for (const openPath of openTabPaths) {
-      if (openPath.startsWith("empty:")) continue;
+      if (isSyntheticTab(openPath)) continue;
       if (isTargetMatch(openPath)) {
         try {
           const noteData = await vaultRepository.readNote(openPath);
@@ -332,12 +338,12 @@
     if (saveTabsTimeout) clearTimeout(saveTabsTimeout);
     saveTabsTimeout = setTimeout(() => {
       const tabs = openTabPaths
-        .filter((p) => p && !p.startsWith("empty:"))
+        .filter((p) => p && !isSyntheticTab(p))
         .map((p) => ({
           path: p,
           view_mode: openedNotes[p]?.viewMode || "reading",
         }));
-      const active = activeTabPath && !activeTabPath.startsWith("empty:") ? activeTabPath : null;
+      const active = activeTabPath && !isSyntheticTab(activeTabPath) ? activeTabPath : null;
       vaultRepository.saveOpenTabsState(tabs, active);
     }, 250);
   }
@@ -401,7 +407,7 @@
     } else {
       isEditing = true;
     }
-    if (activeTabPath && !activeTabPath.startsWith("empty:")) {
+    if (activeTabPath && !isSyntheticTab(activeTabPath)) {
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = newMode;
       }
@@ -421,7 +427,7 @@
   }
 
   function toggleViewMode() {
-    if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+    if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
 
     if (isMarkdownFile(activeTabPath)) {
       if (!isEditing) {
@@ -442,7 +448,7 @@
   }
 
   async function ensureContentLoaded(path: string) {
-    if (!path || path.startsWith("empty:")) return;
+    if (!path || isSyntheticTab(path)) return;
     if (openedNotes[path] && openedNotes[path].isLoaded && !openedNotes[path].isLoading) return;
 
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
@@ -567,7 +573,7 @@
       }
     }
     activeTabPath = path;
-    if (!path.startsWith("empty:")) {
+    if (!isSyntheticTab(path)) {
       const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
       const mode = openedNotes[path]?.viewMode || defaultMode;
       markdownViewMode = mode;
@@ -599,7 +605,7 @@
     if (idx !== -1) {
       openTabPaths.splice(idx, 1);
       // Guardar la posición previa en la barra de pestañas para reabrirla exactamente donde estaba
-      if (!path.startsWith("empty:")) {
+      if (!isSyntheticTab(path)) {
         lastClosedTabIndex[path] = idx;
       }
 
@@ -607,7 +613,7 @@
         if (openTabPaths.length > 0) {
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
-          if (activeTabPath && !activeTabPath.startsWith("empty:")) {
+          if (activeTabPath && !isSyntheticTab(activeTabPath)) {
             const defaultNextMode: MarkdownViewMode = isDrawingFile(activeTabPath) ? "live" : "reading";
             const nextMode = openedNotes[activeTabPath]?.viewMode || defaultNextMode;
             markdownViewMode = nextMode;
@@ -619,7 +625,7 @@
         }
 
         // Si la pestaña cerrada era la activa, sincronizar tabHistoryIndex con la nueva pestaña activa
-        if (activeTabPath && !path.startsWith("empty:")) {
+        if (activeTabPath && !isSyntheticTab(path)) {
           const foundIdx = tabHistory.slice(0, tabHistoryIndex).lastIndexOf(activeTabPath);
           if (foundIdx !== -1) {
             tabHistoryIndex = foundIdx;
@@ -633,8 +639,8 @@
     delete recentSaveTimestamps[path];
     // Se conserva tabSelections[path] para preservar la posición del cursor si se reabre
 
-    // Solo las pestañas temporales vacías se retiran del historial
-    if (path.startsWith("empty:")) {
+    // Solo las pestañas temporales sintéticas se retiran del historial
+    if (isSyntheticTab(path)) {
       removeTabFromHistory(path);
       delete lastClosedTabIndex[path];
       delete tabSelections[path];
@@ -668,7 +674,7 @@
   let recentSaveTimestamps: Record<string, number> = {};
 
   let currentVaultItem = $derived(
-    activeTabPath && !activeTabPath.startsWith("empty:")
+    activeTabPath && !isSyntheticTab(activeTabPath)
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || {
           id: "0",
           title: activeNote?.title || activeTabPath.split("/").pop() || activeTabPath,
@@ -689,7 +695,7 @@
   let isMarkdownTab = $derived(
     Boolean(
       activeTabPath &&
-      !activeTabPath.startsWith("empty:") &&
+      !isSyntheticTab(activeTabPath) &&
       (
         isMarkdownFile(activeTabPath) ||
         (currentVaultItem.relative_path && isMarkdownFile(currentVaultItem.relative_path))
@@ -700,6 +706,7 @@
   let hasActiveContent = $derived(
     Boolean(
       activeTabPath &&
+      !isSyntheticTab(activeTabPath) &&
       openTabPaths.includes(activeTabPath) &&
       !isImageFile(activeTabPath) &&
       activeNote &&
@@ -715,6 +722,26 @@
         return {
           path,
           title: "Nueva pestaña",
+          abs_path: undefined,
+          isDirty: false,
+        };
+      }
+      if (path.startsWith("diff-staged:")) {
+        const filePath = path.slice("diff-staged:".length);
+        const fileName = filePath.split("/").pop() || filePath;
+        return {
+          path,
+          title: `Diff (staged): ${fileName}`,
+          abs_path: undefined,
+          isDirty: false,
+        };
+      }
+      if (path.startsWith("diff:")) {
+        const filePath = path.slice("diff:".length);
+        const fileName = filePath.split("/").pop() || filePath;
+        return {
+          path,
+          title: `Diff: ${fileName}`,
           abs_path: undefined,
           isDirty: false,
         };
@@ -764,10 +791,17 @@
 
   let editorContainerRef = $state<HTMLDivElement | null>(null);
 
+  // Asegurar que activeTabPath sea siempre una pestaña válida si hay pestañas abiertas
+  $effect(() => {
+    if (openTabPaths.length > 0 && (!activeTabPath || !openTabPaths.includes(activeTabPath))) {
+      selectTab(openTabPaths[0]);
+    }
+  });
+
   // Volver al inicio del documento y asegurar carga al cambiar de pestaña
   $effect(() => {
     const path = activeTabPath;
-    if (path && !path.startsWith("empty:")) {
+    if (path && !isSyntheticTab(path)) {
       ensureContentLoaded(path);
     }
     tick().then(() => {
@@ -1079,7 +1113,7 @@
   }
 
   async function handleChangeEncoding(newEncoding: string) {
-    if (!activeTabPath || activeTabPath.startsWith("empty:")) {
+    if (!activeTabPath || isSyntheticTab(activeTabPath)) {
       return;
     }
     if (openedNotes[activeTabPath]) {
@@ -1245,7 +1279,7 @@
         name: "Git: Preparar archivo actual (git add)",
         category: "Git",
         action: async () => {
-          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
             await vaultRepository.gitAdd([activeTabPath]);
             await refreshGitStatus();
@@ -1259,7 +1293,7 @@
         name: "Git: Despreparar archivo actual (git restore --staged)",
         category: "Git",
         action: async () => {
-          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
             await vaultRepository.gitRestoreStaged([activeTabPath]);
             await refreshGitStatus();
@@ -1273,7 +1307,7 @@
         name: "Git: Restaurar archivo actual (git restore)",
         category: "Git",
         action: async () => {
-          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
             await vaultRepository.gitRestore([activeTabPath]);
             await handleGitRestoreFiles([activeTabPath]);
@@ -1288,7 +1322,7 @@
         category: "Archivo",
         shortcut: "Ctrl+R",
         action: async () => {
-          if (!activeTabPath || activeTabPath.startsWith("empty:")) return;
+          if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           await handleReloadItems([activeTabPath]);
         },
       },
@@ -1727,6 +1761,7 @@
     onRefreshGit={refreshGitStatus}
     onGitRestore={handleGitRestoreFiles}
     onReloadItems={handleReloadItems}
+    onOpenDiff={(path, staged) => selectTab(staged ? `diff-staged:${path}` : `diff:${path}`)}
   />
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
@@ -1741,13 +1776,21 @@
       onNavigateBack={navigateBack}
       onNavigateForward={navigateForward}
       isMarkdownFile={isMarkdownTab}
-      showViewToggle={hasActiveContent}
+      showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
       markdownViewMode={!isEditing ? "reading" : markdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}
-      title={activeTabPath?.startsWith("empty:") ? "Nueva pestaña" : (currentVaultItem.relative_path || currentVaultItem.title)}
+      title={
+        activeTabPath?.startsWith("empty:")
+          ? "Nueva pestaña"
+          : activeTabPath?.startsWith("diff-staged:")
+          ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
+          : activeTabPath?.startsWith("diff:")
+          ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
+          : (currentVaultItem.relative_path || currentVaultItem.title)
+      }
       showSaveButton={isEditing &&
         !!activeTabPath &&
-        !activeTabPath.startsWith("empty:") &&
+        !isSyntheticTab(activeTabPath) &&
         (!currentVaultItem.relative_path ||
           isMarkdownFile(currentVaultItem.relative_path) ||
           isDrawingFile(currentVaultItem.relative_path))}
@@ -1776,7 +1819,7 @@
 
     <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
     <div class="editor-container" bind:this={editorContainerRef}>
-      {#if openTabPaths.length === 0 || !activeTabPath}
+      {#if openTabPaths.length === 0 || !activeTabPath || !openTabPaths.includes(activeTabPath)}
         <EmptyWorkspace
           hasVaultItems={vaultItems.length > 0}
           onCreateNew={() => createNewVaultItem()}
@@ -1791,6 +1834,17 @@
               <EmptyWorkspace
                 hasVaultItems={vaultItems.length > 0}
                 onCreateNew={() => createNewVaultItem(tabPath)}
+              />
+            </div>
+          {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
+            <div
+              class="tab-pane full-pane"
+              class:hidden={tabPath !== activeTabPath}
+            >
+              <DiffViewer
+                filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
+                isStaged={tabPath.startsWith("diff-staged:")}
+                onClose={() => closeTab(tabPath)}
               />
             </div>
           {:else}

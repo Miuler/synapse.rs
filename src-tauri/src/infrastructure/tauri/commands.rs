@@ -9,7 +9,7 @@ use crate::infrastructure::repositories::file_note_repository::FileNoteRepositor
 use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
-use crate::infrastructure::services::git_service::{GitService, VaultGitStatus};
+use crate::infrastructure::services::git_service::{GitDiffResponse, GitService, VaultGitStatus};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
@@ -873,6 +873,20 @@ pub fn git_commit_paths(
     };
     let git_service = GitService::new();
     git_service.git_commit(vault_path, &paths, &message)
+}
+
+#[tauri::command]
+pub fn get_git_file_diff(
+    state: State<'_, AppState>,
+    path: String,
+    staged: bool,
+) -> Result<GitDiffResponse, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let git_service = GitService::new();
+    git_service.git_diff(vault_path, &path, staged)
 }
 
 #[tauri::command]

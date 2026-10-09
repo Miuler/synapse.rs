@@ -19,7 +19,9 @@
     Columns2,
     MoreHorizontal,
     Minus,
-    Square
+    Square,
+    GitCompare,
+    GitCompareArrows
   } from 'lucide-svelte';
 
   export type { MarkdownViewMode };
@@ -410,7 +412,13 @@
             onauxclick={(e) => handleTabAuxClick(e, tab.path)}
             onmousedown={handleTabMouseDown}
           >
-            <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
+            {#if tab.path.startsWith('diff-staged:')}
+              <GitCompareArrows size={14} class="file-icon" style="color: #22c55e;" />
+            {:else if tab.path.startsWith('diff:')}
+              <GitCompare size={14} class="file-icon" style="color: #3b82f6;" />
+            {:else}
+              <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
+            {/if}
             <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
             <button
               type="button"
@@ -555,7 +563,13 @@
                       onauxclick={(e) => handleTabAuxClick(e, tab.path)}
                       onmousedown={handleTabMouseDown}
                     >
-                      <FileIcon path={tab.path} name={tab.title} size={14} class="dropdown-file-icon" />
+                      {#if tab.path.startsWith('diff-staged:')}
+                        <GitCompareArrows size={14} class="dropdown-file-icon" style="color: #22c55e;" />
+                      {:else if tab.path.startsWith('diff:')}
+                        <GitCompare size={14} class="dropdown-file-icon" style="color: #3b82f6;" />
+                      {:else}
+                        <FileIcon path={tab.path} name={tab.title} size={14} class="dropdown-file-icon" />
+                      {/if}
                       <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                       <button
                         type="button"
