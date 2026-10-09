@@ -188,6 +188,12 @@ export interface VaultRepository {
   gitAdd(paths: string[]): Promise<void>;
 
   /**
+   * Ejecuta `git commit` sobre los archivos seleccionados con el mensaje especificado.
+   * Retorna el mensaje de confirmación o salida de Git.
+   */
+  gitCommit(paths: string[], message: string): Promise<string>;
+
+  /**
    * Ejecuta `git restore` para descartar cambios en el área de trabajo.
    */
   gitRestore(paths: string[]): Promise<void>;
@@ -510,6 +516,17 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     await invokeTauri('git_add_paths', { paths });
+  }
+
+  async gitCommit(paths: string[], message: string): Promise<string> {
+    if (!this.isConnected() || paths.length === 0) {
+      throw new Error('No hay archivos seleccionados para confirmar');
+    }
+
+    return await invokeTauri<string>('git_commit_paths', {
+      paths,
+      message,
+    });
   }
 
   async gitRestore(paths: string[]): Promise<void> {

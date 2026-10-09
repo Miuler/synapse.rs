@@ -333,6 +333,60 @@ impl GitService {
 
         Ok(())
     }
+
+    pub fn git_commit(
+        &self,
+        vault_path: &Path,
+        paths: &[String],
+        message: &str,
+    ) -> Result<String, String> {
+        if paths.is_empty() {
+            return Err("No se especificaron archivos para commitear".to_string());
+        }
+        let trimmed_msg = message.trim();
+        if trimmed_msg.is_empty() {
+            return Err("El mensaje de commit no puede estar vacío".to_string());
+        }
+
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        // 1. Añadir/preparar los archivos seleccionados para el commit
+        self.git_add(vault_path, paths)?;
+
+        // 2. Ejecutar git commit con pathspec
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("commit");
+        cmd.arg("-m");
+        cmd.arg(trimmed_msg);
+        cmd.arg("--");
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                cmd.arg(clean);
+            }
+        }
+
+        let output = cmd
+            .output()
+            .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let err = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            return Err(format!("git commit falló: {}", err));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout.trim().to_string())
+    }
 }
 
 #[cfg(test)]
@@ -427,6 +481,61 @@ mod tests {
         let stat_new = status.statuses.get("file_new.txt").unwrap();
         assert_eq!(stat_new.index.as_deref(), Some("A"));
         assert_eq!(stat_new.worktree.as_deref(), Some("M"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_commit() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_commit_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        let file_b = temp_dir.join("file_b.txt");
+        std::fs::write(&file_a, "initial a").unwrap();
+        std::fs::write(&file_b, "initial b").unwrap();
+
+        let git_service = GitService::new();
+        let res = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "commit a");
+        assert!(res.is_ok());
+
+        // Verify status: file_a is committed, file_b is still untracked
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        assert!(!status.statuses.contains_key("file_a.txt"));
+        let stat_b = status.statuses.get("file_b.txt").unwrap();
+        assert_eq!(stat_b.worktree.as_deref(), Some("?"));
+
+        // Now modify file_a and commit file_b
+        std::fs::write(&file_a, "modified a").unwrap();
+        let res_b = git_service.git_commit(&temp_dir, &["file_b.txt".to_string()], "commit b");
+        assert!(res_b.is_ok());
+
+        let status2 = git_service.get_vault_status(&temp_dir).unwrap();
+        assert_eq!(status2.statuses.get("file_a.txt").unwrap().worktree.as_deref(), Some("M"));
+        assert!(!status2.statuses.contains_key("file_b.txt"));
+
+        // Test empty message error
+        let err = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "   ");
+        assert!(err.is_err());
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

@@ -33,6 +33,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.13",
     "@excalidraw/excalidraw": "^0.18.1",
+    "@git-diff-view/svelte": "^0.1.7",
     "@mermanjs/web": "^0.7.0",
     "@replit/codemirror-vim": "^6.4.0",
     "@tauri-apps/api": "^2.12.1",

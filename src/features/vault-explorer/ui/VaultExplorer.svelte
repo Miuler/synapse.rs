@@ -4,8 +4,9 @@
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
+  import GitCommitDialog from './GitCommitDialog.svelte';
   import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -1225,9 +1226,20 @@
     getEligiblePathsForGit((status) => Boolean(status.index))
   );
 
+  // Rutas elegibles para Git Commit: archivos en stage, modificados o no versionados
+  let gitCommitPaths = $derived(
+    getEligiblePathsForGit((status) => {
+      const hasStage = Boolean(status.index);
+      const isModifiedNotStashed = status.worktree === 'M' && !status.is_stashed;
+      const isUntracked = status.worktree === '?' && !status.is_stashed;
+      return hasStage || isModifiedNotStashed || isUntracked;
+    })
+  );
+
   let canGitAdd = $derived(gitAddPaths.length > 0);
   let canGitRestore = $derived(gitRestorePaths.length > 0);
   let canGitRestoreStaged = $derived(gitRestoreStagedPaths.length > 0);
+  let canGitCommit = $derived(gitCommitPaths.length > 0);
 
   // Acciones de Git sobre archivos seleccionados
   async function handleGitAdd() {
@@ -1308,6 +1320,53 @@
       showToast(`Error en git restore: ${msg}`);
     } finally {
       isRestoring = false;
+    }
+  }
+
+  let isCommitDialogOpen = $state(false);
+  let isCommitting = $state(false);
+  let commitErrorMessage = $state<string | null>(null);
+  let itemsToCommit = $state<string[]>([]);
+
+  function handlePromptGitCommit() {
+    const paths = gitCommitPaths.length > 0 ? gitCommitPaths : getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    itemsToCommit = paths;
+    commitErrorMessage = null;
+    isCommitDialogOpen = true;
+  }
+
+  function cancelGitCommit() {
+    if (isCommitting) return;
+    isCommitDialogOpen = false;
+    itemsToCommit = [];
+    commitErrorMessage = null;
+  }
+
+  async function confirmGitCommit(message: string) {
+    if (itemsToCommit.length === 0 || isCommitting) return;
+    const targets = [...itemsToCommit];
+    isCommitting = true;
+    commitErrorMessage = null;
+    try {
+      await vaultRepository.gitCommit(targets, message);
+      showToast(
+        targets.length > 1
+          ? `${targets.length} elementos confirmados (git commit)`
+          : 'Commit realizado con éxito'
+      );
+      if (onRefreshGit) {
+        await onRefreshGit();
+      }
+      itemsToCommit = [];
+      isCommitDialogOpen = false;
+    } catch (err: unknown) {
+      console.error('Error al realizar git commit:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      commitErrorMessage = msg;
+      showToast(`Error en git commit: ${msg}`);
+    } finally {
+      isCommitting = false;
     }
   }
 </script>
@@ -1537,8 +1596,18 @@
           <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
         </ContextMenu.Item>
 
-        {#if isGitRepo && (canGitAdd || canGitRestoreStaged || canGitRestore)}
+        {#if isGitRepo && (canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore)}
           <ContextMenu.Separator class="context-menu-divider" />
+
+          {#if canGitCommit}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={handlePromptGitCommit}
+            >
+              <GitCommitHorizontal class="context-menu-item-icon" />
+              <span>{gitCommitPaths.length > 1 ? `Hacer commit (${gitCommitPaths.length} elementos)...` : 'Hacer commit...'}</span>
+            </ContextMenu.Item>
+          {/if}
 
           {#if canGitAdd}
             <ContextMenu.Item
@@ -1664,6 +1733,16 @@
     </div>
   {/if}
 </ConfirmDialog>
+
+<GitCommitDialog
+  bind:open={isCommitDialogOpen}
+  paths={itemsToCommit}
+  branchName={gitBranch}
+  loading={isCommitting}
+  errorMessage={commitErrorMessage}
+  onConfirm={confirmGitCommit}
+  onCancel={cancelGitCommit}
+/>
 
 {#if toastMessage}
   <div class="vault-toast">

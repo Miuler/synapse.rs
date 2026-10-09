@@ -862,6 +862,20 @@ pub fn git_restore_staged_paths(
 }
 
 #[tauri::command]
+pub fn git_commit_paths(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    message: String,
+) -> Result<String, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let git_service = GitService::new();
+    git_service.git_commit(vault_path, &paths, &message)
+}
+
+#[tauri::command]
 pub fn get_system_theme(window: tauri::WebviewWindow) -> String {
     #[cfg(target_os = "linux")]
     {
