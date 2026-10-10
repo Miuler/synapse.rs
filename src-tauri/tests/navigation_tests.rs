@@ -1,7 +1,7 @@
-use app_lib::navigation::engine::{extract_title_from_markdown, NavigationEngine};
-use app_lib::navigation::matcher::populate_nucleo_from_dashmap;
-use app_lib::navigation::model::{NoteId, NoteMeta};
-use app_lib::navigation::storage::{load_cache_from_disk, save_cache_to_disk};
+use app_lib::infrastructure::navigation::engine::{extract_title_from_markdown, NavigationEngine};
+use app_lib::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
+use app_lib::infrastructure::navigation::model::{NoteId, NoteMeta};
+use app_lib::infrastructure::navigation::storage::{load_cache_from_disk, save_cache_to_disk};
 use compact_str::CompactString;
 use dashmap::DashMap;
 use nucleo::{Config, Nucleo};
@@ -541,7 +541,7 @@ fn test_record_opened_and_metadata_persistence() {
 
 #[test]
 fn test_open_tabs_state_and_reading_mode_persistence() {
-    use app_lib::navigation::engine::OpenTabDto;
+    use app_lib::infrastructure::navigation::engine::OpenTabDto;
 
     let test_dir = std::env::temp_dir().join("synapse_open_tabs_test");
     let _ = fs::remove_dir_all(&test_dir);
@@ -865,17 +865,17 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
     );
 
     // Verify helper unit functions directly
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new(".")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
-    assert!(app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("sync.lock")));
-    assert!(!app_lib::navigation::watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new(".")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
+    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sync.lock")));
+    assert!(!app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
 
     engine.shutdown();
     let _ = fs::remove_dir_all(&test_dir);

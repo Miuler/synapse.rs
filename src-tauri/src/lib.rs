@@ -1,7 +1,6 @@
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
-pub mod navigation;
 
 use application::use_cases::note_use_cases::NoteUseCases;
 use domain::models::file_types::SupportedFileTypes;
@@ -11,7 +10,7 @@ use infrastructure::tauri::commands::{
     get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
     get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
     get_vault_ui_state, git_add_paths, git_commit_paths, git_restore_paths, git_restore_staged_paths,
-    get_git_file_diff,
+    get_git_file_diff, get_git_branches, git_checkout_branch, git_create_branch,
     read_asset_data_url, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
     render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
@@ -85,6 +84,9 @@ pub fn run() {
             git_restore_paths,
             git_restore_staged_paths,
             get_git_file_diff,
+            get_git_branches,
+            git_checkout_branch,
+            git_create_branch,
             reload_vault_items,
             get_system_theme,
             full_text_search,

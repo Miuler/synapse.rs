@@ -15,6 +15,8 @@ export interface TabItem {
   isDirty?: boolean;
 }
 
+export type MarkdownViewMode = 'live' | 'source' | 'reading';
+
 export interface OpenedNote {
   relative_path: string;
   abs_path?: string;
@@ -24,6 +26,6 @@ export interface OpenedNote {
   encoding: string;
   isLoading: boolean;
   isLoaded?: boolean;
-  viewMode?: 'reading' | 'live' | 'source';
+  viewMode?: MarkdownViewMode;
   lastReloaded?: number;
 }

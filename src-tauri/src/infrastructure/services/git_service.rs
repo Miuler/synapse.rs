@@ -1,33 +1,55 @@
-use serde::{Deserialize, Serialize};
+pub use crate::domain::models::git::{
+    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileStatus, VaultGitStatus,
+};
+use crate::domain::services::git_service::GitPort;
 use std::collections::HashMap;
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct GitFileStatus {
-    pub index: Option<String>,
-    pub worktree: Option<String>,
-    pub is_stashed: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VaultGitStatus {
-    pub is_repo: bool,
-    pub branch: Option<String>,
-    pub statuses: HashMap<String, GitFileStatus>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitDiffResponse {
-    pub path: String,
-    pub is_staged: bool,
-    pub old_file_name: String,
-    pub new_file_name: String,
-    pub old_content: String,
-    pub new_content: String,
-    pub diff: String,
-}
-
 pub struct GitService;
+
+impl GitPort for GitService {
+    fn get_vault_status(&self, vault_path: &Path) -> Result<VaultGitStatus, String> {
+        self.get_vault_status(vault_path)
+    }
+
+    fn git_add(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_add(vault_path, paths)
+    }
+
+    fn git_restore(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_restore(vault_path, paths)
+    }
+
+    fn git_restore_staged(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_restore_staged(vault_path, paths)
+    }
+
+    fn git_commit(&self, vault_path: &Path, paths: &[String], message: &str) -> Result<String, String> {
+        self.git_commit(vault_path, paths, message)
+    }
+
+    fn git_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitDiffResponse, String> {
+        self.git_diff(vault_path, path, staged)
+    }
+
+    fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
+        self.get_branches(vault_path)
+    }
+
+    fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
+        self.checkout_branch(vault_path, branch_name)
+    }
+
+    fn create_branch(
+        &self,
+        vault_path: &Path,
+        new_branch: &str,
+        base_branch: &str,
+        checkout: bool,
+    ) -> Result<String, String> {
+        self.create_branch(vault_path, new_branch, base_branch, checkout)
+    }
+}
 
 impl GitService {
     pub fn new() -> Self {
@@ -520,6 +542,251 @@ impl GitService {
             diff,
         })
     }
+
+    pub fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let current_branch = repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map(|n| n.shorten().to_string());
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args([
+                "for-each-ref",
+                "--format=%(refname)|%(refname:short)|%(HEAD)|%(upstream:short)|%(committerdate:relative)|%(subject)",
+                "refs/heads",
+                "refs/remotes",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to execute git for-each-ref: {e}"))?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git for-each-ref failed: {err}"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut local_branches = Vec::new();
+        let mut remote_branches = Vec::new();
+
+        for line in stdout.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let parts: Vec<&str> = line.splitn(6, '|').collect();
+            if parts.len() < 6 {
+                continue;
+            }
+
+            let ref_name = parts[0].trim();
+            let short_name = parts[1].trim();
+            let is_head_marker = parts[2].trim() == "*";
+            let upstream_raw = parts[3].trim();
+            let committerdate_rel = parts[4].trim();
+            let subject = parts[5].trim();
+
+            // Filtrar referencias simbólicas remotas como refs/remotes/origin/HEAD
+            if ref_name.starts_with("refs/remotes/") && ref_name.ends_with("/HEAD") {
+                continue;
+            }
+
+            let is_remote = ref_name.starts_with("refs/remotes/");
+            let is_current = is_head_marker
+                || current_branch
+                    .as_ref()
+                    .map(|b| b == short_name)
+                    .unwrap_or(false);
+
+            let branch_item = GitBranchItem {
+                name: short_name.to_string(),
+                ref_name: ref_name.to_string(),
+                is_current,
+                is_remote,
+                upstream: if upstream_raw.is_empty() {
+                    None
+                } else {
+                    Some(upstream_raw.to_string())
+                },
+                last_commit_date: if committerdate_rel.is_empty() {
+                    None
+                } else {
+                    Some(committerdate_rel.to_string())
+                },
+                last_commit_message: if subject.is_empty() {
+                    None
+                } else {
+                    Some(subject.to_string())
+                },
+            };
+
+            if is_remote {
+                remote_branches.push(branch_item);
+            } else {
+                local_branches.push(branch_item);
+            }
+        }
+
+        Ok(GitBranchesResult {
+            current_branch,
+            local_branches,
+            remote_branches,
+        })
+    }
+
+    pub fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let branch_name = branch_name.trim();
+        if branch_name.is_empty() {
+            return Err("Branch name cannot be empty".to_string());
+        }
+
+        // Si es una rama remota ("origin/foo" o "refs/remotes/origin/foo")
+        let target_branch = if branch_name.starts_with("refs/remotes/") {
+            branch_name.trim_start_matches("refs/remotes/")
+        } else {
+            branch_name
+        };
+
+        // Si empieza con un nombre de remoto (e.g., origin/foo), verificar si existe rama local con ese nombre corto
+        let candidate_local = if let Some((_remote, local_candidate)) = target_branch.split_once('/') {
+            // Verificar si la rama local existe
+            let check_local = std::process::Command::new("git")
+                .current_dir(&work_dir)
+                .args(["rev-parse", "--verify", local_candidate])
+                .output();
+
+            if let Ok(out) = check_local {
+                if out.status.success() {
+                    Some(local_candidate)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let checkout_target = candidate_local.unwrap_or(target_branch);
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .env("LC_ALL", "C")
+            .args(["checkout", checkout_target])
+            .output()
+            .map_err(|e| format!("Failed to execute git checkout: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("overwritten by checkout") || stderr.contains("would be overwritten") {
+                return Err(format!(
+                    "Conflicto: Tienes cambios locales sin guardar que serían sobreescritos al cambiar a '{checkout_target}'. Por favor haz commit o stash antes de cambiar de rama."
+                ));
+            }
+            return Err(format!("Error al cambiar de rama: {}", stderr.trim()));
+        }
+
+        let msg = format!("Cambiado con éxito a la rama '{checkout_target}'");
+        Ok(msg)
+    }
+
+    pub fn create_branch(
+        &self,
+        vault_path: &Path,
+        new_branch: &str,
+        base_branch: &str,
+        checkout: bool,
+    ) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let new_branch = new_branch.trim();
+        let base_branch = base_branch.trim();
+
+        if new_branch.is_empty() {
+            return Err("El nombre de la nueva rama no puede estar vacío".to_string());
+        }
+
+        // Validar formato de nombre con check-ref-format
+        let check_format = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args(["check-ref-format", "--branch", new_branch])
+            .output()
+            .map_err(|e| format!("Error al verificar formato de rama: {e}"))?;
+
+        if !check_format.status.success() {
+            return Err(format!("El nombre de rama '{new_branch}' no es válido según las reglas de Git."));
+        }
+
+        // Verificar si la rama ya existe localmente
+        let check_exists = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args(["rev-parse", "--verify", &format!("refs/heads/{new_branch}")])
+            .output();
+
+        if let Ok(out) = check_exists {
+            if out.status.success() {
+                return Err(format!("La rama '{new_branch}' ya existe"));
+            }
+        }
+
+        let output = if checkout {
+            if base_branch.is_empty() {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["checkout", "-b", new_branch])
+                    .output()
+            } else {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["checkout", "-b", new_branch, base_branch])
+                    .output()
+            }
+        } else {
+            if base_branch.is_empty() {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["branch", new_branch])
+                    .output()
+            } else {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["branch", new_branch, base_branch])
+                    .output()
+            }
+        }.map_err(|e| format!("Failed to create branch: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Error al crear rama: {}", stderr.trim()));
+        }
+
+        let msg = if checkout {
+            format!("Rama '{new_branch}' creada y activada correctamente")
+        } else {
+            format!("Rama '{new_branch}' creada correctamente a partir de '{base_branch}'")
+        };
+
+        Ok(msg)
+    }
 }
 
 #[cfg(test)]
@@ -722,6 +989,84 @@ mod tests {
         assert_eq!(diff_staged.old_content, "line 1\nline 2\n");
         assert_eq!(diff_staged.new_content, "line 1\nline 2 mod\nline 3\n");
         assert!(diff_staged.diff.contains("+line 2 mod"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_branches_and_checkout() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_branches_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        std::fs::write(&file_a, "initial content\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "initial commit"]);
+
+        let git_service = GitService::new();
+
+        // 1. List branches - initially master or main
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert!(!branches.local_branches.is_empty());
+        let current = branches.current_branch.unwrap();
+        assert!(branches.local_branches.iter().any(|b| b.name == current && b.is_current));
+
+        // 2. Create a new branch without checkout
+        let res = git_service.create_branch(&temp_dir, "feature-1", &current, false);
+        assert!(res.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert!(branches.local_branches.iter().any(|b| b.name == "feature-1" && !b.is_current));
+
+        // 3. Checkout branch
+        let checkout_res = git_service.checkout_branch(&temp_dir, "feature-1");
+        assert!(checkout_res.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert_eq!(branches.current_branch.as_deref(), Some("feature-1"));
+
+        // 4. Create another branch with checkout
+        let res2 = git_service.create_branch(&temp_dir, "feature-2", "", true);
+        assert!(res2.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert_eq!(branches.current_branch.as_deref(), Some("feature-2"));
+
+        // 5. Test conflict detection on checkout
+        // Modify file_a on feature-2 and commit
+        std::fs::write(&file_a, "feature-2 content\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "feature-2 commit"]);
+
+        // Switch back to feature-1
+        git_service.checkout_branch(&temp_dir, "feature-1").unwrap();
+
+        // Make an uncommitted change to file_a that conflicts with feature-2
+        std::fs::write(&file_a, "uncommitted local change\n").unwrap();
+
+        // Try checking out feature-2
+        let conflict_res = git_service.checkout_branch(&temp_dir, "feature-2");
+        assert!(conflict_res.is_err());
+        assert!(conflict_res.unwrap_err().contains("Conflicto"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

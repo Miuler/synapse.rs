@@ -1,5 +1,5 @@
-import { invokeTauri, isTauriEnvironment } from './tauri';
-import type { SupportedFileTypes } from '@entities/file-type';
+import { invokeTauri, isTauriEnvironment } from '@shared/repositories';
+import type { SupportedFileTypes } from '../model/file-types.svelte';
 
 /**
  * Contrato de repositorio para el acceso a la configuración y metadatos

@@ -5,8 +5,10 @@
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import GitCommitDialog from './GitCommitDialog.svelte';
-  import { FileIcon, FolderIcon } from '@shared/ui/icons';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil } from 'lucide-svelte';
+  import GitBranchDialog from './GitBranchDialog.svelte';
+  import { FolderIcon } from '@shared/ui/icons';
+  import { FileIcon } from '@entities/file-type';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -237,12 +239,95 @@
     return rootNodes;
   });
 
-  // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback
-  let displayTreeNodes = $derived(
-    folderChildren[''] && folderChildren[''].length > 0
-      ? folderChildren['']
-      : treeNodes
-  );
+  // Filtro de solo archivos con modificaciones Git
+  let filterOnlyModifiedGitFiles = $state(false);
+
+  // Set reactivo con las rutas que tienen modificaciones o estado Git relevante
+  let gitModifiedPaths = $derived.by(() => {
+    if (!isGitRepo || !gitStatuses) return new Set<string>();
+    const set = new Set<string>();
+    for (const [path, status] of Object.entries(gitStatuses)) {
+      const info = getGitStatusInfo(status);
+      if (info && (info.worktree || info.index || info.is_stashed)) {
+        const clean = path.replace(/^\.\//, '');
+        set.add(clean);
+        // Agregar también prefijos de carpetas para mantener visibles los ancestros
+        const parts = clean.split('/');
+        let cur = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          cur = cur ? `${cur}/${parts[i]}` : parts[i];
+          set.add(cur);
+        }
+      }
+    }
+    return set;
+  });
+
+  // Conteo de archivos modificados
+  let modifiedFilesCount = $derived.by(() => {
+    if (!isGitRepo || !gitStatuses) return 0;
+    let count = 0;
+    for (const status of Object.values(gitStatuses)) {
+      const info = getGitStatusInfo(status);
+      if (info && (info.worktree || info.index || info.is_stashed)) {
+        count++;
+      }
+    }
+    return count;
+  });
+
+  // Función recursiva para filtrar nodos cuando el filtro está activo
+  function filterNodeByGit(node: VaultTreeNode): VaultTreeNode | null {
+    if (node.isFolder) {
+      const children = getChildren(node);
+      const filteredChildren = children
+        .map((child) => filterNodeByGit(child))
+        .filter((child): child is VaultTreeNode => child !== null);
+
+      if (filteredChildren.length > 0 || gitModifiedPaths.has(node.relativePath)) {
+        return {
+          ...node,
+          children: filteredChildren,
+        };
+      }
+      return null;
+    } else {
+      const cleanPath = node.relativePath.replace(/^\.\//, '');
+      const rawStatus = gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[cleanPath]) : undefined;
+      const info = getGitStatusInfo(rawStatus);
+      if (info && (info.worktree || info.index || info.is_stashed)) {
+        return node;
+      }
+      return null;
+    }
+  }
+
+  // Helper para obtener los hijos en el render considerando el filtro
+  function getDisplayChildren(node: VaultTreeNode): VaultTreeNode[] {
+    const rawChildren = getChildren(node);
+    if (!isGitRepo || !filterOnlyModifiedGitFiles) {
+      return rawChildren;
+    }
+    return rawChildren
+      .map((child) => filterNodeByGit(child))
+      .filter((child): child is VaultTreeNode => child !== null);
+  }
+
+  // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback, y aplica el filtro si está activo
+  let displayTreeNodes = $derived.by(() => {
+    const baseNodes =
+      folderChildren[''] && folderChildren[''].length > 0
+        ? folderChildren['']
+        : treeNodes;
+
+    if (!isGitRepo || !filterOnlyModifiedGitFiles) {
+      return baseNodes;
+    }
+
+    return baseNodes
+      .map((node) => filterNodeByGit(node))
+      .filter((node): node is VaultTreeNode => node !== null);
+  });
 
   // Expandir carpetas padres automáticamente SOLO cuando cambia la pestaña activa
   let prevAutoExpandedTab = $state<string | null>(null);
@@ -1412,6 +1497,13 @@
       isCommitting = false;
     }
   }
+
+  // Estado del diálogo de ramas Git
+  let isBranchDialogOpen = $state(false);
+
+  function handleOpenBranchDialog() {
+    isBranchDialogOpen = true;
+  }
 </script>
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -1451,8 +1543,8 @@
                 <button
                   type="button"
                   class="git-branch-badge"
-                  onclick={onRefreshGit}
-                  title="Rama Git: {gitBranch} (Clic para refrescar)"
+                  onclick={handleOpenBranchDialog}
+                  title="Rama Git: {gitBranch} (Clic para gestionar ramas)"
                 >
                   <GitBranch size={13} class="git-branch-icon" />
                   <span class="git-branch-name">{gitBranch}</span>
@@ -1460,6 +1552,25 @@
               {/if}
             </div>
             <div class="sidebar-header-actions">
+              {#if isGitRepo}
+                <button
+                  type="button"
+                  class="sidebar-action-btn git-filter-btn"
+                  class:active={filterOnlyModifiedGitFiles}
+                  onclick={() => {
+                    filterOnlyModifiedGitFiles = !filterOnlyModifiedGitFiles;
+                  }}
+                  title={filterOnlyModifiedGitFiles
+                    ? "Mostrando solo archivos modificados en Git (Clic para ver todos)"
+                    : `Filtrar solo modificados en Git (${modifiedFilesCount})`}
+                  aria-label="Filtrar archivos modificados en Git"
+                >
+                  <Filter size={13} />
+                  {#if modifiedFilesCount > 0}
+                    <span class="git-filter-count">{modifiedFilesCount}</span>
+                  {/if}
+                </button>
+              {/if}
               <button
                 type="button"
                 class="sidebar-action-btn"
@@ -1515,9 +1626,24 @@
               }
             }}
           >
-            {#each displayTreeNodes as rootNode (rootNode.relativePath)}
-              {@render renderNode(rootNode, 0)}
-            {/each}
+            {#if isGitRepo && filterOnlyModifiedGitFiles && displayTreeNodes.length === 0}
+              <div class="git-empty-filter-state">
+                <Check size={18} class="git-empty-filter-icon" />
+                <span class="git-empty-filter-title">No hay modificaciones</span>
+                <span class="git-empty-filter-desc">El árbol de trabajo está limpio</span>
+                <button
+                  type="button"
+                  class="git-empty-filter-btn"
+                  onclick={() => (filterOnlyModifiedGitFiles = false)}
+                >
+                  Ver todos los archivos
+                </button>
+              </div>
+            {:else}
+              {#each displayTreeNodes as rootNode (rootNode.relativePath)}
+                {@render renderNode(rootNode, 0)}
+              {/each}
+            {/if}
           </div>
 
           <!-- Tirador para redimensionar el panel lateral -->
@@ -1807,6 +1933,15 @@
   onCancel={cancelGitCommit}
 />
 
+<GitBranchDialog
+  bind:open={isBranchDialogOpen}
+  onBranchChanged={async () => {
+    if (onRefreshGit) {
+      await onRefreshGit();
+    }
+  }}
+/>
+
 {#if toastMessage}
   <div class="vault-toast">
     <Check class="vault-toast-icon" />
@@ -1850,7 +1985,7 @@
 
       {#if expandedFolders[node.relativePath]}
         <Collapsible.Content>
-          {#each getChildren(node) as child (child.relativePath)}
+          {#each getDisplayChildren(node) as child (child.relativePath)}
             {@render renderNode(child, depth + 1)}
           {/each}
         </Collapsible.Content>
@@ -2020,6 +2155,79 @@
   .sidebar-action-btn:hover:not(:disabled) {
     background: var(--hover-bg, rgba(0, 0, 0, 0.06));
     color: var(--text-primary, #1f2328);
+  }
+
+  .git-filter-btn {
+    position: relative;
+  }
+
+  .git-filter-btn.active {
+    background: rgba(9, 105, 218, 0.15);
+    color: var(--accent, #0969da);
+  }
+
+  .git-filter-count {
+    position: absolute;
+    top: -3px;
+    right: -5px;
+    background: var(--accent, #0969da);
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    min-width: 13px;
+    height: 13px;
+    line-height: 13px;
+    border-radius: 7px;
+    text-align: center;
+    padding: 0 2px;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 1.5px var(--bg-secondary, #f6f8fa);
+  }
+
+  .git-empty-filter-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 36px 16px;
+    text-align: center;
+    gap: 6px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  :global(.git-empty-filter-icon) {
+    color: #2ea043;
+    margin-bottom: 2px;
+  }
+
+  .git-empty-filter-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+  }
+
+  .git-empty-filter-desc {
+    font-size: 11.5px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  .git-empty-filter-btn {
+    margin-top: 8px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    color: var(--text-primary, #1f2328);
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .git-empty-filter-btn:hover {
+    background: var(--bg-secondary, #f6f8fa);
+    border-color: var(--accent, #0969da);
+    color: var(--accent, #0969da);
   }
 
   .sidebar-action-btn:disabled {

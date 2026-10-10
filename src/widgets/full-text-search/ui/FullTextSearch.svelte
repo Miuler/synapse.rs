@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Command, Dialog } from 'bits-ui';
   import { Search, RefreshCw } from 'lucide-svelte';
-  import { FileIcon } from '@shared/ui/icons';
+  import { FileIcon } from '@entities/file-type';
   import {
     searchRepository,
     type FullTextHit,

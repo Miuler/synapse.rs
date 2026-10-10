@@ -60,6 +60,22 @@ export interface GitDiffResponse {
   diff: string;
 }
 
+export interface GitBranchItem {
+  name: string;
+  ref_name: string;
+  is_current: boolean;
+  is_remote: boolean;
+  upstream?: string | null;
+  last_commit_date?: string | null;
+  last_commit_message?: string | null;
+}
+
+export interface GitBranchesResult {
+  current_branch?: string | null;
+  local_branches: GitBranchItem[];
+  remote_branches: GitBranchItem[];
+}
+
 export interface VaultEntryNode {
   name: string;
   relative_path: string;
@@ -217,6 +233,25 @@ export interface VaultRepository {
    * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD.
    */
   getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse>;
+
+  /**
+   * Obtiene la lista de ramas locales y remotas del repositorio Git de la bóveda.
+   */
+  getGitBranches(): Promise<GitBranchesResult>;
+
+  /**
+   * Cambia de rama en el repositorio Git de la bóveda (git checkout).
+   */
+  gitCheckout(branchName: string): Promise<string>;
+
+  /**
+   * Crea una nueva rama en el repositorio Git de la bóveda.
+   */
+  gitCreateBranch(params: {
+    newBranch: string;
+    baseBranch?: string;
+    checkout?: boolean;
+  }): Promise<string>;
 
   /**
    * Elimina un archivo o carpeta dentro de la bóveda.
@@ -576,6 +611,47 @@ export class TauriVaultRepository implements VaultRepository {
     return await invokeTauri<GitDiffResponse>('get_git_file_diff', {
       path,
       staged,
+    });
+  }
+
+  async getGitBranches(): Promise<GitBranchesResult> {
+    if (!this.isConnected()) {
+      return {
+        current_branch: null,
+        local_branches: [],
+        remote_branches: [],
+      };
+    }
+
+    return await invokeTauri<GitBranchesResult>('get_git_branches');
+  }
+
+  async gitCheckout(branchName: string): Promise<string> {
+    if (!this.isConnected()) {
+      throw new Error('No hay conexión con la bóveda');
+    }
+
+    return await invokeTauri<string>('git_checkout_branch', {
+      branchName,
+      branch_name: branchName,
+    });
+  }
+
+  async gitCreateBranch(params: {
+    newBranch: string;
+    baseBranch?: string;
+    checkout?: boolean;
+  }): Promise<string> {
+    if (!this.isConnected()) {
+      throw new Error('No hay conexión con la bóveda');
+    }
+
+    return await invokeTauri<string>('git_create_branch', {
+      newBranch: params.newBranch,
+      new_branch: params.newBranch,
+      baseBranch: params.baseBranch || '',
+      base_branch: params.baseBranch || '',
+      checkout: params.checkout ?? false,
     });
   }
 

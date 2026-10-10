@@ -1,20 +1,21 @@
-import { appSettings } from '@entities/settings';
-import { renderMermaidJsSvg } from '@features/mermaid-editor';
-import { renderMermaidSvg, ensureMerman, isMermanInitialized } from '@features/merman-editor';
+import { renderMermaidJsSvg } from './mermaid-service';
+import { renderMermaidSvg, ensureMerman, isMermanInitialized } from './merman-service';
+
+export type DiagramRendererType = 'mermaid' | 'mermaidjs' | 'merman';
 
 /**
- * Renderiza código Mermaid a SVG utilizando el motor configurado
- * por el usuario en las preferencias de la aplicación (Mermaid.js o Merman WASM).
+ * Renderiza código Mermaid a SVG utilizando el motor configurado (Mermaid.js o Merman WASM).
  */
 export async function renderUnifiedDiagramSvg(
   code: string,
-  idPrefix = 'cm-mermaid'
+  idPrefix = 'cm-mermaid',
+  renderer: DiagramRendererType = 'mermaid'
 ): Promise<{ svg: string | null; error: string | null }> {
   if (!code || !code.trim()) {
     return { svg: null, error: null };
   }
 
-  if (appSettings.mermaidRenderer === 'merman') {
+  if (renderer === 'merman') {
     if (!isMermanInitialized()) {
       try {
         await ensureMerman();

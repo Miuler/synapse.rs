@@ -1,7 +1,7 @@
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::DocumentKind;
 use crate::infrastructure::repositories::file_note_repository::detect_and_decode;
-use crate::navigation::engine::extract_title_from_markdown;
+use crate::infrastructure::navigation::engine::extract_title_from_markdown;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;
 

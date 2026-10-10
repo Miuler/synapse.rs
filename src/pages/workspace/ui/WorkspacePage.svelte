@@ -3,7 +3,7 @@
   import {onMount, tick} from "svelte";
   import {Ribbon} from "@widgets/ribbon";
   import {EditorHeader} from "@widgets/editor-header";
-  import {StatusBar, type MarkdownViewMode} from "@widgets/status-bar";
+  import {StatusBar} from "@widgets/status-bar";
   import {CommandPalette} from "@widgets/command-palette";
   import {QuickOpen} from "@widgets/quick-open";
   import {FullTextSearch} from "@widgets/full-text-search";
@@ -21,9 +21,9 @@
     isMarkdownFile,
     isDiagramFile,
     isDrawingFile,
+    loadSupportedFileTypes,
   } from "@entities/file-type";
-  import {loadSupportedFileTypesUseCase} from "@shared/use-cases";
-  import type {VaultItem, OpenedNote} from "@entities/vault-item";
+  import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
   import {listen} from "@tauri-apps/api/event";
@@ -962,8 +962,8 @@
   onMount(() => {
     window.scrollTo(0, 0);
 
-    // Cargar la configuración de tipos soportados a través del use case
-    loadSupportedFileTypesUseCase();
+    // Cargar la configuración de tipos soportados a través de la entidad file-type
+    loadSupportedFileTypes();
 
     // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
     if (openTabPaths.length === 0) {

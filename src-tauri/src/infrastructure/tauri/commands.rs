@@ -1,4 +1,6 @@
+use crate::application::use_cases::file_system_use_cases::FileSystemUseCases;
 use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
+use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
@@ -9,9 +11,11 @@ use crate::infrastructure::repositories::file_note_repository::FileNoteRepositor
 use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
-use crate::infrastructure::services::git_service::{GitDiffResponse, GitService, VaultGitStatus};
+use crate::infrastructure::services::git_service::{
+    GitBranchesResult, GitDiffResponse, GitService, VaultGitStatus,
+};
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
-use crate::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::infrastructure::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -27,6 +31,8 @@ pub struct AppState {
     pub active_vault_path: Mutex<Option<PathBuf>>,
     pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
+    pub git_use_cases: GitUseCases<GitService>,
+    pub file_system_use_cases: FileSystemUseCases<FileSystemService>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -116,6 +122,8 @@ impl AppState {
             active_vault_path: Mutex::new(None),
             file_types,
             note_use_cases,
+            git_use_cases: GitUseCases::new(GitService::new()),
+            file_system_use_cases: FileSystemUseCases::new(FileSystemService),
             navigation_engine: Mutex::new(None),
             full_text: Mutex::new(None),
             app_handle: Arc::new(Mutex::new(None)),
@@ -137,6 +145,8 @@ impl AppState {
             active_vault_path: Mutex::new(Some(initial_vault_path)),
             file_types,
             note_use_cases,
+            git_use_cases: GitUseCases::new(GitService::new()),
+            file_system_use_cases: FileSystemUseCases::new(FileSystemService),
             navigation_engine: Mutex::new(Some(engine)),
             full_text: Mutex::new(Some(full_text)),
             app_handle,
@@ -286,7 +296,7 @@ pub fn get_vault_directory_children(
     if let Ok(entries) = std::fs::read_dir(&disk_dir) {
         for entry in entries.flatten() {
             let file_name = entry.file_name().to_string_lossy().to_string();
-            if crate::navigation::watcher::is_ignored_dir_or_file(&file_name) {
+            if crate::infrastructure::navigation::watcher::is_ignored_dir_or_file(&file_name) {
                 continue; // Skip hidden dirs and build/dependency folders
             }
             if let Ok(ft) = entry.file_type() {
@@ -719,8 +729,7 @@ pub fn get_vault_git_status(
             }
         }
     };
-    let git_service = GitService::new();
-    git_service.get_vault_status(&vault_path)
+    state.git_use_cases.get_status(&vault_path)
 }
 
 #[tauri::command]
@@ -729,41 +738,8 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let clean_rel = relative_path.replace('\\', "/");
-    let mut target_path = vault_path.clone();
-    for part in clean_rel.split('/') {
-        if part.is_empty() || part == "." {
-            continue;
-        }
-        if part == ".." {
-            return Err("Ruta no permitida con '..'".to_string());
-        }
-        target_path.push(part);
-    }
 
-    if target_path == *vault_path {
-        return Err("No se puede eliminar la raíz de la bóveda".to_string());
-    }
-
-    if !target_path.exists() {
-        return Err(format!("El elemento '{}' no existe", relative_path));
-    }
-
-    let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
-    let canonical_target = target_path.canonicalize().map_err(|e| e.to_string())?;
-    if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
-        return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
-    }
-
-    if canonical_target.is_dir() {
-        std::fs::remove_dir_all(&canonical_target)
-            .map_err(|e| format!("Error al eliminar carpeta: {}", e))?;
-    } else if canonical_target.is_file() {
-        std::fs::remove_file(&canonical_target)
-            .map_err(|e| format!("Error al eliminar archivo: {}", e))?;
-    } else {
-        return Err("Tipo de elemento no soportado para eliminar".to_string());
-    }
+    state.file_system_use_cases.delete_item(vault_path, &relative_path)?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -788,7 +764,7 @@ pub fn rename_vault_item(
         }
     };
 
-    let renamed_path = FileSystemService::rename_item(&vault_path, &relative_path, &new_name)?;
+    let renamed_path = state.file_system_use_cases.rename_item(&vault_path, &relative_path, &new_name)?;
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.reconcile_sync();
@@ -813,10 +789,7 @@ pub fn copy_vault_items(
         }
     };
 
-    let mut created = Vec::with_capacity(paths.len());
-    for source in &paths {
-        created.push(FileSystemService::copy_item(&vault_path, source, &dest_dir)?);
-    }
+    let created = state.file_system_use_cases.copy_items(&vault_path, &paths, &dest_dir)?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -834,8 +807,7 @@ pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let git_service = GitService::new();
-    git_service.git_add(vault_path, &paths)
+    state.git_use_cases.add_paths(vault_path, &paths)
 }
 
 #[tauri::command]
@@ -844,8 +816,7 @@ pub fn git_restore_paths(state: State<'_, AppState>, paths: Vec<String>) -> Resu
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let git_service = GitService::new();
-    git_service.git_restore(vault_path, &paths)
+    state.git_use_cases.restore_paths(vault_path, &paths)
 }
 
 #[tauri::command]
@@ -857,8 +828,7 @@ pub fn git_restore_staged_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let git_service = GitService::new();
-    git_service.git_restore_staged(vault_path, &paths)
+    state.git_use_cases.restore_staged_paths(vault_path, &paths)
 }
 
 #[tauri::command]
@@ -871,8 +841,7 @@ pub fn git_commit_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let git_service = GitService::new();
-    git_service.git_commit(vault_path, &paths, &message)
+    state.git_use_cases.commit_paths(vault_path, &paths, &message)
 }
 
 #[tauri::command]
@@ -885,8 +854,63 @@ pub fn get_git_file_diff(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let git_service = GitService::new();
-    git_service.git_diff(vault_path, &path, staged)
+    state.git_use_cases.get_file_diff(vault_path, &path, staged)
+}
+
+#[tauri::command]
+pub fn get_git_branches(state: State<'_, AppState>) -> Result<GitBranchesResult, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    state.git_use_cases.get_branches(vault_path)
+}
+
+#[tauri::command]
+pub fn git_checkout_branch(
+    state: State<'_, AppState>,
+    branch_name: String,
+) -> Result<String, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let result = state.git_use_cases.checkout_branch(vault_path, &branch_name)?;
+
+    // Sincronizar el árbol de navegación ya que los archivos cambiaron en disco
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.reconcile_sync();
+        }
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn git_create_branch(
+    state: State<'_, AppState>,
+    new_branch: String,
+    base_branch: String,
+    checkout: bool,
+) -> Result<String, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let result = state
+        .git_use_cases
+        .create_branch(vault_path, &new_branch, &base_branch, checkout)?;
+
+    if checkout {
+        if let Ok(guard) = state.navigation_engine.lock() {
+            if let Some(ref engine) = *guard {
+                engine.reconcile_sync();
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1310,7 +1334,7 @@ mod tests {
         let state = AppState::empty(file_types, use_cases);
 
         *state.active_vault_path.lock().unwrap() = Some(vault_path.clone());
-        let engine = Arc::new(crate::navigation::engine::NavigationEngine::new(
+        let engine = Arc::new(NavigationEngine::new(
             vault_path.clone(),
             vault_path.join(".synapse/cache.bin"),
         ));

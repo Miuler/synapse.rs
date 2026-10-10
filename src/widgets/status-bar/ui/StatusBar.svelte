@@ -18,10 +18,9 @@
     RefreshCw,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
+  import { type MarkdownViewMode } from '@entities/vault-item';
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
   import { listen } from '@tauri-apps/api/event';
-
-  export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
   interface Props {
     wordCount?: number;

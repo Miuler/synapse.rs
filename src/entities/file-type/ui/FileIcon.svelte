@@ -12,7 +12,7 @@
     type IconProps
   } from 'lucide-svelte';
 
-  import { fileTypesManager } from '@entities/file-type';
+  import { fileTypesManager } from '../model/file-types.svelte';
 
   interface Props {
     path?: string;

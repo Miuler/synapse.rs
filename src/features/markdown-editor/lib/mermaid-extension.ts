@@ -1,7 +1,8 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { StateField, Facet, type EditorState, type Text } from '@codemirror/state';
+import { appSettings } from '@entities/settings';
+import { renderUnifiedDiagramSvg } from '@shared/lib/diagrams';
 import { resolveIncludes, hasIncludeDirective } from './include-resolver';
-import { renderUnifiedDiagramSvg } from './render-diagram';
 
 /**
  * Facet de CodeMirror para proporcionar la ruta relativa del archivo
@@ -182,7 +183,7 @@ class MermaidWidget extends WidgetType {
         if (this.isCancelled) return;
 
         // 2. Renderizar SVG usando el motor seleccionado (Mermaid.js o Merman)
-        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode);
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-mermaid', appSettings.mermaidRenderer);
         if (this.isCancelled) return;
 
         if (error) {

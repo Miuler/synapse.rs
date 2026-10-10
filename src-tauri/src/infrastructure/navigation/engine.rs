@@ -299,7 +299,7 @@ impl NavigationEngine {
                 children.retain(|entry_res| {
                     if let Ok(entry) = entry_res {
                         let name = entry.file_name.to_string_lossy();
-                        !crate::navigation::watcher::is_ignored_dir_or_file(&name)
+                        !super::watcher::is_ignored_dir_or_file(&name)
                     } else {
                         true
                     }

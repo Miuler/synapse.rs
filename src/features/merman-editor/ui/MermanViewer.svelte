@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { initMerman, renderSvg, validate } from '@mermanjs/web';
+  import { initMerman, renderSvg, validate } from '@shared/lib/diagrams';
   import { onMount, onDestroy, tick } from 'svelte';
   import { Toolbar, Toggle, Separator } from 'bits-ui';
   import { Search, Save, AlertCircle } from 'lucide-svelte';

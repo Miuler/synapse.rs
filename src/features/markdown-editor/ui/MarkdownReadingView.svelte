@@ -2,7 +2,8 @@
   import { onMount, tick } from 'svelte';
   import { Marked } from 'marked';
   import { resolveIncludes } from '../lib/include-resolver';
-  import { renderUnifiedDiagramSvg } from '../lib/render-diagram';
+  import { appSettings } from '@entities/settings';
+  import { renderUnifiedDiagramSvg } from '@shared/lib/diagrams';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
 
@@ -98,7 +99,7 @@
 
       try {
         const resolvedCode = await resolveIncludes(code, filePath);
-        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode);
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-mermaid', appSettings.mermaidRenderer);
         if (error) {
           body.innerHTML = `
             <div class="reading-mermaid-error">

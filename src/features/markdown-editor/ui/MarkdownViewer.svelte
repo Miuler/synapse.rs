@@ -12,6 +12,7 @@
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
+  import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
@@ -24,8 +25,6 @@
     cursorLine: number;
     cursorCol: number;
   }
-
-  export type MarkdownViewMode = 'live' | 'source' | 'reading';
 
   interface Props {
     content: string;

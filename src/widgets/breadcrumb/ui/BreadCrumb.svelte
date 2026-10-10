@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { ChevronRight, Edit2 } from 'lucide-svelte';
-  import { FolderIcon, FileIcon } from '@shared/ui/icons';
+  import { FolderIcon } from '@shared/ui/icons';
+  import { FileIcon } from '@entities/file-type';
 
   interface Props {
     path?: string;

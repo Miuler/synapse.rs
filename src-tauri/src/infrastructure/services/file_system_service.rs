@@ -129,6 +129,63 @@ impl FileSystemService {
         fs::rename(&source, &target).map_err(|e| format!("Error al renombrar elemento: {}", e))?;
         Ok(Self::to_relative(vault_path, &target))
     }
+
+    /// Elimina un archivo o carpeta dentro de la bóveda garantizando los límites de seguridad.
+    pub fn delete_item(vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        let clean_rel = relative_path.replace('\\', "/");
+        let mut target_path = vault_path.to_path_buf();
+        for part in clean_rel.split('/') {
+            if part.is_empty() || part == "." {
+                continue;
+            }
+            if part == ".." {
+                return Err("Ruta no permitida con '..'".to_string());
+            }
+            target_path.push(part);
+        }
+
+        if target_path == vault_path {
+            return Err("No se puede eliminar la raíz de la bóveda".to_string());
+        }
+
+        if !target_path.exists() {
+            return Err(format!("El elemento '{}' no existe", relative_path));
+        }
+
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_target = target_path.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
+            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+        }
+
+        if canonical_target.is_dir() {
+            std::fs::remove_dir_all(&canonical_target)
+                .map_err(|e| format!("Error al eliminar carpeta: {}", e))?;
+        } else if canonical_target.is_file() {
+            std::fs::remove_file(&canonical_target)
+                .map_err(|e| format!("Error al eliminar archivo: {}", e))?;
+        } else {
+            return Err("Tipo de elemento no soportado para eliminar".to_string());
+        }
+
+        Ok(())
+    }
+}
+
+use crate::domain::services::file_system_service::FileSystemPort;
+
+impl FileSystemPort for FileSystemService {
+    fn delete_item(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        Self::delete_item(vault_path, relative_path)
+    }
+
+    fn rename_item(&self, vault_path: &Path, relative_path: &str, new_name: &str) -> Result<String, String> {
+        Self::rename_item(vault_path, relative_path, new_name)
+    }
+
+    fn copy_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+        Self::copy_item(vault_path, source_rel, dest_dir_rel)
+    }
 }
 
 #[cfg(test)]

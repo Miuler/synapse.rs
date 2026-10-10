@@ -7,7 +7,7 @@
     ensureMermaidJs,
     renderMermaidJsSvg,
     validateMermaidJs,
-  } from '../lib/mermaid-service';
+  } from '@shared/lib/diagrams';
 
   interface Props {
     content: string;

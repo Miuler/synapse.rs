@@ -2,7 +2,7 @@
   import type { VaultItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch } from 'lucide-svelte';
-  import { FileIcon } from '@shared/ui/icons';
+  import { FileIcon } from '@entities/file-type';
   import {
     vaultRepository,
     searchRepository,
