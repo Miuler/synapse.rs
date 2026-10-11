@@ -4,7 +4,7 @@
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
-  import GitCommitDialog from './GitCommitDialog.svelte';
+  import GitCommitDialog, { type GitCommitFileItem } from './GitCommitDialog.svelte';
   import GitBranchDialog from './GitBranchDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon } from '@entities/file-type';
@@ -1294,18 +1294,67 @@
     return eligible;
   }
 
-  // Rutas elegibles para Git Add: modificados (que no estén en stash) o no versionados (untracked)
+  // Lista de todos los archivos con cambios Git (modificados, borrados, nuevos o en stage)
+  let allGitChangedFiles = $derived.by<GitCommitFileItem[]>(() => {
+    if (!isGitRepo || !gitStatuses) return [];
+    const list: GitCommitFileItem[] = [];
+
+    for (const [rawPath, rawStatus] of Object.entries(gitStatuses)) {
+      const info = getGitStatusInfo(rawStatus);
+      if (!info) continue;
+      // Archivos únicamente en stash sin cambios de árbol de trabajo o índice se ignoran
+      if (info.is_stashed && !info.worktree && !info.index) continue;
+
+      const cleanPath = rawPath.replace(/^\.\//, '').replace(/\\/g, '/');
+      if (!cleanPath) continue;
+
+      let statusKind: GitCommitFileItem['statusKind'] = 'modified';
+      let statusLabel = 'Modificado';
+      let isDeleted = false;
+
+      if (info.worktree === 'D' || info.index === 'D') {
+        statusKind = 'deleted';
+        statusLabel = 'Eliminado';
+        isDeleted = true;
+      } else if (info.worktree === '?') {
+        statusKind = 'untracked';
+        statusLabel = 'Sin seguimiento';
+      } else if (info.index === 'A') {
+        statusKind = 'added';
+        statusLabel = 'Añadido';
+      } else if (info.index && !info.worktree) {
+        statusKind = 'staged';
+        statusLabel = 'En stage';
+      } else {
+        statusKind = 'modified';
+        statusLabel = 'Modificado';
+      }
+
+      list.push({
+        path: cleanPath,
+        statusKind,
+        statusLabel,
+        isDeleted,
+      });
+    }
+
+    list.sort((a, b) => a.path.localeCompare(b.path));
+    return list;
+  });
+
+  // Rutas elegibles para Git Add: modificados, borrados (que no estén en stash) o no versionados (untracked)
   let gitAddPaths = $derived(
     getEligiblePathsForGit((status) => {
-      const isModifiedNotStashed = status.worktree === 'M' && !status.is_stashed;
+      const isModifiedOrDeletedNotStashed =
+        (status.worktree === 'M' || status.worktree === 'D') && !status.is_stashed;
       const isUntracked = status.worktree === '?' && !status.is_stashed;
-      return isModifiedNotStashed || isUntracked;
+      return isModifiedOrDeletedNotStashed || isUntracked;
     })
   );
 
-  // Rutas elegibles para Git Restore: modificados en el árbol de trabajo (worktree === 'M')
+  // Rutas elegibles para Git Restore: modificados o eliminados en el árbol de trabajo (worktree === 'M' || worktree === 'D')
   let gitRestorePaths = $derived(
-    getEligiblePathsForGit((status) => status.worktree === 'M')
+    getEligiblePathsForGit((status) => status.worktree === 'M' || status.worktree === 'D')
   );
 
   // Rutas elegibles para Git Restore --staged: archivos en stage (index !== null)
@@ -1313,20 +1362,21 @@
     getEligiblePathsForGit((status) => Boolean(status.index))
   );
 
-  // Rutas elegibles para Git Commit: archivos en stage, modificados o no versionados
+  // Rutas elegibles para Git Commit: archivos en stage, modificados, eliminados o no versionados
   let gitCommitPaths = $derived(
     getEligiblePathsForGit((status) => {
       const hasStage = Boolean(status.index);
-      const isModifiedNotStashed = status.worktree === 'M' && !status.is_stashed;
+      const isModifiedOrDeletedNotStashed =
+        (status.worktree === 'M' || status.worktree === 'D') && !status.is_stashed;
       const isUntracked = status.worktree === '?' && !status.is_stashed;
-      return hasStage || isModifiedNotStashed || isUntracked;
+      return hasStage || isModifiedOrDeletedNotStashed || isUntracked;
     })
   );
 
   let canGitAdd = $derived(gitAddPaths.length > 0);
   let canGitRestore = $derived(gitRestorePaths.length > 0);
   let canGitRestoreStaged = $derived(gitRestoreStagedPaths.length > 0);
-  let canGitCommit = $derived(gitCommitPaths.length > 0);
+  let canGitCommit = $derived(gitCommitPaths.length > 0 || allGitChangedFiles.length > 0);
 
   // Archivo individual objetivo para visor de diferencias (diff)
   let targetFileForDiff = $derived.by(() => {
@@ -1458,7 +1508,7 @@
 
   function handlePromptGitCommit() {
     const paths = gitCommitPaths.length > 0 ? gitCommitPaths : getSelectedRelativePaths();
-    if (paths.length === 0) return;
+    if (paths.length === 0 && allGitChangedFiles.length === 0) return;
     itemsToCommit = paths;
     commitErrorMessage = null;
     isCommitDialogOpen = true;
@@ -1471,9 +1521,9 @@
     commitErrorMessage = null;
   }
 
-  async function confirmGitCommit(message: string) {
-    if (itemsToCommit.length === 0 || isCommitting) return;
-    const targets = [...itemsToCommit];
+  async function confirmGitCommit(message: string, selectedPaths?: string[]) {
+    const targets = selectedPaths && selectedPaths.length > 0 ? selectedPaths : [...itemsToCommit];
+    if (targets.length === 0 || isCommitting) return;
     isCommitting = true;
     commitErrorMessage = null;
     try {
@@ -1774,7 +1824,13 @@
               onSelect={handlePromptGitCommit}
             >
               <GitCommitHorizontal class="context-menu-item-icon" />
-              <span>{gitCommitPaths.length > 1 ? `Hacer commit (${gitCommitPaths.length} elementos)...` : 'Hacer commit...'}</span>
+              <span>
+                {gitCommitPaths.length > 1
+                  ? `Hacer commit (${gitCommitPaths.length} elementos)...`
+                  : gitCommitPaths.length === 1
+                    ? 'Hacer commit...'
+                    : `Hacer commit (${allGitChangedFiles.length} cambios)...`}
+              </span>
             </ContextMenu.Item>
           {/if}
 
@@ -1926,6 +1982,7 @@
 <GitCommitDialog
   bind:open={isCommitDialogOpen}
   paths={itemsToCommit}
+  allFiles={allGitChangedFiles}
   branchName={gitBranch}
   loading={isCommitting}
   errorMessage={commitErrorMessage}

@@ -1,20 +1,36 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
-  import { GitCommitHorizontal, GitBranch, AlertCircle, Loader2 } from 'lucide-svelte';
+  import {
+    GitCommitHorizontal,
+    GitBranch,
+    AlertCircle,
+    Loader2,
+    Search,
+    Trash2,
+  } from 'lucide-svelte';
+
+  export interface GitCommitFileItem {
+    path: string;
+    statusKind?: 'modified' | 'deleted' | 'untracked' | 'added' | 'staged';
+    statusLabel?: string;
+    isDeleted?: boolean;
+  }
 
   export interface GitCommitDialogProps {
     open?: boolean;
-    paths: string[];
+    paths?: string[];
+    allFiles?: GitCommitFileItem[];
     branchName?: string | null;
     loading?: boolean;
     errorMessage?: string | null;
-    onConfirm: (message: string) => void | Promise<void>;
+    onConfirm: (message: string, selectedPaths: string[]) => void | Promise<void>;
     onCancel?: () => void;
   }
 
   let {
     open = $bindable(false),
     paths = [],
+    allFiles = [],
     branchName = null,
     loading = false,
     errorMessage = null,
@@ -23,19 +39,115 @@
   }: GitCommitDialogProps = $props();
 
   let message = $state('');
+  let filterText = $state('');
+  let selectedSet = $state<Set<string>>(new Set());
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
+
+  const effectiveFiles = $derived.by<GitCommitFileItem[]>(() => {
+    if (allFiles && allFiles.length > 0) {
+      return allFiles;
+    }
+    return paths.map((p) => {
+      const clean = p.replace(/^\.\//, '').replace(/\\/g, '/');
+      return {
+        path: clean,
+        statusKind: 'modified',
+        statusLabel: 'Modificado',
+        isDeleted: false,
+      };
+    });
+  });
+
+  const filteredFiles = $derived.by(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return effectiveFiles;
+    return effectiveFiles.filter((f) => f.path.toLowerCase().includes(q));
+  });
+
+  const selectedPaths = $derived(
+    effectiveFiles.filter((f) => selectedSet.has(f.path)).map((f) => f.path)
+  );
+
+  const allFilteredSelected = $derived(
+    filteredFiles.length > 0 && filteredFiles.every((f) => selectedSet.has(f.path))
+  );
+
+  const canSubmit = $derived(!loading && message.trim().length > 0 && selectedPaths.length > 0);
 
   // Auto-enfoque y reseteo al abrir el diálogo
   $effect(() => {
     if (open) {
       message = '';
+      filterText = '';
+
+      const initial = new Set<string>();
+      if (paths.length > 0) {
+        for (const file of effectiveFiles) {
+          const filePath = file.path;
+          const isMatched = paths.some((p) => {
+            const cleanP = p.replace(/^\.\//, '').replace(/\\/g, '/');
+            if (filePath === cleanP) return true;
+            const prefix = cleanP.endsWith('/') ? cleanP : `${cleanP}/`;
+            return filePath.startsWith(prefix);
+          });
+          if (isMatched) {
+            initial.add(filePath);
+          }
+        }
+      }
+
+      // Si no hubo coincidencia con las rutas o no se especificaron rutas previas,
+      // seleccionar por defecto todos los archivos con cambios
+      if (initial.size === 0 && effectiveFiles.length > 0) {
+        for (const file of effectiveFiles) {
+          initial.add(file.path);
+        }
+      }
+
+      selectedSet = initial;
+
       requestAnimationFrame(() => {
         textareaEl?.focus();
       });
     }
   });
 
-  const canSubmit = $derived(!loading && message.trim().length > 0 && paths.length > 0);
+  function toggleFile(path: string) {
+    if (loading) return;
+    const next = new Set(selectedSet);
+    if (next.has(path)) {
+      next.delete(path);
+    } else {
+      next.add(path);
+    }
+    selectedSet = next;
+  }
+
+  function toggleSelectAllFiltered() {
+    if (loading) return;
+    const next = new Set(selectedSet);
+    if (allFilteredSelected) {
+      for (const f of filteredFiles) {
+        next.delete(f.path);
+      }
+    } else {
+      for (const f of filteredFiles) {
+        next.add(f.path);
+      }
+    }
+    selectedSet = next;
+  }
+
+  function getFilename(fullPath: string): string {
+    const parts = fullPath.split('/');
+    return parts[parts.length - 1] || fullPath;
+  }
+
+  function getDirname(fullPath: string): string {
+    const parts = fullPath.split('/');
+    if (parts.length <= 1) return '';
+    return parts.slice(0, parts.length - 1).join('/');
+  }
 
   function handleCancel() {
     if (loading) return;
@@ -45,7 +157,7 @@
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    await onConfirm(message.trim());
+    await onConfirm(message.trim(), selectedPaths);
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -102,23 +214,97 @@
         </div>
       </div>
 
-      <!-- Lista de archivos seleccionados -->
+      <!-- Lista de archivos modificados/borrados con selector -->
       <div class="git-commit-files-box">
         <div class="git-commit-files-header">
-          <span>Archivos seleccionados ({paths.length}):</span>
+          <span class="git-commit-files-title">
+            Archivos a confirmar ({selectedPaths.length} de {effectiveFiles.length} seleccionados):
+          </span>
+          {#if effectiveFiles.length > 0}
+            <button
+              type="button"
+              class="git-commit-toggle-all-btn"
+              onclick={toggleSelectAllFiltered}
+              disabled={loading}
+            >
+              {allFilteredSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+            </button>
+          {/if}
         </div>
+
+        {#if effectiveFiles.length > 6}
+          <div class="git-commit-search-bar">
+            <Search size={12} class="git-commit-search-icon" />
+            <input
+              type="text"
+              bind:value={filterText}
+              placeholder="Filtrar archivos..."
+              class="git-commit-search-input"
+              disabled={loading}
+            />
+            {#if filterText}
+              <button
+                type="button"
+                class="git-commit-search-clear"
+                onclick={() => (filterText = '')}
+                title="Limpiar filtro"
+              >
+                ✕
+              </button>
+            {/if}
+          </div>
+        {/if}
+
         <div class="git-commit-files-list">
-          {#each paths.slice(0, 5) as p}
-            <div class="git-commit-file-item" title={p}>
-              <span class="git-commit-bullet">•</span>
-              <span class="git-commit-filename">{p}</span>
+          {#each filteredFiles as file (file.path)}
+            {@const isChecked = selectedSet.has(file.path)}
+            {@const isDeleted = file.isDeleted || file.statusKind === 'deleted'}
+            <label
+              class="git-commit-file-item"
+              class:checked={isChecked}
+              class:is-deleted={isDeleted}
+              title={file.path}
+            >
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onchange={() => toggleFile(file.path)}
+                disabled={loading}
+                class="git-commit-checkbox"
+              />
+
+              <span
+                class="git-status-badge status-{file.statusKind || 'modified'}"
+                title={file.statusLabel || file.statusKind}
+              >
+                {#if isDeleted}
+                  <Trash2 size={10} />
+                  <span>Eliminado</span>
+                {:else if file.statusKind === 'untracked'}
+                  <span>Nuevo</span>
+                {:else if file.statusKind === 'added'}
+                  <span>Añadido</span>
+                {:else if file.statusKind === 'staged'}
+                  <span>Staged</span>
+                {:else}
+                  <span>Modificado</span>
+                {/if}
+              </span>
+
+              <span class="git-commit-file-path">
+                <span class="git-commit-file-name" class:strikethrough={isDeleted}>
+                  {getFilename(file.path)}
+                </span>
+                {#if getDirname(file.path)}
+                  <span class="git-commit-file-dir">{getDirname(file.path)}/</span>
+                {/if}
+              </span>
+            </label>
+          {:else}
+            <div class="git-commit-empty-files">
+              {filterText ? 'No hay archivos que coincidan con el filtro' : 'No hay archivos con cambios'}
             </div>
           {/each}
-          {#if paths.length > 5}
-            <div class="git-commit-file-more">
-              ... y {paths.length - 5} más
-            </div>
-          {/if}
         </div>
       </div>
 
@@ -170,7 +356,7 @@
             <span>Haciendo commit...</span>
           {:else}
             <GitCommitHorizontal size={14} />
-            <span>Hacer commit</span>
+            <span>Hacer commit ({selectedPaths.length})</span>
           {/if}
         </button>
       </div>
@@ -209,7 +395,7 @@
     border-radius: 10px;
     box-shadow: var(--modal-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
     width: 90%;
-    max-width: 460px;
+    max-width: 520px;
     padding: 20px;
     display: flex;
     flex-direction: column;
@@ -301,56 +487,202 @@
     background-color: var(--bg-secondary, #f6f8fa);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .git-commit-files-header {
-    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .git-commit-files-title {
+    font-size: 11.5px;
     font-weight: 600;
     color: var(--text-secondary, #656d76);
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
 
+  .git-commit-toggle-all-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--accent, #0969da);
+    cursor: pointer;
+    font-family: inherit;
+    outline: none;
+    transition: opacity 0.15s ease;
+  }
+
+  .git-commit-toggle-all-btn:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  .git-commit-toggle-all-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Buscador de archivos */
+  .git-commit-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 5px;
+  }
+
+  :global(.git-commit-search-icon) {
+    color: var(--text-secondary, #656d76);
+    flex-shrink: 0;
+  }
+
+  .git-commit-search-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    font-family: inherit;
+  }
+
+  .git-commit-search-clear {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-secondary, #656d76);
+    line-height: 1;
+  }
+
   .git-commit-files-list {
-    max-height: 105px;
+    max-height: 160px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-size: 12px;
+    gap: 2px;
+    padding-right: 2px;
   }
 
   .git-commit-file-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
     color: var(--text-primary, #1f2328);
-    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s ease;
+    border: 1px solid transparent;
   }
 
-  .git-commit-bullet {
+  .git-commit-file-item:hover {
+    background: var(--bg-tertiary, #eaeef2);
+  }
+
+  .git-commit-file-item.checked {
+    background: rgba(9, 105, 218, 0.06);
+    border-color: rgba(9, 105, 218, 0.15);
+  }
+
+  .git-commit-checkbox {
+    cursor: pointer;
+    accent-color: var(--accent, #0969da);
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin: 0;
+  }
+
+  /* Badges de estado Git */
+  .git-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 10px;
+    line-height: 1.3;
+    flex-shrink: 0;
+  }
+
+  .git-status-badge.status-deleted {
+    background: rgba(207, 34, 46, 0.12);
+    color: #cf222e;
+    border: 1px solid rgba(207, 34, 46, 0.28);
+  }
+
+  .git-status-badge.status-modified {
+    background: rgba(217, 119, 6, 0.12);
+    color: #d97706;
+    border: 1px solid rgba(217, 119, 6, 0.28);
+  }
+
+  .git-status-badge.status-untracked {
+    background: rgba(9, 105, 218, 0.12);
+    color: #0969da;
+    border: 1px solid rgba(9, 105, 218, 0.28);
+  }
+
+  .git-status-badge.status-added,
+  .git-status-badge.status-staged {
+    background: rgba(46, 160, 67, 0.12);
     color: #2ea043;
-    font-size: 14px;
-    line-height: 1;
+    border: 1px solid rgba(46, 160, 67, 0.28);
   }
 
-  .git-commit-filename {
+  .git-commit-file-path {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    overflow: hidden;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .git-commit-file-name {
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary, #1f2328);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: monospace;
-    font-size: 11.5px;
   }
 
-  .git-commit-file-more {
-    font-size: 11.5px;
+  .git-commit-file-name.strikethrough {
+    text-decoration: line-through;
+    color: var(--text-secondary, #656d76);
+  }
+
+  .git-commit-file-dir {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--text-muted, #8c959f);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .git-commit-empty-files {
+    font-size: 12px;
     color: var(--text-secondary, #656d76);
     font-style: italic;
-    padding-left: 10px;
+    padding: 8px 4px;
+    text-align: center;
   }
 
   /* Sección de entrada */

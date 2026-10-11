@@ -207,7 +207,12 @@ impl GitService {
                             let key = v_rel.to_string_lossy().to_string();
                             if !key.is_empty() {
                                 let entry = statuses.entry(key).or_default();
-                                entry.worktree = Some("M".to_string());
+                                let code = if abs_path.symlink_metadata().is_ok() {
+                                    "M"
+                                } else {
+                                    "D"
+                                };
+                                entry.worktree = Some(code.to_string());
                             }
                         }
                     }
@@ -936,6 +941,17 @@ mod tests {
         // Test empty message error
         let err = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "   ");
         assert!(err.is_err());
+
+        // Test delete file_b from disk
+        std::fs::remove_file(&file_b).unwrap();
+        let status3 = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_b_deleted = status3.statuses.get("file_b.txt").cloned().unwrap();
+        assert_eq!(stat_b_deleted.worktree.as_deref(), Some("D"));
+
+        let res_del = git_service.git_commit(&temp_dir, &["file_b.txt".to_string()], "commit deleted b");
+        assert!(res_del.is_ok());
+        let status4 = git_service.get_vault_status(&temp_dir).unwrap();
+        assert!(!status4.statuses.contains_key("file_b.txt"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
