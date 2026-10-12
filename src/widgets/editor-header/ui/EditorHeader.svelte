@@ -3,7 +3,7 @@
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { isTauriEnvironment } from '@shared/repositories';
   import type { TabItem, MarkdownViewMode } from '@entities/vault-item';
-  import { Popover } from 'bits-ui';
+  import { Popover, ContextMenu } from 'bits-ui';
   import { FileIcon } from '@entities/file-type';
   import {
     ChevronLeft,
@@ -20,7 +20,9 @@
     Minus,
     Square,
     GitCompare,
-    GitCompareArrows
+    GitCompareArrows,
+    ExternalLink,
+    Copy
   } from 'lucide-svelte';
 
   interface Props {
@@ -39,6 +41,11 @@
     onSelectTab?: (path: string) => void;
     onCloseTab?: (path: string) => void;
     onCloseAllTabs?: () => void;
+    onCloseOtherTabs?: (path: string) => void;
+    onCloseTabsToRight?: (path: string) => void;
+    onOpenInNewWindow?: (path: string, moveTab?: boolean) => void;
+    onReorderTab?: (draggedPath: string, targetIndex: number) => void;
+    onReceiveTabFromOtherWindow?: (path: string, targetIndex: number, sourceWindow: string) => void;
     onNewTab?: () => void;
     onNewFile?: () => void;
     onToggleView?: () => void;
@@ -66,6 +73,11 @@
     onSelectTab,
     onCloseTab,
     onCloseAllTabs,
+    onCloseOtherTabs,
+    onCloseTabsToRight,
+    onOpenInNewWindow,
+    onReorderTab,
+    onReceiveTabFromOtherWindow,
     onNewTab,
     onNewFile,
     onToggleView,
@@ -76,6 +88,11 @@
     onSave,
     onAction
   }: Props = $props();
+
+  function isSyntheticTab(p?: string | null): boolean {
+    if (!p) return false;
+    return p.startsWith('empty:') || p.startsWith('diff:') || p.startsWith('diff-staged:');
+  }
 
   let tabsScrollRef = $state<HTMLDivElement | null>(null);
   let menuContainerRef = $state<HTMLDivElement | null>(null);
@@ -88,6 +105,141 @@
 
   let searchQuery = $state('');
   let selectedIndex = $state(0);
+
+  // Estado y DND de pestañas
+  interface SynapseTabDragData {
+    path: string;
+    title: string;
+    windowLabel: string;
+  }
+
+  let myWindowLabel = $state('main');
+  let draggingTabPath = $state<string | null>(null);
+  let dropIndicator = $state<{ path: string; position: 'left' | 'right' } | null>(null);
+  let isContainerDropActive = $state(false);
+
+  function parseTabDragData(e: DragEvent): SynapseTabDragData | null {
+    try {
+      const rawCustom = e.dataTransfer?.getData('application/x-synapse-tab');
+      if (rawCustom) return JSON.parse(rawCustom);
+      const rawText = e.dataTransfer?.getData('text/plain');
+      if (rawText && rawText.startsWith('synapse-tab:')) {
+        return JSON.parse(rawText.slice('synapse-tab:'.length));
+      }
+    } catch {}
+    return null;
+  }
+
+  function handleTabDragStart(e: DragEvent, tab: TabItem) {
+    if (isSyntheticTab(tab.path)) return;
+    draggingTabPath = tab.path;
+    const payload: SynapseTabDragData = {
+      path: tab.path,
+      title: tab.title,
+      windowLabel: myWindowLabel,
+    };
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-synapse-tab', JSON.stringify(payload));
+      e.dataTransfer.setData('text/plain', `synapse-tab:${JSON.stringify(payload)}`);
+    }
+  }
+
+  function handleTabDragOver(e: DragEvent, tab: TabItem, index: number) {
+    const isSynapseTab = e.dataTransfer?.types.includes('application/x-synapse-tab') ||
+      e.dataTransfer?.types.includes('text/plain');
+    if (!isSynapseTab) return;
+
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const position: 'left' | 'right' = mouseX < rect.width / 2 ? 'left' : 'right';
+
+    if (dropIndicator?.path !== tab.path || dropIndicator?.position !== position) {
+      dropIndicator = { path: tab.path, position };
+    }
+  }
+
+  function handleTabDragLeave(e: DragEvent, tab: TabItem) {
+    if (dropIndicator?.path === tab.path) {
+      dropIndicator = null;
+    }
+  }
+
+  function handleTabDrop(e: DragEvent, targetTab: TabItem, targetIndex: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    const data = parseTabDragData(e);
+    const currentIndicator = dropIndicator;
+    dropIndicator = null;
+    draggingTabPath = null;
+    isContainerDropActive = false;
+
+    if (!data || !data.path) return;
+
+    let finalTargetIndex = targetIndex;
+    if (currentIndicator && currentIndicator.position === 'right') {
+      finalTargetIndex = targetIndex + 1;
+    }
+
+    if (data.windowLabel === myWindowLabel) {
+      if (onReorderTab) {
+        onReorderTab(data.path, finalTargetIndex);
+      }
+    } else {
+      if (onReceiveTabFromOtherWindow) {
+        onReceiveTabFromOtherWindow(data.path, finalTargetIndex, data.windowLabel);
+      }
+    }
+  }
+
+  function handleTabDragEnd() {
+    draggingTabPath = null;
+    dropIndicator = null;
+    isContainerDropActive = false;
+  }
+
+  function handleContainerDragOver(e: DragEvent) {
+    const isSynapseTab = e.dataTransfer?.types.includes('application/x-synapse-tab') ||
+      e.dataTransfer?.types.includes('text/plain');
+    if (!isSynapseTab) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    isContainerDropActive = true;
+  }
+
+  function handleContainerDragLeave(e: DragEvent) {
+    if (e.currentTarget === e.target) {
+      isContainerDropActive = false;
+    }
+  }
+
+  function handleContainerDrop(e: DragEvent) {
+    e.preventDefault();
+    const data = parseTabDragData(e);
+    draggingTabPath = null;
+    dropIndicator = null;
+    isContainerDropActive = false;
+
+    if (!data || !data.path) return;
+
+    const targetIndex = tabs.length;
+    if (data.windowLabel === myWindowLabel) {
+      if (onReorderTab) {
+        onReorderTab(data.path, targetIndex);
+      }
+    } else {
+      if (onReceiveTabFromOtherWindow) {
+        onReceiveTabFromOtherWindow(data.path, targetIndex, data.windowLabel);
+      }
+    }
+  }
 
 
 
@@ -302,6 +454,12 @@
   });
 
   onMount(() => {
+    if (isTauriEnvironment()) {
+      try {
+        myWindowLabel = getCurrentWebviewWindow().label;
+      } catch {}
+    }
+
     window.addEventListener('keydown', handleGlobalKeyDown);
     window.addEventListener('resize', checkScroll);
 
@@ -376,7 +534,7 @@
   </div>
 
   <!-- ÁREA CENTRAL DE PESTAÑAS: OCUPA SOLO EL ESPACIO DISPONIBLE Y SOPORTA SCROLL CON FLECHAS -->
-  <div class="tabs-area-wrapper">
+  <div class="tabs-area-wrapper" data-tauri-drag-region="false">
     {#if canScrollLeft}
       <button
         type="button"
@@ -391,44 +549,128 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="tabs-scroll-container"
+      class:drop-active={isContainerDropActive}
+      data-tauri-drag-region="false"
       bind:this={tabsScrollRef}
       onscroll={checkScroll}
       onwheel={handleWheel}
+      ondragover={handleContainerDragOver}
+      ondragleave={handleContainerDragLeave}
+      ondrop={handleContainerDrop}
     >
       {#if tabs && tabs.length > 0}
-        {#each tabs as tab (tab.path)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="tab-title-container"
-            class:active={tab.path === activeTabPath}
-            class:is-dirty={tab.isDirty}
-            data-path={tab.path}
-            title={tab.abs_path || tab.path}
-            onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
-            onauxclick={(e) => handleTabAuxClick(e, tab.path)}
-            onmousedown={handleTabMouseDown}
-          >
-            {#if tab.path.startsWith('diff-staged:')}
-              <GitCompareArrows size={14} class="file-icon" style="color: #22c55e;" />
-            {:else if tab.path.startsWith('diff:')}
-              <GitCompare size={14} class="file-icon" style="color: #3b82f6;" />
-            {:else}
-              <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
-            {/if}
-            <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
-            <button
-              type="button"
-              class="close-tab-btn"
-              onclick={(e) => {
-                e.stopPropagation();
-                if (onCloseTab) onCloseTab(tab.path);
-              }}
-              title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
-            >
-              <X size={12} />
-            </button>
-          </div>
+        {#each tabs as tab, index (tab.path)}
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              {#snippet child({ props })}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  {...props}
+                  class="tab-title-container"
+                  class:active={tab.path === activeTabPath}
+                  class:is-dirty={tab.isDirty}
+                  class:is-dragging={draggingTabPath === tab.path}
+                  class:drag-target-left={dropIndicator?.path === tab.path && dropIndicator?.position === 'left'}
+                  class:drag-target-right={dropIndicator?.path === tab.path && dropIndicator?.position === 'right'}
+                  data-path={tab.path}
+                  data-tauri-drag-region="false"
+                  draggable={!isSyntheticTab(tab.path)}
+                  title={tab.abs_path || tab.path}
+                  onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
+                  onauxclick={(e) => handleTabAuxClick(e, tab.path)}
+                  onmousedown={handleTabMouseDown}
+                  ondragstart={(e) => handleTabDragStart(e, tab)}
+                  ondragover={(e) => handleTabDragOver(e, tab, index)}
+                  ondragleave={(e) => handleTabDragLeave(e, tab)}
+                  ondrop={(e) => handleTabDrop(e, tab, index)}
+                  ondragend={handleTabDragEnd}
+                >
+                  {#if tab.path.startsWith('diff-staged:')}
+                    <GitCompareArrows size={14} class="file-icon" style="color: #22c55e;" />
+                  {:else if tab.path.startsWith('diff:')}
+                    <GitCompare size={14} class="file-icon" style="color: #3b82f6;" />
+                  {:else}
+                    <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
+                  {/if}
+                  <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                  <button
+                    type="button"
+                    class="close-tab-btn"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      if (onCloseTab) onCloseTab(tab.path);
+                    }}
+                    title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              {/snippet}
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content class="tab-context-menu">
+                {#if !isSyntheticTab(tab.path)}
+                  <ContextMenu.Item
+                    class="context-menu-item"
+                    onSelect={() => {
+                      if (onOpenInNewWindow) onOpenInNewWindow(tab.path, false);
+                    }}
+                  >
+                    <ExternalLink size={14} class="context-menu-item-icon" />
+                    <span>Abrir en nueva ventana</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    class="context-menu-item"
+                    onSelect={() => {
+                      if (onOpenInNewWindow) onOpenInNewWindow(tab.path, true);
+                    }}
+                  >
+                    <ExternalLink size={14} class="context-menu-item-icon" />
+                    <span>Mover a nueva ventana</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Separator class="context-menu-divider" />
+                {/if}
+                <ContextMenu.Item
+                  class="context-menu-item"
+                  onSelect={() => {
+                    if (onCloseTab) onCloseTab(tab.path);
+                  }}
+                >
+                  <X size={14} class="context-menu-item-icon" />
+                  <span>Cerrar pestaña</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  class="context-menu-item"
+                  onSelect={() => {
+                    if (onCloseOtherTabs) onCloseOtherTabs(tab.path);
+                  }}
+                >
+                  <span>Cerrar otras pestañas</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  class="context-menu-item"
+                  onSelect={() => {
+                    if (onCloseTabsToRight) onCloseTabsToRight(tab.path);
+                  }}
+                >
+                  <span>Cerrar pestañas a la derecha</span>
+                </ContextMenu.Item>
+                {#if !isSyntheticTab(tab.path)}
+                  <ContextMenu.Separator class="context-menu-divider" />
+                  <ContextMenu.Item
+                    class="context-menu-item"
+                    onSelect={() => {
+                      navigator.clipboard.writeText(tab.path);
+                    }}
+                  >
+                    <Copy size={14} class="context-menu-item-icon" />
+                    <span>Copiar ruta</span>
+                  </ContextMenu.Item>
+                {/if}
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
         {/each}
       {:else if title}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -634,6 +876,17 @@
       <Columns2 size={14} class="icon" />
     </button>
 
+    {#if activeTabPath && !isSyntheticTab(activeTabPath)}
+      <button
+        type="button"
+        class="icon-btn"
+        onclick={() => { if (onOpenInNewWindow) onOpenInNewWindow(activeTabPath, false); }}
+        title="Abrir pestaña en nueva ventana"
+      >
+        <ExternalLink size={14} class="icon" />
+      </button>
+    {/if}
+
     <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones del archivo">
       <MoreHorizontal size={14} class="icon" />
     </button>
@@ -817,6 +1070,26 @@
     background: var(--bg-primary, #ffffff);
     border-color: var(--accent, #0969da);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .tab-title-container.is-dragging {
+    opacity: 0.35;
+    transform: scale(0.98);
+  }
+
+  .tab-title-container.drag-target-left {
+    position: relative;
+    border-left: 2px solid var(--accent, #0969da);
+  }
+
+  .tab-title-container.drag-target-right {
+    position: relative;
+    border-right: 2px solid var(--accent, #0969da);
+  }
+
+  .tabs-scroll-container.drop-active {
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.04));
+    border-radius: 6px;
   }
 
   :global(.file-icon) {
@@ -1181,5 +1454,68 @@
   .win-icon {
     width: 14px;
     height: 14px;
+  }
+
+  :global(.tab-context-menu) {
+    min-width: 190px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    outline: none;
+    animation: context-menu-fade 0.1s ease-out;
+  }
+
+  @keyframes context-menu-fade {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  :global(.tab-context-menu .context-menu-divider) {
+    height: 1px;
+    background: var(--border-primary, #d0d7de);
+    margin: 4px 0;
+  }
+
+  :global(.tab-context-menu .context-menu-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.1s ease, color 0.1s ease;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  :global(.tab-context-menu .context-menu-item:hover),
+  :global(.tab-context-menu .context-menu-item[data-highlighted]) {
+    background: var(--accent-bg, rgba(9, 105, 218, 0.08));
+    color: var(--accent, #0969da);
+  }
+
+  :global(.tab-context-menu .context-menu-item-icon) {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
   }
 </style>

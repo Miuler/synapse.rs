@@ -8,7 +8,7 @@
   import GitBranchDialog from './GitBranchDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon } from '@entities/file-type';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -34,6 +34,7 @@
     onGitRestore?: (paths: string[]) => Promise<void> | void;
     onReloadItems?: (paths: string[], reloadedFiles?: string[]) => Promise<void> | void;
     onOpenDiff?: (path: string, staged: boolean) => void;
+    onOpenInNewWindow?: (path: string) => void;
   }
 
   let {
@@ -60,6 +61,7 @@
     onGitRestore,
     onReloadItems,
     onOpenDiff,
+    onOpenInNewWindow,
   }: Props = $props();
 
   function getGitStatusInfo(raw: unknown): {
@@ -1766,6 +1768,22 @@
           <span>{reloadMenuLabel}</span>
           <span class="context-menu-shortcut">Ctrl+R</span>
         </ContextMenu.Item>
+
+        {#if contextMenuNode && !contextMenuNode.isFolder}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (onOpenInNewWindow && contextMenuNode) {
+                onOpenInNewWindow(contextMenuNode.relativePath);
+              }
+            }}
+          >
+            <ExternalLink class="context-menu-item-icon" />
+            <span>Abrir en nueva ventana</span>
+          </ContextMenu.Item>
+        {/if}
 
         <ContextMenu.Separator class="context-menu-divider" />
 

@@ -26,7 +26,8 @@
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
-  import {listen} from "@tauri-apps/api/event";
+  import {listen, emit} from "@tauri-apps/api/event";
+  import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
 
   interface VaultFsChangeEvent {
@@ -51,6 +52,8 @@
   let markdownViewMode = $state<MarkdownViewMode>("reading");
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
+  let isDetachedWindow = $state(false);
+  let currentWindowLabel = $state('main');
 
   // Estado de control de versiones Git
   let isGitRepo = $state(false);
@@ -334,7 +337,7 @@
 
   let saveTabsTimeout: ReturnType<typeof setTimeout> | null = null;
   function persistTabsState() {
-    if (!isConnectedToRust) return;
+    if (!isConnectedToRust || isDetachedWindow) return;
     if (saveTabsTimeout) clearTimeout(saveTabsTimeout);
     saveTabsTimeout = setTimeout(() => {
       const tabs = openTabPaths
@@ -349,6 +352,7 @@
   }
 
   async function restoreOpenTabsState(): Promise<boolean> {
+    if (isDetachedWindow) return false;
     try {
       const state = await vaultRepository.getOpenTabsState();
       if (state && state.open_tabs && state.open_tabs.length > 0) {
@@ -666,6 +670,62 @@
     persistTabsState();
   }
 
+  function closeOtherTabs(targetPath: string) {
+    const tabsToClose = openTabPaths.filter((p) => p !== targetPath);
+    for (const p of tabsToClose) {
+      closeTab(p);
+    }
+  }
+
+  function closeTabsToRight(targetPath: string) {
+    const idx = openTabPaths.indexOf(targetPath);
+    if (idx !== -1) {
+      const tabsToClose = openTabPaths.slice(idx + 1);
+      for (const p of tabsToClose) {
+        closeTab(p);
+      }
+    }
+  }
+
+  async function handleOpenInNewWindow(path: string, moveTab = false) {
+    if (!path || isSyntheticTab(path)) return;
+    const vItem = vaultItems.find((v) => v.relative_path === path);
+    const title = vItem?.title || path.split('/').pop() || path;
+    await vaultRepository.openTabInNewWindow(path, title);
+    if (moveTab) {
+      closeTab(path);
+    }
+  }
+
+  function reorderTab(path: string, targetIndex: number) {
+    const currentIndex = openTabPaths.indexOf(path);
+    if (currentIndex === -1) return;
+    const newPaths = [...openTabPaths];
+    newPaths.splice(currentIndex, 1);
+    const adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
+    const finalIndex = Math.max(0, Math.min(adjustedIndex, newPaths.length));
+    newPaths.splice(finalIndex, 0, path);
+    openTabPaths = newPaths;
+    persistTabsState();
+  }
+
+  function receiveTabFromOtherWindow(path: string, targetIndex?: number, sourceWindow?: string) {
+    if (!openTabPaths.includes(path)) {
+      const newPaths = [...openTabPaths];
+      const insertAt = targetIndex !== undefined ? Math.min(targetIndex, newPaths.length) : newPaths.length;
+      newPaths.splice(insertAt, 0, path);
+      openTabPaths = newPaths;
+    }
+    selectTab(path);
+    if (isTauriEnvironment() && sourceWindow) {
+      emit("synapse:tab-moved-away", {
+        path,
+        sourceWindow,
+        targetWindow: currentWindowLabel,
+      });
+    }
+  }
+
   let activeNote = $derived(
     activeTabPath ? openedNotes[activeTabPath] : undefined
   );
@@ -965,12 +1025,22 @@
     // Cargar la configuración de tipos soportados a través de la entidad file-type
     loadSupportedFileTypes();
 
-    // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
-    if (openTabPaths.length === 0) {
-      handleNewEmptyTab();
-    }
+    vaultRepository.getDetachedWindowTab().then(async (detachedTab) => {
+      if (detachedTab) {
+        isDetachedWindow = true;
+        openTabPaths = [detachedTab];
+        activeTabPath = detachedTab;
+        await fetchNotesFromBackend();
+        ensureContentLoaded(detachedTab);
+        return;
+      }
 
-    vaultRepository.getActiveVaultPath().then(async (activePath) => {
+      // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
+      if (openTabPaths.length === 0) {
+        handleNewEmptyTab();
+      }
+
+      const activePath = await vaultRepository.getActiveVaultPath();
       if (!activePath) {
         await handleOpenVaultFolder();
       } else {
@@ -979,7 +1049,23 @@
     });
 
     let unlistenFsChange: (() => void) | undefined;
+    let unlistenTabMoved: (() => void) | undefined;
     if (isTauriEnvironment()) {
+      try {
+        currentWindowLabel = getCurrentWebviewWindow().label;
+      } catch {}
+
+      listen<{ path: string; sourceWindow: string; targetWindow: string }>(
+        "synapse:tab-moved-away",
+        (event) => {
+          if (event.payload.sourceWindow === currentWindowLabel) {
+            closeTab(event.payload.path);
+          }
+        }
+      ).then((unsub) => {
+        unlistenTabMoved = unsub;
+      });
+
       listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {
         const { paths, deleted } = event.payload;
 
@@ -1044,6 +1130,9 @@
     return () => {
       if (unlistenFsChange) {
         unlistenFsChange();
+      }
+      if (unlistenTabMoved) {
+        unlistenTabMoved();
       }
     };
   });
@@ -1172,6 +1261,16 @@
         category: "Pestañas",
         shortcut: "Ctrl+T",
         action: handleNewEmptyTab,
+      },
+      {
+        id: "cmd-open-in-new-window",
+        name: "Abrir pestaña activa en nueva ventana",
+        category: "Pestañas",
+        action: () => {
+          if (activeTabPath && !isSyntheticTab(activeTabPath)) {
+            handleOpenInNewWindow(activeTabPath, false);
+          }
+        },
       },
       {
         id: "cmd-open-folder",
@@ -1735,34 +1834,37 @@
 </script>
 
 <div class="workspace-layout">
-  <!-- 1. BARRA RIBBON IZQUIERDA -->
-  <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction}/>
+  {#if !isDetachedWindow}
+    <!-- 1. BARRA RIBBON IZQUIERDA -->
+    <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction}/>
 
-  <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
-  <VaultExplorer
-    bind:this={vaultExplorerRef}
-    {activeRibbonTab}
-    {sidebarWidth}
-    {isResizingSidebar}
-    {isConnectedToRust}
-    {vaultItems}
-    {activeTabPath}
-    vaultPath={appSettings.lastOpenedFolder}
-    {gitStatuses}
-    {isGitRepo}
-    {gitBranch}
-    onSelectTab={selectTab}
-    onOpenVaultFolder={handleOpenVaultFolder}
-    onDeleteItem={handleDeleteItem}
-    onDeleteItems={handleDeleteItems}
-    onRenameItem={handleRenameItem}
-    onResizeStart={handleSidebarResizeStart}
-    onCollapse={toggleSidebar}
-    onRefreshGit={refreshGitStatus}
-    onGitRestore={handleGitRestoreFiles}
-    onReloadItems={handleReloadItems}
-    onOpenDiff={(path, staged) => selectTab(staged ? `diff-staged:${path}` : `diff:${path}`)}
-  />
+    <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
+    <VaultExplorer
+      bind:this={vaultExplorerRef}
+      {activeRibbonTab}
+      {sidebarWidth}
+      {isResizingSidebar}
+      {isConnectedToRust}
+      {vaultItems}
+      {activeTabPath}
+      vaultPath={appSettings.lastOpenedFolder}
+      {gitStatuses}
+      {isGitRepo}
+      {gitBranch}
+      onSelectTab={selectTab}
+      onOpenVaultFolder={handleOpenVaultFolder}
+      onDeleteItem={handleDeleteItem}
+      onDeleteItems={handleDeleteItems}
+      onRenameItem={handleRenameItem}
+      onResizeStart={handleSidebarResizeStart}
+      onCollapse={toggleSidebar}
+      onRefreshGit={refreshGitStatus}
+      onGitRestore={handleGitRestoreFiles}
+      onReloadItems={handleReloadItems}
+      onOpenDiff={(path, staged) => selectTab(staged ? `diff-staged:${path}` : `diff:${path}`)}
+      onOpenInNewWindow={handleOpenInNewWindow}
+    />
+  {/if}
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
   <main class="main-workspace" class:is-resizing={isResizingSidebar}>
@@ -1797,6 +1899,11 @@
       onSelectTab={(path) => selectTab(path)}
       onCloseTab={(path) => closeTab(path)}
       onCloseAllTabs={closeAllTabs}
+      onCloseOtherTabs={closeOtherTabs}
+      onCloseTabsToRight={closeTabsToRight}
+      onOpenInNewWindow={handleOpenInNewWindow}
+      onReorderTab={reorderTab}
+      onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
       onNewTab={handleNewEmptyTab}
       onNewFile={() => createNewVaultItem()}
       onOpenQuickOpen={() => (isQuickOpenOpen = true)}
@@ -1818,7 +1925,30 @@
     />
 
     <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
-    <div class="editor-container" bind:this={editorContainerRef}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="editor-container"
+      bind:this={editorContainerRef}
+      ondragover={(e) => {
+        if (e.dataTransfer?.types.includes('application/x-synapse-tab') || e.dataTransfer?.types.includes('text/plain')) {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }
+      }}
+      ondrop={(e) => {
+        const rawCustom = e.dataTransfer?.getData('application/x-synapse-tab');
+        const rawText = e.dataTransfer?.getData('text/plain');
+        let data: { path: string; windowLabel: string } | null = null;
+        try {
+          if (rawCustom) data = JSON.parse(rawCustom);
+          else if (rawText && rawText.startsWith('synapse-tab:')) data = JSON.parse(rawText.slice('synapse-tab:'.length));
+        } catch {}
+        if (data?.path && data.windowLabel !== currentWindowLabel) {
+          e.preventDefault();
+          receiveTabFromOtherWindow(data.path, openTabPaths.length, data.windowLabel);
+        }
+      }}
+    >
       {#if openTabPaths.length === 0 || !activeTabPath || !openTabPaths.includes(activeTabPath)}
         <EmptyWorkspace
           hasVaultItems={vaultItems.length > 0}

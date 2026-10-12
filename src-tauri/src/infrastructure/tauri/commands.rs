@@ -17,7 +17,7 @@ use crate::infrastructure::services::git_service::{
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::infrastructure::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -36,6 +36,7 @@ pub struct AppState {
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
+    pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -127,6 +128,7 @@ impl AppState {
             navigation_engine: Mutex::new(None),
             full_text: Mutex::new(None),
             app_handle: Arc::new(Mutex::new(None)),
+            detached_tabs: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -150,6 +152,7 @@ impl AppState {
             navigation_engine: Mutex::new(Some(engine)),
             full_text: Mutex::new(Some(full_text)),
             app_handle,
+            detached_tabs: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -1296,6 +1299,67 @@ pub fn read_asset_data_url(
     use base64::Engine;
     let b64 = BASE64_STANDARD.encode(&bytes);
     Ok(Some(format!("data:{};base64,{}", mime, b64)))
+}
+
+#[tauri::command]
+pub fn open_tab_in_new_window(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    title: Option<String>,
+) -> Result<(), String> {
+    let window_title = title.unwrap_or_else(|| {
+        Path::new(&path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Synapse")
+            .to_string()
+    });
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let window_label = format!("win_{}", timestamp);
+
+    // Registrar en detached_tabs para que la ventana sepa qué archivo cargar
+    if let Ok(mut map) = state.detached_tabs.lock() {
+        map.insert(window_label.clone(), path);
+    }
+
+    let win = tauri::WebviewWindowBuilder::new(
+        &app,
+        &window_label,
+        tauri::WebviewUrl::default(),
+    )
+    .title(format!("Synapse - {}", window_title))
+    .inner_size(900.0, 700.0)
+    .decorations(false)
+    .resizable(true)
+    .center()
+    .build()
+    .map_err(|e| format!("Error creando nueva ventana: {}", e))?;
+
+    let tabs_map = Arc::clone(&state.detached_tabs);
+    let label_for_event = window_label.clone();
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            if let Ok(mut map) = tabs_map.lock() {
+                map.remove(&label_for_event);
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_detached_window_tab(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    let guard = state.detached_tabs.lock().map_err(|e| e.to_string())?;
+    Ok(guard.get(window.label()).cloned())
 }
 
 #[cfg(test)]

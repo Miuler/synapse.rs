@@ -144,6 +144,16 @@ export interface VaultRepository {
   getVaultUiState(): Promise<VaultUiState | null>;
 
   /**
+   * Abre una pestaña o archivo en una nueva ventana independiente de Tauri.
+   */
+  openTabInNewWindow(path: string, title?: string): Promise<void>;
+
+  /**
+   * Obtiene la ruta del archivo asignado a esta ventana si es una ventana flotante secundaria.
+   */
+  getDetachedWindowTab(): Promise<string | null>;
+
+  /**
    * Registra que una nota o archivo fue abierto para consulta/edición.
    */
   recordNoteOpened(relativePath: string): Promise<void>;
@@ -366,6 +376,30 @@ export class TauriVaultRepository implements VaultRepository {
       return await invokeTauri<VaultUiState>('get_vault_ui_state');
     } catch (error) {
       console.warn('Error en TauriVaultRepository al obtener get_vault_ui_state:', error);
+      return null;
+    }
+  }
+
+  async openTabInNewWindow(path: string, title?: string): Promise<void> {
+    if (!this.isConnected() || !path) return;
+
+    try {
+      await invokeTauri('open_tab_in_new_window', {
+        path,
+        title: title ?? null,
+      });
+    } catch (error) {
+      console.error('Error en TauriVaultRepository al abrir pestaña en nueva ventana:', error);
+    }
+  }
+
+  async getDetachedWindowTab(): Promise<string | null> {
+    if (!this.isConnected()) return null;
+
+    try {
+      return await invokeTauri<string | null>('get_detached_window_tab');
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al consultar get_detached_window_tab:', error);
       return null;
     }
   }
