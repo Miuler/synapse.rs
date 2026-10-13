@@ -29,6 +29,7 @@
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
+  import {Columns2} from "lucide-svelte";
 
   interface VaultFsChangeEvent {
     paths: string[];
@@ -38,6 +39,18 @@
   function isSyntheticTab(p: string | null | undefined): boolean {
     if (!p) return false;
     return p.startsWith("empty:") || p.startsWith("diff:") || p.startsWith("diff-staged:");
+  }
+
+  function parseTabDragData(e: DragEvent): { path: string; windowLabel: string; title?: string } | null {
+    try {
+      const rawCustom = e.dataTransfer?.getData('application/x-synapse-tab');
+      if (rawCustom) return JSON.parse(rawCustom);
+      const rawText = e.dataTransfer?.getData('text/plain');
+      if (rawText && rawText.startsWith('synapse-tab:')) {
+        return JSON.parse(rawText.slice('synapse-tab:'.length));
+      }
+    } catch {}
+    return null;
   }
 
   // Estados reactivos con Runas de Svelte 5
@@ -202,10 +215,33 @@
     }
   }
 
+  function getInitialSplitRatio(): number {
+    try {
+      const saved = localStorage.getItem('synapse_split_ratio');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 20 && parsed <= 80) return parsed;
+      }
+    } catch {}
+    return 50;
+  }
+
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
   let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
+
+  // Estado para panel dividido (Split View vertical)
+  let splitTabPaths = $state<string[]>([]);
+  let activeSplitTabPath = $state<string | null>(null);
+  let splitRatio = $state<number>(getInitialSplitRatio());
+  let isResizingSplit = $state(false);
+  let isDragOverSplitRight = $state(false);
+  let activeFocusedPane = $state<'left' | 'right'>('left');
+  let splitMarkdownViewMode = $state<MarkdownViewMode>('live');
+  let isSplitEditing = $state(true);
+  let isSplit = $derived(splitTabPaths.length > 0 && activeSplitTabPath !== null);
+  let splitContainerRef = $state<HTMLDivElement | null>(null);
   let sidebarWidth = $state<number>(getInitialSidebarWidth());
   let isResizingSidebar = $state(false);
 
@@ -726,8 +762,360 @@
     }
   }
 
+  function handleNewSplitEmptyTab() {
+    emptyTabCounter += 1;
+    const emptyTabPath = `empty://${emptyTabCounter}-${Date.now()}`;
+    splitTabPaths = [...splitTabPaths, emptyTabPath];
+    activeSplitTabPath = emptyTabPath;
+    openedNotes[emptyTabPath] = {
+      relative_path: emptyTabPath,
+      abs_path: undefined,
+      title: "Nueva pestaña",
+      content: "",
+      savedContent: "",
+      encoding: "UTF-8",
+      isLoading: false,
+      isLoaded: true,
+      viewMode: "reading",
+      lastReloaded: Date.now(),
+    };
+    activeFocusedPane = 'right';
+  }
+
+  function selectSplitTab(path: string) {
+    if (!path) return;
+    if (!splitTabPaths.includes(path)) {
+      splitTabPaths = [...splitTabPaths, path];
+    }
+    activeSplitTabPath = path;
+    if (!isSyntheticTab(path)) {
+      ensureContentLoaded(path);
+      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
+      const mode = openedNotes[path]?.viewMode || defaultMode;
+      splitMarkdownViewMode = mode;
+      isSplitEditing = mode !== "reading";
+      recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
+      vaultRepository.recordNoteOpened(path);
+    }
+    activeFocusedPane = 'right';
+  }
+
+  function closeSplitTab(path: string) {
+    const idx = splitTabPaths.indexOf(path);
+    if (idx !== -1) {
+      splitTabPaths = splitTabPaths.filter((p) => p !== path);
+      if (activeSplitTabPath === path) {
+        if (splitTabPaths.length > 0) {
+          const nextIdx = Math.min(idx, splitTabPaths.length - 1);
+          activeSplitTabPath = splitTabPaths[nextIdx];
+          if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
+            ensureContentLoaded(activeSplitTabPath);
+          }
+        } else {
+          activeSplitTabPath = null;
+          activeFocusedPane = 'left';
+        }
+      }
+    }
+    if (splitTabPaths.length === 0) {
+      activeSplitTabPath = null;
+      activeFocusedPane = 'left';
+    }
+  }
+
+  function closeAllSplitTabs() {
+    splitTabPaths = [];
+    activeSplitTabPath = null;
+    activeFocusedPane = 'left';
+  }
+
+  function closeOtherSplitTabs(targetPath: string) {
+    const toClose = splitTabPaths.filter((p) => p !== targetPath);
+    for (const p of toClose) {
+      closeSplitTab(p);
+    }
+  }
+
+  function closeSplitTabsToRight(targetPath: string) {
+    const idx = splitTabPaths.indexOf(targetPath);
+    if (idx !== -1) {
+      const toClose = splitTabPaths.slice(idx + 1);
+      for (const p of toClose) {
+        closeSplitTab(p);
+      }
+    }
+  }
+
+  function reorderSplitTab(path: string, targetIndex: number) {
+    const currentIndex = splitTabPaths.indexOf(path);
+    if (currentIndex === -1) return;
+    const newPaths = [...splitTabPaths];
+    newPaths.splice(currentIndex, 1);
+    const adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
+    const finalIndex = Math.max(0, Math.min(adjustedIndex, newPaths.length));
+    newPaths.splice(finalIndex, 0, path);
+    splitTabPaths = newPaths;
+  }
+
+  function splitTabToRight(path: string, sourceWindow?: string) {
+    if (!path) return;
+    if (sourceWindow && sourceWindow !== currentWindowLabel) {
+      if (isTauriEnvironment()) {
+        emit("synapse:tab-moved-away", {
+          path,
+          sourceWindow,
+          targetWindow: currentWindowLabel,
+        });
+      }
+    }
+
+    if (openTabPaths.includes(path)) {
+      openTabPaths = openTabPaths.filter((p) => p !== path);
+      if (openTabPaths.length === 0) {
+        handleNewEmptyTab();
+      } else if (activeTabPath === path) {
+        activeTabPath = openTabPaths[0];
+      }
+    }
+
+    if (!splitTabPaths.includes(path)) {
+      splitTabPaths = [...splitTabPaths, path];
+    }
+    activeSplitTabPath = path;
+
+    if (!isSyntheticTab(path)) {
+      ensureContentLoaded(path);
+      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
+      const mode = openedNotes[path]?.viewMode || defaultMode;
+      splitMarkdownViewMode = mode;
+      isSplitEditing = mode !== "reading";
+    }
+
+    activeFocusedPane = 'right';
+  }
+
+  function handleSplitView(targetPath?: string) {
+    if (isSplit) {
+      // Si ya está dividido, fusionar pestañas del panel derecho al izquierdo y cerrar división
+      for (const p of splitTabPaths) {
+        if (!openTabPaths.includes(p)) {
+          openTabPaths = [...openTabPaths, p];
+        }
+      }
+      splitTabPaths = [];
+      activeSplitTabPath = null;
+      activeFocusedPane = 'left';
+      return;
+    }
+
+    const pathToSplit = targetPath || activeTabPath;
+    if (!pathToSplit) return;
+
+    if (openTabPaths.length > 1) {
+      splitTabToRight(pathToSplit);
+    } else {
+      splitTabPaths = [pathToSplit];
+      activeSplitTabPath = pathToSplit;
+      activeFocusedPane = 'right';
+      if (!isSyntheticTab(pathToSplit)) {
+        ensureContentLoaded(pathToSplit);
+      }
+    }
+  }
+
+  function receiveTabFromSplitOrWindow(path: string, isTargetRight: boolean, targetIndex?: number, sourceWindow?: string) {
+    if (isTargetRight) {
+      if (openTabPaths.includes(path)) {
+        openTabPaths = openTabPaths.filter((p) => p !== path);
+        if (openTabPaths.length === 0) {
+          handleNewEmptyTab();
+        } else if (activeTabPath === path) {
+          activeTabPath = openTabPaths[0];
+        }
+      }
+      if (!splitTabPaths.includes(path)) {
+        const newPaths = [...splitTabPaths];
+        const insertAt = targetIndex !== undefined ? Math.min(targetIndex, newPaths.length) : newPaths.length;
+        newPaths.splice(insertAt, 0, path);
+        splitTabPaths = newPaths;
+      }
+      selectSplitTab(path);
+    } else {
+      if (splitTabPaths.includes(path)) {
+        splitTabPaths = splitTabPaths.filter((p) => p !== path);
+        if (splitTabPaths.length === 0) {
+          activeSplitTabPath = null;
+        } else if (activeSplitTabPath === path) {
+          activeSplitTabPath = splitTabPaths[0];
+        }
+      }
+      if (!openTabPaths.includes(path)) {
+        const newPaths = [...openTabPaths];
+        const insertAt = targetIndex !== undefined ? Math.min(targetIndex, newPaths.length) : newPaths.length;
+        newPaths.splice(insertAt, 0, path);
+        openTabPaths = newPaths;
+      }
+      selectTab(path);
+    }
+
+    if (isTauriEnvironment() && sourceWindow && sourceWindow !== currentWindowLabel) {
+      emit("synapse:tab-moved-away", {
+        path,
+        sourceWindow,
+        targetWindow: currentWindowLabel,
+      });
+    }
+  }
+
+  function handleSelectTabFromExplorer(path: string) {
+    if (activeFocusedPane === 'right' && isSplit) {
+      selectSplitTab(path);
+    } else {
+      selectTab(path);
+    }
+  }
+
+  function handleChangeSplitMarkdownView(newMode: MarkdownViewMode) {
+    splitMarkdownViewMode = newMode;
+    isSplitEditing = newMode !== "reading";
+    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
+      if (openedNotes[activeSplitTabPath]) {
+        openedNotes[activeSplitTabPath].viewMode = newMode;
+      }
+    }
+  }
+
+  function toggleSplitViewMode() {
+    const current = !isSplitEditing ? "reading" : splitMarkdownViewMode;
+    let nextMode: MarkdownViewMode;
+    let nextEditing: boolean;
+    if (current === "reading") {
+      nextMode = "live";
+      nextEditing = true;
+    } else if (current === "live") {
+      nextMode = "source";
+      nextEditing = true;
+    } else {
+      nextMode = "reading";
+      nextEditing = false;
+    }
+    splitMarkdownViewMode = nextMode;
+    isSplitEditing = nextEditing;
+    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
+      if (openedNotes[activeSplitTabPath]) {
+        openedNotes[activeSplitTabPath].viewMode = nextMode;
+      }
+    }
+  }
+
+  function handleSplitResizeStart(e: PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingSplit = true;
+    document.body.classList.add('is-resizing-col');
+
+    const handlePointerMove = (ev: MouseEvent | PointerEvent) => {
+      if (!splitContainerRef) return;
+      const rect = splitContainerRef.getBoundingClientRect();
+      const relativeX = ev.clientX - rect.left;
+      const newRatio = (relativeX / rect.width) * 100;
+      splitRatio = Math.max(20, Math.min(80, newRatio));
+    };
+
+    const handlePointerUp = () => {
+      isResizingSplit = false;
+      document.body.classList.remove('is-resizing-col');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+      try {
+        localStorage.setItem('synapse_split_ratio', String(splitRatio));
+      } catch {}
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+  }
+
+  function handleEditorDragOver(e: DragEvent) {
+    const isSynapseTab =
+      e.dataTransfer?.types.includes('application/x-synapse-tab') ||
+      e.dataTransfer?.types.includes('text/plain');
+    if (!isSynapseTab) return;
+
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    if (!editorContainerRef) return;
+    const rect = editorContainerRef.getBoundingClientRect();
+    const isRightZone = e.clientX > (rect.left + rect.width * 0.5);
+    isDragOverSplitRight = isRightZone;
+  }
+
+  function handleEditorDragLeave(e: DragEvent) {
+    if (e.currentTarget === e.target || !editorContainerRef?.contains(e.relatedTarget as Node)) {
+      isDragOverSplitRight = false;
+    }
+  }
+
+  function handleEditorDrop(e: DragEvent) {
+    const wasOverSplit = isDragOverSplitRight;
+    isDragOverSplitRight = false;
+
+    const data = parseTabDragData(e);
+    if (!data?.path) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (wasOverSplit && !isSplit) {
+      splitTabToRight(data.path, data.windowLabel);
+    } else if (data.windowLabel !== currentWindowLabel) {
+      receiveTabFromOtherWindow(data.path, openTabPaths.length, data.windowLabel);
+    }
+  }
+
+  function handlePaneDragOver(e: DragEvent, _pane: 'left' | 'right') {
+    const isSynapseTab =
+      e.dataTransfer?.types.includes('application/x-synapse-tab') ||
+      e.dataTransfer?.types.includes('text/plain');
+    if (!isSynapseTab) return;
+
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function handlePaneDrop(e: DragEvent, targetPane: 'left' | 'right') {
+    const data = parseTabDragData(e);
+    if (!data?.path) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    receiveTabFromSplitOrWindow(data.path, targetPane === 'right', undefined, data.windowLabel);
+  }
+
+  let currentFocusedTabPath = $derived(
+    activeFocusedPane === 'right' && isSplit && activeSplitTabPath
+      ? activeSplitTabPath
+      : activeTabPath
+  );
+
   let activeNote = $derived(
     activeTabPath ? openedNotes[activeTabPath] : undefined
+  );
+
+  let focusedNote = $derived(
+    currentFocusedTabPath ? openedNotes[currentFocusedTabPath] : undefined
   );
 
   let excalidrawViewers = $state<Record<string, any>>({});
@@ -744,21 +1132,51 @@
       : { id: "0", title: "", relative_path: "", abs_path: undefined }
   );
 
+  let currentSplitVaultItem = $derived(
+    activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)
+      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeSplitTabPath) || {
+          id: "0",
+          title: openedNotes[activeSplitTabPath]?.title || activeSplitTabPath.split("/").pop() || activeSplitTabPath,
+          relative_path: activeSplitTabPath,
+          abs_path: openedNotes[activeSplitTabPath]?.abs_path,
+        }
+      : { id: "0", title: "", relative_path: "", abs_path: undefined }
+  );
+
+  let currentFocusedVaultItem = $derived(
+    activeFocusedPane === 'right' && isSplit ? currentSplitVaultItem : currentVaultItem
+  );
+
   let activeContent = $derived(
     activeNote ? activeNote.content : ""
   );
 
+  let focusedContent = $derived(
+    focusedNote ? focusedNote.content : ""
+  );
+
   let currentEncoding = $derived(
-    activeNote ? activeNote.encoding : "---"
+    focusedNote ? focusedNote.encoding : "---"
   );
 
   let isMarkdownTab = $derived(
     Boolean(
-      activeTabPath &&
-      !isSyntheticTab(activeTabPath) &&
+      currentFocusedTabPath &&
+      !isSyntheticTab(currentFocusedTabPath) &&
       (
-        isMarkdownFile(activeTabPath) ||
-        (currentVaultItem.relative_path && isMarkdownFile(currentVaultItem.relative_path))
+        isMarkdownFile(currentFocusedTabPath) ||
+        (currentFocusedVaultItem.relative_path && isMarkdownFile(currentFocusedVaultItem.relative_path))
+      )
+    )
+  );
+
+  let isMarkdownSplitTab = $derived(
+    Boolean(
+      activeSplitTabPath &&
+      !isSyntheticTab(activeSplitTabPath) &&
+      (
+        isMarkdownFile(activeSplitTabPath) ||
+        (currentSplitVaultItem.relative_path && isMarkdownFile(currentSplitVaultItem.relative_path))
       )
     )
   );
@@ -773,6 +1191,19 @@
       !activeNote.isLoading &&
       typeof activeNote.content === "string" &&
       activeNote.content.trim().length > 0
+    )
+  );
+
+  let hasActiveSplitContent = $derived(
+    Boolean(
+      activeSplitTabPath &&
+      !isSyntheticTab(activeSplitTabPath) &&
+      splitTabPaths.includes(activeSplitTabPath) &&
+      !isImageFile(activeSplitTabPath) &&
+      openedNotes[activeSplitTabPath] &&
+      !openedNotes[activeSplitTabPath]?.isLoading &&
+      typeof openedNotes[activeSplitTabPath]?.content === "string" &&
+      openedNotes[activeSplitTabPath]?.content.trim().length > 0
     )
   );
 
@@ -818,20 +1249,62 @@
     })
   );
 
+  let rightTabsInfo = $derived(
+    splitTabPaths.map((path) => {
+      if (path.startsWith("empty:")) {
+        return {
+          path,
+          title: "Nueva pestaña",
+          abs_path: undefined,
+          isDirty: false,
+        };
+      }
+      if (path.startsWith("diff-staged:")) {
+        const filePath = path.slice("diff-staged:".length);
+        const fileName = filePath.split("/").pop() || filePath;
+        return {
+          path,
+          title: `Diff (staged): ${fileName}`,
+          abs_path: undefined,
+          isDirty: false,
+        };
+      }
+      if (path.startsWith("diff:")) {
+        const filePath = path.slice("diff:".length);
+        const fileName = filePath.split("/").pop() || filePath;
+        return {
+          path,
+          title: `Diff: ${fileName}`,
+          abs_path: undefined,
+          isDirty: false,
+        };
+      }
+      const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const note = openedNotes[path];
+      const isDirty = note ? note.content !== note.savedContent : false;
+      return {
+        path,
+        abs_path: note?.abs_path || vaultItem?.abs_path,
+        title: note?.title || vaultItem?.title || path,
+        isDirty,
+      };
+    })
+  );
+
   // Selección activa actual
   let currentSelection = $derived<SelectionInfo>(
-    (activeTabPath && tabSelections[activeTabPath])
-      ? tabSelections[activeTabPath]
+    (currentFocusedTabPath && tabSelections[currentFocusedTabPath])
+      ? tabSelections[currentFocusedTabPath]
       : defaultSelection
   );
 
   // Contadores calculados reactivamente sobre todo el documento
   let docWordCount = $derived(
-    activeContent && activeContent.trim()
-      ? activeContent.trim().split(/\s+/).length
+    focusedContent && focusedContent.trim()
+      ? focusedContent.trim().split(/\s+/).length
       : 0
   );
-  let docCharCount = $derived(activeContent ? activeContent.length : 0);
+  let docCharCount = $derived(focusedContent ? focusedContent.length : 0);
 
   // Dos comportamientos:
   // 1) Si no hay selección: cuenta sobre todo el documento y posición del cursor (Lín, Col)
@@ -855,6 +1328,12 @@
   $effect(() => {
     if (openTabPaths.length > 0 && (!activeTabPath || !openTabPaths.includes(activeTabPath))) {
       selectTab(openTabPaths[0]);
+    }
+  });
+
+  $effect(() => {
+    if (splitTabPaths.length > 0 && (!activeSplitTabPath || !splitTabPaths.includes(activeSplitTabPath))) {
+      selectSplitTab(splitTabPaths[0]);
     }
   });
 
@@ -1235,17 +1714,33 @@
       isLoaded: true,
     };
 
-    const targetEmptyPath = emptyTabPathToReplace || (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null);
-    if (targetEmptyPath && openTabPaths.includes(targetEmptyPath)) {
+    const targetEmptyPath = emptyTabPathToReplace || (
+      activeFocusedPane === 'right' && isSplit && activeSplitTabPath && activeSplitTabPath.startsWith("empty:")
+        ? activeSplitTabPath
+        : (activeTabPath && activeTabPath.startsWith("empty:") ? activeTabPath : null)
+    );
+    if (targetEmptyPath && splitTabPaths.includes(targetEmptyPath)) {
+      const idx = splitTabPaths.indexOf(targetEmptyPath);
+      splitTabPaths[idx] = newRelPath;
+      delete openedNotes[targetEmptyPath];
+      delete tabSelections[targetEmptyPath];
+      activeSplitTabPath = newRelPath;
+      activeFocusedPane = 'right';
+    } else if (targetEmptyPath && openTabPaths.includes(targetEmptyPath)) {
       const idx = openTabPaths.indexOf(targetEmptyPath);
       openTabPaths[idx] = newRelPath;
       delete openedNotes[targetEmptyPath];
       delete tabSelections[targetEmptyPath];
       tabHistory = tabHistory.map((p) => (p === targetEmptyPath ? newRelPath : p));
+      activeTabPath = newRelPath;
+      activeFocusedPane = 'left';
+    } else if (activeFocusedPane === 'right' && isSplit) {
+      splitTabPaths.push(newRelPath);
+      activeSplitTabPath = newRelPath;
     } else {
       openTabPaths.push(newRelPath);
+      activeTabPath = newRelPath;
     }
-    activeTabPath = newRelPath;
     recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)].slice(0, 15);
     recordTabVisit(newRelPath);
     await persistVaultItemToRust(newVaultItem);
@@ -1255,6 +1750,13 @@
   // Registrar comandos por defecto al iniciar
   onMount(() => {
     commandRegistry.registerMany([
+      {
+        id: "cmd-split-view",
+        name: "Dividir panel verticalmente (Split View)",
+        category: "Vista",
+        shortcut: "Ctrl+\\",
+        action: () => handleSplitView(),
+      },
       {
         id: "cmd-new-tab",
         name: "Nueva pestaña vacía",
@@ -1619,11 +2121,19 @@
           e.stopImmediatePropagation();
           handleNewEmptyTab();
           return;
+        } else if (key === '\\' || key === '|') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleSplitView();
+          return;
         } else if (key === 'w' || key === 'f4') {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          if (activeTabPath) {
+          if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
+            closeSplitTab(activeSplitTabPath);
+          } else if (activeTabPath) {
             closeTab(activeTabPath);
           }
           return;
@@ -1851,7 +2361,7 @@
       {gitStatuses}
       {isGitRepo}
       {gitBranch}
-      onSelectTab={selectTab}
+      onSelectTab={handleSelectTabFromExplorer}
       onOpenVaultFolder={handleOpenVaultFolder}
       onDeleteItem={handleDeleteItem}
       onDeleteItems={handleDeleteItems}
@@ -1866,252 +2376,415 @@
     />
   {/if}
 
-  <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
-  <main class="main-workspace" class:is-resizing={isResizingSidebar}>
-    <!-- BARRA SUPERIOR DE PESTAÑAS Y HERRAMIENTAS -->
-    <EditorHeader
-      bind:isEditing
-      tabs={tabsInfo}
-      {activeTabPath}
-      {canGoBack}
-      {canGoForward}
-      onNavigateBack={navigateBack}
-      onNavigateForward={navigateForward}
-      isMarkdownFile={isMarkdownTab}
-      showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
-      markdownViewMode={!isEditing ? "reading" : markdownViewMode}
-      onChangeMarkdownView={handleChangeMarkdownView}
-      title={
-        activeTabPath?.startsWith("empty:")
-          ? "Nueva pestaña"
-          : activeTabPath?.startsWith("diff-staged:")
-          ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
-          : activeTabPath?.startsWith("diff:")
-          ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
-          : (currentVaultItem.relative_path || currentVaultItem.title)
-      }
-      showSaveButton={isEditing &&
-        !!activeTabPath &&
-        !isSyntheticTab(activeTabPath) &&
-        (!currentVaultItem.relative_path ||
-          isMarkdownFile(currentVaultItem.relative_path) ||
-          isDrawingFile(currentVaultItem.relative_path))}
-      onSelectTab={(path) => selectTab(path)}
-      onCloseTab={(path) => closeTab(path)}
-      onCloseAllTabs={closeAllTabs}
-      onCloseOtherTabs={closeOtherTabs}
-      onCloseTabsToRight={closeTabsToRight}
-      onOpenInNewWindow={handleOpenInNewWindow}
-      onReorderTab={reorderTab}
-      onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
-      onNewTab={handleNewEmptyTab}
-      onNewFile={() => createNewVaultItem()}
-      onOpenQuickOpen={() => (isQuickOpenOpen = true)}
-      onAction={(actionId) => {
-        if (actionId === 'nav-back') navigateBack();
-        else if (actionId === 'nav-forward') navigateForward();
-        else if (actionId === 'new-file') createNewVaultItem();
-        else if (actionId === 'quick-open') isQuickOpenOpen = true;
-      }}
-      onToggleView={() => {
-        toggleViewMode();
-      }}
-      onSave={() => {
-        if (activeTabPath && currentVaultItem.relative_path) {
-          persistVaultItemToRust(currentVaultItem);
-        }
-      }}
-      onOpenCommandPalette={() => (isPaletteOpen = true)}
-    />
-
-    <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="editor-container"
-      bind:this={editorContainerRef}
-      ondragover={(e) => {
-        if (e.dataTransfer?.types.includes('application/x-synapse-tab') || e.dataTransfer?.types.includes('text/plain')) {
-          e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        }
-      }}
-      ondrop={(e) => {
-        const rawCustom = e.dataTransfer?.getData('application/x-synapse-tab');
-        const rawText = e.dataTransfer?.getData('text/plain');
-        let data: { path: string; windowLabel: string } | null = null;
-        try {
-          if (rawCustom) data = JSON.parse(rawCustom);
-          else if (rawText && rawText.startsWith('synapse-tab:')) data = JSON.parse(rawText.slice('synapse-tab:'.length));
-        } catch {}
-        if (data?.path && data.windowLabel !== currentWindowLabel) {
-          e.preventDefault();
-          receiveTabFromOtherWindow(data.path, openTabPaths.length, data.windowLabel);
-        }
-      }}
-    >
-      {#if openTabPaths.length === 0 || !activeTabPath || !openTabPaths.includes(activeTabPath)}
-        <EmptyWorkspace
-          hasVaultItems={vaultItems.length > 0}
-          onCreateNew={() => createNewVaultItem()}
-        />
-      {:else}
-        {#each openTabPaths as tabPath (tabPath)}
-          {#if tabPath.startsWith("empty:")}
-            <div
-              class="tab-pane"
-              class:hidden={tabPath !== activeTabPath}
-            >
-              <EmptyWorkspace
-                hasVaultItems={vaultItems.length > 0}
-                onCreateNew={() => createNewVaultItem(tabPath)}
-              />
-            </div>
-          {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
-            <div
-              class="tab-pane full-pane"
-              class:hidden={tabPath !== activeTabPath}
-            >
-              <DiffViewer
-                filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
-                isStaged={tabPath.startsWith("diff-staged:")}
-                onClose={() => closeTab(tabPath)}
-              />
-            </div>
-          {:else}
-            {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath) || {
-              id: "0",
-              title: openedNotes[tabPath]?.title || tabPath,
-              relative_path: tabPath,
-              abs_path: openedNotes[tabPath]?.abs_path,
-            }}
-            {@const note = openedNotes[tabPath]}
-            {@const content = note?.content ?? ""}
-            {@const isLoading = note?.isLoading ?? false}
-            <div
-              class="tab-pane"
-              class:hidden={tabPath !== activeTabPath}
-              class:full-pane={isDiagramFile(tabPath) ||
-                isImageFile(tabPath) ||
-                isDrawingFile(tabPath)}
-            >
-              <BreadCrumb
-                path={tabPath}
-                onNavigateFolder={(folderPath) => vaultExplorerRef?.locateActiveFile(folderPath)}
-                onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
-              />
-              {#if isLoading}
-                <div class="content-loading">
-                  <span class="spinner"></span>
-                  <span>Cargando contenido desde disco...</span>
-                </div>
-              {:else}
-                {#key note?.lastReloaded}
-                  {#if isDiagramFile(tabPath)}
-                    {#if appSettings.mermaidRenderer === 'mermaidjs'}
-                      <MermaidViewer
-                        {content}
-                        readOnly={!isEditing}
-                        vimMode={isVimMode}
-                        onChange={(updatedContent) => {
-                          if (openedNotes[tabPath]) {
-                            openedNotes[tabPath].content = updatedContent;
-                          }
-                          debouncedPersistVaultItemToRust(vaultItem);
-                        }}
-                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                      />
-                    {:else}
-                      <MermanViewer
-                        {content}
-                        readOnly={!isEditing}
-                        vimMode={isVimMode}
-                        onChange={(updatedContent) => {
-                          if (openedNotes[tabPath]) {
-                            openedNotes[tabPath].content = updatedContent;
-                          }
-                          debouncedPersistVaultItemToRust(vaultItem);
-                        }}
-                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                      />
-                    {/if}
-                  {:else if isDrawingFile(tabPath)}
-                    <ExcalidrawViewer
-                      bind:this={excalidrawViewers[tabPath]}
+  {#snippet renderPaneContent(paneTabs: string[], activePath: string | null, isRight: boolean)}
+    {#if paneTabs.length === 0 || !activePath || !paneTabs.includes(activePath)}
+      <EmptyWorkspace
+        hasVaultItems={vaultItems.length > 0}
+        onCreateNew={() => (isRight ? handleNewSplitEmptyTab() : createNewVaultItem())}
+      />
+    {:else}
+      {#each paneTabs as tabPath (tabPath)}
+        {#if tabPath.startsWith("empty:")}
+          <div
+            class="tab-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <EmptyWorkspace
+              hasVaultItems={vaultItems.length > 0}
+              onCreateNew={() => createNewVaultItem(tabPath)}
+            />
+          </div>
+        {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
+          <div
+            class="tab-pane full-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <DiffViewer
+              filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
+              isStaged={tabPath.startsWith("diff-staged:")}
+              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+            />
+          </div>
+        {:else}
+          {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath) || {
+            id: "0",
+            title: openedNotes[tabPath]?.title || tabPath,
+            relative_path: tabPath,
+            abs_path: openedNotes[tabPath]?.abs_path,
+          }}
+          {@const note = openedNotes[tabPath]}
+          {@const content = note?.content ?? ""}
+          {@const isLoading = note?.isLoading ?? false}
+          {@const paneEditing = isRight ? isSplitEditing : isEditing}
+          {@const paneViewMode = isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
+          <div
+            class="tab-pane"
+            class:hidden={tabPath !== activePath}
+            class:full-pane={isDiagramFile(tabPath) ||
+              isImageFile(tabPath) ||
+              isDrawingFile(tabPath)}
+          >
+            <BreadCrumb
+              path={tabPath}
+              onNavigateFolder={(folderPath) => vaultExplorerRef?.locateActiveFile(folderPath)}
+              onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
+            />
+            {#if isLoading}
+              <div class="content-loading">
+                <span class="spinner"></span>
+                <span>Cargando contenido desde disco...</span>
+              </div>
+            {:else}
+              {#key note?.lastReloaded}
+                {#if isDiagramFile(tabPath)}
+                  {#if appSettings.mermaidRenderer === 'mermaidjs'}
+                    <MermaidViewer
                       {content}
-                      readOnly={!isEditing}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
                       onChange={(updatedContent) => {
                         if (openedNotes[tabPath]) {
                           openedNotes[tabPath].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
-                      onSave={(savedContent) => {
-                        if (savedContent && openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = savedContent;
-                        }
-                        persistVaultItemToRust(vaultItem);
-                      }}
-                    />
-                  {:else if isMarkdownFile(tabPath)}
-                    <input
-                      type="text"
-                      class="editor-title-input"
-                      bind:value={vaultItem.title}
-                      oninput={() => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].title = vaultItem.title;
-                        }
-                        persistVaultItemToRust(vaultItem);
-                      }}
-                      placeholder="Título del archivo..."
-                    />
-
-                    <div class="editor-main-content">
-                      <MarkdownViewer
-                        {content}
-                        filePath={tabPath}
-                        readOnly={!isEditing}
-                        vimMode={isVimMode}
-                        viewMode={!isEditing ? 'reading' : markdownViewMode}
-                        scrollToTerms={pendingScrollTerms[tabPath]}
-                        onNavigate={handleNavigateLink}
-                        onChange={(updatedMarkdown: string) => {
-                          if (openedNotes[tabPath]) {
-                            openedNotes[tabPath].content = updatedMarkdown;
-                          }
-                          debouncedPersistVaultItemToRust(vaultItem);
-                        }}
-                        onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
-                        isMarkdown={true}
-                      />
-                    </div>
-                  {:else if isImageFile(tabPath)}
-                    <ImageViewer
-                      src={note?.abs_path || tabPath}
-                      alt={vaultItem.title || tabPath}
-                      {content}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                     />
                   {:else}
-                    <div class="editor-main-content">
-                      <pre
-                        style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap; overflow-y: auto; height: 100%;">{content}</pre>
-                    </div>
+                    <MermanViewer
+                      {content}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                    />
                   {/if}
-                {/key}
-              {/if}
+                {:else if isDrawingFile(tabPath)}
+                  <ExcalidrawViewer
+                    bind:this={excalidrawViewers[tabPath]}
+                    {content}
+                    readOnly={!paneEditing}
+                    onChange={(updatedContent) => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = updatedContent;
+                      }
+                      debouncedPersistVaultItemToRust(vaultItem);
+                    }}
+                    onSave={(savedContent) => {
+                      if (savedContent && openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = savedContent;
+                      }
+                      persistVaultItemToRust(vaultItem);
+                    }}
+                  />
+                {:else if isMarkdownFile(tabPath)}
+                  <input
+                    type="text"
+                    class="editor-title-input"
+                    bind:value={vaultItem.title}
+                    oninput={() => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].title = vaultItem.title;
+                      }
+                      persistVaultItemToRust(vaultItem);
+                    }}
+                    placeholder="Título del archivo..."
+                  />
+
+                  <div class="editor-main-content">
+                    <MarkdownViewer
+                      {content}
+                      filePath={tabPath}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
+                      viewMode={paneViewMode}
+                      scrollToTerms={pendingScrollTerms[tabPath]}
+                      onNavigate={handleNavigateLink}
+                      onChange={(updatedMarkdown: string) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedMarkdown;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                      isMarkdown={true}
+                    />
+                  </div>
+                {:else if isImageFile(tabPath)}
+                  <ImageViewer
+                    src={note?.abs_path || tabPath}
+                    alt={vaultItem.title || tabPath}
+                    {content}
+                  />
+                {:else}
+                  <div class="editor-main-content">
+                    <pre
+                      style="padding: 24px; font-family: var(--code-font, monospace); white-space: pre-wrap; overflow-y: auto; height: 100%;">{content}</pre>
+                  </div>
+                {/if}
+              {/key}
+            {/if}
+          </div>
+        {/if}
+      {/each}
+    {/if}
+  {/snippet}
+
+  <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
+  <main class="main-workspace" class:is-resizing={isResizingSidebar || isResizingSplit}>
+    {#if !isSplit}
+      <!-- MODO NORMAL: UN SOLO PANEL -->
+      <EditorHeader
+        bind:isEditing
+        tabs={tabsInfo}
+        {activeTabPath}
+        {canGoBack}
+        {canGoForward}
+        onNavigateBack={navigateBack}
+        onNavigateForward={navigateForward}
+        isMarkdownFile={isMarkdownTab}
+        showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
+        markdownViewMode={!isEditing ? "reading" : markdownViewMode}
+        onChangeMarkdownView={handleChangeMarkdownView}
+        title={
+          activeTabPath?.startsWith("empty:")
+            ? "Nueva pestaña"
+            : activeTabPath?.startsWith("diff-staged:")
+            ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
+            : activeTabPath?.startsWith("diff:")
+            ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
+            : (currentVaultItem.relative_path || currentVaultItem.title)
+        }
+        showSaveButton={isEditing &&
+          !!activeTabPath &&
+          !isSyntheticTab(activeTabPath) &&
+          (!currentVaultItem.relative_path ||
+            isMarkdownFile(currentVaultItem.relative_path) ||
+            isDrawingFile(currentVaultItem.relative_path))}
+        onSelectTab={(path) => selectTab(path)}
+        onCloseTab={(path) => closeTab(path)}
+        onCloseAllTabs={closeAllTabs}
+        onCloseOtherTabs={closeOtherTabs}
+        onCloseTabsToRight={closeTabsToRight}
+        onOpenInNewWindow={handleOpenInNewWindow}
+        onReorderTab={reorderTab}
+        onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
+        onNewTab={handleNewEmptyTab}
+        onNewFile={() => createNewVaultItem()}
+        onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+        onSplitView={handleSplitView}
+        onAction={(actionId) => {
+          if (actionId === 'nav-back') navigateBack();
+          else if (actionId === 'nav-forward') navigateForward();
+          else if (actionId === 'new-file') createNewVaultItem();
+          else if (actionId === 'quick-open') isQuickOpenOpen = true;
+        }}
+        onToggleView={() => {
+          toggleViewMode();
+        }}
+        onSave={() => {
+          if (activeTabPath && currentVaultItem.relative_path) {
+            persistVaultItemToRust(currentVaultItem);
+          }
+        }}
+        onOpenCommandPalette={() => (isPaletteOpen = true)}
+        showWindowControls={true}
+        isSplitActive={false}
+      />
+
+      <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="editor-container"
+        bind:this={editorContainerRef}
+        ondragover={handleEditorDragOver}
+        ondragleave={handleEditorDragLeave}
+        ondrop={handleEditorDrop}
+        onpointerdown={() => { activeFocusedPane = 'left'; }}
+      >
+        {@render renderPaneContent(openTabPaths, activeTabPath, false)}
+
+        {#if isDragOverSplitRight}
+          <div class="split-drop-zone-overlay">
+            <div class="split-drop-zone-content">
+              <Columns2 size={36} />
+              <span>Dividir panel a la derecha</span>
             </div>
-          {/if}
-        {/each}
-      {/if}
-    </div>
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <!-- MODO DIVIDIDO: DOS PANELES LADO A LADO -->
+      <div class="split-workspace-container" bind:this={splitContainerRef}>
+        <!-- PANEL IZQUIERDO -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="split-pane-wrapper left-pane"
+          style="width: {splitRatio}%;"
+          onpointerdown={() => { activeFocusedPane = 'left'; }}
+        >
+          <EditorHeader
+            bind:isEditing
+            tabs={tabsInfo}
+            {activeTabPath}
+            {canGoBack}
+            {canGoForward}
+            onNavigateBack={navigateBack}
+            onNavigateForward={navigateForward}
+            isMarkdownFile={isMarkdownTab}
+            showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
+            markdownViewMode={!isEditing ? "reading" : markdownViewMode}
+            onChangeMarkdownView={handleChangeMarkdownView}
+            title={
+              activeTabPath?.startsWith("empty:")
+                ? "Nueva pestaña"
+                : activeTabPath?.startsWith("diff-staged:")
+                ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
+                : activeTabPath?.startsWith("diff:")
+                ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
+                : (currentVaultItem.relative_path || currentVaultItem.title)
+            }
+            showSaveButton={isEditing &&
+              !!activeTabPath &&
+              !isSyntheticTab(activeTabPath) &&
+              (!currentVaultItem.relative_path ||
+                isMarkdownFile(currentVaultItem.relative_path) ||
+                isDrawingFile(currentVaultItem.relative_path))}
+            onSelectTab={(path) => selectTab(path)}
+            onCloseTab={(path) => closeTab(path)}
+            onCloseAllTabs={closeAllTabs}
+            onCloseOtherTabs={closeOtherTabs}
+            onCloseTabsToRight={closeTabsToRight}
+            onOpenInNewWindow={handleOpenInNewWindow}
+            onReorderTab={reorderTab}
+            onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
+            onNewTab={handleNewEmptyTab}
+            onNewFile={() => createNewVaultItem()}
+            onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+            onSplitView={handleSplitView}
+            onAction={(actionId) => {
+              if (actionId === 'nav-back') navigateBack();
+              else if (actionId === 'nav-forward') navigateForward();
+              else if (actionId === 'new-file') createNewVaultItem();
+              else if (actionId === 'quick-open') isQuickOpenOpen = true;
+            }}
+            onToggleView={() => {
+              toggleViewMode();
+            }}
+            onSave={() => {
+              if (activeTabPath && currentVaultItem.relative_path) {
+                persistVaultItemToRust(currentVaultItem);
+              }
+            }}
+            onOpenCommandPalette={() => (isPaletteOpen = true)}
+            showWindowControls={false}
+            isSplitActive={true}
+          />
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="editor-container"
+            ondragover={(e) => handlePaneDragOver(e, 'left')}
+            ondrop={(e) => handlePaneDrop(e, 'left')}
+          >
+            {@render renderPaneContent(openTabPaths, activeTabPath, false)}
+          </div>
+        </div>
+
+        <!-- DIVISOR REDIMENSIONABLE -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="split-resizer"
+          class:is-resizing={isResizingSplit}
+          onpointerdown={handleSplitResizeStart}
+          title="Arrastrar para redimensionar paneles"
+        >
+          <div class="split-resizer-line"></div>
+        </div>
+
+        <!-- PANEL DERECHO -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="split-pane-wrapper right-pane"
+          style="width: {100 - splitRatio}%;"
+          onpointerdown={() => { activeFocusedPane = 'right'; }}
+        >
+          <EditorHeader
+            bind:isEditing={isSplitEditing}
+            tabs={rightTabsInfo}
+            activeTabPath={activeSplitTabPath}
+            canGoBack={false}
+            canGoForward={false}
+            isMarkdownFile={isMarkdownSplitTab}
+            showViewToggle={hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)}
+            markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
+            onChangeMarkdownView={handleChangeSplitMarkdownView}
+            title={
+              activeSplitTabPath?.startsWith("empty:")
+                ? "Nueva pestaña"
+                : activeSplitTabPath?.startsWith("diff-staged:")
+                ? `Diff (staged): ${activeSplitTabPath.slice("diff-staged:".length).split("/").pop()}`
+                : activeSplitTabPath?.startsWith("diff:")
+                ? `Diff: ${activeSplitTabPath.slice("diff:".length).split("/").pop()}`
+                : (currentSplitVaultItem.relative_path || currentSplitVaultItem.title)
+            }
+            showSaveButton={isSplitEditing &&
+              !!activeSplitTabPath &&
+              !isSyntheticTab(activeSplitTabPath) &&
+              (!currentSplitVaultItem.relative_path ||
+                isMarkdownFile(currentSplitVaultItem.relative_path) ||
+                isDrawingFile(currentSplitVaultItem.relative_path))}
+            onSelectTab={(path) => selectSplitTab(path)}
+            onCloseTab={(path) => closeSplitTab(path)}
+            onCloseAllTabs={closeAllSplitTabs}
+            onCloseOtherTabs={closeOtherSplitTabs}
+            onCloseTabsToRight={closeSplitTabsToRight}
+            onOpenInNewWindow={handleOpenInNewWindow}
+            onReorderTab={reorderSplitTab}
+            onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, true, idx, src)}
+            onNewTab={handleNewSplitEmptyTab}
+            onNewFile={() => createNewVaultItem()}
+            onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+            onSplitView={handleSplitView}
+            onAction={(actionId) => {
+              if (actionId === 'new-file') createNewVaultItem();
+              else if (actionId === 'quick-open') isQuickOpenOpen = true;
+            }}
+            onToggleView={() => {
+              toggleSplitViewMode();
+            }}
+            onSave={() => {
+              if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
+                persistVaultItemToRust(currentSplitVaultItem);
+              }
+            }}
+            onOpenCommandPalette={() => (isPaletteOpen = true)}
+            showWindowControls={true}
+            isSplitActive={true}
+          />
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="editor-container"
+            ondragover={(e) => handlePaneDragOver(e, 'right')}
+            ondrop={(e) => handlePaneDrop(e, 'right')}
+          >
+            {@render renderPaneContent(splitTabPaths, activeSplitTabPath, true)}
+          </div>
+        </div>
+      </div>
+    {/if}
 
     <!-- BARRA DE ESTADO INFERIOR -->
     <StatusBar
-      wordCount={vaultItems.length > 0 && activeTabPath ? displayWordCount : 0}
-      charCount={vaultItems.length > 0 && activeTabPath ? displayCharCount : 0}
-      line={vaultItems.length > 0 && activeTabPath ? displayLine : 0}
-      col={vaultItems.length > 0 && activeTabPath ? displayCol : 0}
-      hasSelection={vaultItems.length > 0 && !!activeTabPath && currentSelection.hasSelection}
+      wordCount={vaultItems.length > 0 && currentFocusedTabPath ? displayWordCount : 0}
+      charCount={vaultItems.length > 0 && currentFocusedTabPath ? displayCharCount : 0}
+      line={vaultItems.length > 0 && currentFocusedTabPath ? displayLine : 0}
+      col={vaultItems.length > 0 && currentFocusedTabPath ? displayCol : 0}
+      hasSelection={vaultItems.length > 0 && !!currentFocusedTabPath && currentSelection.hasSelection}
       syncStatus={syncState}
       isVimMode={isVimMode}
       encoding={currentEncoding}
@@ -2252,5 +2925,90 @@
     min-height: 0;
     height: 100%;
     overflow: hidden;
+  }
+
+  .split-workspace-container {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .split-pane-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .split-resizer {
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    user-select: none;
+    z-index: 20;
+    background-color: var(--border-primary, #d0d7de);
+    transition: background-color 0.15s ease;
+  }
+
+  .split-resizer:hover,
+  .split-resizer.is-resizing {
+    background-color: var(--accent, #0969da);
+  }
+
+  .split-resizer-line {
+    width: 100%;
+    height: 100%;
+  }
+
+  .split-drop-zone-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 50%;
+    background-color: rgba(9, 105, 218, 0.12);
+    border: 2px dashed var(--accent, #0969da);
+    border-radius: 8px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .split-drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--accent, #0969da);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 16px 24px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--accent, #0969da);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 </style>

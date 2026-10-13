@@ -36,6 +36,8 @@
     showViewToggle?: boolean;
     canGoBack?: boolean;
     canGoForward?: boolean;
+    showWindowControls?: boolean;
+    isSplitActive?: boolean;
     onNavigateBack?: () => void;
     onNavigateForward?: () => void;
     onSelectTab?: (path: string) => void;
@@ -50,7 +52,7 @@
     onNewFile?: () => void;
     onToggleView?: () => void;
     onChangeMarkdownView?: (mode: MarkdownViewMode) => void;
-    onSplitView?: () => void;
+    onSplitView?: (path?: string) => void;
     onOpenCommandPalette?: () => void;
     onOpenQuickOpen?: () => void;
     onSave?: () => void;
@@ -68,6 +70,8 @@
     showViewToggle = false,
     canGoBack = false,
     canGoForward = false,
+    showWindowControls = true,
+    isSplitActive = false,
     onNavigateBack,
     onNavigateForward,
     onSelectTab,
@@ -186,7 +190,8 @@
       finalTargetIndex = targetIndex + 1;
     }
 
-    if (data.windowLabel === myWindowLabel) {
+    const isExistingTab = tabs.some((t) => t.path === data.path);
+    if (data.windowLabel === myWindowLabel && isExistingTab) {
       if (onReorderTab) {
         onReorderTab(data.path, finalTargetIndex);
       }
@@ -230,7 +235,8 @@
     if (!data || !data.path) return;
 
     const targetIndex = tabs.length;
-    if (data.windowLabel === myWindowLabel) {
+    const isExistingTab = tabs.some((t) => t.path === data.path);
+    if (data.windowLabel === myWindowLabel && isExistingTab) {
       if (onReorderTab) {
         onReorderTab(data.path, targetIndex);
       }
@@ -872,7 +878,27 @@
       </button>
     {/if}
 
-    <button type="button" class="icon-btn" onclick={() => { if (onSplitView) onSplitView(); }} title="Dividir panel verticalmente">
+    <button
+      type="button"
+      class="icon-btn"
+      class:active-btn={isSplitActive}
+      onclick={() => { if (onSplitView) onSplitView(); }}
+      ondragover={(e) => {
+        if (e.dataTransfer?.types.includes('application/x-synapse-tab') || e.dataTransfer?.types.includes('text/plain')) {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }
+      }}
+      ondrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const data = parseTabDragData(e);
+        if (data?.path && onSplitView) {
+          onSplitView(data.path);
+        }
+      }}
+      title={isSplitActive ? "Cerrar división de paneles" : "Dividir panel verticalmente"}
+    >
       <Columns2 size={14} class="icon" />
     </button>
 
@@ -891,38 +917,40 @@
       <MoreHorizontal size={14} class="icon" />
     </button>
 
-    <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="window-controls"
-      data-tauri-drag-region="false"
-      onmousedown={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        class="win-btn minimize"
-        onclick={(e) => { e.stopPropagation(); handleWindowControl('minimize'); }}
-        title="Minimizar"
+    {#if showWindowControls}
+      <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="window-controls"
+        data-tauri-drag-region="false"
+        onmousedown={(e) => e.stopPropagation()}
       >
-        <Minus size={13} class="win-icon" />
-      </button>
-      <button
-        type="button"
-        class="win-btn maximize"
-        onclick={(e) => { e.stopPropagation(); handleWindowControl('maximize'); }}
-        title="Maximizar / Restaurar"
-      >
-        <Square size={12} class="win-icon" />
-      </button>
-      <button
-        type="button"
-        class="win-btn close"
-        onclick={(e) => { e.stopPropagation(); handleWindowControl('close'); }}
-        title="Cerrar"
-      >
-        <X size={13} class="win-icon" />
-      </button>
-    </div>
+        <button
+          type="button"
+          class="win-btn minimize"
+          onclick={(e) => { e.stopPropagation(); handleWindowControl('minimize'); }}
+          title="Minimizar"
+        >
+          <Minus size={13} class="win-icon" />
+        </button>
+        <button
+          type="button"
+          class="win-btn maximize"
+          onclick={(e) => { e.stopPropagation(); handleWindowControl('maximize'); }}
+          title="Maximizar / Restaurar"
+        >
+          <Square size={12} class="win-icon" />
+        </button>
+        <button
+          type="button"
+          class="win-btn close"
+          onclick={(e) => { e.stopPropagation(); handleWindowControl('close'); }}
+          title="Cerrar"
+        >
+          <X size={13} class="win-icon" />
+        </button>
+      </div>
+    {/if}
   </div>
 </header>
 
@@ -1363,6 +1391,11 @@
   .icon-btn:hover {
     color: var(--text-primary, #1f2328);
     background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  }
+
+  .icon-btn.active-btn {
+    background-color: var(--bg-tertiary, #eaeef2);
+    color: var(--accent, #0969da);
   }
 
   .icon-btn:disabled {
