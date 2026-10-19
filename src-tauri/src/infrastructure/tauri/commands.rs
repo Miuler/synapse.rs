@@ -810,7 +810,11 @@ pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.git_use_cases.add_paths(vault_path, &paths)
+    state.git_use_cases.add_paths(vault_path, &paths).map_err(|err| {
+        log::error!("[commands::git_add_paths] {}", err);
+        eprintln!("[commands::git_add_paths] {}", err);
+        err
+    })
 }
 
 #[tauri::command]
@@ -819,7 +823,11 @@ pub fn git_restore_paths(state: State<'_, AppState>, paths: Vec<String>) -> Resu
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.git_use_cases.restore_paths(vault_path, &paths)
+    state.git_use_cases.restore_paths(vault_path, &paths).map_err(|err| {
+        log::error!("[commands::git_restore_paths] {}", err);
+        eprintln!("[commands::git_restore_paths] {}", err);
+        err
+    })
 }
 
 #[tauri::command]
@@ -831,7 +839,11 @@ pub fn git_restore_staged_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.git_use_cases.restore_staged_paths(vault_path, &paths)
+    state.git_use_cases.restore_staged_paths(vault_path, &paths).map_err(|err| {
+        log::error!("[commands::git_restore_staged_paths] {}", err);
+        eprintln!("[commands::git_restore_staged_paths] {}", err);
+        err
+    })
 }
 
 #[tauri::command]
@@ -844,7 +856,11 @@ pub fn git_commit_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.git_use_cases.commit_paths(vault_path, &paths, &message)
+    state.git_use_cases.commit_paths(vault_path, &paths, &message).map_err(|err| {
+        log::error!("[commands::git_commit_paths] {}", err);
+        eprintln!("[commands::git_commit_paths] {}", err);
+        err
+    })
 }
 
 #[tauri::command]
@@ -857,7 +873,11 @@ pub fn get_git_file_diff(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.git_use_cases.get_file_diff(vault_path, &path, staged)
+    state.git_use_cases.get_file_diff(vault_path, &path, staged).map_err(|err| {
+        log::error!("[commands::get_git_file_diff] {}", err);
+        eprintln!("[commands::get_git_file_diff] {}", err);
+        err
+    })
 }
 
 #[tauri::command]

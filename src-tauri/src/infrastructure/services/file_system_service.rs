@@ -6,10 +6,21 @@ use std::path::{Path, PathBuf};
 pub struct FileSystemService;
 
 impl FileSystemService {
-    /// Resuelve una ruta relativa de la bóveda a una ruta absoluta segura (sin `..`).
+    /// Resuelve una ruta relativa o absoluta segura dentro de los límites de la bóveda (sin `..`).
     fn resolve(vault_path: &Path, relative_path: &str) -> Result<PathBuf, String> {
+        let path_obj = Path::new(relative_path);
+        let rel_str = if path_obj.is_absolute() {
+            if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+                rel.to_string_lossy().to_string()
+            } else {
+                return Err("Operación no permitida: la ruta está fuera de los límites de la bóveda".to_string());
+            }
+        } else {
+            relative_path.to_string()
+        };
+
         let mut target = vault_path.to_path_buf();
-        for part in relative_path.replace('\\', "/").split('/') {
+        for part in rel_str.replace('\\', "/").split('/') {
             if part.is_empty() || part == "." {
                 continue;
             }

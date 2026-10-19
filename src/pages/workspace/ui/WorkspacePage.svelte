@@ -675,6 +675,13 @@
         }
       }
     }
+    // Si es un archivo PDF con visor activo, forzar guardado síncrono/inmediato antes de destruir
+    if (isPdfFile(path) && pdfViewers[path]?.saveDocument) {
+      pdfViewers[path].saveDocument().catch((err: any) => {
+        console.error("Error al persistir PDF al cerrar pestaña:", err);
+      });
+    }
+
     // Liberar memoria consolidada del contenido de la nota para mantener bajo consumo de RAM
     delete openedNotes[path];
     delete excalidrawViewers[path];
@@ -1950,6 +1957,9 @@
           try {
             await vaultRepository.gitRestore([activeTabPath]);
             await handleGitRestoreFiles([activeTabPath]);
+            if (vaultExplorerRef?.refreshTree) {
+              await vaultExplorerRef.refreshTree();
+            }
           } catch (e) {
             console.error("Error en git restore:", e);
           }
@@ -2563,7 +2573,12 @@
                 {:else if isPdfFile(tabPath)}
                   <PdfViewer
                     bind:this={pdfViewers[tabPath]}
-                    src={note?.abs_path || tabPath}
+                    src={tabPath}
+                    onDirtyChange={(dirty) => {
+                      if (dirty) {
+                        syncState = "saving";
+                      }
+                    }}
                     onSaved={() => {
                       syncState = "synced";
                     }}

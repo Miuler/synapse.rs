@@ -284,24 +284,60 @@ impl GitService {
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
         let mut cmd = std::process::Command::new("git");
         cmd.current_dir(work_dir);
         cmd.arg("add");
         cmd.arg("--");
+        let mut count = 0;
         for p in paths {
             let clean = p.replace('\\', "/");
             let clean = clean.trim_start_matches("./");
             if !clean.is_empty() {
-                cmd.arg(clean);
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
             }
         }
 
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git add: {}", e);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            err_msg
+        })?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git add falló: {}", stderr.trim()));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git add falló: {}", detail);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            return Err(err_msg);
         }
 
         Ok(())
@@ -316,24 +352,61 @@ impl GitService {
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
+        // Si la bóveda está en un subdirectorio del repositorio git, prefijar las rutas
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
         let mut cmd = std::process::Command::new("git");
         cmd.current_dir(work_dir);
         cmd.arg("restore");
         cmd.arg("--");
+        let mut count = 0;
         for p in paths {
             let clean = p.replace('\\', "/");
             let clean = clean.trim_start_matches("./");
             if !clean.is_empty() {
-                cmd.arg(clean);
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
             }
         }
 
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Error al ejecutar git restore: {}", e))?;
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git restore: {}", e);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            err_msg
+        })?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git restore falló: {}", stderr.trim()));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git restore falló: {}", detail);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            return Err(err_msg);
         }
 
         Ok(())
@@ -348,25 +421,61 @@ impl GitService {
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
         let mut cmd = std::process::Command::new("git");
         cmd.current_dir(work_dir);
         cmd.arg("restore");
         cmd.arg("--staged");
         cmd.arg("--");
+        let mut count = 0;
         for p in paths {
             let clean = p.replace('\\', "/");
             let clean = clean.trim_start_matches("./");
             if !clean.is_empty() {
-                cmd.arg(clean);
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
             }
         }
 
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Error al ejecutar git restore --staged: {}", e))?;
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git restore --staged: {}", e);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            err_msg
+        })?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git restore --staged falló: {}", stderr.trim()));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git restore --staged falló: {}", detail);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            return Err(err_msg);
         }
 
         Ok(())
@@ -390,6 +499,19 @@ impl GitService {
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
         // 1. Añadir/preparar los archivos seleccionados para el commit
         self.git_add(vault_path, paths)?;
 
@@ -404,13 +526,21 @@ impl GitService {
             let clean = p.replace('\\', "/");
             let clean = clean.trim_start_matches("./");
             if !clean.is_empty() {
-                cmd.arg(clean);
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
             }
         }
 
-        let output = cmd
-            .output()
-            .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git commit: {}", e);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            err_msg
+        })?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -419,7 +549,10 @@ impl GitService {
             } else {
                 stdout.trim()
             };
-            return Err(format!("git commit falló: {}", err));
+            let err_msg = format!("git commit falló: {}", err);
+            log::error!("[GitService] {}", err_msg);
+            eprintln!("[GitService] {}", err_msg);
+            return Err(err_msg);
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -436,6 +569,19 @@ impl GitService {
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
         let clean_path = path.replace('\\', "/");
         let clean_path = clean_path.trim_start_matches("./");
 
@@ -443,7 +589,12 @@ impl GitService {
             return Err("Ruta de archivo no especificada para diff".to_string());
         }
 
-        let abs_path = work_dir.join(clean_path);
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let abs_path = work_dir.join(&repo_rel_path);
 
         let mut old_content = String::new();
         let mut new_content = String::new();
@@ -453,7 +604,7 @@ impl GitService {
             // Diff de stage: HEAD vs Index (:path)
             let mut show_head_cmd = std::process::Command::new("git");
             show_head_cmd.current_dir(work_dir);
-            show_head_cmd.args(["show", &format!("HEAD:{}", clean_path)]);
+            show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
             if let Ok(out) = show_head_cmd.output() {
                 if out.status.success() {
                     old_content = String::from_utf8_lossy(&out.stdout).to_string();
@@ -462,7 +613,7 @@ impl GitService {
 
             let mut show_index_cmd = std::process::Command::new("git");
             show_index_cmd.current_dir(work_dir);
-            show_index_cmd.args(["show", &format!(":{}", clean_path)]);
+            show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
                 if out.status.success() {
                     new_content = String::from_utf8_lossy(&out.stdout).to_string();
@@ -471,7 +622,7 @@ impl GitService {
 
             let mut diff_cmd = std::process::Command::new("git");
             diff_cmd.current_dir(work_dir);
-            diff_cmd.args(["diff", "--staged", "-u", "--", clean_path]);
+            diff_cmd.args(["diff", "--staged", "-u", "--", &repo_rel_path]);
             if let Ok(out) = diff_cmd.output() {
                 diff = String::from_utf8_lossy(&out.stdout).to_string();
             }
@@ -479,14 +630,14 @@ impl GitService {
             // Diff normal de trabajo: Index vs Worktree
             let mut show_index_cmd = std::process::Command::new("git");
             show_index_cmd.current_dir(work_dir);
-            show_index_cmd.args(["show", &format!(":{}", clean_path)]);
+            show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
                 if out.status.success() {
                     old_content = String::from_utf8_lossy(&out.stdout).to_string();
                 } else {
                     let mut show_head_cmd = std::process::Command::new("git");
                     show_head_cmd.current_dir(work_dir);
-                    show_head_cmd.args(["show", &format!("HEAD:{}", clean_path)]);
+                    show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
                     if let Ok(head_out) = show_head_cmd.output() {
                         if head_out.status.success() {
                             old_content = String::from_utf8_lossy(&head_out.stdout).to_string();
@@ -503,7 +654,7 @@ impl GitService {
 
             let mut diff_cmd = std::process::Command::new("git");
             diff_cmd.current_dir(work_dir);
-            diff_cmd.args(["diff", "-u", "--", clean_path]);
+            diff_cmd.args(["diff", "-u", "--", &repo_rel_path]);
             if let Ok(out) = diff_cmd.output() {
                 diff = String::from_utf8_lossy(&out.stdout).to_string();
             }
@@ -512,7 +663,7 @@ impl GitService {
             if diff.is_empty() {
                 let mut head_diff_cmd = std::process::Command::new("git");
                 head_diff_cmd.current_dir(work_dir);
-                head_diff_cmd.args(["diff", "HEAD", "-u", "--", clean_path]);
+                head_diff_cmd.args(["diff", "HEAD", "-u", "--", &repo_rel_path]);
                 if let Ok(out) = head_diff_cmd.output() {
                     let head_diff = String::from_utf8_lossy(&out.stdout).to_string();
                     if !head_diff.is_empty() {
@@ -530,7 +681,7 @@ impl GitService {
 
                 let mut no_idx_cmd = std::process::Command::new("git");
                 no_idx_cmd.current_dir(work_dir);
-                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, clean_path]);
+                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, &repo_rel_path]);
                 if let Ok(out) = no_idx_cmd.output() {
                     diff = String::from_utf8_lossy(&out.stdout).to_string();
                 }
@@ -1083,6 +1234,70 @@ mod tests {
         let conflict_res = git_service.checkout_branch(&temp_dir, "feature-2");
         assert!(conflict_res.is_err());
         assert!(conflict_res.unwrap_err().contains("Conflicto"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_restore_and_subdirectories() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_restore_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        // Create a subfolder representing a vault inside a git repository
+        let vault_dir = temp_dir.join("subvault");
+        std::fs::create_dir_all(&vault_dir).unwrap();
+
+        let file_path = vault_dir.join("doc.md");
+        std::fs::write(&file_path, "initial text\n").unwrap();
+
+        run_cmd(&["add", "subvault/doc.md"]);
+        run_cmd(&["commit", "-m", "initial commit"]);
+
+        let git_service = GitService::new();
+
+        // 1. Test restore worktree modification in subvault
+        std::fs::write(&file_path, "changed text\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "changed text\n");
+
+        let restore_res = git_service.git_restore(&vault_dir, &["doc.md".to_string()]);
+        assert!(restore_res.is_ok(), "Restore failed: {:?}", restore_res.err());
+        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "initial text\n");
+
+        // 2. Test restore staged in subvault
+        std::fs::write(&file_path, "staged text\n").unwrap();
+        let add_res = git_service.git_add(&vault_dir, &["doc.md".to_string()]);
+        assert!(add_res.is_ok());
+
+        let status = git_service.get_vault_status(&vault_dir).unwrap();
+        let stat = status.statuses.get("doc.md").unwrap();
+        assert_eq!(stat.index.as_deref(), Some("M"));
+
+        let unstage_res = git_service.git_restore_staged(&vault_dir, &["doc.md".to_string()]);
+        assert!(unstage_res.is_ok(), "Restore staged failed: {:?}", unstage_res.err());
+
+        let status_after = git_service.get_vault_status(&vault_dir).unwrap();
+        let stat_after = status_after.statuses.get("doc.md").unwrap();
+        assert_eq!(stat_after.index, None);
+        assert_eq!(stat_after.worktree.as_deref(), Some("M"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

@@ -194,12 +194,17 @@
     }
   });
 
-  // Limpieza al desmontar
+  // Limpieza al desmontar: forzar guardado inmediato si había cambios pendientes
   $effect(() => {
     return () => {
       if (autoSaveTimer) {
         clearTimeout(autoSaveTimer);
         autoSaveTimer = null;
+      }
+      if (isDirty && !isSaving && registry && src) {
+        saveDocument().catch((err) => {
+          console.error('[PdfViewer] Error al guardar cambios al desmontar:', err);
+        });
       }
       cleanupResources();
     };
@@ -217,7 +222,7 @@
       saveDocument().catch((err) => {
         console.error('[PdfViewer] Falló el guardado automático de anotaciones:', err);
       });
-    }, 1500);
+    }, 600);
   }
 
   function setupAnnotationTracking(reg: PluginRegistry) {
@@ -226,21 +231,43 @@
         annotationUnsubscribe();
         annotationUnsubscribe = null;
       }
+
+      // 1. Escuchar eventos de anotaciones
       const annotationPlugin = reg.getPlugin('annotation');
       const annotationCapability: any = annotationPlugin?.provides?.();
+      const handleEvent = (event: any) => {
+        if (!event) return;
+        const eventType = event.type;
+        if (eventType === 'create' || eventType === 'update' || eventType === 'delete') {
+          markDirty();
+        }
+      };
+
+      let unsubEvent: (() => void) | null = null;
       if (typeof annotationCapability?.onAnnotationEvent === 'function') {
-        annotationUnsubscribe = annotationCapability.onAnnotationEvent((event: any) => {
-          if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-            markDirty();
-          }
-        });
+        unsubEvent = annotationCapability.onAnnotationEvent(handleEvent);
       } else if (typeof annotationCapability?.onAnnotationEvent?.on === 'function') {
-        annotationUnsubscribe = annotationCapability.onAnnotationEvent.on((event: any) => {
-          if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
-            markDirty();
-          }
-        });
+        unsubEvent = annotationCapability.onAnnotationEvent.on(handleEvent);
       }
+
+      // 2. Escuchar cambios de historial (undo/redo o commit de anotaciones)
+      let unsubHistory: (() => void) | null = null;
+      try {
+        const historyPlugin = reg.getPlugin('history');
+        const historyCapability: any = historyPlugin?.provides?.();
+        if (typeof historyCapability?.onHistoryChange === 'function') {
+          unsubHistory = historyCapability.onHistoryChange(() => {
+            markDirty();
+          });
+        }
+      } catch (he) {
+        // Ignorar si el plugin de historial no está montado
+      }
+
+      annotationUnsubscribe = () => {
+        if (unsubEvent) unsubEvent();
+        if (unsubHistory) unsubHistory();
+      };
     } catch (e) {
       console.warn('[PdfViewer] No se pudo inicializar escucha de anotaciones:', e);
     }
@@ -259,7 +286,7 @@
 
     isSaving = true;
     try {
-      // 1. Commit de anotaciones en memoria en el motor PDFium
+      // 1. Commit de anotaciones pendientes en memoria en el motor PDFium
       const annotationPlugin = registry.getPlugin('annotation');
       const annotationCapability: any = annotationPlugin?.provides?.();
       if (annotationCapability?.commit) {
