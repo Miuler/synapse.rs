@@ -5,6 +5,7 @@ export interface SupportedFileTypes {
   markdown: string[];
   diagrams: string[];
   drawings: string[];
+  pdf: string[];
   code: string[];
 }
 
@@ -59,9 +60,11 @@ class FileTypesManager {
       this.fileTypes.markdown,
       this.fileTypes.diagrams,
       this.fileTypes.drawings,
+      this.fileTypes.pdf,
       this.fileTypes.code,
     ];
     for (const group of groups) {
+      if (!Array.isArray(group)) continue;
       for (const ext of group) {
         if (!list.includes(ext)) {
           list.push(ext);
@@ -71,8 +74,8 @@ class FileTypesManager {
     return list;
   }
 
-  private matchesExtension(path: string | null | undefined, extensions: string[]): boolean {
-    if (!path) return false;
+  private matchesExtension(path: string | null | undefined, extensions: string[] | undefined): boolean {
+    if (!path || !Array.isArray(extensions)) return false;
     const lower = path.toLowerCase().split('?')[0].split('#')[0];
     return extensions.some((ext) => {
       const cleanExt = ext.toLowerCase().replace(/^\./, '');
@@ -102,6 +105,10 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.drawings);
   }
 
+  isPdfFile(path: string | null | undefined): boolean {
+    return this.matchesExtension(path, this.fileTypes.pdf);
+  }
+
   isCodeFile(path: string | null | undefined): boolean {
     return this.matchesExtension(path, this.fileTypes.code);
   }
@@ -112,6 +119,7 @@ class FileTypesManager {
       this.isMarkdownFile(path) ||
       this.isDiagramFile(path) ||
       this.isDrawingFile(path) ||
+      this.isPdfFile(path) ||
       this.isCodeFile(path)
     );
   }
@@ -124,5 +132,6 @@ export const isSvgFile = (path: string | null | undefined) => fileTypesManager.i
 export const isMarkdownFile = (path: string | null | undefined) => fileTypesManager.isMarkdownFile(path);
 export const isDiagramFile = (path: string | null | undefined) => fileTypesManager.isDiagramFile(path);
 export const isDrawingFile = (path: string | null | undefined) => fileTypesManager.isDrawingFile(path);
+export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);
 export const isCodeFile = (path: string | null | undefined) => fileTypesManager.isCodeFile(path);
 export const isSupportedFile = (path: string | null | undefined) => fileTypesManager.isSupportedFile(path);

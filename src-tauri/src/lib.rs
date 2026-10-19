@@ -12,7 +12,7 @@ use infrastructure::tauri::commands::{
     get_vault_ui_state, git_add_paths, git_commit_paths, git_restore_paths, git_restore_staged_paths,
     get_git_file_diff, get_git_branches, git_checkout_branch, git_create_branch,
     read_asset_data_url, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
-    render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_note_content,
+    render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab, AppState,
 };
@@ -97,6 +97,7 @@ pub fn run() {
             render_markdown_wikilinks,
             resolve_asset_file_path,
             read_asset_data_url,
+            save_binary_asset,
             open_tab_in_new_window,
             get_detached_window_tab
         ])

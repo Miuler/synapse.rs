@@ -18,10 +18,9 @@
   let root: Root | null = null;
   let excalidrawAPI = $state<any>(null);
 
-  // Guardar la última cadena de contenido emitida o recibida
-  let lastContent = untrack(() => content);
+  // Guardar la última cadena de contenido conocida en Excalidraw
+  let lastKnownScene = untrack(() => content);
   let lastReadOnly = untrack(() => readOnly);
-  let isInternalUpdate = false;
 
   function parseInitialData(raw: string, isReadOnly: boolean) {
     if (!raw || !raw.trim()) {
@@ -96,8 +95,7 @@
     }
 
     const serialized = serializeSceneData(elements, appState, files);
-    lastContent = serialized;
-    isInternalUpdate = true;
+    lastKnownScene = serialized;
     return serialized;
   }
 
@@ -153,9 +151,8 @@
 
         const serialized = serializeSceneData(elements, appState, files);
 
-        if (serialized !== lastContent) {
-          lastContent = serialized;
-          isInternalUpdate = true;
+        if (serialized !== lastKnownScene) {
+          lastKnownScene = serialized;
           if (onChange) onChange(serialized);
         }
       }
@@ -165,7 +162,7 @@
   }
 
   onMount(() => {
-    lastContent = content;
+    lastKnownScene = content;
     lastReadOnly = readOnly;
     renderReactApp(content, readOnly);
   });
@@ -174,8 +171,8 @@
     if (!readOnly && excalidrawAPI) {
       try {
         const serialized = getCurrentSerializedScene();
-        if (serialized !== lastContent) {
-          lastContent = serialized;
+        if (serialized !== lastKnownScene) {
+          lastKnownScene = serialized;
           if (onChange) onChange(serialized);
         }
       } catch (err) {
@@ -193,21 +190,31 @@
     const c = content;
     const r = readOnly;
 
-    // Si la actualización vino del propio onChange de este visor, no resetear la escena
-    if (isInternalUpdate) {
-      isInternalUpdate = false;
-      lastContent = c;
+    const readOnlyChanged = r !== lastReadOnly;
+    const contentChanged = c !== lastKnownScene;
+
+    if (!root || !containerRef) return;
+
+    if (readOnlyChanged) {
       lastReadOnly = r;
-      return;
+      if (excalidrawAPI) {
+        excalidrawAPI.updateScene({
+          appState: {
+            viewModeEnabled: r,
+            ...(r ? { activeTool: { type: 'hand' } } : {}),
+          },
+        });
+        if (!r && excalidrawAPI.setActiveTool) {
+          excalidrawAPI.setActiveTool({ type: 'selection' });
+        }
+      } else {
+        renderReactApp(c, r);
+      }
     }
 
-    const contentChanged = c !== lastContent;
-    const readOnlyChanged = r !== lastReadOnly;
-
-    if (root && containerRef && (contentChanged || readOnlyChanged)) {
-      lastContent = c;
-      lastReadOnly = r;
-
+    // Solo si el contenido cambió externamente (diferente de lo que Excalidraw emitió)
+    if (contentChanged) {
+      lastKnownScene = c;
       if (excalidrawAPI) {
         const parsed = parseInitialData(c, r);
         excalidrawAPI.updateScene({
@@ -215,8 +222,8 @@
           appState: {
             ...parsed.appState,
             viewModeEnabled: r,
-            ...(r ? {} : { activeTool: { type: 'selection' } }),
           },
+          commitToHistory: false,
         });
         if (parsed.files && Object.keys(parsed.files).length > 0) {
           excalidrawAPI.addFiles?.(Object.values(parsed.files));

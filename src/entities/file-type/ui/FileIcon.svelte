@@ -37,7 +37,7 @@
   const fileExt = $derived((extension || fileName.split('.').pop() || '').toLowerCase());
 
   // Clasificador de tipos de archivo para theming y variantes de icono
-  type FileCategory = 'markdown' | 'rust' | 'code' | 'image' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
+  type FileCategory = 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
 
   const category = $derived((): FileCategory => {
     if (fileName === '.gitignore' || fileName === '.gitmodules') return 'git';
@@ -48,6 +48,7 @@
     if (fileExt === 'json') return 'json';
 
     // Integración automática con la lista de tipos soportados (supported_files.json)
+    if (fileTypesManager.isPdfFile(fileName) || fileExt === 'pdf') return 'pdf';
     if (fileTypesManager.isMarkdownFile(fileName) || fileExt === 'txt') return 'markdown';
     if (fileTypesManager.isImageFile(fileName)) return 'image';
     if (fileTypesManager.isDiagramFile(fileName) || fileTypesManager.isDrawingFile(fileName) || fileExt === 'canvas') return 'diagram';
@@ -117,6 +118,8 @@
   <FileCode {size} {strokeWidth} class="synapse-file-icon synapse-file-code {className}" />
 {:else if category() === 'image'}
   <FileImage {size} {strokeWidth} class="synapse-file-icon synapse-file-image {className}" />
+{:else if category() === 'pdf'}
+  <FileText {size} {strokeWidth} class="synapse-file-icon synapse-file-pdf {className}" />
 {:else if category() === 'json'}
   <FileJson {size} {strokeWidth} class="synapse-file-icon synapse-file-json {className}" />
 {:else if category() === 'config'}
@@ -138,6 +141,10 @@
     vertical-align: middle;
     color: var(--icon-file-color, var(--accent, #0969da));
     transition: color 0.15s ease;
+  }
+
+  :global(.synapse-file-icon.synapse-file-pdf) {
+    color: var(--icon-file-pdf-color, #cf222e);
   }
 
   :global(.synapse-file-icon.synapse-file-rs) {

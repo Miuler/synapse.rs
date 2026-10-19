@@ -1260,8 +1260,46 @@ fn get_image_mime_type(ext: &str) -> &'static str {
         "ico" => "image/x-icon",
         "avif" => "image/avif",
         "tiff" | "tif" => "image/tiff",
+        "pdf" => "application/pdf",
         _ => "application/octet-stream",
     }
+}
+
+#[tauri::command]
+pub fn save_binary_asset(
+    state: State<'_, AppState>,
+    relative_path: String,
+    base64_data: String,
+) -> Result<(), String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+
+    let raw_b64 = if let Some(idx) = base64_data.find(";base64,") {
+        &base64_data[idx + 8..]
+    } else {
+        &base64_data
+    };
+
+    let bytes = BASE64_STANDARD
+        .decode(raw_b64.trim())
+        .map_err(|e| format!("Error decodificando base64: {}", e))?;
+
+    state
+        .file_system_use_cases
+        .write_binary_item(vault_path, &relative_path, &bytes)?;
+
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            engine.reconcile_sync();
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

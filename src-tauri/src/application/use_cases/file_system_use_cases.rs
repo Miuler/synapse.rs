@@ -26,4 +26,8 @@ impl<F: FileSystemPort> FileSystemUseCases<F> {
         }
         Ok(created)
     }
+
+    pub fn write_binary_item(&self, vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+        self.port.write_binary_item(vault_path, relative_path, bytes)
+    }
 }

@@ -314,10 +314,15 @@ export interface VaultRepository {
   resolveAssetUrl(path: string): string;
 
   /**
-   * Lee el archivo de imagen como una Data URL (data:image/...;base64,...).
+   * Lee el archivo de imagen o documento como una Data URL (data:...;base64,...).
    * Compatible al 100% con WebView nativo, Tauri, Web y Android sin problemas de CORS ni protocolos bloqueados.
    */
   readAssetDataUrl(src: string, baseFile?: string | null): Promise<string | null>;
+
+  /**
+   * Guarda un archivo binario en la bóveda codificado en Base64 (útil para PDFs exportados con anotaciones, etc.).
+   */
+  saveBinaryAsset(relativePath: string, base64Data: string): Promise<void>;
 }
 
 /**
@@ -809,6 +814,21 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.error('Error al leer asset data URL:', { src, baseFile, error });
       return null;
+    }
+  }
+
+  async saveBinaryAsset(relativePath: string, base64Data: string): Promise<void> {
+    if (!this.isConnected() || !relativePath) return;
+    try {
+      await invokeTauri<void>('save_binary_asset', {
+        relativePath,
+        relative_path: relativePath,
+        base64Data,
+        base64_data: base64Data,
+      });
+    } catch (error) {
+      console.error('Error al guardar archivo binario en la bóveda:', { relativePath, error });
+      throw error;
     }
   }
 

@@ -161,6 +161,10 @@ impl FtsIndexer {
                                     return None;
                                 }
 
+                                if ft.is_image_file(&rel_str) || ft.is_pdf_file(&rel_str) {
+                                    return None;
+                                }
+
                                 let bytes = fs::read(&abs).ok()?;
                                 let (kind, title, body) =
                                     content_extractor::extract(Path::new(&rel_str), &bytes, ft)?;
@@ -450,7 +454,11 @@ fn perform_full_sync(
             None => continue,
         };
 
-        if file_name.starts_with('.') || !file_types.is_supported_file(file_name) {
+        if file_name.starts_with('.')
+            || !file_types.is_supported_file(file_name)
+            || file_types.is_image_file(file_name)
+            || file_types.is_pdf_file(file_name)
+        {
             continue;
         }
 

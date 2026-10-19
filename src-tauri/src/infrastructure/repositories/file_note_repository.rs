@@ -224,13 +224,14 @@ impl NoteRepository for FileNoteRepository {
         let file_types = SupportedFileTypes::default();
         let file_name = abs_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
+        let is_binary = is_image || file_types.is_pdf_extension(ext_str);
 
-        info!("Reading note at {:?}, is_image: {}", abs_path, is_image);
+        info!("Reading note at {:?}, is_binary: {}", abs_path, is_binary);
         if !abs_path.is_file() {
             return Err(format!("El archivo no existe en {:?}", abs_path));
         }
 
-        let (encoding, content) = if is_image {
+        let (encoding, content) = if is_binary {
             ("binary".to_string(), "".to_string())
         } else {
             let bytes = fs::read(&abs_path)
@@ -269,8 +270,10 @@ impl NoteRepository for FileNoteRepository {
             .unwrap_or("");
         let file_types = SupportedFileTypes::default();
         let file_name = abs_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name) {
-            // No sobreescribir imágenes binarias con texto o data URIs
+        if (file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name))
+            || file_types.is_pdf_extension(ext_str)
+        {
+            // No sobreescribir imágenes o PDFs binarios con texto plano
             return Ok(());
         }
 

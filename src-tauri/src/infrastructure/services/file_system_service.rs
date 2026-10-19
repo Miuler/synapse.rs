@@ -170,6 +170,26 @@ impl FileSystemService {
 
         Ok(())
     }
+
+    /// Escribe contenido binario en un archivo dentro de la bóveda garantizando los límites de seguridad.
+    pub fn write_binary_item(vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+        let target = Self::resolve(vault_path, relative_path)?;
+        if target == vault_path {
+            return Err("No se puede escribir directamente en la raíz de la bóveda".to_string());
+        }
+
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Error al crear directorio: {}", e))?;
+            let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
+            if !canonical_parent.starts_with(&canonical_vault) {
+                return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            }
+        }
+
+        fs::write(&target, bytes).map_err(|e| format!("Error al escribir archivo binario: {}", e))?;
+        Ok(())
+    }
 }
 
 use crate::domain::services::file_system_service::FileSystemPort;
@@ -185,6 +205,10 @@ impl FileSystemPort for FileSystemService {
 
     fn copy_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
         Self::copy_item(vault_path, source_rel, dest_dir_rel)
+    }
+
+    fn write_binary_item(&self, vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+        Self::write_binary_item(vault_path, relative_path, bytes)
     }
 }
 
@@ -224,6 +248,18 @@ mod tests {
         assert!(FileSystemService::copy_item(&vault, "sub", "sub").is_err());
         let rel = FileSystemService::copy_item(&vault, "sub", "").unwrap();
         assert_eq!(rel, "sub.copy");
+        let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn write_and_read_binary_item() {
+        let vault = temp_vault("binary");
+        let pdf_bytes = b"%PDF-1.7\nsome binary content\n%%EOF";
+        let res = FileSystemService::write_binary_item(&vault, "docs/sample.pdf", pdf_bytes);
+        assert!(res.is_ok());
+
+        let read_bytes = fs::read(vault.join("docs/sample.pdf")).unwrap();
+        assert_eq!(read_bytes, pdf_bytes);
         let _ = fs::remove_dir_all(&vault);
     }
 }

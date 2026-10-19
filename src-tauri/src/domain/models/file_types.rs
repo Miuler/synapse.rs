@@ -6,6 +6,8 @@ pub struct SupportedFileTypes {
     pub markdown: Vec<String>,
     pub diagrams: Vec<String>,
     pub drawings: Vec<String>,
+    #[serde(default)]
+    pub pdf: Vec<String>,
     pub code: Vec<String>,
 }
 
@@ -24,6 +26,7 @@ impl SupportedFileTypes {
             &self.markdown,
             &self.diagrams,
             &self.drawings,
+            &self.pdf,
             &self.code,
         ];
         for group in groups {
@@ -39,6 +42,29 @@ impl SupportedFileTypes {
     /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a una imagen
     pub fn is_image_extension(&self, ext: &str) -> bool {
         self.images.iter().any(|e| e.eq_ignore_ascii_case(ext))
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo de imagen
+    pub fn is_image_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.images.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
+    /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a un PDF
+    pub fn is_pdf_extension(&self, ext: &str) -> bool {
+        self.pdf.iter().any(|e| e.eq_ignore_ascii_case(ext))
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo PDF
+    pub fn is_pdf_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.pdf.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
     }
 
     /// Verifica si un nombre de archivo o ruta coincide con un archivo de dibujo (Excalidraw)
@@ -72,6 +98,17 @@ mod tests {
         assert!(types.is_image_extension("SVG"));
         assert!(types.is_supported_file("grafico.svg"));
         assert!(types.is_supported_file("path/to/icon.SVG"));
+    }
+
+    #[test]
+    fn test_supported_file_types_contains_pdf() {
+        let types = SupportedFileTypes::default();
+        assert!(types.pdf.contains(&"pdf".to_string()));
+        assert!(types.is_pdf_extension("pdf"));
+        assert!(types.is_pdf_extension("PDF"));
+        assert!(types.is_pdf_file("documento.pdf"));
+        assert!(types.is_pdf_file("sub/folder/manual.PDF"));
+        assert!(types.is_supported_file("manual.pdf"));
     }
 
     #[test]

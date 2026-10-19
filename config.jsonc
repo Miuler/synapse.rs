@@ -36,6 +36,11 @@
       "excalidraw.png"
     ],
 
+    // Documentos PDF
+    "pdf": [
+      "pdf"
+    ],
+
     // Código fuente y texto estructurado
     "code": [
       "rs",

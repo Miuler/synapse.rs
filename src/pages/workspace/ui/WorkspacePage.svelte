@@ -14,6 +14,7 @@
   import {MermaidViewer} from "@features/mermaid-editor";
   import {ExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
+  import {PdfViewer} from "@features/pdf-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {appSettings} from "@entities/settings";
   import {
@@ -21,6 +22,7 @@
     isMarkdownFile,
     isDiagramFile,
     isDrawingFile,
+    isPdfFile,
     loadSupportedFileTypes,
   } from "@entities/file-type";
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
@@ -494,13 +496,13 @@
     const vaultItem = vaultItems.find((v) => v.relative_path === path);
     let initialAbsPath = vaultItem?.abs_path;
 
-    // Para imágenes no se requiere leer contenido como texto; resolveAssetUrl se encarga (excepto dibujos)
-    if (isImageFile(path) && !isDrawingFile(path)) {
+    // Para imágenes y PDFs no se requiere leer contenido como texto; resolveAssetUrl / readAssetDataUrl se encarga
+    if ((isImageFile(path) && !isDrawingFile(path)) || isPdfFile(path)) {
       if (!initialAbsPath) {
         try {
           initialAbsPath = (await vaultRepository.resolveAssetFilePath(path)) ?? undefined;
         } catch (e) {
-          console.warn(`Error resolviendo ruta absoluta para imagen ${path}:`, e);
+          console.warn(`Error resolviendo ruta absoluta para archivo binario ${path}:`, e);
         }
       }
 
@@ -676,6 +678,7 @@
     // Liberar memoria consolidada del contenido de la nota para mantener bajo consumo de RAM
     delete openedNotes[path];
     delete excalidrawViewers[path];
+    delete pdfViewers[path];
     delete recentSaveTimestamps[path];
     // Se conserva tabSelections[path] para preservar la posición del cursor si se reabre
 
@@ -698,6 +701,7 @@
     activeTabPath = null;
     openedNotes = {};
     excalidrawViewers = {};
+    pdfViewers = {};
     recentSaveTimestamps = {};
     tabSelections = {};
     tabHistory = [];
@@ -1119,6 +1123,7 @@
   );
 
   let excalidrawViewers = $state<Record<string, any>>({});
+  let pdfViewers = $state<Record<string, any>>({});
   let recentSaveTimestamps: Record<string, number> = {};
 
   let currentVaultItem = $derived(
@@ -1187,6 +1192,7 @@
       !isSyntheticTab(activeTabPath) &&
       openTabPaths.includes(activeTabPath) &&
       !isImageFile(activeTabPath) &&
+      !isPdfFile(activeTabPath) &&
       activeNote &&
       !activeNote.isLoading &&
       typeof activeNote.content === "string" &&
@@ -1200,6 +1206,7 @@
       !isSyntheticTab(activeSplitTabPath) &&
       splitTabPaths.includes(activeSplitTabPath) &&
       !isImageFile(activeSplitTabPath) &&
+      !isPdfFile(activeSplitTabPath) &&
       openedNotes[activeSplitTabPath] &&
       !openedNotes[activeSplitTabPath]?.isLoading &&
       typeof openedNotes[activeSplitTabPath]?.content === "string" &&
@@ -1550,23 +1557,35 @@
 
         // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
         for (const changedPath of paths) {
-          if (openTabPaths.includes(changedPath)) {
+          const cleanChanged = changedPath.replace(/^\.\//, '').replace(/\\/g, '/');
+          const matchedOpenPath = openTabPaths.find((p) => p.replace(/^\.\//, '').replace(/\\/g, '/') === cleanChanged);
+
+          if (matchedOpenPath) {
             // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
-            if (Date.now() - (recentSaveTimestamps[changedPath] || 0) < 2500) {
+            const lastSave = recentSaveTimestamps[matchedOpenPath] || recentSaveTimestamps[changedPath] || 0;
+            if (Date.now() - lastSave < 2500) {
               continue;
             }
 
-            const note = openedNotes[changedPath];
+            // Si es un dibujo abierto y el usuario está editando activamente, no sobreescribir con datos de disco
+            if (isDrawingFile(matchedOpenPath)) {
+              const isCurrentlyEditing = (matchedOpenPath === activeTabPath && isEditing) || (matchedOpenPath === activeSplitTabPath && isSplitEditing);
+              if (isCurrentlyEditing) {
+                continue;
+              }
+            }
+
+            const note = openedNotes[matchedOpenPath];
             const isClean = !note || note.content === note.savedContent;
             if (isClean) {
               try {
-                const noteData = await vaultRepository.readNote(changedPath);
-                if (noteData && (noteData.content ?? "") !== (openedNotes[changedPath]?.savedContent ?? null)) {
-                  const currentMode = openedNotes[changedPath]?.viewMode || (isDrawingFile(changedPath) ? "live" : "reading");
-                  openedNotes[changedPath] = {
-                    relative_path: changedPath,
+                const noteData = await vaultRepository.readNote(matchedOpenPath);
+                if (noteData && (noteData.content ?? "") !== (openedNotes[matchedOpenPath]?.savedContent ?? null)) {
+                  const currentMode = openedNotes[matchedOpenPath]?.viewMode || (isDrawingFile(matchedOpenPath) ? "live" : "reading");
+                  openedNotes[matchedOpenPath] = {
+                    relative_path: matchedOpenPath,
                     abs_path: noteData.abs_path,
-                    title: noteData.title || changedPath,
+                    title: noteData.title || matchedOpenPath,
                     content: noteData.content ?? "",
                     savedContent: noteData.content ?? "",
                     encoding: noteData.encoding || "---",
@@ -1576,7 +1595,7 @@
                   };
                 }
               } catch (e) {
-                console.warn(`Error al recargar archivo modificado externamente: ${changedPath}`, e);
+                console.warn(`Error al recargar archivo modificado externamente: ${matchedOpenPath}`, e);
               }
             }
           }
@@ -1620,12 +1639,13 @@
   let autoSave = $state(true);
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay = 600) {
+  function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
+    const computedDelay = delay !== undefined ? delay : (isDrawingFile(vaultItem.relative_path) ? 1200 : 600);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       persistVaultItemToRust(vaultItem);
-    }, delay);
+    }, computedDelay);
   }
 
   async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string) {
@@ -1639,6 +1659,22 @@
 
     // Proteger archivos binarios o imágenes de sobreescrituras accidentales (excepto dibujos)
     if (isImageFile(path) && !isDrawingFile(path)) return;
+
+    // Si es un archivo PDF, delegar persistencia al visor PDF (con anotaciones incrustadas)
+    if (isPdfFile(path)) {
+      if (pdfViewers[path]?.saveDocument) {
+        try {
+          syncState = "saving";
+          recentSaveTimestamps[path] = Date.now();
+          await pdfViewers[path].saveDocument();
+          syncState = "synced";
+        } catch (err) {
+          console.error("Error al persistir PDF con anotaciones:", err);
+          syncState = "error";
+        }
+      }
+      return;
+    }
 
     // Si es un dibujo, sincronizar inmediatamente la escena más fresca del visor Excalidraw
     if (isDrawingFile(path) && excalidrawViewers[path]?.getCurrentSerializedScene) {
@@ -1657,6 +1693,8 @@
     const currentTabEnc = note ? note.encoding : "---";
     const enc = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : "UTF-8");
 
+    // Registrar timestamp antes de iniciar el guardado para evitar condiciones de carrera con notify / fs-events
+    recentSaveTimestamps[path] = Date.now();
     syncState = "saving";
     try {
       await vaultRepository.saveNote({
@@ -2422,7 +2460,8 @@
             class:hidden={tabPath !== activePath}
             class:full-pane={isDiagramFile(tabPath) ||
               isImageFile(tabPath) ||
-              isDrawingFile(tabPath)}
+              isDrawingFile(tabPath) ||
+              isPdfFile(tabPath)}
           >
             <BreadCrumb
               path={tabPath}
@@ -2521,6 +2560,14 @@
                     alt={vaultItem.title || tabPath}
                     {content}
                   />
+                {:else if isPdfFile(tabPath)}
+                  <PdfViewer
+                    bind:this={pdfViewers[tabPath]}
+                    src={note?.abs_path || tabPath}
+                    onSaved={() => {
+                      syncState = "synced";
+                    }}
+                  />
                 {:else}
                   <div class="editor-main-content">
                     <pre
@@ -2565,7 +2612,8 @@
           !isSyntheticTab(activeTabPath) &&
           (!currentVaultItem.relative_path ||
             isMarkdownFile(currentVaultItem.relative_path) ||
-            isDrawingFile(currentVaultItem.relative_path))}
+            isDrawingFile(currentVaultItem.relative_path) ||
+            isPdfFile(currentVaultItem.relative_path))}
         onSelectTab={(path) => selectTab(path)}
         onCloseTab={(path) => closeTab(path)}
         onCloseAllTabs={closeAllTabs}
@@ -2654,7 +2702,8 @@
               !isSyntheticTab(activeTabPath) &&
               (!currentVaultItem.relative_path ||
                 isMarkdownFile(currentVaultItem.relative_path) ||
-                isDrawingFile(currentVaultItem.relative_path))}
+                isDrawingFile(currentVaultItem.relative_path) ||
+                isPdfFile(currentVaultItem.relative_path))}
             onSelectTab={(path) => selectTab(path)}
             onCloseTab={(path) => closeTab(path)}
             onCloseAllTabs={closeAllTabs}
@@ -2737,7 +2786,8 @@
               !isSyntheticTab(activeSplitTabPath) &&
               (!currentSplitVaultItem.relative_path ||
                 isMarkdownFile(currentSplitVaultItem.relative_path) ||
-                isDrawingFile(currentSplitVaultItem.relative_path))}
+                isDrawingFile(currentSplitVaultItem.relative_path) ||
+                isPdfFile(currentSplitVaultItem.relative_path))}
             onSelectTab={(path) => selectSplitTab(path)}
             onCloseTab={(path) => closeSplitTab(path)}
             onCloseAllTabs={closeAllSplitTabs}
