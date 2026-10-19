@@ -97,18 +97,39 @@
     for (const p of paths) {
       if (openedNotes[p]) {
         try {
-          const noteData = await vaultRepository.readNote(p);
-          if (noteData) {
+          if (isPdfFile(p)) {
             openedNotes[p] = {
               ...openedNotes[p],
-              content: noteData.content ?? "",
-              savedContent: noteData.content ?? "",
-              isLoading: false,
-              isLoaded: true,
+              lastReloaded: Date.now(),
             };
+            if (pdfViewers[p]?.reload) {
+              pdfViewers[p].reload();
+            }
+          } else if (isImageFile(p) && !isDrawingFile(p)) {
+            openedNotes[p] = {
+              ...openedNotes[p],
+              lastReloaded: Date.now(),
+            };
+          } else {
+            const noteData = await vaultRepository.readNote(p);
+            if (noteData) {
+              openedNotes[p] = {
+                ...openedNotes[p],
+                content: noteData.content ?? "",
+                savedContent: noteData.content ?? "",
+                isLoading: false,
+                isLoaded: true,
+                lastReloaded: Date.now(),
+              };
+            }
           }
         } catch (e) {
           console.error("Error al recargar archivo restaurado:", e);
+        }
+      } else {
+        // Si no estaba en openedNotes pero está abierto como pestaña PDF
+        if (isPdfFile(p) && pdfViewers[p]?.reload) {
+          pdfViewers[p].reload();
         }
       }
     }
@@ -169,21 +190,36 @@
       if (isSyntheticTab(openPath)) continue;
       if (isTargetMatch(openPath)) {
         try {
-          const noteData = await vaultRepository.readNote(openPath);
-          if (noteData) {
-            const currentMode = openedNotes[openPath]?.viewMode || "reading";
+          if (isPdfFile(openPath)) {
             openedNotes[openPath] = {
               ...openedNotes[openPath],
-              title: noteData.title || openPath,
-              content: noteData.content ?? "",
-              savedContent: noteData.content ?? "",
-              encoding: noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---",
-              abs_path: noteData.abs_path || openedNotes[openPath]?.abs_path,
-              isLoading: false,
-              isLoaded: true,
-              viewMode: currentMode,
               lastReloaded: Date.now(),
             };
+            if (pdfViewers[openPath]?.reload) {
+              pdfViewers[openPath].reload();
+            }
+          } else if (isImageFile(openPath) && !isDrawingFile(openPath)) {
+            openedNotes[openPath] = {
+              ...openedNotes[openPath],
+              lastReloaded: Date.now(),
+            };
+          } else {
+            const noteData = await vaultRepository.readNote(openPath);
+            if (noteData) {
+              const currentMode = openedNotes[openPath]?.viewMode || "reading";
+              openedNotes[openPath] = {
+                ...openedNotes[openPath],
+                title: noteData.title || openPath,
+                content: noteData.content ?? "",
+                savedContent: noteData.content ?? "",
+                encoding: noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---",
+                abs_path: noteData.abs_path || openedNotes[openPath]?.abs_path,
+                isLoading: false,
+                isLoaded: true,
+                viewMode: currentMode,
+                lastReloaded: Date.now(),
+              };
+            }
           }
         } catch (e) {
           console.error(`Error al recargar archivo en memoria ${openPath}:`, e);
@@ -1586,20 +1622,36 @@
             const isClean = !note || note.content === note.savedContent;
             if (isClean) {
               try {
-                const noteData = await vaultRepository.readNote(matchedOpenPath);
-                if (noteData && (noteData.content ?? "") !== (openedNotes[matchedOpenPath]?.savedContent ?? null)) {
-                  const currentMode = openedNotes[matchedOpenPath]?.viewMode || (isDrawingFile(matchedOpenPath) ? "live" : "reading");
+                if (isPdfFile(matchedOpenPath)) {
                   openedNotes[matchedOpenPath] = {
-                    relative_path: matchedOpenPath,
-                    abs_path: noteData.abs_path,
-                    title: noteData.title || matchedOpenPath,
-                    content: noteData.content ?? "",
-                    savedContent: noteData.content ?? "",
-                    encoding: noteData.encoding || "---",
-                    isLoading: false,
-                    isLoaded: true,
-                    viewMode: currentMode,
+                    ...openedNotes[matchedOpenPath],
+                    lastReloaded: Date.now(),
                   };
+                  if (pdfViewers[matchedOpenPath]?.reload) {
+                    pdfViewers[matchedOpenPath].reload();
+                  }
+                } else if (isImageFile(matchedOpenPath) && !isDrawingFile(matchedOpenPath)) {
+                  openedNotes[matchedOpenPath] = {
+                    ...openedNotes[matchedOpenPath],
+                    lastReloaded: Date.now(),
+                  };
+                } else {
+                  const noteData = await vaultRepository.readNote(matchedOpenPath);
+                  if (noteData && (noteData.content ?? "") !== (openedNotes[matchedOpenPath]?.savedContent ?? null)) {
+                    const currentMode = openedNotes[matchedOpenPath]?.viewMode || (isDrawingFile(matchedOpenPath) ? "live" : "reading");
+                    openedNotes[matchedOpenPath] = {
+                      relative_path: matchedOpenPath,
+                      abs_path: noteData.abs_path,
+                      title: noteData.title || matchedOpenPath,
+                      content: noteData.content ?? "",
+                      savedContent: noteData.content ?? "",
+                      encoding: noteData.encoding || "---",
+                      isLoading: false,
+                      isLoaded: true,
+                      viewMode: currentMode,
+                      lastReloaded: Date.now(),
+                    };
+                  }
                 }
               } catch (e) {
                 console.warn(`Error al recargar archivo modificado externamente: ${matchedOpenPath}`, e);
@@ -2574,6 +2626,7 @@
                   <PdfViewer
                     bind:this={pdfViewers[tabPath]}
                     src={tabPath}
+                    reloadKey={note?.lastReloaded || 0}
                     onDirtyChange={(dirty) => {
                       if (dirty) {
                         syncState = "saving";

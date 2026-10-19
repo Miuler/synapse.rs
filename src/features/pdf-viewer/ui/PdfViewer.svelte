@@ -7,6 +7,7 @@
 
   interface Props {
     src: string;
+    reloadKey?: number | string;
     onDirtyChange?: (isDirty: boolean) => void;
     onSaved?: () => void;
     class?: string;
@@ -14,6 +15,7 @@
 
   let {
     src,
+    reloadKey = 0,
     onDirtyChange,
     onSaved,
     class: className = ''
@@ -23,6 +25,7 @@
   let registry = $state<PluginRegistry | null>(null);
   let currentBuffer = $state<ArrayBuffer | null>(null);
   let currentBlobUrl = $state<string | null>(null);
+  let manualReloadNonce = $state(0);
   let currentRevoke = $state<(() => void) | null>(null);
   let annotationUnsubscribe: (() => void) | null = null;
   let isLoading = $state(true);
@@ -66,6 +69,9 @@
   $effect(() => {
     let isCurrent = true;
     const targetSrc = src;
+    // Forzar dependencia reactiva en reloadKey y manualReloadNonce para recargar el PDF
+    void reloadKey;
+    void manualReloadNonce;
 
     if (!targetSrc) {
       cleanupResources();
@@ -320,6 +326,19 @@
     } finally {
       isSaving = false;
     }
+  }
+
+  /**
+   * Fuerza la recarga completa del PDF desde el disco
+   */
+  export function reload(): void {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+    }
+    isDirty = false;
+    onDirtyChange?.(false);
+    manualReloadNonce += 1;
   }
 
   const viewerConfig = $derived.by<PDFViewerConfig | undefined>(() => {
