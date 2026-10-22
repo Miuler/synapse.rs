@@ -7,7 +7,7 @@
     type RecentWorkspaceEntry,
     type SelectVaultFolderResult,
   } from '@shared/repositories';
-  import { appSettings } from '@entities/settings';
+  import { appSettings, shortcutsConfig, matchesShortcut } from '@entities/settings';
   import { WindowControls } from '@shared/ui/window-controls';
   import {
     Folder,
@@ -240,29 +240,26 @@
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-      const k = e.key.toLowerCase();
-      if (k === 'f' && !e.shiftKey) {
-        e.preventDefault();
-        searchInputRef?.focus();
-        searchInputRef?.select();
-        return;
-      }
-      if (k === 'n' && e.shiftKey) {
-        e.preventDefault();
-        handleCreateNewWorkspace();
-        return;
-      }
-      if (k === 'o' && e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        handleSelectLocalFolder();
-        return;
-      }
-      if (k === 'g' && e.shiftKey) {
-        e.preventDefault();
-        isCloneModalOpen = true;
-        return;
-      }
+    if (matchesShortcut(e, shortcutsConfig.welcome.search_workspaces)) {
+      e.preventDefault();
+      searchInputRef?.focus();
+      searchInputRef?.select();
+      return;
+    }
+    if (matchesShortcut(e, shortcutsConfig.welcome.new_workspace)) {
+      e.preventDefault();
+      handleCreateNewWorkspace();
+      return;
+    }
+    if (matchesShortcut(e, shortcutsConfig.welcome.open_folder)) {
+      e.preventDefault();
+      handleSelectLocalFolder();
+      return;
+    }
+    if (matchesShortcut(e, shortcutsConfig.welcome.clone_git)) {
+      e.preventDefault();
+      isCloneModalOpen = true;
+      return;
     }
 
     if (e.key === 'Escape') {
@@ -301,6 +298,7 @@
   }
 
   onMount(() => {
+    shortcutsConfig.loadFromBackend();
     loadWorkspaces();
     window.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -437,7 +435,7 @@
               <span class="qa-subtitle">Crear directorio vacío</span>
             </div>
           </div>
-          <kbd class="qa-kbd">Ctrl+Shift+N</kbd>
+          <kbd class="qa-kbd">{shortcutsConfig.welcome.new_workspace}</kbd>
         </button>
 
         <button type="button" class="quick-action-btn" onclick={handleSelectLocalFolder}>
@@ -447,7 +445,7 @@
             </div>
             <span class="qa-title">Abrir carpeta local...</span>
           </div>
-          <kbd class="qa-kbd">Ctrl+Shift+O</kbd>
+          <kbd class="qa-kbd">{shortcutsConfig.welcome.open_folder}</kbd>
         </button>
 
         <button
@@ -464,7 +462,7 @@
             </div>
             <span class="qa-title">Clonar repositorio Git</span>
           </div>
-          <kbd class="qa-kbd">Ctrl+Shift+G</kbd>
+          <kbd class="qa-kbd">{shortcutsConfig.welcome.clone_git}</kbd>
         </button>
 
         <button type="button" class="quick-action-btn" onclick={handleSelectLocalFolder}>
@@ -528,7 +526,7 @@
             placeholder="Buscar workspace o ruta..."
             class="search-input"
           />
-          <kbd class="search-kbd">Ctrl F</kbd>
+          <kbd class="search-kbd">{shortcutsConfig.welcome.search_workspaces}</kbd>
         </div>
       </div>
 
@@ -817,19 +815,19 @@
       <div class="shortcuts-grid">
         <div class="shortcut-row">
           <span>Nuevo Workspace</span>
-          <kbd>Ctrl + Shift + N</kbd>
+          <kbd>{shortcutsConfig.welcome.new_workspace}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Abrir carpeta local</span>
-          <kbd>Ctrl + Shift + O</kbd>
+          <kbd>{shortcutsConfig.welcome.open_folder}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Clonar repositorio Git</span>
-          <kbd>Ctrl + Shift + G</kbd>
+          <kbd>{shortcutsConfig.welcome.clone_git}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Buscar en Workspaces recientes</span>
-          <kbd>Ctrl + F</kbd>
+          <kbd>{shortcutsConfig.welcome.search_workspaces}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Navegar en la lista</span>
@@ -837,15 +835,15 @@
         </div>
         <div class="shortcut-row">
           <span>Buscar archivos en Workspace</span>
-          <kbd>Ctrl + O</kbd>
+          <kbd>{shortcutsConfig.workspace.quick_open}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Nueva nota en Workspace</span>
-          <kbd>Ctrl + N</kbd>
+          <kbd>{shortcutsConfig.workspace.new_file}</kbd>
         </div>
         <div class="shortcut-row">
           <span>Paleta de comandos</span>
-          <kbd>Ctrl + P</kbd>
+          <kbd>{shortcutsConfig.workspace.command_palette}</kbd>
         </div>
       </div>
     </div>

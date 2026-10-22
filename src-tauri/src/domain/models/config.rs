@@ -67,11 +67,171 @@ impl IgnoredConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WelcomeShortcutsConfig {
+    #[serde(default = "default_welcome_new_workspace")]
+    pub new_workspace: String,
+    #[serde(default = "default_welcome_open_folder")]
+    pub open_folder: String,
+    #[serde(default = "default_welcome_clone_git")]
+    pub clone_git: String,
+    #[serde(default = "default_welcome_search_workspaces")]
+    pub search_workspaces: String,
+}
+
+fn default_welcome_new_workspace() -> String {
+    "Ctrl+Shift+N".to_string()
+}
+fn default_welcome_open_folder() -> String {
+    "Ctrl+Shift+O".to_string()
+}
+fn default_welcome_clone_git() -> String {
+    "Ctrl+Shift+G".to_string()
+}
+fn default_welcome_search_workspaces() -> String {
+    "Ctrl+F".to_string()
+}
+
+impl Default for WelcomeShortcutsConfig {
+    fn default() -> Self {
+        Self {
+            new_workspace: default_welcome_new_workspace(),
+            open_folder: default_welcome_open_folder(),
+            clone_git: default_welcome_clone_git(),
+            search_workspaces: default_welcome_search_workspaces(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkspaceShortcutsConfig {
+    #[serde(default = "default_ws_quick_open")]
+    pub quick_open: String,
+    #[serde(default = "default_ws_command_palette")]
+    pub command_palette: String,
+    #[serde(default = "default_ws_new_file")]
+    pub new_file: String,
+    #[serde(default = "default_ws_new_tab")]
+    pub new_tab: String,
+    #[serde(default = "default_ws_save_file")]
+    pub save_file: String,
+    #[serde(default = "default_ws_close_tab")]
+    pub close_tab: String,
+    #[serde(default = "default_ws_split_view")]
+    pub split_view: String,
+    #[serde(default = "default_ws_toggle_sidebar")]
+    pub toggle_sidebar: String,
+    #[serde(default = "default_ws_locate_active_file")]
+    pub locate_active_file: String,
+    #[serde(default = "default_ws_search_fulltext")]
+    pub search_fulltext: String,
+    #[serde(default = "default_ws_open_vault_folder")]
+    pub open_vault_folder: String,
+    #[serde(default = "default_ws_reload_active_file")]
+    pub reload_active_file: String,
+    #[serde(default = "default_ws_reload_vault")]
+    pub reload_vault: String,
+    #[serde(default = "default_ws_nav_back")]
+    pub nav_back: String,
+    #[serde(default = "default_ws_nav_forward")]
+    pub nav_forward: String,
+    #[serde(default = "default_ws_toggle_theme")]
+    pub toggle_theme: String,
+    #[serde(default = "default_ws_toggle_devtools")]
+    pub toggle_devtools: String,
+}
+
+fn default_ws_quick_open() -> String {
+    "Ctrl+O".to_string()
+}
+fn default_ws_command_palette() -> String {
+    "Ctrl+P".to_string()
+}
+fn default_ws_new_file() -> String {
+    "Ctrl+N".to_string()
+}
+fn default_ws_new_tab() -> String {
+    "Ctrl+T".to_string()
+}
+fn default_ws_save_file() -> String {
+    "Ctrl+S".to_string()
+}
+fn default_ws_close_tab() -> String {
+    "Ctrl+W, Ctrl+F4".to_string()
+}
+fn default_ws_split_view() -> String {
+    "Ctrl+\\".to_string()
+}
+fn default_ws_toggle_sidebar() -> String {
+    "Alt+1, Ctrl+B".to_string()
+}
+fn default_ws_locate_active_file() -> String {
+    "Ctrl+Alt+1, Alt+L".to_string()
+}
+fn default_ws_search_fulltext() -> String {
+    "Ctrl+Shift+F".to_string()
+}
+fn default_ws_open_vault_folder() -> String {
+    "Ctrl+Shift+O".to_string()
+}
+fn default_ws_reload_active_file() -> String {
+    "Ctrl+R".to_string()
+}
+fn default_ws_reload_vault() -> String {
+    "Ctrl+Shift+R".to_string()
+}
+fn default_ws_nav_back() -> String {
+    "Alt+ArrowLeft".to_string()
+}
+fn default_ws_nav_forward() -> String {
+    "Alt+ArrowRight".to_string()
+}
+fn default_ws_toggle_theme() -> String {
+    "Ctrl+Shift+T".to_string()
+}
+fn default_ws_toggle_devtools() -> String {
+    "F12, Ctrl+Shift+I".to_string()
+}
+
+impl Default for WorkspaceShortcutsConfig {
+    fn default() -> Self {
+        Self {
+            quick_open: default_ws_quick_open(),
+            command_palette: default_ws_command_palette(),
+            new_file: default_ws_new_file(),
+            new_tab: default_ws_new_tab(),
+            save_file: default_ws_save_file(),
+            close_tab: default_ws_close_tab(),
+            split_view: default_ws_split_view(),
+            toggle_sidebar: default_ws_toggle_sidebar(),
+            locate_active_file: default_ws_locate_active_file(),
+            search_fulltext: default_ws_search_fulltext(),
+            open_vault_folder: default_ws_open_vault_folder(),
+            reload_active_file: default_ws_reload_active_file(),
+            reload_vault: default_ws_reload_vault(),
+            nav_back: default_ws_nav_back(),
+            nav_forward: default_ws_nav_forward(),
+            toggle_theme: default_ws_toggle_theme(),
+            toggle_devtools: default_ws_toggle_devtools(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ShortcutsConfig {
+    #[serde(default)]
+    pub welcome: WelcomeShortcutsConfig,
+    #[serde(default)]
+    pub workspace: WorkspaceShortcutsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     #[serde(alias = "supported_files.jsonc")]
     pub supported_files: SupportedFileTypes,
     #[serde(default)]
     pub ignored: IgnoredConfig,
+    #[serde(default)]
+    pub shortcuts: ShortcutsConfig,
 }
 
 impl Default for AppConfig {
@@ -112,5 +272,10 @@ mod tests {
         assert!(config.ignored.should_ignore_path(Path::new("sync.lock")));
         assert!(!config.ignored.should_ignore_path(Path::new("docs/intro.md")));
         assert!(!config.ignored.should_ignore_path(Path::new("./docs/intro.md")));
+
+        assert_eq!(config.shortcuts.welcome.new_workspace, "Ctrl+Shift+N");
+        assert_eq!(config.shortcuts.welcome.open_folder, "Ctrl+Shift+O");
+        assert_eq!(config.shortcuts.workspace.quick_open, "Ctrl+O");
+        assert_eq!(config.shortcuts.workspace.command_palette, "Ctrl+P");
     }
 }

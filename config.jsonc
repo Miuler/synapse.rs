@@ -107,5 +107,59 @@
       "thumbs.db",
       ".ds_store"
     ]
+  },
+
+  // Configuración global de atajos de teclado (Shortcuts)
+  // Puedes personalizar cualquier atajo desde ~/.config/synapsers/shortcuts.jsonc
+  "shortcuts": {
+    // Atajos de la Pantalla de Bienvenida (Workspaces Recientes)
+    "welcome": {
+      // Crear un nuevo directorio de Workspace
+      "new_workspace": "Ctrl+Shift+N",
+      // Abrir carpeta local existente como Workspace
+      "open_folder": "Ctrl+Shift+O",
+      // Clonar un repositorio Git como Workspace
+      "clone_git": "Ctrl+Shift+G",
+      // Enfocar el buscador de Workspaces recientes
+      "search_workspaces": "Ctrl+F"
+    },
+
+    // Atajos del Espacio de Trabajo y Editor
+    "workspace": {
+      // Buscar y abrir archivo rápidamente por nombre (Quick Open)
+      "quick_open": "Ctrl+O",
+      // Abrir la paleta de comandos
+      "command_palette": "Ctrl+P",
+      // Crear nueva nota Markdown en la bóveda activa
+      "new_file": "Ctrl+N",
+      // Abrir una nueva pestaña vacía
+      "new_tab": "Ctrl+T",
+      // Guardar / Grabar el archivo activo
+      "save_file": "Ctrl+S",
+      // Cerrar la pestaña activa
+      "close_tab": "Ctrl+W, Ctrl+F4",
+      // Dividir el panel verticalmente (Split View)
+      "split_view": "Ctrl+\\",
+      // Mostrar u ocultar el explorador lateral de archivos
+      "toggle_sidebar": "Alt+1, Ctrl+B",
+      // Ubicar el archivo activo en el árbol del explorador
+      "locate_active_file": "Ctrl+Alt+1, Alt+L",
+      // Buscar en el contenido de las notas (Full-Text Search)
+      "search_fulltext": "Ctrl+Shift+F",
+      // Abrir otra carpeta o bóveda
+      "open_vault_folder": "Ctrl+Shift+O",
+      // Recargar el archivo activo desde el disco
+      "reload_active_file": "Ctrl+R",
+      // Recargar toda la bóveda y sus metadatos
+      "reload_vault": "Ctrl+Shift+R",
+      // Navegar atrás en el historial de pestañas
+      "nav_back": "Alt+ArrowLeft",
+      // Navegar adelante en el historial de pestañas
+      "nav_forward": "Alt+ArrowRight",
+      // Alternar entre tema Claro y Oscuro
+      "toggle_theme": "Ctrl+Shift+T",
+      // Abrir o cerrar herramientas de desarrollo (DevTools)
+      "toggle_devtools": "F12, Ctrl+Shift+I"
+    }
   }
 }

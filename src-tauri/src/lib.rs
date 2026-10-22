@@ -15,7 +15,7 @@ use infrastructure::tauri::commands::{
     render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab,
-    get_recent_workspaces, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
+    get_recent_workspaces, get_shortcuts_config, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
     AppState,
 };
 use std::env;
@@ -103,6 +103,7 @@ pub fn run() {
             open_tab_in_new_window,
             get_detached_window_tab,
             get_recent_workspaces,
+            get_shortcuts_config,
             toggle_pin_workspace,
             remove_recent_workspace,
             create_new_workspace,

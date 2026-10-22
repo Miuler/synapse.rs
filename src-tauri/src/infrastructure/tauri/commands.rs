@@ -3,6 +3,7 @@ use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUse
 use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
+use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
 use crate::domain::models::note::Note;
@@ -125,8 +126,9 @@ impl AppState {
     ) -> Self {
         let registry_repo = FileWorkspaceRegistryRepository::new(file_types.clone());
         let workspace_registry_use_cases = WorkspaceRegistryUseCases::new(registry_repo);
-        // Ensure ~/.config/synapsers/workspaces.json exists on startup
+        // Ensure ~/.config/synapsers/workspaces.json and shortcuts.jsonc exist on startup
         let _ = workspace_registry_use_cases.get_registry();
+        let _ = workspace_registry_use_cases.get_shortcuts_config();
         Self {
             active_vault_path: Mutex::new(None),
             file_types,
@@ -1449,6 +1451,11 @@ pub fn get_detached_window_tab(
 #[tauri::command]
 pub fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
     state.workspace_registry_use_cases.list_workspaces()
+}
+
+#[tauri::command]
+pub fn get_shortcuts_config(state: State<'_, AppState>) -> Result<ShortcutsConfig, String> {
+    state.workspace_registry_use_cases.get_shortcuts_config()
 }
 
 #[tauri::command]

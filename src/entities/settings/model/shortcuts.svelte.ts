@@ -1,0 +1,172 @@
+import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
+
+export interface WelcomeShortcutsConfig {
+  new_workspace: string;
+  open_folder: string;
+  clone_git: string;
+  search_workspaces: string;
+}
+
+export interface WorkspaceShortcutsConfig {
+  quick_open: string;
+  command_palette: string;
+  new_file: string;
+  new_tab: string;
+  save_file: string;
+  close_tab: string;
+  split_view: string;
+  toggle_sidebar: string;
+  locate_active_file: string;
+  search_fulltext: string;
+  open_vault_folder: string;
+  reload_active_file: string;
+  reload_vault: string;
+  nav_back: string;
+  nav_forward: string;
+  toggle_theme: string;
+  toggle_devtools: string;
+}
+
+export interface ShortcutsConfig {
+  welcome: WelcomeShortcutsConfig;
+  workspace: WorkspaceShortcutsConfig;
+}
+
+export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
+  welcome: {
+    new_workspace: 'Ctrl+Shift+N',
+    open_folder: 'Ctrl+Shift+O',
+    clone_git: 'Ctrl+Shift+G',
+    search_workspaces: 'Ctrl+F',
+  },
+  workspace: {
+    quick_open: 'Ctrl+O',
+    command_palette: 'Ctrl+P',
+    new_file: 'Ctrl+N',
+    new_tab: 'Ctrl+T',
+    save_file: 'Ctrl+S',
+    close_tab: 'Ctrl+W, Ctrl+F4',
+    split_view: 'Ctrl+\\',
+    toggle_sidebar: 'Alt+1, Ctrl+B',
+    locate_active_file: 'Ctrl+Alt+1, Alt+L',
+    search_fulltext: 'Ctrl+Shift+F',
+    open_vault_folder: 'Ctrl+Shift+O',
+    reload_active_file: 'Ctrl+R',
+    reload_vault: 'Ctrl+Shift+R',
+    nav_back: 'Alt+ArrowLeft',
+    nav_forward: 'Alt+ArrowRight',
+    toggle_theme: 'Ctrl+Shift+T',
+    toggle_devtools: 'F12, Ctrl+Shift+I',
+  },
+};
+
+function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
+  const parts = comboStr
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return false;
+
+  let wantCtrl = false;
+  let wantAlt = false;
+  let wantShift = false;
+  let targetKey = '';
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (lower === 'ctrl' || lower === 'cmd' || lower === 'meta' || lower === 'control') {
+      wantCtrl = true;
+    } else if (lower === 'alt' || lower === 'option') {
+      wantAlt = true;
+    } else if (lower === 'shift' || lower === 'mayús' || lower === 'mayus') {
+      wantShift = true;
+    } else {
+      targetKey = lower;
+    }
+  }
+
+  const hasCtrl = e.ctrlKey || e.metaKey;
+  if (hasCtrl !== wantCtrl) return false;
+  if (e.altKey !== wantAlt) return false;
+  if (e.shiftKey !== wantShift) return false;
+
+  if (!targetKey) return false;
+
+  const eventKey = e.key.toLowerCase();
+  const eventCode = (e.code || '').toLowerCase();
+
+  // Normalizar flechas
+  if (targetKey === 'left' || targetKey === 'arrowleft') {
+    return eventKey === 'arrowleft';
+  }
+  if (targetKey === 'right' || targetKey === 'arrowright') {
+    return eventKey === 'arrowright';
+  }
+  if (targetKey === 'up' || targetKey === 'arrowup') {
+    return eventKey === 'arrowup';
+  }
+  if (targetKey === 'down' || targetKey === 'arrowdown') {
+    return eventKey === 'arrowdown';
+  }
+
+  // Normalizar dígitos (ej. Alt+1 o Ctrl+Alt+1 donde Shift o teclado puede alterar e.key)
+  if (/^\d$/.test(targetKey)) {
+    return (
+      eventKey === targetKey ||
+      eventCode === `digit${targetKey}` ||
+      eventCode === `numpad${targetKey}`
+    );
+  }
+
+  // Normalizar barra invertida (Ctrl+\ o Ctrl+|)
+  if (targetKey === '\\' || targetKey === 'backslash') {
+    return eventKey === '\\' || eventKey === '|' || eventCode === 'backslash';
+  }
+
+  return eventKey === targetKey;
+}
+
+/**
+ * Evalúa si un `KeyboardEvent` coincide con una definición de atajo (que puede contener
+ * múltiples combinaciones separadas por coma, ej. `"Alt+1, Ctrl+B"`).
+ */
+export function matchesShortcut(e: KeyboardEvent, shortcutSpec: string | undefined | null): boolean {
+  if (!shortcutSpec) return false;
+  const combos = shortcutSpec
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+  return combos.some((combo) => matchesSingleCombo(e, combo));
+}
+
+class ShortcutsConfigManager {
+  config = $state<ShortcutsConfig>({
+    welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome },
+    workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace },
+  });
+
+  get welcome(): WelcomeShortcutsConfig {
+    return this.config.welcome;
+  }
+
+  get workspace(): WorkspaceShortcutsConfig {
+    return this.config.workspace;
+  }
+
+  async loadFromBackend(): Promise<void> {
+    if (!isTauriEnvironment()) return;
+    try {
+      const loaded = await invokeTauri<ShortcutsConfig>('get_shortcuts_config');
+      if (loaded && loaded.welcome && loaded.workspace) {
+        this.config = {
+          welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome, ...loaded.welcome },
+          workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace, ...loaded.workspace },
+        };
+      }
+    } catch (err) {
+      console.warn('No se pudo cargar shortcuts.jsonc desde Rust, usando valores por defecto:', err);
+    }
+  }
+}
+
+export const shortcutsConfig = new ShortcutsConfigManager();

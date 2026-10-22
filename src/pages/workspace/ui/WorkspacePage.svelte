@@ -17,7 +17,7 @@
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {DiffViewer} from "@features/diff-viewer";
-  import {appSettings} from "@entities/settings";
+  import {appSettings, shortcutsConfig, matchesShortcut} from "@entities/settings";
   import {
     isImageFile,
     isMarkdownFile,
@@ -1864,21 +1864,20 @@
     refreshGitStatus();
   }
 
-  // Registrar comandos por defecto al iniciar
-  onMount(() => {
+  function registerWorkspaceCommands() {
     commandRegistry.registerMany([
       {
         id: "cmd-split-view",
         name: "Dividir panel verticalmente (Split View)",
         category: "Vista",
-        shortcut: "Ctrl+\\",
+        shortcut: shortcutsConfig.workspace.split_view,
         action: () => handleSplitView(),
       },
       {
         id: "cmd-new-tab",
         name: "Nueva pestaña vacía",
         category: "Pestañas",
-        shortcut: "Ctrl+T",
+        shortcut: shortcutsConfig.workspace.new_tab,
         action: handleNewEmptyTab,
       },
       {
@@ -1895,7 +1894,7 @@
         id: "cmd-open-folder",
         name: "Abrir carpeta / bóveda",
         category: "Archivo",
-        shortcut: "Ctrl+Shift+O",
+        shortcut: shortcutsConfig.workspace.open_vault_folder,
         action: handleOpenVaultFolder,
       },
       {
@@ -1910,7 +1909,7 @@
         id: "cmd-new-file",
         name: "Crear nuevo archivo",
         category: "Archivo",
-        shortcut: "Ctrl+N",
+        shortcut: shortcutsConfig.workspace.new_file,
         action: () => {
           info(`activeTabPath: ${activeTabPath}`);
           createNewVaultItem();
@@ -1920,7 +1919,7 @@
         id: "cmd-close-tab",
         name: "Cerrar pestaña actual",
         category: "Pestañas",
-        shortcut: "Ctrl+W, Ctrl+F4",
+        shortcut: shortcutsConfig.workspace.close_tab,
         action: () => {
           if (activeTabPath) closeTab(activeTabPath);
         },
@@ -1949,7 +1948,7 @@
         id: "cmd-toggle-sidebar",
         name: "Mostrar u ocultar explorador de archivos",
         category: "Vista",
-        shortcut: "Alt+1, Ctrl+B",
+        shortcut: shortcutsConfig.workspace.toggle_sidebar,
         action: toggleExplorer,
       },
       {
@@ -1980,7 +1979,7 @@
         id: "cmd-save-file",
         name: "Guardar / Grabar archivo actual",
         category: "Archivo",
-        shortcut: "Ctrl+S",
+        shortcut: shortcutsConfig.workspace.save_file,
         action: () => {
           if (activeTabPath && currentVaultItem.relative_path) {
             persistVaultItemToRust(currentVaultItem);
@@ -1991,7 +1990,7 @@
         id: "cmd-toggle-devtools",
         name: "Alternar herramientas de desarrollo (DevTools)",
         category: "Desarrollo",
-        shortcut: "F12",
+        shortcut: shortcutsConfig.workspace.toggle_devtools,
         action: toggleDevtools,
       },
       {
@@ -2049,7 +2048,7 @@
         id: "cmd-reload-active-file",
         name: "Archivo: Recargar archivo actual desde el disco",
         category: "Archivo",
-        shortcut: "Ctrl+R",
+        shortcut: shortcutsConfig.workspace.reload_active_file,
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           await handleReloadItems([activeTabPath]);
@@ -2059,7 +2058,7 @@
         id: "cmd-reload-vault",
         name: "Bóveda: Recargar toda la bóveda y refrescar metadatos",
         category: "Bóveda",
-        shortcut: "Ctrl+Shift+R",
+        shortcut: shortcutsConfig.workspace.reload_vault,
         action: async () => {
           await handleReloadItems(['']);
         },
@@ -2068,7 +2067,7 @@
         id: "cmd-search-fulltext",
         name: "Buscar en el contenido de las notas (FTS)",
         category: "Búsqueda",
-        shortcut: "Ctrl+Shift+F",
+        shortcut: shortcutsConfig.workspace.search_fulltext,
         action: () => {
           isFullTextSearchOpen = true;
         },
@@ -2085,7 +2084,7 @@
         id: "cmd-locate-active-file",
         name: "Explorador: Ubicar archivo actual en el árbol",
         category: "Navegación",
-        shortcut: "Ctrl+Alt+1, Alt+L",
+        shortcut: shortcutsConfig.workspace.locate_active_file,
         action: async () => {
           if (activeRibbonTab !== 'files') {
             if (sidebarWidth < 140) {
@@ -2101,21 +2100,21 @@
         id: "cmd-nav-back",
         name: "Navegar atrás entre pestañas",
         category: "Navegación",
-        shortcut: "Alt+Left",
+        shortcut: shortcutsConfig.workspace.nav_back,
         action: navigateBack,
       },
       {
         id: "cmd-nav-forward",
         name: "Navegar adelante entre pestañas",
         category: "Navegación",
-        shortcut: "Alt+Right",
+        shortcut: shortcutsConfig.workspace.nav_forward,
         action: navigateForward,
       },
       {
         id: "cmd-toggle-theme",
         name: "Alternar tema (Claro / Oscuro)",
         category: "Apariencia",
-        shortcut: "Ctrl+Shift+T",
+        shortcut: shortcutsConfig.workspace.toggle_theme,
         action: () => appSettings.toggleTheme(),
       },
       {
@@ -2137,156 +2136,127 @@
         action: () => appSettings.setTheme('light'),
       },
     ]);
+  }
+
+  // Registrar comandos por defecto y cargar atajos JSONC al iniciar
+  onMount(() => {
+    registerWorkspaceCommands();
+    shortcutsConfig.loadFromBackend().then(() => {
+      registerWorkspaceCommands();
+    });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showWelcomeScreen) {
         return;
       }
-      if (e.key === "F12") {
+      const ws = shortcutsConfig.workspace;
+      const stopEvent = () => {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+      };
+
+      if (matchesShortcut(e, ws.toggle_devtools)) {
+        stopEvent();
         toggleDevtools();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey) {
-        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          if (activeRibbonTab !== 'files') {
-            if (sidebarWidth < 140) {
-              sidebarWidth = 240;
-            }
-            activeRibbonTab = 'files';
+      if (matchesShortcut(e, ws.locate_active_file)) {
+        stopEvent();
+        if (activeRibbonTab !== 'files') {
+          if (sidebarWidth < 140) {
+            sidebarWidth = 240;
           }
-          tick().then(() => {
-            vaultExplorerRef?.locateActiveFile();
-          });
-          return;
+          activeRibbonTab = 'files';
         }
+        tick().then(() => {
+          vaultExplorerRef?.locateActiveFile();
+        });
+        return;
       }
-      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          toggleExplorer();
-          return;
-        } else if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          navigateBack();
-          return;
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          navigateForward();
-          return;
-        } else if (e.key.toLowerCase() === 'l') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          if (activeRibbonTab !== 'files') {
-            if (sidebarWidth < 140) {
-              sidebarWidth = 240;
-            }
-            activeRibbonTab = 'files';
-          }
-          tick().then(() => {
-            vaultExplorerRef?.locateActiveFile();
-          });
-          return;
-        }
+      if (matchesShortcut(e, ws.toggle_sidebar)) {
+        stopEvent();
+        toggleExplorer();
+        return;
       }
-      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-        const key = e.key.toLowerCase();
-        if (e.shiftKey) {
-          if (key === 'o') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            handleOpenVaultFolder();
-            return;
-          } else if (key === 'i') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            toggleDevtools();
-            return;
-          } else if (key === 't') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            appSettings.toggleTheme();
-            return;
-          } else if (key === 'f') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            isFullTextSearchOpen = true;
-            return;
-          }
-          return;
+      if (matchesShortcut(e, ws.nav_back)) {
+        stopEvent();
+        navigateBack();
+        return;
+      }
+      if (matchesShortcut(e, ws.nav_forward)) {
+        stopEvent();
+        navigateForward();
+        return;
+      }
+      if (matchesShortcut(e, ws.open_vault_folder)) {
+        stopEvent();
+        handleOpenVaultFolder();
+        return;
+      }
+      if (matchesShortcut(e, ws.toggle_theme)) {
+        stopEvent();
+        appSettings.toggleTheme();
+        return;
+      }
+      if (matchesShortcut(e, ws.search_fulltext)) {
+        stopEvent();
+        isFullTextSearchOpen = true;
+        return;
+      }
+      if (matchesShortcut(e, ws.reload_vault)) {
+        stopEvent();
+        handleReloadItems(['']);
+        return;
+      }
+      if (matchesShortcut(e, ws.reload_active_file)) {
+        stopEvent();
+        if (activeTabPath && !isSyntheticTab(activeTabPath)) {
+          handleReloadItems([activeTabPath]);
         }
-        if (key === 's') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          if (activeTabPath && currentVaultItem.relative_path) {
-            persistVaultItemToRust(currentVaultItem);
-          }
-          return;
-        } else if (key === 'n') {
-          info(`activeTabPath: ${activeTabPath}`);
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          createNewVaultItem();
-          return;
-        } else if (key === 't') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          handleNewEmptyTab();
-          return;
-        } else if (key === '\\' || key === '|') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          handleSplitView();
-          return;
-        } else if (key === 'w' || key === 'f4') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
-            closeSplitTab(activeSplitTabPath);
-          } else if (activeTabPath) {
-            closeTab(activeTabPath);
-          }
-          return;
-        } else if (key === 'o') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          isQuickOpenOpen = true;
-          return;
-        } else if (key === 'p') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          isPaletteOpen = true;
-          return;
-        } else if (key === 'b') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          toggleExplorer();
-          return;
+        return;
+      }
+      if (matchesShortcut(e, ws.save_file)) {
+        stopEvent();
+        if (activeTabPath && currentVaultItem.relative_path) {
+          persistVaultItemToRust(currentVaultItem);
         }
+        return;
+      }
+      if (matchesShortcut(e, ws.new_file)) {
+        info(`activeTabPath: ${activeTabPath}`);
+        stopEvent();
+        createNewVaultItem();
+        return;
+      }
+      if (matchesShortcut(e, ws.new_tab)) {
+        stopEvent();
+        handleNewEmptyTab();
+        return;
+      }
+      if (matchesShortcut(e, ws.split_view)) {
+        stopEvent();
+        handleSplitView();
+        return;
+      }
+      if (matchesShortcut(e, ws.close_tab)) {
+        stopEvent();
+        if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
+          closeSplitTab(activeSplitTabPath);
+        } else if (activeTabPath) {
+          closeTab(activeTabPath);
+        }
+        return;
+      }
+      if (matchesShortcut(e, ws.quick_open)) {
+        stopEvent();
+        isQuickOpenOpen = true;
+        return;
+      }
+      if (matchesShortcut(e, ws.command_palette)) {
+        stopEvent();
+        isPaletteOpen = true;
+        return;
       }
     };
 

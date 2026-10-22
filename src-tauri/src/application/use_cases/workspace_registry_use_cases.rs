@@ -1,3 +1,4 @@
+use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
 use crate::domain::repositories::workspace_registry_repository::WorkspaceRegistryRepository;
 
@@ -35,5 +36,9 @@ impl<R: WorkspaceRegistryRepository> WorkspaceRegistryUseCases<R> {
 
     pub fn remove_workspace(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String> {
         self.repository.remove_workspace(path)
+    }
+
+    pub fn get_shortcuts_config(&self) -> Result<ShortcutsConfig, String> {
+        self.repository.load_shortcuts_config()
     }
 }

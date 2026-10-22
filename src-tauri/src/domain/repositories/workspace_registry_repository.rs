@@ -1,3 +1,4 @@
+use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
 
 pub trait WorkspaceRegistryRepository: Send + Sync {
@@ -13,4 +14,5 @@ pub trait WorkspaceRegistryRepository: Send + Sync {
     fn toggle_pin(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String>;
     fn remove_workspace(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String>;
     fn list_workspaces(&self) -> Result<Vec<RecentWorkspaceEntry>, String>;
+    fn load_shortcuts_config(&self) -> Result<ShortcutsConfig, String>;
 }

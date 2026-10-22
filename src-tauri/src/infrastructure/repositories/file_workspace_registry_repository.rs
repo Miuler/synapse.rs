@@ -1,3 +1,4 @@
+use crate::domain::models::config::{AppConfig, ShortcutsConfig};
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
 use crate::domain::repositories::workspace_registry_repository::WorkspaceRegistryRepository;
@@ -155,6 +156,74 @@ impl FileWorkspaceRegistryRepository {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64
+    }
+
+    pub fn default_shortcuts_jsonc_template() -> &'static str {
+        r#"{
+  // ============================================================================
+  // Configuración de Atajos de Teclado (Shortcuts) de Synapse.rs
+  // Formato: JSONC (soporta comentarios // y /* */)
+  // Puedes personalizar cualquier combinación de teclas aquí.
+  // ============================================================================
+
+  // Atajos de la Pantalla de Bienvenida (Workspaces Recientes)
+  "welcome": {
+    // Crear un nuevo directorio de Workspace
+    "new_workspace": "Ctrl+Shift+N",
+    // Abrir carpeta local existente como Workspace
+    "open_folder": "Ctrl+Shift+O",
+    // Clonar un repositorio Git como Workspace
+    "clone_git": "Ctrl+Shift+G",
+    // Enfocar el buscador de Workspaces recientes
+    "search_workspaces": "Ctrl+F"
+  },
+
+  // Atajos del Espacio de Trabajo y Editor
+  "workspace": {
+    // Buscar y abrir archivo rápidamente por nombre (Quick Open)
+    "quick_open": "Ctrl+O",
+    // Abrir la paleta de comandos
+    "command_palette": "Ctrl+P",
+    // Crear nueva nota Markdown en la bóveda activa
+    "new_file": "Ctrl+N",
+    // Abrir una nueva pestaña vacía
+    "new_tab": "Ctrl+T",
+    // Guardar / Grabar el archivo activo
+    "save_file": "Ctrl+S",
+    // Cerrar la pestaña activa
+    "close_tab": "Ctrl+W, Ctrl+F4",
+    // Dividir el panel verticalmente (Split View)
+    "split_view": "Ctrl+\\",
+    // Mostrar u ocultar el explorador lateral de archivos
+    "toggle_sidebar": "Alt+1, Ctrl+B",
+    // Ubicar el archivo activo en el árbol del explorador
+    "locate_active_file": "Ctrl+Alt+1, Alt+L",
+    // Buscar en el contenido de las notas (Full-Text Search)
+    "search_fulltext": "Ctrl+Shift+F",
+    // Abrir otra carpeta o bóveda
+    "open_vault_folder": "Ctrl+Shift+O",
+    // Recargar el archivo activo desde el disco
+    "reload_active_file": "Ctrl+R",
+    // Recargar toda la bóveda y sus metadatos
+    "reload_vault": "Ctrl+Shift+R",
+    // Navegar atrás en el historial de pestañas
+    "nav_back": "Alt+ArrowLeft",
+    // Navegar adelante en el historial de pestañas
+    "nav_forward": "Alt+ArrowRight",
+    // Alternar entre tema Claro y Oscuro
+    "toggle_theme": "Ctrl+Shift+T",
+    // Abrir o cerrar herramientas de desarrollo (DevTools)
+    "toggle_devtools": "F12, Ctrl+Shift+I"
+  }
+}
+"#
+    }
+
+    fn shortcuts_file_path(&self) -> PathBuf {
+        self.config_file_path
+            .parent()
+            .map(|p| p.join("shortcuts.jsonc"))
+            .unwrap_or_else(|| PathBuf::from("shortcuts.jsonc"))
     }
 }
 
@@ -326,6 +395,25 @@ impl WorkspaceRegistryRepository for FileWorkspaceRegistryRepository {
 
         Ok(cfg.workspaces)
     }
+
+    fn load_shortcuts_config(&self) -> Result<ShortcutsConfig, String> {
+        self.ensure_dir_exists()?;
+        let shortcuts_path = self.shortcuts_file_path();
+
+        if !shortcuts_path.exists() {
+            let _ = std::fs::write(&shortcuts_path, Self::default_shortcuts_jsonc_template());
+        }
+
+        if let Ok(raw) = std::fs::read_to_string(&shortcuts_path) {
+            if !raw.trim().is_empty() {
+                if let Ok(parsed) = serde_json_lenient::from_str::<ShortcutsConfig>(&raw) {
+                    return Ok(parsed);
+                }
+            }
+        }
+
+        Ok(AppConfig::default().shortcuts)
+    }
 }
 
 #[cfg(test)]
@@ -386,5 +474,28 @@ mod tests {
         let after_remove = repo.remove_workspace(&ws2_str).unwrap();
         assert_eq!(after_remove.len(), 1);
         assert_eq!(after_remove[0].notes_count, 1);
+
+        // Verify shortcuts.jsonc creation and JSONC comment support
+        let shortcuts = repo.load_shortcuts_config().unwrap();
+        assert!(cfg_dir.path().join("shortcuts.jsonc").exists());
+        assert_eq!(shortcuts.welcome.new_workspace, "Ctrl+Shift+N");
+        assert_eq!(shortcuts.workspace.quick_open, "Ctrl+O");
+
+        // Customize shortcuts.jsonc with comments and verify reload
+        let custom_jsonc = r#"{
+            // Comentario personalizado
+            "welcome": {
+                "new_workspace": "Ctrl+Alt+N"
+            },
+            "workspace": {
+                /* Comentario en bloque */
+                "quick_open": "Ctrl+K"
+            }
+        }"#;
+        std::fs::write(cfg_dir.path().join("shortcuts.jsonc"), custom_jsonc).unwrap();
+        let reloaded = repo.load_shortcuts_config().unwrap();
+        assert_eq!(reloaded.welcome.new_workspace, "Ctrl+Alt+N");
+        assert_eq!(reloaded.welcome.open_folder, "Ctrl+Shift+O"); // Default preserved
+        assert_eq!(reloaded.workspace.quick_open, "Ctrl+K");
     }
 }
