@@ -2,12 +2,15 @@ use crate::application::use_cases::file_system_use_cases::FileSystemUseCases;
 use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
 use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
+use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
 use crate::domain::models::note::Note;
+use crate::domain::models::workspace_registry::RecentWorkspaceEntry;
 use crate::domain::services::search_service::{SearchResult, SearchService};
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
+use crate::infrastructure::repositories::file_workspace_registry_repository::FileWorkspaceRegistryRepository;
 use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
@@ -33,6 +36,7 @@ pub struct AppState {
     pub note_use_cases: NoteUseCases<FileNoteRepository>,
     pub git_use_cases: GitUseCases<GitService>,
     pub file_system_use_cases: FileSystemUseCases<FileSystemService>,
+    pub workspace_registry_use_cases: WorkspaceRegistryUseCases<FileWorkspaceRegistryRepository>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -119,12 +123,17 @@ impl AppState {
         file_types: SupportedFileTypes,
         note_use_cases: NoteUseCases<FileNoteRepository>,
     ) -> Self {
+        let registry_repo = FileWorkspaceRegistryRepository::new(file_types.clone());
+        let workspace_registry_use_cases = WorkspaceRegistryUseCases::new(registry_repo);
+        // Ensure ~/.config/synapsers/workspaces.json exists on startup
+        let _ = workspace_registry_use_cases.get_registry();
         Self {
             active_vault_path: Mutex::new(None),
             file_types,
             note_use_cases,
             git_use_cases: GitUseCases::new(GitService::new()),
             file_system_use_cases: FileSystemUseCases::new(FileSystemService),
+            workspace_registry_use_cases,
             navigation_engine: Mutex::new(None),
             full_text: Mutex::new(None),
             app_handle: Arc::new(Mutex::new(None)),
@@ -138,6 +147,8 @@ impl AppState {
         note_use_cases: NoteUseCases<FileNoteRepository>,
     ) -> Self {
         let app_handle = Arc::new(Mutex::new(None));
+        let registry_repo = FileWorkspaceRegistryRepository::new(file_types.clone());
+        let workspace_registry_use_cases = WorkspaceRegistryUseCases::new(registry_repo);
         let (engine, full_text) = open_vault_components(
             initial_vault_path.clone(),
             file_types.clone(),
@@ -149,6 +160,7 @@ impl AppState {
             note_use_cases,
             git_use_cases: GitUseCases::new(GitService::new()),
             file_system_use_cases: FileSystemUseCases::new(FileSystemService),
+            workspace_registry_use_cases,
             navigation_engine: Mutex::new(Some(engine)),
             full_text: Mutex::new(Some(full_text)),
             app_handle,
@@ -446,16 +458,23 @@ pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String)
     let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     *vault_path = Some(target_dir.clone());
     let (new_engine, new_ft) = open_vault_components(
-        target_dir,
+        target_dir.clone(),
         state.file_types.clone(),
         Arc::clone(&state.app_handle),
     );
+    let notes_count = new_engine.notes.len();
     if let Ok(mut engine_lock) = state.navigation_engine.lock() {
         *engine_lock = Some(new_engine);
     }
     if let Ok(mut ft_lock) = state.full_text.lock() {
         *ft_lock = Some(new_ft);
     }
+    let _ = state.workspace_registry_use_cases.record_workspace_opened(
+        &target_dir.to_string_lossy(),
+        Some(notes_count),
+        None,
+        None,
+    );
     Ok(())
 }
 
@@ -553,6 +572,13 @@ pub async fn select_vault_folder(
             }
         }
         notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
+
+        let _ = state.workspace_registry_use_cases.record_workspace_opened(
+            &folder_path_str,
+            Some(notes.len()),
+            None,
+            None,
+        );
 
         Ok(Some(SelectVaultFolderResult {
             folder_path: folder_path_str,
@@ -1418,6 +1444,238 @@ pub fn get_detached_window_tab(
 ) -> Result<Option<String>, String> {
     let guard = state.detached_tabs.lock().map_err(|e| e.to_string())?;
     Ok(guard.get(window.label()).cloned())
+}
+
+#[tauri::command]
+pub fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
+    state.workspace_registry_use_cases.list_workspaces()
+}
+
+#[tauri::command]
+pub fn toggle_pin_workspace(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Vec<RecentWorkspaceEntry>, String> {
+    state.workspace_registry_use_cases.toggle_pin(&path)
+}
+
+#[tauri::command]
+pub fn remove_recent_workspace(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Vec<RecentWorkspaceEntry>, String> {
+    state.workspace_registry_use_cases.remove_workspace(&path)
+}
+
+#[tauri::command]
+pub async fn create_new_workspace(
+    state: State<'_, AppState>,
+    starting_directory: Option<String>,
+) -> Result<Option<SelectVaultFolderResult>, String> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
+
+    if let Some(dir) = starting_directory.as_deref().map(PathBuf::from).filter(|p| p.is_dir()) {
+        dialog = dialog.set_directory(&dir);
+    } else if let Ok(home) = std::env::var("HOME") {
+        let hp = PathBuf::from(home);
+        if hp.is_dir() {
+            dialog = dialog.set_directory(&hp);
+        }
+    }
+
+    let folder = dialog.pick_folder().await;
+
+    if let Some(folder_handle) = folder {
+        let path = folder_handle.path().to_path_buf();
+        let folder_path_str = path.to_string_lossy().to_string();
+
+        let synapse_dir = path.join(".synapse");
+        if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
+            return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+        }
+
+        let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        *vault_path = Some(path.clone());
+
+        let (new_engine, new_ft) = open_vault_components(
+            path.clone(),
+            state.file_types.clone(),
+            Arc::clone(&state.app_handle),
+        );
+        if let Ok(mut engine_lock) = state.navigation_engine.lock() {
+            *engine_lock = Some(new_engine.clone());
+        }
+        if let Ok(mut ft_lock) = state.full_text.lock() {
+            *ft_lock = Some(new_ft);
+        }
+
+        let mut notes = Vec::with_capacity(new_engine.notes.len());
+        for item in new_engine.notes.iter() {
+            let meta = item.value();
+            let rel_str = meta.path.to_string();
+            let abs_path = path.join(&rel_str).to_string_lossy().to_string();
+            if let Ok(rel_path) = NoteRelativePath::new(&rel_str) {
+                notes.push(Note::new(
+                    rel_path,
+                    abs_path,
+                    meta.title.to_string(),
+                    String::new(),
+                ));
+            }
+        }
+        notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
+
+        let _ = state.workspace_registry_use_cases.record_workspace_opened(
+            &folder_path_str,
+            Some(notes.len()),
+            None,
+            None,
+        );
+
+        Ok(Some(SelectVaultFolderResult {
+            folder_path: folder_path_str,
+            notes,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub async fn clone_git_workspace(
+    state: State<'_, AppState>,
+    repo_url: String,
+    starting_directory: Option<String>,
+) -> Result<Option<SelectVaultFolderResult>, String> {
+    let trimmed_url = repo_url.trim().to_string();
+    if trimmed_url.is_empty() {
+        return Err("La URL del repositorio Git no puede estar vacía".to_string());
+    }
+
+    let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
+
+    if let Some(dir) = starting_directory.as_deref().map(PathBuf::from).filter(|p| p.is_dir()) {
+        dialog = dialog.set_directory(&dir);
+    } else if let Ok(home) = std::env::var("HOME") {
+        let hp = PathBuf::from(home);
+        if hp.is_dir() {
+            dialog = dialog.set_directory(&hp);
+        }
+    }
+
+    let Some(folder_handle) = dialog.pick_folder().await else {
+        return Ok(None);
+    };
+
+    let parent_dir = folder_handle.path().to_path_buf();
+    let repo_name = trimmed_url
+        .trim_end_matches('/')
+        .trim_end_matches(".git")
+        .rsplit(['/', ':'])
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("synapse-vault");
+
+    let target_dir = parent_dir.join(repo_name);
+
+    let output = std::process::Command::new("git")
+        .arg("clone")
+        .arg(&trimmed_url)
+        .arg(&target_dir)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git clone: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git clone falló: {}", stderr.trim()));
+    }
+
+    let synapse_dir = target_dir.join(".synapse");
+    let _ = std::fs::create_dir_all(&synapse_dir);
+
+    let folder_path_str = target_dir.to_string_lossy().to_string();
+
+    let mut vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    *vault_path = Some(target_dir.clone());
+
+    let (new_engine, new_ft) = open_vault_components(
+        target_dir.clone(),
+        state.file_types.clone(),
+        Arc::clone(&state.app_handle),
+    );
+    if let Ok(mut engine_lock) = state.navigation_engine.lock() {
+        *engine_lock = Some(new_engine.clone());
+    }
+    if let Ok(mut ft_lock) = state.full_text.lock() {
+        *ft_lock = Some(new_ft);
+    }
+
+    let mut notes = Vec::with_capacity(new_engine.notes.len());
+    for item in new_engine.notes.iter() {
+        let meta = item.value();
+        let rel_str = meta.path.to_string();
+        let abs_path = target_dir.join(&rel_str).to_string_lossy().to_string();
+        if let Ok(rel_path) = NoteRelativePath::new(&rel_str) {
+            notes.push(Note::new(
+                rel_path,
+                abs_path,
+                meta.title.to_string(),
+                String::new(),
+            ));
+        }
+    }
+    notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
+
+    let _ = state.workspace_registry_use_cases.record_workspace_opened(
+        &folder_path_str,
+        Some(notes.len()),
+        None,
+        Some(true),
+    );
+
+    Ok(Some(SelectVaultFolderResult {
+        folder_path: folder_path_str,
+        notes,
+    }))
+}
+
+#[tauri::command]
+pub fn open_workspace_in_new_window(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<(), String> {
+    let target_dir = PathBuf::from(&path);
+    if !target_dir.is_dir() {
+        return Err("El directorio del workspace no existe".to_string());
+    }
+    let name = target_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Workspace");
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let window_label = format!("ws_win_{}", timestamp);
+
+    let encoded_path = path.replace('\\', "/");
+    let url = format!("index.html?vault={}", encoded_path);
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        &window_label,
+        tauri::WebviewUrl::App(PathBuf::from(url)),
+    )
+    .title(format!("Synapse - {}", name))
+    .inner_size(1100.0, 760.0)
+    .decorations(false)
+    .resizable(true)
+    .center()
+    .build()
+    .map_err(|e| format!("Error creando nueva ventana de workspace: {}", e))?;
+
+    Ok(())
 }
 
 #[cfg(test)]

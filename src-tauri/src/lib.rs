@@ -14,7 +14,9 @@ use infrastructure::tauri::commands::{
     read_asset_data_url, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
     render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
-    set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab, AppState,
+    set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab,
+    get_recent_workspaces, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
+    AppState,
 };
 use std::env;
 use tauri::Manager;
@@ -99,7 +101,13 @@ pub fn run() {
             read_asset_data_url,
             save_binary_asset,
             open_tab_in_new_window,
-            get_detached_window_tab
+            get_detached_window_tab,
+            get_recent_workspaces,
+            toggle_pin_workspace,
+            remove_recent_workspace,
+            create_new_workspace,
+            clone_git_workspace,
+            open_workspace_in_new_window
         ])
         .setup(|app| {
             let handle = app.handle().clone();

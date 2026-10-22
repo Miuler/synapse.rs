@@ -10,6 +10,7 @@
     Settings,
     Sun,
     Moon,
+    LayoutGrid,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
 
@@ -83,6 +84,29 @@
     </div>
 
     <div class="bottom-actions">
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Toolbar.Button
+              {...props}
+              class="ribbon-btn"
+              onclick={(e) => {
+                (props as Record<string, any>).onclick?.(e);
+                handleToolClick('welcome');
+              }}
+              aria-label="Workspaces Recientes / Pantalla de Bienvenida"
+            >
+              <LayoutGrid size={18} class="icon" />
+            </Toolbar.Button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
+            Workspaces Recientes / Cambiar Workspace
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}

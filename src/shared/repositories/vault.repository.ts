@@ -113,6 +113,18 @@ export interface VaultUiState {
   expanded_folders: string[];
 }
 
+export interface RecentWorkspaceEntry {
+  path: string;
+  display_path: string;
+  name: string;
+  last_opened_ms: number;
+  pinned: boolean;
+  notes_count: number;
+  git_branch?: string | null;
+  is_git_repo: boolean;
+  exists: boolean;
+}
+
 /**
  * Contrato de repositorio para el acceso y manipulación de archivos
  * y notas dentro de las carpetas que representan una bóveda (Vault).
@@ -323,6 +335,36 @@ export interface VaultRepository {
    * Guarda un archivo binario en la bóveda codificado en Base64 (útil para PDFs exportados con anotaciones, etc.).
    */
   saveBinaryAsset(relativePath: string, base64Data: string): Promise<void>;
+
+  /**
+   * Obtiene la lista de workspaces recientes desde ~/.config/synapsers/workspaces.json.
+   */
+  getRecentWorkspaces(): Promise<RecentWorkspaceEntry[]>;
+
+  /**
+   * Fija o desfija un workspace en la lista de recientes.
+   */
+  togglePinWorkspace(path: string): Promise<RecentWorkspaceEntry[]>;
+
+  /**
+   * Elimina un workspace del registro de recientes.
+   */
+  removeRecentWorkspace(path: string): Promise<RecentWorkspaceEntry[]>;
+
+  /**
+   * Crea o inicializa un nuevo directorio como workspace de Synapse sin advertencia.
+   */
+  createNewWorkspace(startingDirectory?: string): Promise<SelectVaultFolderResult | null>;
+
+  /**
+   * Clona un repositorio Git e inicializa un nuevo workspace de Synapse.
+   */
+  cloneGitWorkspace(repoUrl: string, startingDirectory?: string): Promise<SelectVaultFolderResult | null>;
+
+  /**
+   * Abre un workspace en una nueva ventana independiente de Tauri.
+   */
+  openWorkspaceInNewWindow(path: string): Promise<void>;
 }
 
 /**
@@ -844,6 +886,76 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.warn('Error al renderizar wikilinks en markdown:', error);
       return content;
+    }
+  }
+
+  async getRecentWorkspaces(): Promise<RecentWorkspaceEntry[]> {
+    if (!this.isConnected()) return [];
+    try {
+      const list = await invokeTauri<RecentWorkspaceEntry[]>('get_recent_workspaces');
+      return Array.isArray(list) ? list : [];
+    } catch (error) {
+      console.warn('Error al obtener get_recent_workspaces:', error);
+      return [];
+    }
+  }
+
+  async togglePinWorkspace(path: string): Promise<RecentWorkspaceEntry[]> {
+    if (!this.isConnected() || !path) return [];
+    try {
+      const list = await invokeTauri<RecentWorkspaceEntry[]>('toggle_pin_workspace', { path });
+      return Array.isArray(list) ? list : [];
+    } catch (error) {
+      console.warn('Error al alternar toggle_pin_workspace:', error);
+      return [];
+    }
+  }
+
+  async removeRecentWorkspace(path: string): Promise<RecentWorkspaceEntry[]> {
+    if (!this.isConnected() || !path) return [];
+    try {
+      const list = await invokeTauri<RecentWorkspaceEntry[]>('remove_recent_workspace', { path });
+      return Array.isArray(list) ? list : [];
+    } catch (error) {
+      console.warn('Error al eliminar remove_recent_workspace:', error);
+      return [];
+    }
+  }
+
+  async createNewWorkspace(startingDirectory?: string): Promise<SelectVaultFolderResult | null> {
+    if (!this.isConnected()) return null;
+    try {
+      return await invokeTauri<SelectVaultFolderResult | null>('create_new_workspace', {
+        startingDirectory: startingDirectory ?? null,
+        starting_directory: startingDirectory ?? null,
+      });
+    } catch (error) {
+      console.error('Error al crear nuevo workspace:', error);
+      return null;
+    }
+  }
+
+  async cloneGitWorkspace(repoUrl: string, startingDirectory?: string): Promise<SelectVaultFolderResult | null> {
+    if (!this.isConnected() || !repoUrl.trim()) return null;
+    try {
+      return await invokeTauri<SelectVaultFolderResult | null>('clone_git_workspace', {
+        repoUrl,
+        repo_url: repoUrl,
+        startingDirectory: startingDirectory ?? null,
+        starting_directory: startingDirectory ?? null,
+      });
+    } catch (error) {
+      console.error('Error al clonar repositorio Git como workspace:', error);
+      throw error;
+    }
+  }
+
+  async openWorkspaceInNewWindow(path: string): Promise<void> {
+    if (!this.isConnected() || !path) return;
+    try {
+      await invokeTauri<void>('open_workspace_in_new_window', { path });
+    } catch (error) {
+      console.error('Error al abrir workspace en nueva ventana:', error);
     }
   }
 }

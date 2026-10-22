@@ -8,6 +8,7 @@
   import {QuickOpen} from "@widgets/quick-open";
   import {FullTextSearch} from "@widgets/full-text-search";
   import {EmptyWorkspace} from "@widgets/empty-workspace";
+  import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
   import {MarkdownViewer} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
@@ -69,6 +70,8 @@
   let syncState = $state<"synced" | "saving" | "error">("synced");
   let isDetachedWindow = $state(false);
   let currentWindowLabel = $state('main');
+  let showWelcomeScreen = $state(true);
+  let hasActiveWorkspaceLoaded = $state(false);
 
   // Estado de control de versiones Git
   let isGitRepo = $state(false);
@@ -1557,6 +1560,8 @@
     vaultRepository.getDetachedWindowTab().then(async (detachedTab) => {
       if (detachedTab) {
         isDetachedWindow = true;
+        showWelcomeScreen = false;
+        hasActiveWorkspaceLoaded = true;
         openTabPaths = [detachedTab];
         activeTabPath = detachedTab;
         await fetchNotesFromBackend();
@@ -1564,15 +1569,30 @@
         return;
       }
 
-      // Si al arrancar no hay ningún tab seleccionado/abierto, abrir uno vacío
+      // Verificar si se abrió una ventana nueva con parámetro ?vault=...
+      const urlParams = new URLSearchParams(window.location.search);
+      const vaultQueryParam = urlParams.get('vault');
+      if (vaultQueryParam) {
+        showWelcomeScreen = false;
+        hasActiveWorkspaceLoaded = true;
+        await vaultRepository.setActiveVaultPath(vaultQueryParam);
+        appSettings.setLastOpenedFolder(vaultQueryParam);
+        await fetchNotesFromBackend();
+        return;
+      }
+
+      // Si al arrancar no hay ningún tab seleccionado/abierto, preparar uno vacío
       if (openTabPaths.length === 0) {
         handleNewEmptyTab();
       }
 
       const activePath = await vaultRepository.getActiveVaultPath();
       if (!activePath) {
-        await handleOpenVaultFolder();
+        showWelcomeScreen = true;
+        hasActiveWorkspaceLoaded = false;
       } else {
+        showWelcomeScreen = false;
+        hasActiveWorkspaceLoaded = true;
         await fetchNotesFromBackend();
       }
     });
@@ -1879,6 +1899,14 @@
         action: handleOpenVaultFolder,
       },
       {
+        id: "cmd-welcome-screen",
+        name: "Workspaces Recientes / Pantalla de Bienvenida",
+        category: "Bóveda",
+        action: () => {
+          showWelcomeScreen = true;
+        },
+      },
+      {
         id: "cmd-new-file",
         name: "Crear nuevo archivo",
         category: "Archivo",
@@ -2111,6 +2139,9 @@
     ]);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showWelcomeScreen) {
+        return;
+      }
       if (e.key === "F12") {
         e.preventDefault();
         e.stopPropagation();
@@ -2316,6 +2347,8 @@
       isQuickOpenOpen = true;
     } else if (actionId === "search") {
       isFullTextSearchOpen = true;
+    } else if (actionId === "welcome") {
+      showWelcomeScreen = true;
     }
   }
 
@@ -2333,6 +2366,59 @@
     selectTab(path);
   }
 
+  async function handleWorkspaceSelectedFromWelcome(
+    folderPath: string,
+    initialNotes?: Array<{ relative_path: string; abs_path?: string; title: string }>
+  ) {
+    showWelcomeScreen = false;
+    hasActiveWorkspaceLoaded = true;
+    appSettings.setLastOpenedFolder(folderPath);
+    openTabPaths = [];
+    activeTabPath = null;
+    splitTabPaths = [];
+    activeSplitTabPath = null;
+    openedNotes = {};
+    tabSelections = {};
+    recentFiles = [];
+    tabHistory = [];
+    tabHistoryIndex = -1;
+
+    if (initialNotes && initialNotes.length > 0) {
+      vaultItems = initialNotes.map((n, index) => {
+        let relPath = `${n.title}.md`;
+        if (typeof n.relative_path === 'string') {
+          relPath = n.relative_path;
+        } else if (
+          n.relative_path &&
+          typeof n.relative_path === 'object' &&
+          (n.relative_path as unknown as string[])[0]
+        ) {
+          relPath = (n.relative_path as unknown as string[])[0];
+        }
+        return {
+          id: String(index + 1),
+          title: n.title,
+          relative_path: relPath,
+          abs_path: n.abs_path,
+        };
+      });
+      isConnectedToRust = vaultRepository.isConnected();
+      await refreshGitStatus();
+      vaultRepository.getRecentNotes(15).then((recents) => {
+        if (recents && recents.length > 0) {
+          recentFiles = recents;
+        }
+      });
+      await restoreSidebarWidth();
+      const restored = await restoreOpenTabsState();
+      if (!restored) {
+        handleNewEmptyTab();
+      }
+    } else {
+      await fetchNotesFromBackend();
+    }
+  }
+
   async function handleOpenVaultFolder() {
     try {
       const result = await vaultRepository.selectVaultFolder(appSettings.lastOpenedFolder);
@@ -2340,6 +2426,8 @@
         if (result.folder_path) {
           appSettings.setLastOpenedFolder(result.folder_path);
         }
+        showWelcomeScreen = false;
+        hasActiveWorkspaceLoaded = true;
         const newNotes = result.notes || [];
         vaultItems = newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
@@ -2444,6 +2532,15 @@
 </script>
 
 <div class="workspace-layout">
+  {#if showWelcomeScreen && !isDetachedWindow}
+    <WelcomeScreen
+      onWorkspaceOpened={handleWorkspaceSelectedFromWelcome}
+      canCloseWelcome={hasActiveWorkspaceLoaded}
+      onCloseWelcome={() => {
+        showWelcomeScreen = false;
+      }}
+    />
+  {/if}
   {#if !isDetachedWindow}
     <!-- 1. BARRA RIBBON IZQUIERDA -->
     <Ribbon bind:activeTab={activeRibbonTab} onAction={handleRibbonAction}/>
