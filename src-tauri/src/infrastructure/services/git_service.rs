@@ -1,5 +1,5 @@
 pub use crate::domain::models::git::{
-    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitFileStatus, VaultGitStatus,
+    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitFileStatus, GitImageDiffResult, VaultGitStatus,
 };
 use crate::domain::services::git_service::GitPort;
 use std::collections::HashMap;
@@ -34,6 +34,10 @@ impl GitPort for GitService {
 
     fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<GitFileRevisionResult, String> {
         self.get_file_revision(vault_path, path, revision)
+    }
+
+    fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitImageDiffResult, String> {
+        self.get_image_diff(vault_path, path, staged)
     }
 
     fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
@@ -586,8 +590,18 @@ impl GitService {
                 }
             });
 
-        let clean_path = path.replace('\\', "/");
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
         let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
             return Err("Ruta de archivo no especificada para diff".to_string());
@@ -611,7 +625,8 @@ impl GitService {
             show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
             if let Ok(out) = show_head_cmd.output() {
                 if out.status.success() {
-                    old_content = String::from_utf8_lossy(&out.stdout).to_string();
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
                 }
             }
 
@@ -620,7 +635,8 @@ impl GitService {
             show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
                 if out.status.success() {
-                    new_content = String::from_utf8_lossy(&out.stdout).to_string();
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    new_content = String::from_utf8_lossy(&resolved).to_string();
                 }
             }
 
@@ -637,14 +653,16 @@ impl GitService {
             show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
                 if out.status.success() {
-                    old_content = String::from_utf8_lossy(&out.stdout).to_string();
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
                 } else {
                     let mut show_head_cmd = std::process::Command::new("git");
                     show_head_cmd.current_dir(work_dir);
                     show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
                     if let Ok(head_out) = show_head_cmd.output() {
                         if head_out.status.success() {
-                            old_content = String::from_utf8_lossy(&head_out.stdout).to_string();
+                            let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &head_out.stdout);
+                            old_content = String::from_utf8_lossy(&resolved).to_string();
                         }
                     }
                 }
@@ -703,6 +721,70 @@ impl GitService {
         })
     }
 
+fn resolve_git_lfs_bytes_if_needed(
+    work_dir: &Path,
+    git_dir: Option<&Path>,
+    raw_bytes: &[u8],
+) -> Vec<u8> {
+    if !raw_bytes.starts_with(b"version https://git-lfs.github.com/spec/v1") {
+        return raw_bytes.to_vec();
+    }
+
+    // 1. Intentar resolver usando `git lfs smudge`
+    let mut cmd = std::process::Command::new("git");
+    cmd.current_dir(work_dir);
+    cmd.args(["lfs", "smudge"]);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+
+    if let Ok(mut child) = cmd.spawn() {
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(raw_bytes);
+        }
+        if let Ok(output) = child.wait_with_output() {
+            if output.status.success()
+                && !output.stdout.is_empty()
+                && !output.stdout.starts_with(b"version https://git-lfs.github.com/spec/v1")
+            {
+                return output.stdout;
+            }
+        }
+    }
+
+    // 2. Fallback directo: buscar el blob en el almacenamiento local .git/lfs/objects/
+    if let Ok(text) = std::str::from_utf8(raw_bytes) {
+        for line in text.lines() {
+            let line = line.trim();
+            if let Some(oid) = line.strip_prefix("oid sha256:") {
+                let oid = oid.trim();
+                if oid.len() >= 4 {
+                    let subpath = format!("lfs/objects/{}/{}/{}", &oid[0..2], &oid[2..4], oid);
+
+                    if let Some(gd) = git_dir {
+                        let candidate = gd.join(&subpath);
+                        if candidate.is_file() {
+                            if let Ok(bytes) = std::fs::read(&candidate) {
+                                return bytes;
+                            }
+                        }
+                    }
+
+                    let candidate = work_dir.join(".git").join(&subpath);
+                    if candidate.is_file() {
+                        if let Ok(bytes) = std::fs::read(&candidate) {
+                            return bytes;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    raw_bytes.to_vec()
+}
+
     pub fn get_file_revision(
         &self,
         vault_path: &Path,
@@ -726,8 +808,18 @@ impl GitService {
                 }
             });
 
-        let clean_path = path.replace('\\', "/");
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
         let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
             return Err("Ruta de archivo no especificada para revisión".to_string());
@@ -769,7 +861,7 @@ impl GitService {
             });
         }
 
-        let raw_bytes = output.stdout;
+        let raw_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &output.stdout);
         let ext = Path::new(&clean_path)
             .extension()
             .and_then(|e| e.to_str())
@@ -816,6 +908,229 @@ impl GitService {
             data_url,
             is_binary,
             exists: true,
+        })
+    }
+
+    pub fn get_image_diff(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        staged: bool,
+    ) -> Result<GitImageDiffResult, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para diff de imagen".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let abs_path = work_dir.join(&repo_rel_path);
+
+        // 1. Obtener bytes de la imagen base / histórica (HEAD con fallback a index si no hay HEAD)
+        let mut old_bytes = Vec::new();
+        let mut head_cmd = std::process::Command::new("git");
+        head_cmd.current_dir(work_dir);
+        head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
+        if let Ok(out) = head_cmd.output() {
+            if out.status.success() {
+                old_bytes = out.stdout;
+            }
+        }
+
+        if old_bytes.is_empty() && !staged {
+            let mut index_cmd = std::process::Command::new("git");
+            index_cmd.current_dir(work_dir);
+            index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
+            if let Ok(out) = index_cmd.output() {
+                if out.status.success() {
+                    old_bytes = out.stdout;
+                }
+            }
+        }
+
+        // 2. Obtener bytes de la imagen actual (Working Tree o Staged Index)
+        let new_bytes = if staged {
+            let mut show_index = std::process::Command::new("git");
+            show_index.current_dir(work_dir);
+            show_index.args(["show", &format!(":{}", repo_rel_path)]);
+            if let Ok(out) = show_index.output() {
+                if out.status.success() {
+                    out.stdout
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            }
+        } else if abs_path.is_file() {
+            std::fs::read(&abs_path).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        // Resolver Git LFS si los bytes corresponden a un apuntador LFS
+        let old_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &old_bytes);
+        let new_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &new_bytes);
+
+        if old_bytes.is_empty() && new_bytes.is_empty() {
+            return Err("No se encontraron bytes de imagen para comparar".to_string());
+        }
+
+        if old_bytes.is_empty() || new_bytes.is_empty() {
+            // Archivo agregado o borrado por completo
+            return Ok(GitImageDiffResult {
+                path: clean_path.to_string(),
+                is_staged: staged,
+                diff_data_url: None,
+                diff_count: 0,
+                width: 0,
+                height: 0,
+                total_pixels: 0,
+                diff_percentage: 100.0,
+                has_differences: true,
+            });
+        }
+
+        let ext = Path::new(&clean_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if ext == "svg" {
+            return Err("El diff perceptual de píxeles no aplica a archivos SVG vectoriales (utiliza la vista dividida de 2 paneles o diff de texto)".to_string());
+        }
+
+        // 3. Decodificar ambas imágenes en memoria con la crate `image`
+        let decode_image = |bytes: &[u8]| -> Result<image::RgbaImage, String> {
+            let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes));
+            reader = match reader.with_guessed_format() {
+                Ok(r) => r,
+                Err(_) => {
+                    if let Some(fmt) = image::ImageFormat::from_extension(&ext) {
+                        let mut r2 = image::ImageReader::new(std::io::Cursor::new(bytes));
+                        r2.set_format(fmt);
+                        r2
+                    } else {
+                        return Err(format!("Formato de imagen '{}' no soportado o desconocido", ext));
+                    }
+                }
+            };
+            if reader.format().is_none() {
+                if let Some(fmt) = image::ImageFormat::from_extension(&ext) {
+                    reader.set_format(fmt);
+                }
+            }
+            reader
+                .decode()
+                .map(|img| img.to_rgba8())
+                .map_err(|e| format!("Error decodificando imagen: {}", e))
+        };
+
+        let img1 = decode_image(&old_bytes)
+            .map_err(|e| format!("Error decodificando imagen base de Git: {}", e))?;
+
+        let img2 = decode_image(&new_bytes)
+            .map_err(|e| format!("Error decodificando imagen modificada: {}", e))?;
+
+        // 4. Normalizar dimensiones si difieren
+        let max_w = img1.width().max(img2.width());
+        let max_h = img1.height().max(img2.height());
+
+        let mut canvas1 = image::RgbaImage::new(max_w, max_h);
+        image::imageops::overlay(&mut canvas1, &img1, 0, 0);
+
+        let mut canvas2 = image::RgbaImage::new(max_w, max_h);
+        image::imageops::overlay(&mut canvas2, &img2, 0, 0);
+
+        // Codificar canvas1 y canvas2 en PNG en memoria para alimentar pixelmatch
+        let mut png_buf1 = std::io::Cursor::new(Vec::new());
+        canvas1
+            .write_to(&mut png_buf1, image::ImageFormat::Png)
+            .map_err(|e| format!("Error preparando buffer PNG 1: {}", e))?;
+
+        let mut png_buf2 = std::io::Cursor::new(Vec::new());
+        canvas2
+            .write_to(&mut png_buf2, image::ImageFormat::Png)
+            .map_err(|e| format!("Error preparando buffer PNG 2: {}", e))?;
+
+        let mut out_png_buffer = std::io::Cursor::new(Vec::new());
+
+        // 5. Comparar píxeles con `pixelmatch` directamente en memoria
+        let diff_count = pixelmatch::pixelmatch(
+            std::io::Cursor::new(png_buf1.into_inner()),
+            std::io::Cursor::new(png_buf2.into_inner()),
+            Some(&mut out_png_buffer),
+            Some(max_w),
+            Some(max_h),
+            Some(pixelmatch::Options {
+                threshold: 0.1,
+                include_aa: true,
+                alpha: 0.2,                     // Atenuar fondo no modificado al 20%
+                aa_color: [255, 140, 0, 255],   // Naranja para diferencias de anti-aliasing
+                diff_color: [255, 0, 119, 255], // Magenta brillante para diferencias reales
+                diff_color_alt: None,
+                diff_mask: false,
+            }),
+        )
+        .map_err(|e| format!("Error ejecutando pixelmatch: {}", e))?;
+
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let diff_data_url = format!(
+            "data:image/png;base64,{}",
+            BASE64_STANDARD.encode(out_png_buffer.into_inner())
+        );
+
+        let total_pixels = (max_w * max_h) as usize;
+        let diff_percentage = if total_pixels > 0 {
+            (diff_count as f64 / total_pixels as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(GitImageDiffResult {
+            path: clean_path.to_string(),
+            is_staged: staged,
+            diff_data_url: Some(diff_data_url),
+            diff_count,
+            width: max_w,
+            height: max_h,
+            total_pixels,
+            diff_percentage,
+            has_differences: diff_count > 0 || img1.dimensions() != img2.dimensions(),
         })
     }
 
@@ -1476,6 +1791,68 @@ mod tests {
         run_cmd(&["add", "flow.mermaid"]);
         let mmd_staged = git_service.get_file_revision(&temp_dir, "flow.mermaid", "staged").unwrap();
         assert_eq!(mmd_staged.content.as_deref(), Some("graph TD\n  A --> C"));
+
+        // 4. Test diff perceptual de imagen en memoria
+        let mut img_a = image::RgbaImage::new(10, 10);
+        let mut img_b = image::RgbaImage::new(10, 10);
+        for x in 0..10 {
+            for y in 0..10 {
+                img_a.put_pixel(x, y, image::Rgba([255, 255, 255, 255]));
+                img_b.put_pixel(x, y, image::Rgba([255, 255, 255, 255]));
+            }
+        }
+        // Modificar 2 píxeles en img_b
+        img_b.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        img_b.put_pixel(1, 1, image::Rgba([0, 0, 0, 255]));
+
+        let mut buf_a = std::io::Cursor::new(Vec::new());
+        img_a.write_to(&mut buf_a, image::ImageFormat::Png).unwrap();
+        std::fs::write(&img_path, buf_a.into_inner()).unwrap();
+        run_cmd(&["add", "photo.png"]);
+        run_cmd(&["commit", "-m", "update photo"]);
+
+        let mut buf_b = std::io::Cursor::new(Vec::new());
+        img_b.write_to(&mut buf_b, image::ImageFormat::Png).unwrap();
+        let bytes_b = buf_b.into_inner();
+        std::fs::write(&img_path, &bytes_b).unwrap();
+
+        let image_diff_res = git_service.get_image_diff(&temp_dir, "photo.png", false).unwrap();
+        assert!(image_diff_res.has_differences);
+        assert_eq!(image_diff_res.diff_count, 2);
+        assert!(image_diff_res.diff_data_url.is_some());
+        assert!(image_diff_res.diff_data_url.unwrap().starts_with("data:image/png;base64,"));
+
+        // 5. Test resolución de apuntador Git LFS simulado
+        let lfs_oid = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let lfs_pointer = format!(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n",
+            lfs_oid,
+            bytes_b.len()
+        );
+        // Guardar el binario real en .git/lfs/objects/01/23/...
+        let lfs_obj_dir = temp_dir.join(".git").join("lfs").join("objects").join("01").join("23");
+        std::fs::create_dir_all(&lfs_obj_dir).unwrap();
+        std::fs::write(lfs_obj_dir.join(lfs_oid), &bytes_b).unwrap();
+
+        // Commitear el apuntador LFS como si fuera un commit de Git LFS
+        let lfs_img_path = temp_dir.join("lfs_photo.png");
+        std::fs::write(&lfs_img_path, lfs_pointer.as_bytes()).unwrap();
+        run_cmd(&["add", "lfs_photo.png"]);
+        run_cmd(&["commit", "-m", "add lfs photo pointer"]);
+
+        // Modificar localmente para generar diff
+        std::fs::write(&lfs_img_path, &bytes_b).unwrap();
+
+        let lfs_rev = git_service.get_file_revision(&temp_dir, "lfs_photo.png", "HEAD").unwrap();
+        assert!(lfs_rev.exists);
+        assert!(lfs_rev.is_binary);
+        let lfs_url = lfs_rev.data_url.unwrap();
+        assert!(lfs_url.starts_with("data:image/png;base64,"));
+        // El contenido resuelto no debe ser el texto del pointer
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let decoded_payload = BASE64_STANDARD.decode(&lfs_url["data:image/png;base64,".len()..]).unwrap();
+        assert_eq!(decoded_payload, bytes_b);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

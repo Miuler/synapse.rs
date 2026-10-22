@@ -69,6 +69,18 @@ export interface GitFileRevisionResult {
   exists: boolean;
 }
 
+export interface GitImageDiffResult {
+  path: string;
+  is_staged: boolean;
+  diff_data_url: string | null;
+  diff_count: number;
+  width: number;
+  height: number;
+  total_pixels: number;
+  diff_percentage: number;
+  has_differences: boolean;
+}
+
 export interface GitBranchItem {
   name: string;
   ref_name: string;
@@ -269,6 +281,11 @@ export interface VaultRepository {
    * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD o Staged).
    */
   getGitFileRevision(path: string, staged: boolean): Promise<GitFileRevisionResult>;
+
+  /**
+   * Obtiene el diff perceptual en memoria de una imagen (Disco vs Git).
+   */
+  getGitImageDiff(path: string, staged: boolean): Promise<GitImageDiffResult>;
 
   /**
    * Obtiene la lista de ramas locales y remotas del repositorio Git de la bóveda.
@@ -722,6 +739,27 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     return await invokeTauri<GitFileRevisionResult>('get_git_file_revision', {
+      path,
+      staged,
+    });
+  }
+
+  async getGitImageDiff(path: string, staged: boolean): Promise<GitImageDiffResult> {
+    if (!this.isConnected()) {
+      return {
+        path,
+        is_staged: staged,
+        diff_data_url: null,
+        diff_count: 0,
+        width: 0,
+        height: 0,
+        total_pixels: 0,
+        diff_percentage: 0,
+        has_differences: false,
+      };
+    }
+
+    return await invokeTauri<GitImageDiffResult>('get_git_image_diff', {
       path,
       staged,
     });

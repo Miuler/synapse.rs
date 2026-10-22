@@ -1,4 +1,4 @@
-use crate::domain::models::git::{GitBranchesResult, GitDiffResponse, GitFileRevisionResult, VaultGitStatus};
+use crate::domain::models::git::{GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitImageDiffResult, VaultGitStatus};
 use crate::domain::services::git_service::GitPort;
 use std::path::Path;
 
@@ -38,6 +38,10 @@ impl<G: GitPort> GitUseCases<G> {
 
     pub fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<GitFileRevisionResult, String> {
         self.port.get_file_revision(vault_path, path, revision)
+    }
+
+    pub fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitImageDiffResult, String> {
+        self.port.get_image_diff(vault_path, path, staged)
     }
 
     pub fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {

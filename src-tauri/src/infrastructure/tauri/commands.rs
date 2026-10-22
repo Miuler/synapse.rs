@@ -16,7 +16,7 @@ use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
 use crate::infrastructure::services::git_service::{
-    GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitService, VaultGitStatus,
+    GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitImageDiffResult, GitService, VaultGitStatus,
 };
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::infrastructure::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
@@ -922,6 +922,23 @@ pub fn get_git_file_revision(
     state.git_use_cases.get_file_revision(vault_path, &path, rev).map_err(|err| {
         log::error!("[commands::get_git_file_revision] {}", err);
         eprintln!("[commands::get_git_file_revision] {}", err);
+        err
+    })
+}
+
+#[tauri::command]
+pub fn get_git_image_diff(
+    state: State<'_, AppState>,
+    path: String,
+    staged: bool,
+) -> Result<GitImageDiffResult, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    state.git_use_cases.get_image_diff(vault_path, &path, staged).map_err(|err| {
+        log::error!("[commands::get_git_image_diff] {}", err);
+        eprintln!("[commands::get_git_image_diff] {}", err);
         err
     })
 }

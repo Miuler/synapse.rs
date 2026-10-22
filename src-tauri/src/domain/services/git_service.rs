@@ -1,4 +1,4 @@
-use crate::domain::models::git::{GitBranchesResult, GitDiffResponse, GitFileRevisionResult, VaultGitStatus};
+use crate::domain::models::git::{GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitImageDiffResult, VaultGitStatus};
 use std::path::Path;
 
 pub trait GitPort: Send + Sync {
@@ -9,6 +9,7 @@ pub trait GitPort: Send + Sync {
     fn git_commit(&self, vault_path: &Path, paths: &[String], message: &str) -> Result<String, String>;
     fn git_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitDiffResponse, String>;
     fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<GitFileRevisionResult, String>;
+    fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitImageDiffResult, String>;
     fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String>;
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String>;
     fn create_branch(&self, vault_path: &Path, new_branch: &str, base_branch: &str, checkout: bool) -> Result<String, String>;

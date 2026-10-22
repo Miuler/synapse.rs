@@ -5,11 +5,13 @@
   import { appSettings } from '@entities/settings';
   import {
     isImageFile,
+    isSvgFile,
     isPdfFile,
     isDrawingFile,
     isDiagramFile,
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
+  import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
   import {
     GitCompare,
     GitCompareArrows,
@@ -22,7 +24,8 @@
     ChevronsDownUp,
     AlertCircle,
     CheckCircle2,
-    Eye
+    Eye,
+    Sparkles
   } from 'lucide-svelte';
 
   interface Props {
@@ -38,16 +41,28 @@
   let diffData = $state<GitDiffResponse | null>(null);
   let diffFileInstance = $state<DiffFile | null>(null);
 
+  const isDrawing = $derived(isDrawingFile(filePath));
+  const isDiagram = $derived(isDiagramFile(filePath));
+  const isPdf = $derived(isPdfFile(filePath));
+  const isSvg = $derived(isSvgFile(filePath));
+  const isImage = $derived(isImageFile(filePath) && !isDrawing);
+  const isPureBinary = $derived((isImage && !isSvg) || isPdf);
   const isVisualCandidate = $derived(
-    isImageFile(filePath) || isPdfFile(filePath) || isDrawingFile(filePath) || isDiagramFile(filePath)
+    isImage || isPdf || isDrawing || isDiagram
   );
 
-  let showVisualDiff = $state(false);
+  type VisualDiffTab = 'side_by_side' | 'highlight' | 'text';
+  let activeVisualTab = $state<VisualDiffTab>('side_by_side');
 
   $effect(() => {
-    // Si cambia de archivo a uno visual, activar visual por defecto
-    showVisualDiff = isVisualCandidate;
+    // Si es candidato visual, arrancar por defecto en 'side_by_side'
+    if (isVisualCandidate) {
+      activeVisualTab = 'side_by_side';
+    } else {
+      activeVisualTab = 'text';
+    }
   });
+
   let viewMode = $state<DiffModeEnum>(DiffModeEnum.Split);
   let showRawDiff = $state(false);
   let enableWrap = $state(false);
@@ -169,20 +184,51 @@
 
     <div class="diff-toolbar-right">
       {#if isVisualCandidate}
-        <!-- BOTÓN CONMUTADOR DE DIFF VISUAL EN 2 PANELES -->
-        <button
-          type="button"
-          class="toggle-btn visual-btn"
-          class:active={showVisualDiff}
-          onclick={() => (showVisualDiff = !showVisualDiff)}
-          title="Alternar vista visual de dos paneles (Disco vs Git)"
-        >
-          <Eye size={13} />
-          <span>Visual (2 Paneles)</span>
-        </button>
+        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización diff">
+          <!-- 1. LADO A LADO -->
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={activeVisualTab === 'side_by_side'}
+            onclick={() => (activeVisualTab = 'side_by_side')}
+            title="Vista dividida lado a lado (Disco vs Git)"
+          >
+            <Columns size={13} />
+            <span>2 Paneles</span>
+          </button>
+
+          <!-- 2. RESALTADO PERCEPTUAL (Solo imágenes raster, no SVG) -->
+          {#if isImage && !isSvg}
+            <button
+              type="button"
+              class="toggle-btn"
+              class:active={activeVisualTab === 'highlight'}
+              onclick={() => (activeVisualTab = 'highlight')}
+              title="Diff perceptual: píxeles modificados resaltados en memoria"
+            >
+              <Sparkles size={13} />
+              <span>Diferencias</span>
+            </button>
+          {/if}
+
+          <!-- 3. MODO TEXTO (Solo si NO es un binario puro como imagen o PDF) -->
+          {#if !isPureBinary}
+            <button
+              type="button"
+              class="toggle-btn"
+              class:active={activeVisualTab === 'text'}
+              onclick={() => (activeVisualTab = 'text')}
+              title="Vista de código / diff de texto"
+            >
+              <FileCode size={13} />
+              <span>Texto</span>
+            </button>
+          {/if}
+        </div>
       {/if}
 
-      {#if !showVisualDiff}
+      <!-- SUBOPCIONES DE TEXTO (Solo si no es binario y está en pestaña texto) -->
+      {#if !isPureBinary && (!isVisualCandidate || activeVisualTab === 'text')}
         <!-- MODO DE VISTA: SPLIT, UNIFIED O TEXTO PLANO -->
         <div class="view-mode-toggle" role="group" aria-label="Modo de vista diff">
           <button
@@ -270,8 +316,10 @@
 
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
-    {#if isVisualCandidate && showVisualDiff}
+    {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
       <VisualDiffViewer {filePath} {isStaged} />
+    {:else if isImage && !isSvg && activeVisualTab === 'highlight'}
+      <ImageHighlightDiffViewer {filePath} {isStaged} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
@@ -463,23 +511,6 @@
     background-color: var(--bg-primary);
     color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-  }
-
-  .toggle-btn.visual-btn {
-    border: 1px solid var(--border-secondary);
-    background-color: var(--bg-tertiary);
-    color: var(--text-secondary);
-  }
-
-  .toggle-btn.visual-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--accent);
-  }
-
-  .toggle-btn.visual-btn.active {
-    background-color: rgba(56, 189, 248, 0.15);
-    color: var(--accent, #38bdf8);
-    border-color: rgba(56, 189, 248, 0.4);
   }
 
   .action-btn {

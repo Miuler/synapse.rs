@@ -35,11 +35,33 @@
   let isResizing = $state(false);
   let containerRef = $state<HTMLDivElement | null>(null);
 
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let isSavingLocal = $state(false);
   const fileName = $derived(filePath.split('/').pop() || filePath);
-  const isImage = $derived(isImageFile(filePath));
-  const isPdf = $derived(isPdfFile(filePath));
+
+  function persistLocalChanges(newContent: string) {
+    localContent = newContent;
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        isSavingLocal = true;
+        await vaultRepository.saveNote({
+          relativePath: filePath,
+          title: fileName,
+          content: newContent,
+          encoding: 'UTF-8',
+        });
+      } catch (err) {
+        console.error('Error al guardar cambios locales desde visual diff:', err);
+      } finally {
+        isSavingLocal = false;
+      }
+    }, 600);
+  }
   const isDrawing = $derived(isDrawingFile(filePath));
   const isDiagram = $derived(isDiagramFile(filePath));
+  const isPdf = $derived(isPdfFile(filePath));
+  const isImage = $derived(isImageFile(filePath) && !isDrawing);
 
   async function loadData() {
     loading = true;
@@ -116,24 +138,42 @@
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
-          <span>Disco Duro (Local)</span>
+          <span>Disco Duro (Local{#if isDrawing || isDiagram} — Editable{/if})</span>
         </div>
-        <span class="pane-filename" title={filePath}>{fileName}</span>
+        <div class="pane-header-right">
+          {#if isSavingLocal}
+            <span class="saving-indicator">Guardando...</span>
+          {/if}
+          <span class="pane-filename" title={filePath}>{fileName}</span>
+        </div>
       </div>
 
       <div class="pane-content">
-        {#if isImage}
-          <ImageViewer src={localDataUrl || filePath} alt="Local: {fileName}" />
-        {:else if isPdf}
-          <PdfViewer src={localDataUrl || filePath} />
-        {:else if isDrawing}
-          <ExcalidrawViewer content={localContent} readOnly={true} />
+        {#if isDrawing}
+          <ExcalidrawViewer
+            content={localContent}
+            readOnly={false}
+            onChange={(updated) => persistLocalChanges(updated)}
+            onSave={(updated) => updated && persistLocalChanges(updated)}
+          />
         {:else if isDiagram}
           {#if appSettings.mermaidRenderer === 'mermaidjs'}
-            <MermaidViewer content={localContent} readOnly={true} />
+            <MermaidViewer
+              content={localContent}
+              readOnly={false}
+              onChange={(updated) => persistLocalChanges(updated)}
+            />
           {:else}
-            <MermanViewer content={localContent} readOnly={true} />
+            <MermanViewer
+              content={localContent}
+              readOnly={false}
+              onChange={(updated) => persistLocalChanges(updated)}
+            />
           {/if}
+        {:else if isPdf}
+          <PdfViewer src={localDataUrl || filePath} />
+        {:else if isImage}
+          <ImageViewer src={localDataUrl || filePath} alt="Local: {fileName}" />
         {/if}
       </div>
     </div>
@@ -175,10 +215,6 @@
           <div class="empty-git-state">
             <p>Este archivo es nuevo y aún no existe en {isStaged ? 'el Stage' : 'el último commit (HEAD)'}.</p>
           </div>
-        {:else if isImage}
-          <ImageViewer src={gitRevision.data_url || ''} alt="Git: {fileName}" />
-        {:else if isPdf}
-          <PdfViewer src={gitRevision.data_url || ''} />
         {:else if isDrawing}
           <ExcalidrawViewer content={gitRevision.content || ''} readOnly={true} />
         {:else if isDiagram}
@@ -187,6 +223,10 @@
           {:else}
             <MermanViewer content={gitRevision.content || ''} readOnly={true} />
           {/if}
+        {:else if isPdf}
+          <PdfViewer src={gitRevision.data_url || ''} />
+        {:else if isImage}
+          <ImageViewer src={gitRevision.data_url || ''} alt="Git: {fileName}" />
         {/if}
       </div>
     </div>
@@ -289,6 +329,19 @@
     background-color: rgba(46, 160, 67, 0.15);
     color: #3fb950;
     border: 1px solid rgba(46, 160, 67, 0.3);
+  }
+
+  .pane-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 60%;
+  }
+
+  .saving-indicator {
+    color: var(--accent, #38bdf8);
+    font-size: 10px;
+    font-weight: 500;
   }
 
   .pane-filename,

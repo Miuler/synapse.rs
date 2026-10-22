@@ -53,3 +53,16 @@ pub struct GitFileRevisionResult {
     pub is_binary: bool,
     pub exists: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GitImageDiffResult {
+    pub path: String,
+    pub is_staged: bool,
+    pub diff_data_url: Option<String>,
+    pub diff_count: usize,
+    pub width: u32,
+    pub height: u32,
+    pub total_pixels: usize,
+    pub diff_percentage: f64,
+    pub has_differences: bool,
+}
