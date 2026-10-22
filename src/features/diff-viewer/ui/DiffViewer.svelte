@@ -25,16 +25,18 @@
     AlertCircle,
     CheckCircle2,
     Eye,
-    Sparkles
+    Sparkles,
+    History
   } from 'lucide-svelte';
 
   interface Props {
     filePath: string;
-    isStaged: boolean;
+    isStaged?: boolean;
+    baseRevision?: string;
     onClose?: () => void;
   }
 
-  let { filePath, isStaged, onClose }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, onClose }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -75,7 +77,7 @@
     loading = true;
     error = null;
     try {
-      const data = await vaultRepository.getGitFileDiff(filePath, isStaged);
+      const data = await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
       diffData = data;
     } catch (err: unknown) {
       console.error('Error al cargar git diff:', err);
@@ -86,9 +88,10 @@
   }
 
   $effect(() => {
-    // Escuchar cambios en filePath o isStaged para recargar
+    // Escuchar cambios en filePath, isStaged o baseRevision para recargar
     const _p = filePath;
     const _s = isStaged;
+    const _r = baseRevision;
     fetchDiff();
   });
 
@@ -155,8 +158,16 @@
   <!-- BARRA DE HERRAMIENTAS SUPERIOR -->
   <header class="diff-toolbar">
     <div class="diff-toolbar-left">
-      <div class="diff-file-badge" class:is-staged={isStaged} title={isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo'}>
-        {#if isStaged}
+      <div
+        class="diff-file-badge"
+        class:is-staged={isStaged && !baseRevision}
+        class:is-revision={Boolean(baseRevision)}
+        title={baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
+      >
+        {#if baseRevision}
+          <History size={14} class="badge-icon" />
+          <span>REV: {baseRevision.slice(0, 7)}</span>
+        {:else if isStaged}
           <GitCompareArrows size={14} class="badge-icon" />
           <span>STAGED</span>
         {:else}
@@ -317,9 +328,9 @@
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
     {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
-      <VisualDiffViewer {filePath} {isStaged} />
+      <VisualDiffViewer {filePath} {isStaged} {baseRevision} />
     {:else if isImage && !isSvg && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} />
+      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
@@ -343,7 +354,7 @@
         </div>
         <h3 class="state-title">Sin diferencias</h3>
         <p class="state-desc">
-          No hay cambios en <strong>{fileName}</strong> para {isStaged ? 'el área de preparación (stage)' : 'el árbol de trabajo'}.
+          No hay cambios en <strong>{fileName}</strong> {baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
         </p>
       </div>
     {:else if diffData}
@@ -426,6 +437,12 @@
     background-color: rgba(34, 197, 94, 0.15);
     color: #22c55e;
     border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .diff-file-badge.is-revision {
+    background-color: rgba(147, 51, 234, 0.15);
+    color: #9333ea;
+    border-color: rgba(147, 51, 234, 0.3);
   }
 
   .diff-file-info {

@@ -12,6 +12,7 @@
   interface Props {
     content: string;
     readOnly?: boolean;
+    showEditor?: boolean;
     vimMode?: boolean;
     onChange?: (content: string) => void;
     onSelectionChange?: (info: any) => void;
@@ -20,10 +21,13 @@
   let {
     content = '',
     readOnly = false,
+    showEditor = false,
     vimMode = false,
     onChange,
     onSelectionChange,
   }: Props = $props();
+
+  const isEditorVisible = $derived(!readOnly || showEditor);
 
   let svgContent = $state('');
   let isReady = $state(false);
@@ -325,13 +329,16 @@
   }
 </script>
 
-<div class="mermaid-container" class:split-mode={!readOnly}>
-  {#if !readOnly}
+<div class="mermaid-container" class:split-mode={isEditorVisible}>
+  {#if isEditorVisible}
     <div class="editor-pane">
       <div class="editor-header-bar">
         <div class="editor-title-group">
           <span>Código Mermaid</span>
           <span class="engine-badge" title="Visualizador oficial de Mermaid.js">Mermaid.js</span>
+          {#if readOnly}
+            <span class="readonly-badge" title="Vista de solo lectura del código">Solo lectura</span>
+          {/if}
         </div>
         <div class="editor-header-actions">
           {#if error}
@@ -341,21 +348,23 @@
             type="button"
             class="editor-header-btn"
             onclick={() => { if (codeEditorRef) codeEditorRef.triggerSearch(); }}
-            title="Buscar y Reemplazar (Ctrl+F / Ctrl+H)"
+            title="Buscar (Ctrl+F)"
           >
             <Search size={12} />
             <span>Buscar</span>
           </button>
 
-          <button
-            type="button"
-            class="editor-save-btn"
-            onclick={() => { if (onChange) onChange(content); }}
-            title="Guardar / Grabar cambios"
-          >
-            <Save size={12} />
-            <span>Grabar</span>
-          </button>
+          {#if !readOnly}
+            <button
+              type="button"
+              class="editor-save-btn"
+              onclick={() => { if (onChange) onChange(content); }}
+              title="Guardar / Grabar cambios"
+            >
+              <Save size={12} />
+              <span>Grabar</span>
+            </button>
+          {/if}
         </div>
       </div>
 
@@ -481,6 +490,18 @@
     padding: 1px 6px;
     border-radius: 4px;
     border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
+    letter-spacing: 0.3px;
+  }
+
+  .readonly-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(101, 109, 118, 0.15);
+    color: var(--text-secondary, #656d76);
+    border: 1px solid var(--border-primary, #d0d7de);
+    text-transform: uppercase;
     letter-spacing: 0.3px;
   }
 

@@ -17,6 +17,7 @@
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {DiffViewer} from "@features/diff-viewer";
+  import {RevisionViewer} from "@features/revision-viewer";
   import {appSettings, shortcutsConfig, matchesShortcut} from "@entities/settings";
   import {
     isImageFile,
@@ -41,7 +42,39 @@
 
   function isSyntheticTab(p: string | null | undefined): boolean {
     if (!p) return false;
-    return p.startsWith("empty:") || p.startsWith("diff:") || p.startsWith("diff-staged:");
+    return (
+      p.startsWith("empty:") ||
+      p.startsWith("diff:") ||
+      p.startsWith("diff-staged:") ||
+      p.startsWith("diff-rev:") ||
+      p.startsWith("rev:")
+    );
+  }
+
+  function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
+    if (!path) return fallbackTitle;
+    if (path.startsWith("empty:")) return "Nueva pestaña";
+    if (path.startsWith("diff-staged:")) {
+      const f = path.slice("diff-staged:".length).split("/").pop() || path;
+      return `Diff (staged): ${f}`;
+    }
+    if (path.startsWith("diff-rev:")) {
+      const parts = path.slice("diff-rev:".length).split(":");
+      const rev = parts[0] || "";
+      const f = parts.slice(1).join(":").split("/").pop() || parts.slice(1).join(":");
+      return `Diff (${rev.slice(0, 7)}): ${f}`;
+    }
+    if (path.startsWith("diff:")) {
+      const f = path.slice("diff:".length).split("/").pop() || path;
+      return `Diff: ${f}`;
+    }
+    if (path.startsWith("rev:")) {
+      const parts = path.slice("rev:".length).split(":");
+      const rev = parts[0] || "";
+      const f = parts.slice(1).join(":").split("/").pop() || parts.slice(1).join(":");
+      return `[${rev.slice(0, 7)}] ${f}`;
+    }
+    return fallbackTitle;
   }
 
   function parseTabDragData(e: DragEvent): { path: string; windowLabel: string; title?: string } | null {
@@ -1262,30 +1295,10 @@
 
   let tabsInfo = $derived(
     openTabPaths.map((path) => {
-      if (path.startsWith("empty:")) {
+      if (isSyntheticTab(path)) {
         return {
           path,
-          title: "Nueva pestaña",
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      if (path.startsWith("diff-staged:")) {
-        const filePath = path.slice("diff-staged:".length);
-        const fileName = filePath.split("/").pop() || filePath;
-        return {
-          path,
-          title: `Diff (staged): ${fileName}`,
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      if (path.startsWith("diff:")) {
-        const filePath = path.slice("diff:".length);
-        const fileName = filePath.split("/").pop() || filePath;
-        return {
-          path,
-          title: `Diff: ${fileName}`,
+          title: getTabDisplayTitle(path, "Pestaña"),
           abs_path: undefined,
           isDirty: false,
         };
@@ -1304,30 +1317,10 @@
 
   let rightTabsInfo = $derived(
     splitTabPaths.map((path) => {
-      if (path.startsWith("empty:")) {
+      if (isSyntheticTab(path)) {
         return {
           path,
-          title: "Nueva pestaña",
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      if (path.startsWith("diff-staged:")) {
-        const filePath = path.slice("diff-staged:".length);
-        const fileName = filePath.split("/").pop() || filePath;
-        return {
-          path,
-          title: `Diff (staged): ${fileName}`,
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      if (path.startsWith("diff:")) {
-        const filePath = path.slice("diff:".length);
-        const fileName = filePath.split("/").pop() || filePath;
-        return {
-          path,
-          title: `Diff: ${fileName}`,
+          title: getTabDisplayTitle(path, "Pestaña"),
           abs_path: undefined,
           isDirty: false,
         };
@@ -2539,6 +2532,8 @@
       onGitRestore={handleGitRestoreFiles}
       onReloadItems={handleReloadItems}
       onOpenDiff={(path, staged) => selectTab(staged ? `diff-staged:${path}` : `diff:${path}`)}
+      onOpenRevision={(path, revision) => selectTab(`rev:${revision}:${path}`)}
+      onOpenDiffWithRevision={(path, revision) => selectTab(`diff-rev:${revision}:${path}`)}
       onOpenInNewWindow={handleOpenInNewWindow}
     />
   {/if}
@@ -2561,6 +2556,22 @@
               onCreateNew={() => createNewVaultItem(tabPath)}
             />
           </div>
+        {:else if tabPath.startsWith("diff-rev:")}
+          {@const rest = tabPath.slice("diff-rev:".length)}
+          {@const firstColonIdx = rest.indexOf(":")}
+          {@const rev = firstColonIdx !== -1 ? rest.slice(0, firstColonIdx) : ""}
+          {@const fPath = firstColonIdx !== -1 ? rest.slice(firstColonIdx + 1) : rest}
+          <div
+            class="tab-pane full-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <DiffViewer
+              filePath={fPath}
+              isStaged={false}
+              baseRevision={rev}
+              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+            />
+          </div>
         {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
           <div
             class="tab-pane full-pane"
@@ -2569,6 +2580,21 @@
             <DiffViewer
               filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
               isStaged={tabPath.startsWith("diff-staged:")}
+              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+            />
+          </div>
+        {:else if tabPath.startsWith("rev:")}
+          {@const rest = tabPath.slice("rev:".length)}
+          {@const firstColonIdx = rest.indexOf(":")}
+          {@const rev = firstColonIdx !== -1 ? rest.slice(0, firstColonIdx) : ""}
+          {@const fPath = firstColonIdx !== -1 ? rest.slice(firstColonIdx + 1) : rest}
+          <div
+            class="tab-pane full-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <RevisionViewer
+              filePath={fPath}
+              revision={rev}
               onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
             />
           </div>
@@ -2733,15 +2759,7 @@
         showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
-        title={
-          activeTabPath?.startsWith("empty:")
-            ? "Nueva pestaña"
-            : activeTabPath?.startsWith("diff-staged:")
-            ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
-            : activeTabPath?.startsWith("diff:")
-            ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
-            : (currentVaultItem.relative_path || currentVaultItem.title)
-        }
+        title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
         showSaveButton={isEditing &&
           !!activeTabPath &&
           !isSyntheticTab(activeTabPath) &&
@@ -2823,15 +2841,7 @@
             showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
             markdownViewMode={!isEditing ? "reading" : markdownViewMode}
             onChangeMarkdownView={handleChangeMarkdownView}
-            title={
-              activeTabPath?.startsWith("empty:")
-                ? "Nueva pestaña"
-                : activeTabPath?.startsWith("diff-staged:")
-                ? `Diff (staged): ${activeTabPath.slice("diff-staged:".length).split("/").pop()}`
-                : activeTabPath?.startsWith("diff:")
-                ? `Diff: ${activeTabPath.slice("diff:".length).split("/").pop()}`
-                : (currentVaultItem.relative_path || currentVaultItem.title)
-            }
+            title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
             showSaveButton={isEditing &&
               !!activeTabPath &&
               !isSyntheticTab(activeTabPath) &&
@@ -2907,15 +2917,7 @@
             showViewToggle={hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)}
             markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
             onChangeMarkdownView={handleChangeSplitMarkdownView}
-            title={
-              activeSplitTabPath?.startsWith("empty:")
-                ? "Nueva pestaña"
-                : activeSplitTabPath?.startsWith("diff-staged:")
-                ? `Diff (staged): ${activeSplitTabPath.slice("diff-staged:".length).split("/").pop()}`
-                : activeSplitTabPath?.startsWith("diff:")
-                ? `Diff: ${activeSplitTabPath.slice("diff:".length).split("/").pop()}`
-                : (currentSplitVaultItem.relative_path || currentSplitVaultItem.title)
-            }
+            title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
             showSaveButton={isSplitEditing &&
               !!activeSplitTabPath &&
               !isSyntheticTab(activeSplitTabPath) &&

@@ -20,10 +20,11 @@
 
   interface Props {
     filePath: string;
-    isStaged: boolean;
+    isStaged?: boolean;
+    baseRevision?: string;
   }
 
-  let { filePath, isStaged }: Props = $props();
+  let { filePath, isStaged = false, baseRevision }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -68,7 +69,7 @@
     error = null;
     try {
       // 1. Obtener revisión de Git
-      const rev = await vaultRepository.getGitFileRevision(filePath, isStaged);
+      const rev = await vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision);
       gitRevision = rev;
 
       // 2. Si es dibujo o diagrama, leer contenido de texto de disco
@@ -91,6 +92,7 @@
   $effect(() => {
     const _p = filePath;
     const _s = isStaged;
+    const _r = baseRevision;
     loadData();
   });
 
@@ -196,24 +198,24 @@
       </div>
     </div>
 
-    <!-- PANEL DERECHO: GIT (HEAD O STAGED) -->
+    <!-- PANEL DERECHO: GIT (HEAD, STAGED O REVISIÓN) -->
     <div class="pane right-pane" style="width: {100 - splitRatio}%">
       <div class="pane-header">
-        <div class="pane-tag git" class:is-staged={isStaged}>
+        <div class="pane-tag git" class:is-staged={isStaged && !baseRevision} class:is-revision={Boolean(baseRevision)}>
           <GitCommit size={13} />
-          <span>{isStaged ? 'Stage / Index' : 'HEAD (Último commit)'}</span>
+          <span>{baseRevision ? `REV: ${baseRevision.slice(0, 7)}` : (isStaged ? 'Stage / Index' : 'HEAD (Último commit)')}</span>
         </div>
         {#if !gitRevision?.exists}
           <span class="not-in-git-badge">No existe en esta revisión</span>
         {:else}
-          <span class="pane-rev-info">{isStaged ? 'Revisión en Stage' : 'Última versión commiteada'}</span>
+          <span class="pane-rev-info">{baseRevision ? `Revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'Revisión en Stage' : 'Última versión commiteada')}</span>
         {/if}
       </div>
 
       <div class="pane-content">
         {#if !gitRevision?.exists}
           <div class="empty-git-state">
-            <p>Este archivo es nuevo y aún no existe en {isStaged ? 'el Stage' : 'el último commit (HEAD)'}.</p>
+            <p>Este archivo no existe en {baseRevision ? `la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'el Stage' : 'el último commit (HEAD)')}.</p>
           </div>
         {:else if isDrawing}
           <ExcalidrawViewer content={gitRevision.content || ''} readOnly={true} />
@@ -329,6 +331,12 @@
     background-color: rgba(46, 160, 67, 0.15);
     color: #3fb950;
     border: 1px solid rgba(46, 160, 67, 0.3);
+  }
+
+  .pane-tag.git.is-revision {
+    background-color: rgba(147, 51, 234, 0.15);
+    color: #a855f7;
+    border: 1px solid rgba(147, 51, 234, 0.3);
   }
 
   .pane-header-right {

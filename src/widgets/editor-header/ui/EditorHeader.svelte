@@ -23,7 +23,8 @@
     GitCompare,
     GitCompareArrows,
     ExternalLink,
-    Copy
+    Copy,
+    History
   } from 'lucide-svelte';
 
   interface Props {
@@ -96,7 +97,13 @@
 
   function isSyntheticTab(p?: string | null): boolean {
     if (!p) return false;
-    return p.startsWith('empty:') || p.startsWith('diff:') || p.startsWith('diff-staged:');
+    return (
+      p.startsWith('empty:') ||
+      p.startsWith('diff:') ||
+      p.startsWith('diff-staged:') ||
+      p.startsWith('diff-rev:') ||
+      p.startsWith('rev:')
+    );
   }
 
   let tabsScrollRef = $state<HTMLDivElement | null>(null);
@@ -576,8 +583,12 @@
                 >
                   {#if tab.path.startsWith('diff-staged:')}
                     <GitCompareArrows size={14} class="file-icon" style="color: #22c55e;" />
+                  {:else if tab.path.startsWith('diff-rev:')}
+                    <GitCompare size={14} class="file-icon" style="color: #a855f7;" />
                   {:else if tab.path.startsWith('diff:')}
                     <GitCompare size={14} class="file-icon" style="color: #3b82f6;" />
+                  {:else if tab.path.startsWith('rev:')}
+                    <History size={14} class="file-icon" style="color: #0969da;" />
                   {:else}
                     <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
                   {/if}
@@ -792,8 +803,12 @@
                     >
                       {#if tab.path.startsWith('diff-staged:')}
                         <GitCompareArrows size={14} class="dropdown-file-icon" style="color: #22c55e;" />
+                      {:else if tab.path.startsWith('diff-rev:')}
+                        <GitCompare size={14} class="dropdown-file-icon" style="color: #a855f7;" />
                       {:else if tab.path.startsWith('diff:')}
                         <GitCompare size={14} class="dropdown-file-icon" style="color: #3b82f6;" />
+                      {:else if tab.path.startsWith('rev:')}
+                        <History size={14} class="dropdown-file-icon" style="color: #0969da;" />
                       {:else}
                         <FileIcon path={tab.path} name={tab.title} size={14} class="dropdown-file-icon" />
                       {/if}

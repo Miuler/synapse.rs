@@ -1,5 +1,6 @@
 pub use crate::domain::models::git::{
-    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitFileStatus, GitImageDiffResult, VaultGitStatus,
+    GitBranchItem, GitBranchesResult, GitCommitLogItem, GitDiffResponse, GitFileLogResult,
+    GitFileRevisionResult, GitFileStatus, GitImageDiffResult, VaultGitStatus,
 };
 use crate::domain::services::git_service::GitPort;
 use std::collections::HashMap;
@@ -28,16 +29,20 @@ impl GitPort for GitService {
         self.git_commit(vault_path, paths, message)
     }
 
-    fn git_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitDiffResponse, String> {
-        self.git_diff(vault_path, path, staged)
+    fn git_diff(&self, vault_path: &Path, path: &str, staged: bool, revision: Option<&str>) -> Result<GitDiffResponse, String> {
+        self.git_diff(vault_path, path, staged, revision)
     }
 
     fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<GitFileRevisionResult, String> {
         self.get_file_revision(vault_path, path, revision)
     }
 
-    fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitImageDiffResult, String> {
-        self.get_image_diff(vault_path, path, staged)
+    fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool, revision: Option<&str>) -> Result<GitImageDiffResult, String> {
+        self.get_image_diff(vault_path, path, staged, revision)
+    }
+
+    fn get_file_log(&self, vault_path: &Path, path: &str, max_count: Option<usize>) -> Result<GitFileLogResult, String> {
+        self.get_file_log(vault_path, path, max_count)
     }
 
     fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
@@ -572,6 +577,7 @@ impl GitService {
         vault_path: &Path,
         path: &str,
         staged: bool,
+        revision: Option<&str>,
     ) -> Result<GitDiffResponse, String> {
         let repo =
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
@@ -618,7 +624,46 @@ impl GitService {
         let mut new_content = String::new();
         let mut diff = String::new();
 
-        if staged {
+        if let Some(rev) = revision {
+            // Diff contra una revisión histórica específica: rev vs Worktree
+            let mut show_cmd = std::process::Command::new("git");
+            show_cmd.current_dir(work_dir);
+            show_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            if let Ok(out) = show_cmd.output() {
+                if out.status.success() {
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
+                }
+            }
+
+            if abs_path.is_file() {
+                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+                    new_content = c;
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", rev, "-u", "--", &repo_rel_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+
+            // Si diff está vacío pero el archivo local es nuevo o no existe en esa revisión
+            if diff.is_empty() && old_content.is_empty() && !new_content.is_empty() {
+                #[cfg(windows)]
+                let null_target = "NUL";
+                #[cfg(not(windows))]
+                let null_target = "/dev/null";
+
+                let mut no_idx_cmd = std::process::Command::new("git");
+                no_idx_cmd.current_dir(work_dir);
+                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, &repo_rel_path]);
+                if let Ok(out) = no_idx_cmd.output() {
+                    diff = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+        } else if staged {
             // Diff de stage: HEAD vs Index (:path)
             let mut show_head_cmd = std::process::Command::new("git");
             show_head_cmd.current_dir(work_dir);
@@ -916,6 +961,7 @@ fn resolve_git_lfs_bytes_if_needed(
         vault_path: &Path,
         path: &str,
         staged: bool,
+        revision: Option<&str>,
     ) -> Result<GitImageDiffResult, String> {
         let repo =
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
@@ -958,30 +1004,48 @@ fn resolve_git_lfs_bytes_if_needed(
 
         let abs_path = work_dir.join(&repo_rel_path);
 
-        // 1. Obtener bytes de la imagen base / histórica (HEAD con fallback a index si no hay HEAD)
+        // 1. Obtener bytes de la imagen base / histórica (HEAD con fallback a index si no hay HEAD, o revisión explícita)
         let mut old_bytes = Vec::new();
-        let mut head_cmd = std::process::Command::new("git");
-        head_cmd.current_dir(work_dir);
-        head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
-        if let Ok(out) = head_cmd.output() {
-            if out.status.success() {
-                old_bytes = out.stdout;
-            }
-        }
-
-        if old_bytes.is_empty() && !staged {
-            let mut index_cmd = std::process::Command::new("git");
-            index_cmd.current_dir(work_dir);
-            index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
-            if let Ok(out) = index_cmd.output() {
+        if let Some(rev) = revision {
+            let mut rev_cmd = std::process::Command::new("git");
+            rev_cmd.current_dir(work_dir);
+            rev_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            if let Ok(out) = rev_cmd.output() {
                 if out.status.success() {
                     old_bytes = out.stdout;
+                }
+            }
+        } else {
+            let mut head_cmd = std::process::Command::new("git");
+            head_cmd.current_dir(work_dir);
+            head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
+            if let Ok(out) = head_cmd.output() {
+                if out.status.success() {
+                    old_bytes = out.stdout;
+                }
+            }
+
+            if old_bytes.is_empty() && !staged {
+                let mut index_cmd = std::process::Command::new("git");
+                index_cmd.current_dir(work_dir);
+                index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
+                if let Ok(out) = index_cmd.output() {
+                    if out.status.success() {
+                        old_bytes = out.stdout;
+                    }
                 }
             }
         }
 
         // 2. Obtener bytes de la imagen actual (Working Tree o Staged Index)
-        let new_bytes = if staged {
+        let new_bytes = if revision.is_some() {
+            // Comparar revisión histórica contra disco duro local
+            if abs_path.is_file() {
+                std::fs::read(&abs_path).unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        } else if staged {
             let mut show_index = std::process::Command::new("git");
             show_index.current_dir(work_dir);
             show_index.args(["show", &format!(":{}", repo_rel_path)]);
@@ -1131,6 +1195,107 @@ fn resolve_git_lfs_bytes_if_needed(
             total_pixels,
             diff_percentage,
             has_differences: diff_count > 0 || img1.dimensions() != img2.dimensions(),
+        })
+    }
+
+    pub fn get_file_log(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        max_count: Option<usize>,
+    ) -> Result<GitFileLogResult, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para historial".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let limit = max_count.unwrap_or(100).to_string();
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        // %H: commit hash completo
+        // %h: commit hash corto
+        // %an: autor
+        // %ae: email
+        // %aI: fecha estricta ISO-8601
+        // %at: timestamp UNIX
+        // %s: asunto / mensaje
+        cmd.args([
+            "log",
+            "--follow",
+            "--format=%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%s",
+            "-n",
+            &limit,
+            "--",
+            &repo_rel_path,
+        ]);
+
+        let output = cmd.output().map_err(|e| format!("Error ejecutando git log: {}", e))?;
+
+        let mut commits = Vec::new();
+        if output.status.success() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout);
+            for line in stdout_str.lines() {
+                let parts: Vec<&str> = line.split('\x1f').collect();
+                if parts.len() >= 7 {
+                    let commit_hash = parts[0].trim().to_string();
+                    let short_hash = parts[1].trim().to_string();
+                    let author_name = parts[2].trim().to_string();
+                    let author_email = parts[3].trim().to_string();
+                    let date = parts[4].trim().to_string();
+                    let timestamp = parts[5].trim().parse::<i64>().unwrap_or(0);
+                    let message = parts[6].trim().to_string();
+
+                    commits.push(GitCommitLogItem {
+                        commit_hash,
+                        short_hash,
+                        author_name,
+                        author_email,
+                        date,
+                        timestamp,
+                        message,
+                    });
+                }
+            }
+        }
+
+        Ok(GitFileLogResult {
+            path: clean_path.to_string(),
+            commits,
         })
     }
 
@@ -1574,19 +1739,19 @@ mod tests {
         // 1. Modificar file_a en worktree (diff normal)
         std::fs::write(&file_a, "line 1\nline 2 mod\nline 3\n").unwrap();
         let git_service = GitService::new();
-        let diff_worktree = git_service.git_diff(&temp_dir, "file_a.txt", false).unwrap();
+        let diff_worktree = git_service.git_diff(&temp_dir, "file_a.txt", false, None).unwrap();
         assert!(!diff_worktree.is_staged);
         assert_eq!(diff_worktree.old_content, "line 1\nline 2\n");
         assert_eq!(diff_worktree.new_content, "line 1\nline 2 mod\nline 3\n");
         assert!(diff_worktree.diff.contains("+line 2 mod"));
 
         // 2. Diff de stage debe estar vacío antes de add
-        let diff_staged_empty = git_service.git_diff(&temp_dir, "file_a.txt", true).unwrap();
+        let diff_staged_empty = git_service.git_diff(&temp_dir, "file_a.txt", true, None).unwrap();
         assert!(diff_staged_empty.diff.is_empty());
 
         // 3. Stage del cambio y comprobar diff staged
         run_cmd(&["add", "file_a.txt"]);
-        let diff_staged = git_service.git_diff(&temp_dir, "file_a.txt", true).unwrap();
+        let diff_staged = git_service.git_diff(&temp_dir, "file_a.txt", true, None).unwrap();
         assert!(diff_staged.is_staged);
         assert_eq!(diff_staged.old_content, "line 1\nline 2\n");
         assert_eq!(diff_staged.new_content, "line 1\nline 2 mod\nline 3\n");
@@ -1816,7 +1981,7 @@ mod tests {
         let bytes_b = buf_b.into_inner();
         std::fs::write(&img_path, &bytes_b).unwrap();
 
-        let image_diff_res = git_service.get_image_diff(&temp_dir, "photo.png", false).unwrap();
+        let image_diff_res = git_service.get_image_diff(&temp_dir, "photo.png", false, None).unwrap();
         assert!(image_diff_res.has_differences);
         assert_eq!(image_diff_res.diff_count, 2);
         assert!(image_diff_res.diff_data_url.is_some());
@@ -1853,6 +2018,18 @@ mod tests {
         use base64::Engine;
         let decoded_payload = BASE64_STANDARD.decode(&lfs_url["data:image/png;base64,".len()..]).unwrap();
         assert_eq!(decoded_payload, bytes_b);
+
+        // 6. Test get_file_log y diff con revisión específica
+        let log_res = git_service.get_file_log(&temp_dir, "photo.png", None).unwrap();
+        assert_eq!(log_res.commits.len(), 2);
+        assert_eq!(log_res.commits[0].message, "update photo");
+        assert_eq!(log_res.commits[1].message, "init commit");
+
+        // Diff contra el commit "update photo" usando su hash
+        let update_commit_hash = &log_res.commits[0].commit_hash;
+        let diff_with_rev = git_service.get_image_diff(&temp_dir, "photo.png", false, Some(update_commit_hash)).unwrap();
+        assert!(diff_with_rev.has_differences);
+        assert_eq!(diff_with_rev.diff_count, 2);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

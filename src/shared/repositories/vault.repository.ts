@@ -97,6 +97,21 @@ export interface GitBranchesResult {
   remote_branches: GitBranchItem[];
 }
 
+export interface GitCommitLogItem {
+  commit_hash: string;
+  short_hash: string;
+  author_name: string;
+  author_email: string;
+  date_iso: string;
+  timestamp: number;
+  message: string;
+}
+
+export interface GitFileLogResult {
+  path: string;
+  commits: GitCommitLogItem[];
+}
+
 export interface VaultEntryNode {
   name: string;
   relative_path: string;
@@ -273,19 +288,24 @@ export interface VaultRepository {
   gitRestoreStaged(paths: string[]): Promise<void>;
 
   /**
-   * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD.
+   * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD (o una revisión específica).
    */
-  getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse>;
+  getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse>;
 
   /**
-   * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD o Staged).
+   * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD, Staged o commit específico).
    */
-  getGitFileRevision(path: string, staged: boolean): Promise<GitFileRevisionResult>;
+  getGitFileRevision(path: string, staged: boolean, revision?: string): Promise<GitFileRevisionResult>;
 
   /**
    * Obtiene el diff perceptual en memoria de una imagen (Disco vs Git).
    */
-  getGitImageDiff(path: string, staged: boolean): Promise<GitImageDiffResult>;
+  getGitImageDiff(path: string, staged: boolean, revision?: string): Promise<GitImageDiffResult>;
+
+  /**
+   * Obtiene el historial de commits de un archivo.
+   */
+  getGitFileLog(path: string, maxCount?: number): Promise<GitFileLogResult>;
 
   /**
    * Obtiene la lista de ramas locales y remotas del repositorio Git de la bóveda.
@@ -707,7 +727,7 @@ export class TauriVaultRepository implements VaultRepository {
     await invokeTauri('git_restore_staged_paths', { paths });
   }
 
-  async getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse> {
+  async getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse> {
     if (!this.isConnected()) {
       return {
         path,
@@ -723,14 +743,15 @@ export class TauriVaultRepository implements VaultRepository {
     return await invokeTauri<GitDiffResponse>('get_git_file_diff', {
       path,
       staged,
+      revision: revision ?? null,
     });
   }
 
-  async getGitFileRevision(path: string, staged: boolean): Promise<GitFileRevisionResult> {
+  async getGitFileRevision(path: string, staged: boolean, revision?: string): Promise<GitFileRevisionResult> {
     if (!this.isConnected()) {
       return {
         path,
-        revision: staged ? 'staged' : 'HEAD',
+        revision: revision || (staged ? 'staged' : 'HEAD'),
         content: null,
         data_url: null,
         is_binary: false,
@@ -741,10 +762,11 @@ export class TauriVaultRepository implements VaultRepository {
     return await invokeTauri<GitFileRevisionResult>('get_git_file_revision', {
       path,
       staged,
+      revision: revision ?? null,
     });
   }
 
-  async getGitImageDiff(path: string, staged: boolean): Promise<GitImageDiffResult> {
+  async getGitImageDiff(path: string, staged: boolean, revision?: string): Promise<GitImageDiffResult> {
     if (!this.isConnected()) {
       return {
         path,
@@ -762,6 +784,21 @@ export class TauriVaultRepository implements VaultRepository {
     return await invokeTauri<GitImageDiffResult>('get_git_image_diff', {
       path,
       staged,
+      revision: revision ?? null,
+    });
+  }
+
+  async getGitFileLog(path: string, maxCount = 50): Promise<GitFileLogResult> {
+    if (!this.isConnected()) {
+      return {
+        path,
+        commits: [],
+      };
+    }
+
+    return await invokeTauri<GitFileLogResult>('get_git_file_log', {
+      path,
+      limit: maxCount,
     });
   }
 

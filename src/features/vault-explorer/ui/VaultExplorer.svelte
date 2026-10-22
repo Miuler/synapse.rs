@@ -6,9 +6,10 @@
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import GitCommitDialog, { type GitCommitFileItem } from './GitCommitDialog.svelte';
   import GitBranchDialog from './GitBranchDialog.svelte';
+  import GitFileLogDialog from './GitFileLogDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -34,6 +35,8 @@
     onGitRestore?: (paths: string[]) => Promise<void> | void;
     onReloadItems?: (paths: string[], reloadedFiles?: string[]) => Promise<void> | void;
     onOpenDiff?: (path: string, staged: boolean) => void;
+    onOpenRevision?: (path: string, revision: string) => void;
+    onOpenDiffWithRevision?: (path: string, revision: string) => void;
     onOpenInNewWindow?: (path: string) => void;
   }
 
@@ -61,6 +64,8 @@
     onGitRestore,
     onReloadItems,
     onOpenDiff,
+    onOpenRevision,
+    onOpenDiffWithRevision,
     onOpenInNewWindow,
   }: Props = $props();
 
@@ -1517,6 +1522,15 @@
   let commitErrorMessage = $state<string | null>(null);
   let itemsToCommit = $state<string[]>([]);
 
+  let isFileLogOpen = $state(false);
+  let fileLogTarget = $state<string | null>(null);
+
+  function handleOpenFileLog(path: string | null) {
+    if (!path) return;
+    fileLogTarget = path;
+    isFileLogOpen = true;
+  }
+
   function handlePromptGitCommit() {
     const paths = gitCommitPaths.length > 0 ? gitCommitPaths : getSelectedRelativePaths();
     if (paths.length === 0 && allGitChangedFiles.length === 0) return;
@@ -1891,6 +1905,16 @@
             </ContextMenu.Item>
           {/if}
 
+          {#if isGitRepo && targetFileForDiff}
+            <ContextMenu.Item
+              class="context-menu-item"
+              onSelect={() => handleOpenFileLog(targetFileForDiff)}
+            >
+              <History class="context-menu-item-icon" />
+              <span>Historial de Git (Log)...</span>
+            </ContextMenu.Item>
+          {/if}
+
           {#if canGitAdd}
             <ContextMenu.Item
               class="context-menu-item"
@@ -2032,6 +2056,25 @@
   onBranchChanged={async () => {
     if (onRefreshGit) {
       await onRefreshGit();
+    }
+  }}
+/>
+
+<GitFileLogDialog
+  bind:open={isFileLogOpen}
+  filePath={fileLogTarget}
+  onViewRevision={(p, rev) => {
+    if (onOpenRevision) {
+      onOpenRevision(p, rev);
+    } else {
+      onSelectTab(`rev:${rev}:${p}`);
+    }
+  }}
+  onDiffRevision={(p, rev) => {
+    if (onOpenDiffWithRevision) {
+      onOpenDiffWithRevision(p, rev);
+    } else {
+      onSelectTab(`diff-rev:${rev}:${p}`);
     }
   }}
 />

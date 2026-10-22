@@ -66,3 +66,20 @@ pub struct GitImageDiffResult {
     pub diff_percentage: f64,
     pub has_differences: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GitCommitLogItem {
+    pub commit_hash: String,
+    pub short_hash: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub date: String,
+    pub timestamp: i64,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GitFileLogResult {
+    pub path: String,
+    pub commits: Vec<GitCommitLogItem>,
+}

@@ -7,10 +7,11 @@
 
   interface Props {
     filePath: string;
-    isStaged: boolean;
+    isStaged?: boolean;
+    baseRevision?: string;
   }
 
-  let { filePath, isStaged }: Props = $props();
+  let { filePath, isStaged = false, baseRevision }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -29,7 +30,7 @@
     loading = true;
     error = null;
     try {
-      diffResult = await vaultRepository.getGitImageDiff(filePath, isStaged);
+      diffResult = await vaultRepository.getGitImageDiff(filePath, isStaged, baseRevision);
     } catch (err: unknown) {
       console.error('Error calculando diff de imagen:', err);
       error = err instanceof Error ? err.message : String(err);
@@ -41,6 +42,7 @@
   $effect(() => {
     const _p = filePath;
     const _s = isStaged;
+    const _r = baseRevision;
     loadDiff();
   });
 
