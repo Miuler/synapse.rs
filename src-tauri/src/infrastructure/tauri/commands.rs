@@ -16,7 +16,7 @@ use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
 use crate::infrastructure::services::git_service::{
-    GitBranchesResult, GitDiffResponse, GitService, VaultGitStatus,
+    GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitService, VaultGitStatus,
 };
 use crate::infrastructure::services::nucleo_search_service::NucleoSearchService;
 use crate::infrastructure::navigation::engine::{NavigationEngine, OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
@@ -904,6 +904,24 @@ pub fn get_git_file_diff(
     state.git_use_cases.get_file_diff(vault_path, &path, staged).map_err(|err| {
         log::error!("[commands::get_git_file_diff] {}", err);
         eprintln!("[commands::get_git_file_diff] {}", err);
+        err
+    })
+}
+
+#[tauri::command]
+pub fn get_git_file_revision(
+    state: State<'_, AppState>,
+    path: String,
+    staged: bool,
+) -> Result<GitFileRevisionResult, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let rev = if staged { "staged" } else { "HEAD" };
+    state.git_use_cases.get_file_revision(vault_path, &path, rev).map_err(|err| {
+        log::error!("[commands::get_git_file_revision] {}", err);
+        eprintln!("[commands::get_git_file_revision] {}", err);
         err
     })
 }

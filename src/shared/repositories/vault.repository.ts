@@ -60,6 +60,15 @@ export interface GitDiffResponse {
   diff: string;
 }
 
+export interface GitFileRevisionResult {
+  path: string;
+  revision: string;
+  content: string | null;
+  data_url: string | null;
+  is_binary: boolean;
+  exists: boolean;
+}
+
 export interface GitBranchItem {
   name: string;
   ref_name: string;
@@ -255,6 +264,11 @@ export interface VaultRepository {
    * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD.
    */
   getGitFileDiff(path: string, staged: boolean): Promise<GitDiffResponse>;
+
+  /**
+   * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD o Staged).
+   */
+  getGitFileRevision(path: string, staged: boolean): Promise<GitFileRevisionResult>;
 
   /**
    * Obtiene la lista de ramas locales y remotas del repositorio Git de la bóveda.
@@ -690,6 +704,24 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     return await invokeTauri<GitDiffResponse>('get_git_file_diff', {
+      path,
+      staged,
+    });
+  }
+
+  async getGitFileRevision(path: string, staged: boolean): Promise<GitFileRevisionResult> {
+    if (!this.isConnected()) {
+      return {
+        path,
+        revision: staged ? 'staged' : 'HEAD',
+        content: null,
+        data_url: null,
+        is_binary: false,
+        exists: false,
+      };
+    }
+
+    return await invokeTauri<GitFileRevisionResult>('get_git_file_revision', {
       path,
       staged,
     });

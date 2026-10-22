@@ -4,6 +4,13 @@
   import { vaultRepository, type GitDiffResponse } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
   import {
+    isImageFile,
+    isPdfFile,
+    isDrawingFile,
+    isDiagramFile,
+  } from '@entities/file-type';
+  import VisualDiffViewer from './VisualDiffViewer.svelte';
+  import {
     GitCompare,
     GitCompareArrows,
     RotateCw,
@@ -14,7 +21,8 @@
     ChevronsUpDown,
     ChevronsDownUp,
     AlertCircle,
-    CheckCircle2
+    CheckCircle2,
+    Eye
   } from 'lucide-svelte';
 
   interface Props {
@@ -30,6 +38,16 @@
   let diffData = $state<GitDiffResponse | null>(null);
   let diffFileInstance = $state<DiffFile | null>(null);
 
+  const isVisualCandidate = $derived(
+    isImageFile(filePath) || isPdfFile(filePath) || isDrawingFile(filePath) || isDiagramFile(filePath)
+  );
+
+  let showVisualDiff = $state(false);
+
+  $effect(() => {
+    // Si cambia de archivo a uno visual, activar visual por defecto
+    showVisualDiff = isVisualCandidate;
+  });
   let viewMode = $state<DiffModeEnum>(DiffModeEnum.Split);
   let showRawDiff = $state(false);
   let enableWrap = $state(false);
@@ -150,76 +168,92 @@
     </div>
 
     <div class="diff-toolbar-right">
-      <!-- MODO DE VISTA: SPLIT, UNIFIED O TEXTO PLANO -->
-      <div class="view-mode-toggle" role="group" aria-label="Modo de vista diff">
+      {#if isVisualCandidate}
+        <!-- BOTÓN CONMUTADOR DE DIFF VISUAL EN 2 PANELES -->
         <button
           type="button"
-          class="toggle-btn"
-          class:active={!showRawDiff && viewMode === DiffModeEnum.Split}
-          onclick={() => {
-            showRawDiff = false;
-            viewMode = DiffModeEnum.Split;
-          }}
-          title="Vista dividida (Split)"
+          class="toggle-btn visual-btn"
+          class:active={showVisualDiff}
+          onclick={() => (showVisualDiff = !showVisualDiff)}
+          title="Alternar vista visual de dos paneles (Disco vs Git)"
         >
-          <Columns size={13} />
-          <span>Dividida</span>
-        </button>
-        <button
-          type="button"
-          class="toggle-btn"
-          class:active={!showRawDiff && viewMode === DiffModeEnum.Unified}
-          onclick={() => {
-            showRawDiff = false;
-            viewMode = DiffModeEnum.Unified;
-          }}
-          title="Vista unificada (Unified)"
-        >
-          <AlignJustify size={13} />
-          <span>Unificada</span>
-        </button>
-        <button
-          type="button"
-          class="toggle-btn"
-          class:active={showRawDiff}
-          onclick={() => (showRawDiff = true)}
-          title="Vista de parche / texto sin formato (Raw diff)"
-        >
-          <FileCode size={13} />
-          <span>Parche</span>
-        </button>
-      </div>
-
-      {#if !showRawDiff && diffFileInstance}
-        <!-- EXPANDIR / COLAPSAR TODO -->
-        <button
-          type="button"
-          class="action-btn"
-          onclick={handleExpandAll}
-          title="Expandir todas las secciones"
-        >
-          <ChevronsUpDown size={14} />
-        </button>
-        <button
-          type="button"
-          class="action-btn"
-          onclick={handleCollapseAll}
-          title="Colapsar secciones no modificadas"
-        >
-          <ChevronsDownUp size={14} />
+          <Eye size={13} />
+          <span>Visual (2 Paneles)</span>
         </button>
       {/if}
 
-      <!-- AJUSTE DE LÍNEA (WRAP) -->
-      <button
-        type="button"
-        class="action-btn"
-        class:active={enableWrap}
-        onclick={() => (enableWrap = !enableWrap)}
-        title={enableWrap ? 'Desactivar ajuste de línea' : 'Activar ajuste de línea'}
-      >
-        <WrapText size={14} />
-      </button>
+      {#if !showVisualDiff}
+        <!-- MODO DE VISTA: SPLIT, UNIFIED O TEXTO PLANO -->
+        <div class="view-mode-toggle" role="group" aria-label="Modo de vista diff">
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={!showRawDiff && viewMode === DiffModeEnum.Split}
+            onclick={() => {
+              showRawDiff = false;
+              viewMode = DiffModeEnum.Split;
+            }}
+            title="Vista dividida (Split)"
+          >
+            <Columns size={13} />
+            <span>Dividida</span>
+          </button>
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={!showRawDiff && viewMode === DiffModeEnum.Unified}
+            onclick={() => {
+              showRawDiff = false;
+              viewMode = DiffModeEnum.Unified;
+            }}
+            title="Vista unificada (Unified)"
+          >
+            <AlignJustify size={13} />
+            <span>Unificada</span>
+          </button>
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={showRawDiff}
+            onclick={() => (showRawDiff = true)}
+            title="Vista de parche / texto sin formato (Raw diff)"
+          >
+            <FileCode size={13} />
+            <span>Parche</span>
+          </button>
+        </div>
+
+        {#if !showRawDiff && diffFileInstance}
+          <!-- EXPANDIR / COLAPSAR TODO -->
+          <button
+            type="button"
+            class="action-btn"
+            onclick={handleExpandAll}
+            title="Expandir todas las secciones"
+          >
+            <ChevronsUpDown size={14} />
+          </button>
+          <button
+            type="button"
+            class="action-btn"
+            onclick={handleCollapseAll}
+            title="Colapsar secciones no modificadas"
+          >
+            <ChevronsDownUp size={14} />
+          </button>
+        {/if}
+
+        <!-- AJUSTE DE LÍNEA (WRAP) -->
+        <button
+          type="button"
+          class="action-btn"
+          class:active={enableWrap}
+          onclick={() => (enableWrap = !enableWrap)}
+          title={enableWrap ? 'Desactivar ajuste de línea' : 'Activar ajuste de línea'}
+        >
+          <WrapText size={14} />
+        </button>
+      {/if}
 
       <!-- RECARGAR DIFF -->
       <button
@@ -236,7 +270,9 @@
 
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
-    {#if loading}
+    {#if isVisualCandidate && showVisualDiff}
+      <VisualDiffViewer {filePath} {isStaged} />
+    {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
         <p class="diff-state-text">Cargando diferencias de Git...</p>
@@ -427,6 +463,23 @@
     background-color: var(--bg-primary);
     color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+
+  .toggle-btn.visual-btn {
+    border: 1px solid var(--border-secondary);
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+  }
+
+  .toggle-btn.visual-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+
+  .toggle-btn.visual-btn.active {
+    background-color: rgba(56, 189, 248, 0.15);
+    color: var(--accent, #38bdf8);
+    border-color: rgba(56, 189, 248, 0.4);
   }
 
   .action-btn {

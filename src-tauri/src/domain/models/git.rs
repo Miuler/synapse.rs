@@ -43,3 +43,13 @@ pub struct GitBranchesResult {
     pub local_branches: Vec<GitBranchItem>,
     pub remote_branches: Vec<GitBranchItem>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GitFileRevisionResult {
+    pub path: String,
+    pub revision: String,
+    pub content: Option<String>,
+    pub data_url: Option<String>,
+    pub is_binary: bool,
+    pub exists: bool,
+}

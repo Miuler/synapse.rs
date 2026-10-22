@@ -7,8 +7,8 @@
   import GitCommitDialog, { type GitCommitFileItem } from './GitCommitDialog.svelte';
   import GitBranchDialog from './GitBranchDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon } from '@entities/file-type';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink } from 'lucide-svelte';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -1415,6 +1415,15 @@
     )
   );
 
+  let isVisualCandidateForDiff = $derived(
+    targetFileForDiff
+      ? isImageFile(targetFileForDiff) ||
+        isPdfFile(targetFileForDiff) ||
+        isDrawingFile(targetFileForDiff) ||
+        isDiagramFile(targetFileForDiff)
+      : false
+  );
+
   function handleOpenDiff(path: string, staged: boolean) {
     if (onOpenDiff) {
       onOpenDiff(path, staged);
@@ -1858,8 +1867,13 @@
               disabled={!canGitDiff}
               onSelect={() => handleOpenDiff(targetFileForDiff!, false)}
             >
-              <GitCompare class="context-menu-item-icon" />
-              <span>Diff</span>
+              {#if isVisualCandidateForDiff}
+                <Columns class="context-menu-item-icon" />
+                <span>Diff visual (2 paneles)</span>
+              {:else}
+                <GitCompare class="context-menu-item-icon" />
+                <span>Diff</span>
+              {/if}
             </ContextMenu.Item>
 
             <ContextMenu.Item
@@ -1867,8 +1881,13 @@
               disabled={!canGitDiffStaged}
               onSelect={() => handleOpenDiff(targetFileForDiff!, true)}
             >
-              <GitCompareArrows class="context-menu-item-icon" />
-              <span>Diff --staged</span>
+              {#if isVisualCandidateForDiff}
+                <Columns class="context-menu-item-icon" />
+                <span>Diff visual --staged</span>
+              {:else}
+                <GitCompareArrows class="context-menu-item-icon" />
+                <span>Diff --staged</span>
+              {/if}
             </ContextMenu.Item>
           {/if}
 

@@ -1,5 +1,5 @@
 pub use crate::domain::models::git::{
-    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileStatus, VaultGitStatus,
+    GitBranchItem, GitBranchesResult, GitDiffResponse, GitFileRevisionResult, GitFileStatus, VaultGitStatus,
 };
 use crate::domain::services::git_service::GitPort;
 use std::collections::HashMap;
@@ -30,6 +30,10 @@ impl GitPort for GitService {
 
     fn git_diff(&self, vault_path: &Path, path: &str, staged: bool) -> Result<GitDiffResponse, String> {
         self.git_diff(vault_path, path, staged)
+    }
+
+    fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<GitFileRevisionResult, String> {
+        self.get_file_revision(vault_path, path, revision)
     }
 
     fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
@@ -699,6 +703,122 @@ impl GitService {
         })
     }
 
+    pub fn get_file_revision(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        revision: &str,
+    ) -> Result<GitFileRevisionResult, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let clean_path = path.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para revisión".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        // Formato para git show: "HEAD:path" o ":path" (para stage/index)
+        let git_target = if revision == "staged" || revision == ":staged" || revision == ":" {
+            format!(":{}", repo_rel_path)
+        } else if revision.ends_with(':') {
+            format!("{}{}", revision, repo_rel_path)
+        } else if revision.is_empty() || revision.eq_ignore_ascii_case("head") {
+            format!("HEAD:{}", repo_rel_path)
+        } else {
+            format!("{}:{}", revision, repo_rel_path)
+        };
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.args(["show", &git_target]);
+
+        let output = match cmd.output() {
+            Ok(out) => out,
+            Err(e) => return Err(format!("Error ejecutando git show: {}", e)),
+        };
+
+        if !output.status.success() {
+            return Ok(GitFileRevisionResult {
+                path: clean_path.to_string(),
+                revision: revision.to_string(),
+                content: None,
+                data_url: None,
+                is_binary: false,
+                exists: false,
+            });
+        }
+
+        let raw_bytes = output.stdout;
+        let ext = Path::new(&clean_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let is_known_binary = matches!(
+            ext.as_str(),
+            "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "ico" | "avif" | "tiff" | "tif" | "pdf"
+        );
+
+        // Intento de decodificación UTF-8
+        let utf8_res = std::str::from_utf8(&raw_bytes);
+        let is_binary = is_known_binary || utf8_res.is_err();
+
+        let mime = match ext.as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            "bmp" => "image/bmp",
+            "ico" => "image/x-icon",
+            "avif" => "image/avif",
+            "tiff" | "tif" => "image/tiff",
+            "pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
+
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let data_url = Some(format!("data:{};base64,{}", mime, BASE64_STANDARD.encode(&raw_bytes)));
+
+        let content = if let Ok(s) = utf8_res {
+            Some(s.to_string())
+        } else {
+            None
+        };
+
+        Ok(GitFileRevisionResult {
+            path: clean_path.to_string(),
+            revision: revision.to_string(),
+            content,
+            data_url,
+            is_binary,
+            exists: true,
+        })
+    }
+
     pub fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String> {
         let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
         let work_dir = repo
@@ -1298,6 +1418,64 @@ mod tests {
         let stat_after = status_after.statuses.get("doc.md").unwrap();
         assert_eq!(stat_after.index, None);
         assert_eq!(stat_after.worktree.as_deref(), Some("M"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_file_revision() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_revision_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let img_path = temp_dir.join("photo.png");
+        let png_bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG signature
+        std::fs::write(&img_path, &png_bytes).unwrap();
+
+        let diagram_path = temp_dir.join("flow.mermaid");
+        std::fs::write(&diagram_path, "graph TD\n  A --> B").unwrap();
+
+        run_cmd(&["add", "photo.png", "flow.mermaid"]);
+        run_cmd(&["commit", "-m", "init commit"]);
+
+        let git_service = GitService::new();
+
+        // 1. Extraer imagen desde HEAD
+        let img_rev = git_service.get_file_revision(&temp_dir, "photo.png", "HEAD").unwrap();
+        assert!(img_rev.exists);
+        assert!(img_rev.is_binary);
+        assert!(img_rev.data_url.is_some());
+        assert!(img_rev.data_url.unwrap().starts_with("data:image/png;base64,"));
+
+        // 2. Extraer texto desde HEAD
+        let mmd_rev = git_service.get_file_revision(&temp_dir, "flow.mermaid", "HEAD").unwrap();
+        assert!(mmd_rev.exists);
+        assert!(!mmd_rev.is_binary);
+        assert_eq!(mmd_rev.content.as_deref(), Some("graph TD\n  A --> B"));
+
+        // 3. Modificar y comprobar revisión staged vs HEAD
+        std::fs::write(&diagram_path, "graph TD\n  A --> C").unwrap();
+        run_cmd(&["add", "flow.mermaid"]);
+        let mmd_staged = git_service.get_file_revision(&temp_dir, "flow.mermaid", "staged").unwrap();
+        assert_eq!(mmd_staged.content.as_deref(), Some("graph TD\n  A --> C"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
