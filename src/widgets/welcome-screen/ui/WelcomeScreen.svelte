@@ -8,6 +8,7 @@
     type SelectVaultFolderResult,
   } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
+  import { WindowControls } from '@shared/ui/window-controls';
   import {
     Folder,
     FolderOpen,
@@ -241,23 +242,23 @@
 
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       const k = e.key.toLowerCase();
-      if (k === 'k') {
+      if (k === 'f' && !e.shiftKey) {
         e.preventDefault();
         searchInputRef?.focus();
         searchInputRef?.select();
         return;
       }
-      if (k === 'n' && !e.shiftKey) {
+      if (k === 'n' && e.shiftKey) {
         e.preventDefault();
         handleCreateNewWorkspace();
         return;
       }
-      if (k === 'o' && !e.shiftKey) {
+      if (k === 'o' && e.shiftKey && !e.altKey) {
         e.preventDefault();
         handleSelectLocalFolder();
         return;
       }
-      if (k === 'o' && e.shiftKey) {
+      if (k === 'g' && e.shiftKey) {
         e.preventDefault();
         isCloneModalOpen = true;
         return;
@@ -312,31 +313,6 @@
   <!-- BARRA SUPERIOR DE VENTANA (DRAG REGION) -->
   <header class="welcome-titlebar" data-tauri-drag-region>
     <div class="titlebar-left" data-tauri-drag-region>
-      <!-- Traffic lights / Window buttons izquierda estilo imagen + controles funcionales -->
-      <div class="traffic-lights" data-tauri-drag-region="false">
-        <button
-          type="button"
-          class="traffic-dot close"
-          onclick={() => handleWindowControl('close')}
-          title="Cerrar ventana"
-          aria-label="Cerrar ventana"
-        ></button>
-        <button
-          type="button"
-          class="traffic-dot minimize"
-          onclick={() => handleWindowControl('minimize')}
-          title="Minimizar ventana"
-          aria-label="Minimizar ventana"
-        ></button>
-        <button
-          type="button"
-          class="traffic-dot maximize"
-          onclick={() => handleWindowControl('maximize')}
-          title="Maximizar / Restaurar ventana"
-          aria-label="Maximizar ventana"
-        ></button>
-      </div>
-
       <div class="app-brand-pill" data-tauri-drag-region>
         <Cpu size={14} class="brand-chip-icon" />
         <span class="brand-title">Synapse Desktop</span>
@@ -385,6 +361,9 @@
           <Sun size={15} />
         {/if}
       </button>
+
+      <!-- Reutilización del componente unificado WindowControls -->
+      <WindowControls />
     </div>
   </header>
 
@@ -458,7 +437,7 @@
               <span class="qa-subtitle">Crear directorio vacío</span>
             </div>
           </div>
-          <kbd class="qa-kbd">Ctrl N</kbd>
+          <kbd class="qa-kbd">Ctrl+Shift+N</kbd>
         </button>
 
         <button type="button" class="quick-action-btn" onclick={handleSelectLocalFolder}>
@@ -468,7 +447,7 @@
             </div>
             <span class="qa-title">Abrir carpeta local...</span>
           </div>
-          <kbd class="qa-kbd">Ctrl O</kbd>
+          <kbd class="qa-kbd">Ctrl+Shift+O</kbd>
         </button>
 
         <button
@@ -485,7 +464,7 @@
             </div>
             <span class="qa-title">Clonar repositorio Git</span>
           </div>
-          <kbd class="qa-kbd">Ctrl+Shift+O</kbd>
+          <kbd class="qa-kbd">Ctrl+Shift+G</kbd>
         </button>
 
         <button type="button" class="quick-action-btn" onclick={handleSelectLocalFolder}>
@@ -549,7 +528,7 @@
             placeholder="Buscar workspace o ruta..."
             class="search-input"
           />
-          <kbd class="search-kbd">Ctrl K</kbd>
+          <kbd class="search-kbd">Ctrl F</kbd>
         </div>
       </div>
 
@@ -838,26 +817,34 @@
       <div class="shortcuts-grid">
         <div class="shortcut-row">
           <span>Nuevo Workspace</span>
-          <kbd>Ctrl + N</kbd>
+          <kbd>Ctrl + Shift + N</kbd>
         </div>
         <div class="shortcut-row">
           <span>Abrir carpeta local</span>
-          <kbd>Ctrl + O</kbd>
-        </div>
-        <div class="shortcut-row">
-          <span>Clonar repositorio Git</span>
           <kbd>Ctrl + Shift + O</kbd>
         </div>
         <div class="shortcut-row">
+          <span>Clonar repositorio Git</span>
+          <kbd>Ctrl + Shift + G</kbd>
+        </div>
+        <div class="shortcut-row">
           <span>Buscar en Workspaces recientes</span>
-          <kbd>Ctrl + K</kbd>
+          <kbd>Ctrl + F</kbd>
         </div>
         <div class="shortcut-row">
           <span>Navegar en la lista</span>
           <kbd>↑ / ↓ / Enter</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Paleta de comandos (en Editor)</span>
+          <span>Buscar archivos en Workspace</span>
+          <kbd>Ctrl + O</kbd>
+        </div>
+        <div class="shortcut-row">
+          <span>Nueva nota en Workspace</span>
+          <kbd>Ctrl + N</kbd>
+        </div>
+        <div class="shortcut-row">
+          <span>Paleta de comandos</span>
           <kbd>Ctrl + P</kbd>
         </div>
       </div>
@@ -907,39 +894,6 @@
     display: flex;
     align-items: center;
     gap: 14px;
-  }
-
-  .traffic-lights {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .traffic-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: transform 0.15s ease, filter 0.15s ease;
-  }
-
-  .traffic-dot:hover {
-    transform: scale(1.1);
-    filter: brightness(1.15);
-  }
-
-  .traffic-dot.close {
-    background-color: #ff5f56;
-  }
-
-  .traffic-dot.minimize {
-    background-color: #ffbd2e;
-  }
-
-  .traffic-dot.maximize {
-    background-color: #27c93f;
   }
 
   .app-brand-pill {

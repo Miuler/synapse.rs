@@ -5,6 +5,7 @@
   import type { TabItem, MarkdownViewMode } from '@entities/vault-item';
   import { Popover, ContextMenu } from 'bits-ui';
   import { FileIcon } from '@entities/file-type';
+  import { WindowControls } from '@shared/ui/window-controls';
   import {
     ChevronLeft,
     ChevronRight,
@@ -488,25 +489,6 @@
     };
   });
 
-  async function handleWindowControl(action: 'minimize' | 'maximize' | 'close') {
-    if (!isTauriEnvironment()) {
-      console.warn("handleWindowControl invocado fuera del entorno Tauri");
-      return;
-    }
-    try {
-      const appWindow = getCurrentWebviewWindow();
-      if (action === 'minimize') {
-        await appWindow.minimize();
-      } else if (action === 'maximize') {
-        await appWindow.toggleMaximize();
-      } else if (action === 'close') {
-        await appWindow.close();
-      }
-    } catch (err) {
-      console.error(`Error al ejecutar control de ventana (${action}):`, err);
-    }
-  }
-
   export { openTabsMenu, toggleTabsMenu };
 </script>
 
@@ -918,38 +900,7 @@
     </button>
 
     {#if showWindowControls}
-      <!-- CONTROLES DE VENTANA PERSONALIZADOS -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="window-controls"
-        data-tauri-drag-region="false"
-        onmousedown={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          class="win-btn minimize"
-          onclick={(e) => { e.stopPropagation(); handleWindowControl('minimize'); }}
-          title="Minimizar"
-        >
-          <Minus size={13} class="win-icon" />
-        </button>
-        <button
-          type="button"
-          class="win-btn maximize"
-          onclick={(e) => { e.stopPropagation(); handleWindowControl('maximize'); }}
-          title="Maximizar / Restaurar"
-        >
-          <Square size={12} class="win-icon" />
-        </button>
-        <button
-          type="button"
-          class="win-btn close"
-          onclick={(e) => { e.stopPropagation(); handleWindowControl('close'); }}
-          title="Cerrar"
-        >
-          <X size={13} class="win-icon" />
-        </button>
-      </div>
+      <WindowControls />
     {/if}
   </div>
 </header>
@@ -1449,44 +1400,6 @@
   .icon {
     width: 16px;
     height: 16px;
-  }
-
-  .window-controls {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 6px;
-    padding-left: 6px;
-    border-left: 1px solid var(--border-primary, #d0d7de);
-  }
-
-  .win-btn {
-    width: 28px;
-    height: 28px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    color: var(--text-secondary, #656d76);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .win-btn:hover {
-    color: var(--text-primary, #1f2328);
-    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
-  }
-
-  .win-btn.close:hover {
-    color: #ffffff;
-    background-color: #e5534b;
-  }
-
-  .win-icon {
-    width: 14px;
-    height: 14px;
   }
 
   :global(.tab-context-menu) {
