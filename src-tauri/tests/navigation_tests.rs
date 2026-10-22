@@ -612,10 +612,12 @@ fn test_vault_ui_state_sidebar_and_expanded_folders_persistence() {
     assert_eq!(initial_ui.sidebar_width, Some(240));
     assert!(initial_ui.expanded_folders.is_empty());
 
-    // Save customized UI state: sidebar width 310, expanded folders ["docs", "docs/guides"]
+    // Save customized UI state: sidebar width 310, expanded folders ["docs", "docs/guides"], diff visual "text", diff text "unified"
     engine.save_vault_ui_state(
         Some(310),
         Some(vec!["docs".to_string(), "docs/guides".to_string()]),
+        Some("text".to_string()),
+        Some("unified".to_string()),
     );
 
     let current_ui = engine.get_vault_ui_state();
@@ -624,6 +626,8 @@ fn test_vault_ui_state_sidebar_and_expanded_folders_persistence() {
         current_ui.expanded_folders,
         vec!["docs".to_string(), "docs/guides".to_string()]
     );
+    assert_eq!(current_ui.diff_visual_mode, Some("text".to_string()));
+    assert_eq!(current_ui.diff_text_mode, Some("unified".to_string()));
 
     // Verify workspace.json was written to .synapse
     let workspace_json = synapse_dir.join("workspace.json");
@@ -638,15 +642,19 @@ fn test_vault_ui_state_sidebar_and_expanded_folders_persistence() {
         restored_ui.expanded_folders,
         vec!["docs".to_string(), "docs/guides".to_string()]
     );
+    assert_eq!(restored_ui.diff_visual_mode, Some("text".to_string()));
+    assert_eq!(restored_ui.diff_text_mode, Some("unified".to_string()));
 
     // Test partial update: only change sidebar width
-    fresh_engine.save_vault_ui_state(Some(275), None);
+    fresh_engine.save_vault_ui_state(Some(275), None, None, None);
     let updated_ui = fresh_engine.get_vault_ui_state();
     assert_eq!(updated_ui.sidebar_width, Some(275));
     assert_eq!(
         updated_ui.expanded_folders,
         vec!["docs".to_string(), "docs/guides".to_string()]
     );
+    assert_eq!(updated_ui.diff_visual_mode, Some("text".to_string()));
+    assert_eq!(updated_ui.diff_text_mode, Some("unified".to_string()));
 
     let _ = fs::remove_dir_all(&test_dir);
 }

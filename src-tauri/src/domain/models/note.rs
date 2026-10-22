@@ -14,6 +14,8 @@ pub struct Note {
     pub content: String,
     #[serde(default = "default_encoding")]
     pub encoding: String,
+    #[serde(default)]
+    pub view_mode: Option<String>,
 }
 
 impl Note {
@@ -29,6 +31,7 @@ impl Note {
             title,
             content,
             encoding: "---".to_string(),
+            view_mode: None,
         }
     }
 
@@ -45,6 +48,7 @@ impl Note {
             title,
             content,
             encoding,
+            view_mode: None,
         }
     }
 }

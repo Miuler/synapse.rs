@@ -6,6 +6,7 @@ export interface VaultItem {
   relative_path: string;
   abs_path?: string;
   kind?: VaultItemKind;
+  view_mode?: string;
 }
 
 export interface TabItem {

@@ -33,6 +33,10 @@ pub struct WorkspaceOpenTabsState {
 pub struct VaultUiState {
     pub sidebar_width: Option<u32>,
     pub expanded_folders: Vec<String>,
+    #[serde(default)]
+    pub diff_visual_mode: Option<String>,
+    #[serde(default)]
+    pub diff_text_mode: Option<String>,
 }
 
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
@@ -94,6 +98,8 @@ pub struct NavigationEngine {
     pub file_types: SupportedFileTypes,
     pub sidebar_width: Arc<AtomicU32>,
     pub expanded_folders: Arc<DashMap<CompactString, bool>>,
+    pub diff_visual_mode: Arc<RwLock<Option<String>>>,
+    pub diff_text_mode: Arc<RwLock<Option<String>>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
     pub on_fs_change: Arc<Mutex<Option<super::watcher::ChangeCallback>>>,
     pub observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
@@ -145,6 +151,8 @@ impl NavigationEngine {
 
         let mut initial_sidebar_width = 240u32;
         let expanded_folders = DashMap::new();
+        let mut initial_diff_visual_mode = None;
+        let mut initial_diff_text_mode = None;
 
         if let Some(parent) = cache_path.parent() {
             let workspace_file = parent.join("workspace.json");
@@ -157,6 +165,8 @@ impl NavigationEngine {
                         for folder in ui_state.expanded_folders {
                             expanded_folders.insert(CompactString::new(folder), true);
                         }
+                        initial_diff_visual_mode = ui_state.diff_visual_mode;
+                        initial_diff_text_mode = ui_state.diff_text_mode;
                     }
                 }
             }
@@ -175,6 +185,8 @@ impl NavigationEngine {
             file_types,
             sidebar_width: Arc::new(AtomicU32::new(initial_sidebar_width)),
             expanded_folders: Arc::new(expanded_folders),
+            diff_visual_mode: Arc::new(RwLock::new(initial_diff_visual_mode)),
+            diff_text_mode: Arc::new(RwLock::new(initial_diff_text_mode)),
             fs_watcher: Arc::new(Mutex::new(None)),
             on_fs_change: Arc::new(Mutex::new(None)),
             observers: Arc::new(RwLock::new(Vec::new())),
@@ -692,7 +704,20 @@ impl NavigationEngine {
         }
     }
 
-    /// Saves workspace UI state (sidebar width, expanded folders) to .synapse/workspace.json on disk.
+    /// Gets view mode for a specific note if recorded.
+    pub fn get_note_view_mode(&self, relative_path: &str) -> Option<String> {
+        let compact_path = CompactString::new(relative_path);
+        if let Some(id_ref) = self.path_index.get(&compact_path) {
+            let id = *id_ref.value();
+            drop(id_ref);
+            if let Some(meta_entry) = self.notes.get(&id) {
+                return meta_entry.view_mode.as_ref().map(|s| s.to_string());
+            }
+        }
+        None
+    }
+
+    /// Saves workspace UI state (sidebar width, expanded folders, diff preferences) to .synapse/workspace.json on disk.
     pub fn save_workspace_ui_disk(&self) {
         if let Some(parent) = self.cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -709,6 +734,8 @@ impl NavigationEngine {
         &self,
         sidebar_width: Option<u32>,
         expanded_folders: Option<Vec<String>>,
+        diff_visual_mode: Option<String>,
+        diff_text_mode: Option<String>,
     ) {
         if let Some(width) = sidebar_width {
             self.sidebar_width.store(width, Ordering::SeqCst);
@@ -719,11 +746,21 @@ impl NavigationEngine {
                 self.expanded_folders.insert(CompactString::new(folder), true);
             }
         }
+        if let Some(dvm) = diff_visual_mode {
+            if let Ok(mut lock) = self.diff_visual_mode.write() {
+                *lock = Some(dvm);
+            }
+        }
+        if let Some(dtm) = diff_text_mode {
+            if let Ok(mut lock) = self.diff_text_mode.write() {
+                *lock = Some(dtm);
+            }
+        }
         self.save_workspace_ui_disk();
         self.mark_dirty();
     }
 
-    /// Retrieves the current vault UI state from DashMap and atomic state.
+    /// Retrieves the current vault UI state from DashMap, RwLock and atomic state.
     pub fn get_vault_ui_state(&self) -> VaultUiState {
         let width = self.sidebar_width.load(Ordering::SeqCst);
         let mut folders: Vec<String> = self
@@ -733,9 +770,13 @@ impl NavigationEngine {
             .map(|item| item.key().to_string())
             .collect();
         folders.sort();
+        let diff_visual_mode = self.diff_visual_mode.read().ok().and_then(|g| g.clone());
+        let diff_text_mode = self.diff_text_mode.read().ok().and_then(|g| g.clone());
         VaultUiState {
             sidebar_width: if width > 0 { Some(width) } else { None },
             expanded_folders: folders,
+            diff_visual_mode,
+            diff_text_mode,
         }
     }
 

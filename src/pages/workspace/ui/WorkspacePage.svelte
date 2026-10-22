@@ -194,6 +194,7 @@
             title: n.title,
             relative_path: relPath,
             abs_path: n.abs_path,
+            view_mode: n.view_mode,
           };
         });
 
@@ -470,9 +471,9 @@
         for (const tab of state.open_tabs) {
           if (!tab.path) continue;
           openTabPaths.push(tab.path);
-          const defaultMode: MarkdownViewMode = isDrawingFile(tab.path) ? "live" : "reading";
-          const mode = (tab.view_mode as MarkdownViewMode) || defaultMode;
           const vItem = vaultItems.find((v) => v.relative_path === tab.path);
+          const memoryMode = (tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
+          const mode: MarkdownViewMode = memoryMode || "reading";
           if (!openedNotes[tab.path]) {
             openedNotes[tab.path] = {
               relative_path: tab.path,
@@ -496,8 +497,7 @@
             : openTabPaths[0];
 
           activeTabPath = targetActive;
-          const defaultActiveMode: MarkdownViewMode = isDrawingFile(targetActive) ? "live" : "reading";
-          const activeMode = openedNotes[targetActive]?.viewMode || defaultActiveMode;
+          const activeMode = openedNotes[targetActive]?.viewMode || "reading";
           markdownViewMode = activeMode;
           isEditing = activeMode !== "reading";
           ensureContentLoaded(targetActive);
@@ -516,15 +516,14 @@
 
   function handleChangeMarkdownView(newMode: MarkdownViewMode) {
     markdownViewMode = newMode;
-    if (newMode === "reading") {
-      isEditing = false;
-    } else {
-      isEditing = true;
-    }
+    isEditing = newMode !== "reading";
     if (activeTabPath && !isSyntheticTab(activeTabPath)) {
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = newMode;
       }
+      const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
+      if (vItem) vItem.view_mode = newMode;
+      vaultRepository.setNoteViewMode(activeTabPath, newMode);
       persistTabsState();
     }
   }
@@ -557,6 +556,9 @@
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = nextMode;
       }
+      const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
+      if (vItem) vItem.view_mode = nextMode;
+      vaultRepository.setNoteViewMode(activeTabPath, nextMode);
       persistTabsState();
     }
   }
@@ -594,7 +596,8 @@
     }
 
     if (!openedNotes[path]) {
-      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
+      const memoryMode = (vaultItem?.view_mode) as MarkdownViewMode | undefined;
+      const defaultMode: MarkdownViewMode = memoryMode || "reading";
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -616,7 +619,7 @@
         const fetchedContent = noteData.content ?? "";
         const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
-        const currentMode = openedNotes[path]?.viewMode || (isDrawingFile(path) ? "live" : "reading");
+        const currentMode = openedNotes[path]?.viewMode || (noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading";
 
         openedNotes[path] = {
           relative_path: path,
@@ -688,8 +691,8 @@
     }
     activeTabPath = path;
     if (!isSyntheticTab(path)) {
-      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
-      const mode = openedNotes[path]?.viewMode || defaultMode;
+      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
       markdownViewMode = mode;
       isEditing = mode !== "reading";
       ensureContentLoaded(path);
@@ -728,8 +731,8 @@
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
           if (activeTabPath && !isSyntheticTab(activeTabPath)) {
-            const defaultNextMode: MarkdownViewMode = isDrawingFile(activeTabPath) ? "live" : "reading";
-            const nextMode = openedNotes[activeTabPath]?.viewMode || defaultNextMode;
+            const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
+            const nextMode = (openedNotes[activeTabPath]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
             markdownViewMode = nextMode;
             isEditing = nextMode !== "reading";
             ensureContentLoaded(activeTabPath);
@@ -873,8 +876,8 @@
     activeSplitTabPath = path;
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
-      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
-      const mode = openedNotes[path]?.viewMode || defaultMode;
+      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
       recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
@@ -893,6 +896,10 @@
           activeSplitTabPath = splitTabPaths[nextIdx];
           if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
             ensureContentLoaded(activeSplitTabPath);
+            const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
+            const nextMode = (openedNotes[activeSplitTabPath]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+            splitMarkdownViewMode = nextMode;
+            isSplitEditing = nextMode !== "reading";
           }
         } else {
           activeSplitTabPath = null;
@@ -968,8 +975,8 @@
 
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
-      const defaultMode: MarkdownViewMode = isDrawingFile(path) ? "live" : "reading";
-      const mode = openedNotes[path]?.viewMode || defaultMode;
+      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
     }
@@ -1065,29 +1072,34 @@
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = newMode;
       }
+      const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
+      if (vItem) vItem.view_mode = newMode;
+      vaultRepository.setNoteViewMode(activeSplitTabPath, newMode);
+      persistTabsState();
     }
   }
 
   function toggleSplitViewMode() {
-    const current = !isSplitEditing ? "reading" : splitMarkdownViewMode;
-    let nextMode: MarkdownViewMode;
-    let nextEditing: boolean;
-    if (current === "reading") {
-      nextMode = "live";
-      nextEditing = true;
-    } else if (current === "live") {
-      nextMode = "source";
-      nextEditing = true;
+    if (!activeSplitTabPath || isSyntheticTab(activeSplitTabPath)) return;
+
+    if (isMarkdownFile(activeSplitTabPath)) {
+      if (!isSplitEditing) {
+        handleChangeSplitMarkdownView(splitMarkdownViewMode === "reading" ? "live" : splitMarkdownViewMode);
+      } else {
+        handleChangeSplitMarkdownView("reading");
+      }
     } else {
-      nextMode = "reading";
-      nextEditing = false;
-    }
-    splitMarkdownViewMode = nextMode;
-    isSplitEditing = nextEditing;
-    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
+      const nextEditing = !isSplitEditing;
+      isSplitEditing = nextEditing;
+      const nextMode: MarkdownViewMode = nextEditing ? "live" : "reading";
+      splitMarkdownViewMode = nextMode;
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = nextMode;
       }
+      const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
+      if (vItem) vItem.view_mode = nextMode;
+      vaultRepository.setNoteViewMode(activeSplitTabPath, nextMode);
+      persistTabsState();
     }
   }
 
@@ -1429,6 +1441,7 @@
             title: n.title,
             relative_path: relPath,
             abs_path: n.abs_path,
+            view_mode: n.view_mode,
           };
         });
 
@@ -1651,7 +1664,7 @@
                 } else {
                   const noteData = await vaultRepository.readNote(matchedOpenPath);
                   if (noteData && (noteData.content ?? "") !== (openedNotes[matchedOpenPath]?.savedContent ?? null)) {
-                    const currentMode = openedNotes[matchedOpenPath]?.viewMode || (isDrawingFile(matchedOpenPath) ? "live" : "reading");
+                    const currentMode = openedNotes[matchedOpenPath]?.viewMode || "reading";
                     openedNotes[matchedOpenPath] = {
                       relative_path: matchedOpenPath,
                       abs_path: noteData.abs_path,
@@ -2409,6 +2422,7 @@
             title: n.title,
             relative_path: relPath,
             abs_path: n.abs_path,
+            view_mode: n.view_mode,
           };
         });
         openTabPaths = [];

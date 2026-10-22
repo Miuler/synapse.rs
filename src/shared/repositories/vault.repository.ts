@@ -7,6 +7,7 @@ export interface VaultNote {
   title: string;
   content?: string;
   encoding?: string;
+  view_mode?: string;
 }
 
 export interface VaultFileStat {
@@ -147,6 +148,8 @@ export interface WorkspaceOpenTabsState {
 export interface VaultUiState {
   sidebar_width?: number | null;
   expanded_folders: string[];
+  diff_visual_mode?: string | null;
+  diff_text_mode?: string | null;
 }
 
 export interface RecentWorkspaceEntry {
@@ -182,9 +185,19 @@ export interface VaultRepository {
   getOpenTabsState(): Promise<WorkspaceOpenTabsState | null>;
 
   /**
-   * Guarda el estado de la UI del explorador (ancho de panel lateral y carpetas expandidas) en .synapse/workspace.json.
+   * Guarda el modo de vista (edición/lectura) para una nota específica en el workspace.
    */
-  saveVaultUiState(sidebarWidth?: number | null, expandedFolders?: string[]): Promise<void>;
+  setNoteViewMode(relativePath: string, viewMode: string): Promise<void>;
+
+  /**
+   * Guarda el estado de la UI del explorador (ancho de panel lateral, carpetas expandidas y preferencias de diff) en .synapse/workspace.json.
+   */
+  saveVaultUiState(
+    sidebarWidth?: number | null,
+    expandedFolders?: string[],
+    diffVisualMode?: string | null,
+    diffTextMode?: string | null,
+  ): Promise<void>;
 
   /**
    * Obtiene el estado de la UI del explorador (ancho de panel lateral y carpetas expandidas) desde .synapse/workspace.json.
@@ -452,7 +465,27 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
-  async saveVaultUiState(sidebarWidth?: number | null, expandedFolders?: string[]): Promise<void> {
+  async setNoteViewMode(relativePath: string, viewMode: string): Promise<void> {
+    if (!this.isConnected()) return;
+
+    try {
+      await invokeTauri('set_note_view_mode', {
+        relativePath,
+        relative_path: relativePath,
+        viewMode,
+        view_mode: viewMode,
+      });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al guardar set_note_view_mode:', error);
+    }
+  }
+
+  async saveVaultUiState(
+    sidebarWidth?: number | null,
+    expandedFolders?: string[],
+    diffVisualMode?: string | null,
+    diffTextMode?: string | null,
+  ): Promise<void> {
     if (!this.isConnected()) return;
 
     try {
@@ -461,6 +494,10 @@ export class TauriVaultRepository implements VaultRepository {
         sidebar_width: sidebarWidth ?? null,
         expandedFolders: expandedFolders ?? null,
         expanded_folders: expandedFolders ?? null,
+        diffVisualMode: diffVisualMode ?? null,
+        diff_visual_mode: diffVisualMode ?? null,
+        diffTextMode: diffTextMode ?? null,
+        diff_text_mode: diffTextMode ?? null,
       });
     } catch (error) {
       console.warn('Error en TauriVaultRepository al guardar save_vault_ui_state:', error);

@@ -12,6 +12,7 @@
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
   import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
+  import { workspaceDiffSettings, type DiffVisualTab } from '../model/diff-settings.svelte';
   import {
     GitCompare,
     GitCompareArrows,
@@ -53,20 +54,27 @@
     isImage || isPdf || isDrawing || isDiagram
   );
 
-  type VisualDiffTab = 'side_by_side' | 'highlight' | 'text';
-  let activeVisualTab = $state<VisualDiffTab>('side_by_side');
-
   $effect(() => {
-    // Si es candidato visual, arrancar por defecto en 'side_by_side'
-    if (isVisualCandidate) {
-      activeVisualTab = 'side_by_side';
-    } else {
-      activeVisualTab = 'text';
-    }
+    workspaceDiffSettings.initFromWorkspace();
   });
 
-  let viewMode = $state<DiffModeEnum>(DiffModeEnum.Split);
-  let showRawDiff = $state(false);
+  const activeVisualTab = $derived.by<DiffVisualTab>(() => {
+    if (!isVisualCandidate) return 'text';
+    if (workspaceDiffSettings.visualTab === 'highlight' && !(isImage && !isSvg)) {
+      return 'side_by_side';
+    }
+    if (isPureBinary && workspaceDiffSettings.visualTab === 'text') {
+      return 'side_by_side';
+    }
+    return workspaceDiffSettings.visualTab;
+  });
+
+  const viewMode = $derived(
+    workspaceDiffSettings.textMode === 'unified'
+      ? DiffModeEnum.Unified
+      : DiffModeEnum.Split
+  );
+  const showRawDiff = $derived(workspaceDiffSettings.textMode === 'raw');
   let enableWrap = $state(false);
 
   let currentTheme = $derived<'light' | 'dark'>(
@@ -201,7 +209,7 @@
             type="button"
             class="toggle-btn"
             class:active={activeVisualTab === 'side_by_side'}
-            onclick={() => (activeVisualTab = 'side_by_side')}
+            onclick={() => workspaceDiffSettings.setVisualTab('side_by_side')}
             title="Vista dividida lado a lado (Disco vs Git)"
           >
             <Columns size={13} />
@@ -214,7 +222,7 @@
               type="button"
               class="toggle-btn"
               class:active={activeVisualTab === 'highlight'}
-              onclick={() => (activeVisualTab = 'highlight')}
+              onclick={() => workspaceDiffSettings.setVisualTab('highlight')}
               title="Diff perceptual: píxeles modificados resaltados en memoria"
             >
               <Sparkles size={13} />
@@ -228,7 +236,7 @@
               type="button"
               class="toggle-btn"
               class:active={activeVisualTab === 'text'}
-              onclick={() => (activeVisualTab = 'text')}
+              onclick={() => workspaceDiffSettings.setVisualTab('text')}
               title="Vista de código / diff de texto"
             >
               <FileCode size={13} />
@@ -246,10 +254,7 @@
             type="button"
             class="toggle-btn"
             class:active={!showRawDiff && viewMode === DiffModeEnum.Split}
-            onclick={() => {
-              showRawDiff = false;
-              viewMode = DiffModeEnum.Split;
-            }}
+            onclick={() => workspaceDiffSettings.setTextMode('split')}
             title="Vista dividida (Split)"
           >
             <Columns size={13} />
@@ -259,10 +264,7 @@
             type="button"
             class="toggle-btn"
             class:active={!showRawDiff && viewMode === DiffModeEnum.Unified}
-            onclick={() => {
-              showRawDiff = false;
-              viewMode = DiffModeEnum.Unified;
-            }}
+            onclick={() => workspaceDiffSettings.setTextMode('unified')}
             title="Vista unificada (Unified)"
           >
             <AlignJustify size={13} />
@@ -272,7 +274,7 @@
             type="button"
             class="toggle-btn"
             class:active={showRawDiff}
-            onclick={() => (showRawDiff = true)}
+            onclick={() => workspaceDiffSettings.setTextMode('raw')}
             title="Vista de parche / texto sin formato (Raw diff)"
           >
             <FileCode size={13} />

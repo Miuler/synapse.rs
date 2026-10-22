@@ -205,12 +205,14 @@ pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> 
         let rel_str = meta.path.to_string();
         let abs_path = vault_path.join(&rel_str).to_string_lossy().to_string();
         if let Ok(rel_path) = NoteRelativePath::new(&rel_str) {
-            notes.push(Note::new(
+            let mut note = Note::new(
                 rel_path,
                 abs_path,
                 meta.title.to_string(),
                 String::new(), // Zero content kept in memory for list metadata
-            ));
+            );
+            note.view_mode = meta.view_mode.as_ref().map(|s| s.to_string());
+            notes.push(note);
         }
     }
     notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
@@ -375,10 +377,11 @@ pub fn read_note_content(
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let note = state.note_use_cases.read_note(vault_path, &relative_path)?;
+    let mut note = state.note_use_cases.read_note(vault_path, &relative_path)?;
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.record_opened(&relative_path);
+            note.view_mode = engine.get_note_view_mode(&relative_path);
         }
     }
     Ok(note)
@@ -712,10 +715,12 @@ pub fn save_vault_ui_state(
     state: State<'_, AppState>,
     sidebar_width: Option<u32>,
     expanded_folders: Option<Vec<String>>,
+    diff_visual_mode: Option<String>,
+    diff_text_mode: Option<String>,
 ) -> Result<(), String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     if let Some(ref engine) = *guard {
-        engine.save_vault_ui_state(sidebar_width, expanded_folders);
+        engine.save_vault_ui_state(sidebar_width, expanded_folders, diff_visual_mode, diff_text_mode);
     }
     Ok(())
 }
