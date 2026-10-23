@@ -40,6 +40,8 @@ pub struct VaultUiState {
     pub diff_visual_mode: Option<String>,
     #[serde(default)]
     pub diff_text_mode: Option<String>,
+    #[serde(default)]
+    pub locked_files: Vec<String>,
 }
 
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
@@ -101,6 +103,7 @@ pub struct NavigationEngine {
     pub file_types: SupportedFileTypes,
     pub sidebar_width: Arc<AtomicU32>,
     pub expanded_folders: Arc<DashMap<CompactString, bool>>,
+    pub locked_files: Arc<DashMap<CompactString, bool>>,
     pub diff_visual_mode: Arc<RwLock<Option<String>>>,
     pub diff_text_mode: Arc<RwLock<Option<String>>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
@@ -154,6 +157,7 @@ impl NavigationEngine {
 
         let mut initial_sidebar_width = 240u32;
         let expanded_folders = DashMap::new();
+        let locked_files = DashMap::new();
         let mut initial_diff_visual_mode = None;
         let mut initial_diff_text_mode = None;
 
@@ -167,6 +171,9 @@ impl NavigationEngine {
                         }
                         for folder in ui_state.expanded_folders {
                             expanded_folders.insert(CompactString::new(folder), true);
+                        }
+                        for file in ui_state.locked_files {
+                            locked_files.insert(CompactString::new(file), true);
                         }
                         initial_diff_visual_mode = ui_state.diff_visual_mode;
                         initial_diff_text_mode = ui_state.diff_text_mode;
@@ -188,6 +195,7 @@ impl NavigationEngine {
             file_types,
             sidebar_width: Arc::new(AtomicU32::new(initial_sidebar_width)),
             expanded_folders: Arc::new(expanded_folders),
+            locked_files: Arc::new(locked_files),
             diff_visual_mode: Arc::new(RwLock::new(initial_diff_visual_mode)),
             diff_text_mode: Arc::new(RwLock::new(initial_diff_text_mode)),
             fs_watcher: Arc::new(Mutex::new(None)),
@@ -790,6 +798,7 @@ impl NavigationEngine {
         expanded_folders: Option<Vec<String>>,
         diff_visual_mode: Option<String>,
         diff_text_mode: Option<String>,
+        locked_files: Option<Vec<String>>,
     ) {
         if let Some(width) = sidebar_width {
             self.sidebar_width.store(width, Ordering::SeqCst);
@@ -799,6 +808,13 @@ impl NavigationEngine {
             for folder in folders {
                 self.expanded_folders
                     .insert(CompactString::new(folder), true);
+            }
+        }
+        if let Some(files) = locked_files {
+            self.locked_files.clear();
+            for file in files {
+                self.locked_files
+                    .insert(CompactString::new(file), true);
             }
         }
         if let Some(dvm) = diff_visual_mode {
@@ -825,6 +841,13 @@ impl NavigationEngine {
             .map(|item| item.key().to_string())
             .collect();
         folders.sort();
+        let mut files: Vec<String> = self
+            .locked_files
+            .iter()
+            .filter(|item| *item.value())
+            .map(|item| item.key().to_string())
+            .collect();
+        files.sort();
         let diff_visual_mode = self.diff_visual_mode.read().ok().and_then(|g| g.clone());
         let diff_text_mode = self.diff_text_mode.read().ok().and_then(|g| g.clone());
         VaultUiState {
@@ -832,6 +855,7 @@ impl NavigationEngine {
             expanded_folders: folders,
             diff_visual_mode,
             diff_text_mode,
+            locked_files: files,
         }
     }
 

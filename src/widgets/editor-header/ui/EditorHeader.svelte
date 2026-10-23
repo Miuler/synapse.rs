@@ -24,7 +24,8 @@
     GitCompareArrows,
     ExternalLink,
     Copy,
-    History
+    History,
+    Lock
   } from 'lucide-svelte';
 
   interface Props {
@@ -614,6 +615,11 @@
                     <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="file-icon" />
                   {/if}
                   <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                  {#if tab.isLocked}
+                    <span class="tab-lock-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+                      <Lock size={11} class="tab-lock-icon" />
+                    </span>
+                  {/if}
                   <button
                     type="button"
                     class="close-tab-btn"
@@ -837,6 +843,11 @@
                         <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="dropdown-file-icon" />
                       {/if}
                       <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                      {#if tab.isLocked}
+                        <span class="tab-lock-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+                          <Lock size={11} class="tab-lock-icon" />
+                        </span>
+                      {/if}
                       <button
                         type="button"
                         class="dropdown-tab-close"
@@ -1124,6 +1135,16 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--text-primary, #1f2328);
+  }
+
+  :global(.tab-lock-icon) {
+    color: var(--text-muted, #8c959f);
+    flex-shrink: 0;
+    margin-left: 2px;
+  }
+
+  .tab-title-container.active :global(.tab-lock-icon) {
+    color: var(--accent, #0969da);
   }
 
   .close-tab-btn {

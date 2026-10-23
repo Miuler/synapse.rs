@@ -10,7 +10,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -40,6 +40,8 @@
     onOpenRevision?: (path: string, revision: string) => void;
     onOpenDiffWithRevision?: (path: string, revision: string) => void;
     onOpenInNewWindow?: (path: string) => void;
+    lockedFiles?: Set<string>;
+    onToggleLockFile?: (path: string) => void;
   }
 
   let {
@@ -54,6 +56,8 @@
     isGitRepo = false,
     gitBranch = null,
     isStandalone = false,
+    lockedFiles,
+    onToggleLockFile,
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
@@ -1880,6 +1884,23 @@
             <ExternalLink class="context-menu-item-icon" />
             <span>Abrir en nueva ventana</span>
           </ContextMenu.Item>
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
+                onToggleLockFile?.(contextMenuNode.relativePath);
+              }
+            }}
+          >
+            {#if lockedFiles?.has(contextMenuNode.relativePath)}
+              <Unlock class="context-menu-item-icon" />
+              <span>Desbloquear archivo</span>
+            {:else}
+              <Lock class="context-menu-item-icon" />
+              <span>Bloquear archivo</span>
+            {/if}
+          </ContextMenu.Item>
         {/if}
 
         {#if contextMenuNode && !contextMenuNode.isFolder && isOfficeFile(contextMenuNode.relativePath)}
@@ -2303,6 +2324,12 @@
       />
       <span class="file-name" title={node.name}>{node.name}</span>
 
+      {#if lockedFiles?.has(node.relativePath)}
+        <span class="lock-file-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+          <Lock size={12} class="lock-file-icon" />
+        </span>
+      {/if}
+
       {#if fileGitStatus}
         <div class="git-badges-group">
           {#if fileGitStatus.index === 'M'}
@@ -2641,6 +2668,27 @@
 
   .file-tree-item.git-untracked:not(.active) .file-name {
     color: #ca8a04;
+  }
+
+  .lock-file-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #8c959f);
+    margin-left: auto;
+    padding-right: 4px;
+    flex-shrink: 0;
+  }
+
+  .lock-file-icon {
+    width: 12px;
+    height: 12px;
+    color: var(--text-muted, #8c959f);
+  }
+
+  .file-tree-item.active .lock-file-badge,
+  .file-tree-item.active .lock-file-icon {
+    color: var(--accent, #0969da);
   }
 
   .file-tree-item.git-stashed:not(.active) .file-name {

@@ -197,6 +197,7 @@ export interface VaultUiState {
   expanded_folders: string[];
   diff_visual_mode?: string | null;
   diff_text_mode?: string | null;
+  locked_files?: string[];
 }
 
 export interface RecentWorkspaceEntry {
@@ -244,6 +245,7 @@ export interface VaultRepository {
     expandedFolders?: string[],
     diffVisualMode?: string | null,
     diffTextMode?: string | null,
+    lockedFiles?: string[],
   ): Promise<void>;
 
   /**
@@ -624,6 +626,7 @@ export class TauriVaultRepository implements VaultRepository {
     expandedFolders?: string[],
     diffVisualMode?: string | null,
     diffTextMode?: string | null,
+    lockedFiles?: string[],
   ): Promise<void> {
     if (!this.isConnected()) return;
 
@@ -637,6 +640,8 @@ export class TauriVaultRepository implements VaultRepository {
         diff_visual_mode: diffVisualMode ?? null,
         diffTextMode: diffTextMode ?? null,
         diff_text_mode: diffTextMode ?? null,
+        lockedFiles: lockedFiles ?? null,
+        locked_files: lockedFiles ?? null,
       });
     } catch (error) {
       console.warn('Error en TauriVaultRepository al guardar save_vault_ui_state:', error);

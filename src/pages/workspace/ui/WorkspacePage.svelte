@@ -37,6 +37,7 @@
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
+  import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
   import {Columns2} from "lucide-svelte";
 
   interface VaultFsChangeEvent {
@@ -307,8 +308,43 @@
       if (uiState?.sidebar_width && uiState.sidebar_width >= 140 && uiState.sidebar_width <= 900) {
         sidebarWidth = uiState.sidebar_width;
       }
+      if (uiState?.locked_files) {
+        lockedFiles = new Set(uiState.locked_files);
+      }
     } catch (e) {
-      console.error("Error al restaurar ancho del panel lateral:", e);
+      console.error("Error al restaurar estado de la UI de la bóveda:", e);
+    }
+  }
+
+  // Conjunto reactivo de rutas relativas de archivos bloqueados
+  let lockedFiles = $state<Set<string>>(new Set());
+
+  // Diálogo para advertir sobre cambios sin persistir en archivos bloqueados
+  let unsavedDialogOpen = $state(false);
+  let unsavedDialogFiles = $state<string[]>([]);
+  let unsavedDialogIsWindowClose = $state(false);
+  let isForceSavingUnsaved = $state(false);
+  let pendingCloseAction = $state<{
+    type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close';
+    paths: string[];
+  } | null>(null);
+
+  async function handleToggleLockFile(path: string) {
+    const next = new Set(lockedFiles);
+    if (next.has(path)) {
+      next.delete(path);
+    } else {
+      next.add(path);
+    }
+    lockedFiles = next;
+    if (!isStandaloneMode) {
+      await vaultRepository.saveVaultUiState(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        Array.from(lockedFiles)
+      );
     }
   }
 
@@ -664,8 +700,9 @@
     }
 
     if (!openedNotes[path]) {
+      const isDrawing = isDrawingTab(path);
       const memoryMode = (vaultItem?.view_mode) as MarkdownViewMode | undefined;
-      const defaultMode: MarkdownViewMode = memoryMode || "reading";
+      const defaultMode: MarkdownViewMode = (lockedFiles.has(path) || isDrawing) ? "reading" : (memoryMode || "reading");
       openedNotes[path] = {
         relative_path: path,
         abs_path: initialAbsPath,
@@ -687,7 +724,10 @@
         const fetchedContent = noteData.content ?? "";
         const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
-        const currentMode = openedNotes[path]?.viewMode || (noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading";
+        const isDrawing = isDrawingTab(path, fetchedContent);
+        const currentMode = (lockedFiles.has(path) || isDrawing)
+          ? "reading"
+          : (openedNotes[path]?.viewMode || (noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading");
 
         const prevExcalViewer = openedNotes[path]?.excalidrawViewer;
         openedNotes[path] = {
@@ -735,6 +775,7 @@
 
   function flushPendingSaveForPath(targetPath: string | null | undefined) {
     if (!targetPath || isSyntheticTab(targetPath)) return;
+    if (lockedFiles.has(targetPath)) return;
     if (isDrawingTab(targetPath, openedNotes[targetPath]?.content) && excalidrawViewers[targetPath]?.getCurrentSerializedScene) {
       try {
         const fresh = excalidrawViewers[targetPath].getCurrentSerializedScene();
@@ -797,7 +838,9 @@
     activeTabPath = path;
     if (!isSyntheticTab(path)) {
       const vItem = vaultItems.find((v) => v.relative_path === path);
-      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+      const isLocked = lockedFiles.has(path);
+      const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
+      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
       markdownViewMode = mode;
       isEditing = mode !== "reading";
       ensureContentLoaded(path);
@@ -876,7 +919,9 @@
           activeTabPath = openTabPaths[nextIdx];
           if (activeTabPath && !isSyntheticTab(activeTabPath)) {
             const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
-            const nextMode = (openedNotes[activeTabPath]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+            const isLocked = lockedFiles.has(activeTabPath);
+            const isDrawing = isDrawingTab(activeTabPath, openedNotes[activeTabPath]?.content);
+            const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeTabPath]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
             markdownViewMode = nextMode;
             isEditing = nextMode !== "reading";
             ensureContentLoaded(activeTabPath);
@@ -967,6 +1012,161 @@
     }
   }
 
+  function isTabDirty(path: string): boolean {
+    if (!path || isSyntheticTab(path)) return false;
+    const note = openedNotes[path];
+    if (!note) return false;
+    if (isDrawingTab(path, note.content) && excalidrawViewers[path]?.getCurrentSerializedScene) {
+      try {
+        const fresh = excalidrawViewers[path].getCurrentSerializedScene();
+        if (fresh && fresh !== note.savedContent) return true;
+      } catch {}
+    }
+    return note.isLoaded ? note.content !== note.savedContent : false;
+  }
+
+  function requestCloseTab(path: string) {
+    if (lockedFiles.has(path) && isTabDirty(path)) {
+      pendingCloseAction = { type: 'single-tab', paths: [path] };
+      unsavedDialogFiles = [path];
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+    closeTab(path);
+  }
+
+  function requestCloseSplitTab(path: string) {
+    if (lockedFiles.has(path) && isTabDirty(path)) {
+      pendingCloseAction = { type: 'single-split-tab', paths: [path] };
+      unsavedDialogFiles = [path];
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+    closeSplitTab(path);
+  }
+
+  function requestCloseOtherTabs(targetPath: string) {
+    const tabsToClose = openTabPaths.filter((p) => p !== targetPath);
+    const dirtyLocked = tabsToClose.filter((p) => lockedFiles.has(p) && isTabDirty(p));
+    if (dirtyLocked.length > 0) {
+      pendingCloseAction = { type: 'multiple-tabs', paths: tabsToClose };
+      unsavedDialogFiles = dirtyLocked;
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+    closeOtherTabs(targetPath);
+  }
+
+  function requestCloseTabsToRight(targetPath: string) {
+    const idx = openTabPaths.indexOf(targetPath);
+    if (idx === -1) return;
+    const tabsToClose = openTabPaths.slice(idx + 1);
+    const dirtyLocked = tabsToClose.filter((p) => lockedFiles.has(p) && isTabDirty(p));
+    if (dirtyLocked.length > 0) {
+      pendingCloseAction = { type: 'multiple-tabs', paths: tabsToClose };
+      unsavedDialogFiles = dirtyLocked;
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+    closeTabsToRight(targetPath);
+  }
+
+  function requestCloseAllTabs() {
+    const tabsToClose = [...openTabPaths];
+    const dirtyLocked = tabsToClose.filter((p) => lockedFiles.has(p) && isTabDirty(p));
+    if (dirtyLocked.length > 0) {
+      pendingCloseAction = { type: 'multiple-tabs', paths: tabsToClose };
+      unsavedDialogFiles = dirtyLocked;
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+    closeAllTabs();
+  }
+
+  function handleUnsavedDialogAbort() {
+    unsavedDialogOpen = false;
+    pendingCloseAction = null;
+  }
+
+  async function handleUnsavedDialogDiscard() {
+    unsavedDialogOpen = false;
+    if (!pendingCloseAction) return;
+    const action = pendingCloseAction;
+    pendingCloseAction = null;
+
+    if (action.type === 'single-tab') {
+      closeTab(action.paths[0]);
+    } else if (action.type === 'single-split-tab') {
+      closeSplitTab(action.paths[0]);
+    } else if (action.type === 'multiple-tabs') {
+      for (const p of action.paths) {
+        closeTab(p);
+      }
+    } else if (action.type === 'window-close') {
+      if (isTauriEnvironment()) {
+        try {
+          const appWindow = getCurrentWebviewWindow();
+          await appWindow.destroy();
+        } catch {}
+      }
+    }
+  }
+
+  async function handleUnsavedDialogForceSave() {
+    if (!pendingCloseAction || isForceSavingUnsaved) return;
+    isForceSavingUnsaved = true;
+    const action = pendingCloseAction;
+
+    try {
+      for (const p of unsavedDialogFiles) {
+        if (isDrawingTab(p, openedNotes[p]?.content) && excalidrawViewers[p]?.getCurrentSerializedScene) {
+          try {
+            const fresh = excalidrawViewers[p].getCurrentSerializedScene();
+            if (fresh && openedNotes[p]) {
+              openedNotes[p].content = fresh;
+            }
+          } catch {}
+        }
+        const note = openedNotes[p];
+        const vItem = vaultItems.find((v) => v.relative_path === p) || {
+          id: "0",
+          title: note?.title || p,
+          relative_path: p,
+          abs_path: note?.abs_path,
+        };
+        await persistVaultItemToRust(vItem);
+      }
+
+      unsavedDialogOpen = false;
+      pendingCloseAction = null;
+
+      if (action.type === 'single-tab') {
+        closeTab(action.paths[0]);
+      } else if (action.type === 'single-split-tab') {
+        closeSplitTab(action.paths[0]);
+      } else if (action.type === 'multiple-tabs') {
+        for (const p of action.paths) {
+          closeTab(p);
+        }
+      } else if (action.type === 'window-close') {
+        await flushAllModifiedTabs();
+        if (isTauriEnvironment()) {
+          try {
+            const appWindow = getCurrentWebviewWindow();
+            await appWindow.destroy();
+          } catch {}
+        }
+      }
+    } finally {
+      isForceSavingUnsaved = false;
+    }
+  }
+
   async function handleOpenInNewWindow(path: string, moveTab = false) {
     if (!path || isSyntheticTab(path)) return;
     const vItem = vaultItems.find((v) => v.relative_path === path);
@@ -1045,7 +1245,9 @@
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
       const vItem = vaultItems.find((v) => v.relative_path === path);
-      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+      const isLocked = lockedFiles.has(path);
+      const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
+      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
       if (viewerPreference) {
@@ -1083,7 +1285,9 @@
           if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
             ensureContentLoaded(activeSplitTabPath);
             const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
-            const nextMode = (openedNotes[activeSplitTabPath]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+            const isLocked = lockedFiles.has(activeSplitTabPath);
+            const isDrawing = isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content);
+            const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeSplitTabPath]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
             splitMarkdownViewMode = nextMode;
             isSplitEditing = nextMode !== "reading";
           }
@@ -1162,7 +1366,9 @@
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
       const vItem = vaultItems.find((v) => v.relative_path === path);
-      const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
+      const isLocked = lockedFiles.has(path);
+      const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
+      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
     }
@@ -1500,8 +1706,9 @@
         };
       }
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const isDirty = isTabDirty(path);
+      const isLocked = lockedFiles.has(path);
       const note = openedNotes[path];
-      const isDirty = note ? note.content !== note.savedContent : false;
       const isDrawing = isDrawingTab(path, note?.content);
       const rawTitle = note?.title || vaultItem?.title || path;
       const displayTitle = cleanTabTitle(rawTitle, path);
@@ -1510,6 +1717,7 @@
         abs_path: note?.abs_path || vaultItem?.abs_path,
         title: displayTitle,
         isDirty,
+        isLocked,
         kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
     })
@@ -1526,8 +1734,9 @@
         };
       }
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const isDirty = isTabDirty(path);
+      const isLocked = lockedFiles.has(path);
       const note = openedNotes[path];
-      const isDirty = note ? note.content !== note.savedContent : false;
       const isDrawing = isDrawingTab(path, note?.content);
       const rawTitle = note?.title || vaultItem?.title || path;
       const displayTitle = cleanTabTitle(rawTitle, path);
@@ -1536,6 +1745,7 @@
         abs_path: note?.abs_path || vaultItem?.abs_path,
         title: displayTitle,
         isDirty,
+        isLocked,
         kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
     })
@@ -1688,6 +1898,15 @@
       delete lastClosedTabIndex[relativePath];
       delete tabSelections[relativePath];
 
+      if (lockedFiles.has(relativePath)) {
+        const next = new Set(lockedFiles);
+        next.delete(relativePath);
+        lockedFiles = next;
+        if (!isStandaloneMode) {
+          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+        }
+      }
+
       // Actualizar la lista de archivos de la bóveda y el estado de Git
       await fetchNotesFromBackend();
     } catch (e) {
@@ -1716,6 +1935,21 @@
         delete tabSelections[item.relativePath];
       }
 
+      let changedLocks = false;
+      const nextLocks = new Set(lockedFiles);
+      for (const item of items) {
+        if (nextLocks.has(item.relativePath)) {
+          nextLocks.delete(item.relativePath);
+          changedLocks = true;
+        }
+      }
+      if (changedLocks) {
+        lockedFiles = nextLocks;
+        if (!isStandaloneMode) {
+          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+        }
+      }
+
       await fetchNotesFromBackend();
     } catch (e) {
       console.error("Error al eliminar elementos de la bóveda:", e);
@@ -1742,6 +1976,16 @@
     if (lastClosedTabIndex[relativePath] !== undefined) {
       lastClosedTabIndex[renamedPath] = lastClosedTabIndex[relativePath];
       delete lastClosedTabIndex[relativePath];
+    }
+
+    if (lockedFiles.has(relativePath)) {
+      const next = new Set(lockedFiles);
+      next.delete(relativePath);
+      next.add(renamedPath);
+      lockedFiles = next;
+      if (!isStandaloneMode) {
+        vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+      }
     }
 
     await fetchNotesFromBackend();
@@ -1818,8 +2062,18 @@
         const appWindow = getCurrentWebviewWindow();
         currentWindowLabel = appWindow.label;
 
-        // Interceptar el cierre de ventana para persistir cambios pendientes en segundo plano
-        appWindow.onCloseRequested(async () => {
+        // Interceptar el cierre de ventana para persistir cambios pendientes o advertir si hay archivos bloqueados sucios
+        appWindow.onCloseRequested(async (event) => {
+          const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
+          const dirtyLocked = allTabs.filter((p) => lockedFiles.has(p) && isTabDirty(p));
+          if (dirtyLocked.length > 0) {
+            event.preventDefault();
+            pendingCloseAction = { type: 'window-close', paths: allTabs };
+            unsavedDialogFiles = dirtyLocked;
+            unsavedDialogIsWindowClose = true;
+            unsavedDialogOpen = true;
+            return;
+          }
           await flushAllModifiedTabs();
         }).then((unsub) => {
           unlistenCloseRequested = unsub;
@@ -1928,7 +2182,14 @@
       });
     }
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
+      const dirtyLocked = allTabs.filter((p) => lockedFiles.has(p) && isTabDirty(p));
+      if (dirtyLocked.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
       // Intentar guardar cualquier pestaña pendiente si se descarga la página
       flushAllModifiedTabs();
     };
@@ -1957,7 +2218,7 @@
 
     const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
     for (const p of allTabs) {
-      if (!p || isSyntheticTab(p)) continue;
+      if (!p || isSyntheticTab(p) || lockedFiles.has(p)) continue;
 
       if (isDrawingTab(p, openedNotes[p]?.content) && excalidrawViewers[p]?.getCurrentSerializedScene) {
         try {
@@ -1990,6 +2251,7 @@
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
+    if (lockedFiles.has(vaultItem.relative_path)) return;
     const isDrawing = isDrawingTab(vaultItem.relative_path, openedNotes[vaultItem.relative_path]?.content);
     const computedDelay = delay !== undefined ? delay : (isDrawing ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
     if (saveTimeout) clearTimeout(saveTimeout);
@@ -2284,14 +2546,14 @@
         category: "Pestañas",
         shortcut: shortcutsConfig.workspace.close_tab,
         action: () => {
-          if (activeTabPath) closeTab(activeTabPath);
+          if (activeTabPath) requestCloseTab(activeTabPath);
         },
       },
       {
         id: "cmd-close-all-tabs",
         name: "Cerrar todas las pestañas",
         category: "Pestañas",
-        action: closeAllTabs,
+        action: requestCloseAllTabs,
       },
       {
         id: "cmd-toggle-vim",
@@ -2641,9 +2903,9 @@
       if (matchesShortcut(e, ws.close_tab)) {
         stopEvent();
         if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
-          closeSplitTab(activeSplitTabPath);
+          requestCloseSplitTab(activeSplitTabPath);
         } else if (activeTabPath) {
-          closeTab(activeTabPath);
+          requestCloseTab(activeTabPath);
         }
         return;
       }
@@ -2974,6 +3236,8 @@
       isGitRepo={isStandaloneMode ? false : isGitRepo}
       gitBranch={isStandaloneMode ? null : gitBranch}
       isStandalone={isStandaloneMode}
+      {lockedFiles}
+      onToggleLockFile={handleToggleLockFile}
       onSelectTab={handleSelectTabFromExplorer}
       onOpenVaultFolder={handleOpenVaultFolder}
       onDeleteItem={handleDeleteItem}
@@ -3022,7 +3286,7 @@
               filePath={fPath}
               isStaged={false}
               baseRevision={rev}
-              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+              onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
         {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
@@ -3033,7 +3297,7 @@
             <DiffViewer
               filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
               isStaged={tabPath.startsWith("diff-staged:")}
-              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+              onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
         {:else if tabPath.startsWith("rev:")}
@@ -3048,7 +3312,7 @@
             <RevisionViewer
               filePath={fPath}
               revision={rev}
-              onClose={() => (isRight ? closeSplitTab(tabPath) : closeTab(tabPath))}
+              onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
         {:else}
@@ -3165,7 +3429,9 @@
                       if (openedNotes[tabPath]) {
                         openedNotes[tabPath].title = vaultItem.title;
                       }
-                      persistVaultItemToRust(vaultItem);
+                      if (!lockedFiles.has(tabPath)) {
+                        persistVaultItemToRust(vaultItem);
+                      }
                     }}
                     placeholder="Título del archivo..."
                   />
@@ -3240,7 +3506,7 @@
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
-        showSaveButton={!autoSave &&
+        showSaveButton={(!autoSave || (!!activeTabPath && lockedFiles.has(activeTabPath))) &&
           isEditing &&
           !!activeTabPath &&
           !isSyntheticTab(activeTabPath) &&
@@ -3249,10 +3515,10 @@
             isDrawingTab(currentVaultItem.relative_path, activeContent) ||
             isPdfFile(currentVaultItem.relative_path))}
         onSelectTab={(path) => selectTab(path)}
-        onCloseTab={(path) => closeTab(path)}
-        onCloseAllTabs={closeAllTabs}
-        onCloseOtherTabs={closeOtherTabs}
-        onCloseTabsToRight={closeTabsToRight}
+        onCloseTab={(path) => requestCloseTab(path)}
+        onCloseAllTabs={requestCloseAllTabs}
+        onCloseOtherTabs={requestCloseOtherTabs}
+        onCloseTabsToRight={requestCloseTabsToRight}
         onOpenInNewWindow={handleOpenInNewWindow}
         onReorderTab={reorderTab}
         onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
@@ -3323,7 +3589,7 @@
             markdownViewMode={!isEditing ? "reading" : markdownViewMode}
             onChangeMarkdownView={handleChangeMarkdownView}
             title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
-            showSaveButton={!autoSave &&
+            showSaveButton={(!autoSave || (!!activeTabPath && lockedFiles.has(activeTabPath))) &&
               isEditing &&
               !!activeTabPath &&
               !isSyntheticTab(activeTabPath) &&
@@ -3332,10 +3598,10 @@
                 isDrawingTab(currentVaultItem.relative_path, activeContent) ||
                 isPdfFile(currentVaultItem.relative_path))}
             onSelectTab={(path) => selectTab(path)}
-            onCloseTab={(path) => closeTab(path)}
-            onCloseAllTabs={closeAllTabs}
-            onCloseOtherTabs={closeOtherTabs}
-            onCloseTabsToRight={closeTabsToRight}
+            onCloseTab={(path) => requestCloseTab(path)}
+            onCloseAllTabs={requestCloseAllTabs}
+            onCloseOtherTabs={requestCloseOtherTabs}
+            onCloseTabsToRight={requestCloseTabsToRight}
             onOpenInNewWindow={handleOpenInNewWindow}
             onReorderTab={reorderTab}
             onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
@@ -3400,7 +3666,7 @@
             markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
             onChangeMarkdownView={handleChangeSplitMarkdownView}
             title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
-            showSaveButton={!autoSave &&
+            showSaveButton={(!autoSave || (!!activeSplitTabPath && lockedFiles.has(activeSplitTabPath))) &&
               isSplitEditing &&
               !!activeSplitTabPath &&
               !isSyntheticTab(activeSplitTabPath) &&
@@ -3409,7 +3675,7 @@
                 isDrawingTab(currentSplitVaultItem.relative_path, openedNotes[activeSplitTabPath]?.content) ||
                 isPdfFile(currentSplitVaultItem.relative_path))}
             onSelectTab={(path) => selectSplitTab(path)}
-            onCloseTab={(path) => closeSplitTab(path)}
+            onCloseTab={(path) => requestCloseSplitTab(path)}
             onCloseAllTabs={closeAllSplitTabs}
             onCloseOtherTabs={closeOtherSplitTabs}
             onCloseTabsToRight={closeSplitTabsToRight}
@@ -3490,6 +3756,17 @@
     bind:open={isPluginsModalOpen}
     app={synapseApp}
     repository={vaultRepository}
+  />
+
+  <!-- 8. DIÁLOGO DE ADVERTENCIA PARA ARCHIVOS BLOQUEADOS CON CAMBIOS SIN PERSISTIR -->
+  <UnsavedChangesDialog
+    bind:open={unsavedDialogOpen}
+    files={unsavedDialogFiles}
+    isWindowClose={unsavedDialogIsWindowClose}
+    loading={isForceSavingUnsaved}
+    onAbort={handleUnsavedDialogAbort}
+    onDiscard={handleUnsavedDialogDiscard}
+    onForceSave={handleUnsavedDialogForceSave}
   />
 </div>
 

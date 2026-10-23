@@ -834,10 +834,17 @@ pub fn save_vault_ui_state(
     expanded_folders: Option<Vec<String>>,
     diff_visual_mode: Option<String>,
     diff_text_mode: Option<String>,
+    locked_files: Option<Vec<String>>,
 ) -> Result<(), String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     if let Some(ref engine) = *guard {
-        engine.save_vault_ui_state(sidebar_width, expanded_folders, diff_visual_mode, diff_text_mode);
+        engine.save_vault_ui_state(
+            sidebar_width,
+            expanded_folders,
+            diff_visual_mode,
+            diff_text_mode,
+            locked_files,
+        );
     }
     Ok(())
 }

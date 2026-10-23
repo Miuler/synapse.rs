@@ -16,7 +16,7 @@
   import { ExcalidrawViewer } from '@features/excalidraw-editor';
   import { MermaidViewer } from '@features/mermaid-editor';
   import { MermanViewer } from '@features/merman-editor';
-  import { AlertCircle, HardDrive, GitCommit, Split } from 'lucide-svelte';
+  import { AlertCircle, HardDrive, GitCommit, Split, Eye, Pencil } from 'lucide-svelte';
 
   interface Props {
     filePath: string;
@@ -31,6 +31,9 @@
   let gitRevision = $state<GitFileRevisionResult | null>(null);
   let localContent = $state<string>('');
   let localDataUrl = $state<string | null>(null);
+
+  // Por defecto el archivo local inicia en modo lectura (read-only)
+  let isLocalEditable = $state(false);
 
   let splitRatio = $state(50);
   let isResizing = $state(false);
@@ -140,9 +143,33 @@
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
-          <span>Disco Duro (Local{#if isDrawing || isDiagram} — Editable{/if})</span>
+          <span>Disco Duro (Local{#if (isDrawing || isDiagram) && isLocalEditable} — Editable{:else if isDrawing || isDiagram} — Lectura{/if})</span>
         </div>
         <div class="pane-header-right">
+          {#if isDrawing || isDiagram}
+            <div class="mode-toggle-group" role="group" aria-label="Modo de edición local">
+              <button
+                type="button"
+                class="mode-toggle-btn"
+                class:active={!isLocalEditable}
+                onclick={() => (isLocalEditable = false)}
+                title="Modo lectura (por defecto)"
+              >
+                <Eye size={12} />
+                <span>Lectura</span>
+              </button>
+              <button
+                type="button"
+                class="mode-toggle-btn"
+                class:active={isLocalEditable}
+                onclick={() => (isLocalEditable = true)}
+                title="Modo escritura (aplica únicamente al archivo local en disco)"
+              >
+                <Pencil size={12} />
+                <span>Escritura</span>
+              </button>
+            </div>
+          {/if}
           {#if isSavingLocal}
             <span class="saving-indicator">Guardando...</span>
           {/if}
@@ -154,7 +181,7 @@
         {#if isDrawing}
           <ExcalidrawViewer
             content={localContent}
-            readOnly={false}
+            readOnly={!isLocalEditable}
             onChange={(updated) => persistLocalChanges(updated)}
             onSave={(updated) => updated && persistLocalChanges(updated)}
           />
@@ -162,13 +189,13 @@
           {#if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer
               content={localContent}
-              readOnly={false}
+              readOnly={!isLocalEditable}
               onChange={(updated) => persistLocalChanges(updated)}
             />
           {:else}
             <MermanViewer
               content={localContent}
-              readOnly={false}
+              readOnly={!isLocalEditable}
               onChange={(updated) => persistLocalChanges(updated)}
             />
           {/if}
@@ -343,7 +370,43 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    max-width: 60%;
+    max-width: 65%;
+  }
+
+  .mode-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-tertiary, #161b22);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 4px;
+    padding: 1px;
+    gap: 2px;
+  }
+
+  .mode-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mode-toggle-btn:hover {
+    color: var(--text-primary, #f0f6fc);
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .mode-toggle-btn.active {
+    background-color: var(--accent, #38bdf8);
+    color: #0b0d10;
+    font-weight: 600;
   }
 
   .saving-indicator {

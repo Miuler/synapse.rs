@@ -14,6 +14,7 @@ export interface TabItem {
   title: string;
   abs_path?: string;
   isDirty?: boolean;
+  isLocked?: boolean;
   kind?: VaultItemKind;
 }
 
