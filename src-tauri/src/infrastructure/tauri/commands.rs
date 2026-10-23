@@ -45,21 +45,29 @@ pub struct AppState {
     pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct VaultFileStatDto {
-    pub ctime: Option<u128>,
-    pub mtime: u128,
-    pub size: u64,
+pub use crate::infrastructure::navigation::model::{VaultFileDto, VaultFileStatDto};
+use crate::infrastructure::navigation::engine::VaultFilesStream;
+use serde::ser::{SerializeSeq, Serializer};
+
+pub struct VaultFilesResponse {
+    pub engine: Option<Arc<NavigationEngine>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct VaultFileDto {
-    pub path: String,
-    pub name: String,
-    pub basename: String,
-    pub extension: String,
-    pub parent: Option<String>,
-    pub stat: VaultFileStatDto,
+impl Serialize for VaultFilesResponse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(engine) = &self.engine {
+            VaultFilesStream {
+                engine: Arc::clone(engine),
+            }
+            .serialize(serializer)
+        } else {
+            let seq = serializer.serialize_seq(Some(0))?;
+            seq.end()
+        }
+    }
 }
 
 pub fn open_vault_components(
@@ -220,32 +228,24 @@ pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> 
 }
 
 #[tauri::command]
-pub fn get_vault_files(state: State<'_, AppState>) -> Result<Vec<VaultFileDto>, String> {
+pub fn get_vault_files(state: State<'_, AppState>) -> Result<VaultFilesResponse, String> {
+    let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    Ok(VaultFilesResponse {
+        engine: engine_guard.as_ref().map(Arc::clone),
+    })
+}
+
+#[tauri::command]
+pub fn get_note_meta(
+    relative_path: String,
+    state: State<'_, AppState>,
+) -> Result<Option<VaultFileDto>, String> {
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(engine) = engine_guard.as_ref() else {
-        return Ok(Vec::new());
+        return Ok(None);
     };
 
-    Ok(engine.notes.iter().map(|entry| {
-        let meta = entry.value();
-        let path = meta.path.to_string();
-        let name = path.rsplit('/').next().unwrap_or(&path).to_string();
-        let basename = name.rsplit_once('.').map(|(base, _)| base).unwrap_or(&name).to_string();
-        let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("").to_string();
-        let parent = path.rfind('/').map(|index| path[..index].to_string());
-        VaultFileDto {
-            path,
-            name,
-            basename,
-            extension,
-            parent,
-            stat: VaultFileStatDto {
-                ctime: meta.created_nanos.map(|value| value / 1_000_000),
-                mtime: meta.mtime_nanos / 1_000_000,
-                size: meta.size_bytes,
-            },
-        }
-    }).collect())
+    Ok(engine.get_note_meta(&relative_path))
 }
 
 #[tauri::command]

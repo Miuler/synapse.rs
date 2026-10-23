@@ -23,6 +23,7 @@ export interface VaultFile {
   extension: string;
   parent?: string;
   stat: VaultFileStat;
+  view_mode?: string;
 }
 
 export interface SaveNoteParams {
@@ -231,6 +232,11 @@ export interface VaultRepository {
 
   /** Obtiene únicamente metadatos desde el índice DashMap, sin contenido. */
   getVaultFiles(): Promise<VaultFile[]>;
+
+  /**
+   * Obtiene los metadatos de un archivo específico en tiempo O(1) directamente desde el índice DashMap de Rust.
+   */
+  getNoteMeta(relativePath: string): Promise<VaultFile | null>;
 
   /**
    * Obtiene los elementos directos (hijos) de una carpeta o de la raíz de la bóveda
@@ -593,6 +599,19 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.warn('Error en TauriVaultRepository al obtener get_vault_files:', error);
       return [];
+    }
+  }
+
+  async getNoteMeta(relativePath: string): Promise<VaultFile | null> {
+    if (!this.isConnected() || !relativePath) return null;
+
+    try {
+      return await invokeTauri<VaultFile | null>('get_note_meta', {
+        relativePath,
+      });
+    } catch (error) {
+      console.warn(`Error en TauriVaultRepository al obtener get_note_meta para ${relativePath}:`, error);
+      return null;
     }
   }
 

@@ -23,3 +23,40 @@ pub struct NoteMeta {
     #[serde(default)]
     pub view_mode: Option<CompactString>, // Modo del archivo ("reading", "live", "source")
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultFileStatDto {
+    pub ctime: Option<u128>,
+    pub mtime: u128,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultFileDto {
+    pub path: String,
+    pub name: String,
+    pub basename: String,
+    pub extension: String,
+    pub parent: Option<String>,
+    pub stat: VaultFileStatDto,
+    #[serde(default)]
+    pub view_mode: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct VaultFileStatRef {
+    pub ctime: Option<u128>,
+    pub mtime: u128,
+    pub size: u64,
+}
+
+#[derive(Serialize)]
+pub struct VaultFileRef<'a> {
+    pub path: &'a str,
+    pub name: &'a str,
+    pub basename: &'a str,
+    pub extension: &'a str,
+    pub parent: Option<&'a str>,
+    pub stat: VaultFileStatRef,
+    pub view_mode: Option<&'a str>,
+}

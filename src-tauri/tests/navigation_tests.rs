@@ -1116,5 +1116,55 @@ fn test_duplicate_filenames_proximity_resolution() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_get_note_meta_o1_and_streaming_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let test_dir = temp.path().to_path_buf();
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
+    engine.notes.insert(
+        42,
+        NoteMeta {
+            id: 42,
+            path: CompactString::new("diagramas/esquema.excalidraw"),
+            title: CompactString::new("Esquema General"),
+            mtime_nanos: 1700000000_000_000_000,
+            size_bytes: 1024,
+            created_nanos: Some(1690000000_000_000_000),
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: Some(CompactString::new("live")),
+        },
+    );
+    engine.path_index.insert(CompactString::new("diagramas/esquema.excalidraw"), 42);
+
+    // 1. O(1) lookup via get_note_meta
+    let meta = engine.get_note_meta("diagramas/esquema.excalidraw").expect("Note should be found");
+    assert_eq!(meta.path, "diagramas/esquema.excalidraw");
+    assert_eq!(meta.name, "esquema.excalidraw");
+    assert_eq!(meta.basename, "esquema");
+    assert_eq!(meta.extension, "excalidraw");
+    assert_eq!(meta.parent.as_deref(), Some("diagramas"));
+    assert_eq!(meta.view_mode.as_deref(), Some("live"));
+    assert_eq!(meta.stat.size, 1024);
+
+    // Non-existent lookup returns None
+    assert!(engine.get_note_meta("inexistente.md").is_none());
+
+    // 2. Streaming serialization without intermediate Vec allocation
+    let stream = engine.files_stream();
+    let json = serde_json::to_string(&stream).expect("Stream should serialize to JSON");
+    assert!(json.starts_with('['));
+    assert!(json.ends_with(']'));
+    assert!(json.contains("diagramas/esquema.excalidraw"));
+    assert!(json.contains("live"));
+
+    engine.shutdown();
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
 
 

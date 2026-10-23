@@ -2,6 +2,7 @@ use compact_str::CompactString;
 use dashmap::DashMap;
 use nucleo::{Config, Nucleo, Utf32String};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::matcher::populate_nucleo_from_dashmap;
-use super::model::{NoteId, NoteMeta};
+use super::model::{NoteId, NoteMeta, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef};
 use super::storage;
 use super::watcher::VaultFsWatcher;
 use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
@@ -717,6 +718,44 @@ impl NavigationEngine {
         None
     }
 
+    /// Retrieves metadata for a single note in O(1) time using path_index.
+    pub fn get_note_meta(&self, relative_path: &str) -> Option<VaultFileDto> {
+        let compact_path = CompactString::new(relative_path);
+        if let Some(id_ref) = self.path_index.get(&compact_path) {
+            let id = *id_ref.value();
+            drop(id_ref);
+            if let Some(entry) = self.notes.get(&id) {
+                let meta = entry.value();
+                let path = meta.path.to_string();
+                let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                let basename = name.rsplit_once('.').map(|(base, _)| base).unwrap_or(&name).to_string();
+                let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("").to_string();
+                let parent = path.rfind('/').map(|index| path[..index].to_string());
+                return Some(VaultFileDto {
+                    path,
+                    name,
+                    basename,
+                    extension,
+                    parent,
+                    stat: VaultFileStatDto {
+                        ctime: meta.created_nanos.map(|value| value / 1_000_000),
+                        mtime: meta.mtime_nanos / 1_000_000,
+                        size: meta.size_bytes,
+                    },
+                    view_mode: meta.view_mode.as_ref().map(|s| s.to_string()),
+                });
+            }
+        }
+        None
+    }
+
+    /// Returns a streaming serializer for all vault files directly from DashMap without intermediate Vec allocations.
+    pub fn files_stream(self: &Arc<Self>) -> VaultFilesStream {
+        VaultFilesStream {
+            engine: Arc::clone(self),
+        }
+    }
+
     /// Saves workspace UI state (sidebar width, expanded folders, diff preferences) to .synapse/workspace.json on disk.
     pub fn save_workspace_ui_disk(&self) {
         if let Some(parent) = self.cache_path.parent() {
@@ -1313,6 +1352,44 @@ fn collect_supported_files_recursive(
                 }
             }
         }
+    }
+}
+
+pub struct VaultFilesStream {
+    pub engine: Arc<NavigationEngine>,
+}
+
+impl Serialize for VaultFilesStream {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let count = self.engine.notes.len();
+        let mut seq = serializer.serialize_seq(Some(count))?;
+        for entry in self.engine.notes.iter() {
+            let meta = entry.value();
+            let path = meta.path.as_str();
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let basename = name.rsplit_once('.').map(|(base, _)| base).unwrap_or(name);
+            let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
+            let parent = path.rfind('/').map(|index| &path[..index]);
+
+            let file_ref = VaultFileRef {
+                path,
+                name,
+                basename,
+                extension,
+                parent,
+                stat: VaultFileStatRef {
+                    ctime: meta.created_nanos.map(|value| value / 1_000_000),
+                    mtime: meta.mtime_nanos / 1_000_000,
+                    size: meta.size_bytes,
+                },
+                view_mode: meta.view_mode.as_deref(),
+            };
+            seq.serialize_element(&file_ref)?;
+        }
+        seq.end()
     }
 }
 
