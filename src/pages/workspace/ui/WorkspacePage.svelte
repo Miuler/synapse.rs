@@ -60,6 +60,15 @@
     return false;
   }
 
+  function cleanTabTitle(rawTitle: string, path: string | null | undefined): string {
+    if (!path) return rawTitle;
+    const lowerPath = path.toLowerCase();
+    if (lowerPath.endsWith('.excalidraw.md')) {
+      return rawTitle.replace(/\.excalidraw\.md$/i, '').replace(/\.excalidraw$/i, '');
+    }
+    return rawTitle;
+  }
+
   function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
     if (!path) return fallbackTitle;
     if (path.startsWith("empty:")) return "Nueva pestaña";
@@ -83,7 +92,7 @@
       const f = parts.slice(1).join(":").split("/").pop() || parts.slice(1).join(":");
       return `[${rev.slice(0, 7)}] ${f}`;
     }
-    return fallbackTitle;
+    return cleanTabTitle(fallbackTitle, path);
   }
 
   function parseTabDragData(e: DragEvent): { path: string; windowLabel: string; title?: string } | null {
@@ -1385,10 +1394,12 @@
       const note = openedNotes[path];
       const isDirty = note ? note.content !== note.savedContent : false;
       const isDrawing = isDrawingTab(path, note?.content);
+      const rawTitle = note?.title || vaultItem?.title || path;
+      const displayTitle = cleanTabTitle(rawTitle, path);
       return {
         path,
         abs_path: note?.abs_path || vaultItem?.abs_path,
-        title: note?.title || vaultItem?.title || path,
+        title: displayTitle,
         isDirty,
         kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
@@ -1409,10 +1420,12 @@
       const note = openedNotes[path];
       const isDirty = note ? note.content !== note.savedContent : false;
       const isDrawing = isDrawingTab(path, note?.content);
+      const rawTitle = note?.title || vaultItem?.title || path;
+      const displayTitle = cleanTabTitle(rawTitle, path);
       return {
         path,
         abs_path: note?.abs_path || vaultItem?.abs_path,
-        title: note?.title || vaultItem?.title || path,
+        title: displayTitle,
         isDirty,
         kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
