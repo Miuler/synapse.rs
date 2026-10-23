@@ -22,7 +22,6 @@
     Trash2,
     Search,
     PlusCircle,
-    FileInput,
     ShieldCheck,
     Database,
     Sparkles,
@@ -456,16 +455,6 @@
             <span class="qa-title">Clonar repositorio Git</span>
           </div>
           <kbd class="qa-kbd">{shortcutsConfig.welcome.clone_git}</kbd>
-        </button>
-
-        <button type="button" class="quick-action-btn" onclick={handleSelectLocalFolder}>
-          <div class="qa-left">
-            <div class="qa-icon-wrap purple-icon">
-              <FileInput size={17} />
-            </div>
-            <span class="qa-title">Importar Obsidian / Markdown</span>
-          </div>
-          <ArrowRight size={15} class="qa-arrow" />
         </button>
       </div>
 
@@ -1183,10 +1172,6 @@
 
   .qa-icon-wrap.orange-icon {
     color: #fb923c;
-  }
-
-  .qa-icon-wrap.purple-icon {
-    color: #c084fc;
   }
 
   .qa-texts {
