@@ -1346,9 +1346,7 @@
       !isImageFile(activeTabPath) &&
       !isPdfFile(activeTabPath) &&
       activeNote &&
-      !activeNote.isLoading &&
-      typeof activeNote.content === "string" &&
-      activeNote.content.trim().length > 0
+      !activeNote.isLoading
     )
   );
 
@@ -1360,9 +1358,7 @@
       !isImageFile(activeSplitTabPath) &&
       !isPdfFile(activeSplitTabPath) &&
       openedNotes[activeSplitTabPath] &&
-      !openedNotes[activeSplitTabPath]?.isLoading &&
-      typeof openedNotes[activeSplitTabPath]?.content === "string" &&
-      openedNotes[activeSplitTabPath]?.content.trim().length > 0
+      !openedNotes[activeSplitTabPath]?.isLoading
     )
   );
 
@@ -1941,16 +1937,47 @@
     }
   }
 
-  async function createNewVaultItem(emptyTabPathToReplace?: string) {
-    const newTitle = `Nuevo Archivo ${vaultItems.length + 1}`;
-    const newRelPath = `${newTitle}.md`;
+  async function createNewVaultItem(
+    emptyTabPathToReplace?: string,
+    fileType: 'markdown' | 'mermaid' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+  ) {
+    let extension = 'md';
+    let defaultBaseTitle = 'Nuevo Archivo';
+    let initialContent = '';
+
+    if (fileType === 'mermaid') {
+      extension = 'mmd';
+      defaultBaseTitle = 'Nuevo Diagrama';
+      initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+    } else if (fileType === 'excalidraw') {
+      extension = 'excalidraw';
+      defaultBaseTitle = 'Nuevo Dibujo';
+      initialContent = JSON.stringify(
+        {
+          type: 'excalidraw',
+          version: 2,
+          source: 'synapse',
+          elements: [],
+          appState: {},
+          files: {},
+        },
+        null,
+        2
+      );
+    } else if (fileType === 'obsidian-excalidraw') {
+      extension = 'excalidraw.md';
+      defaultBaseTitle = 'Nuevo Dibujo';
+      initialContent = '---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n\n# Excalidraw Data\n\n```json\n{\n  "type": "excalidraw",\n  "version": 2,\n  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin",\n  "elements": [],\n  "appState": {},\n  "files": {}\n}\n```\n';
+    }
+
+    const newTitle = `${defaultBaseTitle} ${vaultItems.length + 1}`;
+    const newRelPath = `${newTitle}.${extension}`;
     const newVaultItem: VaultItem = {
       id: String(vaultItems.length + 1),
       title: newTitle,
       relative_path: newRelPath,
       abs_path: undefined,
     };
-    const initialContent = "# Nuevo Archivo\n\nEscribe tu contenido aquí...";
     vaultItems.push(newVaultItem);
     openedNotes[newRelPath] = {
       relative_path: newRelPath,
@@ -1961,6 +1988,7 @@
       encoding: "---",
       isLoading: false,
       isLoaded: true,
+      viewMode: "live",
     };
 
     const targetEmptyPath = emptyTabPathToReplace || (
@@ -2039,12 +2067,35 @@
       },
       {
         id: "cmd-new-file",
-        name: "Crear nuevo archivo",
+        name: "Crear nuevo archivo Markdown",
         category: "Archivo",
         shortcut: shortcutsConfig.workspace.new_file,
         action: () => {
-          info(`activeTabPath: ${activeTabPath}`);
           createNewVaultItem();
+        },
+      },
+      {
+        id: "cmd-new-mermaid",
+        name: "Crear nuevo diagrama Mermaid (.mmd)",
+        category: "Archivo",
+        action: () => {
+          createNewVaultItem(undefined, 'mermaid');
+        },
+      },
+      {
+        id: "cmd-new-excalidraw",
+        name: "Crear nuevo dibujo Excalidraw (.excalidraw)",
+        category: "Archivo",
+        action: () => {
+          createNewVaultItem(undefined, 'excalidraw');
+        },
+      },
+      {
+        id: "cmd-new-obsidian-excalidraw",
+        name: "Crear nuevo dibujo Excalidraw de Obsidian (.excalidraw.md)",
+        category: "Archivo",
+        action: () => {
+          createNewVaultItem(undefined, 'obsidian-excalidraw');
         },
       },
       {

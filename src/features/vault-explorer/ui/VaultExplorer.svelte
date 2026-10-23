@@ -9,7 +9,7 @@
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -897,7 +897,10 @@
 
   let isCreatingNote = $state(false);
 
-  async function handleNewNote(fromKeyboard: boolean | unknown = false) {
+  async function handleNewNote(
+    fromKeyboard: boolean | unknown = false,
+    fileType: 'markdown' | 'mermaid' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+  ) {
     if (isCreatingNote) return;
     isCreatingNote = true;
 
@@ -905,10 +908,37 @@
       const isKbd = typeof fromKeyboard === 'boolean' ? fromKeyboard : false;
       const destDir = getTargetDirectory(isKbd);
 
-      // Generar nombre único para la nueva nota (evita sobreescritura accidental)
-      const baseTitle = 'Sin título';
+      let extension = 'md';
+      let baseTitle = 'Sin título';
+      let initialContent = '';
+
+      if (fileType === 'mermaid') {
+        extension = 'mmd';
+        baseTitle = 'Diagrama';
+        initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+      } else if (fileType === 'excalidraw') {
+        extension = 'excalidraw';
+        baseTitle = 'Dibujo';
+        initialContent = JSON.stringify(
+          {
+            type: 'excalidraw',
+            version: 2,
+            source: 'synapse',
+            elements: [],
+            appState: {},
+            files: {},
+          },
+          null,
+          2
+        );
+      } else if (fileType === 'obsidian-excalidraw') {
+        extension = 'excalidraw.md';
+        baseTitle = 'Dibujo';
+        initialContent = '---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n\n# Excalidraw Data\n\n```json\n{\n  "type": "excalidraw",\n  "version": 2,\n  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin",\n  "elements": [],\n  "appState": {},\n  "files": {}\n}\n```\n';
+      }
+
       let title = baseTitle;
-      let candidateRelPath = destDir ? `${destDir}/${title}.md` : `${title}.md`;
+      let candidateRelPath = destDir ? `${destDir}/${title}.${extension}` : `${title}.${extension}`;
       let counter = 1;
 
       const existingPaths = new Set(vaultItems.map((item) => item.relative_path));
@@ -920,15 +950,15 @@
 
       while (existingPaths.has(candidateRelPath)) {
         title = `${baseTitle} ${counter}`;
-        candidateRelPath = destDir ? `${destDir}/${title}.md` : `${title}.md`;
+        candidateRelPath = destDir ? `${destDir}/${title}.${extension}` : `${title}.${extension}`;
         counter++;
       }
 
-      // Guardar la nueva nota en el backend
+      // Guardar el nuevo archivo en el backend
       await vaultRepository.saveNote({
         relativePath: candidateRelPath,
         title,
-        content: '',
+        content: initialContent,
         encoding: 'UTF-8',
       });
 
@@ -1812,11 +1842,34 @@
 
         <ContextMenu.Item
           class="context-menu-item"
-          onSelect={handleNewNote}
+          onSelect={() => handleNewNote(false, 'markdown')}
         >
           <FilePlus class="context-menu-item-icon" />
-          <span>Nueva nota</span>
-          <!--<span class="context-menu-shortcut">Ctrl+C</span>-->
+          <span>Nueva nota Markdown (.md)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'mermaid')}
+        >
+          <FileCode class="context-menu-item-icon" />
+          <span>Nuevo diagrama Mermaid (.mmd)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'excalidraw')}
+        >
+          <PenTool class="context-menu-item-icon" />
+          <span>Nuevo dibujo Excalidraw (.excalidraw)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'obsidian-excalidraw')}
+        >
+          <PenTool class="context-menu-item-icon" />
+          <span>Nuevo dibujo Excalidraw Obsidian (.excalidraw.md)</span>
         </ContextMenu.Item>
 
         <ContextMenu.Separator class="context-menu-divider" />
