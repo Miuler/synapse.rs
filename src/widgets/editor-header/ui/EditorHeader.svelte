@@ -496,15 +496,34 @@
     };
   });
 
+  async function handleHeaderDblClick(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    // No alternar si el doble clic ocurrió sobre un botón, input o pestaña
+    if (target.closest('button, input, [data-tauri-drag-region="false"], .tab-title-container')) {
+      return;
+    }
+    if (isTauriEnvironment()) {
+      try {
+        const appWindow = getCurrentWebviewWindow();
+        await appWindow.toggleMaximize();
+      } catch (err) {
+        console.error('Error al alternar maximizar ventana:', err);
+      }
+    }
+  }
+
   export { openTabsMenu, toggleTabsMenu };
 </script>
 
-<header class="editor-header" data-tauri-drag-region>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<header class="editor-header" data-tauri-drag-region ondblclick={handleHeaderDblClick}>
   <!-- BOTONES DE NAVEGACIÓN ATRÁS / ADELANTE -->
-  <div class="nav-buttons">
+  <div class="nav-buttons" data-tauri-drag-region="false">
     <button
       type="button"
       class="icon-btn"
+      data-tauri-drag-region="false"
       disabled={!canGoBack}
       onclick={() => {
         if (onNavigateBack) onNavigateBack();
@@ -517,6 +536,7 @@
     <button
       type="button"
       class="icon-btn"
+      data-tauri-drag-region="false"
       disabled={!canGoForward}
       onclick={() => {
         if (onNavigateForward) onNavigateForward();
@@ -529,11 +549,12 @@
   </div>
 
   <!-- ÁREA CENTRAL DE PESTAÑAS: OCUPA SOLO EL ESPACIO DISPONIBLE Y SOPORTA SCROLL CON FLECHAS -->
-  <div class="tabs-area-wrapper" data-tauri-drag-region="false">
+  <div class="tabs-area-wrapper" data-tauri-drag-region>
     {#if canScrollLeft}
       <button
         type="button"
         class="tab-scroll-btn left"
+        data-tauri-drag-region="false"
         onclick={scrollLeft}
         title="Desplazar pestañas a la izquierda"
       >
@@ -545,7 +566,7 @@
     <div
       class="tabs-scroll-container"
       class:drop-active={isContainerDropActive}
-      data-tauri-drag-region="false"
+      data-tauri-drag-region
       bind:this={tabsScrollRef}
       onscroll={checkScroll}
       onwheel={handleWheel}
@@ -695,6 +716,7 @@
       <button
         type="button"
         class="new-tab-btn"
+        data-tauri-drag-region="false"
         onclick={() => { if (onNewTab) onNewTab(); }}
         title="Nueva pestaña (Ctrl+T)"
       >
@@ -706,6 +728,7 @@
       <button
         type="button"
         class="tab-scroll-btn right"
+        data-tauri-drag-region="false"
         onclick={scrollRight}
         title="Desplazar pestañas a la derecha"
       >
@@ -715,6 +738,7 @@
       <button
         type="button"
         class="new-tab-btn"
+        data-tauri-drag-region="false"
         onclick={() => { if (onNewTab) onNewTab(); }}
         title="Nueva pestaña (Ctrl+T)"
       >
@@ -913,6 +937,9 @@
     <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones del archivo">
       <MoreHorizontal size={14} class="icon" />
     </button>
+
+    <!-- Espaciador dedicado para arrastrar la ventana incluso con múltiples pestañas abiertas -->
+    <div class="window-drag-spacer" data-tauri-drag-region title="Arrastrar ventana"></div>
 
     {#if showWindowControls}
       <WindowControls />
@@ -1131,6 +1158,12 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .window-drag-spacer {
+    flex: 0 0 24px;
+    height: 100%;
+    cursor: default;
   }
 
   .tabs-actions-group {

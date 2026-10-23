@@ -516,6 +516,17 @@
       }
     }
 
+    // Si el objetivo es una carpeta que existe, aseguramos que también quede expandida y sus hijos cargados
+    if (folderChildren[pathToLocate] !== undefined || (targetPath && !targetPath.includes('.'))) {
+      if (!folderChildren[pathToLocate]) {
+        await loadDirectory(pathToLocate);
+      }
+      if (!expandedFolders[pathToLocate]) {
+        expandedFolders[pathToLocate] = true;
+        changed = true;
+      }
+    }
+
     if (changed) {
       persistExpandedFolders();
     }
@@ -1658,6 +1669,7 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="sidebar-header"
+            data-tauri-drag-region
             oncontextmenu={() => {
               contextMenuNode = null;
               selectedPaths = [];
@@ -1665,10 +1677,11 @@
               anchorPath = null;
             }}
           >
-            <div class="sidebar-header-left">
+            <div class="sidebar-header-left" data-tauri-drag-region>
               <button
                 // class="sidebar-title"
                 class="rust-badge-btn"
+                data-tauri-drag-region="false"
                 onclick={onOpenVaultFolder}
                 title={vaultPath || 'Bóveda de Archivos'}
               >
@@ -1678,6 +1691,7 @@
                 <button
                   type="button"
                   class="git-branch-badge"
+                  data-tauri-drag-region="false"
                   onclick={handleOpenBranchDialog}
                   title="Rama Git: {gitBranch} (Clic para gestionar ramas)"
                 >
@@ -1686,7 +1700,7 @@
                 </button>
               {/if}
             </div>
-            <div class="sidebar-header-actions">
+            <div class="sidebar-header-actions" data-tauri-drag-region="false">
               {#if isGitRepo}
                 <button
                   type="button"

@@ -2880,6 +2880,22 @@
     }
   }
 
+  async function ensureExplorerVisible() {
+    if (activeRibbonTab !== 'files' || sidebarWidth < 140) {
+      if (sidebarWidth < 140) {
+        sidebarWidth = 240;
+      }
+      activeRibbonTab = 'files';
+      await tick();
+    }
+  }
+
+  async function handleBreadcrumbNavigateFolder(folderPath: string) {
+    if (isDetachedWindow) return;
+    await ensureExplorerVisible();
+    vaultExplorerRef?.locateActiveFile(folderPath);
+  }
+
   function toggleSidebar() {
     toggleExplorer();
   }
@@ -3059,7 +3075,7 @@
             <BreadCrumb
               path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
               readOnly={isStandaloneMode}
-              onNavigateFolder={(folderPath) => vaultExplorerRef?.locateActiveFile(folderPath)}
+              onNavigateFolder={handleBreadcrumbNavigateFolder}
               onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
             />
             {#if isLoading}
