@@ -17,6 +17,7 @@ use infrastructure::tauri::commands::{
     set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab,
     get_recent_workspaces, get_shortcuts_config, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
     open_file_with_default_app, get_startup_target, select_standalone_file, parse_startup_args,
+    fetch_community_plugins, install_community_plugin, uninstall_community_plugin,
     AppState,
 };
 use std::env;
@@ -124,7 +125,10 @@ pub fn run() {
             open_workspace_in_new_window,
             open_file_with_default_app,
             get_startup_target,
-            select_standalone_file
+            select_standalone_file,
+            fetch_community_plugins,
+            install_community_plugin,
+            uninstall_community_plugin
         ])
         .setup(|app| {
             let handle = app.handle().clone();

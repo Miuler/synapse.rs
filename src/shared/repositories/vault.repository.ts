@@ -88,6 +88,23 @@ export interface GitImageDiffResult {
   has_differences: boolean;
 }
 
+export interface CommunityPluginDto {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  repo: string;
+  branch?: string;
+  downloads?: number;
+}
+
+export interface CommunityPluginInstallResultDto {
+  id: string;
+  version: string;
+  installed_path: string;
+  has_styles: boolean;
+}
+
 export interface GitBranchItem {
   name: string;
   ref_name: string;
@@ -476,6 +493,35 @@ export interface VaultRepository {
    * Abre un workspace en una nueva ventana independiente de Tauri.
    */
   openWorkspaceInNewWindow(path: string): Promise<void>;
+
+  /**
+   * Obtiene la lista de plugins comunitarios oficiales de Obsidian desde GitHub Releases / Obsidian releases.
+   */
+  fetchCommunityPlugins(): Promise<CommunityPluginDto[]>;
+
+  /**
+   * Descarga e instala un plugin comunitario de Obsidian en .synapse/plugins/{id}.
+   */
+  installCommunityPlugin(
+    pluginId: string,
+    repo: string,
+    vaultPath?: string
+  ): Promise<CommunityPluginInstallResultDto>;
+
+  /**
+   * Desinstala un plugin comunitario de Obsidian eliminando su carpeta.
+   */
+  uninstallCommunityPlugin(pluginId: string, vaultPath?: string): Promise<void>;
+
+  /**
+   * Obtiene la lista de IDs de plugins habilitados en la bóveda actual.
+   */
+  getEnabledPlugins(vaultPath?: string): Promise<string[]>;
+
+  /**
+   * Persiste la lista de IDs de plugins habilitados en .synapse/community-plugins.json.
+   */
+  setEnabledPlugins(plugins: string[], vaultPath?: string): Promise<void>;
 }
 
 /**
@@ -1257,6 +1303,75 @@ export class TauriVaultRepository implements VaultRepository {
       console.error('Error al abrir archivo con la aplicación por defecto del sistema:', error);
       throw error;
     }
+  }
+
+  async fetchCommunityPlugins(): Promise<CommunityPluginDto[]> {
+    try {
+      return await invokeTauri<CommunityPluginDto[]>('fetch_community_plugins');
+    } catch (error) {
+      console.error('Error al obtener catálogo de plugins comunitarios:', error);
+      throw error;
+    }
+  }
+
+  async installCommunityPlugin(
+    pluginId: string,
+    repo: string,
+    vaultPath?: string
+  ): Promise<CommunityPluginInstallResultDto> {
+    try {
+      return await invokeTauri<CommunityPluginInstallResultDto>('install_community_plugin', {
+        vaultPath: vaultPath ?? null,
+        pluginId,
+        repo,
+      });
+    } catch (error) {
+      console.error(`Error al instalar plugin '${pluginId}':`, error);
+      throw error;
+    }
+  }
+
+  async uninstallCommunityPlugin(pluginId: string, vaultPath?: string): Promise<void> {
+    try {
+      await invokeTauri<void>('uninstall_community_plugin', {
+        vaultPath: vaultPath ?? null,
+        pluginId,
+      });
+    } catch (error) {
+      console.error(`Error al desinstalar plugin '${pluginId}':`, error);
+      throw error;
+    }
+  }
+
+  async getEnabledPlugins(_vaultPath?: string): Promise<string[]> {
+    // 1. Intentar leer .synapse/community-plugins.json
+    try {
+      const primary = await this.readNote('.synapse/community-plugins.json');
+      if (primary && primary.content) {
+        const parsed = JSON.parse(primary.content);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+
+    // 2. Fallback a .obsidian/community-plugins.json
+    try {
+      const fallback = await this.readNote('.obsidian/community-plugins.json');
+      if (fallback && fallback.content) {
+        const parsed = JSON.parse(fallback.content);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+
+    // 3. Fallback por defecto: Excalidraw si existe
+    return ['obsidian-excalidraw-plugin'];
+  }
+
+  async setEnabledPlugins(plugins: string[], _vaultPath?: string): Promise<void> {
+    await this.saveNote({
+      relativePath: '.synapse/community-plugins.json',
+      title: 'community-plugins',
+      content: JSON.stringify(plugins, null, 2),
+    });
   }
 }
 

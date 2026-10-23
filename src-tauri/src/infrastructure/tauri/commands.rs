@@ -1,8 +1,10 @@
+use crate::application::use_cases::community_plugin_use_cases::CommunityPluginUseCases;
 use crate::application::use_cases::file_system_use_cases::FileSystemUseCases;
 use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
 use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
+use crate::domain::models::community_plugin::{CommunityPlugin, CommunityPluginInstallResult};
 use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
@@ -16,6 +18,7 @@ use crate::infrastructure::repositories::file_workspace_registry_repository::Fil
 use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
 use crate::infrastructure::services::file_system_service::FileSystemService;
+use crate::infrastructure::services::http_community_plugin_downloader::HttpCommunityPluginDownloader;
 use crate::infrastructure::services::git_service::{
     GitBranchesResult, GitDiffResponse, GitFileLogResult, GitFileRevisionResult, GitImageDiffResult,
     GitService, VaultGitStatus,
@@ -40,6 +43,7 @@ pub struct AppState {
     pub git_use_cases: GitUseCases<GitService>,
     pub file_system_use_cases: FileSystemUseCases<FileSystemService>,
     pub workspace_registry_use_cases: WorkspaceRegistryUseCases<FileWorkspaceRegistryRepository>,
+    pub community_plugin_use_cases: CommunityPluginUseCases<HttpCommunityPluginDownloader>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -147,6 +151,7 @@ impl AppState {
             git_use_cases: GitUseCases::new(GitService::new()),
             file_system_use_cases: FileSystemUseCases::new(FileSystemService),
             workspace_registry_use_cases,
+            community_plugin_use_cases: CommunityPluginUseCases::new(HttpCommunityPluginDownloader::new()),
             navigation_engine: Mutex::new(None),
             full_text: Mutex::new(None),
             app_handle: Arc::new(Mutex::new(None)),
@@ -175,6 +180,7 @@ impl AppState {
             git_use_cases: GitUseCases::new(GitService::new()),
             file_system_use_cases: FileSystemUseCases::new(FileSystemService),
             workspace_registry_use_cases,
+            community_plugin_use_cases: CommunityPluginUseCases::new(HttpCommunityPluginDownloader::new()),
             navigation_engine: Mutex::new(Some(engine)),
             full_text: Mutex::new(Some(full_text)),
             app_handle,
@@ -1940,6 +1946,58 @@ pub fn open_workspace_in_new_window(
     .map_err(|e| format!("Error creando nueva ventana de workspace: {}", e))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn fetch_community_plugins(
+    state: State<'_, AppState>,
+) -> Result<Vec<CommunityPlugin>, String> {
+    state.community_plugin_use_cases.fetch_community_plugins().await
+}
+
+#[tauri::command]
+pub async fn install_community_plugin(
+    state: State<'_, AppState>,
+    vault_path: Option<String>,
+    plugin_id: String,
+    repo: String,
+) -> Result<CommunityPluginInstallResult, String> {
+    let resolved_path = match vault_path {
+        Some(p) => PathBuf::from(p),
+        None => state
+            .active_vault_path
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+    };
+
+    state
+        .community_plugin_use_cases
+        .install_plugin(&resolved_path, &plugin_id, &repo)
+        .await
+}
+
+#[tauri::command]
+pub async fn uninstall_community_plugin(
+    state: State<'_, AppState>,
+    vault_path: Option<String>,
+    plugin_id: String,
+) -> Result<(), String> {
+    let resolved_path = match vault_path {
+        Some(p) => PathBuf::from(p),
+        None => state
+            .active_vault_path
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+    };
+
+    state
+        .community_plugin_use_cases
+        .uninstall_plugin(&resolved_path, &plugin_id)
+        .await
 }
 
 #[cfg(test)]

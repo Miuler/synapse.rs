@@ -12,6 +12,7 @@
     Sun,
     Moon,
     LayoutGrid,
+    Boxes,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
 
@@ -29,6 +30,7 @@
     { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
     { id: 'new-excalidraw', label: 'Nuevo dibujo Excalidraw (.excalidraw.md)', icon: 'pen-tool' },
     { id: 'command-palette', label: 'Paleta de comandos (Ctrl+P)', icon: 'command' },
+    { id: 'plugins', label: 'Plugins de la comunidad (Obsidian)', icon: 'plugins' },
     { id: 'graph', label: 'Vista de gráfico', icon: 'graph' },
   ];
 
@@ -72,6 +74,8 @@
                   <PenTool size={18} class="icon" />
                 {:else if tool.icon === 'command'}
                   <Command size={18} class="icon" />
+                {:else if tool.icon === 'plugins'}
+                  <Boxes size={18} class="icon" />
                 {:else if tool.icon === 'graph'}
                   <Network size={18} class="icon" />
                 {/if}

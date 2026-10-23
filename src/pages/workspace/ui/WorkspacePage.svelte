@@ -18,6 +18,7 @@
   import {PdfViewer} from "@features/pdf-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
+  import {CommunityPluginsModal} from "@features/community-plugins";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import {
     isImageFile,
@@ -114,6 +115,7 @@
   let isPaletteOpen = $state(false);
   let isQuickOpenOpen = $state(false);
   let isFullTextSearchOpen = $state(false);
+  let isPluginsModalOpen = $state(false);
   let pendingScrollTerms = $state<Record<string, string[]>>({});
   let isEditing = $state(false);
   let isVimMode = $state(false);
@@ -385,10 +387,19 @@
     if (!synapseApp && vaultRepository.isConnected()) {
       try {
         synapseApp = createSynapseApp(vaultRepository);
-        synapseApp.plugins.loadPlugin('obsidian-excalidraw-plugin').then((entry) => {
-          console.log(`[Workspace] Plugin de Obsidian '${entry.manifest.name}' (${entry.manifest.id}) cargado y activo.`);
+        vaultRepository.getEnabledPlugins().then(async (enabledList) => {
+          for (const pluginId of enabledList) {
+            try {
+              const entry = await synapseApp?.plugins.loadPlugin(pluginId);
+              if (entry) {
+                console.log(`[Workspace] Plugin de Obsidian '${entry.manifest.name}' (${entry.manifest.id}) cargado y activo.`);
+              }
+            } catch (e: any) {
+              console.log(`[Workspace] Plugin '${pluginId}' no cargado automáticamente:`, e.message);
+            }
+          }
         }).catch((e) => {
-          console.log(`[Workspace] obsidian-excalidraw-plugin no cargado automáticamente:`, e.message);
+          console.warn('[Workspace] Error al cargar plugins habilitados:', e);
         });
       } catch (e) {
         console.warn('[Workspace] Error al instanciar SynapseApp:', e);
@@ -2227,6 +2238,14 @@
         },
       },
       {
+        id: "cmd-community-plugins",
+        name: "Plugins de la comunidad: Explorar e instalar plugins de Obsidian",
+        category: "Plugins",
+        action: () => {
+          isPluginsModalOpen = true;
+        },
+      },
+      {
         id: "cmd-new-file",
         name: "Crear nuevo archivo Markdown",
         category: "Archivo",
@@ -2691,6 +2710,8 @@
   function handleRibbonAction(actionId: string) {
     if (actionId === "command-palette") {
       isPaletteOpen = true;
+    } else if (actionId === "plugins") {
+      isPluginsModalOpen = true;
     } else if (actionId === "new-note") {
       createNewVaultItem();
     } else if (actionId === "new-excalidraw") {
@@ -3446,6 +3467,13 @@
   <FullTextSearch
     bind:isOpen={isFullTextSearchOpen}
     onSelectHit={handleSelectFullTextHit}
+  />
+
+  <!-- 7. GESTOR Y EXPLORADOR DE PLUGINS DE LA COMUNIDAD DE OBSIDIAN -->
+  <CommunityPluginsModal
+    bind:open={isPluginsModalOpen}
+    app={synapseApp}
+    repository={vaultRepository}
   />
 </div>
 

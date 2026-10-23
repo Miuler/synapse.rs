@@ -1,3 +1,4 @@
+pub mod community_plugin_downloader;
 pub mod copy_naming;
 pub mod file_system_service;
 pub mod full_text_index;

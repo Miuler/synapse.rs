@@ -200,6 +200,13 @@ export class PluginLoader {
   }
 
   /**
+   * Determina si un plugin está actualmente cargado y activo en memoria.
+   */
+  isPluginLoaded(pluginId: string): boolean {
+    return this.loadedPlugins.has(pluginId);
+  }
+
+  /**
    * Obtiene la instancia activa de un plugin por su ID.
    */
   getPlugin(pluginId: string): Plugin | undefined {

@@ -1,3 +1,4 @@
+pub mod community_plugin_use_cases;
 pub mod file_system_use_cases;
 pub mod full_text_search_use_cases;
 pub mod git_use_cases;

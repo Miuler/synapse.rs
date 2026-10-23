@@ -1,3 +1,4 @@
+pub mod community_plugin;
 pub mod config;
 pub mod file_types;
 pub mod full_text;
