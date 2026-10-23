@@ -1,2 +1,4 @@
 import ExcalidrawViewer from './ui/ExcalidrawViewer.svelte';
-export { ExcalidrawViewer };
+import ObsidianExcalidrawViewer from './ui/ObsidianExcalidrawViewer.svelte';
+
+export { ExcalidrawViewer, ObsidianExcalidrawViewer };

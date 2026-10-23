@@ -13,12 +13,12 @@
   import {MarkdownViewer} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
-  import {ExcalidrawViewer} from "@features/excalidraw-editor";
+  import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
-  import {appSettings, shortcutsConfig, matchesShortcut} from "@entities/settings";
+  import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import {
     isImageFile,
     isMarkdownFile,
@@ -491,7 +491,9 @@
         .filter((p) => p && !isSyntheticTab(p))
         .map((p) => ({
           path: p,
-          view_mode: openedNotes[p]?.viewMode || "reading",
+          view_mode: isDrawingTab(p, openedNotes[p]?.content)
+            ? (openedNotes[p]?.excalidrawViewer || appSettings.defaultExcalidrawViewer)
+            : (openedNotes[p]?.viewMode || "reading"),
         }));
       const active = activeTabPath && !isSyntheticTab(activeTabPath) ? activeTabPath : null;
       vaultRepository.saveOpenTabsState(tabs, active);
@@ -508,8 +510,15 @@
           if (!tab.path) continue;
           openTabPaths.push(tab.path);
           const vItem = vaultItems.find((v) => v.relative_path === tab.path);
+          const isDrawing = isDrawingTab(tab.path);
           const memoryMode = (tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
-          const mode: MarkdownViewMode = memoryMode || "reading";
+          const mode: MarkdownViewMode = (!isDrawing && memoryMode && ['live', 'source', 'reading'].includes(memoryMode))
+            ? memoryMode
+            : "reading";
+          const excalViewer: ExcalidrawViewerType | undefined = (tab.view_mode === 'obsidian' || tab.view_mode === 'native')
+            ? tab.view_mode
+            : undefined;
+
           if (!openedNotes[tab.path]) {
             openedNotes[tab.path] = {
               relative_path: tab.path,
@@ -521,9 +530,11 @@
               isLoading: false,
               isLoaded: false,
               viewMode: mode,
+              excalidrawViewer: excalViewer,
             };
           } else {
             openedNotes[tab.path].viewMode = mode;
+            if (excalViewer) openedNotes[tab.path].excalidrawViewer = excalViewer;
           }
         }
 
@@ -665,6 +676,7 @@
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
         const currentMode = openedNotes[path]?.viewMode || (noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading";
 
+        const prevExcalViewer = openedNotes[path]?.excalidrawViewer;
         openedNotes[path] = {
           relative_path: path,
           abs_path: fetchedAbsPath,
@@ -675,6 +687,7 @@
           isLoading: false,
           isLoaded: true,
           viewMode: currentMode,
+          excalidrawViewer: prevExcalViewer,
         };
       } else {
         if (openedNotes[path]) {
@@ -732,7 +745,7 @@
     }
   }
 
-  function selectTab(path: string) {
+  function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     const previousActivePath = activeTabPath;
 
@@ -769,10 +782,49 @@
       markdownViewMode = mode;
       isEditing = mode !== "reading";
       ensureContentLoaded(path);
+      if (viewerPreference) {
+        if (!openedNotes[path]) {
+          openedNotes[path] = {
+            relative_path: path,
+            abs_path: vItem?.abs_path,
+            title: vItem?.title || path.split("/").pop() || path,
+            content: "",
+            savedContent: "",
+            encoding: "---",
+            isLoading: true,
+            isLoaded: false,
+            viewMode: mode,
+            excalidrawViewer: viewerPreference,
+          };
+        } else {
+          openedNotes[path].excalidrawViewer = viewerPreference;
+        }
+      }
       recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
       vaultRepository.recordNoteOpened(path);
     }
     recordTabVisit(path);
+    persistTabsState();
+  }
+
+  function getExcalidrawViewerForTab(tabPath: string): ExcalidrawViewerType {
+    return openedNotes[tabPath]?.excalidrawViewer || appSettings.defaultExcalidrawViewer;
+  }
+
+  function switchExcalidrawViewerForTab(tabPath: string, viewer: ExcalidrawViewerType) {
+    if (openedNotes[tabPath]) {
+      openedNotes[tabPath].excalidrawViewer = viewer;
+    } else {
+      openedNotes[tabPath] = {
+        relative_path: tabPath,
+        title: tabPath.split("/").pop() || tabPath,
+        content: "",
+        savedContent: "",
+        encoding: "---",
+        isLoading: false,
+        excalidrawViewer: viewer,
+      };
+    }
     persistTabsState();
   }
 
@@ -941,7 +993,7 @@
     activeFocusedPane = 'right';
   }
 
-  function selectSplitTab(path: string) {
+  function selectSplitTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     const previousSplitPath = activeSplitTabPath;
     if (previousSplitPath && previousSplitPath !== path) {
@@ -957,6 +1009,24 @@
       const mode = (openedNotes[path]?.viewMode || vItem?.view_mode || "reading") as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
+      if (viewerPreference) {
+        if (!openedNotes[path]) {
+          openedNotes[path] = {
+            relative_path: path,
+            abs_path: vItem?.abs_path,
+            title: vItem?.title || path.split("/").pop() || path,
+            content: "",
+            savedContent: "",
+            encoding: "---",
+            isLoading: true,
+            isLoaded: false,
+            viewMode: mode,
+            excalidrawViewer: viewerPreference,
+          };
+        } else {
+          openedNotes[path].excalidrawViewer = viewerPreference;
+        }
+      }
       recentFiles = [path, ...recentFiles.filter((p) => p !== path)].slice(0, 15);
       vaultRepository.recordNoteOpened(path);
     }
@@ -1134,11 +1204,11 @@
     }
   }
 
-  function handleSelectTabFromExplorer(path: string) {
+  function handleSelectTabFromExplorer(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (activeFocusedPane === 'right' && isSplit) {
-      selectSplitTab(path);
+      selectSplitTab(path, viewerPreference);
     } else {
-      selectTab(path);
+      selectTab(path, viewerPreference);
     }
   }
 
@@ -2208,6 +2278,42 @@
         },
       },
       {
+        id: "cmd-toggle-default-excalidraw-viewer",
+        name: "Alternar visor por defecto de Excalidraw (Nativo / Obsidian)",
+        category: "Configuración",
+        action: () => {
+          appSettings.toggleDefaultExcalidrawViewer();
+        },
+      },
+      {
+        id: "cmd-set-default-excalidraw-native",
+        name: "Configurar visor por defecto de Excalidraw: Usar Excalidraw nativo",
+        category: "Configuración",
+        action: () => {
+          appSettings.setDefaultExcalidrawViewer("native");
+        },
+      },
+      {
+        id: "cmd-set-default-excalidraw-obsidian",
+        name: "Configurar visor por defecto de Excalidraw: Usar plugin de Excalidraw para Obsidian",
+        category: "Configuración",
+        action: () => {
+          appSettings.setDefaultExcalidrawViewer("obsidian");
+        },
+      },
+      {
+        id: "cmd-switch-current-excalidraw-viewer",
+        name: "Excalidraw: Alternar visor de la pestaña actual (Nativo / Obsidian)",
+        category: "Excalidraw",
+        action: () => {
+          const targetPath = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
+          if (targetPath && isDrawingTab(targetPath, openedNotes[targetPath]?.content)) {
+            const current = getExcalidrawViewerForTab(targetPath);
+            switchExcalidrawViewerForTab(targetPath, current === 'native' ? 'obsidian' : 'native');
+          }
+        },
+      },
+      {
         id: "cmd-save-file",
         name: "Guardar / Grabar archivo actual",
         category: "Archivo",
@@ -2902,23 +3008,48 @@
                     />
                   {/if}
                 {:else if isDrawing}
-                  <ExcalidrawViewer
-                    bind:this={excalidrawViewers[tabPath]}
-                    {content}
-                    readOnly={!paneEditing}
-                    onChange={(updatedContent) => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = updatedContent;
-                      }
-                      debouncedPersistVaultItemToRust(vaultItem);
-                    }}
-                    onSave={(savedContent) => {
-                      if (savedContent && openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = savedContent;
-                      }
-                      persistVaultItemToRust(vaultItem);
-                    }}
-                  />
+                  {#if getExcalidrawViewerForTab(tabPath) === 'obsidian'}
+                    <ObsidianExcalidrawViewer
+                      bind:this={excalidrawViewers[tabPath]}
+                      {content}
+                      filePath={tabPath}
+                      readOnly={!paneEditing}
+                      {synapseApp}
+                      onSwitchToNative={() => switchExcalidrawViewerForTab(tabPath, 'native')}
+                      onNavigate={handleNavigateLink}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSave={(savedContent) => {
+                        if (savedContent && openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = savedContent;
+                        }
+                        persistVaultItemToRust(vaultItem);
+                      }}
+                    />
+                  {:else}
+                    <ExcalidrawViewer
+                      bind:this={excalidrawViewers[tabPath]}
+                      {content}
+                      readOnly={!paneEditing}
+                      onSwitchToObsidian={() => switchExcalidrawViewerForTab(tabPath, 'obsidian')}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSave={(savedContent) => {
+                        if (savedContent && openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = savedContent;
+                        }
+                        persistVaultItemToRust(vaultItem);
+                      }}
+                    />
+                  {/if}
                 {:else if isMarkdownFile(tabPath)}
                   <input
                     type="text"

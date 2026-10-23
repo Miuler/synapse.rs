@@ -45,7 +45,7 @@ export class ExcalidrawAutomate {
     currentItemRoughness: 1,
   };
 
-  constructor(public readonly app: SynapseApp) {}
+  constructor(public readonly app?: SynapseApp) {}
 
   /**
    * Limpia el lienzo de trabajo interno del automatizador.
@@ -342,6 +342,9 @@ export class ExcalidrawAutomate {
       format: useMarkdown ? 'markdown' : 'json',
     });
 
+    if (!this.app) {
+      throw new Error('[ExcalidrawAutomate] SynapseApp requerida para createDrawing');
+    }
     return await this.app.vault.create(path, content);
   }
 

@@ -30,4 +30,5 @@ export interface OpenedNote {
   isLoaded?: boolean;
   viewMode?: MarkdownViewMode;
   lastReloaded?: number;
+  excalidrawViewer?: 'native' | 'obsidian';
 }

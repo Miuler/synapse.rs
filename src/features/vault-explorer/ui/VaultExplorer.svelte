@@ -23,7 +23,7 @@
     gitStatuses?: Record<string, GitFileStatusKind>;
     isGitRepo?: boolean;
     gitBranch?: string | null;
-    onSelectTab: (path: string) => void;
+    onSelectTab: (path: string, viewerPreference?: 'native' | 'obsidian') => void;
     onOpenVaultFolder: () => void;
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
     onDeleteItems?: (items: Array<{ relativePath: string; isFolder: boolean }>) => Promise<void> | void;
@@ -1836,6 +1836,34 @@
           >
             <ExternalLink class="context-menu-item-icon" />
             <span>Abrir en nueva ventana</span>
+          </ContextMenu.Item>
+        {/if}
+
+        {#if contextMenuNode && !contextMenuNode.isFolder && isDrawingFile(contextMenuNode.relativePath)}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
+                onSelectTab(contextMenuNode.relativePath, 'native');
+              }
+            }}
+          >
+            <PenTool class="context-menu-item-icon" />
+            <span>Abrir con Excalidraw</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
+                onSelectTab(contextMenuNode.relativePath, 'obsidian');
+              }
+            }}
+          >
+            <PenTool class="context-menu-item-icon" />
+            <span>Abrir con Excalidraw (Obsidian)</span>
           </ContextMenu.Item>
         {/if}
 

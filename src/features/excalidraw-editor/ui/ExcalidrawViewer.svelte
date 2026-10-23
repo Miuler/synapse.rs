@@ -9,15 +9,17 @@
     serializeExcalidrawMarkdown,
     isExcalidrawMarkdown,
   } from '@shared/obsidian-api';
+  import { Sparkles } from 'lucide-svelte';
 
   interface Props {
     content: string;
     readOnly?: boolean;
     onChange?: (content: string) => void;
     onSave?: (content?: string) => void;
+    onSwitchToObsidian?: () => void;
   }
 
-  let { content = '', readOnly = false, onChange, onSave }: Props = $props();
+  let { content = '', readOnly = false, onChange, onSave, onSwitchToObsidian }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let root: Root | null = null;
@@ -275,7 +277,19 @@
   class="excalidraw-container"
   bind:this={containerRef}
   onkeydowncapture={handleContainerKeyDownCapture}
-></div>
+>
+  {#if onSwitchToObsidian}
+    <button
+      type="button"
+      class="switch-to-obsidian-btn"
+      onclick={onSwitchToObsidian}
+      title="Abrir con el visor de Excalidraw para Obsidian"
+    >
+      <Sparkles size={13} />
+      <span>Abrir con Obsidian</span>
+    </button>
+  {/if}
+</div>
 
 <style>
   .excalidraw-container {
@@ -284,6 +298,33 @@
     min-height: 500px;
     position: relative;
     overflow: hidden;
+  }
+
+  .switch-to-obsidian-btn {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--bg-secondary, #f6f8fa) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-primary, #d0d7de);
+    color: var(--text-primary, #1f2328);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    transition: all 0.15s ease;
+  }
+
+  .switch-to-obsidian-btn:hover {
+    background-color: var(--bg-tertiary, #eaeef2);
+    border-color: var(--accent, #6366f1);
+    color: var(--accent, #6366f1);
   }
 
   .excalidraw-container :global(.excalidraw) {

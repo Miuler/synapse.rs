@@ -1593,5 +1593,17 @@ Elemento de plantilla ^txt0
       const fromTemplate = createCanonicalExcalidrawContent(customTemplate);
       expect(fromTemplate).toBe(customTemplate);
     });
+
+    it('40. ExcalidrawAutomate funciona de forma desacoplada sin necesidad de SynapseApp', () => {
+      const standaloneEa = new ExcalidrawAutomate();
+      const rectId = standaloneEa.addRect(10, 10, 100, 50);
+      expect(rectId).toBeDefined();
+
+      const svg = standaloneEa.toSVG();
+      expect(svg).toContain('<svg');
+      expect(svg).toContain('<rect');
+      expect(svg).toContain('width="100"');
+      expect(svg).toContain('height="50"');
+    });
   });
 });

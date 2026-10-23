@@ -3,11 +3,13 @@ import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
 export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
+export type ExcalidrawViewerType = 'native' | 'obsidian';
 
 export interface AppSettings {
   mermaidRenderer: MermaidRendererType;
   lastOpenedFolder?: string;
   theme: ThemeMode;
+  defaultExcalidrawViewer: ExcalidrawViewerType;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -16,6 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mermaidRenderer: 'mermaidjs', // Por defecto el visor es Mermaid.js
   lastOpenedFolder: undefined,
   theme: 'system', // Por defecto sigue el tema del sistema operativo
+  defaultExcalidrawViewer: 'native', // Por defecto los archivos .excalidraw se abren con Excalidraw nativo
 };
 
 function loadInitialSettings(): AppSettings {
@@ -33,12 +36,14 @@ function loadInitialSettings(): AppSettings {
       if (parsed.theme === 'system' || parsed.theme === 'light' || parsed.theme === 'dark') {
         settings.theme = parsed.theme;
       }
+      if (parsed.defaultExcalidrawViewer === 'native' || parsed.defaultExcalidrawViewer === 'obsidian') {
+        settings.defaultExcalidrawViewer = parsed.defaultExcalidrawViewer;
+      }
     }
   } catch (e) {
     // Si localStorage no está disponible o falla el parseo, usar valores por defecto
   }
 
-  // Por defecto el visor es Mermaid.js
   return settings;
 }
 
@@ -154,6 +159,21 @@ class SettingsManager {
   toggleMermaidRenderer() {
     this.settings.mermaidRenderer =
       this.settings.mermaidRenderer === 'mermaidjs' ? 'merman' : 'mermaidjs';
+    this.persist();
+  }
+
+  get defaultExcalidrawViewer(): ExcalidrawViewerType {
+    return this.settings.defaultExcalidrawViewer || 'native';
+  }
+
+  setDefaultExcalidrawViewer(viewer: ExcalidrawViewerType) {
+    this.settings.defaultExcalidrawViewer = viewer;
+    this.persist();
+  }
+
+  toggleDefaultExcalidrawViewer() {
+    this.settings.defaultExcalidrawViewer =
+      this.settings.defaultExcalidrawViewer === 'native' ? 'obsidian' : 'native';
     this.persist();
   }
 
