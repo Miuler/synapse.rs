@@ -1,8 +1,17 @@
 import type { VaultRepository } from '@shared/repositories';
 import type { DataAdapter, DataWriteOptions, ListedFiles, Stat } from './types';
 
+export type AdapterMutationCallback = (
+  type: 'write' | 'writeBinary' | 'remove' | 'rename',
+  path: string,
+  extra?: any
+) => void;
+
 export class SynapseDataAdapter implements DataAdapter {
-  constructor(private readonly repository: VaultRepository) {}
+  constructor(
+    private readonly repository: VaultRepository,
+    private readonly onMutation?: AdapterMutationCallback
+  ) {}
 
   getName(): string {
     return 'SynapseDataAdapter';
@@ -87,6 +96,7 @@ export class SynapseDataAdapter implements DataAdapter {
       content: data,
       encoding: current?.encoding,
     });
+    this.onMutation?.('write', clean, data);
   }
 
   async writeBinary(
@@ -96,6 +106,7 @@ export class SynapseDataAdapter implements DataAdapter {
   ): Promise<void> {
     const clean = normalizedPath.replace(/^\/+/, '');
     await this.repository.writeBinary(clean, data);
+    this.onMutation?.('writeBinary', clean, data);
   }
 
   async append(normalizedPath: string, data: string, options?: DataWriteOptions): Promise<void> {
@@ -128,22 +139,26 @@ export class SynapseDataAdapter implements DataAdapter {
   async trashSystem(normalizedPath: string): Promise<boolean> {
     const clean = normalizedPath.replace(/^\/+/, '');
     await this.repository.deleteItem(clean);
+    this.onMutation?.('remove', clean);
     return true;
   }
 
   async trashLocal(normalizedPath: string): Promise<void> {
     const clean = normalizedPath.replace(/^\/+/, '');
     await this.repository.deleteItem(clean);
+    this.onMutation?.('remove', clean);
   }
 
   async rmdir(normalizedPath: string, _recursive: boolean): Promise<void> {
     const clean = normalizedPath.replace(/^\/+/, '');
     await this.repository.deleteItem(clean);
+    this.onMutation?.('remove', clean);
   }
 
   async remove(normalizedPath: string): Promise<void> {
     const clean = normalizedPath.replace(/^\/+/, '');
     await this.repository.deleteItem(clean);
+    this.onMutation?.('remove', clean);
   }
 
   async rename(normalizedPath: string, normalizedNewPath: string): Promise<void> {
@@ -151,6 +166,7 @@ export class SynapseDataAdapter implements DataAdapter {
     const cleanNew = normalizedNewPath.replace(/^\/+/, '');
     const newName = cleanNew.split('/').pop() || cleanNew;
     await this.repository.renameItem(clean, newName);
+    this.onMutation?.('rename', cleanNew, clean);
   }
 
   async copy(normalizedPath: string, normalizedNewPath: string): Promise<void> {

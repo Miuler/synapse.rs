@@ -1,5 +1,14 @@
 import type { VaultRepository } from '@shared/repositories';
-import { TFile, type CachedMetadataLike, type SynapseMetadataCacheLike, type SynapseVaultLike } from './types';
+import { Events } from './events';
+import {
+  TFile,
+  type CachedMetadataLike,
+  type HeadingCache,
+  type LinkCache,
+  type EmbedCache,
+  type SynapseMetadataCacheLike,
+  type SynapseVaultLike,
+} from './types';
 
 function pathOf(file: TFile | string): string {
   return typeof file === 'string' ? file.replace(/^\/+/, '') : file.path;
@@ -32,35 +41,34 @@ function parseFrontmatter(content: string): Record<string, unknown> | undefined 
   return result;
 }
 
-export class SynapseMetadataCache implements SynapseMetadataCacheLike {
+export class SynapseMetadataCache extends Events implements SynapseMetadataCacheLike {
+  private readonly _cache: Map<string, CachedMetadataLike> = new Map();
+
   constructor(
     private readonly repository: VaultRepository,
     private readonly vault: SynapseVaultLike
-  ) {}
+  ) {
+    super();
+  }
 
   /**
-   * Obtiene la caché analizada de metadatos de un archivo (frontmatter, headings, links, embeds, tags).
+   * Extrae metadatos (frontmatter, headings, links, embeds, tags) a partir de una cadena markdown.
    */
-  async getFileCache(file: TFile | string): Promise<CachedMetadataLike | null> {
-    const path = pathOf(file);
-    const note = await this.repository.readNote(path);
-    if (!note) return null;
-    const content = note.content ?? '';
-
-    const headings = [...content.matchAll(/^(#{1,6})\s+(.+)$/gm)].map((match) => ({
+  extractMetadata(content: string): CachedMetadataLike {
+    const headings: HeadingCache[] = [...content.matchAll(/^(#{1,6})\s+(.+)$/gm)].map((match) => ({
       heading: match[2].trim(),
       level: match[1].length,
       position: { start: match.index ?? 0, end: (match.index ?? 0) + match[0].length },
     }));
 
-    const links = [...content.matchAll(/(?<!!)(\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\])/g)].map((match) => ({
+    const links: LinkCache[] = [...content.matchAll(/(?<!!)(\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\])/g)].map((match) => ({
       link: match[2].trim(),
       displayText: match[3]?.trim(),
       original: match[1],
       position: { start: match.index ?? 0, end: (match.index ?? 0) + match[0].length },
     }));
 
-    const embeds = [...content.matchAll(/(!\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\])/g)].map((match) => ({
+    const embeds: EmbedCache[] = [...content.matchAll(/(!\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\])/g)].map((match) => ({
       link: match[2].trim(),
       displayText: match[3]?.trim(),
       original: match[1],
@@ -76,6 +84,73 @@ export class SynapseMetadataCache implements SynapseMetadataCacheLike {
       embeds,
       tags,
     };
+  }
+
+  /**
+   * Calcula y guarda los metadatos de un archivo en la caché en memoria.
+   */
+  computeAndStoreCache(path: string, content: string): CachedMetadataLike {
+    const cleanPath = pathOf(path);
+    const metadata = this.extractMetadata(content);
+    this._cache.set(cleanPath, metadata);
+    return metadata;
+  }
+
+  /**
+   * Almacena directamente un objeto de metadatos en la caché.
+   */
+  setCache(path: string, cache: CachedMetadataLike): void {
+    const cleanPath = pathOf(path);
+    this._cache.set(cleanPath, cache);
+  }
+
+  /**
+   * Elimina la entrada de caché para un archivo.
+   */
+  deleteCache(path: string): void {
+    const cleanPath = pathOf(path);
+    this._cache.delete(cleanPath);
+  }
+
+  /**
+   * Renombra una entrada en la caché.
+   */
+  renameCache(oldPath: string, newPath: string): void {
+    const cleanOld = pathOf(oldPath);
+    const cleanNew = pathOf(newPath);
+    const cached = this._cache.get(cleanOld);
+    if (cached) {
+      this._cache.delete(cleanOld);
+      this._cache.set(cleanNew, cached);
+    }
+  }
+
+  /**
+   * Consulta la caché de un archivo de manera síncrona. Retorna null si no está en memoria.
+   */
+  getFileCacheSync(file: TFile | string): CachedMetadataLike | null {
+    const path = pathOf(file);
+    return this._cache.get(path) ?? null;
+  }
+
+  /**
+   * Obtiene la caché analizada de metadatos de un archivo (frontmatter, headings, links, embeds, tags).
+   * Si ya está en memoria, la retorna síncronamente (compatible con `app.metadataCache.getFileCache(f)` y con `await`).
+   * Si aún no está en memoria, la carga de disco asíncronamente y la almacena.
+   */
+  getFileCache(file: TFile | string): CachedMetadataLike | null | Promise<CachedMetadataLike | null> {
+    const path = pathOf(file);
+    const inMemory = this._cache.get(path);
+    if (inMemory) {
+      return inMemory;
+    }
+
+    // Si aún no está en caché en memoria, leemos bajo demanda y la poblamos
+    return this.repository.readNote(path).then((note) => {
+      if (!note) return null;
+      const content = note.content ?? '';
+      return this.computeAndStoreCache(path, content);
+    });
   }
 
   /**
@@ -100,10 +175,20 @@ export class SynapseMetadataCache implements SynapseMetadataCacheLike {
     if (!sourcePath || !sourcePath.includes('/')) {
       return basename;
     }
-    const sourceDir = sourcePath.slice(0, sourcePath.lastIndexOf('/'));
-    if (path.startsWith(sourceDir + '/')) {
-      return basename;
-    }
     return basename;
+  }
+
+  /**
+   * Notifica a los observadores que los enlaces de un archivo han sido resueltos.
+   */
+  triggerResolve(file: TFile): void {
+    this.trigger('resolve', file);
+  }
+
+  /**
+   * Notifica a los observadores que todos los enlaces de la bóveda han sido resueltos.
+   */
+  triggerResolved(): void {
+    this.trigger('resolved');
   }
 }

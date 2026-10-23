@@ -15,6 +15,9 @@ export class SynapseApp {
     this.workspace = new SynapseWorkspace(repository, this.vault);
     this.metadataCache = new SynapseMetadataCache(repository, this.vault);
     this.fileManager = new SynapseFileManager(this.vault);
+
+    // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos
+    this.vault.setMetadataCache(this.metadataCache);
   }
 }
 

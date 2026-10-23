@@ -1,4 +1,7 @@
 import type { VaultNote, VaultRepository, VaultFile as RepositoryVaultFile } from '@shared/repositories';
+import { Events, type EventRef } from './events';
+
+export { Events, type EventRef };
 
 export interface VaultFileStat {
   ctime: number | null;
@@ -107,6 +110,16 @@ export interface CachedMetadataLike {
   tags: string[];
 }
 
+export type CachedMetadata = CachedMetadataLike;
+
+export interface WorkspaceLeaf {
+  view: any;
+  openFile?(file: TFile): Promise<void>;
+  getRoot?(): any;
+  getDisplayText?(): string;
+  [key: string]: any;
+}
+
 export interface DataAdapter {
   getName(): string;
   exists(normalizedPath: string, sensitive?: boolean): Promise<boolean>;
@@ -150,17 +163,50 @@ export interface SynapseVaultLike {
   copy(file: TFile | string, newPath: string): Promise<TFile>;
   exists(path: string): Promise<boolean>;
   getResourcePath(file: TFile | string): string;
+
+  // Event methods
+  on(name: 'create', callback: (file: TAbstractFile) => any, ctx?: any): EventRef;
+  on(name: 'modify', callback: (file: TAbstractFile) => any, ctx?: any): EventRef;
+  on(name: 'delete', callback: (file: TAbstractFile) => any, ctx?: any): EventRef;
+  on(name: 'rename', callback: (file: TAbstractFile, oldPath: string) => any, ctx?: any): EventRef;
+  on(name: 'closed', callback: () => any, ctx?: any): EventRef;
+  on(name: 'raw', callback: (path: string) => any, ctx?: any): EventRef;
+  on(name: string, callback: (...data: any[]) => any, ctx?: any): EventRef;
+  off(name: string, callback: (...data: any[]) => any): void;
+  offref(ref: EventRef): void;
+  trigger(name: string, ...data: any[]): void;
 }
 
 export interface SynapseWorkspaceLike {
   getActiveFile(): Promise<TFile | null>;
   openLinkText(linktext: string, sourcePath: string): Promise<TFile | null>;
+
+  // Event methods
+  on(name: 'file-open', callback: (file: TFile | null) => any, ctx?: any): EventRef;
+  on(name: 'active-leaf-change', callback: (leaf: WorkspaceLeaf | null) => any, ctx?: any): EventRef;
+  on(name: 'layout-change', callback: () => any, ctx?: any): EventRef;
+  on(name: 'quick-preview', callback: (file: TFile, data: string) => any, ctx?: any): EventRef;
+  on(name: 'editor-change', callback: (editor: any, info: any) => any, ctx?: any): EventRef;
+  on(name: 'resize', callback: () => any, ctx?: any): EventRef;
+  on(name: string, callback: (...data: any[]) => any, ctx?: any): EventRef;
+  off(name: string, callback: (...data: any[]) => any): void;
+  offref(ref: EventRef): void;
+  trigger(name: string, ...data: any[]): void;
 }
 
 export interface SynapseMetadataCacheLike {
-  getFileCache(file: TFile | string): Promise<CachedMetadataLike | null>;
+  getFileCache(file: TFile | string): CachedMetadataLike | null | Promise<CachedMetadataLike | null>;
   getFirstLinkpathDest(linkpath: string, sourcePath: string): Promise<TFile | null>;
   fileToLinktext(file: TFile | { path: string }, sourcePath?: string): string;
+
+  // Event methods
+  on(name: 'changed', callback: (file: TFile, data: string, cache: CachedMetadataLike) => any, ctx?: any): EventRef;
+  on(name: 'resolve', callback: (file: TFile) => any, ctx?: any): EventRef;
+  on(name: 'resolved', callback: () => any, ctx?: any): EventRef;
+  on(name: string, callback: (...data: any[]) => any, ctx?: any): EventRef;
+  off(name: string, callback: (...data: any[]) => any): void;
+  offref(ref: EventRef): void;
+  trigger(name: string, ...data: any[]): void;
 }
 
 export interface SynapseFileManagerLike {

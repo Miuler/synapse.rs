@@ -1,11 +1,19 @@
 import type { VaultRepository } from '@shared/repositories';
-import { TFile, type SynapseVaultLike, type SynapseWorkspaceLike } from './types';
+import { Events } from './events';
+import {
+  TFile,
+  type SynapseVaultLike,
+  type SynapseWorkspaceLike,
+  type WorkspaceLeaf,
+} from './types';
 
-export class SynapseWorkspace implements SynapseWorkspaceLike {
+export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   constructor(
     private readonly repository: VaultRepository,
     private readonly vault: SynapseVaultLike
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * Obtiene el archivo actualmente activo en las pestañas del espacio de trabajo.
@@ -28,6 +36,33 @@ export class SynapseWorkspace implements SynapseWorkspaceLike {
     const resolvedPath = await this.repository.resolveVaultLink(linktext, sourcePath);
     const target = resolvedPath || linktext.replace(/^\[\[(.*)\]\]$/, '$1').trim();
     const file = await this.vault.getAbstractFileByPath(target);
-    return file instanceof TFile ? file : null;
+    const result = file instanceof TFile ? file : null;
+
+    if (result) {
+      this.trigger('file-open', result);
+    }
+
+    return result;
+  }
+
+  /**
+   * Dispara el evento canónico 'file-open' a los plugins y observadores registrados.
+   */
+  triggerFileOpen(file: TFile | null): void {
+    this.trigger('file-open', file);
+  }
+
+  /**
+   * Dispara el evento canónico 'active-leaf-change' a los plugins y observadores registrados.
+   */
+  triggerActiveLeafChange(leaf: WorkspaceLeaf | null): void {
+    this.trigger('active-leaf-change', leaf);
+  }
+
+  /**
+   * Dispara el evento canónico 'layout-change' a los plugins y observadores registrados.
+   */
+  triggerLayoutChange(): void {
+    this.trigger('layout-change');
   }
 }

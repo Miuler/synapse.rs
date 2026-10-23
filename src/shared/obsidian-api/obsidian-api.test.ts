@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { createSynapseApp } from './app';
-import { TAbstractFile, TFile, TFolder } from './types';
+import { Events, type EventRef, TAbstractFile, TFile, TFolder } from './types';
 import type { VaultFile, VaultNote, VaultRepository } from '@shared/repositories';
 
 class MockVaultRepository implements Partial<VaultRepository> {
@@ -22,9 +22,23 @@ class MockVaultRepository implements Partial<VaultRepository> {
   };
 
   folders = new Set<string>(['notas', 'dibujos', 'adjuntos']);
+  fileChangeCallbacks: Array<(payload: { paths: string[]; deleted: string[] }) => void> = [];
 
   isConnected() {
     return true;
+  }
+
+  onFilesChanged(cb: (payload: { paths: string[]; deleted: string[] }) => void) {
+    this.fileChangeCallbacks.push(cb);
+    return () => {
+      this.fileChangeCallbacks = this.fileChangeCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  async emitFilesChanged(payload: { paths: string[]; deleted: string[] }) {
+    for (const cb of this.fileChangeCallbacks) {
+      await cb(payload);
+    }
   }
 
   async getNoteMeta(relativePath: string): Promise<VaultFile | null> {
@@ -341,5 +355,169 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
   it('10. app.fileManager.getAvailablePathForAttachment genera rutas sin colisión', async () => {
     const available = await app.fileManager.getAvailablePathForAttachment('adjunto', 'png');
     expect(available).toBe('adjunto.png');
+  });
+
+  describe('Etapa 3: Sistema de Eventos y Caché Reactiva', () => {
+    it('11. Bus canónico Events soporta on, trigger, off, offref y tryTrigger', () => {
+      const bus = new Events();
+      let count = 0;
+      let lastVal = '';
+
+      const ref: EventRef = bus.on('test-event', (val: string) => {
+        count++;
+        lastVal = val;
+      });
+
+      expect(ref).toBeDefined();
+      expect(ref.name).toBe('test-event');
+
+      bus.trigger('test-event', 'hola');
+      expect(count).toBe(1);
+      expect(lastVal).toBe('hola');
+
+      // tryTrigger
+      bus.tryTrigger(ref, ['segundo']);
+      expect(count).toBe(2);
+      expect(lastVal).toBe('segundo');
+
+      // offref
+      bus.offref(ref);
+      bus.trigger('test-event', 'tercero');
+      expect(count).toBe(2); // no debió incrementar
+    });
+
+    it('12. app.vault dispara eventos create, modify, delete y rename ante mutaciones', async () => {
+      const createdFiles: string[] = [];
+      const modifiedFiles: string[] = [];
+      const deletedFiles: string[] = [];
+      const renamedFiles: Array<{ file: string; oldPath: string }> = [];
+
+      const refCreate = app.vault.on('create', (f) => createdFiles.push(f.path));
+      const refMod = app.vault.on('modify', (f) => modifiedFiles.push(f.path));
+      const refDel = app.vault.on('delete', (f) => deletedFiles.push(f.path));
+      const refRen = app.vault.on('rename', (f, old) => renamedFiles.push({ file: f.path, oldPath: old }));
+
+      // 1. Create
+      const newFile = await app.vault.create('notas/evento-test.md', '# Nota de Evento');
+      expect(newFile).toBeInstanceOf(TFile);
+      expect(createdFiles).toContain('notas/evento-test.md');
+
+      // 2. Modify
+      await app.vault.modify(newFile, '# Contenido Modificado');
+      expect(modifiedFiles).toContain('notas/evento-test.md');
+
+      // 3. Rename
+      await app.vault.rename(newFile, 'notas/evento-renombrado.md');
+      expect(renamedFiles.some((r) => r.file === 'notas/evento-renombrado.md' && r.oldPath === 'notas/evento-test.md')).toBe(true);
+
+      // 4. Delete
+      await app.vault.delete('notas/evento-renombrado.md');
+      expect(deletedFiles).toContain('notas/evento-renombrado.md');
+
+      // Desuscribir
+      app.vault.offref(refCreate);
+      app.vault.offref(refMod);
+      app.vault.offref(refDel);
+      app.vault.offref(refRen);
+
+      // Mutación posterior no debe registrarse
+      await app.vault.create('notas/otro.md', 'contenido');
+      expect(createdFiles.filter((p) => p === 'notas/otro.md').length).toBe(0);
+    });
+
+    it('13. app.metadataCache dispara changed y resolve al modificarse o crearse notas markdown', async () => {
+      let changedData = '';
+      let changedFile = '';
+      let changedCacheKeys: string[] = [];
+      let resolvedFile = '';
+
+      const refChanged = app.metadataCache.on('changed', (file, data, cache) => {
+        changedFile = file.path;
+        changedData = data;
+        changedCacheKeys = Object.keys(cache);
+      });
+
+      const refResolve = app.metadataCache.on('resolve', (file) => {
+        resolvedFile = file.path;
+      });
+
+      await app.vault.create('notas/cache-reactive.md', '---\nstatus: activo\n---\n# Titulo\n[[enlace]]');
+
+      expect(changedFile).toBe('notas/cache-reactive.md');
+      expect(changedData).toContain('status: activo');
+      expect(changedCacheKeys).toContain('frontmatter');
+      expect(resolvedFile).toBe('notas/cache-reactive.md');
+
+      // Comprobación de consulta síncrona a getFileCache
+      const syncCache = app.metadataCache.getFileCache('notas/cache-reactive.md');
+      expect(syncCache).not.toBeNull();
+      expect(syncCache?.frontmatter?.status).toBe('activo');
+
+      app.metadataCache.offref(refChanged);
+      app.metadataCache.offref(refResolve);
+    });
+
+    it('14. app.workspace dispara file-open, active-leaf-change y layout-change', async () => {
+      let openedFile: string | null = null;
+      let leafObserved: any = null;
+      let layoutChanged = false;
+
+      const refOpen = app.workspace.on('file-open', (f) => {
+        openedFile = f ? f.path : null;
+      });
+      const refLeaf = app.workspace.on('active-leaf-change', (leaf) => {
+        leafObserved = leaf;
+      });
+      const refLayout = app.workspace.on('layout-change', () => {
+        layoutChanged = true;
+      });
+
+      // Simular apertura de link
+      const opened = await app.workspace.openLinkText('bienvenida', '');
+      expect(opened).toBeInstanceOf(TFile);
+      expect(openedFile).toBe('notas/bienvenida.md');
+
+      // Simular active-leaf-change
+      app.workspace.triggerActiveLeafChange({ view: { getViewType: () => 'markdown' } });
+      expect(leafObserved?.view?.getViewType()).toBe('markdown');
+
+      // Simular layout-change
+      app.workspace.triggerLayoutChange();
+      expect(layoutChanged).toBe(true);
+
+      app.workspace.offref(refOpen);
+      app.workspace.offref(refLeaf);
+      app.workspace.offref(refLayout);
+    });
+
+    it('15. Sincronización de eventos externos emitidos por el watcher de archivos', async () => {
+      let externalModified = '';
+      let externalDeleted = '';
+
+      const refMod = app.vault.on('modify', (f) => {
+        externalModified = f.path;
+      });
+      const refDel = app.vault.on('delete', (f) => {
+        externalDeleted = f.path;
+      });
+
+      // Simular la llegada de un archivo nuevo o modificado externamente (ej. sync o editor externo)
+      (repo as MockVaultRepository).notes['externo/documento.md'] = {
+        title: 'Documento',
+        relative_path: 'externo/documento.md',
+        content: '# Modificado fuera de Synapse',
+      };
+
+      await (repo as MockVaultRepository).emitFilesChanged({
+        paths: ['externo/documento.md'],
+        deleted: ['notas/antigua.md'],
+      });
+
+      expect(externalModified).toBe('externo/documento.md');
+      expect(externalDeleted).toBe('notas/antigua.md');
+
+      app.vault.offref(refMod);
+      app.vault.offref(refDel);
+    });
   });
 });

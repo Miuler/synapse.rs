@@ -422,6 +422,12 @@ export interface VaultRepository {
   createFolder(relativePath: string): Promise<void>;
 
   /**
+   * Suscribe a los eventos de cambio de archivos emitidos por el watcher de la bóveda (Rust notify).
+   * Retorna una función para cancelar la suscripción.
+   */
+  onFilesChanged?(callback: (payload: { paths: string[]; deleted: string[] }) => void): Promise<() => void> | (() => void);
+
+  /**
    * Obtiene la lista de workspaces recientes desde ~/.config/synapsers/workspaces.json.
    */
   getRecentWorkspaces(): Promise<RecentWorkspaceEntry[]>;
@@ -1096,6 +1102,21 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.error('Error al crear carpeta en la bóveda:', { relativePath, error });
       throw error;
+    }
+  }
+
+  async onFilesChanged(callback: (payload: { paths: string[]; deleted: string[] }) => void): Promise<() => void> {
+    if (!this.isConnected()) {
+      return () => {};
+    }
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      return await listen<{ paths: string[]; deleted: string[] }>('vault:files-changed', (event) => {
+        callback(event.payload);
+      });
+    } catch (error) {
+      console.warn('No se pudo suscribir a vault:files-changed:', error);
+      return () => {};
     }
   }
 
