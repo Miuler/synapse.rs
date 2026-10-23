@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 import { createSynapseApp } from './app';
-import { Events, type EventRef, TAbstractFile, TFile, TFolder } from './types';
+import {
+  Component,
+  Events,
+  type EventRef,
+  ItemView,
+  TAbstractFile,
+  TextFileView,
+  TFile,
+  TFolder,
+  View,
+  WorkspaceLeaf,
+} from './types';
 import type { VaultFile, VaultNote, VaultRepository } from '@shared/repositories';
 
 class MockVaultRepository implements Partial<VaultRepository> {
@@ -518,6 +529,152 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
 
       app.vault.offref(refMod);
       app.vault.offref(refDel);
+    });
+  });
+
+  describe('Etapa 4: Vistas y Hojas de Trabajo (WorkspaceLeaf, View, TextFileView)', () => {
+    class MockExcalidrawView extends TextFileView {
+      rawJson = '';
+
+      getViewType(): string {
+        return 'excalidraw';
+      }
+
+      override getDisplayText(): string {
+        return this.file ? `Dibujo: ${this.file.basename}` : 'Excalidraw';
+      }
+
+      getViewData(): string {
+        return this.rawJson;
+      }
+
+      setViewData(data: string, _clear: boolean): void {
+        this.rawJson = data;
+        this.contentEl.textContent = data;
+      }
+
+      clear(): void {
+        this.rawJson = '';
+        this.contentEl.textContent = '';
+      }
+    }
+
+    it('16. Component gestiona ciclo de vida y desuscripciones automáticas (registerEvent, registerDomEvent)', () => {
+      class TestComponent extends Component {
+        loadedCalls = 0;
+        unloadedCalls = 0;
+
+        override onload() {
+          this.loadedCalls++;
+        }
+
+        override onunload() {
+          this.unloadedCalls++;
+        }
+      }
+
+      const parent = new TestComponent();
+      const child = new TestComponent();
+      parent.addChild(child);
+
+      expect(parent.loaded).toBe(false);
+      expect(child.loaded).toBe(false);
+
+      parent.load();
+      expect(parent.loaded).toBe(true);
+      expect(child.loaded).toBe(true);
+      expect(parent.loadedCalls).toBe(1);
+      expect(child.loadedCalls).toBe(1);
+
+      // Registrar evento en Component
+      let eventFired = 0;
+      const bus = new Events();
+      const ref = bus.on('ping', () => eventFired++);
+      parent.registerEvent(ref);
+
+      bus.trigger('ping');
+      expect(eventFired).toBe(1);
+
+      // Descargar componente debe desuscribir eventos y descargar hijos
+      parent.unload();
+      expect(parent.loaded).toBe(false);
+      expect(child.loaded).toBe(false);
+      expect(parent.unloadedCalls).toBe(1);
+      expect(child.unloadedCalls).toBe(1);
+
+      bus.trigger('ping');
+      expect(eventFired).toBe(1); // No debió incrementar tras unload
+    });
+
+    it('17. ItemView provee contenedor contentEl, actionsEl y soporte addAction', () => {
+      const leaf = app.workspace.getLeaf(true);
+      const view = new MockExcalidrawView(leaf);
+
+      expect(view.containerEl).toBeDefined();
+      expect(view.contentEl).toBeDefined();
+      expect(view.actionsEl).toBeDefined();
+
+      let actionClicked = false;
+      const btn = view.addAction('pencil', 'Editar trazo', () => {
+        actionClicked = true;
+      });
+
+      expect(btn).toBeDefined();
+      expect(btn.getAttribute('aria-label')).toBe('Editar trazo');
+    });
+
+    it('18. app.workspace registra vistas y extensiones de archivo personalizadas', () => {
+      app.workspace.registerView('excalidraw', (leaf) => new MockExcalidrawView(leaf));
+      app.workspace.registerExtensions(['excalidraw', 'excalidraw.md'], 'excalidraw');
+
+      expect(app.workspace.getViewTypeForExtension('excalidraw')).toBe('excalidraw');
+      expect(app.workspace.getViewTypeForExtension('excalidraw.md')).toBe('excalidraw');
+      expect(app.workspace.getViewTypeForExtension('md')).toBe('markdown');
+      expect(app.workspace.getViewCreator('excalidraw')).toBeDefined();
+    });
+
+    it('19. WorkspaceLeaf abre archivo de tipo registrado, carga vista y propaga estado', async () => {
+      const leaf = app.workspace.getLeaf(true);
+      const file = await app.vault.getAbstractFileByPath('dibujos/canvas.excalidraw');
+      expect(file).toBeInstanceOf(TFile);
+
+      await leaf.openFile(file as TFile);
+
+      expect(leaf.view).toBeInstanceOf(MockExcalidrawView);
+      expect(leaf.view?.getViewType()).toBe('excalidraw');
+      expect((leaf.view as MockExcalidrawView).getViewData()).toBe('{"elements": [100]}');
+      expect(leaf.getDisplayText()).toBe('Dibujo: canvas');
+      expect(app.workspace.activeLeaf).toBe(leaf);
+    });
+
+    it('20. TextFileView.save persiste datos modificados directamente en la bóveda', async () => {
+      const leaf = app.workspace.getLeavesOfType('excalidraw')[0];
+      expect(leaf).toBeDefined();
+      const view = leaf.view as MockExcalidrawView;
+
+      // Modificar datos en la vista visual
+      view.setViewData('{"elements": [{"type": "rectangle", "x": 10}]}', false);
+
+      // Guardar a través de la API estándar de Obsidian
+      await view.save();
+
+      // Verificar persistencia en app.vault
+      const savedContent = await app.vault.read('dibujos/canvas.excalidraw');
+      expect(savedContent).toBe('{"elements": [{"type": "rectangle", "x": 10}]}');
+    });
+
+    it('21. app.workspace.getLeavesOfType y getActiveViewOfType localizan vistas activas', () => {
+      const excalidrawLeaves = app.workspace.getLeavesOfType('excalidraw');
+      expect(excalidrawLeaves.length).toBeGreaterThanOrEqual(1);
+
+      const activeView = app.workspace.getActiveViewOfType(MockExcalidrawView);
+      expect(activeView).not.toBeNull();
+      expect(activeView?.getViewType()).toBe('excalidraw');
+
+      // Desacoplar hoja de trabajo
+      const leaf = excalidrawLeaves[0];
+      leaf.detach();
+      expect(app.workspace.getLeavesOfType('excalidraw').length).toBe(0);
     });
   });
 });

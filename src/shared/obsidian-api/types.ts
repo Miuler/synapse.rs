@@ -1,7 +1,20 @@
 import type { VaultNote, VaultRepository, VaultFile as RepositoryVaultFile } from '@shared/repositories';
 import { Events, type EventRef } from './events';
+import { Component } from './component';
+import { View, ItemView, TextFileView, DefaultMarkdownView } from './view';
+import { WorkspaceLeaf, type ViewState } from './leaf';
 
-export { Events, type EventRef };
+export {
+  Events,
+  type EventRef,
+  Component,
+  View,
+  ItemView,
+  TextFileView,
+  DefaultMarkdownView,
+  WorkspaceLeaf,
+  type ViewState,
+};
 
 export interface VaultFileStat {
   ctime: number | null;
@@ -112,14 +125,6 @@ export interface CachedMetadataLike {
 
 export type CachedMetadata = CachedMetadataLike;
 
-export interface WorkspaceLeaf {
-  view: any;
-  openFile?(file: TFile): Promise<void>;
-  getRoot?(): any;
-  getDisplayText?(): string;
-  [key: string]: any;
-}
-
 export interface DataAdapter {
   getName(): string;
   exists(normalizedPath: string, sensitive?: boolean): Promise<boolean>;
@@ -178,8 +183,19 @@ export interface SynapseVaultLike {
 }
 
 export interface SynapseWorkspaceLike {
+  activeLeaf: WorkspaceLeaf | null;
   getActiveFile(): Promise<TFile | null>;
-  openLinkText(linktext: string, sourcePath: string): Promise<TFile | null>;
+  openLinkText(linktext: string, sourcePath: string, newLeaf?: boolean): Promise<TFile | null>;
+  registerView(type: string, viewCreator: (leaf: WorkspaceLeaf) => View): void;
+  registerExtensions(extensions: string[], viewType: string): void;
+  getViewCreator(type: string): ((leaf: WorkspaceLeaf) => View) | undefined;
+  getViewTypeForExtension(extension: string): string;
+  getLeaf(newLeaf?: boolean | 'split' | 'tab' | 'window'): WorkspaceLeaf;
+  createLeafBySplit(leaf: WorkspaceLeaf, direction?: 'horizontal' | 'vertical', before?: boolean): WorkspaceLeaf;
+  setActiveLeaf(leaf: WorkspaceLeaf, params?: { focus?: boolean }): void;
+  getLeavesOfType(type: string): WorkspaceLeaf[];
+  getActiveViewOfType<T extends View>(type: new (...args: any[]) => T): T | null;
+  getLayout(): any;
 
   // Event methods
   on(name: 'file-open', callback: (file: TFile | null) => any, ctx?: any): EventRef;

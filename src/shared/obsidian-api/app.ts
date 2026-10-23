@@ -18,6 +18,7 @@ export class SynapseApp {
 
     // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos
     this.vault.setMetadataCache(this.metadataCache);
+    this.workspace.setApp(this);
   }
 }
 
