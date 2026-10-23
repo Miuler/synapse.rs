@@ -51,4 +51,27 @@ impl<R: NoteRepository> NoteUseCases<R> {
         );
         self.repository.save_note(vault_path, &note)
     }
+
+    pub fn read_standalone_note(&self, path: &Path) -> Result<Note, String> {
+        self.repository.read_standalone_file(path)
+    }
+
+    pub fn save_standalone_note(
+        &self,
+        path: &Path,
+        title: &str,
+        content: &str,
+        encoding: &str,
+    ) -> Result<(), String> {
+        let abs_path_str = path.to_string_lossy().to_string();
+        let relative_path = NoteRelativePath::from_absolute_path(&abs_path_str)?;
+        let note = Note::with_encoding(
+            relative_path,
+            abs_path_str,
+            title.to_string(),
+            content.to_string(),
+            encoding.to_string(),
+        );
+        self.repository.save_standalone_file(path, &note)
+    }
 }

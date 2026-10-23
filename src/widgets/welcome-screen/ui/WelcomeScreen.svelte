@@ -39,12 +39,14 @@
 
   interface Props {
     onWorkspaceOpened: (folderPath: string, initialNotes?: SelectVaultFolderResult['notes']) => void;
+    onStandaloneFileOpened?: (filePath: string) => void;
     onCloseWelcome?: () => void;
     canCloseWelcome?: boolean;
   }
 
   let {
     onWorkspaceOpened,
+    onStandaloneFileOpened,
     onCloseWelcome,
     canCloseWelcome = false,
   }: Props = $props();
@@ -188,6 +190,13 @@
     if (res && res.folder_path) {
       appSettings.setLastOpenedFolder(res.folder_path);
       onWorkspaceOpened(res.folder_path, res.notes);
+    }
+  }
+
+  async function handleOpenStandaloneFile() {
+    const filePath = await vaultRepository.selectStandaloneFile();
+    if (filePath && onStandaloneFileOpened) {
+      onStandaloneFileOpened(filePath);
     }
   }
 
@@ -446,6 +455,19 @@
             <span class="qa-title">Abrir carpeta local...</span>
           </div>
           <kbd class="qa-kbd">{shortcutsConfig.welcome.open_folder}</kbd>
+        </button>
+
+        <button type="button" class="quick-action-btn" onclick={handleOpenStandaloneFile}>
+          <div class="qa-left">
+            <div class="qa-icon-wrap blue-icon">
+              <FileText size={17} />
+            </div>
+            <div class="qa-texts">
+              <span class="qa-title">Abrir archivo puntual...</span>
+              <span class="qa-subtitle">Markdown, Mermaid, Excalidraw</span>
+            </div>
+          </div>
+          <kbd class="qa-kbd">Ctrl+O</kbd>
         </button>
 
         <button
@@ -1165,6 +1187,10 @@
 
   .qa-icon-wrap.amber-icon {
     color: #f59e0b;
+  }
+
+  .qa-icon-wrap.blue-icon {
+    color: #38bdf8;
   }
 
   .qa-icon-wrap.orange-icon {

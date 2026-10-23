@@ -16,7 +16,7 @@ use infrastructure::tauri::commands::{
     save_open_tabs_state, save_vault_ui_state, search_items_command, search_notes_command, select_vault_folder,
     set_active_vault_path, set_note_view_mode, toggle_devtools, open_tab_in_new_window, get_detached_window_tab,
     get_recent_workspaces, get_shortcuts_config, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
-    open_file_with_default_app,
+    open_file_with_default_app, get_startup_target, select_standalone_file, parse_startup_args,
     AppState,
 };
 use std::env;
@@ -32,6 +32,11 @@ pub fn run() {
     let repo = FileNoteRepository::new();
     let use_cases = NoteUseCases::new(repo);
     let app_state = AppState::empty(file_types, use_cases);
+
+    let startup_target = parse_startup_args(&std::env::args().collect::<Vec<_>>());
+    if let Ok(mut st) = app_state.startup_target.lock() {
+        *st = startup_target;
+    }
 
     #[cfg(target_os = "linux")]
     {
@@ -117,7 +122,9 @@ pub fn run() {
             create_new_workspace,
             clone_git_workspace,
             open_workspace_in_new_window,
-            open_file_with_default_app
+            open_file_with_default_app,
+            get_startup_target,
+            select_standalone_file
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -128,6 +135,14 @@ pub fn run() {
             if let Ok(guard) = state.active_vault_path.lock() {
                 if let Some(ref vault_path) = *guard {
                     let _ = handle.asset_protocol_scope().allow_directory(vault_path, true);
+                }
+            }
+            if let Ok(guard) = state.startup_target.lock() {
+                if let Some(domain::models::startup::StartupTarget::Standalone(ref path_str)) = *guard {
+                    let p = std::path::Path::new(path_str);
+                    if let Some(parent) = p.parent() {
+                        let _ = handle.asset_protocol_scope().allow_directory(parent, true);
+                    }
                 }
             }
             if let Ok(guard) = state.navigation_engine.lock() {

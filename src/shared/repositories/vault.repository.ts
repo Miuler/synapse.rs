@@ -38,6 +38,11 @@ export interface SelectVaultFolderResult {
   notes: VaultNote[];
 }
 
+export type StartupTarget =
+  | { type: 'standalone'; path: string }
+  | { type: 'vault'; path: string }
+  | null;
+
 export interface GitFileStatus {
   index?: string | null;
   worktree?: string | null;
@@ -279,6 +284,16 @@ export interface VaultRepository {
    * Opcionalmente inicia en la ruta especificada por startingDirectory.
    */
   selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null>;
+
+  /**
+   * Obtiene el objetivo de arranque inicial (archivo puntual o bóveda) si Synapse fue lanzado con argumentos.
+   */
+  getStartupTarget(): Promise<StartupTarget>;
+
+  /**
+   * Abre un selector nativo de archivos para abrir un archivo puntual (.md, .mermaid, .excalidraw) sin espacio de trabajo.
+   */
+  selectStandaloneFile(): Promise<string | null>;
 
   /**
    * Consulta el estado de Git del repositorio asociado a la bóveda.
@@ -754,6 +769,30 @@ export class TauriVaultRepository implements VaultRepository {
       });
     } catch (error) {
       console.error('Error en TauriVaultRepository al seleccionar carpeta de bóveda:', error);
+      return null;
+    }
+  }
+
+  async getStartupTarget(): Promise<StartupTarget> {
+    if (!this.isConnected()) {
+      return null;
+    }
+    try {
+      return await invokeTauri<StartupTarget>('get_startup_target');
+    } catch (error) {
+      console.error('Error al obtener startup target:', error);
+      return null;
+    }
+  }
+
+  async selectStandaloneFile(): Promise<string | null> {
+    if (!this.isConnected()) {
+      return null;
+    }
+    try {
+      return await invokeTauri<string | null>('select_standalone_file');
+    } catch (error) {
+      console.error('Error al seleccionar archivo puntual:', error);
       return null;
     }
   }

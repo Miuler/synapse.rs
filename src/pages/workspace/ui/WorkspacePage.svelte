@@ -124,6 +124,7 @@
   let currentWindowLabel = $state('main');
   let showWelcomeScreen = $state(true);
   let hasActiveWorkspaceLoaded = $state(false);
+  let isStandaloneMode = $state(false);
 
   // Estado de control de versiones Git
   let isGitRepo = $state(false);
@@ -131,7 +132,7 @@
   let gitStatuses = $state<Record<string, GitFileStatusKind>>({});
 
   async function refreshGitStatus() {
-    if (!vaultRepository.isConnected()) return;
+    if (!vaultRepository.isConnected() || isStandaloneMode) return;
     try {
       const status = await vaultRepository.getGitStatus();
       if (status && status.is_repo) {
@@ -485,7 +486,7 @@
 
   let saveTabsTimeout: ReturnType<typeof setTimeout> | null = null;
   function persistTabsState() {
-    if (!isConnectedToRust || isDetachedWindow) return;
+    if (!isConnectedToRust || isDetachedWindow || isStandaloneMode) return;
     if (saveTabsTimeout) clearTimeout(saveTabsTimeout);
     saveTabsTimeout = setTimeout(() => {
       const tabs = openTabPaths
@@ -903,9 +904,16 @@
       delete tabSelections[path];
     }
 
-    // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía
+    // Si no queda ningún tab abierto, crear automáticamente una pestaña vacía o volver a bienvenida si es modo puntual
     if (openTabPaths.length === 0) {
-      handleNewEmptyTab();
+      if (isStandaloneMode) {
+        isStandaloneMode = false;
+        showWelcomeScreen = true;
+        hasActiveWorkspaceLoaded = false;
+        vaultItems = [];
+      } else {
+        handleNewEmptyTab();
+      }
     }
     persistTabsState();
   }
@@ -920,7 +928,14 @@
     tabSelections = {};
     tabHistory = [];
     tabHistoryIndex = -1;
-    handleNewEmptyTab();
+    if (isStandaloneMode) {
+      isStandaloneMode = false;
+      showWelcomeScreen = true;
+      hasActiveWorkspaceLoaded = false;
+      vaultItems = [];
+    } else {
+      handleNewEmptyTab();
+    }
     persistTabsState();
   }
 
@@ -1730,44 +1745,58 @@
     // Cargar la configuración de tipos soportados a través de la entidad file-type
     loadSupportedFileTypes();
 
-    vaultRepository.getDetachedWindowTab().then(async (detachedTab) => {
-      if (detachedTab) {
-        isDetachedWindow = true;
-        showWelcomeScreen = false;
-        hasActiveWorkspaceLoaded = true;
-        openTabPaths = [detachedTab];
-        activeTabPath = detachedTab;
-        await fetchNotesFromBackend();
-        ensureContentLoaded(detachedTab);
+    vaultRepository.getStartupTarget().then(async (startupTarget) => {
+      if (startupTarget?.type === 'standalone') {
+        await openStandaloneFile(startupTarget.path);
         return;
-      }
-
-      // Verificar si se abrió una ventana nueva con parámetro ?vault=...
-      const urlParams = new URLSearchParams(window.location.search);
-      const vaultQueryParam = urlParams.get('vault');
-      if (vaultQueryParam) {
+      } else if (startupTarget?.type === 'vault') {
         showWelcomeScreen = false;
         hasActiveWorkspaceLoaded = true;
-        await vaultRepository.setActiveVaultPath(vaultQueryParam);
-        appSettings.setLastOpenedFolder(vaultQueryParam);
+        await vaultRepository.setActiveVaultPath(startupTarget.path);
+        appSettings.setLastOpenedFolder(startupTarget.path);
         await fetchNotesFromBackend();
         return;
       }
 
-      // Si al arrancar no hay ningún tab seleccionado/abierto, preparar uno vacío
-      if (openTabPaths.length === 0) {
-        handleNewEmptyTab();
-      }
+      vaultRepository.getDetachedWindowTab().then(async (detachedTab) => {
+        if (detachedTab) {
+          isDetachedWindow = true;
+          showWelcomeScreen = false;
+          hasActiveWorkspaceLoaded = true;
+          openTabPaths = [detachedTab];
+          activeTabPath = detachedTab;
+          await fetchNotesFromBackend();
+          ensureContentLoaded(detachedTab);
+          return;
+        }
 
-      const activePath = await vaultRepository.getActiveVaultPath();
-      if (!activePath) {
-        showWelcomeScreen = true;
-        hasActiveWorkspaceLoaded = false;
-      } else {
-        showWelcomeScreen = false;
-        hasActiveWorkspaceLoaded = true;
-        await fetchNotesFromBackend();
-      }
+        // Verificar si se abrió una ventana nueva con parámetro ?vault=...
+        const urlParams = new URLSearchParams(window.location.search);
+        const vaultQueryParam = urlParams.get('vault');
+        if (vaultQueryParam) {
+          showWelcomeScreen = false;
+          hasActiveWorkspaceLoaded = true;
+          await vaultRepository.setActiveVaultPath(vaultQueryParam);
+          appSettings.setLastOpenedFolder(vaultQueryParam);
+          await fetchNotesFromBackend();
+          return;
+        }
+
+        // Si al arrancar no hay ningún tab seleccionado/abierto, preparar uno vacío
+        if (openTabPaths.length === 0) {
+          handleNewEmptyTab();
+        }
+
+        const activePath = await vaultRepository.getActiveVaultPath();
+        if (!activePath) {
+          showWelcomeScreen = true;
+          hasActiveWorkspaceLoaded = false;
+        } else {
+          showWelcomeScreen = false;
+          hasActiveWorkspaceLoaded = true;
+          await fetchNotesFromBackend();
+        }
+      });
     });
 
     let unlistenFsChange: (() => void) | undefined;
@@ -2693,6 +2722,7 @@
     folderPath: string,
     initialNotes?: Array<{ relative_path: string; abs_path?: string; title: string }>
   ) {
+    isStandaloneMode = false;
     showWelcomeScreen = false;
     hasActiveWorkspaceLoaded = true;
     appSettings.setLastOpenedFolder(folderPath);
@@ -2742,10 +2772,33 @@
     }
   }
 
+  async function openStandaloneFile(filePath: string) {
+    isStandaloneMode = true;
+    showWelcomeScreen = false;
+    hasActiveWorkspaceLoaded = true;
+    openTabPaths = [filePath];
+    activeTabPath = filePath;
+    const fileName = filePath.split(/[\\/]/).pop() || filePath;
+    vaultItems = [
+      {
+        id: filePath,
+        title: fileName,
+        relative_path: filePath,
+        abs_path: filePath,
+      },
+    ];
+    await ensureContentLoaded(filePath);
+  }
+
+  function handleStandaloneFileSelected(filePath: string) {
+    openStandaloneFile(filePath);
+  }
+
   async function handleOpenVaultFolder() {
     try {
       const result = await vaultRepository.selectVaultFolder(appSettings.lastOpenedFolder);
       if (result) {
+        isStandaloneMode = false;
         if (result.folder_path) {
           appSettings.setLastOpenedFolder(result.folder_path);
         }
@@ -2859,6 +2912,7 @@
   {#if showWelcomeScreen && !isDetachedWindow}
     <WelcomeScreen
       onWorkspaceOpened={handleWorkspaceSelectedFromWelcome}
+      onStandaloneFileOpened={handleStandaloneFileSelected}
       canCloseWelcome={hasActiveWorkspaceLoaded}
       onCloseWelcome={() => {
         showWelcomeScreen = false;
@@ -2878,10 +2932,11 @@
       {isConnectedToRust}
       {vaultItems}
       {activeTabPath}
-      vaultPath={appSettings.lastOpenedFolder}
+      vaultPath={isStandaloneMode ? undefined : appSettings.lastOpenedFolder}
       {gitStatuses}
-      {isGitRepo}
-      {gitBranch}
+      isGitRepo={isStandaloneMode ? false : isGitRepo}
+      gitBranch={isStandaloneMode ? null : gitBranch}
+      isStandalone={isStandaloneMode}
       onSelectTab={handleSelectTabFromExplorer}
       onOpenVaultFolder={handleOpenVaultFolder}
       onDeleteItem={handleDeleteItem}
@@ -2981,7 +3036,8 @@
               isPdfFile(tabPath)}
           >
             <BreadCrumb
-              path={tabPath}
+              path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
+              readOnly={isStandaloneMode}
               onNavigateFolder={(folderPath) => vaultExplorerRef?.locateActiveFile(folderPath)}
               onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
             />

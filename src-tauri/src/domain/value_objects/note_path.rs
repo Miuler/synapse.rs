@@ -27,6 +27,18 @@ impl NoteRelativePath {
         Ok(Self(normalized))
     }
 
+    /// Crea una ruta a partir de una ubicación absoluta en el sistema de archivos (Modo puntual).
+    pub fn from_absolute_path(path: &str) -> Result<Self, String> {
+        if path.contains("..") {
+            return Err("Ruta no válida: no se permite navegación relativa con ..".to_string());
+        }
+        let normalized = path.replace('\\', "/");
+        if normalized.is_empty() {
+            return Err("La ruta no puede estar vacía".to_string());
+        }
+        Ok(Self(normalized))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }

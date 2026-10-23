@@ -7,6 +7,7 @@ use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
 use crate::domain::models::note::Note;
+use crate::domain::models::startup::StartupTarget;
 use crate::domain::models::workspace_registry::RecentWorkspaceEntry;
 use crate::domain::services::search_service::{SearchResult, SearchService};
 use crate::domain::value_objects::note_path::NoteRelativePath;
@@ -43,6 +44,7 @@ pub struct AppState {
     pub full_text: Mutex<Option<Arc<FullTextComponents>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
     pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
+    pub startup_target: Arc<Mutex<Option<StartupTarget>>>,
 }
 
 pub use crate::infrastructure::navigation::model::{VaultFileDto, VaultFileStatDto};
@@ -149,6 +151,7 @@ impl AppState {
             full_text: Mutex::new(None),
             app_handle: Arc::new(Mutex::new(None)),
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
+            startup_target: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -176,6 +179,7 @@ impl AppState {
             full_text: Mutex::new(Some(full_text)),
             app_handle,
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
+            startup_target: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -373,7 +377,14 @@ pub fn read_note_content(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<Note, String> {
+    let p = Path::new(&relative_path);
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+
+    // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
+    if p.is_absolute() || vault_guard.is_none() {
+        return state.note_use_cases.read_standalone_note(p);
+    }
+
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
@@ -408,11 +419,18 @@ pub fn save_note_content(
     content: String,
     encoding: Option<String>,
 ) -> Result<(), String> {
+    let p = Path::new(&relative_path);
+    let enc = encoding.unwrap_or_else(|| "UTF-8".to_string());
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+
+    // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
+    if p.is_absolute() || vault_guard.is_none() {
+        return state.note_use_cases.save_standalone_note(p, &title, &content, &enc);
+    }
+
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let enc = encoding.unwrap_or_else(|| "UTF-8".to_string());
     state
         .note_use_cases
         .save_note(vault_path, &relative_path, &title, &content, &enc)?;
@@ -593,6 +611,95 @@ pub async fn select_vault_folder(
     } else {
         Ok(None)
     }
+}
+
+#[tauri::command]
+pub fn get_startup_target(state: State<'_, AppState>) -> Result<Option<StartupTarget>, String> {
+    let mut guard = state.startup_target.lock().map_err(|e| e.to_string())?;
+    Ok(guard.take())
+}
+
+#[tauri::command]
+pub async fn select_standalone_file(
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .set_title("Abrir archivo")
+        .add_filter(
+            "Archivos soportados (*.md, *.mermaid, *.excalidraw)",
+            &["md", "markdown", "mermaid", "mmd", "excalidraw", "json"],
+        )
+        .add_filter("Markdown (*.md, *.markdown)", &["md", "markdown"])
+        .add_filter("Diagramas Mermaid (*.mermaid, *.mmd)", &["mermaid", "mmd"])
+        .add_filter(
+            "Dibujos Excalidraw (*.excalidraw, *.excalidraw.md, *.excalidraw.json)",
+            &["excalidraw", "json", "md"],
+        )
+        .add_filter("Todos los archivos (*.*)", &["*"])
+        .pick_file()
+        .await;
+
+    if let Some(handle) = file {
+        let path = handle.path().to_string_lossy().to_string();
+        if let Ok(guard) = state.app_handle.lock() {
+            if let Some(ref app_h) = *guard {
+                if let Some(parent) = handle.path().parent() {
+                    use tauri::Manager;
+                    let _ = app_h.asset_protocol_scope().allow_directory(parent, true);
+                }
+            }
+        }
+        Ok(Some(path))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn parse_startup_args(args: &[String]) -> Option<StartupTarget> {
+    if args.len() <= 1 {
+        return None;
+    }
+
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        if arg == "--file" || arg == "-f" {
+            if let Some(target) = iter.next() {
+                let p = Path::new(target);
+                let resolved = if p.is_relative() {
+                    std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+                } else {
+                    p.to_path_buf()
+                };
+                let canonical = resolved.canonicalize().unwrap_or(resolved);
+                return Some(StartupTarget::Standalone(canonical.to_string_lossy().to_string()));
+            }
+        } else if arg == "--vault" || arg == "-v" {
+            if let Some(target) = iter.next() {
+                let p = Path::new(target);
+                let resolved = if p.is_relative() {
+                    std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+                } else {
+                    p.to_path_buf()
+                };
+                let canonical = resolved.canonicalize().unwrap_or(resolved);
+                return Some(StartupTarget::Vault(canonical.to_string_lossy().to_string()));
+            }
+        } else if !arg.starts_with('-') {
+            let p = Path::new(arg);
+            let resolved = if p.is_relative() {
+                std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+            } else {
+                p.to_path_buf()
+            };
+            let canonical = resolved.canonicalize().unwrap_or(resolved);
+            if canonical.is_dir() {
+                return Some(StartupTarget::Vault(canonical.to_string_lossy().to_string()));
+            } else {
+                return Some(StartupTarget::Standalone(canonical.to_string_lossy().to_string()));
+            }
+        }
+    }
+    None
 }
 
 #[tauri::command]
@@ -1907,6 +2014,50 @@ mod tests {
         let bytes = std::fs::read(&resolved).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(get_image_mime_type("png"), "image/png");
+    }
+
+    #[test]
+    fn test_parse_startup_args() {
+        let temp_dir = std::env::temp_dir().join("synapse_startup_test");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_path = temp_dir.join("note.md");
+        std::fs::write(&file_path, "# Hola").unwrap();
+
+        // 1. Sin argumentos
+        let args_empty = vec!["synapsers".to_string()];
+        assert_eq!(parse_startup_args(&args_empty), None);
+
+        // 2. Argumento posicional de archivo existente
+        let args_file = vec!["synapsers".to_string(), file_path.to_str().unwrap().to_string()];
+        let target_file = parse_startup_args(&args_file);
+        assert!(matches!(target_file, Some(StartupTarget::Standalone(_))));
+
+        // 3. Flag --file
+        let args_flag_file = vec![
+            "synapsers".to_string(),
+            "--file".to_string(),
+            file_path.to_str().unwrap().to_string(),
+        ];
+        let target_flag = parse_startup_args(&args_flag_file);
+        assert!(matches!(target_flag, Some(StartupTarget::Standalone(_))));
+
+        // 4. Argumento posicional de directorio existente
+        let args_dir = vec!["synapsers".to_string(), temp_dir.to_str().unwrap().to_string()];
+        let target_dir = parse_startup_args(&args_dir);
+        assert!(matches!(target_dir, Some(StartupTarget::Vault(_))));
+
+        // 5. Flag --vault
+        let args_flag_vault = vec![
+            "synapsers".to_string(),
+            "-v".to_string(),
+            temp_dir.to_str().unwrap().to_string(),
+        ];
+        let target_flag_vault = parse_startup_args(&args_flag_vault);
+        assert!(matches!(target_flag_vault, Some(StartupTarget::Vault(_))));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
 

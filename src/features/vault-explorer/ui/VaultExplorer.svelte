@@ -23,6 +23,7 @@
     gitStatuses?: Record<string, GitFileStatusKind>;
     isGitRepo?: boolean;
     gitBranch?: string | null;
+    isStandalone?: boolean;
     onSelectTab: (path: string, viewerPreference?: 'native' | 'obsidian') => void;
     onOpenVaultFolder: () => void;
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
@@ -52,6 +53,7 @@
     gitStatuses = {},
     isGitRepo = false,
     gitBranch = null,
+    isStandalone = false,
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
@@ -196,6 +198,19 @@
 
   // Construir el árbol jerárquico a partir de la lista plana de vaultItems (fallback)
   let treeNodes = $derived.by(() => {
+    if (isStandalone) {
+      return vaultItems.map((vaultItem) => {
+        const name = vaultItem.title || vaultItem.relative_path.split(/[\\/]/).pop() || vaultItem.relative_path;
+        return {
+          name,
+          relativePath: vaultItem.relative_path,
+          isFolder: false,
+          item: vaultItem,
+          children: [],
+        };
+      });
+    }
+
     const rootNodes: VaultTreeNode[] = [];
     const nodeMap: Record<string, VaultTreeNode> = {};
 

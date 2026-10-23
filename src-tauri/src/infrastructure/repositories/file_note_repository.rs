@@ -281,6 +281,69 @@ impl NoteRepository for FileNoteRepository {
         fs::write(&abs_path, bytes)
             .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
     }
+
+    fn read_standalone_file(&self, path: &Path) -> Result<Note, String> {
+        if !path.is_file() {
+            return Err(format!("El archivo no existe en {:?}", path));
+        }
+
+        let ext_str = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+        let file_types = SupportedFileTypes::default();
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
+        let is_binary = is_image || file_types.is_pdf_extension(ext_str);
+
+        let (encoding, content) = if is_binary {
+            ("binary".to_string(), "".to_string())
+        } else {
+            let bytes = fs::read(path)
+                .map_err(|e| format!("Error al leer archivo en {:?}: {}", path, e))?;
+            let (encoding, content) = detect_and_decode(&bytes);
+            (encoding, content)
+        };
+
+        let title = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(file_name)
+            .to_string();
+
+        let abs_path_str = path.to_string_lossy().to_string();
+        let relative_path = NoteRelativePath::from_absolute_path(&abs_path_str)?;
+
+        Ok(Note::with_encoding(
+            relative_path,
+            abs_path_str,
+            title,
+            content,
+            encoding,
+        ))
+    }
+
+    fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        let ext_str = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+        let file_types = SupportedFileTypes::default();
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if (file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name))
+            || file_types.is_pdf_extension(ext_str)
+        {
+            return Ok(());
+        }
+
+        let bytes = encode_content(&note.content, &note.encoding);
+        fs::write(path, bytes)
+            .map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
+    }
 }
 
 #[cfg(test)]
@@ -447,6 +510,40 @@ mod tests {
         let loaded = read_res.unwrap();
         assert_eq!(loaded.content, json_content);
         assert!(loaded.encoding == "UTF-8" || loaded.encoding == "ASCII");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_standalone_file_read_and_save() {
+        use crate::domain::repositories::note_repository::NoteRepository;
+        let temp_dir = std::env::temp_dir().join("synapse_standalone_test");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let repo = FileNoteRepository::new();
+        let standalone_file = temp_dir.join("standalone_diagram.mermaid");
+        let mermaid_content = "graph TD\nA-->B";
+
+        let abs_str = standalone_file.to_string_lossy().to_string();
+        let note_path = NoteRelativePath::from_absolute_path(&abs_str).unwrap();
+        let note_to_save = Note::with_encoding(
+            note_path,
+            abs_str,
+            "standalone_diagram".to_string(),
+            mermaid_content.to_string(),
+            "UTF-8".to_string(),
+        );
+
+        let save_res = repo.save_standalone_file(&standalone_file, &note_to_save);
+        assert!(save_res.is_ok(), "Guardar standalone file falló: {:?}", save_res);
+
+        let read_res = repo.read_standalone_file(&standalone_file);
+        assert!(read_res.is_ok(), "Leer standalone file falló: {:?}", read_res);
+
+        let loaded = read_res.unwrap();
+        assert_eq!(loaded.content, mermaid_content);
+        assert_eq!(loaded.title, "standalone_diagram");
 
         let _ = fs::remove_dir_all(&temp_dir);
     }

@@ -46,4 +46,10 @@ pub trait NoteRepository: Send + Sync {
     /// * `Ok(())`: Si la nota fue persistida correctamente.
     /// * `Err(String)`: Mensaje descriptivo si ocurrió un error de escritura o permisos.
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String>;
+
+    /// Lee un archivo individual fuera de una bóveda (Modo Archivo Puntual).
+    fn read_standalone_file(&self, path: &Path) -> Result<Note, String>;
+
+    /// Guarda un archivo individual fuera de una bóveda (Modo Archivo Puntual).
+    fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String>;
 }
