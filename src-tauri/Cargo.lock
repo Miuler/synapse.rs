@@ -83,43 +83,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "base64 0.23.1",
- "bincode",
- "chardetng",
- "compact_str",
- "dashmap",
- "encoding_rs",
- "gix",
- "image 0.25.10",
- "indicatif",
- "indicatif-log-bridge",
- "jwalk",
- "log",
- "notify",
- "nucleo",
- "nucleo-matcher",
- "pixelmatch",
- "pulldown-cmark",
- "rayon",
- "rfd",
- "serde",
- "serde_json",
- "serde_json_lenient",
- "tantivy",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tempfile",
- "tracing",
- "tracing-indicatif",
- "tracing-subscriber",
- "webkit2gtk-nvidia-quirk",
-]
-
-[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4951,6 +4914,43 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "synapsers"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "bincode",
+ "chardetng",
+ "compact_str",
+ "dashmap",
+ "encoding_rs",
+ "gix",
+ "image 0.25.10",
+ "indicatif",
+ "indicatif-log-bridge",
+ "jwalk",
+ "log",
+ "notify",
+ "nucleo",
+ "nucleo-matcher",
+ "pixelmatch",
+ "pulldown-cmark",
+ "rayon",
+ "rfd",
+ "serde",
+ "serde_json",
+ "serde_json_lenient",
+ "tantivy",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tempfile",
+ "tracing",
+ "tracing-indicatif",
+ "tracing-subscriber",
+ "webkit2gtk-nvidia-quirk",
 ]
 
 [[package]]
