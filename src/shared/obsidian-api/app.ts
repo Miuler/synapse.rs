@@ -7,6 +7,7 @@ import { SynapseCommandManager } from './command';
 import { SynapseSettingManager } from './setting';
 import { SynapseRibbonManager, SynapseStatusBarManager } from './ribbon';
 import { PluginLoader } from './loader';
+import { ExcalidrawAutomate } from './excalidraw-automate';
 import { setupObsidianGlobalEnvironment } from './bridge';
 
 export class SynapseApp {
@@ -19,6 +20,7 @@ export class SynapseApp {
   readonly ribbon: SynapseRibbonManager;
   readonly statusBar: SynapseStatusBarManager;
   readonly plugins: PluginLoader;
+  readonly ea: ExcalidrawAutomate;
 
   constructor(repository: VaultRepository) {
     this.vault = new SynapseVault(repository);
@@ -30,6 +32,7 @@ export class SynapseApp {
     this.ribbon = new SynapseRibbonManager();
     this.statusBar = new SynapseStatusBarManager();
     this.plugins = new PluginLoader(this);
+    this.ea = new ExcalidrawAutomate(this);
 
     // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos
     this.vault.setMetadataCache(this.metadataCache);

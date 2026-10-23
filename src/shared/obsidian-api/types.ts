@@ -251,6 +251,7 @@ export interface SynapseWorkspaceLike {
   registerExtensions(extensions: string[], viewType: string): void;
   getViewCreator(type: string): ((leaf: WorkspaceLeaf) => View) | undefined;
   getViewTypeForExtension(extension: string): string;
+  getViewTypeForFile(file: TFile): string;
   getLeaf(newLeaf?: boolean | 'split' | 'tab' | 'window'): WorkspaceLeaf;
   createLeafBySplit(leaf: WorkspaceLeaf, direction?: 'horizontal' | 'vertical', before?: boolean): WorkspaceLeaf;
   setActiveLeaf(leaf: WorkspaceLeaf, params?: { focus?: boolean }): void;

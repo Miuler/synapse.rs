@@ -7,6 +7,7 @@ import {
 } from './types';
 import { WorkspaceLeaf } from './leaf';
 import { DefaultMarkdownView, View } from './view';
+import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
 import type { SynapseApp } from './app';
 
 export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
@@ -24,6 +25,10 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
 
     // Registrar vista por defecto de Markdown
     this.registerView('markdown', (leaf) => new DefaultMarkdownView(leaf));
+
+    // Registrar vista y extensiones canónicas de Excalidraw
+    this.registerView(VIEW_TYPE_EXCALIDRAW, (leaf) => new ExcalidrawView(leaf));
+    this.registerExtensions(['excalidraw', 'excalidraw.json', 'excalidraw.md'], VIEW_TYPE_EXCALIDRAW);
   }
 
   /**
@@ -73,6 +78,42 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   getViewTypeForExtension(extension: string): string {
     const clean = extension.toLowerCase().replace(/^\./, '');
     return this.extensionViewTypes.get(clean) || 'markdown';
+  }
+
+  /**
+   * Resuelve el viewType correspondiente a un archivo específico (TFile).
+   * Considera extensiones compuestas (.excalidraw.md), frontmatter de Obsidian
+   * (ej: `excalidraw-plugin: parsed`), o la extensión simple del archivo.
+   */
+  getViewTypeForFile(file: TFile): string {
+    const lowerName = file.name.toLowerCase();
+
+    // 1. Extensiones compuestas registradas (ej. 'excalidraw.md')
+    for (const [ext, viewType] of this.extensionViewTypes.entries()) {
+      if (ext.includes('.') && lowerName.endsWith('.' + ext)) {
+        return viewType;
+      }
+    }
+
+    // 2. Extensión directa
+    const simpleExt = file.extension.toLowerCase();
+    if (this.extensionViewTypes.has(simpleExt)) {
+      return this.extensionViewTypes.get(simpleExt)!;
+    }
+
+    // 3. Inspeccionar frontmatter para plugins registrados (ej: excalidraw-plugin)
+    if (this.appInstance) {
+      const cache = this.appInstance.metadataCache.getFileCacheSync(file);
+      if (
+        cache?.frontmatter &&
+        cache.frontmatter['excalidraw-plugin'] &&
+        this.viewCreators.has(VIEW_TYPE_EXCALIDRAW)
+      ) {
+        return VIEW_TYPE_EXCALIDRAW;
+      }
+    }
+
+    return 'markdown';
   }
 
   /**

@@ -132,6 +132,23 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
     },
     querySelector: () => null,
     querySelectorAll: () => [],
+    addClass: (c: string) => {
+      classListSet.add(c);
+      mock.className = Array.from(classListSet).join(' ');
+    },
+    removeClass: (c: string) => {
+      classListSet.delete(c);
+      mock.className = Array.from(classListSet).join(' ');
+    },
+    hasClass: (c: string) => classListSet.has(c),
+    toggleClass: (c: string) => {
+      if (classListSet.has(c)) {
+        classListSet.delete(c);
+      } else {
+        classListSet.add(c);
+      }
+      mock.className = Array.from(classListSet).join(' ');
+    },
     createDiv: (o?: DomElementOptions) => createDiv(o, mock),
     createSpan: (o?: DomElementOptions) => createSpan(o, mock),
     createEl: (t: any, o?: DomElementOptions) => createEl(t, { ...o, parent: mock }),

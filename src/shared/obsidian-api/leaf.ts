@@ -38,8 +38,7 @@ export class WorkspaceLeaf extends Events {
    * inicializa la vista y carga el archivo invocando su ciclo de vida `onLoadFile`.
    */
   async openFile(file: TFile, _openState?: any): Promise<void> {
-    const ext = file.extension.toLowerCase();
-    const targetViewType = this.app.workspace.getViewTypeForExtension(ext);
+    const targetViewType = this.app.workspace.getViewTypeForFile(file);
 
     // Si no tenemos vista o es de distinto tipo, cambiar el estado de la hoja
     if (!this.view || this.view.getViewType() !== targetViewType) {

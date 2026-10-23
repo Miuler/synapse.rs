@@ -25,7 +25,15 @@ import {
   TFolder,
   View,
   WorkspaceLeaf,
-} from './types';
+  ExcalidrawView,
+  VIEW_TYPE_EXCALIDRAW,
+  ExcalidrawAutomate,
+  isExcalidrawFile,
+  isExcalidrawMarkdown,
+  parseExcalidrawContent,
+  serializeExcalidrawMarkdown,
+  extractWikilinksFromElements,
+} from './index';
 import type { VaultFile, VaultNote, VaultRepository } from '@shared/repositories';
 
 class MockVaultRepository implements Partial<VaultRepository> {
@@ -1105,6 +1113,352 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
       expect((app as any).canvasPluginLoaded).toBe(false);
       expect(app.commands.findCommand(cmdId)).toBeUndefined();
       expect(app.plugins.getPlugin('mi-plugin-canvas')).toBeUndefined();
+    });
+  });
+
+  describe('Etapa 7: Integración y Validación Exhaustiva de obsidian-excalidraw-plugin', () => {
+    it('32. Detección y parseo bidireccional de Markdown Excalidraw (excalidraw-plugin: parsed)', () => {
+      const rawMarkdown = `---
+
+excalidraw-plugin: parsed
+tags: [ea/drawing]
+author: synapsers
+
+---
+==Deconstruct of drawing==
+# Text Elements
+Nodo de Inicio ^txt1
+
+%%
+# Drawing
+\`\`\`json
+{
+  "type": "excalidraw",
+  "version": 2,
+  "elements": [
+    { "id": "txt1", "type": "text", "text": "Nodo de Inicio", "isDeleted": false },
+    { "id": "rect1", "type": "rectangle", "x": 50, "y": 50, "width": 120, "height": 60 }
+  ],
+  "appState": { "theme": "dark" }
+}
+\`\`\`
+%%
+`;
+
+      // 1. Detección de formato
+      expect(isExcalidrawMarkdown(rawMarkdown)).toBe(true);
+
+      const mockTFile = new TFile(app.vault, 'diagramas/flujo.excalidraw.md');
+      expect(isExcalidrawFile(mockTFile)).toBe(true);
+
+      // 2. Parseo de documento
+      const doc = parseExcalidrawContent(rawMarkdown);
+      expect(doc.isMarkdown).toBe(true);
+      expect(doc.frontmatter?.['excalidraw-plugin']).toBe('parsed');
+      expect(doc.frontmatter?.author).toBe('synapsers');
+      expect(doc.scene.elements.length).toBe(2);
+      expect(doc.scene.appState.theme).toBe('dark');
+      expect(doc.textElements.length).toBe(1);
+      expect(doc.textElements[0].text).toBe('Nodo de Inicio');
+
+      // 3. Serialización de vuelta preservando metadatos y sincronizando # Text Elements
+      const reserialized = serializeExcalidrawMarkdown(
+        {
+          elements: [
+            ...doc.scene.elements,
+            { id: 'txt2', type: 'text', text: 'Nodo de Fin', isDeleted: false },
+          ],
+          appState: doc.scene.appState,
+        },
+        rawMarkdown
+      );
+
+      expect(reserialized).toContain('excalidraw-plugin: parsed');
+      expect(reserialized).toContain('author: synapsers');
+      expect(reserialized).toContain('Nodo de Inicio ^txt1');
+      expect(reserialized).toContain('Nodo de Fin ^txt2');
+      expect(reserialized).toContain('# Drawing');
+    });
+
+    it('33. Extracción de Wikilinks embebidos en textos de nodos y resolución en la bóveda', async () => {
+      const elements = [
+        {
+          id: 't1',
+          type: 'text',
+          text: 'Consulte [[Arquitectura Cebolla]] para más info',
+          isDeleted: false,
+        },
+        {
+          id: 't2',
+          type: 'text',
+          text: 'Vea también [[Guía de Rust#Testing|Manual de Pruebas]] y [[Bienvenida]]',
+          isDeleted: false,
+        },
+        {
+          id: 't3',
+          type: 'text',
+          text: 'Texto borrado [[Ignorar]]',
+          isDeleted: true,
+        },
+        {
+          id: 'r1',
+          type: 'rectangle',
+          link: '[[Enlace de Caja]]',
+        },
+      ];
+
+      const links = extractWikilinksFromElements(elements);
+      expect(links).toContain('Arquitectura Cebolla');
+      expect(links).toContain('Guía de Rust');
+      expect(links).toContain('Bienvenida');
+      expect(links).toContain('Enlace de Caja');
+      expect(links).not.toContain('Ignorar');
+
+      // Comprobar resolución mediante app.metadataCache
+      const dest = await app.metadataCache.getFirstLinkpathDest('Bienvenida', 'diagrama.excalidraw.md');
+      expect(dest).toBeDefined();
+      expect(dest?.path).toBe('notas/bienvenida.md');
+    });
+
+    it('34. Automatización y scripting fluido mediante ExcalidrawAutomate (ea)', async () => {
+      const ea = new ExcalidrawAutomate(app);
+      ea.reset();
+
+      const rectId = ea.addRect(50, 50, 160, 80, {
+        backgroundColor: '#e3f2fd',
+        strokeColor: '#1976d2',
+      });
+      const textId = ea.addText(70, 75, 'Proceso: [[Bienvenida]]', {
+        fontSize: 16,
+      });
+      const diamondId = ea.addDiamond(280, 50, 120, 80, {
+        backgroundColor: '#fff3e0',
+      });
+      const arrowId = ea.connectElements(rectId, diamondId);
+
+      expect(rectId).toBeDefined();
+      expect(textId).toBeDefined();
+      expect(diamondId).toBeDefined();
+      expect(arrowId).toBeDefined();
+
+      const elements = ea.getElements();
+      expect(elements.length).toBe(4);
+
+      // Enlaces automáticos extraídos
+      const links = ea.getLinks();
+      expect(links).toEqual(['Bienvenida']);
+
+      // Crear archivo de dibujo en la bóveda
+      const createdFile = await ea.createDrawing('diagramas/flujo-automatizado.excalidraw.md');
+      expect(createdFile).toBeDefined();
+      expect(createdFile.path).toBe('diagramas/flujo-automatizado.excalidraw.md');
+
+      const content = await app.vault.read(createdFile);
+      expect(content).toContain('excalidraw-plugin: parsed');
+      expect(content).toContain('Proceso: [[Bienvenida]]');
+    });
+
+    it('35. Exportación vectorial SVG y binaria PNG transparente', async () => {
+      const ea = new ExcalidrawAutomate(app);
+      ea.reset();
+      ea.addRect(10, 10, 100, 50, { backgroundColor: '#c8e6c9', strokeColor: '#388e3c' });
+      ea.addText(20, 25, 'Diagrama SVG & PNG');
+
+      // 1. Exportación SVG
+      const svg = ea.toSVG();
+      expect(svg).toContain('<svg');
+      expect(svg).toContain('<rect');
+      expect(svg).toContain('<text');
+      expect(svg).toContain('Diagrama SVG &amp; PNG');
+      expect(svg).toContain('</svg>');
+
+      // 2. Exportación binaria
+      const pngBuffer = await ea.toPNG();
+      expect(pngBuffer).toBeInstanceOf(ArrayBuffer);
+      expect(pngBuffer.byteLength).toBeGreaterThan(0);
+    });
+
+    it('36. ExcalidrawView gestiona ciclo de vida y conmutación entre modo visual y texto', async () => {
+      const leaf = app.workspace.getLeaf(true);
+      const drawingFile = await app.vault.create(
+        'diagramas/arquitectura.excalidraw.md',
+        `---
+
+excalidraw-plugin: parsed
+tags: [ea/drawing]
+
+---
+==Deconstruct of drawing==
+# Text Elements
+Capa Dominio ^c1
+
+%%
+# Drawing
+\`\`\`json
+{
+  "type": "excalidraw",
+  "version": 2,
+  "elements": [
+    { "id": "c1", "type": "text", "text": "Capa Dominio", "isDeleted": false }
+  ],
+  "appState": { "viewBackgroundColor": "#ffffff" }
+}
+\`\`\`
+%%
+`
+      );
+
+      // Registrar la vista canónica de Excalidraw
+      app.workspace.registerView(VIEW_TYPE_EXCALIDRAW, (leaf) => new ExcalidrawView(leaf));
+
+      // Abrir en hoja de trabajo
+      await leaf.openFile(drawingFile);
+      expect(leaf.view).toBeInstanceOf(ExcalidrawView);
+
+      const view = leaf.view as ExcalidrawView;
+      expect(view.getViewType()).toBe(VIEW_TYPE_EXCALIDRAW);
+      expect(view.getDisplayText()).toBe('arquitectura.excalidraw');
+      expect(view.viewMode).toBe('visual');
+      expect(view.getWikilinks()).toEqual([]);
+
+      // Conmutar a modo texto
+      const mode1 = view.toggleViewMode();
+      expect(mode1).toBe('text');
+      expect(view.viewMode).toBe('text');
+      expect(view.getViewData()).toContain('excalidraw-plugin: parsed');
+
+      // Modificar en modo texto y volver a visual
+      const newText = view.getViewData().replace('Capa Dominio', 'Capa Dominio & [[Entidades]]');
+      view.setViewData(newText, false);
+
+      const mode2 = view.toggleViewMode();
+      expect(mode2).toBe('visual');
+      expect(view.getWikilinks()).toEqual(['Entidades']);
+
+      // Guardar y verificar persistencia en la bóveda
+      await view.save();
+      const updatedOnDisk = await app.vault.read(drawingFile);
+      expect(updatedOnDisk).toContain('Capa Dominio & [[Entidades]]');
+    });
+
+    it('37. Enrutamiento inteligente de WorkspaceLeaf por extensión compuesta (.excalidraw.md) y frontmatter', async () => {
+      // 1. Archivo .excalidraw puro
+      const pureExcalFile = await app.vault.create(
+        'diagramas/red.excalidraw',
+        JSON.stringify({ type: 'excalidraw', version: 2, elements: [] })
+      );
+      expect(app.workspace.getViewTypeForFile(pureExcalFile)).toBe(VIEW_TYPE_EXCALIDRAW);
+
+      // 2. Archivo compuesto .excalidraw.md
+      const compoundFile = await app.vault.create(
+        'diagramas/esquema.excalidraw.md',
+        '# Esquema Excalidraw'
+      );
+      expect(app.workspace.getViewTypeForFile(compoundFile)).toBe(VIEW_TYPE_EXCALIDRAW);
+
+      // 3. Archivo Markdown estándar que contiene frontmatter excalidraw-plugin
+      const mdWithFrontmatter = await app.vault.create(
+        'notas/dibujo-incrustado.md',
+        `---
+excalidraw-plugin: parsed
+---
+# Contenido`
+      );
+      expect(app.workspace.getViewTypeForFile(mdWithFrontmatter)).toBe(VIEW_TYPE_EXCALIDRAW);
+
+      // 4. Archivo Markdown común y corriente
+      const normalMd = await app.vault.create('notas/ordinaria.md', '# Nota normal');
+      expect(app.workspace.getViewTypeForFile(normalMd)).toBe('markdown');
+    });
+
+    it('38. Integración final: carga de obsidian-excalidraw-plugin real a través de PluginLoader', async () => {
+      const pluginDir = '.synapse/plugins/obsidian-excalidraw-plugin';
+
+      // 1. Manifest del plugin comunitario oficial
+      const manifest: PluginManifest = {
+        id: 'obsidian-excalidraw-plugin',
+        name: 'Excalidraw',
+        version: '2.8.0',
+        minAppVersion: '1.0.0',
+        description: 'Edición y dibujo nativo de Excalidraw en Obsidian y Synapse.',
+        author: 'Zsolt Viczian',
+        isDesktopOnly: false,
+      };
+      await app.vault.adapter.write(`${pluginDir}/manifest.json`, JSON.stringify(manifest, null, 2));
+
+      // 2. Estilos CSS
+      await app.vault.adapter.write(
+        `${pluginDir}/styles.css`,
+        `.excalidraw-view { background: #fafafa; }`
+      );
+
+      // 3. Código empaquetado del plugin utilizando el bridge 'obsidian'
+      const mainJsCode = `
+        const { Plugin, ExcalidrawView, VIEW_TYPE_EXCALIDRAW } = require('obsidian');
+
+        module.exports = class ExcalidrawPlugin extends Plugin {
+          async onload() {
+            this.app.excalidrawPluginActive = true;
+
+            // Registrar vista y extensiones
+            this.registerView(VIEW_TYPE_EXCALIDRAW, (leaf) => new ExcalidrawView(leaf));
+            this.registerExtensions(['excalidraw', 'excalidraw.md'], VIEW_TYPE_EXCALIDRAW);
+
+            // Registrar comando oficial de Excalidraw
+            this.addCommand({
+              id: 'create-drawing',
+              name: 'Crear nuevo dibujo de Excalidraw',
+              callback: async () => {
+                this.app.excalidrawNewDrawingCreated = true;
+                return await this.app.ea.createDrawing('Dibujo Sin Título.excalidraw.md');
+              }
+            });
+
+            // Registrar botón en Ribbon
+            this.addRibbonIcon('brush', 'Nuevo dibujo Excalidraw', () => {
+              this.app.excalidrawRibbonClicked = true;
+            });
+
+            // Cargar datos previos
+            const data = await this.loadData();
+            this.settings = Object.assign({ defaultTheme: 'light' }, data);
+          }
+
+          onunload() {
+            this.app.excalidrawPluginActive = false;
+          }
+        };
+      `;
+      await app.vault.adapter.write(`${pluginDir}/main.js`, mainJsCode);
+
+      // 4. Cargar plugin mediante PluginLoader
+      const entry = await app.plugins.loadPluginFromDir(pluginDir);
+      expect(entry).toBeDefined();
+      expect(entry.manifest.id).toBe('obsidian-excalidraw-plugin');
+      expect((app as any).excalidrawPluginActive).toBe(true);
+
+      // 5. Verificar comando registrado
+      const cmd = app.commands.findCommand('obsidian-excalidraw-plugin:create-drawing');
+      expect(cmd).toBeDefined();
+      await cmd?.callback?.();
+      expect((app as any).excalidrawNewDrawingCreated).toBe(true);
+
+      const createdFile = await app.vault.getAbstractFileByPath('Dibujo Sin Título.excalidraw.md');
+      expect(createdFile).toBeInstanceOf(TFile);
+
+      // 6. Verificar persistencia de configuraciones
+      const pluginInstance = entry.instance;
+      pluginInstance.settings.defaultTheme = 'dark';
+      await pluginInstance.saveData(pluginInstance.settings);
+
+      const loadedData = await pluginInstance.loadData();
+      expect(loadedData.defaultTheme).toBe('dark');
+
+      // 7. Descargar limpiamente el plugin
+      await app.plugins.unloadPlugin('obsidian-excalidraw-plugin');
+      expect((app as any).excalidrawPluginActive).toBe(false);
+      expect(app.commands.findCommand('obsidian-excalidraw-plugin:create-drawing')).toBeUndefined();
+      expect(app.plugins.getPlugin('obsidian-excalidraw-plugin')).toBeUndefined();
     });
   });
 });

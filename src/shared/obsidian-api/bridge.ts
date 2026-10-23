@@ -19,6 +19,15 @@ import {
 import { Notice, Modal, Menu, MenuItem } from './ui';
 import { normalizePath, parseYaml, stringifyYaml, requestUrl, Platform, moment } from './utils';
 import { createDiv, createEl, createSpan, empty } from './dom';
+import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
+import { ExcalidrawAutomate } from './excalidraw-automate';
+import {
+  isExcalidrawFile,
+  isExcalidrawMarkdown,
+  parseExcalidrawContent,
+  serializeExcalidrawMarkdown,
+  extractWikilinksFromElements,
+} from './excalidraw-parser';
 import type { SynapseApp } from './app';
 
 /**
@@ -45,6 +54,16 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     TextFileView,
     DefaultMarkdownView,
     WorkspaceLeaf,
+    ExcalidrawView,
+    VIEW_TYPE_EXCALIDRAW,
+
+    // Automatización y parseo de Excalidraw
+    ExcalidrawAutomate,
+    isExcalidrawFile,
+    isExcalidrawMarkdown,
+    parseExcalidrawContent,
+    serializeExcalidrawMarkdown,
+    extractWikilinksFromElements,
 
     // Interfaz de configuración
     Setting,
@@ -79,7 +98,7 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
 
 /**
  * Inicializa el entorno global en el navegador, WebView de Tauri o runtime de ejecución.
- * Establece `window.app` (o `globalThis.app`), `moment` y configura el shim de `require('obsidian')`.
+ * Establece `window.app` (o `globalThis.app`), `moment`, `ExcalidrawAutomate` y configura el shim de `require('obsidian')`.
  */
 export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
   const target: any = typeof window !== 'undefined' ? window : (globalThis as any);
@@ -87,6 +106,10 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
 
   target.app = app;
   target.moment = moment;
+
+  const ea = new ExcalidrawAutomate(app);
+  target.ExcalidrawAutomate = ExcalidrawAutomate;
+  target.ea = ea;
 
   const bundle = getObsidianBundle(app);
 
