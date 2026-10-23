@@ -26,6 +26,7 @@
     isDrawingFile,
     isPdfFile,
     loadSupportedFileTypes,
+    DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
@@ -520,6 +521,14 @@
           markdownViewMode = activeMode;
           isEditing = activeMode !== "reading";
           ensureContentLoaded(targetActive);
+
+          // Precargar en segundo plano las demás pestañas para evitar desfasajes o lienzos vacíos
+          for (const p of openTabPaths) {
+            if (p !== targetActive && !isSyntheticTab(p)) {
+              ensureContentLoaded(p);
+            }
+          }
+
           return true;
         }
       }
@@ -682,9 +691,38 @@
     recordTabVisit(emptyTabPath);
   }
 
+  function flushPendingSaveForPath(targetPath: string | null | undefined) {
+    if (!targetPath || isSyntheticTab(targetPath)) return;
+    if (isDrawingFile(targetPath) && excalidrawViewers[targetPath]?.getCurrentSerializedScene) {
+      try {
+        const fresh = excalidrawViewers[targetPath].getCurrentSerializedScene();
+        if (fresh && openedNotes[targetPath]) {
+          openedNotes[targetPath].content = fresh;
+        }
+      } catch (e) {
+        console.warn(`Error al extraer escena antes de cambiar de pestaña en ${targetPath}:`, e);
+      }
+    }
+
+    const note = openedNotes[targetPath];
+    if (note && note.content !== note.savedContent) {
+      const vItem = vaultItems.find((v) => v.relative_path === targetPath) || {
+        id: "0",
+        title: note.title || targetPath,
+        relative_path: targetPath,
+        abs_path: note.abs_path,
+      };
+      persistVaultItemToRust(vItem);
+    }
+  }
+
   function selectTab(path: string) {
     if (!path) return;
     const previousActivePath = activeTabPath;
+
+    if (previousActivePath && previousActivePath !== path) {
+      flushPendingSaveForPath(previousActivePath);
+    }
 
     // Si la pestaña actual es una pestaña vacía y seleccionamos un archivo nuevo, lo sustituye en esa pestaña
     if (activeTabPath && activeTabPath.startsWith("empty:") && !openTabPaths.includes(path)) {
@@ -889,6 +927,10 @@
 
   function selectSplitTab(path: string) {
     if (!path) return;
+    const previousSplitPath = activeSplitTabPath;
+    if (previousSplitPath && previousSplitPath !== path) {
+      flushPendingSaveForPath(previousSplitPath);
+    }
     if (!splitTabPaths.includes(path)) {
       splitTabPaths = [...splitTabPaths, path];
     }
@@ -1625,9 +1667,20 @@
 
     let unlistenFsChange: (() => void) | undefined;
     let unlistenTabMoved: (() => void) | undefined;
+    let unlistenCloseRequested: (() => void) | undefined;
     if (isTauriEnvironment()) {
       try {
-        currentWindowLabel = getCurrentWebviewWindow().label;
+        const appWindow = getCurrentWebviewWindow();
+        currentWindowLabel = appWindow.label;
+
+        // Interceptar el cierre de ventana para persistir cambios pendientes en segundo plano
+        appWindow.onCloseRequested(async () => {
+          await flushAllModifiedTabs();
+        }).then((unsub) => {
+          unlistenCloseRequested = unsub;
+        }).catch((e) => {
+          console.warn('Error al registrar onCloseRequested:', e);
+        });
       } catch {}
 
       listen<{ path: string; sourceWindow: string; targetWindow: string }>(
@@ -1730,7 +1783,17 @@
       });
     }
 
+    const handleBeforeUnload = () => {
+      // Intentar guardar cualquier pestaña pendiente si se descarga la página
+      flushAllModifiedTabs();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (unlistenCloseRequested) {
+        unlistenCloseRequested();
+      }
       if (unlistenFsChange) {
         unlistenFsChange();
       }
@@ -1740,13 +1803,49 @@
     };
   });
 
-  // Estado de Auto-Guardado
-  let autoSave = $state(true);
+  // Persiste inmediatamente todas las notas y lienzos con modificaciones pendientes
+  async function flushAllModifiedTabs() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+
+    const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
+    for (const p of allTabs) {
+      if (!p || isSyntheticTab(p)) continue;
+
+      if (isDrawingFile(p) && excalidrawViewers[p]?.getCurrentSerializedScene) {
+        try {
+          const fresh = excalidrawViewers[p].getCurrentSerializedScene();
+          if (fresh && openedNotes[p]) {
+            openedNotes[p].content = fresh;
+          }
+        } catch (err) {
+          console.warn(`Error al extraer escena Excalidraw durante flush en ${p}:`, err);
+        }
+      }
+
+      const note = openedNotes[p];
+      if (note && note.isLoaded && note.content !== note.savedContent) {
+        const vItem = vaultItems.find((v) => v.relative_path === p) || {
+          id: "0",
+          title: note.title || p,
+          relative_path: p,
+          abs_path: note.abs_path,
+        };
+        await persistVaultItemToRust(vItem);
+      }
+    }
+  }
+
+  // Estado de Auto-Guardado (inicializado desde config.jsonc)
+  let autoSave = $state(DEFAULT_APP_CONFIG.editor?.auto_save ?? true);
+  let autoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.auto_save_delay_ms ?? 600;
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
-    const computedDelay = delay !== undefined ? delay : (isDrawingFile(vaultItem.relative_path) ? 1200 : 600);
+    const computedDelay = delay !== undefined ? delay : (isDrawingFile(vaultItem.relative_path) ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       persistVaultItemToRust(vaultItem);
@@ -1794,6 +1893,13 @@
     }
 
     const note = openedNotes[path];
+
+    // Protección estricta contra sobreescritura accidental: si el archivo aún no ha terminado de cargarse y su contenido está vacío, abortar guardado
+    if (note && !note.isLoaded && (note.content === "" || !note.content)) {
+      console.warn(`[Protección] Se abortó guardado de ${path} porque aún no ha sido cargado desde disco.`);
+      return;
+    }
+
     const contentToSave = note ? note.content : "";
     const currentTabEnc = note ? note.encoding : "---";
     const enc = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : "UTF-8");
@@ -2794,7 +2900,8 @@
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
-        showSaveButton={isEditing &&
+        showSaveButton={!autoSave &&
+          isEditing &&
           !!activeTabPath &&
           !isSyntheticTab(activeTabPath) &&
           (!currentVaultItem.relative_path ||
@@ -2876,7 +2983,8 @@
             markdownViewMode={!isEditing ? "reading" : markdownViewMode}
             onChangeMarkdownView={handleChangeMarkdownView}
             title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
-            showSaveButton={isEditing &&
+            showSaveButton={!autoSave &&
+              isEditing &&
               !!activeTabPath &&
               !isSyntheticTab(activeTabPath) &&
               (!currentVaultItem.relative_path ||
@@ -2952,7 +3060,8 @@
             markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
             onChangeMarkdownView={handleChangeSplitMarkdownView}
             title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
-            showSaveButton={isSplitEditing &&
+            showSaveButton={!autoSave &&
+              isSplitEditing &&
               !!activeSplitTabPath &&
               !isSyntheticTab(activeSplitTabPath) &&
               (!currentSplitVaultItem.relative_path ||

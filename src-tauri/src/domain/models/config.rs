@@ -225,6 +225,31 @@ pub struct ShortcutsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EditorConfig {
+    #[serde(default = "default_auto_save")]
+    pub auto_save: bool,
+    #[serde(default = "default_auto_save_delay_ms")]
+    pub auto_save_delay_ms: u64,
+}
+
+fn default_auto_save() -> bool {
+    true
+}
+
+fn default_auto_save_delay_ms() -> u64 {
+    600
+}
+
+impl Default for EditorConfig {
+    fn default() -> Self {
+        Self {
+            auto_save: default_auto_save(),
+            auto_save_delay_ms: default_auto_save_delay_ms(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     #[serde(alias = "supported_files.jsonc")]
     pub supported_files: SupportedFileTypes,
@@ -232,6 +257,8 @@ pub struct AppConfig {
     pub ignored: IgnoredConfig,
     #[serde(default)]
     pub shortcuts: ShortcutsConfig,
+    #[serde(default)]
+    pub editor: EditorConfig,
 }
 
 impl Default for AppConfig {

@@ -192,6 +192,7 @@
         if (serialized !== lastKnownScene) {
           lastKnownScene = serialized;
           if (onChange) onChange(serialized);
+          if (onSave) onSave(serialized);
         }
       } catch (err) {
         console.warn('Error al vaciar Excalidraw al destruir:', err);

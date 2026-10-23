@@ -16,9 +16,15 @@ export interface IgnoredConfig {
   files: string[];
 }
 
+export interface EditorConfig {
+  auto_save: boolean;
+  auto_save_delay_ms: number;
+}
+
 export interface AppConfig {
   supported_files: SupportedFileTypes;
   ignored: IgnoredConfig;
+  editor?: EditorConfig;
 }
 
 function parseJsonc<T>(raw: string): T {

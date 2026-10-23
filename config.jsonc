@@ -60,6 +60,14 @@
     ]
   },
 
+  // Configuración general del editor y guardado
+  "editor": {
+    // Guardado automático tras modificar notas, diagramas o lienzos Excalidraw (true | false)
+    "auto_save": true,
+    // Tiempo de espera (en milisegundos) antes de persistir cambios automáticos
+    "auto_save_delay_ms": 600
+  },
+
   // Reglas de exclusión para ignorar dependencias, temporales y carpetas del sistema
   "ignored": {
     // Carpetas que deben ser completamente ignoradas y nunca recorridas
