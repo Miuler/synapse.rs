@@ -1,4 +1,5 @@
 use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
+use crate::domain::models::config::IndexingConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextDocument, FullTextIndexStatus};
 use crate::domain::services::full_text_index::FullTextIndex;
@@ -42,6 +43,16 @@ impl FtsIndexer {
         file_types: SupportedFileTypes,
         index: Arc<TantivyFullTextIndex>,
     ) -> Arc<Self> {
+        let indexing = crate::domain::models::config::AppConfig::default().indexing;
+        Self::start_with_config(vault_path, file_types, indexing, index)
+    }
+
+    pub fn start_with_config(
+        vault_path: PathBuf,
+        file_types: SupportedFileTypes,
+        indexing: IndexingConfig,
+        index: Arc<TantivyFullTextIndex>,
+    ) -> Arc<Self> {
         let (tx, rx) = mpsc::channel::<IndexerCmd>();
 
         let pending_count = Arc::new(AtomicUsize::new(0));
@@ -55,6 +66,7 @@ impl FtsIndexer {
 
         let worker_vault_path = vault_path;
         let worker_file_types = file_types;
+        let worker_indexing = indexing;
         let worker_index = Arc::clone(&index);
         let worker_pending = Arc::clone(&pending_count);
         let worker_is_indexing = Arc::clone(&is_indexing);
@@ -107,6 +119,7 @@ impl FtsIndexer {
                                      removes: &mut HashSet<String>,
                                      vault: &Path,
                                      ft: &SupportedFileTypes,
+                                     indexing: &IndexingConfig,
                                      idx: &TantivyFullTextIndex,
                                      err_lock: &Arc<Mutex<Option<String>>>,
                                      cur_f: &Arc<Mutex<Option<String>>>,
@@ -161,13 +174,17 @@ impl FtsIndexer {
                                     return None;
                                 }
 
-                                if ft.is_image_file(&rel_str) || ft.is_pdf_file(&rel_str) {
+                                if ft.is_image_file(&rel_str) {
                                     return None;
                                 }
 
                                 let bytes = fs::read(&abs).ok()?;
-                                let (kind, title, body) =
-                                    content_extractor::extract(Path::new(&rel_str), &bytes, ft)?;
+                                let (kind, title, body) = content_extractor::extract_with_config(
+                                    Path::new(&rel_str),
+                                    &bytes,
+                                    ft,
+                                    indexing,
+                                )?;
 
                                 let count = idx_b.fetch_add(1, Ordering::SeqCst) + 1;
                                 if let Ok(mut l) = cur_f.lock() {
@@ -256,6 +273,7 @@ impl FtsIndexer {
                             perform_full_sync(
                                 &worker_vault_path,
                                 &worker_file_types,
+                                &worker_indexing,
                                 &worker_index,
                                 &worker_last_error,
                                 &worker_current_file,
@@ -276,6 +294,7 @@ impl FtsIndexer {
                             perform_full_sync(
                                 &worker_vault_path,
                                 &worker_file_types,
+                                &worker_indexing,
                                 &worker_index,
                                 &worker_last_error,
                                 &worker_current_file,
@@ -295,6 +314,7 @@ impl FtsIndexer {
                                 &mut pending_removes,
                                 &worker_vault_path,
                                 &worker_file_types,
+                                &worker_indexing,
                                 &worker_index,
                                 &worker_last_error,
                                 &worker_current_file,
@@ -314,6 +334,7 @@ impl FtsIndexer {
                                     &mut pending_removes,
                                     &worker_vault_path,
                                     &worker_file_types,
+                                    &worker_indexing,
                                     &worker_index,
                                     &worker_last_error,
                                     &worker_current_file,
@@ -402,6 +423,7 @@ impl Drop for FtsIndexer {
 fn perform_full_sync(
     vault_path: &Path,
     file_types: &SupportedFileTypes,
+    indexing: &IndexingConfig,
     index: &TantivyFullTextIndex,
     error_lock: &Arc<Mutex<Option<String>>>,
     cur_f: &Arc<Mutex<Option<String>>>,
@@ -457,7 +479,6 @@ fn perform_full_sync(
         if file_name.starts_with('.')
             || !file_types.is_supported_file(file_name)
             || file_types.is_image_file(file_name)
-            || file_types.is_pdf_file(file_name)
         {
             continue;
         }
@@ -518,8 +539,12 @@ fn perform_full_sync(
             .filter_map(|(rel_str, mtime_nanos)| {
                 let abs = vault_path.join(&rel_str);
                 let bytes = fs::read(&abs).ok()?;
-                let (kind, title, body) =
-                    content_extractor::extract(Path::new(&rel_str), &bytes, file_types)?;
+                let (kind, title, body) = content_extractor::extract_with_config(
+                    Path::new(&rel_str),
+                    &bytes,
+                    file_types,
+                    indexing,
+                )?;
 
                 let count = idx_b.fetch_add(1, Ordering::SeqCst) + 1;
                 if let Ok(mut l) = cur_f.lock() {

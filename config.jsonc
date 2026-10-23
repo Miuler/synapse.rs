@@ -86,6 +86,20 @@
     "auto_save_delay_ms": 600
   },
 
+  // Configuración de límites y parámetros para la indexación de búsqueda Full-Text (Tantivy)
+  "indexing": {
+    // Tamaño máximo de archivo PDF a procesar en bytes (30 MB por defecto)
+    "max_pdf_file_size": 31457280,
+    // Máximo número de páginas de un PDF a extraer para indexación (evita procesar libros de miles de páginas)
+    "max_pdf_pages": 80,
+    // Tamaño máximo de archivo Word (.docx) a procesar en bytes (15 MB por defecto)
+    "max_docx_file_size": 15728640,
+    // Límite de caracteres de texto extraído a indexar en Tantivy (evita inflar el índice y protege memoria)
+    "max_extracted_chars": 200000,
+    // Longitud máxima permitida para una palabra individual antes de descartarla como basura o hash
+    "max_word_length": 80
+  },
+
   // Reglas de exclusión para ignorar dependencias, temporales y carpetas del sistema
   "ignored": {
     // Carpetas que deben ser completamente ignoradas y nunca recorridas

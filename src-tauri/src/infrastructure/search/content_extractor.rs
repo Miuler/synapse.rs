@@ -1,29 +1,40 @@
+use crate::domain::models::config::IndexingConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::DocumentKind;
-use crate::infrastructure::repositories::file_note_repository::detect_and_decode;
 use crate::infrastructure::navigation::engine::extract_title_from_markdown;
+use crate::infrastructure::repositories::file_note_repository::detect_and_decode;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;
 
 const MAX_INDEXABLE_SIZE: usize = 5 * 1024 * 1024; // 5 MB
 
-/// Extrae texto limpio y metadatos para la indexación full-text.
+fn truncate_safe(s: &mut String, max_chars: usize) {
+    if s.len() > max_chars {
+        let mut end = max_chars;
+        while !s.is_char_boundary(end) && end > 0 {
+            end -= 1;
+        }
+        s.truncate(end);
+    }
+}
+
+/// Extrae texto limpio y metadatos para la indexación full-text usando configuración por defecto.
 pub fn extract(
     rel_path: &Path,
     bytes: &[u8],
     file_types: &SupportedFileTypes,
 ) -> Option<(DocumentKind, String, String)> {
-    // 1. Descartar archivos mayores al límite
-    if bytes.len() > MAX_INDEXABLE_SIZE {
-        return None;
-    }
+    let default_config = IndexingConfig::default();
+    extract_with_config(rel_path, bytes, file_types, &default_config)
+}
 
-    // 2. Descartar archivos binarios (detectando byte nulo en los primeros bytes)
-    let check_slice = &bytes[..bytes.len().min(8000)];
-    if check_slice.contains(&0) {
-        return None;
-    }
-
+/// Extrae texto limpio y metadatos para la indexación full-text aplicando los límites configurados.
+pub fn extract_with_config(
+    rel_path: &Path,
+    bytes: &[u8],
+    file_types: &SupportedFileTypes,
+    indexing: &IndexingConfig,
+) -> Option<(DocumentKind, String, String)> {
     let file_name = rel_path.file_name()?.to_str()?;
     let lower_name = file_name.to_lowercase();
     let file_stem = rel_path
@@ -31,7 +42,53 @@ pub fn extract(
         .and_then(|s| s.to_str())
         .unwrap_or(file_name);
 
-    // 3. Excalidraw: `.excalidraw`, `.excalidraw.json`, `.excalidraw.md` o `.excalidraw.excalidraw`
+    // 1. Documentos PDF
+    if file_types.is_pdf_file(&lower_name) || lower_name.ends_with(".pdf") {
+        if bytes.len() > indexing.max_pdf_file_size {
+            return None;
+        }
+        let text = super::pdf_extractor::extract_pdf_text(
+            bytes,
+            indexing.max_pdf_pages,
+            indexing.max_extracted_chars,
+            indexing.max_word_length,
+        )
+        .ok()?;
+        if text.trim().is_empty() {
+            return None;
+        }
+        return Some((DocumentKind::Pdf, file_stem.to_string(), text));
+    }
+
+    // 2. Documentos Microsoft Word (.docx)
+    if lower_name.ends_with(".docx") {
+        if bytes.len() > indexing.max_docx_file_size {
+            return None;
+        }
+        let text = super::docx_extractor::extract_docx_text(
+            bytes,
+            indexing.max_extracted_chars,
+            indexing.max_word_length,
+        )
+        .ok()?;
+        if text.trim().is_empty() {
+            return None;
+        }
+        return Some((DocumentKind::Word, file_stem.to_string(), text));
+    }
+
+    // 3. Descartar archivos mayores al límite para texto plano
+    if bytes.len() > MAX_INDEXABLE_SIZE {
+        return None;
+    }
+
+    // 4. Descartar otros archivos binarios (detectando byte nulo en los primeros bytes)
+    let check_slice = &bytes[..bytes.len().min(8000)];
+    if check_slice.contains(&0) {
+        return None;
+    }
+
+    // 5. Excalidraw: `.excalidraw`, `.excalidraw.json`, `.excalidraw.md` o `.excalidraw.excalidraw`
     // Ignoramos formatos de exportación de imagen: .excalidraw.svg, .excalidraw.png
     if lower_name.ends_with(".excalidraw")
         || lower_name.ends_with(".excalidraw.json")
@@ -39,7 +96,8 @@ pub fn extract(
         || lower_name.ends_with(".excalidraw.excalidraw")
     {
         let (_, decoded) = detect_and_decode(bytes);
-        let extracted_text = extract_excalidraw_text(&decoded);
+        let mut extracted_text = extract_excalidraw_text(&decoded);
+        truncate_safe(&mut extracted_text, indexing.max_extracted_chars);
         return Some((
             DocumentKind::Excalidraw,
             file_stem.to_string(),
@@ -52,7 +110,7 @@ pub fn extract(
         return None;
     }
 
-    // 4. Markdown
+    // 6. Markdown
     let is_markdown = file_types
         .markdown
         .iter()
@@ -63,7 +121,8 @@ pub fn extract(
 
         // Detección por Frontmatter YAML o marcadores de Obsidian Excalidraw
         if decoded.contains("excalidraw-plugin:") || decoded.contains("```compressed-json") {
-            let extracted_text = extract_excalidraw_text(&decoded);
+            let mut extracted_text = extract_excalidraw_text(&decoded);
+            truncate_safe(&mut extracted_text, indexing.max_extracted_chars);
             return Some((
                 DocumentKind::Excalidraw,
                 file_stem.to_string(),
@@ -72,29 +131,32 @@ pub fn extract(
         }
 
         let title = extract_title_from_markdown(&decoded, file_stem);
-        let plain_body = extract_markdown_plain_text(&decoded);
+        let mut plain_body = extract_markdown_plain_text(&decoded);
+        truncate_safe(&mut plain_body, indexing.max_extracted_chars);
         return Some((DocumentKind::Markdown, title, plain_body));
     }
 
-    // 5. Diagramas (Mermaid)
+    // 7. Diagramas (Mermaid)
     let is_diagram = file_types
         .diagrams
         .iter()
         .any(|ext| lower_name.ends_with(&format!(".{}", ext.to_lowercase())));
 
     if is_diagram {
-        let (_, decoded) = detect_and_decode(bytes);
+        let (_, mut decoded) = detect_and_decode(bytes);
+        truncate_safe(&mut decoded, indexing.max_extracted_chars);
         return Some((DocumentKind::Mermaid, file_name.to_string(), decoded));
     }
 
-    // 6. Código y texto estructurado
+    // 8. Código y texto estructurado
     let is_code = file_types
         .code
         .iter()
         .any(|ext| lower_name.ends_with(&format!(".{}", ext.to_lowercase())));
 
     if is_code {
-        let (_, decoded) = detect_and_decode(bytes);
+        let (_, mut decoded) = detect_and_decode(bytes);
+        truncate_safe(&mut decoded, indexing.max_extracted_chars);
         return Some((DocumentKind::Code, file_name.to_string(), decoded));
     }
 
@@ -307,5 +369,90 @@ Base de Datos PostgreSQL ^db1
         assert_eq!(kind, DocumentKind::Code);
         assert_eq!(title, "hello.cbl");
         assert!(body.contains("HELLO COBOL"));
+    }
+
+    #[test]
+    fn test_extract_docx_file() {
+        use std::io::{Cursor, Write};
+        use zip::write::{SimpleFileOptions, ZipWriter};
+
+        let mut buffer = Vec::new();
+        {
+            let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
+            let options = SimpleFileOptions::default();
+            zip.start_file("word/document.xml", options).unwrap();
+            let xml = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <w:body><w:p><w:r><w:t>Contenido extraído del archivo Word</w:t></w:r></w:p></w:body>
+            </w:document>"#;
+            zip.write_all(xml.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+
+        let file_types = SupportedFileTypes::default();
+        let path = Path::new("informes/reporte.docx");
+        let res = extract(path, &buffer, &file_types);
+        assert!(res.is_some());
+        let (kind, title, body) = res.unwrap();
+        assert_eq!(kind, DocumentKind::Word);
+        assert_eq!(title, "reporte");
+        assert!(body.contains("Contenido extraído del archivo Word"));
+    }
+
+    #[test]
+    fn test_extract_pdf_file() {
+        use lopdf::content::Content;
+        use lopdf::{dictionary, Document, Object, Stream};
+
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+        let resources_id = doc.add_object(dictionary! {
+            "Font" => dictionary! { "F1" => font_id },
+        });
+
+        let content = Content {
+            operations: vec![
+                lopdf::content::Operation::new("BT", vec![]),
+                lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
+                lopdf::content::Operation::new("Tj", vec![Object::string_literal("Texto indexable de PDF")]),
+                lopdf::content::Operation::new("ET", vec![]),
+            ],
+        };
+
+        let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "Contents" => content_id,
+            "Resources" => resources_id,
+        });
+
+        let pages = dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![page_id.into()],
+            "Count" => 1,
+        };
+        doc.objects.insert(pages_id, Object::Dictionary(pages));
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buffer = Vec::new();
+        doc.save_to(&mut buffer).unwrap();
+
+        let file_types = SupportedFileTypes::default();
+        let path = Path::new("libros/manual.pdf");
+        let res = extract(path, &buffer, &file_types);
+        assert!(res.is_some());
+        let (kind, title, body) = res.unwrap();
+        assert_eq!(kind, DocumentKind::Pdf);
+        assert_eq!(title, "manual");
+        assert!(body.contains("Texto indexable de PDF"));
     }
 }

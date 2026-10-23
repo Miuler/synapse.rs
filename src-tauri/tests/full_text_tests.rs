@@ -135,3 +135,119 @@ fn test_full_text_indexer_workflow_and_persistence() {
     assert!(versions.contains_key("src/main.rs"));
     assert!(!versions.contains_key("musica.md"));
 }
+
+#[test]
+fn test_full_text_docx_and_pdf_indexing() {
+    use lopdf::content::Content;
+    use lopdf::{dictionary, Document, Object, Stream};
+    use std::io::{Cursor, Write};
+    use zip::write::{SimpleFileOptions, ZipWriter};
+
+    let dir = tempdir().unwrap();
+    let vault_path = dir.path().to_path_buf();
+    let fts_dir = vault_path.join(".synapse").join("fts");
+    let file_types = SupportedFileTypes::default();
+
+    // 1. Crear documento Word (.docx)
+    let docx_path = vault_path.join("balance_financiero.docx");
+    {
+        let mut buffer = Vec::new();
+        let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
+        let options = SimpleFileOptions::default();
+        zip.start_file("word/document.xml", options).unwrap();
+        let xml = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:body><w:p><w:r><w:t>Informe trimestral de ventas y balance financiero corporativo</w:t></w:r></w:p></w:body>
+        </w:document>"#;
+        zip.write_all(xml.as_bytes()).unwrap();
+        zip.finish().unwrap();
+        fs::write(&docx_path, buffer).unwrap();
+    }
+
+    // 2. Crear documento PDF (.pdf)
+    let pdf_path = vault_path.join("estrategia.pdf");
+    {
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+        let resources_id = doc.add_object(dictionary! {
+            "Font" => dictionary! { "F1" => font_id },
+        });
+
+        let content = Content {
+            operations: vec![
+                lopdf::content::Operation::new("BT", vec![]),
+                lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
+                lopdf::content::Operation::new("Tj", vec![Object::string_literal("Plan estrategico de expansion multinacional")]),
+                lopdf::content::Operation::new("ET", vec![]),
+            ],
+        };
+
+        let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "Contents" => content_id,
+            "Resources" => resources_id,
+        });
+
+        let pages = dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![page_id.into()],
+            "Count" => 1,
+        };
+        doc.objects.insert(pages_id, Object::Dictionary(pages));
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buffer = Vec::new();
+        doc.save_to(&mut buffer).unwrap();
+        fs::write(&pdf_path, buffer).unwrap();
+    }
+
+    // 3. Iniciar indexación con FtsIndexer
+    let index = Arc::new(TantivyFullTextIndex::open_or_create(&fts_dir).unwrap());
+    let indexer = FtsIndexer::start(vault_path.clone(), file_types, Arc::clone(&index));
+
+    // Esperar sincronización de ambos archivos
+    for _ in 0..40 {
+        if index.num_docs() == 2 {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    assert_eq!(index.num_docs(), 2);
+
+    // 4. Buscar en documento Word
+    let q_docx = FullTextQuery {
+        text: "trimestral".to_string(),
+        limit: 10,
+        prefix_last_term: false,
+    };
+    let (hits_docx, count_docx) = index.search(&q_docx).unwrap();
+    assert_eq!(count_docx, 1);
+    assert_eq!(hits_docx[0].note_path, "balance_financiero.docx");
+    assert_eq!(hits_docx[0].kind, DocumentKind::Word);
+    assert!(hits_docx[0].snippet.iter().any(|s| s.text.to_lowercase().contains("trimestral")));
+
+    // 5. Buscar en documento PDF
+    let q_pdf = FullTextQuery {
+        text: "estrategico".to_string(),
+        limit: 10,
+        prefix_last_term: false,
+    };
+    let (hits_pdf, count_pdf) = index.search(&q_pdf).unwrap();
+    assert_eq!(count_pdf, 1);
+    assert_eq!(hits_pdf[0].note_path, "estrategia.pdf");
+    assert_eq!(hits_pdf[0].kind, DocumentKind::Pdf);
+    assert!(hits_pdf[0].snippet.iter().any(|s| s.text.to_lowercase().contains("estrategico")));
+
+    drop(indexer);
+}

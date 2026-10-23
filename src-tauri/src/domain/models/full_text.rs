@@ -8,6 +8,8 @@ pub enum DocumentKind {
     Mermaid,
     Code,
     Excalidraw,
+    Pdf,
+    Word,
 }
 
 impl DocumentKind {
@@ -18,6 +20,8 @@ impl DocumentKind {
             DocumentKind::Mermaid => "mermaid",
             DocumentKind::Code => "code",
             DocumentKind::Excalidraw => "excalidraw",
+            DocumentKind::Pdf => "pdf",
+            DocumentKind::Word => "word",
         }
     }
 
@@ -27,6 +31,8 @@ impl DocumentKind {
             "mermaid" => Some(DocumentKind::Mermaid),
             "code" => Some(DocumentKind::Code),
             "excalidraw" => Some(DocumentKind::Excalidraw),
+            "pdf" => Some(DocumentKind::Pdf),
+            "word" => Some(DocumentKind::Word),
             _ => None,
         }
     }

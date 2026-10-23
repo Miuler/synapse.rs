@@ -250,6 +250,52 @@ impl Default for EditorConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexingConfig {
+    #[serde(default = "default_max_pdf_file_size")]
+    pub max_pdf_file_size: usize,
+    #[serde(default = "default_max_pdf_pages")]
+    pub max_pdf_pages: usize,
+    #[serde(default = "default_max_docx_file_size")]
+    pub max_docx_file_size: usize,
+    #[serde(default = "default_max_extracted_chars")]
+    pub max_extracted_chars: usize,
+    #[serde(default = "default_max_word_length")]
+    pub max_word_length: usize,
+}
+
+fn default_max_pdf_file_size() -> usize {
+    31_457_280 // 30 MB
+}
+
+fn default_max_pdf_pages() -> usize {
+    80
+}
+
+fn default_max_docx_file_size() -> usize {
+    15_728_640 // 15 MB
+}
+
+fn default_max_extracted_chars() -> usize {
+    200_000
+}
+
+fn default_max_word_length() -> usize {
+    80
+}
+
+impl Default for IndexingConfig {
+    fn default() -> Self {
+        Self {
+            max_pdf_file_size: default_max_pdf_file_size(),
+            max_pdf_pages: default_max_pdf_pages(),
+            max_docx_file_size: default_max_docx_file_size(),
+            max_extracted_chars: default_max_extracted_chars(),
+            max_word_length: default_max_word_length(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     #[serde(alias = "supported_files.jsonc")]
     pub supported_files: SupportedFileTypes,
@@ -259,6 +305,8 @@ pub struct AppConfig {
     pub shortcuts: ShortcutsConfig,
     #[serde(default)]
     pub editor: EditorConfig,
+    #[serde(default)]
+    pub indexing: IndexingConfig,
 }
 
 impl Default for AppConfig {
@@ -304,5 +352,11 @@ mod tests {
         assert_eq!(config.shortcuts.welcome.open_folder, "Ctrl+Shift+O");
         assert_eq!(config.shortcuts.workspace.quick_open, "Ctrl+O");
         assert_eq!(config.shortcuts.workspace.command_palette, "Ctrl+P");
+
+        assert_eq!(config.indexing.max_pdf_file_size, 31_457_280);
+        assert_eq!(config.indexing.max_pdf_pages, 80);
+        assert_eq!(config.indexing.max_docx_file_size, 15_728_640);
+        assert_eq!(config.indexing.max_extracted_chars, 200_000);
+        assert_eq!(config.indexing.max_word_length, 80);
     }
 }
