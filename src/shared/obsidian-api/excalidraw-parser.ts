@@ -1,5 +1,6 @@
 import type { TFile, CachedMetadataLike as CachedMetadata } from './types';
 import { parseYaml, stringifyYaml } from './utils';
+import lzString from 'lz-string';
 
 export interface ExcalidrawScene {
   type?: string;
@@ -56,8 +57,10 @@ export function isExcalidrawMarkdown(content: string): boolean {
   if (!content) return false;
   return (
     content.includes('excalidraw-plugin:') ||
+    content.includes('```compressed-json') ||
     (content.includes('%%') && content.includes('# Drawing')) ||
-    content.includes('==Deconstruct of drawing==')
+    content.includes('==Deconstruct of drawing==') ||
+    content.includes('Switch to EXCALIDRAW VIEW')
   );
 }
 
@@ -157,23 +160,44 @@ function parseExcalidrawMarkdown(raw: string): ParsedExcalidrawDocument {
     body = raw.slice(fmMatch[0].length);
   }
 
-  // 2. Extraer bloque JSON incrustado entre %% ... %% o en bloques ```json
+  // 2. Extraer bloque JSON incrustado entre %% ... %% o en bloques ```json / ```compressed-json
   let jsonString = '';
-  // Intento A: Entre marcadores %% # Drawing \n ```json ... ``` \n %%
-  const drawingBlockMatch = body.match(/%%\s*# Drawing\s*```json\s*([\s\S]*?)\s*```\s*%%/i);
-  if (drawingBlockMatch && drawingBlockMatch[1]) {
-    jsonString = drawingBlockMatch[1].trim();
-  } else {
-    // Intento B: Cualquier bloque ```json ... ``` dentro de comentarios %% ... %%
+
+  // Intento A: Bloque ```compressed-json (formato comprimido LZ-String estándar de Obsidian Excalidraw)
+  const compressedMatch = body.match(/```compressed\-json\s*([\s\S]*?)\s*```/i);
+  if (compressedMatch && compressedMatch[1]) {
+    try {
+      const cleanB64 = compressedMatch[1].replace(/[\r\n\s]/g, '');
+      const decompressed = lzString.decompressFromBase64(cleanB64);
+      if (decompressed) {
+        jsonString = decompressed;
+      }
+    } catch (e) {
+      console.warn('[ExcalidrawParser] Error al descomprimir compressed-json:', e);
+    }
+  }
+
+  // Intento B: Entre marcadores %% # Drawing \n ```json ... ``` \n %%
+  if (!jsonString) {
+    const drawingBlockMatch = body.match(/%%\s*# Drawing\s*```json\s*([\s\S]*?)\s*```\s*%%/i);
+    if (drawingBlockMatch && drawingBlockMatch[1]) {
+      jsonString = drawingBlockMatch[1].trim();
+    }
+  }
+
+  // Intento C: Cualquier bloque ```json ... ``` dentro de comentarios %% ... %%
+  if (!jsonString) {
     const commentBlockMatch = body.match(/%%[\s\S]*?```json\s*([\s\S]*?)\s*```[\s\S]*?%%/i);
     if (commentBlockMatch && commentBlockMatch[1]) {
       jsonString = commentBlockMatch[1].trim();
-    } else {
-      // Intento C: Primer bloque ```json
-      const codeBlockMatch = body.match(/```json\s*([\s\S]*?)\s*```/i);
-      if (codeBlockMatch && codeBlockMatch[1]) {
-        jsonString = codeBlockMatch[1].trim();
-      }
+    }
+  }
+
+  // Intento D: Primer bloque ```json
+  if (!jsonString) {
+    const codeBlockMatch = body.match(/```json\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      jsonString = codeBlockMatch[1].trim();
     }
   }
 
@@ -305,6 +329,26 @@ export function serializeExcalidrawMarkdown(
 
   // 3. Ensamblar documento canónico de Obsidian Excalidraw
   const yml = stringifyYaml(frontmatter).trim();
+  const wasCompressed = !!existingContent && existingContent.includes('```compressed-json');
+
+  let drawingBlock: string;
+  if (wasCompressed) {
+    const compressed = lzString.compressToBase64(sceneJson);
+    const chunked = compressed.match(/.{1,250}/g)?.join('\n\n') || compressed;
+    drawingBlock = `%%
+## Drawing
+\`\`\`compressed-json
+${chunked}
+\`\`\`
+%%`;
+  } else {
+    drawingBlock = `%%
+# Drawing
+\`\`\`json
+${sceneJson}
+\`\`\`
+%%`;
+  }
 
   return `---
 
@@ -315,11 +359,6 @@ ${yml}
 # Text Elements
 ${textSection}
 
-%%
-# Drawing
-\`\`\`json
-${sceneJson}
-\`\`\`
-%%
+${drawingBlock}
 `;
 }

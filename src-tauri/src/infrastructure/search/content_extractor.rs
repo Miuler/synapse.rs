@@ -31,10 +31,12 @@ pub fn extract(
         .and_then(|s| s.to_str())
         .unwrap_or(file_name);
 
-    // 3. Excalidraw: `.excalidraw` o `.excalidraw.json`
+    // 3. Excalidraw: `.excalidraw`, `.excalidraw.json`, `.excalidraw.md` o `.excalidraw.excalidraw`
     // Ignoramos formatos de exportación de imagen: .excalidraw.svg, .excalidraw.png
     if lower_name.ends_with(".excalidraw")
         || lower_name.ends_with(".excalidraw.json")
+        || lower_name.ends_with(".excalidraw.md")
+        || lower_name.ends_with(".excalidraw.excalidraw")
     {
         let (_, decoded) = detect_and_decode(bytes);
         let extracted_text = extract_excalidraw_text(&decoded);
@@ -89,34 +91,60 @@ pub fn extract(
 }
 
 /// Extrae únicamente los textos de los elementos activos en un diagrama Excalidraw.
-fn extract_excalidraw_text(json_str: &str) -> String {
-    let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) else {
-        return String::new();
-    };
+fn extract_excalidraw_text(raw_str: &str) -> String {
+    if let Ok(val) = serde_json::from_str::<serde_json::Value>(raw_str) {
+        let mut texts = Vec::new();
 
-    let mut texts = Vec::new();
-
-    if let Some(elements) = val.get("elements").and_then(|e| e.as_array()) {
-        for elem in elements {
-            if elem.get("isDeleted").and_then(|d| d.as_bool()) == Some(true) {
-                continue;
-            }
-
-            if let Some(text) = elem.get("text").and_then(|t| t.as_str()) {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    texts.push(trimmed.to_string());
+        if let Some(elements) = val.get("elements").and_then(|e| e.as_array()) {
+            for elem in elements {
+                if elem.get("isDeleted").and_then(|d| d.as_bool()) == Some(true) {
+                    continue;
                 }
-            } else if let Some(orig) = elem.get("originalText").and_then(|t| t.as_str()) {
-                let trimmed = orig.trim();
-                if !trimmed.is_empty() {
-                    texts.push(trimmed.to_string());
+
+                if let Some(text) = elem.get("text").and_then(|t| t.as_str()) {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        texts.push(trimmed.to_string());
+                    }
+                } else if let Some(orig) = elem.get("originalText").and_then(|t| t.as_str()) {
+                    let trimmed = orig.trim();
+                    if !trimmed.is_empty() {
+                        texts.push(trimmed.to_string());
+                    }
                 }
             }
         }
+
+        return texts.join("\n");
     }
 
-    texts.join("\n")
+    // Si es formato Markdown de Excalidraw (Obsidian), extraer líneas de la sección '# Text Elements'
+    if let Some(pos) = raw_str.find("# Text Elements") {
+        let text_part = &raw_str[pos + 15..];
+        let end_pos = text_part.find("%%").unwrap_or(text_part.len());
+        let section = &text_part[..end_pos];
+        let mut texts = Vec::new();
+        for line in section.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            // Eliminar identificador de bloque de Obsidian tipo ^abc123
+            let clean = if let Some(caret_idx) = trimmed.rfind('^') {
+                trimmed[..caret_idx].trim()
+            } else {
+                trimmed
+            };
+            if !clean.is_empty() {
+                texts.push(clean.to_string());
+            }
+        }
+        if !texts.is_empty() {
+            return texts.join("\n");
+        }
+    }
+
+    String::new()
 }
 
 /// Convierte contenido Markdown a texto plano limpio sin marcado de sintaxis.
@@ -191,6 +219,39 @@ mod tests {
         assert_eq!(title, "diagram");
         assert!(body.contains("Nodo A"));
         assert!(!body.contains("Nodo Borrado"));
+    }
+
+    #[test]
+    fn test_extract_excalidraw_markdown() {
+        let md = r#"---
+
+excalidraw-plugin: parsed
+tags: [excalidraw]
+
+---
+==Deconstruct of drawing==
+# Text Elements
+Elemento 1 ^abc123
+
+Elemento 2 ^def456
+
+%%
+# Drawing
+```json
+{}
+```
+%%
+"#;
+        let path = Path::new("drawing.excalidraw.md");
+        let file_types = SupportedFileTypes::default();
+        let res = extract(path, md.as_bytes(), &file_types);
+        assert!(res.is_some());
+        let (kind, title, body) = res.unwrap();
+        assert_eq!(kind, DocumentKind::Excalidraw);
+        assert_eq!(title, "drawing.excalidraw");
+        assert!(body.contains("Elemento 1"));
+        assert!(body.contains("Elemento 2"));
+        assert!(!body.contains("^abc123"));
     }
 
     #[test]

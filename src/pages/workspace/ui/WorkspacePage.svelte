@@ -30,6 +30,7 @@
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
+  import {createSynapseApp, type SynapseApp} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
@@ -357,6 +358,24 @@
 
   // Historial de navegación de pestañas (Back / Forward)
   let tabHistory = $state<string[]>([]);
+
+  // Instancia de la fachada Obsidian API para soporte de plugins
+  let synapseApp = $state<SynapseApp | null>(null);
+
+  function ensureSynapseAppLoaded() {
+    if (!synapseApp && vaultRepository.isConnected()) {
+      try {
+        synapseApp = createSynapseApp(vaultRepository);
+        synapseApp.plugins.loadPlugin('obsidian-excalidraw-plugin').then((entry) => {
+          console.log(`[Workspace] Plugin de Obsidian '${entry.manifest.name}' (${entry.manifest.id}) cargado y activo.`);
+        }).catch((e) => {
+          console.log(`[Workspace] obsidian-excalidraw-plugin no cargado automáticamente:`, e.message);
+        });
+      } catch (e) {
+        console.warn('[Workspace] Error al instanciar SynapseApp:', e);
+      }
+    }
+  }
   let tabHistoryIndex = $state<number>(-1);
   let isNavigatingHistory = false;
   let lastNavTime = 0;
@@ -1421,6 +1440,7 @@
       appSettings.setLastOpenedFolder(activePath);
       const notes = await vaultRepository.getNotes();
       isConnectedToRust = vaultRepository.isConnected();
+      ensureSynapseAppLoaded();
       await refreshGitStatus();
 
       if (notes && Array.isArray(notes) && notes.length > 0) {

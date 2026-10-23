@@ -31,7 +31,7 @@ export class SynapseDataAdapter implements DataAdapter {
 
     const parent = clean.includes('/') ? clean.slice(0, clean.lastIndexOf('/')) : '';
     const parentChildren = await this.repository.getDirectoryChildren(parent || undefined);
-    return parentChildren.some((c) => c.relative_path === clean && c.is_folder);
+    return parentChildren.some((c) => c.relative_path === clean);
   }
 
   async stat(normalizedPath: string): Promise<Stat | null> {

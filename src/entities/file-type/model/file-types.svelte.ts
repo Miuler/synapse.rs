@@ -94,6 +94,11 @@ class FileTypesManager {
   }
 
   isMarkdownFile(path: string | null | undefined): boolean {
+    if (!path) return false;
+    const lower = path.toLowerCase().split('?')[0].split('#')[0];
+    if (lower.endsWith('.excalidraw.md') || lower.endsWith('.excalidraw.excalidraw')) {
+      return false;
+    }
     return this.matchesExtension(path, this.fileTypes.markdown);
   }
 
@@ -102,6 +107,16 @@ class FileTypesManager {
   }
 
   isDrawingFile(path: string | null | undefined): boolean {
+    if (!path) return false;
+    const lower = path.toLowerCase().split('?')[0].split('#')[0];
+    if (
+      lower.endsWith('.excalidraw') ||
+      lower.endsWith('.excalidraw.json') ||
+      lower.endsWith('.excalidraw.md') ||
+      lower.endsWith('.excalidraw.excalidraw')
+    ) {
+      return true;
+    }
     return this.matchesExtension(path, this.fileTypes.drawings);
   }
 

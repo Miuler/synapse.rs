@@ -48,15 +48,18 @@
     if (fileExt === 'json') return 'json';
 
     // Integración automática con la lista de tipos soportados (supported_files.json)
+    if (fileTypesManager.isDrawingFile(fileName) || fileExt === 'excalidraw') return 'diagram';
     if (fileTypesManager.isPdfFile(fileName) || fileExt === 'pdf') return 'pdf';
     if (fileTypesManager.isMarkdownFile(fileName) || fileExt === 'txt') return 'markdown';
     if (fileTypesManager.isImageFile(fileName)) return 'image';
-    if (fileTypesManager.isDiagramFile(fileName) || fileTypesManager.isDrawingFile(fileName) || fileExt === 'canvas') return 'diagram';
+    if (fileTypesManager.isDiagramFile(fileName) || fileExt === 'canvas') return 'diagram';
     if (fileTypesManager.isCodeFile(fileName)) return 'code';
 
     switch (fileExt) {
       case 'md':
       case 'markdown':
+        if (fileTypesManager.isDrawingFile(fileName)) return 'diagram';
+        return 'markdown';
       case 'txt':
         return 'markdown';
       case 'rs':

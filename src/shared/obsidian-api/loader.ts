@@ -167,6 +167,39 @@ export class PluginLoader {
   }
 
   /**
+   * Carga un plugin específico por su ID buscando en los directorios de plugins.
+   */
+  async loadPlugin(pluginId: string): Promise<PluginEntry> {
+    const searchDirs = ['.synapse/plugins', '.obsidian/plugins'];
+    for (const baseDir of searchDirs) {
+      const targetDir = `${baseDir}/${pluginId}`;
+      const manifestPath = `${targetDir}/manifest.json`;
+      if (await this.app.vault.adapter.exists(manifestPath)) {
+        return this.loadPluginFromDir(targetDir);
+      }
+    }
+    throw new Error(`[PluginLoader] No se encontró el plugin '${pluginId}' en .synapse/plugins ni en .obsidian/plugins`);
+  }
+
+  /**
+   * Escanea y carga todos los plugins disponibles o habilitados en la bóveda actual.
+   */
+  async loadAllPlugins(): Promise<PluginEntry[]> {
+    const discovered = await this.scanPlugins();
+    const loaded: PluginEntry[] = [];
+    for (const item of discovered) {
+      try {
+        const entry = await this.loadPluginFromDir(item.dir);
+        loaded.push(entry);
+        console.log(`[PluginLoader] Plugin cargado exitosamente: ${item.manifest.name} (${item.manifest.id})`);
+      } catch (err) {
+        console.warn(`[PluginLoader] Error al cargar plugin desde ${item.dir}:`, err);
+      }
+    }
+    return loaded;
+  }
+
+  /**
    * Obtiene la instancia activa de un plugin por su ID.
    */
   getPlugin(pluginId: string): Plugin | undefined {

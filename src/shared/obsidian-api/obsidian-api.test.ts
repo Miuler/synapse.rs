@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import lzString from 'lz-string';
 import { createSynapseApp } from './app';
 import {
   type Command,
@@ -1178,6 +1179,53 @@ Nodo de Inicio ^txt1
       expect(reserialized).toContain('Nodo de Inicio ^txt1');
       expect(reserialized).toContain('Nodo de Fin ^txt2');
       expect(reserialized).toContain('# Drawing');
+    });
+
+    it('32b. Detección, parseo y serialización de Markdown Excalidraw comprimido (compressed-json con lz-string)', () => {
+      const sceneData = JSON.stringify({
+        type: 'excalidraw',
+        version: 2,
+        elements: [
+          { id: 'box1', type: 'rectangle', x: 10, y: 20, width: 100, height: 50 },
+          { id: 'txt1', type: 'text', text: 'Servicio Autenticación', isDeleted: false },
+        ],
+        appState: { viewBackgroundColor: '#ffffff' },
+      });
+      const compressedB64 = lzString.compressToBase64(sceneData);
+
+      const rawCompressedMarkdown = `---
+
+excalidraw-plugin: parsed
+tags: [excalidraw]
+
+---
+==Deconstruct of drawing==
+# Text Elements
+Servicio Autenticación ^txt1
+
+%%
+## Drawing
+\`\`\`compressed-json
+${compressedB64}
+\`\`\`
+%%
+`;
+
+      expect(isExcalidrawMarkdown(rawCompressedMarkdown)).toBe(true);
+
+      const doc = parseExcalidrawContent(rawCompressedMarkdown);
+      expect(doc.isMarkdown).toBe(true);
+      expect(doc.scene.elements.length).toBe(2);
+      expect(doc.scene.elements[0].type).toBe('rectangle');
+      expect(doc.scene.elements[1].text).toBe('Servicio Autenticación');
+
+      const recompressed = serializeExcalidrawMarkdown(doc.scene, rawCompressedMarkdown);
+      expect(recompressed).toContain('```compressed-json');
+      expect(recompressed).toContain('Servicio Autenticación ^txt1');
+
+      // Re-parsear el resultado re-serializado para asegurar consistencia completa
+      const reparsed = parseExcalidrawContent(recompressed);
+      expect(reparsed.scene.elements.length).toBe(2);
     });
 
     it('33. Extracción de Wikilinks embebidos en textos de nodos y resolución en la bóveda', async () => {

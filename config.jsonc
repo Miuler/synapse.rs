@@ -33,7 +33,9 @@
       "excalidraw",
       "excalidraw.json",
       "excalidraw.svg",
-      "excalidraw.png"
+      "excalidraw.png",
+      "excalidraw.md",
+      "excalidraw.excalidraw"
     ],
 
     // Documentos PDF

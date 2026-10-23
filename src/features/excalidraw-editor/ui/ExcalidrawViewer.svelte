@@ -4,6 +4,11 @@
   import { createRoot, type Root } from 'react-dom/client';
   import { Excalidraw } from '@excalidraw/excalidraw';
   import '@excalidraw/excalidraw/index.css';
+  import {
+    parseExcalidrawContent,
+    serializeExcalidrawMarkdown,
+    isExcalidrawMarkdown,
+  } from '@shared/obsidian-api';
 
   interface Props {
     content: string;
@@ -34,17 +39,18 @@
       };
     }
     try {
-      const parsed = JSON.parse(raw);
-      const appState = parsed.appState ? { ...parsed.appState } : {};
+      const parsedDoc = parseExcalidrawContent(raw);
+      const scene = parsedDoc.scene;
+      const appState = scene.appState ? { ...scene.appState } : {};
       appState.viewModeEnabled = isReadOnly;
       // Si estamos en modo edición (no readOnly), asegurarnos de que la herramienta activa no quede atascada en mano
       if (!isReadOnly && (appState.activeTool?.type === 'hand' || !appState.activeTool)) {
         appState.activeTool = { type: 'selection' };
       }
       return {
-        elements: parsed.elements || [],
+        elements: scene.elements || [],
         appState,
-        files: parsed.files || {},
+        files: scene.files || {},
       };
     } catch (e) {
       console.warn('Error al parsear contenido Excalidraw:', e);
@@ -60,6 +66,18 @@
   }
 
   function serializeSceneData(elements: readonly any[], appState: any, files: any): string {
+    const isMd = isExcalidrawMarkdown(content) || content.startsWith('---');
+    if (isMd) {
+      return serializeExcalidrawMarkdown(
+        {
+          elements: elements ? [...elements] : [],
+          appState,
+          files: files || {},
+        },
+        content
+      );
+    }
+
     return JSON.stringify(
       {
         type: 'excalidraw',
