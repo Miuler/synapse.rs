@@ -9,7 +9,7 @@
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -2159,10 +2159,17 @@
             onclick={(e) => handleFolderClick(e, node, (props as Record<string, any>).onclick)}
             oncontextmenu={(e) => handleItemContextMenu(e, node)}
           >
-            <ChevronRight
-              class="chevron-icon {expandedFolders[node.relativePath] ? 'expanded' : ''}"
-              size={12}
-            />
+            {#if expandedFolders[node.relativePath]}
+              <ChevronDown
+                class="chevron-icon"
+                size={12}
+              />
+            {:else}
+              <ChevronRight
+                class="chevron-icon"
+                size={12}
+              />
+            {/if}
             <FolderIcon
               isOpen={!!expandedFolders[node.relativePath]}
               name={node.name}
@@ -2499,12 +2506,7 @@
     width: 12px;
     height: 12px;
     flex-shrink: 0;
-    transition: transform 0.15s ease;
     color: var(--text-secondary, #656d76);
-  }
-
-  .chevron-icon.expanded {
-    transform: rotate(90deg);
   }
 
   .folder-icon {
