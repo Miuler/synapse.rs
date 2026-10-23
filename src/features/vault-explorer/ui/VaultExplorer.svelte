@@ -10,7 +10,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch } from 'lucide-svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -563,6 +563,14 @@
       await vaultRepository.openFileWithDefaultApp(path);
     } catch (err) {
       console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
+    }
+  }
+
+  async function handleShowItemInFolder(path: string) {
+    try {
+      await vaultRepository.showItemInFolder(path);
+    } catch (err) {
+      console.warn('Error al mostrar elemento en carpeta del sistema:', err);
     }
   }
 
@@ -1889,6 +1897,30 @@
             class="context-menu-item"
             onSelect={() => {
               if (contextMenuNode) {
+                handleOpenFileWithDefaultApp(contextMenuNode.relativePath);
+              }
+            }}
+          >
+            <ExternalLink class="context-menu-item-icon" />
+            <span>Abrir con la app por defecto</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
+                handleShowItemInFolder(contextMenuNode.relativePath);
+              }
+            }}
+          >
+            <FolderSearch class="context-menu-item-icon" />
+            <span>Mostrar en carpeta</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
                 onToggleLockFile?.(contextMenuNode.relativePath);
               }
             }}
@@ -1901,21 +1933,19 @@
               <span>Bloquear archivo</span>
             {/if}
           </ContextMenu.Item>
-        {/if}
-
-        {#if contextMenuNode && !contextMenuNode.isFolder && isOfficeFile(contextMenuNode.relativePath)}
+        {:else if contextMenuNode?.isFolder}
           <ContextMenu.Separator class="context-menu-divider" />
 
           <ContextMenu.Item
             class="context-menu-item"
             onSelect={() => {
               if (contextMenuNode) {
-                handleOpenFileWithDefaultApp(contextMenuNode.relativePath);
+                handleShowItemInFolder(contextMenuNode.relativePath);
               }
             }}
           >
-            <ExternalLink class="context-menu-item-icon" />
-            <span>Abrir en aplicación del sistema</span>
+            <FolderSearch class="context-menu-item-icon" />
+            <span>Mostrar en carpeta</span>
           </ContextMenu.Item>
         {/if}
 

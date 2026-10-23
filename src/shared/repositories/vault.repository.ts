@@ -413,6 +413,11 @@ export interface VaultRepository {
    */
   openFileWithDefaultApp(relativePath: string): Promise<void>;
 
+  /**
+   * Muestra y resalta un archivo o carpeta en el explorador de archivos nativo del sistema.
+   */
+  showItemInFolder(relativePath: string): Promise<void>;
+
   /** Renombra un archivo o carpeta conservándolo en su carpeta actual. */
   renameItem(relativePath: string, newName: string): Promise<string>;
 
@@ -1352,6 +1357,16 @@ export class TauriVaultRepository implements VaultRepository {
       await invokeTauri<void>('open_file_with_default_app', { path: relativePath });
     } catch (error) {
       console.error('Error al abrir archivo con la aplicación por defecto del sistema:', error);
+      throw error;
+    }
+  }
+
+  async showItemInFolder(relativePath: string): Promise<void> {
+    if (!this.isConnected() || !relativePath) return;
+    try {
+      await invokeTauri<void>('show_item_in_folder', { path: relativePath });
+    } catch (error) {
+      console.error('Error al mostrar en carpeta en el sistema operativo:', error);
       throw error;
     }
   }

@@ -8,4 +8,5 @@ pub trait FileSystemPort: Send + Sync {
     fn read_binary_item(&self, vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String>;
     fn create_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String>;
     fn open_file_with_default_app(&self, vault_path: &Path, relative_path: &str) -> Result<(), String>;
+    fn show_item_in_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String>;
 }

@@ -23,6 +23,7 @@
     GitCompare,
     GitCompareArrows,
     ExternalLink,
+    FolderSearch,
     Copy,
     History,
     Lock
@@ -48,6 +49,8 @@
     onCloseAllTabs?: () => void;
     onCloseOtherTabs?: (path: string) => void;
     onCloseTabsToRight?: (path: string) => void;
+    onOpenFileWithDefaultApp?: (path: string) => void;
+    onShowItemInFolder?: (path: string) => void;
     onOpenInNewWindow?: (path: string, moveTab?: boolean) => void;
     onReorderTab?: (draggedPath: string, targetIndex: number) => void;
     onReceiveTabFromOtherWindow?: (path: string, targetIndex: number, sourceWindow: string) => void;
@@ -82,6 +85,8 @@
     onCloseAllTabs,
     onCloseOtherTabs,
     onCloseTabsToRight,
+    onOpenFileWithDefaultApp,
+    onShowItemInFolder,
     onOpenInNewWindow,
     onReorderTab,
     onReceiveTabFromOtherWindow,
@@ -683,6 +688,25 @@
                   <span>Cerrar pestañas a la derecha</span>
                 </ContextMenu.Item>
                 {#if !isSyntheticTab(tab.path)}
+                  <ContextMenu.Separator class="context-menu-divider" />
+                  <ContextMenu.Item
+                    class="context-menu-item"
+                    onSelect={() => {
+                      if (onOpenFileWithDefaultApp) onOpenFileWithDefaultApp(tab.path);
+                    }}
+                  >
+                    <ExternalLink size={14} class="context-menu-item-icon" />
+                    <span>Abrir con la app por defecto</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    class="context-menu-item"
+                    onSelect={() => {
+                      if (onShowItemInFolder) onShowItemInFolder(tab.path);
+                    }}
+                  >
+                    <FolderSearch size={14} class="context-menu-item-icon" />
+                    <span>Mostrar en carpeta</span>
+                  </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                   <ContextMenu.Item
                     class="context-menu-item"

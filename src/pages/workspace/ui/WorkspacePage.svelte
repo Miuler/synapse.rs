@@ -3519,6 +3519,8 @@
         onCloseAllTabs={requestCloseAllTabs}
         onCloseOtherTabs={requestCloseOtherTabs}
         onCloseTabsToRight={requestCloseTabsToRight}
+        onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
+        onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
         onOpenInNewWindow={handleOpenInNewWindow}
         onReorderTab={reorderTab}
         onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
@@ -3602,6 +3604,8 @@
             onCloseAllTabs={requestCloseAllTabs}
             onCloseOtherTabs={requestCloseOtherTabs}
             onCloseTabsToRight={requestCloseTabsToRight}
+            onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
+            onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
             onOpenInNewWindow={handleOpenInNewWindow}
             onReorderTab={reorderTab}
             onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
@@ -3679,6 +3683,8 @@
             onCloseAllTabs={closeAllSplitTabs}
             onCloseOtherTabs={closeOtherSplitTabs}
             onCloseTabsToRight={closeSplitTabsToRight}
+            onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
+            onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
             onOpenInNewWindow={handleOpenInNewWindow}
             onReorderTab={reorderSplitTab}
             onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, true, idx, src)}

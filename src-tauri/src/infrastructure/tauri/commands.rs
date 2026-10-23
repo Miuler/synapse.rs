@@ -976,6 +976,19 @@ pub fn open_file_with_default_app(
 }
 
 #[tauri::command]
+pub fn show_item_in_folder(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<(), String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+
+    state.file_system_use_cases.show_item_in_folder(vault_path, &path)
+}
+
+#[tauri::command]
 pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
