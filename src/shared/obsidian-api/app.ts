@@ -3,22 +3,47 @@ import { SynapseVault } from './vault';
 import { SynapseMetadataCache } from './metadata-cache';
 import { SynapseWorkspace } from './workspace';
 import { SynapseFileManager } from './file-manager';
+import { SynapseCommandManager } from './command';
+import { SynapseSettingManager } from './setting';
+import { SynapseRibbonManager, SynapseStatusBarManager } from './ribbon';
 
 export class SynapseApp {
   readonly vault: SynapseVault;
   readonly metadataCache: SynapseMetadataCache;
   readonly workspace: SynapseWorkspace;
   readonly fileManager: SynapseFileManager;
+  readonly commands: SynapseCommandManager;
+  readonly setting: SynapseSettingManager;
+  readonly ribbon: SynapseRibbonManager;
+  readonly statusBar: SynapseStatusBarManager;
 
   constructor(repository: VaultRepository) {
     this.vault = new SynapseVault(repository);
     this.workspace = new SynapseWorkspace(repository, this.vault);
     this.metadataCache = new SynapseMetadataCache(repository, this.vault);
     this.fileManager = new SynapseFileManager(this.vault);
+    this.commands = new SynapseCommandManager();
+    this.setting = new SynapseSettingManager();
+    this.ribbon = new SynapseRibbonManager();
+    this.statusBar = new SynapseStatusBarManager();
 
     // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos
     this.vault.setMetadataCache(this.metadataCache);
     this.workspace.setApp(this);
+  }
+
+  /**
+   * Atajo canónico para añadir icono a la barra Ribbon.
+   */
+  addRibbonIcon(icon: string, title: string, callback: (evt: MouseEvent) => any): HTMLElement {
+    return this.ribbon.addRibbonIcon(icon, title, callback);
+  }
+
+  /**
+   * Atajo canónico para añadir un widget en la barra de estado.
+   */
+  addStatusBarItem(): HTMLElement {
+    return this.statusBar.addStatusBarItem();
   }
 }
 

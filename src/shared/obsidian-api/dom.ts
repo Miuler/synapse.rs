@@ -47,6 +47,7 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
   const children: any[] = [];
   const classListSet = new Set<string>();
   const attributes = new Map<string, string>();
+  const eventListeners = new Map<string, Function[]>();
 
   if (options?.cls) {
     const classes = Array.isArray(options.cls) ? options.cls : options.cls.split(/\s+/).filter(Boolean);
@@ -64,6 +65,7 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
     className: Array.from(classListSet).join(' '),
     title: options?.title || '',
     textContent: options?.text || '',
+    value: options?.attr?.value !== undefined ? String(options.attr.value) : '',
     innerHTML: '',
     style: {},
     children,
@@ -98,8 +100,30 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
       return child;
     },
     remove: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (type: string, cb: Function) => {
+      let list = eventListeners.get(type);
+      if (!list) {
+        list = [];
+        eventListeners.set(type, list);
+      }
+      list.push(cb);
+    },
+    removeEventListener: (type: string, cb: Function) => {
+      const list = eventListeners.get(type);
+      if (list) {
+        eventListeners.set(type, list.filter((fn) => fn !== cb));
+      }
+    },
+    dispatchEvent: (ev: any) => {
+      const type = ev?.type || String(ev);
+      const list = eventListeners.get(type);
+      if (list) {
+        for (const fn of list) {
+          fn.call(mock, ev);
+        }
+      }
+      return true;
+    },
     setAttribute: (name: string, val: any) => {
       attributes.set(name, String(val));
     },

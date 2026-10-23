@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 import { createSynapseApp } from './app';
 import {
+  type Command,
   Component,
   Events,
   type EventRef,
   ItemView,
+  Plugin,
+  type PluginManifest,
+  PluginSettingTab,
+  Setting,
   TAbstractFile,
   TextFileView,
   TFile,
@@ -675,6 +680,240 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
       const leaf = excalidrawLeaves[0];
       leaf.detach();
       expect(app.workspace.getLeavesOfType('excalidraw').length).toBe(0);
+    });
+  });
+
+  describe('Etapa 5: Ciclo de Vida del Plugin (Plugin, Setting, Command, Ribbon)', () => {
+    it('22. Setting provee API fluida con Text, Toggle, Dropdown, Slider y Button', () => {
+      const container = app.workspace.getLeaf(true).containerEl;
+
+      let textVal = '';
+      let toggleVal = false;
+      let dropVal = '';
+      let sliderVal = 0;
+      let btnClicked = false;
+
+      const setting = new Setting(container)
+        .setName('Ajuste de Dibujo')
+        .setDesc('Configura las opciones por defecto de Excalidraw')
+        .setHeading()
+        .addText((text) =>
+          text
+            .setPlaceholder('Fuente')
+            .setValue('Virgil')
+            .onChange((v) => (textVal = v))
+        )
+        .addToggle((toggle) =>
+          toggle
+            .setValue(true)
+            .onChange((v) => (toggleVal = v))
+        )
+        .addDropdown((drop) =>
+          drop
+            .addOption('light', 'Claro')
+            .addOption('dark', 'Oscuro')
+            .setValue('dark')
+            .onChange((v) => (dropVal = v))
+        )
+        .addSlider((slider) =>
+          slider
+            .setLimits(1, 10, 1)
+            .setValue(3)
+            .onChange((v) => (sliderVal = v))
+        )
+        .addButton((btn) =>
+          btn
+            .setButtonText('Restablecer')
+            .setTooltip('Restablece valores por defecto')
+            .onClick(() => (btnClicked = true))
+        );
+
+      expect(setting.nameEl.textContent).toBe('Ajuste de Dibujo');
+      expect(setting.descEl.textContent).toBe('Configura las opciones por defecto de Excalidraw');
+      expect(setting.settingEl.classList.contains('setting-item-heading')).toBe(true);
+
+      // Simular interacciones de controles
+      const textComp = (setting as any).controlEl.children[0] as HTMLInputElement;
+      textComp.value = 'Cascadia';
+      textComp.dispatchEvent(new Event('input'));
+      expect(textVal).toBe('Cascadia');
+
+      const toggleComp = (setting as any).controlEl.children[1] as HTMLElement;
+      toggleComp.dispatchEvent(new Event('click'));
+      expect(toggleVal).toBe(false);
+
+      const dropComp = (setting as any).controlEl.children[2] as HTMLSelectElement;
+      dropComp.value = 'light';
+      dropComp.dispatchEvent(new Event('change'));
+      expect(dropVal).toBe('light');
+
+      const sliderComp = (setting as any).controlEl.children[3] as HTMLInputElement;
+      sliderComp.value = '7';
+      sliderComp.dispatchEvent(new Event('input'));
+      expect(sliderVal).toBe(7);
+
+      const btnComp = (setting as any).controlEl.children[4] as HTMLButtonElement;
+      btnComp.dispatchEvent(new Event('click'));
+      expect(btnClicked).toBe(true);
+    });
+
+    it('23. PluginSettingTab y SynapseSettingManager gestionan pestañas de configuración', () => {
+      class MockExcalidrawSettingTab extends PluginSettingTab {
+        rendered = false;
+
+        display(): void {
+          this.rendered = true;
+          new Setting(this.containerEl).setName('Modo Cuadrícula').addToggle((t) => t.setValue(true));
+        }
+
+        override hide(): void {
+          super.hide();
+          this.rendered = false;
+        }
+      }
+
+      const mockPlugin = { manifest: { id: 'excalidraw-test', name: 'Excalidraw Test', version: '1.0' } };
+      const tab = new MockExcalidrawSettingTab(app, mockPlugin);
+
+      app.setting.addSettingTab(tab);
+      expect(app.setting.settingTabs).toContain(tab);
+      expect(app.setting.getSettingTab('excalidraw-test')).toBe(tab);
+
+      // Abrir pestaña
+      app.setting.openTab(tab);
+      expect(tab.rendered).toBe(true);
+      expect(tab.containerEl.children.length).toBeGreaterThan(0);
+
+      // Ocultar pestaña
+      tab.hide();
+      expect(tab.rendered).toBe(false);
+      expect(tab.containerEl.children.length).toBe(0);
+
+      app.setting.removeSettingTab(tab);
+      expect(app.setting.settingTabs).not.toContain(tab);
+    });
+
+    it('24. SynapseCommandManager registra, busca y ejecuta comandos con callback y checkCallback', () => {
+      let executed = false;
+      let checkExecuted = false;
+
+      const cmd1: Command = {
+        id: 'excalidraw:new-drawing',
+        name: 'Crear nuevo dibujo Excalidraw',
+        callback: () => {
+          executed = true;
+        },
+      };
+
+      const cmd2: Command = {
+        id: 'excalidraw:export-png',
+        name: 'Exportar dibujo a PNG',
+        checkCallback: (checking) => {
+          if (checking) return true;
+          checkExecuted = true;
+        },
+      };
+
+      app.commands.addCommand(cmd1);
+      app.commands.addCommand(cmd2);
+
+      expect(app.commands.findCommand('excalidraw:new-drawing')).toBe(cmd1);
+      expect(app.commands.listCommands()).toContain(cmd1);
+
+      // Ejecutar comando directo
+      expect(app.commands.executeCommandById('excalidraw:new-drawing')).toBe(true);
+      expect(executed).toBe(true);
+
+      // Ejecutar comando con checkCallback
+      expect(app.commands.executeCommandById('excalidraw:export-png')).toBe(true);
+      expect(checkExecuted).toBe(true);
+
+      // Ejecutar comando inexistente
+      expect(app.commands.executeCommandById('inexistente')).toBe(false);
+
+      app.commands.removeCommand('excalidraw:new-drawing');
+      app.commands.removeCommand('excalidraw:export-png');
+    });
+
+    it('25. Plugin gestiona ciclo de vida completo: saveData, loadData, comandos, ribbon, statusBar y descarga limpia', async () => {
+      const manifest: PluginManifest = {
+        id: 'obsidian-excalidraw-plugin',
+        name: 'Excalidraw',
+        version: '2.0.0',
+        author: 'Zsolt Viczian',
+      };
+
+      interface ExcalidrawSettings {
+        theme: string;
+        autoSave: boolean;
+      }
+
+      class ExcalidrawPluginTest extends Plugin {
+        settings: ExcalidrawSettings = { theme: 'light', autoSave: true };
+        commandRan = false;
+        ribbonClicked = false;
+
+        override async onload() {
+          const loaded = await this.loadData();
+          if (loaded) {
+            this.settings = Object.assign({}, this.settings, loaded);
+          }
+
+          this.addCommand({
+            id: 'toggle-fullscreen',
+            name: 'Alternar pantalla completa',
+            callback: () => {
+              this.commandRan = true;
+            },
+          });
+
+          this.addRibbonIcon('brush', 'Nuevo Dibujo', () => {
+            this.ribbonClicked = true;
+          });
+
+          this.addStatusBarItem();
+        }
+      }
+
+      const plugin = new ExcalidrawPluginTest(app, manifest);
+
+      // 1. Guardar datos iniciales
+      await plugin.saveData({ theme: 'dark', autoSave: false });
+
+      // 2. Cargar plugin (onload)
+      plugin.load();
+      await plugin.onload();
+
+      // Verificar que cargó datos correctamente
+      expect(plugin.settings.theme).toBe('dark');
+      expect(plugin.settings.autoSave).toBe(false);
+
+      // Verificar registro de comando
+      const fullCmdId = 'obsidian-excalidraw-plugin:toggle-fullscreen';
+      expect(app.commands.findCommand(fullCmdId)).toBeDefined();
+      app.commands.executeCommandById(fullCmdId);
+      expect(plugin.commandRan).toBe(true);
+
+      // Verificar registro de Ribbon Icon
+      const ribbonItem = app.ribbon.icons.find((i) => i.title === 'Nuevo Dibujo');
+      expect(ribbonItem).toBeDefined();
+      ribbonItem?.element.dispatchEvent(new Event('click'));
+      expect(plugin.ribbonClicked).toBe(true);
+
+      // Verificar registro de StatusBar
+      expect(app.statusBar.items.length).toBeGreaterThan(0);
+
+      // 3. Descarga de plugin (unload)
+      plugin.unload();
+
+      // Verificar que los comandos registrados se limpiaron automáticamente
+      expect(app.commands.findCommand(fullCmdId)).toBeUndefined();
+
+      // Verificar que el icono de Ribbon se removió
+      expect(app.ribbon.icons.find((i) => i.title === 'Nuevo Dibujo')).toBeUndefined();
+
+      // Verificar que el elemento de StatusBar se removió
+      expect(app.statusBar.items.length).toBe(0);
     });
   });
 });

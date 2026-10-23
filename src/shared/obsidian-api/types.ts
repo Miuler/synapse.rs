@@ -3,6 +3,22 @@ import { Events, type EventRef } from './events';
 import { Component } from './component';
 import { View, ItemView, TextFileView, DefaultMarkdownView } from './view';
 import { WorkspaceLeaf, type ViewState } from './leaf';
+import { Plugin, type PluginManifest } from './plugin';
+import {
+  Setting,
+  PluginSettingTab,
+  SynapseSettingManager,
+  TextComponent,
+  TextAreaComponent,
+  ToggleComponent,
+  DropdownComponent,
+  SliderComponent,
+  ButtonComponent,
+  ExtraButtonComponent,
+  ColorComponent,
+} from './setting';
+import { type Command, SynapseCommandManager } from './command';
+import { SynapseRibbonManager, SynapseStatusBarManager, type RibbonIconItem } from './ribbon';
 
 export {
   Events,
@@ -14,6 +30,24 @@ export {
   DefaultMarkdownView,
   WorkspaceLeaf,
   type ViewState,
+  Plugin,
+  type PluginManifest,
+  Setting,
+  PluginSettingTab,
+  SynapseSettingManager,
+  TextComponent,
+  TextAreaComponent,
+  ToggleComponent,
+  DropdownComponent,
+  SliderComponent,
+  ButtonComponent,
+  ExtraButtonComponent,
+  ColorComponent,
+  type Command,
+  SynapseCommandManager,
+  SynapseRibbonManager,
+  SynapseStatusBarManager,
+  type RibbonIconItem,
 };
 
 export interface VaultFileStat {
