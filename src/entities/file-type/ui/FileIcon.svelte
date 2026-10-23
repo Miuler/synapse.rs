@@ -18,6 +18,7 @@
     path?: string;
     name?: string;
     extension?: string;
+    kind?: string;
     size?: number;
     strokeWidth?: number;
     class?: string;
@@ -27,6 +28,7 @@
     path = '',
     name = '',
     extension = '',
+    kind,
     size = 15,
     strokeWidth = 2,
     class: className = ''
@@ -40,6 +42,11 @@
   type FileCategory = 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
 
   const category = $derived((): FileCategory => {
+    if (kind === 'excalidraw' || kind === 'mermaid') return 'diagram';
+    if (kind === 'pdf') return 'pdf';
+    if (kind === 'image') return 'image';
+    if (kind === 'markdown') return 'markdown';
+
     if (fileName === '.gitignore' || fileName === '.gitmodules') return 'git';
     if (fileName.endsWith('.lock') || fileName.endsWith('.lockb')) return 'config';
 

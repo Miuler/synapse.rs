@@ -590,7 +590,7 @@
                   {:else if tab.path.startsWith('rev:')}
                     <History size={14} class="file-icon" style="color: #0969da;" />
                   {:else}
-                    <FileIcon path={tab.path} name={tab.title} size={14} class="file-icon" />
+                    <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="file-icon" />
                   {/if}
                   <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                   <button
@@ -810,7 +810,7 @@
                       {:else if tab.path.startsWith('rev:')}
                         <History size={14} class="dropdown-file-icon" style="color: #0969da;" />
                       {:else}
-                        <FileIcon path={tab.path} name={tab.title} size={14} class="dropdown-file-icon" />
+                        <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="dropdown-file-icon" />
                       {/if}
                       <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                       <button

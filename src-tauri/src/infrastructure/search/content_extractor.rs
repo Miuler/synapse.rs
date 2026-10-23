@@ -60,6 +60,17 @@ pub fn extract(
 
     if is_markdown {
         let (_, decoded) = detect_and_decode(bytes);
+
+        // Detección por Frontmatter YAML o marcadores de Obsidian Excalidraw
+        if decoded.contains("excalidraw-plugin:") || decoded.contains("```compressed-json") {
+            let extracted_text = extract_excalidraw_text(&decoded);
+            return Some((
+                DocumentKind::Excalidraw,
+                file_stem.to_string(),
+                extracted_text,
+            ));
+        }
+
         let title = extract_title_from_markdown(&decoded, file_stem);
         let plain_body = extract_markdown_plain_text(&decoded);
         return Some((DocumentKind::Markdown, title, plain_body));
@@ -252,6 +263,28 @@ Elemento 2 ^def456
         assert!(body.contains("Elemento 1"));
         assert!(body.contains("Elemento 2"));
         assert!(!body.contains("^abc123"));
+    }
+
+    #[test]
+    fn test_extract_excalidraw_from_markdown_frontmatter() {
+        let md = r#"---
+excalidraw-plugin: parsed
+tags: [arquitectura]
+---
+# Text Elements
+Microservicio Pagos ^p1
+
+Base de Datos PostgreSQL ^db1
+"#;
+        let path = Path::new("arquitectura_sistema.md");
+        let file_types = SupportedFileTypes::default();
+        let res = extract(path, md.as_bytes(), &file_types);
+        assert!(res.is_some());
+        let (kind, title, body) = res.unwrap();
+        assert_eq!(kind, DocumentKind::Excalidraw);
+        assert_eq!(title, "arquitectura_sistema");
+        assert!(body.contains("Microservicio Pagos"));
+        assert!(body.contains("Base de Datos PostgreSQL"));
     }
 
     #[test]

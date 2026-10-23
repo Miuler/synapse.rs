@@ -31,7 +31,7 @@
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
-  import {createSynapseApp, type SynapseApp} from "@shared/obsidian-api";
+  import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
@@ -51,6 +51,13 @@
       p.startsWith("diff-rev:") ||
       p.startsWith("rev:")
     );
+  }
+
+  function isDrawingTab(path: string | null | undefined, content?: string): boolean {
+    if (!path || isSyntheticTab(path)) return false;
+    if (isDrawingFile(path)) return true;
+    if (content && isExcalidrawMarkdown(content)) return true;
+    return false;
   }
 
   function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
@@ -570,7 +577,7 @@
   function toggleViewMode() {
     if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
 
-    if (isMarkdownFile(activeTabPath)) {
+    if (isMarkdownFile(activeTabPath) && !isDrawingTab(activeTabPath, activeContent)) {
       if (!isEditing) {
         handleChangeMarkdownView(markdownViewMode === "reading" ? "live" : markdownViewMode);
       } else {
@@ -693,7 +700,7 @@
 
   function flushPendingSaveForPath(targetPath: string | null | undefined) {
     if (!targetPath || isSyntheticTab(targetPath)) return;
-    if (isDrawingFile(targetPath) && excalidrawViewers[targetPath]?.getCurrentSerializedScene) {
+    if (isDrawingTab(targetPath, openedNotes[targetPath]?.content) && excalidrawViewers[targetPath]?.getCurrentSerializedScene) {
       try {
         const fresh = excalidrawViewers[targetPath].getCurrentSerializedScene();
         if (fresh && openedNotes[targetPath]) {
@@ -1143,7 +1150,7 @@
   function toggleSplitViewMode() {
     if (!activeSplitTabPath || isSyntheticTab(activeSplitTabPath)) return;
 
-    if (isMarkdownFile(activeSplitTabPath)) {
+    if (isMarkdownFile(activeSplitTabPath) && !isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content)) {
       if (!isSplitEditing) {
         handleChangeSplitMarkdownView(splitMarkdownViewMode === "reading" ? "live" : splitMarkdownViewMode);
       } else {
@@ -1320,6 +1327,7 @@
     Boolean(
       currentFocusedTabPath &&
       !isSyntheticTab(currentFocusedTabPath) &&
+      !isDrawingTab(currentFocusedTabPath, focusedContent) &&
       (
         isMarkdownFile(currentFocusedTabPath) ||
         (currentFocusedVaultItem.relative_path && isMarkdownFile(currentFocusedVaultItem.relative_path))
@@ -1331,6 +1339,7 @@
     Boolean(
       activeSplitTabPath &&
       !isSyntheticTab(activeSplitTabPath) &&
+      !isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content) &&
       (
         isMarkdownFile(activeSplitTabPath) ||
         (currentSplitVaultItem.relative_path && isMarkdownFile(currentSplitVaultItem.relative_path))
@@ -1375,11 +1384,13 @@
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
       const note = openedNotes[path];
       const isDirty = note ? note.content !== note.savedContent : false;
+      const isDrawing = isDrawingTab(path, note?.content);
       return {
         path,
         abs_path: note?.abs_path || vaultItem?.abs_path,
         title: note?.title || vaultItem?.title || path,
         isDirty,
+        kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
     })
   );
@@ -1397,11 +1408,13 @@
       const vaultItem = vaultItems.find((item) => item.relative_path === path);
       const note = openedNotes[path];
       const isDirty = note ? note.content !== note.savedContent : false;
+      const isDrawing = isDrawingTab(path, note?.content);
       return {
         path,
         abs_path: note?.abs_path || vaultItem?.abs_path,
         title: note?.title || vaultItem?.title || path,
         isDirty,
+        kind: isDrawing ? ('excalidraw' as const) : undefined,
       };
     })
   );
@@ -1810,7 +1823,7 @@
     for (const p of allTabs) {
       if (!p || isSyntheticTab(p)) continue;
 
-      if (isDrawingFile(p) && excalidrawViewers[p]?.getCurrentSerializedScene) {
+      if (isDrawingTab(p, openedNotes[p]?.content) && excalidrawViewers[p]?.getCurrentSerializedScene) {
         try {
           const fresh = excalidrawViewers[p].getCurrentSerializedScene();
           if (fresh && openedNotes[p]) {
@@ -1841,7 +1854,8 @@
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
-    const computedDelay = delay !== undefined ? delay : (isDrawingFile(vaultItem.relative_path) ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
+    const isDrawing = isDrawingTab(vaultItem.relative_path, openedNotes[vaultItem.relative_path]?.content);
+    const computedDelay = delay !== undefined ? delay : (isDrawing ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       persistVaultItemToRust(vaultItem);
@@ -1877,7 +1891,7 @@
     }
 
     // Si es un dibujo, sincronizar inmediatamente la escena más fresca del visor Excalidraw
-    if (isDrawingFile(path) && excalidrawViewers[path]?.getCurrentSerializedScene) {
+    if (isDrawingTab(path, openedNotes[path]?.content) && excalidrawViewers[path]?.getCurrentSerializedScene) {
       try {
         const freshContent = excalidrawViewers[path].getCurrentSerializedScene();
         if (freshContent && openedNotes[path]) {
@@ -2801,12 +2815,13 @@
           {@const isLoading = note?.isLoading ?? false}
           {@const paneEditing = isRight ? isSplitEditing : isEditing}
           {@const paneViewMode = isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
+          {@const isDrawing = isDrawingTab(tabPath, content)}
           <div
             class="tab-pane"
             class:hidden={tabPath !== activePath}
             class:full-pane={isDiagramFile(tabPath) ||
               isImageFile(tabPath) ||
-              isDrawingFile(tabPath) ||
+              isDrawing ||
               isPdfFile(tabPath)}
           >
             <BreadCrumb
@@ -2849,7 +2864,7 @@
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                     />
                   {/if}
-                {:else if isDrawingFile(tabPath)}
+                {:else if isDrawing}
                   <ExcalidrawViewer
                     bind:this={excalidrawViewers[tabPath]}
                     {content}
@@ -2957,7 +2972,7 @@
           !isSyntheticTab(activeTabPath) &&
           (!currentVaultItem.relative_path ||
             isMarkdownFile(currentVaultItem.relative_path) ||
-            isDrawingFile(currentVaultItem.relative_path) ||
+            isDrawingTab(currentVaultItem.relative_path, activeContent) ||
             isPdfFile(currentVaultItem.relative_path))}
         onSelectTab={(path) => selectTab(path)}
         onCloseTab={(path) => closeTab(path)}
@@ -3040,7 +3055,7 @@
               !isSyntheticTab(activeTabPath) &&
               (!currentVaultItem.relative_path ||
                 isMarkdownFile(currentVaultItem.relative_path) ||
-                isDrawingFile(currentVaultItem.relative_path) ||
+                isDrawingTab(currentVaultItem.relative_path, activeContent) ||
                 isPdfFile(currentVaultItem.relative_path))}
             onSelectTab={(path) => selectTab(path)}
             onCloseTab={(path) => closeTab(path)}
@@ -3117,7 +3132,7 @@
               !isSyntheticTab(activeSplitTabPath) &&
               (!currentSplitVaultItem.relative_path ||
                 isMarkdownFile(currentSplitVaultItem.relative_path) ||
-                isDrawingFile(currentSplitVaultItem.relative_path) ||
+                isDrawingTab(currentSplitVaultItem.relative_path, openedNotes[activeSplitTabPath]?.content) ||
                 isPdfFile(currentSplitVaultItem.relative_path))}
             onSelectTab={(path) => selectSplitTab(path)}
             onCloseTab={(path) => closeSplitTab(path)}

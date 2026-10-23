@@ -109,6 +109,55 @@ export function stringifyYaml(obj: any): string {
   return lines.join('\n');
 }
 
+/**
+ * Extrae y parsea el bloque YAML Frontmatter de un documento Markdown delimitado por '---'.
+ */
+export function extractFrontmatter(content: string): Record<string, any> | undefined {
+  if (!content || !content.trimStart().startsWith('---')) return undefined;
+  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!match) return undefined;
+  try {
+    return parseYaml(match[1]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Detecta si una nota Markdown debe ser abierta por un visor especializado de plugin
+ * analizando su contenido y su YAML Frontmatter (ej. Excalidraw, Kanban, etc.).
+ *
+ * @returns El identificador del tipo de vista especializada ('excalidraw', 'kanban', etc.) o null si es Markdown estándar.
+ */
+export function resolvePluginViewType(content: string, _path?: string): string | null {
+  if (!content) return null;
+
+  // 1. Detección por YAML Frontmatter
+  const fm = extractFrontmatter(content);
+  if (fm) {
+    if (fm['excalidraw-plugin']) return 'excalidraw';
+    if (fm['kanban-plugin']) return 'kanban';
+    if (fm['slide'] === true || fm['presentation'] === true) return 'slides';
+    if (Array.isArray(fm['tags'])) {
+      if (fm['tags'].includes('excalidraw') || fm['tags'].includes('ea/drawing')) return 'excalidraw';
+      if (fm['tags'].includes('kanban')) return 'kanban';
+    }
+  }
+
+  // 2. Detección por marcas en el cuerpo (ej. compressed-json de Excalidraw)
+  if (
+    content.includes('excalidraw-plugin:') ||
+    content.includes('```compressed-json') ||
+    (content.includes('%%') && content.includes('# Drawing')) ||
+    content.includes('==Deconstruct of drawing==') ||
+    content.includes('Switch to EXCALIDRAW VIEW')
+  ) {
+    return 'excalidraw';
+  }
+
+  return null;
+}
+
 export interface RequestUrlParam {
   url: string;
   method?: string;

@@ -14,6 +14,7 @@ export interface TabItem {
   title: string;
   abs_path?: string;
   isDirty?: boolean;
+  kind?: VaultItemKind;
 }
 
 export type MarkdownViewMode = 'live' | 'source' | 'reading';

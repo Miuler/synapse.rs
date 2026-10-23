@@ -1,5 +1,5 @@
 import type { TFile, CachedMetadataLike as CachedMetadata } from './types';
-import { parseYaml, stringifyYaml } from './utils';
+import { parseYaml, stringifyYaml, extractFrontmatter } from './utils';
 import lzString from 'lz-string';
 
 export interface ExcalidrawScene {
@@ -55,13 +55,28 @@ export function isExcalidrawFile(
  */
 export function isExcalidrawMarkdown(content: string): boolean {
   if (!content) return false;
-  return (
+
+  // 1. Detección rápida de marcas y bloques distintivos de Excalidraw
+  if (
     content.includes('excalidraw-plugin:') ||
     content.includes('```compressed-json') ||
     (content.includes('%%') && content.includes('# Drawing')) ||
     content.includes('==Deconstruct of drawing==') ||
     content.includes('Switch to EXCALIDRAW VIEW')
-  );
+  ) {
+    return true;
+  }
+
+  // 2. Detección por YAML Frontmatter estándar (tags o metadatos de plugin)
+  const fm = extractFrontmatter(content);
+  if (fm) {
+    if (fm['excalidraw-plugin']) return true;
+    if (Array.isArray(fm['tags']) && (fm['tags'].includes('excalidraw') || fm['tags'].includes('ea/drawing'))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

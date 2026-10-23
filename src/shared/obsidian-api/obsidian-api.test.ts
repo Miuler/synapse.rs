@@ -34,6 +34,8 @@ import {
   parseExcalidrawContent,
   serializeExcalidrawMarkdown,
   extractWikilinksFromElements,
+  extractFrontmatter,
+  resolvePluginViewType,
 } from './index';
 import type { VaultFile, VaultNote, VaultRepository } from '@shared/repositories';
 
@@ -1226,6 +1228,52 @@ ${compressedB64}
       // Re-parsear el resultado re-serializado para asegurar consistencia completa
       const reparsed = parseExcalidrawContent(recompressed);
       expect(reparsed.scene.elements.length).toBe(2);
+    });
+
+    it('32c. Detección especializada por YAML Frontmatter (--- ---) para Excalidraw, Kanban y Plugins', () => {
+      // 1. extractFrontmatter
+      const noteWithFm = `---
+excalidraw-plugin: parsed
+tags:
+  - excalidraw
+  - diagramas
+author: Miuler
+---
+# Contenido del dibujo
+`;
+      const fm = extractFrontmatter(noteWithFm);
+      expect(fm).toBeDefined();
+      expect(fm?.['excalidraw-plugin']).toBe('parsed');
+      expect(fm?.author).toBe('Miuler');
+      expect(Array.isArray(fm?.tags)).toBe(true);
+
+      const noteWithoutFm = '# Título simple\nSin frontmatter aquí.';
+      expect(extractFrontmatter(noteWithoutFm)).toBeUndefined();
+
+      // 2. resolvePluginViewType
+      expect(resolvePluginViewType(noteWithFm)).toBe('excalidraw');
+
+      const kanbanNote = `---
+kanban-plugin: basic
+---
+# Tablero Kanban
+`;
+      expect(resolvePluginViewType(kanbanNote)).toBe('kanban');
+
+      const slideNote = `---
+slide: true
+theme: solarized
+---
+# Diapositiva 1
+`;
+      expect(resolvePluginViewType(slideNote)).toBe('slides');
+
+      expect(resolvePluginViewType(noteWithoutFm)).toBeNull();
+
+      // 3. isExcalidrawMarkdown reconoce frontmatter sin necesidad de extensión .excalidraw
+      expect(isExcalidrawMarkdown(noteWithFm)).toBe(true);
+      expect(isExcalidrawMarkdown(kanbanNote)).toBe(false);
+      expect(isExcalidrawMarkdown(noteWithoutFm)).toBe(false);
     });
 
     it('33. Extracción de Wikilinks embebidos en textos de nodos y resolución en la bóveda', async () => {
