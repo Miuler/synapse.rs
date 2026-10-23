@@ -839,6 +839,19 @@ pub fn copy_vault_items(
 }
 
 #[tauri::command]
+pub fn open_file_with_default_app(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<(), String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+
+    state.file_system_use_cases.open_file_with_default_app(vault_path, &path)
+}
+
+#[tauri::command]
 pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {

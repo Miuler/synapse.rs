@@ -25,6 +25,7 @@
     isDiagramFile,
     isDrawingFile,
     isPdfFile,
+    isOfficeFile,
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
@@ -747,6 +748,12 @@
 
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
+    if (isOfficeFile(path)) {
+      vaultRepository.openFileWithDefaultApp(path).catch((err) => {
+        console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
+      });
+      return;
+    }
     const previousActivePath = activeTabPath;
 
     if (previousActivePath && previousActivePath !== path) {
@@ -995,6 +1002,12 @@
 
   function selectSplitTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
+    if (isOfficeFile(path)) {
+      vaultRepository.openFileWithDefaultApp(path).catch((err) => {
+        console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
+      });
+      return;
+    }
     const previousSplitPath = activeSplitTabPath;
     if (previousSplitPath && previousSplitPath !== path) {
       flushPendingSaveForPath(previousSplitPath);

@@ -217,6 +217,49 @@ impl FileSystemService {
         let target = Self::resolve(vault_path, relative_path)?;
         fs::create_dir_all(&target).map_err(|e| format!("Error al crear carpeta: {}", e))
     }
+
+    /// Abre un archivo con la aplicación por defecto del sistema operativo (Word, Excel, etc.).
+    pub fn open_file_with_default_app(vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        let abs_path = if Path::new(relative_path).is_absolute() {
+            let p = PathBuf::from(relative_path);
+            if !p.exists() {
+                return Err(format!("El archivo no existe: {}", p.display()));
+            }
+            p
+        } else {
+            Self::resolve(vault_path, relative_path)?
+        };
+
+        if !abs_path.exists() {
+            return Err(format!("El archivo no existe: {}", abs_path.display()));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "", &abs_path.to_string_lossy()])
+                .spawn()
+                .map_err(|e| format!("Error al abrir archivo en Windows: {}", e))?;
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open")
+                .arg(&abs_path)
+                .spawn()
+                .map_err(|e| format!("Error al abrir archivo en macOS: {}", e))?;
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(&abs_path)
+                .spawn()
+                .map_err(|e| format!("Error al abrir archivo con xdg-open: {}", e))?;
+        }
+
+        Ok(())
+    }
 }
 
 use crate::domain::services::file_system_service::FileSystemPort;
@@ -244,6 +287,10 @@ impl FileSystemPort for FileSystemService {
 
     fn create_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
         Self::create_folder(vault_path, relative_path)
+    }
+
+    fn open_file_with_default_app(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        Self::open_file_with_default_app(vault_path, relative_path)
     }
 }
 

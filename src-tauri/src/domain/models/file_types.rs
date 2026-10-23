@@ -9,6 +9,10 @@ pub struct SupportedFileTypes {
     #[serde(default)]
     pub pdf: Vec<String>,
     pub code: Vec<String>,
+    #[serde(default)]
+    pub word: Vec<String>,
+    #[serde(default)]
+    pub excel: Vec<String>,
 }
 
 impl Default for SupportedFileTypes {
@@ -28,6 +32,8 @@ impl SupportedFileTypes {
             &self.drawings,
             &self.pdf,
             &self.code,
+            &self.word,
+            &self.excel,
         ];
         for group in groups {
             for ext in group {
@@ -76,6 +82,39 @@ impl SupportedFileTypes {
         })
     }
 
+    /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a Word
+    pub fn is_word_extension(&self, ext: &str) -> bool {
+        self.word.iter().any(|e| e.eq_ignore_ascii_case(ext))
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo Word (.docx, .doc, etc.)
+    pub fn is_word_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.word.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
+    /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a Excel
+    pub fn is_excel_extension(&self, ext: &str) -> bool {
+        self.excel.iter().any(|e| e.eq_ignore_ascii_case(ext))
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo Excel (.xlsx, .xls, etc.)
+    pub fn is_excel_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.excel.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo de Office (Word o Excel)
+    pub fn is_office_file(&self, filename: &str) -> bool {
+        self.is_word_file(filename) || self.is_excel_file(filename)
+    }
+
     /// Verifica si un nombre de archivo o ruta coincide con alguno de los tipos soportados
     pub fn is_supported_file(&self, filename: &str) -> bool {
         let lower = filename.to_lowercase();
@@ -109,6 +148,27 @@ mod tests {
         assert!(types.is_pdf_file("documento.pdf"));
         assert!(types.is_pdf_file("sub/folder/manual.PDF"));
         assert!(types.is_supported_file("manual.pdf"));
+    }
+
+    #[test]
+    fn test_supported_file_types_contains_word_and_excel() {
+        let types = SupportedFileTypes::default();
+        assert!(types.word.contains(&"docx".to_string()));
+        assert!(types.word.contains(&"doc".to_string()));
+        assert!(types.excel.contains(&"xlsx".to_string()));
+        assert!(types.excel.contains(&"xls".to_string()));
+
+        assert!(types.is_word_file("informe.docx"));
+        assert!(types.is_word_file("carta.DOC"));
+        assert!(types.is_excel_file("presupuesto.xlsx"));
+        assert!(types.is_excel_file("datos.XLS"));
+
+        assert!(types.is_office_file("informe.docx"));
+        assert!(types.is_office_file("presupuesto.xlsx"));
+        assert!(!types.is_office_file("nota.md"));
+
+        assert!(types.is_supported_file("informe.docx"));
+        assert!(types.is_supported_file("presupuesto.xlsx"));
     }
 
     #[test]

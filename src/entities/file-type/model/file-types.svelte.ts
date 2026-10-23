@@ -7,6 +7,8 @@ export interface SupportedFileTypes {
   drawings: string[];
   pdf: string[];
   code: string[];
+  word?: string[];
+  excel?: string[];
 }
 
 export interface IgnoredConfig {
@@ -68,6 +70,8 @@ class FileTypesManager {
       this.fileTypes.drawings,
       this.fileTypes.pdf,
       this.fileTypes.code,
+      this.fileTypes.word,
+      this.fileTypes.excel,
     ];
     for (const group of groups) {
       if (!Array.isArray(group)) continue;
@@ -134,6 +138,18 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.code);
   }
 
+  isWordFile(path: string | null | undefined): boolean {
+    return this.matchesExtension(path, this.fileTypes.word || ['docx', 'doc', 'docm', 'dot', 'dotx']);
+  }
+
+  isExcelFile(path: string | null | undefined): boolean {
+    return this.matchesExtension(path, this.fileTypes.excel || ['xlsx', 'xls', 'xlsm', 'xlt', 'xltx']);
+  }
+
+  isOfficeFile(path: string | null | undefined): boolean {
+    return this.isWordFile(path) || this.isExcelFile(path);
+  }
+
   isSupportedFile(path: string | null | undefined): boolean {
     return (
       this.isImageFile(path) ||
@@ -141,7 +157,8 @@ class FileTypesManager {
       this.isDiagramFile(path) ||
       this.isDrawingFile(path) ||
       this.isPdfFile(path) ||
-      this.isCodeFile(path)
+      this.isCodeFile(path) ||
+      this.isOfficeFile(path)
     );
   }
 }
@@ -155,4 +172,7 @@ export const isDiagramFile = (path: string | null | undefined) => fileTypesManag
 export const isDrawingFile = (path: string | null | undefined) => fileTypesManager.isDrawingFile(path);
 export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);
 export const isCodeFile = (path: string | null | undefined) => fileTypesManager.isCodeFile(path);
+export const isWordFile = (path: string | null | undefined) => fileTypesManager.isWordFile(path);
+export const isExcelFile = (path: string | null | undefined) => fileTypesManager.isExcelFile(path);
+export const isOfficeFile = (path: string | null | undefined) => fileTypesManager.isOfficeFile(path);
 export const isSupportedFile = (path: string | null | undefined) => fileTypesManager.isSupportedFile(path);

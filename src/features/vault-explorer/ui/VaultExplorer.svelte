@@ -8,7 +8,7 @@
   import GitBranchDialog from './GitBranchDialog.svelte';
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
 
@@ -528,9 +528,19 @@
     }, 60);
   }
 
+  async function handleOpenFileWithDefaultApp(path: string) {
+    try {
+      await vaultRepository.openFileWithDefaultApp(path);
+    } catch (err) {
+      console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
+    }
+  }
+
   function handleActivateNode(node: VaultTreeNode) {
     if (node.isFolder) {
       toggleFolder(node.relativePath);
+    } else if (isOfficeFile(node.relativePath)) {
+      handleOpenFileWithDefaultApp(node.relativePath);
     } else {
       onSelectTab(node.relativePath);
     }
@@ -666,7 +676,11 @@
     selectedPaths = [node.relativePath];
     lastFocusedPath = node.relativePath;
     anchorPath = node.relativePath;
-    onSelectTab(node.relativePath);
+    if (isOfficeFile(node.relativePath)) {
+      handleOpenFileWithDefaultApp(node.relativePath);
+    } else {
+      onSelectTab(node.relativePath);
+    }
   }
 
   function handleItemContextMenu(e: MouseEvent, node: VaultTreeNode) {
@@ -1836,6 +1850,22 @@
           >
             <ExternalLink class="context-menu-item-icon" />
             <span>Abrir en nueva ventana</span>
+          </ContextMenu.Item>
+        {/if}
+
+        {#if contextMenuNode && !contextMenuNode.isFolder && isOfficeFile(contextMenuNode.relativePath)}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) {
+                handleOpenFileWithDefaultApp(contextMenuNode.relativePath);
+              }
+            }}
+          >
+            <ExternalLink class="context-menu-item-icon" />
+            <span>Abrir en aplicación del sistema</span>
           </ContextMenu.Item>
         {/if}
 

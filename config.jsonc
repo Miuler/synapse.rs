@@ -43,6 +43,24 @@
       "pdf"
     ],
 
+    // Documentos Microsoft Word
+    "word": [
+      "docx",
+      "doc",
+      "docm",
+      "dot",
+      "dotx"
+    ],
+
+    // Hojas de cálculo Microsoft Excel
+    "excel": [
+      "xlsx",
+      "xls",
+      "xlsm",
+      "xlt",
+      "xltx"
+    ],
+
     // Código fuente y texto estructurado
     "code": [
       "rs",

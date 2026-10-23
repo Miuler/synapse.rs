@@ -350,6 +350,11 @@ export interface VaultRepository {
    */
   deleteItem(relativePath: string): Promise<void>;
 
+  /**
+   * Abre un archivo usando la aplicación predeterminada del sistema operativo (Word, Excel, etc.).
+   */
+  openFileWithDefaultApp(relativePath: string): Promise<void>;
+
   /** Renombra un archivo o carpeta conservándolo en su carpeta actual. */
   renameItem(relativePath: string, newName: string): Promise<string>;
 
@@ -1202,6 +1207,16 @@ export class TauriVaultRepository implements VaultRepository {
       await invokeTauri<void>('open_workspace_in_new_window', { path });
     } catch (error) {
       console.error('Error al abrir workspace en nueva ventana:', error);
+    }
+  }
+
+  async openFileWithDefaultApp(relativePath: string): Promise<void> {
+    if (!this.isConnected() || !relativePath) return;
+    try {
+      await invokeTauri<void>('open_file_with_default_app', { path: relativePath });
+    } catch (error) {
+      console.error('Error al abrir archivo con la aplicación por defecto del sistema:', error);
+      throw error;
     }
   }
 }

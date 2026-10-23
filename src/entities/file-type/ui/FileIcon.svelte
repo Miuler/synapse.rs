@@ -9,6 +9,7 @@
     Workflow,
     Binary,
     FileCog,
+    FileSpreadsheet,
     type IconProps
   } from 'lucide-svelte';
 
@@ -39,7 +40,7 @@
   const fileExt = $derived((extension || fileName.split('.').pop() || '').toLowerCase());
 
   // Clasificador de tipos de archivo para theming y variantes de icono
-  type FileCategory = 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
+  type FileCategory = 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'word' | 'excel' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
 
   const category = $derived((): FileCategory => {
     if (kind === 'excalidraw' || kind === 'mermaid') return 'diagram';
@@ -57,6 +58,8 @@
     // Integración automática con la lista de tipos soportados (supported_files.json)
     if (fileTypesManager.isDrawingFile(fileName) || fileExt === 'excalidraw') return 'diagram';
     if (fileTypesManager.isPdfFile(fileName) || fileExt === 'pdf') return 'pdf';
+    if (fileTypesManager.isWordFile(fileName) || ['docx', 'doc', 'docm', 'dot', 'dotx'].includes(fileExt)) return 'word';
+    if (fileTypesManager.isExcelFile(fileName) || ['xlsx', 'xls', 'xlsm', 'xlt', 'xltx'].includes(fileExt)) return 'excel';
     if (fileTypesManager.isMarkdownFile(fileName) || fileExt === 'txt') return 'markdown';
     if (fileTypesManager.isImageFile(fileName)) return 'image';
     if (fileTypesManager.isDiagramFile(fileName) || fileExt === 'canvas') return 'diagram';
@@ -130,6 +133,10 @@
   <FileImage {size} {strokeWidth} class="synapse-file-icon synapse-file-image {className}" />
 {:else if category() === 'pdf'}
   <FileText {size} {strokeWidth} class="synapse-file-icon synapse-file-pdf {className}" />
+{:else if category() === 'word'}
+  <FileText {size} {strokeWidth} class="synapse-file-icon synapse-file-word {className}" />
+{:else if category() === 'excel'}
+  <FileSpreadsheet {size} {strokeWidth} class="synapse-file-icon synapse-file-excel {className}" />
 {:else if category() === 'json'}
   <FileJson {size} {strokeWidth} class="synapse-file-icon synapse-file-json {className}" />
 {:else if category() === 'config'}
@@ -155,6 +162,14 @@
 
   :global(.synapse-file-icon.synapse-file-pdf) {
     color: var(--icon-file-pdf-color, #cf222e);
+  }
+
+  :global(.synapse-file-icon.synapse-file-word) {
+    color: var(--icon-file-word-color, #185abd);
+  }
+
+  :global(.synapse-file-icon.synapse-file-excel) {
+    color: var(--icon-file-excel-color, #107c41);
   }
 
   :global(.synapse-file-icon.synapse-file-rs) {
