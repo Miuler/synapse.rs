@@ -61,7 +61,7 @@ image = { version = "0.25", default-features = false, features = [
 pixelmatch = "0.1"
 quick-xml = "0.37"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
-lopdf = "0.34"
+lopdf = "0.42"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "2.2.0"
