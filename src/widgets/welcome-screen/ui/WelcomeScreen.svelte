@@ -8,6 +8,7 @@
     type SelectVaultFolderResult,
   } from '@shared/repositories';
   import { appSettings, shortcutsConfig, matchesShortcut } from '@entities/settings';
+  import { ThemeToggle } from '@features/theme-toggle';
   import { WindowControls } from '@shared/ui/window-controls';
   import {
     Folder,
@@ -26,8 +27,6 @@
     Database,
     HelpCircle,
     Settings,
-    Sun,
-    Moon,
     Minus,
     Square,
     X,
@@ -694,19 +693,7 @@
       <!-- PIE DEL PANEL PRINCIPAL -->
       <footer class="main-footer">
         <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
-        <button
-          type="button"
-          class="status-item clickable theme-btn"
-          onclick={() => appSettings.cycleTheme()}
-          title="Cambiar tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para alternar)"
-        >
-          {#if appSettings.resolvedTheme === 'dark'}
-            <Moon size={13} class="icon theme-icon" />
-          {:else}
-            <Sun size={13} class="icon theme-icon" />
-          {/if}
-          <span class="theme-text">{appSettings.theme === 'system' ? 'Auto' : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
-        </button>
+        <ThemeToggle />
 
         <div class="keyboard-hints">
           <span class="hint-pair"><kbd>Enter</kbd> para abrir</span>
@@ -1757,47 +1744,6 @@
 
   :global(html[data-theme='light']) .main-footer {
     border-top-color: #d0d7de;
-  }
-
-  .status-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
-    height: 24px;
-    background: transparent;
-    border: none;
-    color: inherit;
-    cursor: default;
-    border-radius: 4px;
-    transition: all 0.15s ease;
-    font-size: 11.5px;
-    font-family: inherit;
-  }
-
-  .status-item.clickable {
-    cursor: pointer;
-  }
-
-  .status-item.clickable:hover {
-    background: var(--hover-bg, rgba(255, 255, 255, 0.08));
-    color: var(--accent, #0969da);
-  }
-
-  :global(html[data-theme='light']) .status-item.clickable:hover {
-    background: rgba(0, 0, 0, 0.05);
-  }
-
-  .theme-btn {
-    font-weight: 500;
-  }
-
-  :global(.theme-icon) {
-    color: var(--accent, #0969da);
-  }
-
-  .theme-text {
-    font-size: 11px;
   }
 
   .keyboard-hints {

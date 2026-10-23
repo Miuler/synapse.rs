@@ -9,15 +9,13 @@
     ChevronDown,
     Check,
     Search,
-    Sun,
-    Moon,
     Database,
     Loader2,
     AlertCircle,
     FileText,
     RefreshCw,
   } from 'lucide-svelte';
-  import { appSettings } from '@entities/settings';
+  import { ThemeToggle } from '@features/theme-toggle';
   import { type MarkdownViewMode } from '@entities/vault-item';
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
   import { listen } from '@tauri-apps/api/event';
@@ -605,19 +603,7 @@
     <div class="divider"></div>
 
     <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
-    <button
-      type="button"
-      class="status-item clickable theme-btn"
-      onclick={() => appSettings.cycleTheme()}
-      title="Cambiar tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para alternar)"
-    >
-      {#if appSettings.resolvedTheme === 'dark'}
-        <Moon size={13} class="icon theme-icon" />
-      {:else}
-        <Sun size={13} class="icon theme-icon" />
-      {/if}
-      <span class="theme-text">{appSettings.theme === 'system' ? 'Auto' : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
-    </button>
+    <ThemeToggle />
   </div>
 </footer>
 
@@ -668,18 +654,6 @@
   .status-item.clickable.active {
     background: var(--hover-bg, rgba(0, 0, 0, 0.05));
     color: var(--accent, #0969da);
-  }
-
-  .theme-btn {
-    font-weight: 500;
-  }
-
-  .theme-icon {
-    color: var(--accent, #0969da);
-  }
-
-  .theme-text {
-    font-size: 11px;
   }
 
   /* Contenedor del selector de vista Markdown */
