@@ -24,7 +24,6 @@
     PlusCircle,
     ShieldCheck,
     Database,
-    Sparkles,
     HelpCircle,
     Settings,
     Sun,
@@ -354,20 +353,6 @@
         aria-label="Ayuda"
       >
         <HelpCircle size={15} />
-      </button>
-
-      <button
-        type="button"
-        class="top-icon-btn"
-        onclick={() => appSettings.cycleTheme()}
-        title="Cambiar tema (Claro / Oscuro / Sistema)"
-        aria-label="Cambiar tema"
-      >
-        {#if appSettings.resolvedTheme === 'dark'}
-          <Moon size={15} />
-        {:else}
-          <Sun size={15} />
-        {/if}
       </button>
 
       <!-- Reutilización del componente unificado WindowControls -->
@@ -708,16 +693,20 @@
 
       <!-- PIE DEL PANEL PRINCIPAL -->
       <footer class="main-footer">
-        <div class="suggested-templates">
-          <Sparkles size={14} class="sparkle-icon" />
-          <span class="template-label">Plantilla sugerida:</span>
-          <button type="button" class="template-pill" onclick={handleCreateNewWorkspace}>
-            Zettelkasten / Slip-box
-          </button>
-          <button type="button" class="template-pill" onclick={handleCreateNewWorkspace}>
-            Rust Dev Log
-          </button>
-        </div>
+        <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
+        <button
+          type="button"
+          class="status-item clickable theme-btn"
+          onclick={() => appSettings.cycleTheme()}
+          title="Cambiar tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para alternar)"
+        >
+          {#if appSettings.resolvedTheme === 'dark'}
+            <Moon size={13} class="icon theme-icon" />
+          {:else}
+            <Sun size={13} class="icon theme-icon" />
+          {/if}
+          <span class="theme-text">{appSettings.theme === 'system' ? 'Auto' : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
+        </button>
 
         <div class="keyboard-hints">
           <span class="hint-pair"><kbd>Enter</kbd> para abrir</span>
@@ -1770,35 +1759,45 @@
     border-top-color: #d0d7de;
   }
 
-  .suggested-templates {
+  .status-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-
-  :global(.sparkle-icon) {
-    color: #f59e0b;
-  }
-
-  .template-pill {
-    padding: 4px 10px;
-    border-radius: 6px;
-    background-color: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    color: #c9d1d9;
+    gap: 6px;
+    padding: 3px 8px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: default;
+    border-radius: 4px;
+    transition: all 0.15s ease;
     font-size: 11.5px;
+    font-family: inherit;
+  }
+
+  .status-item.clickable {
     cursor: pointer;
-    transition: background-color 0.15s ease;
   }
 
-  :global(html[data-theme='light']) .template-pill {
-    background-color: #ffffff;
-    border-color: #d0d7de;
-    color: #24292f;
+  .status-item.clickable:hover {
+    background: var(--hover-bg, rgba(255, 255, 255, 0.08));
+    color: var(--accent, #0969da);
   }
 
-  .template-pill:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+  :global(html[data-theme='light']) .status-item.clickable:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .theme-btn {
+    font-weight: 500;
+  }
+
+  :global(.theme-icon) {
+    color: var(--accent, #0969da);
+  }
+
+  .theme-text {
+    font-size: 11px;
   }
 
   .keyboard-hints {
