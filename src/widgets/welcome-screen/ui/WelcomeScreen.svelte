@@ -321,7 +321,7 @@
   <header class="welcome-titlebar" data-tauri-drag-region>
     <div class="titlebar-left" data-tauri-drag-region>
       <div class="app-brand-pill" data-tauri-drag-region>
-        <Cpu size={14} class="brand-chip-icon" />
+        <img src="/icon.svg" alt="Synapse" class="brand-pill-logo" />
         <span class="brand-title">Synapse Desktop</span>
         <span class="brand-sep">—</span>
         <span class="brand-version">v0.4.2-beta</span>
@@ -380,38 +380,7 @@
     <aside class="welcome-sidebar">
       <div class="hero-brand">
         <div class="logo-card">
-          <svg
-            viewBox="0 0 64 64"
-            width="46"
-            height="46"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient id="synapseGearGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#2dd4bf" />
-                <stop offset="50%" stop-color="#38bdf8" />
-                <stop offset="100%" stop-color="#f59e0b" />
-              </linearGradient>
-            </defs>
-            <!-- Engranaje / Grafo Neuronal -->
-            <circle cx="32" cy="32" r="16" stroke="url(#synapseGearGrad)" stroke-width="2.5" stroke-dasharray="5 3" />
-            <circle cx="32" cy="32" r="9" stroke="url(#synapseGearGrad)" stroke-width="2.2" />
-            <circle cx="32" cy="32" r="3" fill="#38bdf8" />
-            <!-- Nodos exteriores -->
-            <line x1="32" y1="8" x2="32" y2="16" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="32" y1="48" x2="32" y2="56" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="8" y1="32" x2="16" y2="32" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="48" y1="32" x2="56" y2="32" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="15" y1="15" x2="21" y2="21" stroke="#2dd4bf" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="43" y1="43" x2="49" y2="49" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="49" y1="15" x2="43" y2="21" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="21" y1="43" x2="15" y2="49" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" />
-            <circle cx="32" cy="8" r="2.5" fill="#2dd4bf" />
-            <circle cx="32" cy="56" r="2.5" fill="#f59e0b" />
-            <circle cx="8" cy="32" r="2.5" fill="#2dd4bf" />
-            <circle cx="56" cy="32" r="2.5" fill="#f59e0b" />
-          </svg>
+          <img src="/icon.svg" alt="Synapse" class="hero-logo-img" />
         </div>
 
         <h1 class="hero-title">SYNAPSE</h1>
@@ -925,6 +894,14 @@
     font-family: var(--code-font, monospace);
   }
 
+  .brand-pill-logo {
+    width: 15px;
+    height: 15px;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
   :global(.brand-chip-icon) {
     color: #38bdf8;
   }
@@ -1053,6 +1030,15 @@
     align-items: center;
     justify-content: center;
     margin-bottom: 16px;
+  }
+
+  .hero-logo-img {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
   }
 
   :global(html[data-theme='light']) .logo-card {
