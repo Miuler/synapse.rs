@@ -143,4 +143,21 @@ export abstract class Plugin extends Component {
   registerExtensions(extensions: string[], viewType: string): void {
     this.app.workspace.registerExtensions(extensions, viewType);
   }
+
+  /**
+   * Registra un post-procesador de Markdown que se ejecuta al renderizar bloques de lectura o embeds.
+   */
+  registerMarkdownPostProcessor(postProcessor: (el: HTMLElement, ctx: any) => any): any {
+    return postProcessor;
+  }
+
+  /**
+   * Registra un procesador de bloque de código Markdown (ej. ```excalidraw).
+   */
+  registerMarkdownCodeBlockProcessor(
+    _language: string,
+    handler: (source: string, el: HTMLElement, ctx: any) => any
+  ): any {
+    return handler;
+  }
 }

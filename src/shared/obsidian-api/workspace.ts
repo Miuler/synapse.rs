@@ -16,6 +16,20 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   private readonly extensionViewTypes: Map<string, string> = new Map();
   private readonly leaves: Set<WorkspaceLeaf> = new Set();
   activeLeaf: WorkspaceLeaf | null = null;
+  layoutReady = true;
+
+  /**
+   * Ejecuta el callback una vez que el layout de la interfaz está completamente listo.
+   */
+  onLayoutReady(callback: () => any): void {
+    if (this.layoutReady) {
+      setTimeout(callback, 0);
+    } else {
+      this.on('layout-change', () => {
+        if (this.layoutReady) callback();
+      });
+    }
+  }
 
   constructor(
     private readonly repository: VaultRepository,
@@ -173,6 +187,17 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
     if (this.activeLeaf === leaf) {
       this.activeLeaf = this.leaves.values().next().value || null;
       this.trigger('active-leaf-change', this.activeLeaf);
+    }
+  }
+
+  /**
+   * Cierra y destruye todas las hojas montadas de un tipo dado.
+   */
+  detachLeavesOfType(type: string): void {
+    for (const leaf of this.leaves) {
+      if (leaf.view && leaf.view.getViewType() === type) {
+        leaf.detach();
+      }
     }
   }
 

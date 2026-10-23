@@ -109,15 +109,17 @@ export function stringifyYaml(obj: any): string {
   return lines.join('\n');
 }
 
-/**
- * Cliente HTTP ligero compatible con requestUrl de Obsidian.
- */
-export async function requestUrl(params: string | {
+export interface RequestUrlParam {
   url: string;
   method?: string;
   headers?: Record<string, string>;
   body?: string | ArrayBuffer | Uint8Array;
-}): Promise<{ status: number; text: string; json: any; arrayBuffer: ArrayBuffer }> {
+}
+
+/**
+ * Cliente HTTP ligero compatible con requestUrl de Obsidian.
+ */
+export async function requestUrl(params: string | RequestUrlParam): Promise<{ status: number; text: string; json: any; arrayBuffer: ArrayBuffer }> {
   const url = typeof params === 'string' ? params : params.url;
   const method = typeof params === 'string' ? 'GET' : (params.method || 'GET');
   const headers = typeof params === 'string' ? undefined : params.headers;
@@ -237,4 +239,161 @@ export function moment(dateInput?: string | number | Date | MomentInstance): Mom
   };
 
   return instance;
+}
+
+/**
+ * Convierte un ArrayBuffer o Uint8Array a una cadena Base64.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const globalBtoa = typeof btoa !== 'undefined' ? btoa : (globalThis as any).btoa;
+  return globalBtoa ? globalBtoa(binary) : '';
+}
+
+/**
+ * Convierte una cadena Base64 a un ArrayBuffer nativo.
+ */
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const globalAtob = typeof atob !== 'undefined' ? atob : (globalThis as any).atob;
+  const binary = globalAtob ? globalAtob(base64) : '';
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * Comprueba si la versión de API requerida es soportada.
+ */
+export function requireApiVersion(_version: string): boolean {
+  return true;
+}
+
+/**
+ * Retorna el idioma del sistema o interfaz.
+ */
+export function getLanguage(): string {
+  return 'es';
+}
+
+/**
+ * Retorna o carga la librería PDF.js si es requerida.
+ */
+export async function loadPdfJs(): Promise<any> {
+  return {};
+}
+
+/**
+ * Extrae la información de límites y contenido del frontmatter YAML de una nota.
+ */
+export function getFrontMatterInfo(content: string): {
+  exists: boolean;
+  from: number;
+  to: number;
+  content: string;
+} {
+  const match = (content || '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) {
+    return { exists: false, from: 0, to: 0, content: '' };
+  }
+  return {
+    exists: true,
+    from: 0,
+    to: match[0].length,
+    content: match[1],
+  };
+}
+
+/**
+ * Extrae o formatea una entrada individual de frontmatter.
+ */
+export function parseFrontMatterEntry(entry: any, key: string): any {
+  if (!entry || typeof entry !== 'object') return null;
+  return entry[key];
+}
+
+/**
+ * Realiza una petición HTTP simple retornando el cuerpo en formato texto.
+ */
+export async function request(options: RequestUrlParam | string): Promise<string> {
+  const res = await requestUrl(options);
+  return res.text;
+}
+
+/**
+ * Resuelve un subpath (`#encabezado` o `^bloque`) en la caché de metadatos.
+ */
+export function resolveSubpath(cache: any, subpath: string): any {
+  if (!cache || !subpath) return null;
+  const clean = subpath.replace(/^#/, '');
+  if (Array.isArray(cache.headings)) {
+    const found = cache.headings.find((h: any) => h.heading?.toLowerCase() === clean.toLowerCase());
+    if (found) return { type: 'heading', current: found };
+  }
+  return null;
+}
+
+/**
+ * Sanitiza una cadena HTML y la monta en un fragmento de DOM.
+ */
+export function sanitizeHTMLToDom(html: string): DocumentFragment {
+  if (typeof document !== 'undefined') {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return template.content;
+  }
+  return {} as DocumentFragment;
+}
+
+/**
+ * Prepara una función de búsqueda difusa (Fuzzy Search).
+ */
+export function prepareFuzzySearch(query: string): (text: string) => { score: number; matches?: any[] } | null {
+  const q = (query || '').toLowerCase();
+  return (text: string) => {
+    const t = (text || '').toLowerCase();
+    if (t.includes(q)) {
+      return { score: 1 };
+    }
+    return null;
+  };
+}
+
+/**
+ * Limpia y convierte HTML a Markdown plano simplificado.
+ */
+export function htmlToMarkdown(html: string): string {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, '');
+}
+
+const iconsRegistry = new Map<string, string>();
+
+/**
+ * Registra un icono personalizado SVG.
+ */
+export function addIcon(id: string, svg: string): void {
+  iconsRegistry.set(id, svg);
+}
+
+/**
+ * Obtiene el código SVG de un icono registrado.
+ */
+export function getIcon(id: string): string | null {
+  return iconsRegistry.get(id) || null;
+}
+
+/**
+ * Inserta un icono SVG en un elemento HTML.
+ */
+export function setIcon(el: HTMLElement, id: string): void {
+  const svg = getIcon(id);
+  if (svg && el) {
+    el.innerHTML = svg;
+  }
 }

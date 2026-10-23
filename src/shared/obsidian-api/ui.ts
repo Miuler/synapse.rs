@@ -232,3 +232,49 @@ export class Menu extends Component {
     this.dom.remove();
   }
 }
+
+/**
+ * Modal de sugerencias con búsqueda difusa (FuzzySuggestModal).
+ */
+export abstract class FuzzySuggestModal<T> extends Modal {
+  abstract getItems(): T[];
+  abstract getItemText(item: T): string;
+  abstract onChooseItem(item: T, evt: MouseEvent | KeyboardEvent): void;
+}
+
+/**
+ * Gestor de atajos de teclado y alcance de eventos de Obsidian.
+ */
+export class Scope {
+  register(
+    _modifiers: string[],
+    _key: string | null,
+    _func: (evt: KeyboardEvent) => any
+  ): any {
+    return {};
+  }
+  unregister(_key: any): void {}
+}
+
+/**
+ * Clase base para sugerencias de autocompletado en campos de entrada.
+ */
+export abstract class AbstractInputSuggest<T> {
+  constructor(protected app: any, protected textInputEl: HTMLInputElement | HTMLTextAreaElement) {}
+  abstract getSuggestions(inputStr: string): T[] | Promise<T[]>;
+  abstract renderSuggestion(item: T, el: HTMLElement): void;
+  abstract selectSuggestion(item: T, evt: MouseEvent | KeyboardEvent): void;
+}
+
+/**
+ * Clase base para autocompletado contextual en el editor de Markdown.
+ */
+export abstract class EditorSuggest<T> extends Component {
+  constructor(public app: any) {
+    super();
+  }
+  abstract onTrigger(cursor: any, editor: any, file: any): any;
+  abstract getSuggestions(context: any): T[] | Promise<T[]>;
+  abstract renderSuggestion(value: T, el: HTMLElement): void;
+  abstract selectSuggestion(value: T, evt: MouseEvent | KeyboardEvent): void;
+}

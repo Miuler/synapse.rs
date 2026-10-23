@@ -212,9 +212,9 @@ export interface SynapseVaultLike {
   adapter: DataAdapter;
   getAbstractFileByPath(path: string): Promise<TAbstractFile | null>;
   getRoot(): TFolder;
-  getFiles(): Promise<TFile[]>;
-  getMarkdownFiles(): Promise<TFile[]>;
-  getAllLoadedFiles(): Promise<TAbstractFile[]>;
+  getFiles(): TFile[] | Promise<TFile[]>;
+  getMarkdownFiles(): TFile[] | Promise<TFile[]>;
+  getAllLoadedFiles(): TAbstractFile[] | Promise<TAbstractFile[]>;
   read(file: TFile | string): Promise<string>;
   cachedRead(file: TFile | string): Promise<string>;
   readBinary(file: TFile | string): Promise<ArrayBuffer>;
@@ -257,6 +257,7 @@ export interface SynapseWorkspaceLike {
   setActiveLeaf(leaf: WorkspaceLeaf, params?: { focus?: boolean }): void;
   getLeavesOfType(type: string): WorkspaceLeaf[];
   getActiveViewOfType<T extends View>(type: new (...args: any[]) => T): T | null;
+  detachLeavesOfType(type: string): void;
   getLayout(): any;
 
   // Event methods

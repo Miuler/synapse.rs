@@ -101,11 +101,12 @@ export class PluginLoader {
     const code = await this.app.vault.adapter.read(mainJsPath);
     const obsidianBundle = getObsidianBundle(this.app);
 
+    const targetGlobal: any = typeof window !== 'undefined' ? window : (globalThis as any);
     const customRequire = (moduleId: string) => {
       if (moduleId === 'obsidian') return obsidianBundle;
       if (moduleId === 'moment') return obsidianBundle.moment;
-      if (typeof window !== 'undefined' && typeof (window as any).require === 'function') {
-        return (window as any).require(moduleId);
+      if (targetGlobal && typeof targetGlobal.require === 'function') {
+        return targetGlobal.require(moduleId);
       }
       throw new Error(`[Plugin ${manifest.id}] Cannot find module '${moduleId}'`);
     };
@@ -115,8 +116,8 @@ export class PluginLoader {
 
     try {
       // Wrapper de evaluación de módulo CommonJS estándar
-      const factory = new Function('require', 'module', 'exports', 'app', code);
-      factory(customRequire, moduleObj, exportsObj, this.app);
+      const factory = new Function('require', 'module', 'exports', code);
+      factory(customRequire, moduleObj, exportsObj);
     } catch (err) {
       styleEl?.remove();
       throw new Error(`[PluginLoader] Error al evaluar main.js de ${manifest.id}: ${err}`);

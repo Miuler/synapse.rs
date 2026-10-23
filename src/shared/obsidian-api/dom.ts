@@ -20,7 +20,7 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   options?: DomElementOptions
 ): HTMLElementTagNameMap[K] {
-  if (typeof document !== 'undefined') {
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function' && !(document as any).__isSynapseMock) {
     const el = document.createElement(tag);
     if (options?.cls) {
       const classes = Array.isArray(options.cls) ? options.cls : options.cls.split(/\s+/).filter(Boolean);
@@ -149,6 +149,11 @@ export function createEl<K extends keyof HTMLElementTagNameMap>(
       }
       mock.className = Array.from(classListSet).join(' ');
     },
+    setText: (t: string) => {
+      mock.textContent = String(t);
+      return mock;
+    },
+    getText: () => mock.textContent,
     createDiv: (o?: DomElementOptions) => createDiv(o, mock),
     createSpan: (o?: DomElementOptions) => createSpan(o, mock),
     createEl: (t: any, o?: DomElementOptions) => createEl(t, { ...o, parent: mock }),

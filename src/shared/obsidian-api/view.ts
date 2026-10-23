@@ -171,3 +171,80 @@ export class DefaultMarkdownView extends TextFileView {
     this.contentEl.textContent = '';
   }
 }
+
+/**
+ * FileView es una vista abstracta asociada a un archivo en Obsidian.
+ */
+export abstract class FileView extends ItemView {
+  file: TFile | null = null;
+  allowNoFile = false;
+  navigation = true;
+}
+
+/**
+ * MarkdownView representa una vista interactiva de Markdown.
+ */
+export class MarkdownView extends TextFileView {
+  getViewType(): string {
+    return 'markdown';
+  }
+
+  getViewData(): string {
+    return this.data;
+  }
+
+  setViewData(data: string, _clear: boolean): void {
+    this.data = data;
+    this.contentEl.textContent = data;
+  }
+
+  clear(): void {
+    this.data = '';
+    this.contentEl.textContent = '';
+  }
+}
+
+/**
+ * MarkdownRenderChild gestiona componentes hijos montados en bloques de Markdown.
+ */
+export class MarkdownRenderChild extends Component {
+  constructor(public containerEl: HTMLElement) {
+    super();
+  }
+}
+
+/**
+ * MarkdownRenderer provee renderizado estático de Markdown.
+ */
+export class MarkdownRenderer {
+  static async render(
+    _app: any,
+    markdown: string,
+    el: HTMLElement,
+    _sourcePath?: string,
+    _component?: Component
+  ): Promise<void> {
+    el.innerHTML = markdown;
+  }
+
+  static async renderMarkdown(
+    markdown: string,
+    el: HTMLElement,
+    sourcePath?: string,
+    component?: Component
+  ): Promise<void> {
+    return MarkdownRenderer.render(null, markdown, el, sourcePath, component);
+  }
+}
+
+/**
+ * Split de espacio de trabajo de Obsidian.
+ */
+export class WorkspaceSplit extends Component {
+  children: any[] = [];
+}
+
+/**
+ * Campo simulado Live Preview para CodeMirror 6.
+ */
+export const editorLivePreviewField: any = {};

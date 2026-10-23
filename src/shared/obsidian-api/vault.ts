@@ -29,6 +29,8 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   private metadataCache?: SynapseMetadataCache;
   private readonly recentMutations: Map<string, number> = new Map();
   private unlistenWatcher?: () => void;
+  private _cachedFiles: TFile[] = [];
+  private _filesLoaded = false;
 
   constructor(private readonly repository: VaultRepository) {
     super();
@@ -195,37 +197,67 @@ export class SynapseVault extends Events implements SynapseVaultLike {
 
   /**
    * Retorna todos los archivos presentes en el índice de la bóveda como instancias de TFile.
+   * Soporta tanto uso síncrono directo (retorna Array con métodos como .some()) como invocación con `await`.
    */
-  async getFiles(): Promise<TFile[]> {
-    const files = await this.repository.getVaultFiles();
-    return files.map((file) => tFileFromMetadata(file, this));
+  getFiles(): TFile[] {
+    const list: any = [...this._cachedFiles];
+    list.then = (onFulfilled?: (value: TFile[]) => any, onRejected?: (reason: any) => any) => {
+      return this.repository.getVaultFiles().then(
+        (files) => {
+          this._cachedFiles = files.map((file) => tFileFromMetadata(file, this));
+          this._filesLoaded = true;
+          return onFulfilled ? onFulfilled(this._cachedFiles) : this._cachedFiles;
+        },
+        onRejected
+      );
+    };
+    return list;
   }
 
   /**
    * Retorna únicamente los archivos Markdown (.md, .markdown) como instancias de TFile.
    */
-  async getMarkdownFiles(): Promise<TFile[]> {
-    const files = await this.getFiles();
-    return files.filter((file) => /\.(md|markdown)$/i.test(file.path));
+  getMarkdownFiles(): TFile[] {
+    const list: any = this._cachedFiles.filter((file) => /\.(md|markdown)$/i.test(file.path));
+    list.then = (onFulfilled?: (value: TFile[]) => any, onRejected?: (reason: any) => any) => {
+      return Promise.resolve(this.getFiles()).then((files) => {
+        const md = files.filter((file) => /\.(md|markdown)$/i.test(file.path));
+        return onFulfilled ? onFulfilled(md) : md;
+      }, onRejected);
+    };
+    return list;
   }
 
   /**
    * Retorna todos los archivos y carpetas cargados en la bóveda.
    */
-  async getAllLoadedFiles(): Promise<TAbstractFile[]> {
-    const files = await this.getFiles();
+  getAllLoadedFiles(): TAbstractFile[] {
     const folderPaths = new Set<string>();
-
-    for (const file of files) {
+    for (const file of this._cachedFiles) {
       let p = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
       while (p) {
         folderPaths.add(p);
         p = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
       }
     }
-
     const folders = Array.from(folderPaths).map((p) => new TFolder(this, p));
-    return [this.rootFolder, ...folders, ...files];
+    const all: any = [this.rootFolder, ...folders, ...this._cachedFiles];
+    all.then = (onFulfilled?: (value: TAbstractFile[]) => any, onRejected?: (reason: any) => any) => {
+      return Promise.resolve(this.getFiles()).then(() => {
+        const fps = new Set<string>();
+        for (const file of this._cachedFiles) {
+          let p = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '';
+          while (p) {
+            fps.add(p);
+            p = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+          }
+        }
+        const fs = Array.from(fps).map((p) => new TFolder(this, p));
+        const res = [this.rootFolder, ...fs, ...this._cachedFiles];
+        return onFulfilled ? onFulfilled(res) : res;
+      }, onRejected);
+    };
+    return all;
   }
 
   /**

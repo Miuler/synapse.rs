@@ -1,7 +1,18 @@
 import { Component } from './component';
 import { Events } from './events';
 import { TAbstractFile, TFile, TFolder } from './types';
-import { View, ItemView, TextFileView, DefaultMarkdownView } from './view';
+import {
+  View,
+  ItemView,
+  TextFileView,
+  DefaultMarkdownView,
+  FileView,
+  MarkdownView,
+  MarkdownRenderChild,
+  MarkdownRenderer,
+  WorkspaceSplit,
+  editorLivePreviewField,
+} from './view';
 import { WorkspaceLeaf } from './leaf';
 import { Plugin } from './plugin';
 import {
@@ -16,8 +27,39 @@ import {
   ExtraButtonComponent,
   ColorComponent,
 } from './setting';
-import { Notice, Modal, Menu, MenuItem } from './ui';
-import { normalizePath, parseYaml, stringifyYaml, requestUrl, Platform, moment } from './utils';
+import {
+  Notice,
+  Modal,
+  Menu,
+  MenuItem,
+  FuzzySuggestModal,
+  EditorSuggest,
+  AbstractInputSuggest,
+  Scope,
+} from './ui';
+import {
+  normalizePath,
+  parseYaml,
+  stringifyYaml,
+  requestUrl,
+  request,
+  Platform,
+  moment,
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+  requireApiVersion,
+  getLanguage,
+  loadPdfJs,
+  getFrontMatterInfo,
+  parseFrontMatterEntry,
+  resolveSubpath,
+  sanitizeHTMLToDom,
+  prepareFuzzySearch,
+  htmlToMarkdown,
+  addIcon,
+  getIcon,
+  setIcon,
+} from './utils';
 import { createDiv, createEl, createSpan, empty } from './dom';
 import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
 import { ExcalidrawAutomate } from './excalidraw-automate';
@@ -28,6 +70,13 @@ import {
   serializeExcalidrawMarkdown,
   extractWikilinksFromElements,
 } from './excalidraw-parser';
+import * as cmCommands from '@codemirror/commands';
+import * as cmLanguage from '@codemirror/language';
+import * as cmState from '@codemirror/state';
+import * as cmView from '@codemirror/view';
+import * as lezerCommon from '@lezer/common';
+import * as lezerHighlight from '@lezer/highlight';
+import * as lezerLr from '@lezer/lr';
 import type { SynapseApp } from './app';
 
 /**
@@ -42,6 +91,8 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     Events,
     Plugin,
     PluginSettingTab,
+    BaseComponent: Component,
+    ValueComponent: Component,
 
     // Entidades del sistema de archivos
     TAbstractFile,
@@ -53,6 +104,12 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     ItemView,
     TextFileView,
     DefaultMarkdownView,
+    FileView,
+    MarkdownView,
+    MarkdownRenderChild,
+    MarkdownRenderer,
+    WorkspaceSplit,
+    editorLivePreviewField,
     WorkspaceLeaf,
     ExcalidrawView,
     VIEW_TYPE_EXCALIDRAW,
@@ -81,14 +138,33 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     Modal,
     Menu,
     MenuItem,
+    FuzzySuggestModal,
+    EditorSuggest,
+    AbstractInputSuggest,
+    Scope,
 
     // Utilidades del sistema y DOM
     normalizePath,
     parseYaml,
     stringifyYaml,
     requestUrl,
+    request,
     Platform,
     moment,
+    arrayBufferToBase64,
+    base64ToArrayBuffer,
+    requireApiVersion,
+    getLanguage,
+    loadPdfJs,
+    getFrontMatterInfo,
+    parseFrontMatterEntry,
+    resolveSubpath,
+    sanitizeHTMLToDom,
+    prepareFuzzySearch,
+    htmlToMarkdown,
+    addIcon,
+    getIcon,
+    setIcon,
     createEl,
     createDiv,
     createSpan,
@@ -104,8 +180,41 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
   const target: any = typeof window !== 'undefined' ? window : (globalThis as any);
   if (!target) return;
 
+  if (typeof (globalThis as any).window === 'undefined') {
+    (globalThis as any).window = globalThis;
+  }
+
+  if (typeof (globalThis as any).MutationObserver === 'undefined') {
+    (globalThis as any).MutationObserver = class {
+      observe() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    };
+  }
+
+  if (typeof (globalThis as any).document === 'undefined') {
+    (globalThis as any).document = {
+      __isSynapseMock: true,
+      createElement: (t: any) => createEl(t),
+      createElementNS: (_ns: string, t: any) => createEl(t),
+      createTextNode: (t: string) => ({ textContent: t }),
+      head: createEl('head'),
+      body: createEl('body'),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      querySelector: () => null,
+      querySelectorAll: () => [],
+    };
+  }
+
   target.app = app;
   target.moment = moment;
+  target.sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  if (typeof (globalThis as any).sleep === 'undefined') {
+    (globalThis as any).sleep = target.sleep;
+  }
 
   const ea = new ExcalidrawAutomate(app);
   target.ExcalidrawAutomate = ExcalidrawAutomate;
@@ -120,6 +229,27 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
     }
     if (moduleId === 'moment') {
       return moment;
+    }
+    if (moduleId === '@codemirror/state') {
+      return cmState;
+    }
+    if (moduleId === '@codemirror/view') {
+      return cmView;
+    }
+    if (moduleId === '@codemirror/language') {
+      return cmLanguage;
+    }
+    if (moduleId === '@codemirror/commands') {
+      return cmCommands;
+    }
+    if (moduleId === '@lezer/common') {
+      return lezerCommon;
+    }
+    if (moduleId === '@lezer/highlight') {
+      return lezerHighlight;
+    }
+    if (moduleId === '@lezer/lr') {
+      return lezerLr;
     }
     if (typeof prevRequire === 'function') {
       return prevRequire(moduleId);
