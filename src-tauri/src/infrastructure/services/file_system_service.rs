@@ -201,6 +201,22 @@ impl FileSystemService {
         fs::write(&target, bytes).map_err(|e| format!("Error al escribir archivo binario: {}", e))?;
         Ok(())
     }
+
+    /// Lee contenido binario de un archivo dentro de la bóveda garantizando los límites de seguridad.
+    pub fn read_binary_item(vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String> {
+        let target = Self::resolve(vault_path, relative_path)?;
+        if !target.is_file() {
+            return Err(format!("El archivo no existe o no es un archivo: {}", relative_path));
+        }
+
+        fs::read(&target).map_err(|e| format!("Error al leer archivo binario: {}", e))
+    }
+
+    /// Crea una carpeta dentro de la bóveda garantizando los límites de seguridad.
+    pub fn create_folder(vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        let target = Self::resolve(vault_path, relative_path)?;
+        fs::create_dir_all(&target).map_err(|e| format!("Error al crear carpeta: {}", e))
+    }
 }
 
 use crate::domain::services::file_system_service::FileSystemPort;
@@ -220,6 +236,14 @@ impl FileSystemPort for FileSystemService {
 
     fn write_binary_item(&self, vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
         Self::write_binary_item(vault_path, relative_path, bytes)
+    }
+
+    fn read_binary_item(&self, vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String> {
+        Self::read_binary_item(vault_path, relative_path)
+    }
+
+    fn create_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        Self::create_folder(vault_path, relative_path)
     }
 }
 
@@ -271,6 +295,16 @@ mod tests {
 
         let read_bytes = fs::read(vault.join("docs/sample.pdf")).unwrap();
         assert_eq!(read_bytes, pdf_bytes);
+
+        // Test read_binary_item directly
+        let direct_read = FileSystemService::read_binary_item(&vault, "docs/sample.pdf").unwrap();
+        assert_eq!(direct_read, pdf_bytes);
+
+        // Test create_folder
+        let folder_res = FileSystemService::create_folder(&vault, "archivos/adjuntos/excalidraw");
+        assert!(folder_res.is_ok());
+        assert!(vault.join("archivos/adjuntos/excalidraw").is_dir());
+
         let _ = fs::remove_dir_all(&vault);
     }
 }

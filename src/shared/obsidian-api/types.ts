@@ -6,26 +6,73 @@ export interface VaultFileStat {
   size: number;
 }
 
-export interface TAbstractFileLike {
+export interface DataWriteOptions {
+  ctime?: number;
+  mtime?: number;
+}
+
+export interface Stat {
+  type: 'file' | 'folder';
+  ctime: number;
+  mtime: number;
+  size: number;
+}
+
+export interface ListedFiles {
+  files: string[];
+  folders: string[];
+}
+
+export abstract class TAbstractFile {
+  vault: SynapseVaultLike;
   path: string;
   name: string;
-  parent?: string;
-  vault: SynapseVaultLike;
+  parent: TFolder | null = null;
+
+  constructor(vault: SynapseVaultLike, path: string) {
+    this.vault = vault;
+    this.path = path.replace(/^\/+/, '');
+    this.name = this.path.split('/').pop() || this.path;
+  }
 }
 
-export interface TFileLike extends TAbstractFileLike {
+export class TFile extends TAbstractFile {
+  stat: VaultFileStat;
   basename: string;
   extension: string;
-  stat: VaultFileStat;
   view_mode?: string;
+
+  constructor(
+    vault: SynapseVaultLike,
+    path: string,
+    stat?: VaultFileStat,
+    view_mode?: string
+  ) {
+    super(vault, path);
+    const dot = this.name.lastIndexOf('.');
+    this.basename = dot > 0 ? this.name.slice(0, dot) : this.name;
+    this.extension = dot > 0 ? this.name.slice(dot + 1) : '';
+    this.stat = stat || { ctime: null, mtime: Date.now(), size: 0 };
+    this.view_mode = view_mode;
+  }
 }
 
-export interface TFolderLike extends TAbstractFileLike {
-  children: TAbstractFileLike[];
-  isRoot(): boolean;
+export class TFolder extends TAbstractFile {
+  children: TAbstractFile[] = [];
+
+  constructor(vault: SynapseVaultLike, path: string) {
+    super(vault, path);
+  }
+
+  isRoot(): boolean {
+    return this.path === '' || this.path === '/';
+  }
 }
 
-export type VaultFile = TFileLike;
+export type TFileLike = TFile;
+export type TFolderLike = TFolder;
+export type TAbstractFileLike = TAbstractFile;
+export type VaultFile = TFile;
 
 export interface HeadingCache {
   heading: string;
@@ -60,40 +107,70 @@ export interface CachedMetadataLike {
   tags: string[];
 }
 
+export interface DataAdapter {
+  getName(): string;
+  exists(normalizedPath: string, sensitive?: boolean): Promise<boolean>;
+  stat(normalizedPath: string): Promise<Stat | null>;
+  list(normalizedPath: string): Promise<ListedFiles>;
+  read(normalizedPath: string): Promise<string>;
+  readBinary(normalizedPath: string): Promise<ArrayBuffer>;
+  write(normalizedPath: string, data: string, options?: DataWriteOptions): Promise<void>;
+  writeBinary(normalizedPath: string, data: ArrayBuffer | Uint8Array, options?: DataWriteOptions): Promise<void>;
+  append(normalizedPath: string, data: string, options?: DataWriteOptions): Promise<void>;
+  process(normalizedPath: string, fn: (data: string) => string, options?: DataWriteOptions): Promise<string>;
+  getResourcePath(normalizedPath: string): string;
+  mkdir(normalizedPath: string): Promise<void>;
+  trashSystem(normalizedPath: string): Promise<boolean>;
+  trashLocal(normalizedPath: string): Promise<void>;
+  rmdir(normalizedPath: string, recursive: boolean): Promise<void>;
+  remove(normalizedPath: string): Promise<void>;
+  rename(normalizedPath: string, normalizedNewPath: string): Promise<void>;
+  copy(normalizedPath: string, normalizedNewPath: string): Promise<void>;
+  getBasePath(): Promise<string | null>;
+}
+
 export interface SynapseVaultLike {
-  getAbstractFileByPath(path: string): Promise<TFileLike | null>;
-  getFiles(): Promise<TFileLike[]>;
-  getMarkdownFiles(): Promise<TFileLike[]>;
-  read(file: TFileLike | string): Promise<string>;
-  cachedRead(file: TFileLike | string): Promise<string>;
-  modify(file: TFileLike | string, data: string): Promise<void>;
-  create(path: string, data: string): Promise<TFileLike>;
-  delete(file: TFileLike | string): Promise<void>;
-  rename(file: TFileLike | string, newPath: string): Promise<void>;
-  copy(file: TFileLike | string, newPath: string): Promise<TFileLike>;
+  adapter: DataAdapter;
+  getAbstractFileByPath(path: string): Promise<TAbstractFile | null>;
+  getRoot(): TFolder;
+  getFiles(): Promise<TFile[]>;
+  getMarkdownFiles(): Promise<TFile[]>;
+  getAllLoadedFiles(): Promise<TAbstractFile[]>;
+  read(file: TFile | string): Promise<string>;
+  cachedRead(file: TFile | string): Promise<string>;
+  readBinary(file: TFile | string): Promise<ArrayBuffer>;
+  modify(file: TFile | string, data: string): Promise<void>;
+  modifyBinary(file: TFile | string, data: ArrayBuffer | Uint8Array): Promise<void>;
+  create(path: string, data: string): Promise<TFile>;
+  createBinary(path: string, data: ArrayBuffer | Uint8Array): Promise<TFile>;
+  createFolder(path: string): Promise<TFolder>;
+  delete(file: TAbstractFile | string, force?: boolean): Promise<void>;
+  trash(file: TAbstractFile | string, system: boolean): Promise<void>;
+  rename(file: TAbstractFile | string, newPath: string): Promise<void>;
+  copy(file: TFile | string, newPath: string): Promise<TFile>;
   exists(path: string): Promise<boolean>;
-  getResourcePath(file: TFileLike | string): string;
+  getResourcePath(file: TFile | string): string;
 }
 
 export interface SynapseWorkspaceLike {
-  getActiveFile(): Promise<TFileLike | null>;
-  openLinkText(linktext: string, sourcePath: string): Promise<TFileLike | null>;
+  getActiveFile(): Promise<TFile | null>;
+  openLinkText(linktext: string, sourcePath: string): Promise<TFile | null>;
 }
 
 export interface SynapseMetadataCacheLike {
-  getFileCache(file: TFileLike | string): Promise<CachedMetadataLike | null>;
-  getFirstLinkpathDest(linkpath: string, sourcePath: string): Promise<TFileLike | null>;
-  fileToLinktext(file: TFileLike | { path: string }, sourcePath?: string): string;
+  getFileCache(file: TFile | string): Promise<CachedMetadataLike | null>;
+  getFirstLinkpathDest(linkpath: string, sourcePath: string): Promise<TFile | null>;
+  fileToLinktext(file: TFile | { path: string }, sourcePath?: string): string;
 }
 
 export interface SynapseFileManagerLike {
   processFrontMatter(
-    file: TFileLike | string,
+    file: TFile | string,
     fn: (frontmatter: Record<string, any>) => void
   ): Promise<void>;
   getAvailablePathForAttachment(filename: string, extension: string): Promise<string>;
   generateMarkdownLink(
-    file: TFileLike | { path: string },
+    file: TFile | { path: string },
     sourcePath: string,
     subpath?: string,
     alias?: string

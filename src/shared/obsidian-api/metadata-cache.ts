@@ -1,8 +1,8 @@
 import type { VaultRepository } from '@shared/repositories';
-import type { CachedMetadataLike, SynapseMetadataCacheLike, SynapseVaultLike, TFileLike } from './types';
+import { TFile, type CachedMetadataLike, type SynapseMetadataCacheLike, type SynapseVaultLike } from './types';
 
-function pathOf(file: TFileLike | string): string {
-  return typeof file === 'string' ? file : file.path;
+function pathOf(file: TFile | string): string {
+  return typeof file === 'string' ? file.replace(/^\/+/, '') : file.path;
 }
 
 function parseFrontmatter(content: string): Record<string, unknown> | undefined {
@@ -41,7 +41,7 @@ export class SynapseMetadataCache implements SynapseMetadataCacheLike {
   /**
    * Obtiene la caché analizada de metadatos de un archivo (frontmatter, headings, links, embeds, tags).
    */
-  async getFileCache(file: TFileLike | string): Promise<CachedMetadataLike | null> {
+  async getFileCache(file: TFile | string): Promise<CachedMetadataLike | null> {
     const path = pathOf(file);
     const note = await this.repository.readNote(path);
     if (!note) return null;
@@ -81,16 +81,17 @@ export class SynapseMetadataCache implements SynapseMetadataCacheLike {
   /**
    * Resuelve el destino de un enlace de tipo wikilink en el contexto de un archivo origen.
    */
-  async getFirstLinkpathDest(linkpath: string, sourcePath: string): Promise<TFileLike | null> {
+  async getFirstLinkpathDest(linkpath: string, sourcePath: string): Promise<TFile | null> {
     const resolved = await this.repository.resolveVaultLink(linkpath, sourcePath);
     if (!resolved) return null;
-    return this.vault.getAbstractFileByPath(resolved);
+    const file = await this.vault.getAbstractFileByPath(resolved);
+    return file instanceof TFile ? file : null;
   }
 
   /**
    * Genera el texto estándar de wikilink para referenciar un archivo.
    */
-  fileToLinktext(file: TFileLike | { path: string }, sourcePath?: string): string {
+  fileToLinktext(file: TFile | { path: string }, sourcePath?: string): string {
     const path = file.path;
     const name = path.split('/').pop() || path;
     const dot = name.lastIndexOf('.');

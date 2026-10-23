@@ -1,7 +1,7 @@
-import type { SynapseFileManagerLike, SynapseVaultLike, TFileLike } from './types';
+import type { SynapseFileManagerLike, SynapseVaultLike, TFile } from './types';
 
-function pathOf(file: TFileLike | string): string {
-  return typeof file === 'string' ? file : file.path;
+function pathOf(file: TFile | string): string {
+  return typeof file === 'string' ? file.replace(/^\/+/, '') : file.path;
 }
 
 function parseYamlFrontmatter(yamlStr: string): Record<string, any> {
@@ -59,7 +59,7 @@ export class SynapseFileManager implements SynapseFileManagerLike {
    * Modifica el frontmatter YAML de un archivo de forma atómica sin corromper el contenido.
    */
   async processFrontMatter(
-    file: TFileLike | string,
+    file: TFile | string,
     fn: (frontmatter: Record<string, any>) => void
   ): Promise<void> {
     const path = pathOf(file);
@@ -102,7 +102,7 @@ export class SynapseFileManager implements SynapseFileManagerLike {
    * Genera la sintaxis de enlace Markdown o wikilink hacia un archivo.
    */
   generateMarkdownLink(
-    file: TFileLike | { path: string },
+    file: TFile | { path: string },
     _sourcePath: string,
     subpath?: string,
     alias?: string

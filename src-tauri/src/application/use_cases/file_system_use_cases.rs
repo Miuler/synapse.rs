@@ -30,4 +30,12 @@ impl<F: FileSystemPort> FileSystemUseCases<F> {
     pub fn write_binary_item(&self, vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
         self.port.write_binary_item(vault_path, relative_path, bytes)
     }
+
+    pub fn read_binary_item(&self, vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String> {
+        self.port.read_binary_item(vault_path, relative_path)
+    }
+
+    pub fn create_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
+        self.port.create_folder(vault_path, relative_path)
+    }
 }

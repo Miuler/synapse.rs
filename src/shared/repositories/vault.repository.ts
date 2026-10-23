@@ -407,6 +407,21 @@ export interface VaultRepository {
   saveBinaryAsset(relativePath: string, base64Data: string): Promise<void>;
 
   /**
+   * Lee el contenido binario crudo de un archivo dentro de la bóveda como ArrayBuffer.
+   */
+  readBinary(relativePath: string): Promise<ArrayBuffer>;
+
+  /**
+   * Escribe contenido binario crudo directamente en un archivo de la bóveda sin sobrecoste de Base64.
+   */
+  writeBinary(relativePath: string, data: ArrayBuffer | Uint8Array): Promise<void>;
+
+  /**
+   * Crea una carpeta y sus subcarpetas dentro de la bóveda.
+   */
+  createFolder(relativePath: string): Promise<void>;
+
+  /**
    * Obtiene la lista de workspaces recientes desde ~/.config/synapsers/workspaces.json.
    */
   getRecentWorkspaces(): Promise<RecentWorkspaceEntry[]>;
@@ -1033,6 +1048,53 @@ export class TauriVaultRepository implements VaultRepository {
       });
     } catch (error) {
       console.error('Error al guardar archivo binario en la bóveda:', { relativePath, error });
+      throw error;
+    }
+  }
+
+  async readBinary(relativePath: string): Promise<ArrayBuffer> {
+    if (!this.isConnected() || !relativePath) return new ArrayBuffer(0);
+    try {
+      const raw = await invokeTauri<ArrayBuffer | Uint8Array | number[]>('read_binary_file', {
+        relativePath,
+        relative_path: relativePath,
+      });
+      if (raw instanceof ArrayBuffer) return raw;
+      if (raw instanceof Uint8Array) {
+        return raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
+      }
+      if (Array.isArray(raw)) return new Uint8Array(raw).buffer as ArrayBuffer;
+      return new ArrayBuffer(0);
+    } catch (error) {
+      console.error('Error al leer archivo binario en la bóveda:', { relativePath, error });
+      throw error;
+    }
+  }
+
+  async writeBinary(relativePath: string, data: ArrayBuffer | Uint8Array): Promise<void> {
+    if (!this.isConnected() || !relativePath) return;
+    try {
+      const bytes = data instanceof Uint8Array ? Array.from(data) : Array.from(new Uint8Array(data));
+      await invokeTauri<void>('write_binary_file', {
+        relativePath,
+        relative_path: relativePath,
+        data: bytes,
+      });
+    } catch (error) {
+      console.error('Error al escribir archivo binario en la bóveda:', { relativePath, error });
+      throw error;
+    }
+  }
+
+  async createFolder(relativePath: string): Promise<void> {
+    if (!this.isConnected() || !relativePath) return;
+    try {
+      await invokeTauri<void>('create_vault_folder', {
+        relativePath,
+        relative_path: relativePath,
+      });
+    } catch (error) {
+      console.error('Error al crear carpeta en la bóveda:', { relativePath, error });
       throw error;
     }
   }
