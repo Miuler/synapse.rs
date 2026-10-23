@@ -31,7 +31,7 @@
   import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
-  import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType} from "@shared/obsidian-api";
+  import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType, createCanonicalExcalidrawContent} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
@@ -1994,13 +1994,35 @@
     } else if (fileType === 'obsidian-excalidraw') {
       extension = 'excalidraw.md';
       defaultBaseTitle = 'Nuevo Dibujo';
-      initialContent = '---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n\n# Excalidraw Data\n\n```json\n{\n  "type": "excalidraw",\n  "version": 2,\n  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin",\n  "elements": [],\n  "appState": {},\n  "files": {}\n}\n```\n';
+
+      // Consultar si el plugin obsidian-excalidraw-plugin tiene plantilla configurada
+      const plugin = synapseApp?.plugins.loadedPlugins.get('obsidian-excalidraw-plugin')?.instance as any;
+      let templateContent: string | undefined;
+
+      if (plugin?.settings?.templateFilePath) {
+        try {
+          const tNote = await vaultRepository.readNote(plugin.settings.templateFilePath);
+          if (tNote && typeof tNote.content === 'string' && tNote.content.trim().length > 0) {
+            templateContent = tNote.content;
+          }
+        } catch {}
+      }
+
+      initialContent = createCanonicalExcalidrawContent(templateContent);
     }
 
-    const newTitle = `${defaultBaseTitle} ${vaultItems.length + 1}`;
-    const newRelPath = `${newTitle}.${extension}`;
+    let counter = vaultItems.length + 1;
+    let newTitle = `${defaultBaseTitle} ${counter}`;
+    let newRelPath = `${newTitle}.${extension}`;
+
+    while (vaultItems.some((v) => v.relative_path === newRelPath)) {
+      counter++;
+      newTitle = `${defaultBaseTitle} ${counter}`;
+      newRelPath = `${newTitle}.${extension}`;
+    }
+
     const newVaultItem: VaultItem = {
-      id: String(vaultItems.length + 1),
+      id: String(counter),
       title: newTitle,
       relative_path: newRelPath,
       abs_path: undefined,
@@ -2119,8 +2141,8 @@
       },
       {
         id: "cmd-new-obsidian-excalidraw",
-        name: "Crear nuevo dibujo Excalidraw de Obsidian (.excalidraw.md)",
-        category: "Archivo",
+        name: "Excalidraw: Crear nuevo dibujo (.excalidraw.md)",
+        category: "Excalidraw",
         action: () => {
           createNewVaultItem(undefined, 'obsidian-excalidraw');
         },
@@ -2523,6 +2545,8 @@
       isPaletteOpen = true;
     } else if (actionId === "new-note") {
       createNewVaultItem();
+    } else if (actionId === "new-excalidraw") {
+      createNewVaultItem(undefined, 'obsidian-excalidraw');
     } else if (actionId === "quick-open") {
       isQuickOpenOpen = true;
     } else if (actionId === "search") {

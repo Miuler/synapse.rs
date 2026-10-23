@@ -33,6 +33,7 @@ import {
   isExcalidrawMarkdown,
   parseExcalidrawContent,
   serializeExcalidrawMarkdown,
+  createCanonicalExcalidrawContent,
   extractWikilinksFromElements,
   extractFrontmatter,
   resolvePluginViewType,
@@ -1555,6 +1556,42 @@ excalidraw-plugin: parsed
       expect((app as any).excalidrawPluginActive).toBe(false);
       expect(app.commands.findCommand('obsidian-excalidraw-plugin:create-drawing')).toBeUndefined();
       expect(app.plugins.getPlugin('obsidian-excalidraw-plugin')).toBeUndefined();
+    });
+
+    it('39. createCanonicalExcalidrawContent genera formato canónico válido para Obsidian Excalidraw', () => {
+      const canonical = createCanonicalExcalidrawContent();
+      expect(canonical).toContain('excalidraw-plugin: parsed');
+      expect(canonical).toContain('tags:\n  - ea/drawing');
+      expect(canonical).toContain('# Text Elements');
+      expect(canonical).toContain('# Drawing');
+      expect(canonical).toContain('"type": "excalidraw"');
+      expect(canonical).toContain('"source": "https://github.com/zsviczian/obsidian-excalidraw-plugin"');
+
+      // Comprobar que preserva plantilla si es válida
+      const customTemplate = `---
+excalidraw-plugin: parsed
+tags:
+  - ea/drawing
+  - template
+---
+# Text Elements
+Elemento de plantilla ^txt0
+
+%%
+# Drawing
+\`\`\`json
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin",
+  "elements": [{"id": "txt0", "type": "text", "text": "Elemento de plantilla"}],
+  "appState": {},
+  "files": {}
+}
+\`\`\`
+%%`;
+      const fromTemplate = createCanonicalExcalidrawContent(customTemplate);
+      expect(fromTemplate).toBe(customTemplate);
     });
   });
 });

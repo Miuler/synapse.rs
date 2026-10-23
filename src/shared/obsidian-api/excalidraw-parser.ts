@@ -377,3 +377,22 @@ ${textSection}
 ${drawingBlock}
 `;
 }
+
+/**
+ * Crea el contenido inicial canónico para un archivo `.excalidraw.md`
+ * compatible al 100% con obsidian-excalidraw-plugin.
+ */
+export function createCanonicalExcalidrawContent(templateContent?: string): string {
+  if (templateContent && isExcalidrawMarkdown(templateContent)) {
+    return templateContent;
+  }
+  return serializeExcalidrawMarkdown({
+    elements: [],
+    appState: {
+      gridSize: null,
+      viewBackgroundColor: '#ffffff',
+    },
+    files: {},
+  });
+}
+

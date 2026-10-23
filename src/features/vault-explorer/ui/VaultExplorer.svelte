@@ -9,6 +9,7 @@
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
+  import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History } from 'lucide-svelte';
 
   interface Props {
@@ -934,7 +935,7 @@
       } else if (fileType === 'obsidian-excalidraw') {
         extension = 'excalidraw.md';
         baseTitle = 'Dibujo';
-        initialContent = '---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n\n# Excalidraw Data\n\n```json\n{\n  "type": "excalidraw",\n  "version": 2,\n  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin",\n  "elements": [],\n  "appState": {},\n  "files": {}\n}\n```\n';
+        initialContent = createCanonicalExcalidrawContent();
       }
 
       let title = baseTitle;

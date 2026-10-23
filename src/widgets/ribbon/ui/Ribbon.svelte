@@ -5,6 +5,7 @@
     Search,
     TextSearch,
     FilePlus,
+    PenTool,
     Command,
     Network,
     Settings,
@@ -26,6 +27,7 @@
     { id: 'quick-open', label: 'Buscar archivo por nombre (Ctrl+O)', icon: 'search' },
     { id: 'search', label: 'Buscar en el contenido de las notas (Ctrl+Shift+F)', icon: 'text-search' },
     { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
+    { id: 'new-excalidraw', label: 'Nuevo dibujo Excalidraw (.excalidraw.md)', icon: 'pen-tool' },
     { id: 'command-palette', label: 'Paleta de comandos (Ctrl+P)', icon: 'command' },
     { id: 'graph', label: 'Vista de gráfico', icon: 'graph' },
   ];
@@ -66,6 +68,8 @@
                   <TextSearch size={18} class="icon" />
                 {:else if tool.icon === 'file-plus'}
                   <FilePlus size={18} class="icon" />
+                {:else if tool.icon === 'pen-tool'}
+                  <PenTool size={18} class="icon" />
                 {:else if tool.icon === 'command'}
                   <Command size={18} class="icon" />
                 {:else if tool.icon === 'graph'}
