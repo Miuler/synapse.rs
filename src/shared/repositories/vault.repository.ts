@@ -105,6 +105,30 @@ export interface CommunityPluginInstallResultDto {
   has_styles: boolean;
 }
 
+export interface InstalledPluginDto {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  dir: string;
+  has_styles: boolean;
+  repo?: string;
+}
+
+export interface PluginUpdateInfoDto {
+  id: string;
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  repo: string;
+}
+
+export interface VaultDirectoryListDto {
+  files: string[];
+  folders: string[];
+}
+
 export interface GitBranchItem {
   name: string;
   ref_name: string;
@@ -497,7 +521,29 @@ export interface VaultRepository {
   /**
    * Obtiene la lista de plugins comunitarios oficiales de Obsidian desde GitHub Releases / Obsidian releases.
    */
-  fetchCommunityPlugins(): Promise<CommunityPluginDto[]>;
+  fetchCommunityPlugins(forceRefresh?: boolean): Promise<CommunityPluginDto[]>;
+
+  /**
+   * Obtiene la lista de plugins instalados en la bóveda actual escaneando .synapse/plugins y .obsidian/plugins.
+   */
+  getInstalledCommunityPlugins(vaultPath?: string): Promise<InstalledPluginDto[]>;
+
+  /**
+   * Comprueba si hay actualizaciones disponibles para una lista de plugins instalados.
+   */
+  checkCommunityPluginUpdates(
+    plugins: Array<[string, string, string]>
+  ): Promise<PluginUpdateInfoDto[]>;
+
+  /**
+   * Comprueba si una ruta física relativa existe en la bóveda (archivos o carpetas, incluso ocultas).
+   */
+  checkVaultPathExists(relativePath: string): Promise<boolean>;
+
+  /**
+   * Lista archivos y subcarpetas reales en disco dentro de una ruta de la bóveda.
+   */
+  listVaultDirectory(relativePath?: string): Promise<VaultDirectoryListDto>;
 
   /**
    * Descarga e instala un plugin comunitario de Obsidian en .synapse/plugins/{id}.
@@ -1305,12 +1351,65 @@ export class TauriVaultRepository implements VaultRepository {
     }
   }
 
-  async fetchCommunityPlugins(): Promise<CommunityPluginDto[]> {
+  async fetchCommunityPlugins(forceRefresh = false): Promise<CommunityPluginDto[]> {
     try {
-      return await invokeTauri<CommunityPluginDto[]>('fetch_community_plugins');
+      return await invokeTauri<CommunityPluginDto[]>('fetch_community_plugins', {
+        forceRefresh,
+        force_refresh: forceRefresh,
+      });
     } catch (error) {
       console.error('Error al obtener catálogo de plugins comunitarios:', error);
       throw error;
+    }
+  }
+
+  async getInstalledCommunityPlugins(vaultPath?: string): Promise<InstalledPluginDto[]> {
+    try {
+      return await invokeTauri<InstalledPluginDto[]>('get_installed_community_plugins', {
+        vaultPath: vaultPath ?? null,
+        vault_path: vaultPath ?? null,
+      });
+    } catch (error) {
+      console.error('Error al obtener plugins instalados:', error);
+      return [];
+    }
+  }
+
+  async checkCommunityPluginUpdates(
+    plugins: Array<[string, string, string]>
+  ): Promise<PluginUpdateInfoDto[]> {
+    try {
+      return await invokeTauri<PluginUpdateInfoDto[]>('check_community_plugin_updates', {
+        plugins,
+      });
+    } catch (error) {
+      console.error('Error al comprobar actualizaciones de plugins:', error);
+      return [];
+    }
+  }
+
+  async checkVaultPathExists(relativePath: string): Promise<boolean> {
+    if (!this.isConnected() || !relativePath) return false;
+    try {
+      return await invokeTauri<boolean>('check_vault_path_exists', {
+        relativePath,
+        relative_path: relativePath,
+      });
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async listVaultDirectory(relativePath?: string): Promise<VaultDirectoryListDto> {
+    if (!this.isConnected()) return { files: [], folders: [] };
+    try {
+      const res = await invokeTauri<VaultDirectoryListDto>('list_vault_directory', {
+        relativePath: relativePath ?? null,
+        relative_path: relativePath ?? null,
+      });
+      return res || { files: [], folders: [] };
+    } catch (error) {
+      return { files: [], folders: [] };
     }
   }
 

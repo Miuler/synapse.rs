@@ -1,5 +1,5 @@
 import type { VaultRepository } from '@shared/repositories';
-import type { SynapseApp } from '@shared/obsidian-api';
+import type { SynapseApp, PluginManifest } from '@shared/obsidian-api';
 import type {
   CommunityPluginDto,
   CommunityPluginItem,
@@ -23,6 +23,15 @@ export class CommunityPluginsState {
   uninstallingMap = $state<Record<string, boolean>>({});
   activeSettingPluginId = $state<string | null>(null);
 
+  // Paginación y renderizado fluido
+  pageSize = 40;
+  displayedCount = $state<number>(40);
+
+  // Estado de comprobación y actualización de plugins
+  isCheckingUpdates = $state<boolean>(false);
+  isUpdatingAll = $state<boolean>(false);
+  updatingMap = $state<Record<string, boolean>>({});
+
   // Plugins filtrados y ordenados
   filteredCatalogue = $derived.by(() => {
     const query = this.searchQuery.trim().toLowerCase();
@@ -44,6 +53,15 @@ export class CommunityPluginsState {
     return list;
   });
 
+  // Lista paginada para evitar congelar el DOM
+  displayedCatalogue = $derived.by(() => {
+    return this.filteredCatalogue.slice(0, this.displayedCount);
+  });
+
+  hasMoreCatalogue = $derived.by(() => {
+    return this.displayedCount < this.filteredCatalogue.length;
+  });
+
   filteredInstalled = $derived.by(() => {
     const query = this.searchQuery.trim().toLowerCase();
     return this.installed.filter((p) => {
@@ -57,8 +75,22 @@ export class CommunityPluginsState {
     });
   });
 
+  updatesAvailableCount = $derived.by(() => {
+    return this.installed.filter((p) => !!p.updateAvailable).length;
+  });
+
+  loadMoreCatalogue(): void {
+    if (this.hasMoreCatalogue) {
+      this.displayedCount += this.pageSize;
+    }
+  }
+
+  resetPagination(): void {
+    this.displayedCount = this.pageSize;
+  }
+
   /**
-   * Carga el catálogo oficial de plugins desde Obsidian Releases si aún no está cargado.
+   * Carga el catálogo oficial de plugins desde la caché en memoria/disco o GitHub Releases.
    */
   async loadCatalogue(repository: VaultRepository, force = false): Promise<void> {
     if (this.catalogue.length > 0 && !force) return;
@@ -67,11 +99,16 @@ export class CommunityPluginsState {
     this.error = null;
 
     try {
-      const items: CommunityPluginDto[] = await repository.fetchCommunityPlugins();
-      this.catalogue = items.map((item) => ({
-        ...item,
-        isInstalled: this.installed.some((inst) => inst.id === item.id),
-      }));
+      const items: CommunityPluginDto[] = await repository.fetchCommunityPlugins(force);
+      this.catalogue = items.map((item) => {
+        const inst = this.installed.find((i) => i.id === item.id);
+        return {
+          ...item,
+          isInstalled: !!inst,
+          updateAvailable: inst?.updateAvailable,
+        };
+      });
+      this.resetPagination();
     } catch (e: any) {
       this.error = `No se pudo cargar el catálogo de plugins comunitarios: ${e?.message || e}`;
     } finally {
@@ -86,7 +123,37 @@ export class CommunityPluginsState {
     this.isLoadingInstalled = true;
     try {
       const enabledList = await repository.getEnabledPlugins();
-      const discovered = app ? await app.plugins.scanPlugins() : [];
+      let discovered: Array<{ dir: string; manifest: PluginManifest }> = [];
+
+      // 1. Escaneo backend directo a disco en .synapse/plugins y .obsidian/plugins
+      if (typeof repository.getInstalledCommunityPlugins === 'function') {
+        const backendPlugins = await repository.getInstalledCommunityPlugins();
+        if (backendPlugins && backendPlugins.length > 0) {
+          discovered = backendPlugins.map((b) => ({
+            dir: b.dir,
+            manifest: {
+              id: b.id,
+              name: b.name,
+              version: b.version,
+              description: b.description,
+              author: b.author,
+              repo: b.repo,
+            },
+          }));
+        }
+      }
+
+      // 2. Fallback a scanPlugins si el backend no encontró nada
+      if (discovered.length === 0 && app) {
+        discovered = await app.plugins.scanPlugins();
+      }
+
+      const existingUpdatesMap = new Map<string, { latestVersion: string; repo: string }>();
+      for (const inst of this.installed) {
+        if (inst.updateAvailable) {
+          existingUpdatesMap.set(inst.id, inst.updateAvailable);
+        }
+      }
 
       const installedList: InstalledPluginItem[] = discovered.map((item) => {
         const isLoaded = app ? app.plugins.isPluginLoaded(item.manifest.id) : false;
@@ -99,6 +166,7 @@ export class CommunityPluginsState {
           dir: item.dir,
           isEnabled,
           hasSettingsTab,
+          updateAvailable: existingUpdatesMap.get(item.manifest.id),
         };
       });
 
@@ -106,15 +174,135 @@ export class CommunityPluginsState {
 
       // Actualizar marcas en catálogo
       if (this.catalogue.length > 0) {
-        this.catalogue = this.catalogue.map((p) => ({
-          ...p,
-          isInstalled: installedList.some((inst) => inst.id === p.id),
-        }));
+        this.catalogue = this.catalogue.map((p) => {
+          const inst = installedList.find((i) => i.id === p.id);
+          return {
+            ...p,
+            isInstalled: !!inst,
+            updateAvailable: inst?.updateAvailable,
+          };
+        });
       }
     } catch (e: any) {
       console.warn('[CommunityPlugins] Error al escanear plugins instalados:', e);
     } finally {
       this.isLoadingInstalled = false;
+    }
+  }
+
+  /**
+   * Comprueba si hay actualizaciones disponibles para los plugins instalados.
+   */
+  async checkForUpdates(repository: VaultRepository): Promise<void> {
+    if (this.installed.length === 0) return;
+    this.isCheckingUpdates = true;
+    this.error = null;
+
+    try {
+      const toCheck: Array<[string, string, string]> = [];
+      for (const inst of this.installed) {
+        let repo = (inst.manifest as any).repo || (inst.manifest as any).repository;
+        if (!repo) {
+          const matchInCatalogue = this.catalogue.find((c) => c.id === inst.id);
+          if (matchInCatalogue?.repo) {
+            repo = matchInCatalogue.repo;
+          }
+        }
+        if (repo) {
+          toCheck.push([inst.id, inst.manifest.version, repo]);
+        }
+      }
+
+      if (toCheck.length > 0 && typeof repository.checkCommunityPluginUpdates === 'function') {
+        const updates = await repository.checkCommunityPluginUpdates(toCheck);
+        this.installed = this.installed.map((item) => {
+          const update = updates.find((u) => u.id === item.id && u.has_update);
+          return {
+            ...item,
+            updateAvailable: update
+              ? { latestVersion: update.latest_version, repo: update.repo }
+              : undefined,
+          };
+        });
+
+        // Reflejar también en el catálogo
+        if (this.catalogue.length > 0) {
+          this.catalogue = this.catalogue.map((p) => {
+            const inst = this.installed.find((i) => i.id === p.id);
+            return {
+              ...p,
+              updateAvailable: inst?.updateAvailable,
+            };
+          });
+        }
+      }
+    } catch (e: any) {
+      this.error = `Error al buscar actualizaciones de plugins: ${e?.message || e}`;
+    } finally {
+      this.isCheckingUpdates = false;
+    }
+  }
+
+  /**
+   * Actualiza un único plugin a su versión más reciente.
+   */
+  async updateSinglePlugin(
+    pluginId: string,
+    app: SynapseApp | null,
+    repository: VaultRepository
+  ): Promise<void> {
+    const item = this.installed.find((i) => i.id === pluginId);
+    let repo = item?.updateAvailable?.repo;
+    if (!repo) {
+      repo = this.catalogue.find((c) => c.id === pluginId)?.repo;
+    }
+    if (!repo) return;
+
+    this.updatingMap[pluginId] = true;
+    this.error = null;
+
+    try {
+      await repository.installCommunityPlugin(pluginId, repo);
+
+      if (app) {
+        try {
+          await app.plugins.loadPlugin(pluginId);
+        } catch (loadErr: any) {
+          console.warn(`[CommunityPlugins] Error al recargar plugin ${pluginId}:`, loadErr);
+        }
+      }
+
+      // Limpiar indicador de actualización
+      this.installed = this.installed.map((p) =>
+        p.id === pluginId ? { ...p, updateAvailable: undefined } : p
+      );
+
+      await this.refreshInstalled(app, repository);
+    } catch (e: any) {
+      this.error = `Error al actualizar ${item?.manifest.name || pluginId}: ${e?.message || e}`;
+    } finally {
+      this.updatingMap[pluginId] = false;
+    }
+  }
+
+  /**
+   * Actualiza todos los plugins que tienen una versión más reciente disponible.
+   */
+  async updateAllPlugins(app: SynapseApp | null, repository: VaultRepository): Promise<void> {
+    const pluginsToUpdate = this.installed.filter((p) => !!p.updateAvailable);
+    if (pluginsToUpdate.length === 0) return;
+
+    this.isUpdatingAll = true;
+    this.error = null;
+
+    try {
+      for (const p of pluginsToUpdate) {
+        await this.updateSinglePlugin(p.id, app, repository);
+      }
+    } catch (e: any) {
+      this.error = `Error al actualizar plugins: ${e?.message || e}`;
+    } finally {
+      this.isUpdatingAll = false;
     }
   }
 

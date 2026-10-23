@@ -1,6 +1,20 @@
-use crate::domain::models::community_plugin::{CommunityPlugin, CommunityPluginInstallResult};
+use crate::domain::models::community_plugin::{
+    CommunityPlugin, CommunityPluginInstallResult, InstalledPluginInfo, PluginUpdateInfo,
+};
 use crate::domain::services::community_plugin_downloader::CommunityPluginDownloader;
+use serde::Deserialize;
+use std::collections::HashSet;
+use std::fs;
 use std::path::Path;
+
+#[derive(Debug, Deserialize)]
+struct ManifestExtract {
+    id: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
+    description: Option<String>,
+    author: Option<String>,
+}
 
 /// Casos de uso de plugins comunitarios de Obsidian.
 ///
@@ -15,8 +29,76 @@ impl<D: CommunityPluginDownloader> CommunityPluginUseCases<D> {
         Self { downloader }
     }
 
-    pub async fn fetch_community_plugins(&self) -> Result<Vec<CommunityPlugin>, String> {
-        self.downloader.fetch_community_plugins().await
+    pub async fn fetch_community_plugins(&self, force_refresh: bool) -> Result<Vec<CommunityPlugin>, String> {
+        self.downloader.fetch_community_plugins(force_refresh).await
+    }
+
+    pub fn get_installed_plugins(&self, vault_path: &Path) -> Result<Vec<InstalledPluginInfo>, String> {
+        let mut results = Vec::new();
+        let mut seen_ids = HashSet::new();
+
+        let search_dirs = [
+            (".synapse/plugins", vault_path.join(".synapse").join("plugins")),
+            (".obsidian/plugins", vault_path.join(".obsidian").join("plugins")),
+        ];
+
+        for (rel_prefix, abs_dir) in &search_dirs {
+            if !abs_dir.exists() || !abs_dir.is_dir() {
+                continue;
+            }
+
+            let entries = match fs::read_dir(abs_dir) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if !entry_path.is_dir() {
+                    continue;
+                }
+
+                let folder_name = entry.file_name().to_string_lossy().to_string();
+                let manifest_path = entry_path.join("manifest.json");
+
+                if manifest_path.exists() {
+                    if let Ok(content) = fs::read_to_string(&manifest_path) {
+                        if let Ok(manifest) = serde_json::from_str::<ManifestExtract>(&content) {
+                            let id = manifest.id.unwrap_or_else(|| folder_name.clone());
+                            if seen_ids.contains(&id) {
+                                continue;
+                            }
+                            seen_ids.insert(id.clone());
+
+                            let name = manifest.name.unwrap_or_else(|| id.clone());
+                            let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
+                            let has_styles = entry_path.join("styles.css").exists();
+                            let dir = format!("{rel_prefix}/{folder_name}");
+
+                            results.push(InstalledPluginInfo {
+                                id,
+                                name,
+                                version,
+                                description: manifest.description,
+                                author: manifest.author,
+                                dir,
+                                has_styles,
+                                repo: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    pub async fn check_plugin_updates(
+        &self,
+        plugins: &[(String, String, String)],
+    ) -> Result<Vec<PluginUpdateInfo>, String> {
+        self.downloader.check_plugin_updates(plugins).await
     }
 
     pub async fn install_plugin(
@@ -54,6 +136,7 @@ mod tests {
     use std::pin::Pin;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use tempfile::tempdir;
 
     struct MockPluginDownloader {
         installed: Arc<AtomicBool>,
@@ -63,6 +146,7 @@ mod tests {
     impl CommunityPluginDownloader for MockPluginDownloader {
         fn fetch_community_plugins(
             &self,
+            _force_refresh: bool,
         ) -> Pin<Box<dyn Future<Output = Result<Vec<CommunityPlugin>, String>> + Send + '_>> {
             Box::pin(async {
                 Ok(vec![CommunityPlugin {
@@ -74,6 +158,25 @@ mod tests {
                     branch: None,
                     downloads: Some(100),
                 }])
+            })
+        }
+
+        fn check_plugin_updates<'a>(
+            &'a self,
+            plugins: &'a [(String, String, String)],
+        ) -> Pin<Box<dyn Future<Output = Result<Vec<PluginUpdateInfo>, String>> + Send + 'a>> {
+            Box::pin(async move {
+                let updates = plugins
+                    .iter()
+                    .map(|(id, current_version, repo)| PluginUpdateInfo {
+                        id: id.clone(),
+                        current_version: current_version.clone(),
+                        latest_version: "2.0.0".to_string(),
+                        has_update: true,
+                        repo: repo.clone(),
+                    })
+                    .collect();
+                Ok(updates)
             })
         }
 
@@ -119,9 +222,33 @@ mod tests {
         let use_cases = CommunityPluginUseCases::new(mock);
 
         // Fetch
-        let list = use_cases.fetch_community_plugins().await.unwrap();
+        let list = use_cases.fetch_community_plugins(false).await.unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "test-plugin");
+
+        // Installed plugins scan with temp dir
+        let temp = tempdir().unwrap();
+        let plugin_dir = temp.path().join(".synapse").join("plugins").join("my-cool-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(
+            plugin_dir.join("manifest.json"),
+            r#"{"id":"my-cool-plugin","name":"My Cool Plugin","version":"1.2.3"}"#,
+        )
+        .unwrap();
+
+        let scanned = use_cases.get_installed_plugins(temp.path()).unwrap();
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].id, "my-cool-plugin");
+        assert_eq!(scanned[0].name, "My Cool Plugin");
+        assert_eq!(scanned[0].version, "1.2.3");
+
+        // Updates
+        let updates = use_cases
+            .check_plugin_updates(&[("my-cool-plugin".to_string(), "1.2.3".to_string(), "author/plugin".to_string())])
+            .await
+            .unwrap();
+        assert_eq!(updates.len(), 1);
+        assert!(updates[0].has_update);
 
         // Validation: Empty ID
         let empty_res = use_cases

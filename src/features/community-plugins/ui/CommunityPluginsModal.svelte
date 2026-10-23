@@ -13,6 +13,7 @@
     AlertCircle,
     ArrowLeft,
     Boxes,
+    ArrowUpCircle,
   } from 'lucide-svelte';
   import type { VaultRepository } from '@shared/repositories';
   import type { SynapseApp } from '@shared/obsidian-api';
@@ -33,10 +34,13 @@
   }: Props = $props();
 
   let settingContainerEl = $state<HTMLDivElement | null>(null);
+  let searchInputValue = $state<string>('');
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Inicializar y sincronizar datos al abrir el modal
   $effect(() => {
     if (open) {
+      searchInputValue = communityPluginsState.searchQuery;
       communityPluginsState.refreshInstalled(app, repository);
       communityPluginsState.loadCatalogue(repository);
     } else {
@@ -65,6 +69,30 @@
     }
     communityPluginsState.activeSettingPluginId = null;
     if (onClose) onClose();
+  }
+
+  function onSearchInput(val: string) {
+    searchInputValue = val;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      communityPluginsState.searchQuery = val;
+      communityPluginsState.resetPagination();
+    }, 150);
+  }
+
+  function clearSearch() {
+    searchInputValue = '';
+    if (debounceTimer) clearTimeout(debounceTimer);
+    communityPluginsState.searchQuery = '';
+    communityPluginsState.resetPagination();
+  }
+
+  function handleBodyScroll(e: UIEvent) {
+    if (communityPluginsState.activeTab !== 'community') return;
+    const el = e.currentTarget as HTMLElement;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 350) {
+      communityPluginsState.loadMoreCatalogue();
+    }
   }
 
   function formatDownloads(count?: number): string {
@@ -104,20 +132,60 @@
               <button
                 class="tab-btn"
                 class:active={communityPluginsState.activeTab === 'community'}
-                onclick={() => (communityPluginsState.activeTab = 'community')}
+                onclick={() => {
+                  communityPluginsState.activeTab = 'community';
+                  communityPluginsState.resetPagination();
+                }}
               >
                 Explorar catálogo
               </button>
               <button
                 class="tab-btn"
                 class:active={communityPluginsState.activeTab === 'installed'}
-                onclick={() => (communityPluginsState.activeTab = 'installed')}
+                onclick={() => {
+                  communityPluginsState.activeTab = 'installed';
+                  communityPluginsState.resetPagination();
+                }}
               >
                 Instalados ({communityPluginsState.installed.length})
+                {#if communityPluginsState.updatesAvailableCount > 0}
+                  <span class="tab-update-badge" title="{communityPluginsState.updatesAvailableCount} actualizaciones disponibles">
+                    {communityPluginsState.updatesAvailableCount}
+                  </span>
+                {/if}
               </button>
             </div>
 
             <div class="header-actions">
+              {#if communityPluginsState.activeTab === 'installed'}
+                <button
+                  class="action-btn-pill"
+                  title="Comprobar si existen versiones más recientes de tus plugins instalados"
+                  onclick={() => communityPluginsState.checkForUpdates(repository)}
+                  disabled={communityPluginsState.isCheckingUpdates || communityPluginsState.installed.length === 0}
+                >
+                  <RefreshCw size={13} class={communityPluginsState.isCheckingUpdates ? 'spin' : ''} />
+                  <span>{communityPluginsState.isCheckingUpdates ? 'Buscando...' : 'Buscar actualizaciones'}</span>
+                </button>
+
+                {#if communityPluginsState.updatesAvailableCount > 0}
+                  <button
+                    class="action-btn-pill primary"
+                    title="Actualizar todos los plugins con nueva versión disponible"
+                    onclick={() => communityPluginsState.updateAllPlugins(app, repository)}
+                    disabled={communityPluginsState.isUpdatingAll}
+                  >
+                    {#if communityPluginsState.isUpdatingAll}
+                      <Loader2 size={13} class="spin" />
+                      <span>Actualizando...</span>
+                    {:else}
+                      <Download size={13} />
+                      <span>Actualizar todo ({communityPluginsState.updatesAvailableCount})</span>
+                    {/if}
+                  </button>
+                {/if}
+              {/if}
+
               <button
                 class="icon-btn refresh-btn"
                 title="Actualizar catálogo y plugins"
@@ -141,13 +209,14 @@
                 placeholder={communityPluginsState.activeTab === 'community'
                   ? 'Buscar plugins por nombre, descripción o autor...'
                   : 'Buscar en plugins instalados...'}
-                bind:value={communityPluginsState.searchQuery}
+                value={searchInputValue}
+                oninput={(e) => onSearchInput(e.currentTarget.value)}
                 class="search-input"
               />
-              {#if communityPluginsState.searchQuery}
+              {#if searchInputValue}
                 <button
                   class="clear-search-btn"
-                  onclick={() => (communityPluginsState.searchQuery = '')}
+                  onclick={clearSearch}
                   title="Limpiar búsqueda"
                 >
                   <X size={14} />
@@ -158,7 +227,11 @@
             {#if communityPluginsState.activeTab === 'community'}
               <div class="sort-selector">
                 <span class="sort-label">Ordenar:</span>
-                <select bind:value={communityPluginsState.sortOrder} class="sort-select">
+                <select
+                  bind:value={communityPluginsState.sortOrder}
+                  onchange={() => communityPluginsState.resetPagination()}
+                  class="sort-select"
+                >
                   <option value="downloads">Más descargados</option>
                   <option value="name">Nombre (A-Z)</option>
                 </select>
@@ -180,7 +253,7 @@
       {/if}
 
       <!-- Cuerpo del Modal -->
-      <div class="plugin-modal-body">
+      <div class="plugin-modal-body" onscroll={handleBodyScroll}>
         {#if communityPluginsState.activeSettingPluginId}
           <!-- Subvista de Configuración de un Plugin Específico -->
           {@const activeId = communityPluginsState.activeSettingPluginId}
@@ -220,10 +293,15 @@
               <p>No se encontraron plugins que coincidan con la búsqueda.</p>
             </div>
           {:else}
+            <div class="catalogue-stats-bar">
+              <span>Mostrando {communityPluginsState.displayedCatalogue.length} de {communityPluginsState.filteredCatalogue.length} plugins</span>
+            </div>
             <div class="plugins-grid">
-              {#each communityPluginsState.filteredCatalogue as plugin (plugin.id)}
+              {#each communityPluginsState.displayedCatalogue as plugin (plugin.id)}
                 {@const isInstalling = communityPluginsState.installingMap[plugin.id]}
+                {@const isUpdating = communityPluginsState.updatingMap[plugin.id]}
                 {@const isInstalled = communityPluginsState.installed.some((i) => i.id === plugin.id)}
+                {@const updateInfo = plugin.updateAvailable}
                 <div class="plugin-card" class:installed={isInstalled}>
                   <div class="card-header">
                     <div class="title-area">
@@ -254,10 +332,27 @@
 
                     <div class="action-buttons">
                       {#if isInstalled}
-                        <span class="badge-installed">
-                          <Check size={14} />
-                          Instalado
-                        </span>
+                        {#if updateInfo}
+                          <button
+                            class="btn-update-card"
+                            onclick={() => communityPluginsState.updateSinglePlugin(plugin.id, app, repository)}
+                            disabled={isUpdating}
+                            title="Actualizar a la versión v{updateInfo.latestVersion}"
+                          >
+                            {#if isUpdating}
+                              <Loader2 size={13} class="spin" />
+                              <span>Actualizando...</span>
+                            {:else}
+                              <Download size={13} />
+                              <span>Actualizar (v{updateInfo.latestVersion})</span>
+                            {/if}
+                          </button>
+                        {:else}
+                          <span class="badge-installed">
+                            <Check size={14} />
+                            Instalado
+                          </span>
+                        {/if}
                       {:else}
                         <button
                           class="btn-install"
@@ -278,6 +373,17 @@
                 </div>
               {/each}
             </div>
+
+            {#if communityPluginsState.hasMoreCatalogue}
+              <div class="load-more-container">
+                <button
+                  class="btn-load-more"
+                  onclick={() => communityPluginsState.loadMoreCatalogue()}
+                >
+                  Cargar más plugins ({communityPluginsState.displayedCatalogue.length} de {communityPluginsState.filteredCatalogue.length})
+                </button>
+              </div>
+            {/if}
           {/if}
         {:else}
           <!-- Vista de Plugins Instalados -->
@@ -301,65 +407,92 @@
             <div class="installed-list">
               {#each communityPluginsState.filteredInstalled as item (item.id)}
                 {@const isUninstalling = communityPluginsState.uninstallingMap[item.id]}
-                <div class="installed-item" class:disabled={!item.isEnabled}>
-                  <div class="item-main">
-                    <div class="item-title-row">
-                      <h4 class="item-title">{item.manifest.name}</h4>
-                      <span class="item-version">v{item.manifest.version}</span>
-                      <span class="item-source-badge" title="Ruta en la bóveda">{item.dir}</span>
-                    </div>
-                    <p class="item-author">por {item.manifest.author || 'Desconocido'}</p>
-                    {#if item.manifest.description}
-                      <p class="item-desc">{item.manifest.description}</p>
-                    {/if}
-                  </div>
-
-                  <div class="item-controls">
-                    <!-- Switch Activar / Desactivar -->
-                    <label class="toggle-switch" title={item.isEnabled ? 'Desactivar plugin' : 'Activar plugin'}>
-                      <input
-                        type="checkbox"
-                        checked={item.isEnabled}
-                        onchange={(e) =>
-                          communityPluginsState.togglePlugin(
-                            item.id,
-                            e.currentTarget.checked,
-                            app,
-                            repository
-                          )}
-                      />
-                      <span class="slider"></span>
-                    </label>
-
-                    <!-- Botón Configuración si el plugin tiene PluginSettingTab -->
-                    {#if item.hasSettingsTab}
-                      <button
-                        class="icon-action-btn"
-                        title="Opciones de configuración del plugin"
-                        onclick={() => (communityPluginsState.activeSettingPluginId = item.id)}
-                      >
-                        <Settings size={16} />
-                      </button>
-                    {/if}
-
-                    <!-- Botón Desinstalar -->
-                    <button
-                      class="icon-action-btn danger"
-                      title="Desinstalar plugin de la bóveda"
-                      onclick={() => {
-                        if (confirm(`¿Estás seguro de que deseas desinstalar '${item.manifest.name}'?`)) {
-                          communityPluginsState.uninstallPlugin(item.id, app, repository);
-                        }
-                      }}
-                      disabled={isUninstalling}
-                    >
-                      {#if isUninstalling}
-                        <Loader2 size={16} class="spin" />
-                      {:else}
-                        <Trash2 size={16} />
+                {@const isUpdating = communityPluginsState.updatingMap[item.id]}
+                {@const updateInfo = item.updateAvailable}
+                <div class="installed-card" class:disabled={!item.isEnabled} class:has-update={!!updateInfo}>
+                  <div class="installed-card-main">
+                    <div class="item-main">
+                      <div class="item-title-row">
+                        <h4 class="item-title">{item.manifest.name}</h4>
+                        <span class="item-version">v{item.manifest.version}</span>
+                        <span class="item-source-badge" title="Ruta en la bóveda">{item.dir}</span>
+                      </div>
+                      <p class="item-author">por {item.manifest.author || 'Desconocido'}</p>
+                      {#if item.manifest.description}
+                        <p class="item-desc">{item.manifest.description}</p>
                       {/if}
-                    </button>
+                    </div>
+
+                    <div class="item-controls">
+                      <!-- Switch Activar / Desactivar -->
+                      <label class="toggle-switch" title={item.isEnabled ? 'Desactivar plugin' : 'Activar plugin'}>
+                        <input
+                          type="checkbox"
+                          checked={item.isEnabled}
+                          onchange={(e) =>
+                            communityPluginsState.togglePlugin(
+                              item.id,
+                              e.currentTarget.checked,
+                              app,
+                              repository
+                            )}
+                        />
+                        <span class="slider"></span>
+                      </label>
+
+                      <!-- Botón Configuración si el plugin tiene PluginSettingTab -->
+                      {#if item.hasSettingsTab}
+                        <button
+                          class="icon-action-btn"
+                          title="Opciones de configuración del plugin"
+                          onclick={() => (communityPluginsState.activeSettingPluginId = item.id)}
+                        >
+                          <Settings size={16} />
+                        </button>
+                      {/if}
+
+                      <!-- Botón Desinstalar -->
+                      <button
+                        class="icon-action-btn danger"
+                        title="Desinstalar plugin de la bóveda"
+                        onclick={() => {
+                          if (confirm(`¿Estás seguro de que deseas desinstalar '${item.manifest.name}'?`)) {
+                            communityPluginsState.uninstallPlugin(item.id, app, repository);
+                          }
+                        }}
+                        disabled={isUninstalling}
+                      >
+                        {#if isUninstalling}
+                          <Loader2 size={16} class="spin" />
+                        {:else}
+                          <Trash2 size={16} />
+                        {/if}
+                      </button>
+                    </div>
                   </div>
+
+                  {#if updateInfo}
+                    <div class="item-update-banner">
+                      <div class="update-banner-text">
+                        <ArrowUpCircle size={15} class="update-icon" />
+                        <span>Nueva versión disponible: <strong>v{updateInfo.latestVersion}</strong> (actual: v{item.manifest.version})</span>
+                      </div>
+                      <button
+                        class="btn-update-item"
+                        disabled={isUpdating || communityPluginsState.isUpdatingAll}
+                        onclick={() => communityPluginsState.updateSinglePlugin(item.id, app, repository)}
+                        title="Actualizar plugin a la versión v{updateInfo.latestVersion}"
+                      >
+                        {#if isUpdating}
+                          <Loader2 size={13} class="spin" />
+                          <span>Actualizando...</span>
+                        {:else}
+                          <Download size={13} />
+                          <span>Actualizar ahora</span>
+                        {/if}
+                      </button>
+                    </div>
+                  {/if}
                 </div>
               {/each}
             </div>
@@ -385,8 +518,8 @@
     left: 50%;
     transform: translate(-50%, -50%);
     width: 90vw;
-    max-width: 880px;
-    height: 82vh;
+    max-width: 900px;
+    height: 84vh;
     background: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: 12px;
@@ -451,6 +584,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
 
   .tabs-group {
@@ -471,6 +606,9 @@
     color: var(--text-secondary);
     border-radius: 6px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     transition: all 0.15s ease;
   }
 
@@ -478,6 +616,56 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .tab-update-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .action-btn-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .action-btn-pill:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    border-color: var(--border-secondary);
+  }
+
+  .action-btn-pill.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .action-btn-pill.primary:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .action-btn-pill:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .search-filter-row {
@@ -571,7 +759,13 @@
   .plugin-modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 18px 20px;
+  }
+
+  .catalogue-stats-bar {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
   }
 
   .loading-state,
@@ -584,6 +778,7 @@
     color: var(--text-muted);
     gap: 14px;
     text-align: center;
+    min-height: 240px;
   }
 
   .btn-primary-action {
@@ -674,6 +869,7 @@
     padding-top: 8px;
     border-top: 1px solid var(--border-primary);
     font-size: 0.8rem;
+    gap: 10px;
   }
 
   .repo-link {
@@ -682,7 +878,7 @@
     gap: 5px;
     color: var(--text-muted);
     text-decoration: none;
-    max-width: 220px;
+    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -691,6 +887,12 @@
   .repo-link:hover {
     color: var(--accent);
     text-decoration: underline;
+  }
+
+  .action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .btn-install {
@@ -713,6 +915,25 @@
     cursor: not-allowed;
   }
 
+  .btn-update-card {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .btn-update-card:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .badge-installed {
     display: flex;
     align-items: center;
@@ -722,6 +943,29 @@
     font-weight: 500;
   }
 
+  .load-more-container {
+    display: flex;
+    justify-content: center;
+    padding: 24px 0 10px 0;
+  }
+
+  .btn-load-more {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-load-more:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-secondary);
+  }
+
   /* Vista de Instalados */
   .installed-list {
     display: flex;
@@ -729,19 +973,30 @@
     gap: 12px;
   }
 
-  .installed-item {
+  .installed-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 8px;
     padding: 14px 18px;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.15s ease;
+  }
+
+  .installed-card.has-update {
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+
+  .installed-card.disabled {
+    opacity: 0.65;
+  }
+
+  .installed-card-main {
+    display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-  }
-
-  .installed-item.disabled {
-    opacity: 0.65;
   }
 
   .item-main {
@@ -793,6 +1048,49 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .item-update-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 6px;
+    font-size: 0.82rem;
+  }
+
+  .update-banner-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+  }
+
+  :global(.update-icon) {
+    color: var(--accent);
+  }
+
+  .btn-update-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  .btn-update-item:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   /* Switch */

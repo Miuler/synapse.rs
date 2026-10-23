@@ -4,7 +4,10 @@ use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUse
 use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
-use crate::domain::models::community_plugin::{CommunityPlugin, CommunityPluginInstallResult};
+use crate::domain::models::community_plugin::{
+    CommunityPlugin, CommunityPluginInstallResult, InstalledPluginInfo, PluginUpdateInfo,
+    VaultDirectoryList,
+};
 use crate::domain::models::config::ShortcutsConfig;
 use crate::domain::models::file_types::SupportedFileTypes;
 use crate::domain::models::full_text::{FullTextIndexStatus, FullTextSearchResponse};
@@ -1951,8 +1954,109 @@ pub fn open_workspace_in_new_window(
 #[tauri::command]
 pub async fn fetch_community_plugins(
     state: State<'_, AppState>,
+    force_refresh: Option<bool>,
 ) -> Result<Vec<CommunityPlugin>, String> {
-    state.community_plugin_use_cases.fetch_community_plugins().await
+    state
+        .community_plugin_use_cases
+        .fetch_community_plugins(force_refresh.unwrap_or(false))
+        .await
+}
+
+#[tauri::command]
+pub fn get_installed_community_plugins(
+    state: State<'_, AppState>,
+    vault_path: Option<String>,
+) -> Result<Vec<InstalledPluginInfo>, String> {
+    let resolved_path = match vault_path {
+        Some(p) => PathBuf::from(p),
+        None => state
+            .active_vault_path
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+    };
+
+    state
+        .community_plugin_use_cases
+        .get_installed_plugins(&resolved_path)
+}
+
+#[tauri::command]
+pub async fn check_community_plugin_updates(
+    state: State<'_, AppState>,
+    plugins: Vec<(String, String, String)>,
+) -> Result<Vec<PluginUpdateInfo>, String> {
+    state
+        .community_plugin_use_cases
+        .check_plugin_updates(&plugins)
+        .await
+}
+
+#[tauri::command]
+pub fn check_vault_path_exists(
+    state: State<'_, AppState>,
+    relative_path: String,
+) -> Result<bool, String> {
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *vault_guard else {
+        return Ok(false);
+    };
+    let clean = relative_path.trim_matches('/').replace('\\', "/");
+    if clean.is_empty() {
+        return Ok(true);
+    }
+    let p = vault_path.join(clean);
+    Ok(p.exists())
+}
+
+#[tauri::command]
+pub fn list_vault_directory(
+    state: State<'_, AppState>,
+    relative_path: Option<String>,
+) -> Result<VaultDirectoryList, String> {
+    let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *vault_guard else {
+        return Ok(VaultDirectoryList {
+            files: Vec::new(),
+            folders: Vec::new(),
+        });
+    };
+
+    let clean = relative_path
+        .map(|p| p.trim_matches('/').replace('\\', "/"))
+        .unwrap_or_default();
+    let target_dir = if clean.is_empty() {
+        vault_path.clone()
+    } else {
+        vault_path.join(&clean)
+    };
+
+    let mut files = Vec::new();
+    let mut folders = Vec::new();
+
+    if target_dir.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&target_dir) {
+            for entry in entries.flatten() {
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                let full_rel = if clean.is_empty() {
+                    file_name.clone()
+                } else {
+                    format!("{}/{}", clean, file_name)
+                };
+
+                if let Ok(ft) = entry.file_type() {
+                    if ft.is_dir() {
+                        folders.push(full_rel);
+                    } else if ft.is_file() {
+                        files.push(full_rel);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(VaultDirectoryList { files, folders })
 }
 
 #[tauri::command]

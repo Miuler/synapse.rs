@@ -1,12 +1,26 @@
-import type { CommunityPluginDto, CommunityPluginInstallResultDto } from '@shared/repositories';
+import type {
+  CommunityPluginDto,
+  CommunityPluginInstallResultDto,
+  InstalledPluginDto,
+  PluginUpdateInfoDto,
+} from '@shared/repositories';
 import type { PluginManifest } from '@shared/obsidian-api';
 
-export type { CommunityPluginDto, CommunityPluginInstallResultDto };
+export type {
+  CommunityPluginDto,
+  CommunityPluginInstallResultDto,
+  InstalledPluginDto,
+  PluginUpdateInfoDto,
+};
 
 export interface CommunityPluginItem extends CommunityPluginDto {
   isInstalled?: boolean;
   isEnabled?: boolean;
   installedVersion?: string;
+  updateAvailable?: {
+    latestVersion: string;
+    repo: string;
+  };
 }
 
 export interface InstalledPluginItem {
@@ -15,6 +29,10 @@ export interface InstalledPluginItem {
   dir: string;
   isEnabled: boolean;
   hasSettingsTab: boolean;
+  updateAvailable?: {
+    latestVersion: string;
+    repo: string;
+  };
 }
 
 export type PluginModalTab = 'community' | 'installed';

@@ -31,7 +31,14 @@ export class SynapseDataAdapter implements DataAdapter {
 
     const parent = clean.includes('/') ? clean.slice(0, clean.lastIndexOf('/')) : '';
     const parentChildren = await this.repository.getDirectoryChildren(parent || undefined);
-    return parentChildren.some((c) => c.relative_path === clean);
+    if (parentChildren.some((c) => c.relative_path === clean)) return true;
+
+    // 3. Comprobar existencia física en disco (para carpetas y archivos como .synapse o .obsidian)
+    if (typeof this.repository.checkVaultPathExists === 'function') {
+      return await this.repository.checkVaultPathExists(clean);
+    }
+
+    return false;
   }
 
   async stat(normalizedPath: string): Promise<Stat | null> {
@@ -56,6 +63,15 @@ export class SynapseDataAdapter implements DataAdapter {
 
   async list(normalizedPath: string): Promise<ListedFiles> {
     const clean = normalizedPath.replace(/^\/+/, '');
+
+    // Si el repositorio soporta listado físico en disco, preferirlo (captura directorios como .synapse y .obsidian)
+    if (typeof this.repository.listVaultDirectory === 'function') {
+      const diskListing = await this.repository.listVaultDirectory(clean || undefined);
+      if (diskListing && (diskListing.files?.length > 0 || diskListing.folders?.length > 0)) {
+        return diskListing;
+      }
+    }
+
     const children = await this.repository.getDirectoryChildren(clean || undefined);
     const files: string[] = [];
     const folders: string[] = [];
