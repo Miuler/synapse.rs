@@ -33,6 +33,7 @@
   let nucleoResults = $state<SearchResult[]>([]);
   let visibleCount = $state(PAGE_SIZE);
   let listContainerEl = $state<HTMLElement | null>(null);
+  let isSearching = $state(false);
 
   // Modo búsqueda full-text si la consulta inicia con '?'
   const isFtsMode = $derived(searchQuery.startsWith('?'));
@@ -231,15 +232,22 @@
     if (!q || !isOpen || isFtsMode) {
       nucleoResults = [];
       matchedFiles = totalFiles;
+      isSearching = false;
       return;
     }
 
+    isSearching = true;
     let active = true;
     vaultRepository.searchNotes(q).then((resp) => {
       if (active) {
         nucleoResults = resp.results;
         if (resp.total_files > 0) totalFiles = resp.total_files;
         matchedFiles = resp.matched_files;
+        isSearching = false;
+      }
+    }).catch(() => {
+      if (active) {
+        isSearching = false;
       }
     });
 
@@ -384,7 +392,7 @@
       <Command.Root
         class="quick-open-command-root"
         loop
-        shouldFilter={!isFtsMode && !searchQuery.trim()}
+        shouldFilter={false}
         onkeydown={handleKeydownRoot}
       >
         <div class="quick-open-input-wrapper" class:is-fts={isFtsMode}>
@@ -470,7 +478,11 @@
               {/each}
             {/if}
           {:else}
-            <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
+            {#if isSearching}
+              <div class="empty-state">Buscando...</div>
+            {:else}
+              <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
+            {/if}
 
             {#each fileList as file, i (file.id)}
               <!-- Líneas de sección solo si existen archivos recientes -->

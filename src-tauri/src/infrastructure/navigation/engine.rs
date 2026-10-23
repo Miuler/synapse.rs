@@ -12,7 +12,9 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::matcher::populate_nucleo_from_dashmap;
-use super::model::{NoteId, NoteMeta, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef};
+use super::model::{
+    NoteId, NoteMeta, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef,
+};
 use super::storage;
 use super::watcher::VaultFsWatcher;
 use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
@@ -276,7 +278,10 @@ impl NavigationEngine {
                 }
             }
             Err(err) => {
-                eprintln!("[NavigationEngine] Warning: Failed to initialize FS watcher: {}", err);
+                eprintln!(
+                    "[NavigationEngine] Warning: Failed to initialize FS watcher: {}",
+                    err
+                );
             }
         }
     }
@@ -442,7 +447,8 @@ impl NavigationEngine {
                         if compact_title.as_str() == compact_path.as_str() {
                             cols[0] = Utf32String::from(compact_title.as_str());
                         } else {
-                            let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len());
+                            let mut s =
+                                String::with_capacity(compact_title.len() + 1 + compact_path.len());
                             s.push_str(compact_title.as_str());
                             s.push(' ');
                             s.push_str(compact_path.as_str());
@@ -487,7 +493,8 @@ impl NavigationEngine {
                     if compact_title.as_str() == compact_path.as_str() {
                         cols[0] = Utf32String::from(compact_title.as_str());
                     } else {
-                        let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len());
+                        let mut s =
+                            String::with_capacity(compact_title.len() + 1 + compact_path.len());
                         s.push_str(compact_title.as_str());
                         s.push(' ');
                         s.push_str(compact_path.as_str());
@@ -728,8 +735,16 @@ impl NavigationEngine {
                 let meta = entry.value();
                 let path = meta.path.to_string();
                 let name = path.rsplit('/').next().unwrap_or(&path).to_string();
-                let basename = name.rsplit_once('.').map(|(base, _)| base).unwrap_or(&name).to_string();
-                let extension = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("").to_string();
+                let basename = name
+                    .rsplit_once('.')
+                    .map(|(base, _)| base)
+                    .unwrap_or(&name)
+                    .to_string();
+                let extension = name
+                    .rsplit_once('.')
+                    .map(|(_, ext)| ext)
+                    .unwrap_or("")
+                    .to_string();
                 let parent = path.rfind('/').map(|index| path[..index].to_string());
                 return Some(VaultFileDto {
                     path,
@@ -782,7 +797,8 @@ impl NavigationEngine {
         if let Some(folders) = expanded_folders {
             self.expanded_folders.clear();
             for folder in folders {
-                self.expanded_folders.insert(CompactString::new(folder), true);
+                self.expanded_folders
+                    .insert(CompactString::new(folder), true);
             }
         }
         if let Some(dvm) = diff_visual_mode {
@@ -859,14 +875,19 @@ impl NavigationEngine {
             false,
         );
 
-        nucleo.tick(10);
+        let tick_deadline = std::time::Instant::now();
+        while nucleo.tick(10).running {
+            if tick_deadline.elapsed() >= std::time::Duration::from_millis(150) {
+                break;
+            }
+        }
         let snapshot = nucleo.snapshot();
         let matched_count = snapshot.matched_item_count() as usize;
         let query_lower = trimmed_query.to_lowercase();
 
         let mut candidates = Vec::new();
-        // Take up to 1000 matched items and preserve their original nucleo rank
-        for (nucleo_rank, item) in snapshot.matched_items(..).take(1000).enumerate() {
+        // Take matched items (up to 5000) and preserve their original nucleo rank
+        for (nucleo_rank, item) in snapshot.matched_items(..).take(5000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
                 candidates.push((meta.clone(), nucleo_rank));
@@ -949,7 +970,11 @@ impl NavigationEngine {
             rank_a.cmp(rank_b)
         });
 
-        let matches = candidates.into_iter().map(|(meta, _)| meta).take(limit).collect();
+        let matches = candidates
+            .into_iter()
+            .map(|(meta, _)| meta)
+            .take(limit)
+            .collect();
         (matches, total_files, matched_count)
     }
 
@@ -976,7 +1001,6 @@ impl Drop for NavigationEngine {
 }
 
 impl NavigationEngine {
-
     /// Forces reloading metadata into DashMap for given paths (files or directories).
     /// If a path is a directory (or empty string/root), reloads all files in that directory
     /// and its subdirectories, removes deleted files, and updates the nucleo search index.
@@ -991,9 +1015,7 @@ impl NavigationEngine {
         };
 
         for raw_path in target_paths {
-            let clean_rel = raw_path
-                .trim_matches('/')
-                .replace('\\', "/");
+            let clean_rel = raw_path.trim_matches('/').replace('\\', "/");
             let full_path = if clean_rel.is_empty() || clean_rel == "." {
                 self.vault_path.clone()
             } else {
@@ -1034,7 +1056,10 @@ impl NavigationEngine {
                         Err(_) => continue,
                     };
 
-                    eprintln!("[D1] before reload_file_into_dashmap for {:?}", rel_path_str);
+                    eprintln!(
+                        "[D1] before reload_file_into_dashmap for {:?}",
+                        rel_path_str
+                    );
                     self.reload_file_into_dashmap(&p, &rel_path_str);
                     eprintln!("[D2] after reload_file_into_dashmap for {:?}", rel_path_str);
                     seen_in_dir.insert(rel_path_str.clone());
@@ -1220,8 +1245,13 @@ impl NavigationEngine {
     /// 2. El que esté en subcarpetas más cercanas.
     /// 3. El que esté en carpetas padre más cercanas hacia la raíz.
     /// 4. Otras carpetas del árbol.
-    pub fn resolve_link_path_with_base(&self, raw_target: &str, base_file: Option<&str>) -> Option<String> {
-        let (target_with_ext, anchor) = crate::domain::services::link_resolution::normalize_link_target(raw_target);
+    pub fn resolve_link_path_with_base(
+        &self,
+        raw_target: &str,
+        base_file: Option<&str>,
+    ) -> Option<String> {
+        let (target_with_ext, anchor) =
+            crate::domain::services::link_resolution::normalize_link_target(raw_target);
         if target_with_ext.is_empty() {
             return None;
         }
@@ -1290,8 +1320,10 @@ impl NavigationEngine {
         // 3. Carpetas padre más cercanas
         // 4. Otras carpetas
         candidates.sort_by(|a, b| {
-            let score_a = crate::domain::services::link_resolution::calculate_proximity_score(a, base_file);
-            let score_b = crate::domain::services::link_resolution::calculate_proximity_score(b, base_file);
+            let score_a =
+                crate::domain::services::link_resolution::calculate_proximity_score(a, base_file);
+            let score_b =
+                crate::domain::services::link_resolution::calculate_proximity_score(b, base_file);
             score_a.cmp(&score_b).then_with(|| a.cmp(b))
         });
 
@@ -1299,12 +1331,19 @@ impl NavigationEngine {
     }
 
     /// Resuelve múltiples enlaces simultáneamente utilizando el DashMap.
-    pub fn resolve_link_paths(&self, raw_targets: &[String]) -> std::collections::HashMap<String, String> {
+    pub fn resolve_link_paths(
+        &self,
+        raw_targets: &[String],
+    ) -> std::collections::HashMap<String, String> {
         self.resolve_link_paths_with_base(raw_targets, None)
     }
 
     /// Resuelve múltiples enlaces simultáneamente considerando la proximidad al archivo base.
-    pub fn resolve_link_paths_with_base(&self, raw_targets: &[String], base_file: Option<&str>) -> std::collections::HashMap<String, String> {
+    pub fn resolve_link_paths_with_base(
+        &self,
+        raw_targets: &[String],
+        base_file: Option<&str>,
+    ) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::with_capacity(raw_targets.len());
         for target in raw_targets {
             if let Some(resolved) = self.resolve_link_path_with_base(target, base_file) {
@@ -1322,7 +1361,11 @@ impl NavigationEngine {
 
     /// Transforma el contenido Markdown sustituyendo las referencias WikiLink `[[...]]`
     /// con resolución preferencial cercana al archivo base.
-    pub fn render_wikilinks_in_markdown_with_base(&self, content: &str, base_file: Option<&str>) -> String {
+    pub fn render_wikilinks_in_markdown_with_base(
+        &self,
+        content: &str,
+        base_file: Option<&str>,
+    ) -> String {
         crate::domain::services::link_resolution::transform_markdown_wikilinks(content, |target| {
             self.resolve_link_path_with_base(target, base_file)
         })
@@ -1392,4 +1435,3 @@ impl Serialize for VaultFilesStream {
         seq.end()
     }
 }
-
