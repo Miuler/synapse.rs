@@ -358,6 +358,21 @@ impl WorkspaceRegistryRepository for FileWorkspaceRegistryRepository {
         let mut cfg = self.load_registry().unwrap_or_default();
         let mut changed = false;
 
+        // Limpiar automáticamente de la lista aquellos workspaces cuyas carpetas ya no existan en disco
+        let initial_len = cfg.workspaces.len();
+        cfg.workspaces.retain(|w| {
+            let p = PathBuf::from(&w.path);
+            p.is_dir()
+        });
+        if cfg.workspaces.len() != initial_len {
+            changed = true;
+            if let Some(ref last) = cfg.last_active_workspace {
+                if !cfg.workspaces.iter().any(|w| &w.path == last) {
+                    cfg.last_active_workspace = cfg.workspaces.first().map(|w| w.path.clone());
+                }
+            }
+        }
+
         for w in cfg.workspaces.iter_mut() {
             let p = PathBuf::from(&w.path);
             let exists = p.is_dir();
@@ -474,6 +489,11 @@ mod tests {
         let after_remove = repo.remove_workspace(&ws2_str).unwrap();
         assert_eq!(after_remove.len(), 1);
         assert_eq!(after_remove[0].notes_count, 1);
+
+        // Auto-remove non-existent workspace from list
+        drop(ws1_dir); // Elimina el directorio de ws1
+        let after_auto_clean = repo.list_workspaces().unwrap();
+        assert_eq!(after_auto_clean.len(), 0);
 
         // Verify shortcuts.jsonc creation and JSONC comment support
         let shortcuts = repo.load_shortcuts_config().unwrap();

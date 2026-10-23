@@ -455,6 +455,7 @@ pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String)
     };
 
     if !target_dir.exists() || !target_dir.is_dir() {
+        let _ = state.workspace_registry_use_cases.remove_workspace(&new_path);
         return Err("Ruta de bóveda inválida o no existe".to_string());
     }
 

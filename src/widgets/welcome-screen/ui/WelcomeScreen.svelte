@@ -159,6 +159,8 @@
       onWorkspaceOpened(entry.path);
     } catch (e) {
       console.error('Error abriendo workspace:', e);
+      // Si falló (ej. carpeta inexistente), recargar workspaces para refrescar la lista limpia
+      await loadWorkspaces();
     }
   }
 
