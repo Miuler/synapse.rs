@@ -287,15 +287,18 @@
 
   /* Modo edición */
   .breadcrumb-edit-wrapper {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     width: 100%;
-    max-width: 480px;
+    flex: 1;
+    min-width: 0;
   }
 
   .breadcrumb-rename-input {
     flex: 1;
+    width: 100%;
+    min-width: 0;
     height: 24px;
     padding: 2px 8px;
     background: var(--bg-primary, #ffffff);
