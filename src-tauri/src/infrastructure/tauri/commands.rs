@@ -1419,10 +1419,12 @@ pub fn resolve_asset_file_path_internal(
 
     // 4. Decodificar caracteres URL-encoded (ej: %20 para espacios, %40 para @, %F0%9F... para emojis)
     let decoded = percent_decode_str(path_candidate);
+    #[allow(unused_mut)]
     let mut check_str = decoded.as_str();
 
     // En Unix, si venía de un esquema asset o ruta que perdió la barra inicial
-    let linux_abs_buf;
+    #[cfg(unix)]
+    let linux_abs_buf: String;
     #[cfg(unix)]
     if !check_str.starts_with('/') && (check_str.starts_with("home/") || check_str.starts_with("tmp/") || check_str.starts_with("var/") || check_str.starts_with("usr/")) {
         linux_abs_buf = format!("/{}", check_str);
