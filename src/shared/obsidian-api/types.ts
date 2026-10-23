@@ -19,6 +19,18 @@ import {
 } from './setting';
 import { type Command, SynapseCommandManager } from './command';
 import { SynapseRibbonManager, SynapseStatusBarManager, type RibbonIconItem } from './ribbon';
+import { Notice, Modal, Menu, MenuItem } from './ui';
+import {
+  normalizePath,
+  parseYaml,
+  stringifyYaml,
+  requestUrl,
+  Platform,
+  moment,
+  type MomentInstance,
+} from './utils';
+import { getObsidianBundle, setupObsidianGlobalEnvironment } from './bridge';
+import { PluginLoader, type PluginEntry } from './loader';
 
 export {
   Events,
@@ -48,6 +60,21 @@ export {
   SynapseRibbonManager,
   SynapseStatusBarManager,
   type RibbonIconItem,
+  Notice,
+  Modal,
+  Menu,
+  MenuItem,
+  normalizePath,
+  parseYaml,
+  stringifyYaml,
+  requestUrl,
+  Platform,
+  moment,
+  type MomentInstance,
+  getObsidianBundle,
+  setupObsidianGlobalEnvironment,
+  PluginLoader,
+  type PluginEntry,
 };
 
 export interface VaultFileStat {

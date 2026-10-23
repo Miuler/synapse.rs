@@ -6,10 +6,19 @@ import {
   Events,
   type EventRef,
   ItemView,
+  Menu,
+  MenuItem,
+  Modal,
+  moment,
+  normalizePath,
+  Notice,
+  parseYaml,
+  Platform,
   Plugin,
   type PluginManifest,
   PluginSettingTab,
   Setting,
+  stringifyYaml,
   TAbstractFile,
   TextFileView,
   TFile,
@@ -914,6 +923,188 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
 
       // Verificar que el elemento de StatusBar se removió
       expect(app.statusBar.items.length).toBe(0);
+    });
+  });
+
+  describe('Etapa 6: Entorno Global, Bridge obsidian, Modales y PluginLoader', () => {
+    it('26. Notice crea notificaciones flotantes con soporte setMessage y hide', () => {
+      const notice = new Notice('Aviso inicial de prueba', 5000);
+      expect(notice.noticeEl).toBeDefined();
+      expect(notice.noticeEl.textContent).toBe('Aviso inicial de prueba');
+
+      notice.setMessage('Aviso actualizado');
+      expect(notice.noticeEl.textContent).toBe('Aviso actualizado');
+
+      notice.hide();
+    });
+
+    it('27. Modal gestiona apertura, cierre y contenido accesible', () => {
+      class TestExcalidrawExportModal extends Modal {
+        opened = false;
+        closed = false;
+
+        override onOpen(): void {
+          this.opened = true;
+          this.setTitle('Exportar Lienzo Excalidraw');
+          this.setContent('Opciones de exportación');
+        }
+
+        override onClose(): void {
+          this.closed = true;
+        }
+      }
+
+      const modal = new TestExcalidrawExportModal(app);
+      expect(modal.isOpen).toBe(false);
+
+      modal.open();
+      expect(modal.isOpen).toBe(true);
+      expect(modal.opened).toBe(true);
+      expect(modal.titleEl.textContent).toBe('Exportar Lienzo Excalidraw');
+      expect(modal.contentEl.textContent).toBe('Opciones de exportación');
+
+      modal.close();
+      expect(modal.isOpen).toBe(false);
+      expect(modal.closed).toBe(true);
+    });
+
+    it('28. Menu y MenuItem gestionan menús contextuales y acciones de usuario', () => {
+      const menu = new Menu();
+      let exportSvgClicked = false;
+
+      menu
+        .addItem((item) => {
+          item
+            .setTitle('Exportar SVG')
+            .setIcon('image')
+            .onClick(() => {
+              exportSvgClicked = true;
+            });
+        })
+        .addSeparator()
+        .addItem((item) => {
+          item.setTitle('Deshacer').setDisabled(true);
+        });
+
+      expect(menu.items.length).toBe(2);
+      expect(menu.items[0].title).toBe('Exportar SVG');
+      expect(menu.items[1].disabled).toBe(true);
+
+      // Simular click en ítem de menú
+      menu.items[0].dom.dispatchEvent(new Event('click'));
+      expect(exportSvgClicked).toBe(true);
+
+      menu.showAtPosition({ x: 200, y: 300 });
+      expect(menu.dom.style.left).toBe('200px');
+      expect(menu.dom.style.top).toBe('300px');
+
+      menu.hide();
+    });
+
+    it('29. Utilidades globales: normalizePath, parseYaml, stringifyYaml, moment y Platform', () => {
+      // normalizePath
+      expect(normalizePath('carpeta//subcarpeta\\nota.md')).toBe('carpeta/subcarpeta/nota.md');
+      expect(normalizePath('/raiz/sub/../otra/')).toBe('raiz/otra');
+
+      // parseYaml & stringifyYaml
+      const yamlStr = '---\ntitulo: "Mi Canvas"\nversion: 2\nelementos:\n  - linea\n  - rectangulo\n---';
+      const parsed = parseYaml(yamlStr);
+      expect(parsed.titulo).toBe('Mi Canvas');
+      expect(parsed.version).toBe(2);
+      expect(Array.isArray(parsed.elementos)).toBe(true);
+      expect(parsed.elementos[0]).toBe('linea');
+
+      const serialized = stringifyYaml({ app: 'synapse', version: 1 });
+      expect(serialized).toContain('app: synapse');
+      expect(serialized).toContain('version: 1');
+
+      // moment
+      const m = moment('2026-10-22T15:30:45Z');
+      expect(m.isValid()).toBe(true);
+      expect(m.format('YYYY-MM-DD')).toBe('2026-10-22');
+
+      // Platform
+      expect(Platform.isDesktop).toBe(true);
+    });
+
+    it('30. Bridge virtual de obsidian expone el ecosistema y configura window.app y window.require', () => {
+      const w = (typeof window !== 'undefined' ? window : globalThis) as any;
+      expect(w.app).toBe(app);
+      expect(w.moment).toBeDefined();
+
+      expect(typeof w.require).toBe('function');
+      const obsidianMod = w.require('obsidian');
+
+      expect(obsidianMod).toBeDefined();
+      expect(obsidianMod.Plugin).toBeDefined();
+      expect(obsidianMod.TFile).toBeDefined();
+      expect(obsidianMod.Notice).toBeDefined();
+      expect(obsidianMod.Modal).toBeDefined();
+      expect(obsidianMod.Setting).toBeDefined();
+      expect(obsidianMod.WorkspaceLeaf).toBeDefined();
+      expect(obsidianMod.normalizePath).toBeDefined();
+      expect(obsidianMod.moment).toBeDefined();
+    });
+
+    it('31. PluginLoader escanea, evalúa código CommonJS de plugin, inyecta estilos y activa ciclo de vida', async () => {
+      // 1. Preparar un plugin simulado en la bóveda
+      const pluginDir = '.synapse/plugins/mi-plugin-canvas';
+      await app.vault.adapter.mkdir(pluginDir);
+
+      const manifest: PluginManifest = {
+        id: 'mi-plugin-canvas',
+        name: 'Mi Plugin Canvas',
+        version: '1.0.0',
+        author: 'Synapse Developer',
+      };
+
+      await app.vault.adapter.write(`${pluginDir}/manifest.json`, JSON.stringify(manifest));
+      await app.vault.adapter.write(`${pluginDir}/styles.css`, '.canvas-custom-theme { background: #111; }');
+
+      // Código CommonJS empaquetado como hacen los plugins compilados de Obsidian
+      const mainJsCode = `
+        const { Plugin } = require('obsidian');
+
+        module.exports = class CanvasPlugin extends Plugin {
+          async onload() {
+            this.app.canvasPluginLoaded = true;
+            this.addCommand({
+              id: 'crear-canvas',
+              name: 'Crear Lienzo',
+              callback: () => {
+                this.app.canvasCommandRan = true;
+              }
+            });
+          }
+
+          onunload() {
+            this.app.canvasPluginLoaded = false;
+          }
+        };
+      `;
+
+      await app.vault.adapter.write(`${pluginDir}/main.js`, mainJsCode);
+
+      // 2. Escaneo de plugins
+      const scanned = await app.plugins.scanPlugins();
+      expect(scanned.some((p) => p.manifest.id === 'mi-plugin-canvas')).toBe(true);
+
+      // 3. Cargar plugin
+      const entry = await app.plugins.loadPluginFromDir(pluginDir);
+      expect(entry.manifest.id === 'mi-plugin-canvas').toBe(true);
+      expect((app as any).canvasPluginLoaded).toBe(true);
+
+      // Verificar que el comando registrado por el plugin empaquetado funciona
+      const cmdId = 'mi-plugin-canvas:crear-canvas';
+      expect(app.commands.findCommand(cmdId)).toBeDefined();
+      app.commands.executeCommandById(cmdId);
+      expect((app as any).canvasCommandRan).toBe(true);
+
+      // 4. Descargar plugin
+      await app.plugins.unloadPlugin('mi-plugin-canvas');
+      expect((app as any).canvasPluginLoaded).toBe(false);
+      expect(app.commands.findCommand(cmdId)).toBeUndefined();
+      expect(app.plugins.getPlugin('mi-plugin-canvas')).toBeUndefined();
     });
   });
 });

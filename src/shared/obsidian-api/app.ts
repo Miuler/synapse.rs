@@ -6,6 +6,8 @@ import { SynapseFileManager } from './file-manager';
 import { SynapseCommandManager } from './command';
 import { SynapseSettingManager } from './setting';
 import { SynapseRibbonManager, SynapseStatusBarManager } from './ribbon';
+import { PluginLoader } from './loader';
+import { setupObsidianGlobalEnvironment } from './bridge';
 
 export class SynapseApp {
   readonly vault: SynapseVault;
@@ -16,6 +18,7 @@ export class SynapseApp {
   readonly setting: SynapseSettingManager;
   readonly ribbon: SynapseRibbonManager;
   readonly statusBar: SynapseStatusBarManager;
+  readonly plugins: PluginLoader;
 
   constructor(repository: VaultRepository) {
     this.vault = new SynapseVault(repository);
@@ -26,10 +29,14 @@ export class SynapseApp {
     this.setting = new SynapseSettingManager();
     this.ribbon = new SynapseRibbonManager();
     this.statusBar = new SynapseStatusBarManager();
+    this.plugins = new PluginLoader(this);
 
     // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos
     this.vault.setMetadataCache(this.metadataCache);
     this.workspace.setApp(this);
+
+    // Inicializar variables globales de Obsidian (window.app, window.moment, window.require('obsidian'))
+    setupObsidianGlobalEnvironment(this);
   }
 
   /**
