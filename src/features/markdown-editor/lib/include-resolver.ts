@@ -1,4 +1,4 @@
-import { vaultRepository } from '@shared/repositories';
+import { vaultApi } from '@entities/vault-item';
 
 /**
  * Crea una nueva instancia de RegExp para buscar directivas {{#include <path>}}.
@@ -102,12 +102,12 @@ export async function resolveIncludes(
       throw new Error(`Ciclo de inclusión detectado: "${rawTarget}" ya ha sido incluido previamente.`);
     }
 
-    let note = await vaultRepository.readNote(resolvedPath);
+    let note = await vaultApi.readNote(resolvedPath);
     let foundPath = resolvedPath;
 
     // Si no se encuentra con la ruta relativa, intentar desde la raíz de la bóveda
     if ((!note || !note.content) && rootPath !== resolvedPath) {
-      const rootNote = await vaultRepository.readNote(rootPath);
+      const rootNote = await vaultApi.readNote(rootPath);
       if (rootNote && rootNote.content) {
         note = rootNote;
         foundPath = rootPath;
@@ -116,7 +116,7 @@ export async function resolveIncludes(
 
     // Si aún no se encuentra y no tiene extensión .mmd, probar añadiéndola
     if ((!note || !note.content) && !resolvedPath.endsWith('.mmd')) {
-      const mmdNote = await vaultRepository.readNote(`${resolvedPath}.mmd`);
+      const mmdNote = await vaultApi.readNote(`${resolvedPath}.mmd`);
       if (mmdNote && mmdNote.content) {
         note = mmdNote;
         foundPath = `${resolvedPath}.mmd`;

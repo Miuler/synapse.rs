@@ -1,4 +1,5 @@
-import { vaultRepository } from '@shared/repositories';
+import { vaultApi } from '@entities/vault-item';
+import { isTauriEnvironment } from '@shared/api';
 
 export const IMAGE_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'ico', 'avif', 'tiff', 'tif'
@@ -66,9 +67,9 @@ export async function resolveMarkdownWikilinks(content: string, baseFile?: strin
   }
 
   // Si Tauri está conectado, el backend Rust realiza la resolución directa y ultrarrápida en el DashMap
-  if (vaultRepository.isConnected()) {
+  if (isTauriEnvironment()) {
     try {
-      const transformed = await vaultRepository.renderMarkdownWikilinks(content, baseFile);
+      const transformed = await vaultApi.renderMarkdownWikilinks(content, baseFile);
       if (typeof transformed === 'string') {
         return transformed;
       }

@@ -1,5 +1,6 @@
 import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 export interface VaultNoteDto {
   relative_path: string;
@@ -35,6 +36,11 @@ export interface SaveNoteParams {
   title: string;
   content: string;
   encoding?: string;
+}
+
+export interface SelectVaultFolderResult {
+  folder_path: string;
+  notes: VaultNoteDto[];
 }
 
 export const vaultApi = {
@@ -141,5 +147,24 @@ export const vaultApi = {
     return await listen<{ paths: string[]; deleted: string[] }>('vault:files-changed', (event) => {
       callback(event.payload);
     });
+  },
+
+  async getActiveVaultPath(): Promise<string | null> {
+    return await invokeTauri<string | null>('get_active_vault_path');
+  },
+
+  async setActiveVaultPath(path: string): Promise<void> {
+    await invokeTauri<void>('set_active_vault_path', { newPath: path });
+  },
+
+  async selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null> {
+    return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', {
+      startingDirectory: startingDirectory ?? null,
+      starting_directory: startingDirectory ?? null,
+    });
+  },
+
+  resolveAssetUrl(path: string): string {
+    return convertFileSrc(path, 'asset');
   },
 };

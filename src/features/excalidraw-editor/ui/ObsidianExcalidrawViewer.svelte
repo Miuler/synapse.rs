@@ -9,7 +9,7 @@
     type SynapseApp,
     ExcalidrawAutomate,
   } from '@shared/obsidian-api';
-  import { vaultRepository } from '@shared/repositories';
+  import { vaultApi } from '@entities/vault-item';
   import { appSettings } from '@entities/settings';
   import {
     Eye,
@@ -104,11 +104,11 @@
       toLoad.map(async ([fileId, targetPath]) => {
         try {
           let assetUrl: string | null = null;
-          const absPath = await vaultRepository.resolveAssetFilePath(targetPath, filePath);
+          const absPath = await vaultApi.resolveAssetFilePath(targetPath, filePath);
           if (absPath) {
-            assetUrl = vaultRepository.resolveAssetUrl(absPath);
+            assetUrl = vaultApi.resolveAssetUrl(absPath);
           } else {
-            assetUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
+            assetUrl = await vaultApi.readAssetDataUrl(targetPath, filePath);
           }
           return { fileId, dataUrl: assetUrl };
         } catch (err) {

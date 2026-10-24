@@ -1,4 +1,5 @@
-import { invokeTauri, isTauriEnvironment } from './tauri';
+import { invokeTauri, isTauriEnvironment, type StartupTarget } from './tauri';
+export type { StartupTarget };
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 export interface VaultNote {
@@ -38,10 +39,6 @@ export interface SelectVaultFolderResult {
   notes: VaultNote[];
 }
 
-export type StartupTarget =
-  | { type: 'standalone'; path: string }
-  | { type: 'vault'; path: string }
-  | null;
 
 export interface GitFileStatus {
   index?: string | null;

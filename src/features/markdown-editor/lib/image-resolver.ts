@@ -1,4 +1,5 @@
-import { vaultRepository } from '@shared/repositories';
+import { vaultApi } from '@entities/vault-item';
+import { isTauriEnvironment } from '@shared/api';
 import { resolveRelativePath } from './include-resolver';
 
 export interface ImageToken {
@@ -129,16 +130,16 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
   }
 
   // 1. Resolver ruta a través del backend Rust (Data URL directa o DashMap)
-  if (vaultRepository.isConnected()) {
+  if (isTauriEnvironment()) {
     try {
-      const dataUrl = await vaultRepository.readAssetDataUrl(cleanSrc, basePath);
+      const dataUrl = await vaultApi.readAssetDataUrl(cleanSrc, basePath);
       if (dataUrl) {
         imageUrlCache.set(cacheKey, dataUrl);
         return dataUrl;
       }
-      const absPath = await vaultRepository.resolveAssetFilePath(cleanSrc, basePath);
+      const absPath = await vaultApi.resolveAssetFilePath(cleanSrc, basePath);
       if (absPath) {
-        const url = vaultRepository.resolveAssetUrl(absPath);
+        const url = vaultApi.resolveAssetUrl(absPath);
         imageUrlCache.set(cacheKey, url);
         return url;
       }
@@ -149,6 +150,6 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
 
   // 2. Fallback para entorno desconectado o pruebas
   const resolvedPath = resolveRelativePath(cleanSrc, basePath);
-  const fallbackUrl = vaultRepository.resolveAssetUrl(resolvedPath);
+  const fallbackUrl = vaultApi.resolveAssetUrl(resolvedPath);
   return fallbackUrl;
 }

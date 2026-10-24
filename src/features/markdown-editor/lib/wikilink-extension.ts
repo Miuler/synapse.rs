@@ -1,6 +1,6 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { StateField, type EditorState, Facet } from '@codemirror/state';
-import { vaultRepository } from '@shared/repositories';
+import { vaultApi } from '@entities/vault-item';
 import { activeFilePathFacet } from './mermaid-extension';
 import { extractWikilinkTokens, type WikilinkToken } from './link-resolver';
 
@@ -53,7 +53,7 @@ class WikilinkWidget extends WidgetType {
       if (targetPath) {
         onNav(targetPath);
       } else {
-        vaultRepository.resolveVaultLink(this.token.target, this.basePath).then((p) => {
+        vaultApi.resolveVaultLink(this.token.target, this.basePath).then((p) => {
           const finalPath = p || this.token.target;
           resolvedLinkCache.set(cacheKey, finalPath);
           onNav(finalPath);
@@ -65,7 +65,7 @@ class WikilinkWidget extends WidgetType {
 
     // Precargar en caché si aún no está
     if (!resolvedLinkCache.has(cacheKey)) {
-      vaultRepository.resolveVaultLink(this.token.target, this.basePath).then((resolved) => {
+      vaultApi.resolveVaultLink(this.token.target, this.basePath).then((resolved) => {
         if (resolved) {
           resolvedLinkCache.set(cacheKey, resolved);
           anchor.title = resolved;

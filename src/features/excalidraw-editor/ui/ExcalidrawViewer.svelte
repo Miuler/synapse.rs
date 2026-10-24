@@ -9,7 +9,7 @@
     serializeExcalidrawMarkdown,
     isExcalidrawMarkdown,
   } from '@shared/obsidian-api';
-  import { vaultRepository } from '@shared/repositories';
+  import { vaultApi } from '@entities/vault-item';
   import { Sparkles } from 'lucide-svelte';
 
   interface Props {
@@ -54,11 +54,11 @@
         try {
           // Resolver primero la ruta nativa para streaming directo con el protocolo de assets (zero-copy)
           let assetUrl: string | null = null;
-          const absPath = await vaultRepository.resolveAssetFilePath(targetPath, filePath);
+          const absPath = await vaultApi.resolveAssetFilePath(targetPath, filePath);
           if (absPath) {
-            assetUrl = vaultRepository.resolveAssetUrl(absPath);
+            assetUrl = vaultApi.resolveAssetUrl(absPath);
           } else {
-            assetUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
+            assetUrl = await vaultApi.readAssetDataUrl(targetPath, filePath);
           }
 
           if (assetUrl) {
