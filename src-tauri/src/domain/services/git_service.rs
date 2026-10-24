@@ -17,4 +17,5 @@ pub trait GitPort: Send + Sync {
     fn get_branches(&self, vault_path: &Path) -> Result<GitBranchesResult, String>;
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String>;
     fn create_branch(&self, vault_path: &Path, new_branch: &str, base_branch: &str, checkout: bool) -> Result<String, String>;
+    fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String>;
 }

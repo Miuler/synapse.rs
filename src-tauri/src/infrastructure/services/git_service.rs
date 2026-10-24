@@ -62,11 +62,36 @@ impl GitPort for GitService {
     ) -> Result<String, String> {
         self.create_branch(vault_path, new_branch, base_branch, checkout)
     }
+
+    fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
+        self.clone_repository(repo_url, target_path)
+    }
 }
 
 impl GitService {
     pub fn new() -> Self {
         Self
+    }
+
+    pub fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
+        let trimmed_url = repo_url.trim();
+        if trimmed_url.is_empty() {
+            return Err("La URL del repositorio Git no puede estar vacía".to_string());
+        }
+
+        let output = std::process::Command::new("git")
+            .arg("clone")
+            .arg(trimmed_url)
+            .arg(target_path)
+            .output()
+            .map_err(|e| format!("Error al ejecutar git clone: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git clone falló: {}", stderr.trim()));
+        }
+
+        Ok(())
     }
 
     fn collect_stashed_files(
@@ -2032,5 +2057,53 @@ mod tests {
         assert_eq!(diff_with_rev.diff_count, 2);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_clone_repository() {
+        let origin_dir = std::env::temp_dir().join(format!(
+            "synapse_git_origin_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let clone_dir = std::env::temp_dir().join(format!(
+            "synapse_git_clone_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&origin_dir).unwrap();
+
+        let run_cmd = |dir: &Path, args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&origin_dir, &["init"]);
+        run_cmd(&origin_dir, &["config", "user.name", "Test User"]);
+        run_cmd(&origin_dir, &["config", "user.email", "test@example.com"]);
+        std::fs::write(origin_dir.join("test.txt"), "hello world").unwrap();
+        run_cmd(&origin_dir, &["add", "test.txt"]);
+        run_cmd(&origin_dir, &["commit", "-m", "init clone repo"]);
+
+        let git_service = GitService::new();
+        let clone_url = origin_dir.to_string_lossy().to_string();
+        let res = git_service.clone_repository(&clone_url, &clone_dir);
+        assert!(res.is_ok());
+        assert!(clone_dir.join("test.txt").exists());
+
+        // Test invalid url
+        let empty_res = git_service.clone_repository("", &clone_dir);
+        assert!(empty_res.is_err());
+
+        let _ = std::fs::remove_dir_all(&origin_dir);
+        let _ = std::fs::remove_dir_all(&clone_dir);
     }
 }

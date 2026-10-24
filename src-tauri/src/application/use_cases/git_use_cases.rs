@@ -62,4 +62,8 @@ impl<G: GitPort> GitUseCases<G> {
     pub fn create_branch(&self, vault_path: &Path, new_branch: &str, base_branch: &str, checkout: bool) -> Result<String, String> {
         self.port.create_branch(vault_path, new_branch, base_branch, checkout)
     }
+
+    pub fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
+        self.port.clone_repository(repo_url, target_path)
+    }
 }
