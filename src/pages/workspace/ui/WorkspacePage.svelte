@@ -1139,7 +1139,7 @@
           relative_path: p,
           abs_path: note?.abs_path,
         };
-        await persistVaultItemToRust(vItem);
+        await persistVaultItemToRust(vItem, undefined, true);
       }
 
       unsavedDialogOpen = false;
@@ -2260,7 +2260,7 @@
     }, computedDelay);
   }
 
-  async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string) {
+  async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string, force = false) {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
       saveTimeout = null;
@@ -2268,6 +2268,11 @@
     const path = vaultItem.relative_path;
     const title = vaultItem.title || path?.split('/').pop() || path;
     if ((!isConnectedToRust && !vaultRepository.isConnected()) || !path) return;
+
+    // Si el archivo está bloqueado (locked), abortar guardado salvo que se fuerce explícitamente (ej: diálogo de confirmación)
+    if (!force && lockedFiles.has(path)) {
+      return;
+    }
 
     // Proteger archivos binarios o imágenes de sobreescrituras accidentales (excepto dibujos)
     if (isImageFile(path) && !isDrawingFile(path)) return;
@@ -2643,7 +2648,7 @@
         shortcut: shortcutsConfig.workspace.save_file,
         action: () => {
           if (activeTabPath && currentVaultItem.relative_path) {
-            persistVaultItemToRust(currentVaultItem);
+            persistVaultItemToRust(currentVaultItem, undefined, true);
           }
         },
       },
@@ -2880,7 +2885,7 @@
       if (matchesShortcut(e, ws.save_file)) {
         stopEvent();
         if (activeTabPath && currentVaultItem.relative_path) {
-          persistVaultItemToRust(currentVaultItem);
+          persistVaultItemToRust(currentVaultItem, undefined, true);
         }
         return;
       }
@@ -3539,7 +3544,7 @@
         }}
         onSave={() => {
           if (activeTabPath && currentVaultItem.relative_path) {
-            persistVaultItemToRust(currentVaultItem);
+            persistVaultItemToRust(currentVaultItem, undefined, true);
           }
         }}
         onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3624,7 +3629,7 @@
             }}
             onSave={() => {
               if (activeTabPath && currentVaultItem.relative_path) {
-                persistVaultItemToRust(currentVaultItem);
+                persistVaultItemToRust(currentVaultItem, undefined, true);
               }
             }}
             onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3701,7 +3706,7 @@
             }}
             onSave={() => {
               if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
-                persistVaultItemToRust(currentSplitVaultItem);
+                persistVaultItemToRust(currentSplitVaultItem, undefined, true);
               }
             }}
             onOpenCommandPalette={() => (isPaletteOpen = true)}
