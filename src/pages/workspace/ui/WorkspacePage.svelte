@@ -725,9 +725,11 @@
         const fetchedEncoding = noteData.encoding && noteData.encoding.trim() !== "" ? noteData.encoding : "---";
         const fetchedAbsPath = noteData.abs_path || initialAbsPath;
         const isDrawing = isDrawingTab(path, fetchedContent);
-        const currentMode = (lockedFiles.has(path) || isDrawing)
+        // Respetar el viewMode existente si la nota ya estaba abierta en memoria (ej: usuario cambió a edición)
+        // Solo forzar 'reading' por defecto en la primera carga si está bloqueado o si no tenía modo previo
+        const currentMode = lockedFiles.has(path)
           ? "reading"
-          : (openedNotes[path]?.viewMode || (noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading");
+          : (openedNotes[path]?.viewMode || (isDrawing ? "reading" : ((noteData.view_mode as MarkdownViewMode) || (vaultItem?.view_mode as MarkdownViewMode) || "reading")));
 
         const prevExcalViewer = openedNotes[path]?.excalidrawViewer;
         openedNotes[path] = {
@@ -840,7 +842,7 @@
       const vItem = vaultItems.find((v) => v.relative_path === path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
-      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
+      const mode = (isLocked ? "reading" : (openedNotes[path]?.viewMode || (isDrawing ? "reading" : (vItem?.view_mode || "reading")))) as MarkdownViewMode;
       markdownViewMode = mode;
       isEditing = mode !== "reading";
       ensureContentLoaded(path);
@@ -921,7 +923,7 @@
             const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
             const isLocked = lockedFiles.has(activeTabPath);
             const isDrawing = isDrawingTab(activeTabPath, openedNotes[activeTabPath]?.content);
-            const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeTabPath]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
+            const nextMode = (isLocked ? "reading" : (openedNotes[activeTabPath]?.viewMode || (isDrawing ? "reading" : (vItem?.view_mode || "reading")))) as MarkdownViewMode;
             markdownViewMode = nextMode;
             isEditing = nextMode !== "reading";
             ensureContentLoaded(activeTabPath);
@@ -1247,7 +1249,7 @@
       const vItem = vaultItems.find((v) => v.relative_path === path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
-      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
+      const mode = (isLocked ? "reading" : (openedNotes[path]?.viewMode || (isDrawing ? "reading" : (vItem?.view_mode || "reading")))) as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
       if (viewerPreference) {
@@ -1368,7 +1370,7 @@
       const vItem = vaultItems.find((v) => v.relative_path === path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
-      const mode = ((isLocked || isDrawing) ? "reading" : (openedNotes[path]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
+      const mode = (isLocked ? "reading" : (openedNotes[path]?.viewMode || (isDrawing ? "reading" : (vItem?.view_mode || "reading")))) as MarkdownViewMode;
       splitMarkdownViewMode = mode;
       isSplitEditing = mode !== "reading";
     }

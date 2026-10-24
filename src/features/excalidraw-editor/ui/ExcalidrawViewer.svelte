@@ -305,14 +305,22 @@
       lastKnownScene = c;
       if (excalidrawAPI) {
         const parsed = parseInitialData(c, r);
+        const currentAppState = excalidrawAPI.getAppState?.() || {};
         excalidrawAPI.updateScene({
           elements: parsed.elements,
           appState: {
             ...parsed.appState,
+            // Conservar la herramienta activa actual si no estamos en solo lectura (evita volver a 'hand')
+            ...(!r && currentAppState.activeTool && currentAppState.activeTool.type !== 'hand'
+              ? { activeTool: currentAppState.activeTool }
+              : {}),
             viewModeEnabled: r,
           },
           commitToHistory: false,
         });
+        if (!r && excalidrawAPI.setActiveTool && (!currentAppState.activeTool || currentAppState.activeTool.type === 'hand')) {
+          excalidrawAPI.setActiveTool({ type: 'selection' });
+        }
         if (parsed.files && Object.keys(parsed.files).length > 0) {
           excalidrawAPI.addFiles?.(Object.values(parsed.files));
         }
