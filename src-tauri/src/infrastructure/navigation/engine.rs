@@ -125,7 +125,11 @@ impl NavigationEngine {
         cache_path: PathBuf,
         file_types: SupportedFileTypes,
     ) -> Self {
-        let mut nucleo_inst = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), None, 1);
+        // Use all available CPU threads for nucleo fuzzy searching in large vaults
+        let nucleo_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .ok();
+        let mut nucleo_inst = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), nucleo_threads, 1);
 
         let notes_map = if cache_path.exists() {
             match storage::load_cache_from_disk(&cache_path) {
@@ -900,13 +904,13 @@ impl NavigationEngine {
         );
 
         let tick_deadline = std::time::Instant::now();
-        while nucleo.tick(10).running {
-            if tick_deadline.elapsed() >= std::time::Duration::from_millis(150) {
+        while nucleo.tick(15).running {
+            if tick_deadline.elapsed() >= std::time::Duration::from_millis(300) {
                 break;
             }
         }
         let snapshot = nucleo.snapshot();
-        let matched_count = snapshot.matched_item_count() as usize;
+        let mut matched_count = snapshot.matched_item_count() as usize;
         let query_lower = trimmed_query.to_lowercase();
 
         let mut candidates = Vec::new();
@@ -918,6 +922,25 @@ impl NavigationEngine {
             }
         }
         drop(nucleo);
+
+        // Fallback: If nucleo returned 0 matches (e.g. still parsing, asynchronous injector lag,
+        // or strict fuzzy mismatch), perform a direct fast scan over in-memory `self.notes`.
+        if candidates.is_empty() && !self.notes.is_empty() {
+            for item in self.notes.iter() {
+                let meta = item.value();
+                let name = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str());
+                if name.to_lowercase().contains(&query_lower)
+                    || meta.title.to_lowercase().contains(&query_lower)
+                    || meta.path.to_lowercase().contains(&query_lower)
+                {
+                    candidates.push((meta.clone(), candidates.len()));
+                    if candidates.len() >= 500 {
+                        break;
+                    }
+                }
+            }
+            matched_count = candidates.len();
+        }
 
         candidates.sort_by(|(a, rank_a), (b, rank_b)| {
             let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());

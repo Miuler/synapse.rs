@@ -238,21 +238,26 @@
 
     isSearching = true;
     let active = true;
-    vaultRepository.searchNotes(q).then((resp) => {
-      if (active) {
-        nucleoResults = resp.results;
-        if (resp.total_files > 0) totalFiles = resp.total_files;
-        matchedFiles = resp.matched_files;
-        isSearching = false;
-      }
-    }).catch(() => {
-      if (active) {
-        isSearching = false;
-      }
-    });
+
+    // Pequeño debounce para no saturar llamadas IPC durante tecleo continuo rápido
+    const timer = setTimeout(() => {
+      vaultRepository.searchNotes(q).then((resp) => {
+        if (active) {
+          nucleoResults = resp.results;
+          if (resp.total_files > 0) totalFiles = resp.total_files;
+          matchedFiles = resp.matched_files;
+          isSearching = false;
+        }
+      }).catch(() => {
+        if (active) {
+          isSearching = false;
+        }
+      });
+    }, 40);
 
     return () => {
       active = false;
+      clearTimeout(timer);
     };
   });
 
@@ -480,8 +485,8 @@
           {:else}
             {#if isSearching}
               <div class="empty-state">Buscando...</div>
-            {:else}
-              <Command.Empty class="empty-state">No se encontraron archivos</Command.Empty>
+            {:else if fileList.length === 0}
+              <div class="empty-state">No se encontraron archivos</div>
             {/if}
 
             {#each fileList as file, i (file.id)}
@@ -703,28 +708,40 @@
   :global(.quick-open-container .quick-open-input-wrapper) {
     display: flex;
     align-items: center;
+    position: relative;
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     background: var(--bg-secondary, #f6f8fa);
     flex-shrink: 0;
+    gap: 12px;
   }
 
   :global(.quick-open-container .search-icon) {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
     width: 18px;
     height: 18px;
     color: var(--text-secondary, #656d76);
-    margin-right: 12px;
+    margin-right: 0;
     flex-shrink: 0;
+    pointer-events: none;
+    z-index: 1;
   }
 
   :global(.quick-open-container .command-input) {
-    flex-grow: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
     background: transparent;
     border: none;
+    padding: 0;
+    margin: 0;
     color: var(--text-primary, #1f2328);
     font-size: 15px;
     outline: none;
     font-family: inherit;
+    box-shadow: none;
   }
 
   :global(.quick-open-container .command-input::placeholder) {

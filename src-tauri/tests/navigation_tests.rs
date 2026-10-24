@@ -509,6 +509,56 @@ fn test_search_prioritization_filename_recency_and_alphabetical() {
 }
 
 #[test]
+fn test_search_large_vault_over_5000_notes() {
+    let test_dir = std::env::temp_dir().join("synapse_large_vault_search_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file);
+    // Directly insert 6,000 notes into the engine to simulate a large vault in memory
+    for i in 0..6000 {
+        let path = if i == 4200 {
+            compact_str::CompactString::new("deep/nested/special_target_note.md")
+        } else {
+            compact_str::CompactString::new(format!("folder_{}/document_{}.md", i / 100, i))
+        };
+        let title = if i == 4200 {
+            compact_str::CompactString::new("Special Target Title")
+        } else {
+            compact_str::CompactString::new(format!("Document {}", i))
+        };
+        engine.notes.insert(
+            i as u32,
+            app_lib::infrastructure::navigation::model::NoteMeta {
+                id: i as u32,
+                path,
+                title,
+                mtime_nanos: 1000,
+                size_bytes: 50,
+                created_nanos: None,
+                last_opened_nanos: None,
+                is_open: false,
+                tab_order: None,
+                is_active_tab: false,
+                view_mode: None,
+            },
+        );
+    }
+
+    assert_eq!(engine.notes.len(), 6000);
+
+    // Search for the target in the 6,000 files vault
+    let (matches, total_files, matched_count) = engine.search_with_stats("special_target", 50);
+    assert_eq!(total_files, 6000);
+    assert!(!matches.is_empty(), "Should find matches even when 6000 notes are in engine");
+    assert_eq!(matches[0].path.as_str(), "deep/nested/special_target_note.md");
+    assert!(matched_count >= 1);
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
 fn test_record_opened_and_metadata_persistence() {
     let test_dir = std::env::temp_dir().join("synapse_record_opened_test");
     let _ = fs::remove_dir_all(&test_dir);
