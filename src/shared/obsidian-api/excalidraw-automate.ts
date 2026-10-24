@@ -378,8 +378,8 @@ export class ExcalidrawAutomate {
     const h = Math.max(maxY - minY + padding * 2, 50);
 
     const svgParts: string[] = [
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" width="${w}" height="${h}">`,
-      `<style>text { font-family: sans-serif; }</style>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${x0} ${y0} ${w} ${h}" width="100%" height="100%">`,
+      `<style>text { font-family: sans-serif; user-select: none; }</style>`,
     ];
 
     for (const el of targetElements) {
@@ -412,7 +412,7 @@ export class ExcalidrawAutomate {
         const dataUrl = fileRecord?.dataURL || fileRecord?.url || '';
         if (dataUrl) {
           svgParts.push(
-            `<image href="${dataUrl}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" />`
+            `<image href="${dataUrl}" xlink:href="${dataUrl}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" />`
           );
         } else {
           // Placeholder para imagen mientras carga o si no se encuentra

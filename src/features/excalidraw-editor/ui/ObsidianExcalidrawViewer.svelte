@@ -58,6 +58,7 @@
   let dragStartY = $state(0);
   let copiedNotice = $state(false);
   let resolvedImagesMap = $state<Record<string, any>>({});
+  const loadedOrPendingFileIds = new Set<string>();
 
   // Parsear la escena y extraer metadatos
   let parsedDoc = $derived.by(() => {
@@ -90,7 +91,8 @@
 
     const toLoad: [string, string][] = [];
     for (const [fileId, targetPath] of Object.entries(embedded)) {
-      if (!resolvedImagesMap[fileId] && typeof targetPath === 'string') {
+      if (!loadedOrPendingFileIds.has(fileId) && typeof targetPath === 'string') {
+        loadedOrPendingFileIds.add(fileId);
         toLoad.push([fileId, targetPath]);
       }
     }
@@ -624,17 +626,21 @@
     user-select: none;
   }
 
+  .stage-viewport.is-dragging .svg-transform-wrapper {
+    transition: none;
+  }
+
   .svg-transform-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
     transition: transform 0.05s ease-out;
     pointer-events: none;
+    will-change: transform;
   }
 
   .svg-stage {
     display: inline-block;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.06));
     max-width: 90vw;
     max-height: 85vh;
   }

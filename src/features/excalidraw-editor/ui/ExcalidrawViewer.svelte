@@ -29,7 +29,9 @@
 
   // Mapeo en memoria de archivos/imágenes resueltas (fileId -> { id, dataURL, mimeType })
   let resolvedFilesMap: Record<string, any> = {};
+  const pendingOrLoadedFileIds = new Set<string>();
   let suppressOnChange = false;
+  let onChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Función para resolver y cargar imágenes vinculadas en el diagrama
   async function resolveEmbeddedImages(raw: string, api?: any) {
@@ -46,7 +48,8 @@
 
       // Cargar todas las imágenes incrustadas en paralelo
       const loadPromises = fileIdsToResolve.map(async ([fileId, targetPath]) => {
-        if (resolvedFilesMap[fileId] || typeof targetPath !== 'string') return;
+        if (pendingOrLoadedFileIds.has(fileId) || typeof targetPath !== 'string') return;
+        pendingOrLoadedFileIds.add(fileId);
 
         try {
           // Resolver primero la ruta nativa para streaming directo con el protocolo de assets (zero-copy)
@@ -98,7 +101,7 @@
           } finally {
             setTimeout(() => {
               suppressOnChange = false;
-            }, 50);
+            }, 300);
           }
         }
       }
@@ -155,11 +158,20 @@
   function serializeSceneData(elements: readonly any[], appState: any, files: any): string {
     const isMd = isExcalidrawMarkdown(content) || content.startsWith('---');
     if (isMd) {
+      // Para documentos Obsidian Markdown, no persistir archivos incrustados en files JSON (residen en ## Embedded Files)
+      const cleanFiles: Record<string, any> = {};
+      if (files) {
+        for (const [id, record] of Object.entries(files)) {
+          if (!resolvedFilesMap[id]) {
+            cleanFiles[id] = record;
+          }
+        }
+      }
       return serializeExcalidrawMarkdown(
         {
           elements: elements ? [...elements] : [],
           appState,
-          files: files || {},
+          files: cleanFiles,
         },
         content
       );
@@ -256,12 +268,15 @@
       onChange: (elements: readonly any[], appState: any, files: any) => {
         if (isReadOnly || suppressOnChange) return;
 
-        const serialized = serializeSceneData(elements, appState, files);
-
-        if (serialized !== lastKnownScene) {
-          lastKnownScene = serialized;
-          if (onChange) onChange(serialized);
-        }
+        if (onChangeDebounceTimer) clearTimeout(onChangeDebounceTimer);
+        onChangeDebounceTimer = setTimeout(() => {
+          if (isReadOnly || suppressOnChange) return;
+          const serialized = serializeSceneData(elements, appState, files);
+          if (serialized !== lastKnownScene) {
+            lastKnownScene = serialized;
+            if (onChange) onChange(serialized);
+          }
+        }, 300);
       }
     });
 
@@ -275,6 +290,10 @@
   });
 
   onDestroy(() => {
+    if (onChangeDebounceTimer) {
+      clearTimeout(onChangeDebounceTimer);
+      onChangeDebounceTimer = null;
+    }
     if (!readOnly && excalidrawAPI) {
       try {
         const serialized = getCurrentSerializedScene();
