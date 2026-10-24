@@ -1,17 +1,40 @@
-import type {
-  CommunityPluginDto,
-  CommunityPluginInstallResultDto,
-  InstalledPluginDto,
-  PluginUpdateInfoDto,
-} from '@shared/repositories';
 import type { PluginManifest } from '@shared/obsidian-api';
 
-export type {
-  CommunityPluginDto,
-  CommunityPluginInstallResultDto,
-  InstalledPluginDto,
-  PluginUpdateInfoDto,
-};
+export interface CommunityPluginDto {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  repo: string;
+  branch?: string;
+  downloads?: number;
+}
+
+export interface CommunityPluginInstallResultDto {
+  id: string;
+  version: string;
+  installed_path: string;
+  has_styles: boolean;
+}
+
+export interface InstalledPluginDto {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  dir: string;
+  has_styles: boolean;
+  repo?: string;
+}
+
+export interface PluginUpdateInfoDto {
+  id: string;
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  repo: string;
+}
 
 export interface CommunityPluginItem extends CommunityPluginDto {
   isInstalled?: boolean;
