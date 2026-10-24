@@ -83,25 +83,58 @@
     }
   });
 
-  // Cargar imágenes incrustadas (## Embedded Files)
+  // Cargar imágenes incrustadas (## Embedded Files) por lotes
   $effect(() => {
     const embedded = parsedDoc.embeddedFiles;
     if (!embedded || Object.keys(embedded).length === 0) return;
 
+    const toLoad: [string, string][] = [];
     for (const [fileId, targetPath] of Object.entries(embedded)) {
-      if (resolvedImagesMap[fileId] || typeof targetPath !== 'string') continue;
-
-      vaultRepository.readAssetDataUrl(targetPath, filePath).then((dataUrl) => {
-        if (dataUrl) {
-          resolvedImagesMap = {
-            ...resolvedImagesMap,
-            [fileId]: { id: fileId, dataURL: dataUrl },
-          };
-        }
-      }).catch((err) => {
-        console.warn('[ObsidianExcalidrawViewer] No se pudo resolver imagen incrustada:', { fileId, targetPath, err });
-      });
+      if (!resolvedImagesMap[fileId] && typeof targetPath === 'string') {
+        toLoad.push([fileId, targetPath]);
+      }
     }
+
+    if (toLoad.length === 0) return;
+
+    let active = true;
+    Promise.all(
+      toLoad.map(async ([fileId, targetPath]) => {
+        try {
+          let assetUrl: string | null = null;
+          const absPath = await vaultRepository.resolveAssetFilePath(targetPath, filePath);
+          if (absPath) {
+            assetUrl = vaultRepository.resolveAssetUrl(absPath);
+          } else {
+            assetUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
+          }
+          return { fileId, dataUrl: assetUrl };
+        } catch (err) {
+          console.warn('[ObsidianExcalidrawViewer] No se pudo resolver imagen incrustada:', { fileId, targetPath, err });
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (!active) return;
+      const batch: Record<string, any> = {};
+      let hasUpdates = false;
+      for (const res of results) {
+        if (res && res.dataUrl) {
+          batch[res.fileId] = { id: res.fileId, dataURL: res.dataUrl };
+          hasUpdates = true;
+        }
+      }
+      if (hasUpdates) {
+        resolvedImagesMap = {
+          ...resolvedImagesMap,
+          ...batch,
+        };
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   });
 
   let scene = $derived(parsedDoc.scene);

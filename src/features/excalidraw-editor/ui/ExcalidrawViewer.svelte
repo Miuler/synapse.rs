@@ -29,6 +29,7 @@
 
   // Mapeo en memoria de archivos/imágenes resueltas (fileId -> { id, dataURL, mimeType })
   let resolvedFilesMap: Record<string, any> = {};
+  let suppressOnChange = false;
 
   // Función para resolver y cargar imágenes vinculadas en el diagrama
   async function resolveEmbeddedImages(raw: string, api?: any) {
@@ -43,12 +44,21 @@
       const newFiles: Record<string, any> = {};
       let hasNewFiles = false;
 
-      for (const [fileId, targetPath] of fileIdsToResolve) {
-        if (resolvedFilesMap[fileId]) continue; // Ya cargada
+      // Cargar todas las imágenes incrustadas en paralelo
+      const loadPromises = fileIdsToResolve.map(async ([fileId, targetPath]) => {
+        if (resolvedFilesMap[fileId] || typeof targetPath !== 'string') return;
 
         try {
-          const dataUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
-          if (dataUrl) {
+          // Resolver primero la ruta nativa para streaming directo con el protocolo de assets (zero-copy)
+          let assetUrl: string | null = null;
+          const absPath = await vaultRepository.resolveAssetFilePath(targetPath, filePath);
+          if (absPath) {
+            assetUrl = vaultRepository.resolveAssetUrl(absPath);
+          } else {
+            assetUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
+          }
+
+          if (assetUrl) {
             let mimeType = 'image/png';
             const cleanTarget = targetPath.toLowerCase().split('?')[0].split('#')[0];
             if (cleanTarget.endsWith('.svg')) mimeType = 'image/svg+xml';
@@ -56,14 +66,14 @@
             else if (cleanTarget.endsWith('.webp')) mimeType = 'image/webp';
             else if (cleanTarget.endsWith('.gif')) mimeType = 'image/gif';
             else if (cleanTarget.endsWith('.bmp')) mimeType = 'image/bmp';
-            else if (dataUrl.startsWith('data:')) {
-              const mimeMatch = dataUrl.match(/^data:([^;]+);/);
+            else if (assetUrl.startsWith('data:')) {
+              const mimeMatch = assetUrl.match(/^data:([^;]+);/);
               if (mimeMatch) mimeType = mimeMatch[1];
             }
 
             const fileRecord = {
               id: fileId,
-              dataURL: dataUrl,
+              dataURL: assetUrl,
               mimeType,
               created: Date.now(),
             };
@@ -74,12 +84,22 @@
         } catch (err) {
           console.warn('[ExcalidrawViewer] No se pudo resolver imagen incrustada:', { fileId, targetPath, err });
         }
-      }
+      });
+
+      await Promise.all(loadPromises);
 
       if (hasNewFiles) {
         const targetApi = api || excalidrawAPI;
         if (targetApi?.addFiles) {
-          targetApi.addFiles(Object.values(newFiles));
+          // Desactivar temporalmente el listener onChange durante addFiles para evitar bucles de renderizado
+          suppressOnChange = true;
+          try {
+            targetApi.addFiles(Object.values(newFiles));
+          } finally {
+            setTimeout(() => {
+              suppressOnChange = false;
+            }, 50);
+          }
         }
       }
     } catch (e) {
@@ -234,7 +254,7 @@
         },
       },
       onChange: (elements: readonly any[], appState: any, files: any) => {
-        if (isReadOnly) return;
+        if (isReadOnly || suppressOnChange) return;
 
         const serialized = serializeSceneData(elements, appState, files);
 
