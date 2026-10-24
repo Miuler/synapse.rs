@@ -40,75 +40,22 @@
   import {BreadCrumb} from "@widgets/breadcrumb";
   import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
   import {Columns2} from "lucide-svelte";
+  import {
+    isSyntheticTab,
+    isDrawingTab,
+    cleanTabTitle,
+    getTabDisplayTitle,
+    parseTabDragData,
+    getInitialSidebarWidth,
+    getInitialSplitRatio,
+    TabHistoryState,
+    WorkspaceLayoutState,
+    UnsavedChangesState,
+  } from "../model";
 
   interface VaultFsChangeEvent {
     paths: string[];
     deleted: string[];
-  }
-
-  function isSyntheticTab(p: string | null | undefined): boolean {
-    if (!p) return false;
-    return (
-      p.startsWith("empty:") ||
-      p.startsWith("diff:") ||
-      p.startsWith("diff-staged:") ||
-      p.startsWith("diff-rev:") ||
-      p.startsWith("rev:")
-    );
-  }
-
-  function isDrawingTab(path: string | null | undefined, content?: string): boolean {
-    if (!path || isSyntheticTab(path)) return false;
-    if (isDrawingFile(path)) return true;
-    if (content && isExcalidrawMarkdown(content)) return true;
-    return false;
-  }
-
-  function cleanTabTitle(rawTitle: string, path: string | null | undefined): string {
-    if (!path) return rawTitle;
-    const lowerPath = path.toLowerCase();
-    if (lowerPath.endsWith('.excalidraw.md')) {
-      return rawTitle.replace(/\.excalidraw\.md$/i, '').replace(/\.excalidraw$/i, '');
-    }
-    return rawTitle;
-  }
-
-  function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
-    if (!path) return fallbackTitle;
-    if (path.startsWith("empty:")) return "Nueva pestaña";
-    if (path.startsWith("diff-staged:")) {
-      const f = path.slice("diff-staged:".length).split("/").pop() || path;
-      return `Diff (staged): ${f}`;
-    }
-    if (path.startsWith("diff-rev:")) {
-      const parts = path.slice("diff-rev:".length).split(":");
-      const rev = parts[0] || "";
-      const f = parts.slice(1).join(":").split("/").pop() || parts.slice(1).join(":");
-      return `Diff (${rev.slice(0, 7)}): ${f}`;
-    }
-    if (path.startsWith("diff:")) {
-      const f = path.slice("diff:".length).split("/").pop() || path;
-      return `Diff: ${f}`;
-    }
-    if (path.startsWith("rev:")) {
-      const parts = path.slice("rev:".length).split(":");
-      const rev = parts[0] || "";
-      const f = parts.slice(1).join(":").split("/").pop() || parts.slice(1).join(":");
-      return `[${rev.slice(0, 7)}] ${f}`;
-    }
-    return cleanTabTitle(fallbackTitle, path);
-  }
-
-  function parseTabDragData(e: DragEvent): { path: string; windowLabel: string; title?: string } | null {
-    try {
-      const rawCustom = e.dataTransfer?.getData('application/x-synapse-tab');
-      if (rawCustom) return JSON.parse(rawCustom);
-      const rawText = e.dataTransfer?.getData('text/plain');
-      if (rawText && rawText.startsWith('synapse-tab:')) {
-        return JSON.parse(rawText.slice('synapse-tab:'.length));
-      }
-    } catch {}
-    return null;
   }
 
   // Estados reactivos con Runas de Svelte 5
@@ -292,33 +239,26 @@
     await refreshGitStatus();
   }
 
-  function getInitialSidebarWidth(): number {
-    try {
-      const saved = localStorage.getItem('synapse_sidebar_width');
-      if (saved) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 140 && parsed <= 900) return parsed;
-      }
-    } catch {}
-    return 240;
-  }
-
   async function restoreSidebarWidth() {
     try {
       const uiState = await vaultRepository.getVaultUiState();
       if (uiState?.sidebar_width && uiState.sidebar_width >= 140 && uiState.sidebar_width <= 900) {
-        sidebarWidth = uiState.sidebar_width;
+        layoutState.setSidebarWidth(uiState.sidebar_width);
       }
       if (uiState?.locked_files) {
-        lockedFiles = new Set(uiState.locked_files);
+        unsavedChanges.setLockedFiles(uiState.locked_files);
       }
     } catch (e) {
       console.error("Error al restaurar estado de la UI de la bóveda:", e);
     }
   }
 
+  // Controladores de estado composables con Runes de Svelte 5
+  const layoutState = new WorkspaceLayoutState();
+  const unsavedChanges = new UnsavedChangesState();
+
   // Conjunto reactivo de rutas relativas de archivos bloqueados
-  let lockedFiles = $state<Set<string>>(new Set());
+  let lockedFiles = $derived(unsavedChanges.lockedFiles);
 
   // Diálogo para advertir sobre cambios sin persistir en archivos bloqueados
   let unsavedDialogOpen = $state(false);
@@ -331,33 +271,7 @@
   } | null>(null);
 
   async function handleToggleLockFile(path: string) {
-    const next = new Set(lockedFiles);
-    if (next.has(path)) {
-      next.delete(path);
-    } else {
-      next.add(path);
-    }
-    lockedFiles = next;
-    if (!isStandaloneMode) {
-      await vaultRepository.saveVaultUiState(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        Array.from(lockedFiles)
-      );
-    }
-  }
-
-  function getInitialSplitRatio(): number {
-    try {
-      const saved = localStorage.getItem('synapse_split_ratio');
-      if (saved) {
-        const parsed = parseFloat(saved);
-        if (!isNaN(parsed) && parsed >= 20 && parsed <= 80) return parsed;
-      }
-    } catch {}
-    return 50;
+    await unsavedChanges.toggleLock(path, isStandaloneMode);
   }
 
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
@@ -368,16 +282,20 @@
   // Estado para panel dividido (Split View vertical)
   let splitTabPaths = $state<string[]>([]);
   let activeSplitTabPath = $state<string | null>(null);
-  let splitRatio = $state<number>(getInitialSplitRatio());
-  let isResizingSplit = $state(false);
+  let splitRatio = $derived(layoutState.splitRatio);
+  let isResizingSplit = $derived(layoutState.isResizingSplit);
   let isDragOverSplitRight = $state(false);
   let activeFocusedPane = $state<'left' | 'right'>('left');
   let splitMarkdownViewMode = $state<MarkdownViewMode>('live');
   let isSplitEditing = $state(true);
   let isSplit = $derived(splitTabPaths.length > 0 && activeSplitTabPath !== null);
   let splitContainerRef = $state<HTMLDivElement | null>(null);
-  let sidebarWidth = $state<number>(getInitialSidebarWidth());
-  let isResizingSidebar = $state(false);
+  let sidebarWidth = $derived(layoutState.sidebarWidth);
+  let isResizingSidebar = $derived(layoutState.isResizingSidebar);
+
+  $effect(() => {
+    layoutState.splitContainerRef = splitContainerRef;
+  });
 
   // Lista de rutas de archivos abiertos recientemente para Ctrl+O (Quick Open)
   let recentFiles = $state<string[]>([]);
@@ -411,11 +329,8 @@
 
   let tabSelections = $state<Record<string, SelectionInfo>>({});
 
-  // Límite máximo de entradas en el historial para control óptimo de memoria (~5-10 KB)
-  const MAX_TAB_HISTORY = 100;
-
   // Historial de navegación de pestañas (Back / Forward)
-  let tabHistory = $state<string[]>([]);
+  const tabHistory = new TabHistoryState();
 
   // Instancia de la fachada Obsidian API para soporte de plugins
   let synapseApp = $state<SynapseApp | null>(null);
@@ -443,93 +358,30 @@
       }
     }
   }
-  let tabHistoryIndex = $state<number>(-1);
-  let isNavigatingHistory = false;
-  let lastNavTime = 0;
 
   // Registro de la posición física (índice en la barra de pestañas) de los archivos cerrados
   let lastClosedTabIndex = $state<Record<string, number>>({});
 
-  let canGoBack = $derived(tabHistoryIndex > 0);
-
-  let canGoForward = $derived(
-    tabHistoryIndex >= 0 && tabHistoryIndex < tabHistory.length - 1
-  );
+  let canGoBack = $derived(tabHistory.canGoBack);
+  let canGoForward = $derived(tabHistory.canGoForward);
 
   function recordTabVisit(path: string) {
-    if (isNavigatingHistory || !path) return;
-    if (tabHistoryIndex >= 0 && tabHistoryIndex < tabHistory.length && tabHistory[tabHistoryIndex] === path) {
-      return;
-    }
-    let truncated = tabHistory.slice(0, tabHistoryIndex + 1);
-    truncated.push(path);
-    if (truncated.length > MAX_TAB_HISTORY) {
-      truncated = truncated.slice(truncated.length - MAX_TAB_HISTORY);
-    }
-    tabHistory = truncated;
-    tabHistoryIndex = truncated.length - 1;
-  }
-
-  function navigateBack() {
-    if (tabHistoryIndex <= 0) return;
-    const targetIndex = tabHistoryIndex - 1;
-    tabHistoryIndex = targetIndex;
-    const targetPath = tabHistory[targetIndex];
-    isNavigatingHistory = true;
-    selectTab(targetPath);
-    isNavigatingHistory = false;
-  }
-
-  function navigateForward() {
-    if (tabHistoryIndex >= tabHistory.length - 1) return;
-    const targetIndex = tabHistoryIndex + 1;
-    tabHistoryIndex = targetIndex;
-    const targetPath = tabHistory[targetIndex];
-    isNavigatingHistory = true;
-    selectTab(targetPath);
-    isNavigatingHistory = false;
+    tabHistory.recordVisit(path);
   }
 
   function safeNavigateBack() {
-    const now = performance.now();
-    if (now - lastNavTime < 150) return;
-    lastNavTime = now;
-    navigateBack();
+    tabHistory.navigateBack(selectTab);
   }
 
   function safeNavigateForward() {
-    const now = performance.now();
-    if (now - lastNavTime < 150) return;
-    lastNavTime = now;
-    navigateForward();
+    tabHistory.navigateForward(selectTab);
   }
 
+  const navigateBack = safeNavigateBack;
+  const navigateForward = safeNavigateForward;
+
   function removeTabFromHistory(path: string) {
-    const newHistory: string[] = [];
-    let newIndex = -1;
-    for (let i = 0; i < tabHistory.length; i++) {
-      const item = tabHistory[i];
-      if (item !== path) {
-        if (newHistory.length === 0 || newHistory[newHistory.length - 1] !== item) {
-          if (i <= tabHistoryIndex) {
-            newIndex = newHistory.length;
-          }
-          newHistory.push(item);
-        }
-      }
-    }
-    tabHistory = newHistory;
-    if (tabHistory.length === 0) {
-      tabHistoryIndex = -1;
-    } else {
-      tabHistoryIndex = Math.max(0, Math.min(newIndex, tabHistory.length - 1));
-      if (activeTabPath) {
-        const found = tabHistory.lastIndexOf(activeTabPath);
-        if (found !== -1) {
-          tabHistoryIndex = found;
-        }
-      }
-    }
+    tabHistory.removeTab(path, activeTabPath);
   }
 
   let saveTabsTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -877,7 +729,7 @@
         delete openedNotes[activeTabPath];
         delete tabSelections[activeTabPath];
         if (previousActivePath) {
-          tabHistory = tabHistory.map((p) => (p === previousActivePath ? path : p));
+          tabHistory.replaceTab(previousActivePath, path);
         }
       } else {
         openTabPaths.push(path);
@@ -999,10 +851,7 @@
 
         // Si la pestaña cerrada era la activa, sincronizar tabHistoryIndex con la nueva pestaña activa
         if (activeTabPath && !isSyntheticTab(path)) {
-          const foundIdx = tabHistory.slice(0, tabHistoryIndex).lastIndexOf(activeTabPath);
-          if (foundIdx !== -1) {
-            tabHistoryIndex = foundIdx;
-          }
+          tabHistory.syncActiveTab(activeTabPath);
         }
       }
     }
@@ -1049,8 +898,7 @@
     pdfViewers = {};
     recentSaveTimestamps = {};
     tabSelections = {};
-    tabHistory = [];
-    tabHistoryIndex = -1;
+    tabHistory.clear();
     if (isStandaloneMode) {
       isStandaloneMode = false;
       showWelcomeScreen = true;
@@ -1575,37 +1423,7 @@
   }
 
   function handleSplitResizeStart(e: PointerEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    isResizingSplit = true;
-    document.body.classList.add('is-resizing-col');
-
-    const handlePointerMove = (ev: MouseEvent | PointerEvent) => {
-      if (!splitContainerRef) return;
-      const rect = splitContainerRef.getBoundingClientRect();
-      const relativeX = ev.clientX - rect.left;
-      const newRatio = (relativeX / rect.width) * 100;
-      splitRatio = Math.max(20, Math.min(80, newRatio));
-    };
-
-    const handlePointerUp = () => {
-      isResizingSplit = false;
-      document.body.classList.remove('is-resizing-col');
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('mousemove', handlePointerMove);
-      window.removeEventListener('mouseup', handlePointerUp);
-      try {
-        localStorage.setItem('synapse_split_ratio', String(splitRatio));
-      } catch {}
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    window.addEventListener('mousemove', handlePointerMove);
-    window.addEventListener('mouseup', handlePointerUp);
+    layoutState.handleSplitResizeStart(e);
   }
 
   function handleEditorDragOver(e: DragEvent) {
@@ -2050,7 +1868,7 @@
       tabSelections[renamedPath] = tabSelections[relativePath];
       delete tabSelections[relativePath];
     }
-    tabHistory = tabHistory.map((path) => path === relativePath ? renamedPath : path);
+    tabHistory.replaceTab(relativePath, renamedPath);
     recentFiles = recentFiles.map((path) => path === relativePath ? renamedPath : path);
     if (lastClosedTabIndex[relativePath] !== undefined) {
       lastClosedTabIndex[renamedPath] = lastClosedTabIndex[relativePath];
@@ -2532,7 +2350,7 @@
       openTabPaths[idx] = newRelPath;
       delete openedNotes[targetEmptyPath];
       delete tabSelections[targetEmptyPath];
-      tabHistory = tabHistory.map((p) => (p === targetEmptyPath ? newRelPath : p));
+      tabHistory.replaceTab(targetEmptyPath, newRelPath);
       activeTabPath = newRelPath;
       activeFocusedPane = 'left';
     } else if (activeFocusedPane === 'right' && isSplit) {
@@ -2839,7 +2657,7 @@
         action: async () => {
           if (activeRibbonTab !== 'files') {
             if (sidebarWidth < 140) {
-              sidebarWidth = 240;
+              layoutState.setSidebarWidth(240);
             }
             activeRibbonTab = 'files';
           }
@@ -2916,7 +2734,7 @@
         stopEvent();
         if (activeRibbonTab !== 'files') {
           if (sidebarWidth < 140) {
-            sidebarWidth = 240;
+            layoutState.setSidebarWidth(240);
           }
           activeRibbonTab = 'files';
         }
@@ -3106,8 +2924,7 @@
     openedNotes = {};
     tabSelections = {};
     recentFiles = [];
-    tabHistory = [];
-    tabHistoryIndex = -1;
+    tabHistory.clear();
 
     if (initialNotes && initialNotes.length > 0) {
       vaultItems = initialNotes.map((n, index) => {
@@ -3208,8 +3025,7 @@
             recentFiles = recents;
           }
         });
-        tabHistory = [];
-        tabHistoryIndex = -1;
+        tabHistory.clear();
         await restoreSidebarWidth();
         const restored = await restoreOpenTabsState();
         if (!restored) {
@@ -3226,7 +3042,7 @@
       activeRibbonTab = '';
     } else {
       if (sidebarWidth < 140) {
-        sidebarWidth = 240;
+        layoutState.setSidebarWidth(240);
       }
       activeRibbonTab = 'files';
     }
@@ -3235,7 +3051,7 @@
   async function ensureExplorerVisible() {
     if (activeRibbonTab !== 'files' || sidebarWidth < 140) {
       if (sidebarWidth < 140) {
-        sidebarWidth = 240;
+        layoutState.setSidebarWidth(240);
       }
       activeRibbonTab = 'files';
       await tick();
@@ -3253,47 +3069,11 @@
   }
 
   function handleSidebarResizeStart(e: MouseEvent | PointerEvent) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    isResizingSidebar = true;
-    document.body.classList.add('is-resizing-col');
-
-    const handlePointerMove = (ev: MouseEvent | PointerEvent) => {
-      const newWidth = ev.clientX - 48; // 48px ancho del ribbon
-      if (newWidth < 70) {
-        // Colapsar si se arrastra hacia el extremo izquierdo
-        activeRibbonTab = '';
-      } else {
-        if (!activeRibbonTab) {
-          activeRibbonTab = 'files';
-        }
-        const maxWidth = Math.max(300, window.innerWidth - 200);
-        sidebarWidth = Math.max(140, Math.min(newWidth, Math.min(900, maxWidth)));
-      }
-    };
-
-    const handlePointerUp = () => {
-      isResizingSidebar = false;
-      document.body.classList.remove('is-resizing-col');
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('mousemove', handlePointerMove);
-      window.removeEventListener('mouseup', handlePointerUp);
-      try {
-        localStorage.setItem('synapse_sidebar_width', String(sidebarWidth));
-        if (sidebarWidth >= 140) {
-          vaultRepository.saveVaultUiState(sidebarWidth);
-        }
-      } catch {}
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    window.addEventListener('mousemove', handlePointerMove);
-    window.addEventListener('mouseup', handlePointerUp);
+    layoutState.handleSidebarResizeStart(
+      e,
+      () => { activeRibbonTab = ''; },
+      () => { if (!activeRibbonTab) activeRibbonTab = 'files'; }
+    );
   }
 </script>
 
