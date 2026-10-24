@@ -19,6 +19,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
+  import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import {
     isImageFile,
@@ -3865,6 +3866,15 @@
     onAbort={handleUnsavedDialogAbort}
     onDiscard={handleUnsavedDialogDiscard}
     onForceSave={handleUnsavedDialogForceSave}
+  />
+
+  <!-- 9. DIÁLOGOS DE GESTIÓN DE GIT (BRANCHES, COMMITS, HISTORIAL DE ARCHIVO) -->
+  <GitManagementDialogs
+    {gitBranch}
+    {gitStatuses}
+    onRefreshGit={refreshGitStatus}
+    onViewRevision={(p, rev) => selectTab(`rev:${rev}:${p}`)}
+    onDiffRevision={(p, rev) => selectTab(`diff-rev:${rev}:${p}`)}
   />
 </div>
 

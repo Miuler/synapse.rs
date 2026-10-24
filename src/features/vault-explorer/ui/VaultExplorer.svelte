@@ -4,9 +4,7 @@
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
-  import GitCommitDialog, { type GitCommitFileItem } from './GitCommitDialog.svelte';
-  import GitBranchDialog from './GitBranchDialog.svelte';
-  import GitFileLogDialog from './GitFileLogDialog.svelte';
+  import { gitDialogState, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
@@ -1600,67 +1598,19 @@
     }
   }
 
-  let isCommitDialogOpen = $state(false);
-  let isCommitting = $state(false);
-  let commitErrorMessage = $state<string | null>(null);
-  let itemsToCommit = $state<string[]>([]);
-
-  let isFileLogOpen = $state(false);
-  let fileLogTarget = $state<string | null>(null);
-
   function handleOpenFileLog(path: string | null) {
     if (!path) return;
-    fileLogTarget = path;
-    isFileLogOpen = true;
+    gitDialogState.openFileLog(path);
   }
 
   function handlePromptGitCommit() {
     const paths = gitCommitPaths.length > 0 ? gitCommitPaths : getSelectedRelativePaths();
     if (paths.length === 0 && allGitChangedFiles.length === 0) return;
-    itemsToCommit = paths;
-    commitErrorMessage = null;
-    isCommitDialogOpen = true;
+    gitDialogState.openCommitDialog(paths);
   }
-
-  function cancelGitCommit() {
-    if (isCommitting) return;
-    isCommitDialogOpen = false;
-    itemsToCommit = [];
-    commitErrorMessage = null;
-  }
-
-  async function confirmGitCommit(message: string, selectedPaths?: string[]) {
-    const targets = selectedPaths && selectedPaths.length > 0 ? selectedPaths : [...itemsToCommit];
-    if (targets.length === 0 || isCommitting) return;
-    isCommitting = true;
-    commitErrorMessage = null;
-    try {
-      await vaultRepository.gitCommit(targets, message);
-      showToast(
-        targets.length > 1
-          ? `${targets.length} elementos confirmados (git commit)`
-          : 'Commit realizado con éxito'
-      );
-      if (onRefreshGit) {
-        await onRefreshGit();
-      }
-      itemsToCommit = [];
-      isCommitDialogOpen = false;
-    } catch (err: unknown) {
-      console.error('Error al realizar git commit:', err);
-      const msg = err instanceof Error ? err.message : String(err);
-      commitErrorMessage = msg;
-      showToast(`Error en git commit: ${msg}`);
-    } finally {
-      isCommitting = false;
-    }
-  }
-
-  // Estado del diálogo de ramas Git
-  let isBranchDialogOpen = $state(false);
 
   function handleOpenBranchDialog() {
-    isBranchDialogOpen = true;
+    gitDialogState.openBranchDialog();
   }
 </script>
 
@@ -2231,45 +2181,6 @@
     </div>
   {/if}
 </ConfirmDialog>
-
-<GitCommitDialog
-  bind:open={isCommitDialogOpen}
-  paths={itemsToCommit}
-  allFiles={allGitChangedFiles}
-  branchName={gitBranch}
-  loading={isCommitting}
-  errorMessage={commitErrorMessage}
-  onConfirm={confirmGitCommit}
-  onCancel={cancelGitCommit}
-/>
-
-<GitBranchDialog
-  bind:open={isBranchDialogOpen}
-  onBranchChanged={async () => {
-    if (onRefreshGit) {
-      await onRefreshGit();
-    }
-  }}
-/>
-
-<GitFileLogDialog
-  bind:open={isFileLogOpen}
-  filePath={fileLogTarget}
-  onViewRevision={(p, rev) => {
-    if (onOpenRevision) {
-      onOpenRevision(p, rev);
-    } else {
-      onSelectTab(`rev:${rev}:${p}`);
-    }
-  }}
-  onDiffRevision={(p, rev) => {
-    if (onOpenDiffWithRevision) {
-      onOpenDiffWithRevision(p, rev);
-    } else {
-      onSelectTab(`diff-rev:${rev}:${p}`);
-    }
-  }}
-/>
 
 {#if toastMessage}
   <div class="vault-toast">
