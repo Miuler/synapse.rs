@@ -389,9 +389,104 @@ where
     result
 }
 
+/// Decodifica una cadena con codificación porcentual (URL encoding), ej. `%20` -> `' '`, `%40` -> `'@'`.
+pub fn percent_decode_str(s: &str) -> String {
+    let mut bytes = Vec::with_capacity(s.len());
+    let mut chars = s.as_bytes().iter().copied();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            let h1 = chars.next();
+            let h2 = chars.next();
+            match (h1, h2) {
+                (Some(c1), Some(c2)) => {
+                    let v1 = match c1 {
+                        b'0'..=b'9' => Some(c1 - b'0'),
+                        b'a'..=b'f' => Some(c1 - b'a' + 10),
+                        b'A'..=b'F' => Some(c1 - b'A' + 10),
+                        _ => None,
+                    };
+                    let v2 = match c2 {
+                        b'0'..=b'9' => Some(c2 - b'0'),
+                        b'a'..=b'f' => Some(c2 - b'a' + 10),
+                        b'A'..=b'F' => Some(c2 - b'A' + 10),
+                        _ => None,
+                    };
+                    if let (Some(val1), Some(val2)) = (v1, v2) {
+                        bytes.push((val1 << 4) | val2);
+                    } else {
+                        bytes.push(b'%');
+                        bytes.push(c1);
+                        bytes.push(c2);
+                    }
+                }
+                (Some(c1), None) => {
+                    bytes.push(b'%');
+                    bytes.push(c1);
+                }
+                (None, None) => {
+                    bytes.push(b'%');
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            bytes.push(b);
+        }
+    }
+    String::from_utf8(bytes).unwrap_or_else(|_| s.to_string())
+}
+
+/// Limpia y normaliza una fuente de recurso/asset eliminando wrappers `![[...]` o `[[...]]`,
+/// fragmentos `#...`, query params `?...` y esquemas `asset://`.
+pub fn clean_asset_source(src: &str) -> Option<String> {
+    let raw = src.trim().trim_matches('\'').trim_matches('"');
+    if raw.is_empty() {
+        return None;
+    }
+
+    let cleaned = raw
+        .strip_prefix("![[")
+        .and_then(|s| s.strip_suffix("]]"))
+        .or_else(|| raw.strip_prefix("[[").and_then(|s| s.strip_suffix("]]")))
+        .unwrap_or(raw)
+        .trim();
+
+    let without_query = cleaned
+        .split('?')
+        .next()
+        .unwrap_or("")
+        .split('#')
+        .next()
+        .unwrap_or("")
+        .trim();
+
+    if without_query.is_empty() {
+        return None;
+    }
+
+    let mut path_candidate = without_query;
+    if let Some(stripped) = path_candidate.strip_prefix("asset://localhost") {
+        path_candidate = stripped;
+    } else if let Some(stripped) = path_candidate.strip_prefix("asset://") {
+        path_candidate = stripped;
+    }
+
+    let decoded = percent_decode_str(path_candidate);
+    Some(decoded)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_percent_decode_str() {
+        assert_eq!(percent_decode_str("hello%20world"), "hello world");
+        assert_eq!(percent_decode_str("test%40example.com"), "test@example.com");
+        assert_eq!(percent_decode_str("no_escapes"), "no_escapes");
+        assert_eq!(percent_decode_str("malformed%2"), "malformed%2");
+        assert_eq!(percent_decode_str("malformed%ZZ"), "malformed%ZZ");
+        assert_eq!(clean_asset_source("![[foto%20vacaciones.png#header?t=123]]"), Some("foto vacaciones.png".to_string()));
+    }
 
     #[test]
     fn test_is_image_extension() {
