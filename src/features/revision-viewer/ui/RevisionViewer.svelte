@@ -273,6 +273,7 @@
           {:else}
             <ExcalidrawViewer
               content={revData.content || ''}
+              filePath={filePath}
               readOnly={true}
             />
           {/if}

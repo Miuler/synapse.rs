@@ -9,6 +9,7 @@
     type SynapseApp,
     ExcalidrawAutomate,
   } from '@shared/obsidian-api';
+  import { vaultRepository } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
   import {
     Eye,
@@ -56,6 +57,7 @@
   let dragStartX = $state(0);
   let dragStartY = $state(0);
   let copiedNotice = $state(false);
+  let resolvedImagesMap = $state<Record<string, any>>({});
 
   // Parsear la escena y extraer metadatos
   let parsedDoc = $derived.by(() => {
@@ -72,9 +74,33 @@
           appState: {},
           files: {},
         },
+        textElements: [],
+        wikilinks: [],
         isMarkdown: false,
         frontmatter: {},
+        embeddedFiles: undefined,
       };
+    }
+  });
+
+  // Cargar imágenes incrustadas (## Embedded Files)
+  $effect(() => {
+    const embedded = parsedDoc.embeddedFiles;
+    if (!embedded || Object.keys(embedded).length === 0) return;
+
+    for (const [fileId, targetPath] of Object.entries(embedded)) {
+      if (resolvedImagesMap[fileId] || typeof targetPath !== 'string') continue;
+
+      vaultRepository.readAssetDataUrl(targetPath, filePath).then((dataUrl) => {
+        if (dataUrl) {
+          resolvedImagesMap = {
+            ...resolvedImagesMap,
+            [fileId]: { id: fileId, dataURL: dataUrl },
+          };
+        }
+      }).catch((err) => {
+        console.warn('[ObsidianExcalidrawViewer] No se pudo resolver imagen incrustada:', { fileId, targetPath, err });
+      });
     }
   });
 
@@ -87,7 +113,11 @@
   let svgContent = $derived.by(() => {
     try {
       const ea = new ExcalidrawAutomate(synapseApp || undefined);
-      return ea.toSVG(scene.elements || []);
+      const combinedFiles = {
+        ...(scene.files || {}),
+        ...resolvedImagesMap,
+      };
+      return ea.toSVG(scene.elements || [], combinedFiles);
     } catch (e) {
       console.warn('[ObsidianExcalidrawViewer] Error al generar SVG:', e);
       return `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="50" fill="gray">No se pudo renderizar el lienzo</text></svg>`;

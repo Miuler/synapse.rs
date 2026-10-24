@@ -1605,5 +1605,60 @@ Elemento de plantilla ^txt0
       expect(svg).toContain('width="100"');
       expect(svg).toContain('height="50"');
     });
+
+    it('41. Parsea y preserva la sección ## Embedded Files en documentos Excalidraw Markdown', () => {
+      const excalidrawMd = `---
+excalidraw-plugin: parsed
+tags: [ea/drawing]
+---
+==Deconstruct of drawing==
+# Text Elements
+Elemento con texto ^txt1
+
+## Embedded Files
+img123: [[adjuntos/grafico.png]]
+img456: "[[diagrama.svg]]"
+
+%%
+# Drawing
+\`\`\`json
+{
+  "type": "excalidraw",
+  "version": 2,
+  "elements": [
+    { "id": "txt1", "type": "text", "text": "Elemento con texto" },
+    { "id": "elImg", "type": "image", "fileId": "img123", "x": 10, "y": 20, "width": 100, "height": 80 }
+  ],
+  "appState": {},
+  "files": {}
+}
+\`\`\`
+%%
+`;
+
+      const parsed = parseExcalidrawContent(excalidrawMd);
+      expect(parsed.isMarkdown).toBe(true);
+      expect(parsed.embeddedFiles).toBeDefined();
+      expect(parsed.embeddedFiles!['img123']).toBe('adjuntos/grafico.png');
+      expect(parsed.embeddedFiles!['img456']).toBe('diagrama.svg');
+      expect(parsed.wikilinks).toContain('adjuntos/grafico.png');
+      expect(parsed.wikilinks).toContain('diagrama.svg');
+
+      // Comprobar renderizado de SVG con archivos incrustados
+      const ea = new ExcalidrawAutomate();
+      const filesMap = {
+        img123: { id: 'img123', dataURL: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' }
+      };
+      const svg = ea.toSVG(parsed.scene.elements, filesMap);
+      expect(svg).toContain('<image');
+      expect(svg).toContain('href="data:image/png;base64');
+      expect(svg).toContain('x="10"');
+      expect(svg).toContain('y="20"');
+
+      // Comprobar serialización y preservación de ## Embedded Files
+      const serialized = serializeExcalidrawMarkdown(parsed.scene, excalidrawMd);
+      expect(serialized).toContain('## Embedded Files');
+      expect(serialized).toContain('img123: [[adjuntos/grafico.png]]');
+    });
   });
 });

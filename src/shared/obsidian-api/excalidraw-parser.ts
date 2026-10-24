@@ -17,6 +17,7 @@ export interface ParsedExcalidrawDocument {
   scene: ExcalidrawScene;
   textElements: Array<{ text: string; id: string }>;
   wikilinks: string[];
+  embeddedFiles?: Record<string, string>; // Mapeo de fileId -> link de imagen/recurso (ej: "[[image.png]]")
 }
 
 /**
@@ -257,7 +258,40 @@ function parseExcalidrawMarkdown(raw: string): ParsedExcalidrawDocument {
     .filter((el) => el.type === 'text' && !el.isDeleted)
     .map((el) => ({ text: el.text || '', id: el.id || '' }));
 
+  // Extraer sección '## Embedded Files' de Obsidian Excalidraw
+  // Formato habitual:
+  // ## Embedded Files
+  // c6c05cda63b523c97a04dba571269622d1ae976b: [[adjuntos/mi-imagen.png]]
+  // o con comillas / texto crudo
+  const embeddedFiles: Record<string, string> = {};
+  const embeddedMatch = body.match(/## Embedded Files([\s\S]*?)(?:%%|# Text Elements|$)/i);
+  if (embeddedMatch && embeddedMatch[1]) {
+    const lines = embeddedMatch[1].split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const match = trimmed.match(/^([a-zA-Z0-9_\-]+):\s*"?\[\[(.*?)\]\]"?|([a-zA-Z0-9_\-]+):\s*(.*)$/);
+      if (match) {
+        const fileId = (match[1] || match[3] || '').trim();
+        let targetPath = (match[2] !== undefined ? match[2] : match[4] || '').trim().replace(/^['"]|['"]$/g, '');
+        // Si aún tiene corchetes [[ ... ]], removerlos
+        if (targetPath.startsWith('[[') && targetPath.endsWith(']]')) {
+          targetPath = targetPath.slice(2, -2).trim();
+        }
+        if (fileId && targetPath) {
+          embeddedFiles[fileId] = targetPath;
+        }
+      }
+    }
+  }
+
   const wikilinks = extractWikilinksFromElements(scene.elements);
+  // También agregar los wikilinks de embedded files a wikilinks
+  for (const target of Object.values(embeddedFiles)) {
+    const cleanTarget = target.split('|')[0].split('#')[0].trim();
+    if (cleanTarget && !wikilinks.includes(cleanTarget)) {
+      wikilinks.push(cleanTarget);
+    }
+  }
 
   return {
     isMarkdown: true,
@@ -265,6 +299,7 @@ function parseExcalidrawMarkdown(raw: string): ParsedExcalidrawDocument {
     scene,
     textElements,
     wikilinks,
+    embeddedFiles: Object.keys(embeddedFiles).length > 0 ? embeddedFiles : undefined,
   };
 }
 
@@ -305,6 +340,15 @@ export function serializeExcalidrawMarkdown(
   const elements = scene.elements || [];
   const appState = scene.appState || {};
   const files = scene.files || {};
+
+  // Extraer sección previa de ## Embedded Files para preservarla intacta
+  let embeddedSection = '';
+  if (existingContent) {
+    const prevEmbedded = existingContent.match(/## Embedded Files([\s\S]*?)(?:%%|$)/i);
+    if (prevEmbedded && prevEmbedded[0].trim()) {
+      embeddedSection = `\n${prevEmbedded[0].trim()}\n`;
+    }
+  }
 
   // 1. Extraer elementos de texto para deconstrucción en Markdown
   const textLines = elements
@@ -373,7 +417,7 @@ ${yml}
 ==Deconstruct of drawing==
 # Text Elements
 ${textSection}
-
+${embeddedSection}
 ${drawingBlock}
 `;
 }

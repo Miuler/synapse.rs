@@ -9,21 +9,83 @@
     serializeExcalidrawMarkdown,
     isExcalidrawMarkdown,
   } from '@shared/obsidian-api';
+  import { vaultRepository } from '@shared/repositories';
   import { Sparkles } from 'lucide-svelte';
 
   interface Props {
     content: string;
+    filePath?: string;
     readOnly?: boolean;
     onChange?: (content: string) => void;
     onSave?: (content?: string) => void;
     onSwitchToObsidian?: () => void;
   }
 
-  let { content = '', readOnly = false, onChange, onSave, onSwitchToObsidian }: Props = $props();
+  let { content = '', filePath = '', readOnly = false, onChange, onSave, onSwitchToObsidian }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let root: Root | null = null;
   let excalidrawAPI = $state<any>(null);
+
+  // Mapeo en memoria de archivos/imágenes resueltas (fileId -> { id, dataURL, mimeType })
+  let resolvedFilesMap: Record<string, any> = {};
+
+  // Función para resolver y cargar imágenes vinculadas en el diagrama
+  async function resolveEmbeddedImages(raw: string, api?: any) {
+    if (!raw) return;
+    try {
+      const parsedDoc = parseExcalidrawContent(raw);
+      const embedded = parsedDoc.embeddedFiles || {};
+      const fileIdsToResolve = Object.entries(embedded);
+
+      if (fileIdsToResolve.length === 0) return;
+
+      const newFiles: Record<string, any> = {};
+      let hasNewFiles = false;
+
+      for (const [fileId, targetPath] of fileIdsToResolve) {
+        if (resolvedFilesMap[fileId]) continue; // Ya cargada
+
+        try {
+          const dataUrl = await vaultRepository.readAssetDataUrl(targetPath, filePath);
+          if (dataUrl) {
+            let mimeType = 'image/png';
+            const cleanTarget = targetPath.toLowerCase().split('?')[0].split('#')[0];
+            if (cleanTarget.endsWith('.svg')) mimeType = 'image/svg+xml';
+            else if (cleanTarget.endsWith('.jpg') || cleanTarget.endsWith('.jpeg')) mimeType = 'image/jpeg';
+            else if (cleanTarget.endsWith('.webp')) mimeType = 'image/webp';
+            else if (cleanTarget.endsWith('.gif')) mimeType = 'image/gif';
+            else if (cleanTarget.endsWith('.bmp')) mimeType = 'image/bmp';
+            else if (dataUrl.startsWith('data:')) {
+              const mimeMatch = dataUrl.match(/^data:([^;]+);/);
+              if (mimeMatch) mimeType = mimeMatch[1];
+            }
+
+            const fileRecord = {
+              id: fileId,
+              dataURL: dataUrl,
+              mimeType,
+              created: Date.now(),
+            };
+            resolvedFilesMap[fileId] = fileRecord;
+            newFiles[fileId] = fileRecord;
+            hasNewFiles = true;
+          }
+        } catch (err) {
+          console.warn('[ExcalidrawViewer] No se pudo resolver imagen incrustada:', { fileId, targetPath, err });
+        }
+      }
+
+      if (hasNewFiles) {
+        const targetApi = api || excalidrawAPI;
+        if (targetApi?.addFiles) {
+          targetApi.addFiles(Object.values(newFiles));
+        }
+      }
+    } catch (e) {
+      console.warn('[ExcalidrawViewer] Error procesando embeddedFiles:', e);
+    }
+  }
 
   // Guardar la última cadena de contenido conocida en Excalidraw
   let lastKnownScene = untrack(() => content);
@@ -52,7 +114,10 @@
       return {
         elements: scene.elements || [],
         appState,
-        files: scene.files || {},
+        files: {
+          ...(scene.files || {}),
+          ...resolvedFilesMap,
+        },
       };
     } catch (e) {
       console.warn('Error al parsear contenido Excalidraw:', e);
@@ -150,6 +215,8 @@
         if (initialData.files && Object.keys(initialData.files).length > 0) {
           api.addFiles?.(Object.values(initialData.files));
         }
+        // Resolver y cargar imágenes vinculadas del vault (## Embedded Files)
+        resolveEmbeddedImages(data, api);
         if (!isReadOnly && api?.setActiveTool) {
           api.setActiveTool({ type: 'selection' });
         }
@@ -249,6 +316,7 @@
         if (parsed.files && Object.keys(parsed.files).length > 0) {
           excalidrawAPI.addFiles?.(Object.values(parsed.files));
         }
+        resolveEmbeddedImages(c, excalidrawAPI);
       } else {
         renderReactApp(c, r);
       }

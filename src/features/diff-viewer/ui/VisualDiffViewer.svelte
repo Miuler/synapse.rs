@@ -181,6 +181,7 @@
         {#if isDrawing}
           <ExcalidrawViewer
             content={localContent}
+            filePath={filePath}
             readOnly={!isLocalEditable}
             onChange={(updated) => persistLocalChanges(updated)}
             onSave={(updated) => updated && persistLocalChanges(updated)}
@@ -245,7 +246,7 @@
             <p>Este archivo no existe en {baseRevision ? `la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'el Stage' : 'el último commit (HEAD)')}.</p>
           </div>
         {:else if isDrawing}
-          <ExcalidrawViewer content={gitRevision.content || ''} readOnly={true} />
+          <ExcalidrawViewer content={gitRevision.content || ''} filePath={filePath} readOnly={true} />
         {:else if isDiagram}
           {#if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer content={gitRevision.content || ''} readOnly={true} />

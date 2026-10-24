@@ -350,8 +350,9 @@ export class ExcalidrawAutomate {
 
   /**
    * Exporta los elementos a una imagen vectorial SVG transparente.
+   * Soporta mapas de archivos resueltos (dataUrl o urls) para elementos de tipo 'image'.
    */
-  toSVG(elements?: any[]): string {
+  toSVG(elements?: any[], files?: Record<string, any>): string {
     const targetElements = (elements || this.elements).filter((el) => !el.isDeleted);
     if (targetElements.length === 0) {
       return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`;
@@ -406,6 +407,22 @@ export class ExcalidrawAutomate {
         svgParts.push(
           `<polyline points="${pts}" fill="none" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" marker-end="url(#arrow)" />`
         );
+      } else if (el.type === 'image') {
+        const fileRecord = files?.[el.fileId];
+        const dataUrl = fileRecord?.dataURL || fileRecord?.url || '';
+        if (dataUrl) {
+          svgParts.push(
+            `<image href="${dataUrl}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" />`
+          );
+        } else {
+          // Placeholder para imagen mientras carga o si no se encuentra
+          svgParts.push(
+            `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="#f1f5f9" stroke="#94a3b8" stroke-dasharray="4" rx="4" />`
+          );
+          svgParts.push(
+            `<text x="${el.x + 8}" y="${el.y + 20}" font-size="12" fill="#64748b">🖼 [Imagen ${el.fileId ? el.fileId.slice(0, 8) : ''}]</text>`
+          );
+        }
       } else if (el.type === 'text') {
         const escaped = (el.text || '')
           .replace(/&/g, '&amp;')

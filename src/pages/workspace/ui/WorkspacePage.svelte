@@ -3409,6 +3409,7 @@
                     <ExcalidrawViewer
                       bind:this={excalidrawViewers[tabPath]}
                       {content}
+                      filePath={tabPath}
                       readOnly={!paneEditing}
                       onSwitchToObsidian={() => switchExcalidrawViewerForTab(tabPath, 'obsidian')}
                       onChange={(updatedContent) => {
