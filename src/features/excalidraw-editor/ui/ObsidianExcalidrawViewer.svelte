@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import {
     parseExcalidrawContent,
     serializeExcalidrawMarkdown,
@@ -187,6 +187,30 @@
     return rawText;
   }
 
+  function handleBlur() {
+    if (readOnly) return;
+    if (onSave) {
+      onSave(getCurrentSerializedScene());
+    }
+  }
+
+  function handleContainerFocusOut(e: FocusEvent) {
+    if (readOnly) return;
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      if (onSave) {
+        onSave(getCurrentSerializedScene());
+      }
+    }
+  }
+
+  onDestroy(() => {
+    if (!readOnly && onSave && rawText !== content) {
+      onSave(rawText);
+    }
+  });
+
   function toggleViewMode() {
     if (viewMode === 'visual') {
       viewMode = 'text';
@@ -284,7 +308,7 @@
 <!-- Contenedor Principal del Visor Obsidian Excalidraw -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="obsidian-excalidraw-container" onkeydown={handleKeyDown} tabindex="0" role="region" aria-label="Visor Obsidian Excalidraw">
+<div class="obsidian-excalidraw-container" onkeydown={handleKeyDown} onfocusout={handleContainerFocusOut} tabindex="0" role="region" aria-label="Visor Obsidian Excalidraw">
   <!-- Cabecera de Acciones y Modos -->
   <header class="obsidian-viewer-header">
     <div class="header-left">
@@ -298,7 +322,12 @@
           type="button"
           class="mode-btn"
           class:active={viewMode === 'visual'}
-          onclick={() => (viewMode = 'visual')}
+          onclick={() => {
+            if (viewMode === 'text' && onSave) {
+              onSave(getCurrentSerializedScene());
+            }
+            viewMode = 'visual';
+          }}
           title="Vista gráfica vectorial del dibujo"
         >
           <Eye size={13} />
@@ -344,7 +373,10 @@
         <button
           type="button"
           class="action-btn switch-btn"
-          onclick={onSwitchToNative}
+          onclick={() => {
+            if (onSave) onSave(getCurrentSerializedScene());
+            onSwitchToNative?.();
+          }}
           title="Abrir con el editor nativo de Excalidraw en esta pestaña"
         >
           <PenTool size={13} />
@@ -437,6 +469,7 @@
           value={rawText}
           readonly={readOnly}
           oninput={handleTextChange}
+          onblur={handleBlur}
           placeholder="Contenido de Excalidraw en formato Markdown u Obsidian JSON..."
           spellcheck="false"
         ></textarea>

@@ -815,6 +815,45 @@
     }
   }
 
+  function handleWindowBlur() {
+    if (activeTabPath && !isSyntheticTab(activeTabPath)) {
+      flushPendingSaveForPath(activeTabPath);
+    }
+    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
+      flushPendingSaveForPath(activeSplitTabPath);
+    }
+  }
+
+  $effect(() => {
+    if (activeTabPath && !isSyntheticTab(activeTabPath) && openedNotes[activeTabPath]) {
+      const targetMode: MarkdownViewMode = isEditing
+        ? (markdownViewMode === 'reading' ? 'live' : markdownViewMode)
+        : 'reading';
+      if (openedNotes[activeTabPath].viewMode !== targetMode) {
+        openedNotes[activeTabPath].viewMode = targetMode;
+        const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
+        if (vItem) vItem.view_mode = targetMode;
+        vaultRepository.setNoteViewMode(activeTabPath, targetMode);
+        persistTabsState();
+      }
+    }
+  });
+
+  $effect(() => {
+    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath) && openedNotes[activeSplitTabPath]) {
+      const targetMode: MarkdownViewMode = isSplitEditing
+        ? (splitMarkdownViewMode === 'reading' ? 'live' : splitMarkdownViewMode)
+        : 'reading';
+      if (openedNotes[activeSplitTabPath].viewMode !== targetMode) {
+        openedNotes[activeSplitTabPath].viewMode = targetMode;
+        const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
+        if (vItem) vItem.view_mode = targetMode;
+        vaultRepository.setNoteViewMode(activeSplitTabPath, targetMode);
+        persistTabsState();
+      }
+    }
+  });
+
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     if (isOfficeFile(path)) {
@@ -2138,7 +2177,8 @@
         // 1. Recargar pestañas abiertas que hayan sido modificadas externamente si están limpias
         for (const changedPath of paths) {
           const cleanChanged = changedPath.replace(/^\.\//, '').replace(/\\/g, '/');
-          const matchedOpenPath = openTabPaths.find((p) => p.replace(/^\.\//, '').replace(/\\/g, '/') === cleanChanged);
+          const allOpen = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
+          const matchedOpenPath = allOpen.find((p) => p.replace(/^\.\//, '').replace(/\\/g, '/') === cleanChanged);
 
           if (matchedOpenPath) {
             // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
@@ -2148,7 +2188,7 @@
             }
 
             // Si es un dibujo abierto y el usuario está editando activamente, no sobreescribir con datos de disco
-            if (isDrawingFile(matchedOpenPath)) {
+            if (isDrawingTab(matchedOpenPath, openedNotes[matchedOpenPath]?.content)) {
               const isCurrentlyEditing = (matchedOpenPath === activeTabPath && isEditing) || (matchedOpenPath === activeSplitTabPath && isSplitEditing);
               if (isCurrentlyEditing) {
                 continue;
@@ -2357,7 +2397,10 @@
     const enc = targetEncoding || (currentTabEnc && currentTabEnc !== "---" ? currentTabEnc : "UTF-8");
 
     // Registrar timestamp antes de iniciar el guardado para evitar condiciones de carrera con notify / fs-events
-    recentSaveTimestamps[path] = Date.now();
+    const cleanP = path.replace(/^\.\//, '').replace(/\\/g, '/');
+    const now = Date.now();
+    recentSaveTimestamps[path] = now;
+    recentSaveTimestamps[cleanP] = now;
     syncState = "saving";
     try {
       await vaultRepository.saveNote({
@@ -2366,7 +2409,9 @@
         content: contentToSave,
         encoding: enc,
       });
-      recentSaveTimestamps[path] = Date.now();
+      const postNow = Date.now();
+      recentSaveTimestamps[path] = postNow;
+      recentSaveTimestamps[cleanP] = postNow;
       if (openedNotes[path]) {
         openedNotes[path].savedContent = contentToSave;
         if (targetEncoding) {
@@ -3250,6 +3295,8 @@
     window.addEventListener('mouseup', handlePointerUp);
   }
 </script>
+
+<svelte:window onblur={handleWindowBlur} />
 
 <div class="workspace-layout">
   {#if showWelcomeScreen && !isDetachedWindow}

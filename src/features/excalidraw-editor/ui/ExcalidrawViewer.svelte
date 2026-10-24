@@ -370,6 +370,15 @@
     }
   });
 
+  function handleContainerFocusOut(e: FocusEvent) {
+    if (readOnly) return;
+    const currentTarget = e.currentTarget as HTMLElement;
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      triggerSave();
+    }
+  }
+
   function handleContainerKeyDownCapture(e: KeyboardEvent) {
     const isCtrlOrMeta = e.ctrlKey || e.metaKey;
     if (isCtrlOrMeta && !e.altKey) {
@@ -392,12 +401,16 @@
   class="excalidraw-container"
   bind:this={containerRef}
   onkeydowncapture={handleContainerKeyDownCapture}
+  onfocusout={handleContainerFocusOut}
 >
   {#if onSwitchToObsidian}
     <button
       type="button"
       class="switch-to-obsidian-btn"
-      onclick={onSwitchToObsidian}
+      onclick={() => {
+        triggerSave();
+        onSwitchToObsidian?.();
+      }}
       title="Abrir con el visor de Excalidraw para Obsidian"
     >
       <Sparkles size={13} />
