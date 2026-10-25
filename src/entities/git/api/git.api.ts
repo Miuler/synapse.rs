@@ -29,6 +29,18 @@ export const gitApi = {
     await invokeTauri('git_restore_staged_paths', { paths });
   },
 
+  async add(paths: string[]): Promise<void> {
+    return this.gitAdd(paths);
+  },
+
+  async restore(paths: string[]): Promise<void> {
+    return this.gitRestore(paths);
+  },
+
+  async restoreStaged(paths: string[]): Promise<void> {
+    return this.gitRestoreStaged(paths);
+  },
+
   async getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse> {
     return await invokeTauri<GitDiffResponse>('get_git_file_diff', { path, staged, revision });
   },

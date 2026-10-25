@@ -1,14 +1,18 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
-  import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
+  import { vaultApi } from '@entities/vault-item';
+  import { settingsApi } from '@entities/settings';
+  import { systemApi } from '@shared/api';
+  import type { GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
-  import { ConfirmDialog } from '@shared/ui/confirm-dialog';
-  import { gitDialogState, type GitCommitFileItem } from '@entities/git';
+  import { gitDialogState, gitApi, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch } from 'lucide-svelte';
+  import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
+  import VaultRestoreDialog from './VaultRestoreDialog.svelte';
 
   interface Props {
     activeRibbonTab: string;
@@ -128,7 +132,7 @@
   async function loadDirectory(parentPath: string = '') {
     if (!isConnectedToRust) return;
     try {
-      const entries = await vaultRepository.getDirectoryChildren(parentPath);
+      const entries = await vaultApi.getDirectoryChildren(parentPath);
       const nodes: VaultTreeNode[] = entries.map((entry) => ({
         name: entry.name,
         relativePath: entry.relative_path,
@@ -156,14 +160,14 @@
       const expandedList = Object.entries(expandedFolders)
         .filter(([_, isExpanded]) => isExpanded)
         .map(([path]) => path);
-      await vaultRepository.saveVaultUiState(undefined, expandedList);
+      await settingsApi.saveVaultUiState({ expandedFolders: expandedList });
     }, 250);
   }
 
   async function restoreExpandedFolders() {
     if (!isConnectedToRust) return;
     try {
-      const uiState = await vaultRepository.getVaultUiState();
+      const uiState = await settingsApi.getVaultUiState();
       if (uiState?.expanded_folders && uiState.expanded_folders.length > 0) {
         for (const folder of uiState.expanded_folders) {
           expandedFolders[folder] = true;
@@ -558,7 +562,7 @@
 
   async function handleOpenFileWithDefaultApp(path: string) {
     try {
-      await vaultRepository.openFileWithDefaultApp(path);
+      await systemApi.openFileWithDefaultApp(path);
     } catch (err) {
       console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
     }
@@ -566,7 +570,7 @@
 
   async function handleShowItemInFolder(path: string) {
     try {
-      await vaultRepository.showItemInFolder(path);
+      await systemApi.showItemInFolder(path);
     } catch (err) {
       console.warn('Error al mostrar elemento en carpeta del sistema:', err);
     }
@@ -1006,7 +1010,7 @@
       }
 
       // Guardar el nuevo archivo en el backend
-      await vaultRepository.saveNote({
+      await vaultApi.saveNote({
         relativePath: candidateRelPath,
         title,
         content: initialContent,
@@ -1035,7 +1039,7 @@
       await reloadDirectoryAndSubdirectories(destDir);
 
       // Notificar recarga a la bóveda / WorkspacePage para actualizar vaultItems
-      const reloaded = await vaultRepository.reloadVaultItems([candidateRelPath]);
+      const reloaded = await vaultApi.reloadVaultItems([candidateRelPath]);
       if (onReloadItems) {
         await onReloadItems([destDir || ''], reloaded);
       }
@@ -1079,7 +1083,7 @@
     const destDir = getPasteDestination(fromKeyboard);
     isPasting = true;
     try {
-      const created = await vaultRepository.copyItems(copiedPaths, destDir);
+      const created = await vaultApi.copyItems(copiedPaths, destDir);
       if (destDir && !expandedFolders[destDir]) {
         expandedFolders[destDir] = true;
         persistExpandedFolders();
@@ -1180,7 +1184,7 @@
     const targets = paths.length > 0 ? paths : [''];
     isReloading = true;
     try {
-      const reloadedFiles = await vaultRepository.reloadVaultItems(targets);
+      const reloadedFiles = await vaultApi.reloadVaultItems(targets);
 
       const refreshedParents = new Set<string>();
       for (const t of targets) {
@@ -1233,12 +1237,6 @@
   }
 
   // Estado del diálogo de confirmación de borrado múltiple
-  interface ItemToDelete {
-    name: string;
-    relativePath: string;
-    isFolder: boolean;
-  }
-
   let itemsToDelete = $state<ItemToDelete[]>([]);
   let isDeleting = $state(false);
   let isDeleteDialogOpen = $state(false);
@@ -1274,7 +1272,7 @@
     try {
       const renamedPath = onRenameItem
         ? await onRenameItem(contextMenuNode.relativePath, newName)
-        : await vaultRepository.renameItem(contextMenuNode.relativePath, newName);
+        : await vaultApi.renameItem(contextMenuNode.relativePath, newName);
       const finalPath = typeof renamedPath === 'string' ? renamedPath : contextMenuNode.relativePath;
       selectedPaths = [finalPath];
       lastFocusedPath = finalPath;
@@ -1309,7 +1307,7 @@
           if (onDeleteItem) {
             await onDeleteItem(target.relativePath, target.isFolder);
           } else {
-            await vaultRepository.deleteItem(target.relativePath);
+            await vaultApi.deleteItem(target.relativePath);
           }
         }
       }
@@ -1521,7 +1519,7 @@
     const paths = gitAddPaths.length > 0 ? gitAddPaths : getSelectedRelativePaths();
     if (paths.length === 0) return;
     try {
-      await vaultRepository.gitAdd(paths);
+      await gitApi.add(paths);
       showToast(
         paths.length > 1
           ? `${paths.length} elementos añadidos al stage (git add)`
@@ -1539,7 +1537,7 @@
     const paths = gitRestoreStagedPaths.length > 0 ? gitRestoreStagedPaths : getSelectedRelativePaths();
     if (paths.length === 0) return;
     try {
-      await vaultRepository.gitRestoreStaged(paths);
+      await gitApi.restoreStaged(paths);
       showToast(
         paths.length > 1
           ? `${paths.length} elementos desmarcados de stage (git restore --staged)`
@@ -1575,7 +1573,7 @@
     const targets = [...itemsToRestore];
     isRestoring = true;
     try {
-      await vaultRepository.gitRestore(targets);
+      await gitApi.restore(targets);
       showToast(
         targets.length > 1
           ? `${targets.length} elementos restaurados (git restore)`
@@ -2114,73 +2112,21 @@
     </ContextMenu.Portal>
   </ContextMenu.Root>
 
-<ConfirmDialog
+<VaultDeleteDialog
   bind:open={isDeleteDialogOpen}
-  title={itemsToDelete.length > 1
-    ? `¿Eliminar ${itemsToDelete.length} elementos?`
-    : `¿Eliminar ${itemsToDelete[0]?.isFolder ? 'carpeta' : 'archivo'}?`}
-  description={itemsToDelete.length > 1
-    ? `¿Estás seguro de que deseas eliminar permanentemente estos ${itemsToDelete.length} elementos y todo su contenido? Esta acción no se puede deshacer.`
-    : itemsToDelete.length === 1
-      ? `¿Estás seguro de que deseas eliminar permanentemente "${itemsToDelete[0]?.name}"${itemsToDelete[0]?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.`
-      : ''}
-  confirmText="Eliminar"
-  loadingText="Eliminando..."
-  cancelText="Cancelar"
-  variant="danger"
-  icon={Trash2}
+  items={itemsToDelete}
   loading={isDeleting}
   onConfirm={confirmDelete}
   onCancel={cancelDelete}
->
-  {#if itemsToDelete.length > 1}
-    <div class="confirm-dialog-item-list">
-      {#each itemsToDelete.slice(0, 5) as item}
-        <div class="confirm-dialog-item">
-          • {item.name} {item.isFolder ? '(carpeta)' : ''}
-        </div>
-      {/each}
-      {#if itemsToDelete.length > 5}
-        <div class="confirm-dialog-item more">
-          ... y {itemsToDelete.length - 5} más
-        </div>
-      {/if}
-    </div>
-  {/if}
-</ConfirmDialog>
+/>
 
-<ConfirmDialog
+<VaultRestoreDialog
   bind:open={isRestoreDialogOpen}
-  title={itemsToRestore.length > 1
-    ? `¿Restaurar ${itemsToRestore.length} elementos con Git?`
-    : `¿Restaurar "${itemsToRestore[0] || ''}" con Git?`}
-  description={itemsToRestore.length > 1
-    ? `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de estos ${itemsToRestore.length} elementos? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`
-    : `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de "${itemsToRestore[0] || ''}"? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`}
-  confirmText="Restaurar cambios"
-  loadingText="Restaurando..."
-  cancelText="Cancelar"
-  variant="danger"
-  icon={RotateCcw}
+  items={itemsToRestore}
   loading={isRestoring}
   onConfirm={confirmGitRestore}
   onCancel={cancelGitRestore}
->
-  {#if itemsToRestore.length > 1}
-    <div class="confirm-dialog-item-list">
-      {#each itemsToRestore.slice(0, 5) as path}
-        <div class="confirm-dialog-item">
-          • {path}
-        </div>
-      {/each}
-      {#if itemsToRestore.length > 5}
-        <div class="confirm-dialog-item more">
-          ... y {itemsToRestore.length - 5} más
-        </div>
-      {/if}
-    </div>
-  {/if}
-</ConfirmDialog>
+/>
 
 {#if toastMessage}
   <div class="vault-toast">
