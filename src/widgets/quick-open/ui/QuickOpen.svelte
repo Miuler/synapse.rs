@@ -3,6 +3,7 @@
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch } from 'lucide-svelte';
   import { FileIcon } from '@entities/file-type';
+  import { SearchBox } from '@shared/ui/search-box';
   import {
     vaultRepository,
     searchRepository,
@@ -400,25 +401,26 @@
         shouldFilter={false}
         onkeydown={handleKeydownRoot}
       >
-        <div class="quick-open-input-wrapper" class:is-fts={isFtsMode}>
-          {#if isFtsMode}
-            <TextSearch size={16} class="search-icon fts-active-icon" />
-          {:else}
-            <Search size={16} class="search-icon" />
-          {/if}
-          <Command.Input
-            class="command-input"
-            bind:value={searchQuery}
-            placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : "Buscar archivo por nombre... (Ctrl+O, escribe '?' para contenido)"}
-          />
-          {#if isFtsMode}
-            <span class="fts-indicator-badge">FTS</span>
-          {/if}
-          {#if isFtsLoading}
-            <span class="quick-fts-spinner"></span>
-          {/if}
-          <span class="esc-badge">ESC</span>
-        </div>
+        <SearchBox
+          class={isFtsMode ? 'is-fts' : ''}
+          bind:value={searchQuery}
+          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : "Buscar archivo por nombre... (Ctrl+O, escribe '?' para contenido)"}
+          loading={isFtsLoading}
+        >
+          {#snippet icon()}
+            {#if isFtsMode}
+              <TextSearch size={16} class="search-box-icon fts-active-icon" />
+            {:else}
+              <Search size={16} class="search-box-icon" />
+            {/if}
+          {/snippet}
+
+          {#snippet badge()}
+            {#if isFtsMode}
+              <span class="fts-indicator-badge">FTS</span>
+            {/if}
+          {/snippet}
+        </SearchBox>
 
         <Command.List
           bind:ref={listContainerEl}
@@ -705,59 +707,6 @@
     outline: none;
   }
 
-  :global(.quick-open-container .quick-open-input-wrapper) {
-    display: flex;
-    align-items: center;
-    position: relative;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-primary, #d0d7de);
-    background: var(--bg-secondary, #f6f8fa);
-    flex-shrink: 0;
-    gap: 12px;
-  }
-
-  :global(.quick-open-container .search-icon) {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    width: 18px;
-    height: 18px;
-    color: var(--text-secondary, #656d76);
-    margin-right: 0;
-    flex-shrink: 0;
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  :global(.quick-open-container .command-input) {
-    flex: 1 1 auto;
-    min-width: 0;
-    width: auto;
-    background: transparent;
-    border: none;
-    padding: 0;
-    margin: 0;
-    color: var(--text-primary, #1f2328);
-    font-size: 15px;
-    outline: none;
-    font-family: inherit;
-    box-shadow: none;
-  }
-
-  :global(.quick-open-container .command-input::placeholder) {
-    color: var(--text-secondary, #656d76);
-  }
-
-  :global(.quick-open-container .esc-badge) {
-    font-size: 11px;
-    font-family: var(--mono, monospace);
-    color: var(--text-secondary, #656d76);
-    background: var(--bg-primary, #ffffff);
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-primary, #d0d7de);
-  }
-
   :global(.quick-open-container .quick-open-results-container) {
     flex: 1 1 0%;
     min-height: 0;
@@ -895,7 +844,7 @@
     user-select: none;
   }
 
-  :global(.quick-open-container .quick-open-input-wrapper.is-fts) {
+  :global(.quick-open-container .search-box-wrapper.is-fts) {
     border-bottom: 2px solid var(--accent, #0969da);
   }
 

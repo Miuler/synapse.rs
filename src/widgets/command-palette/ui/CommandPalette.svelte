@@ -1,7 +1,7 @@
 <script lang="ts">
   import { commandRegistry, type AppCommand } from '@entities/command';
   import { Command, Dialog } from 'bits-ui';
-  import { Search } from 'lucide-svelte';
+  import { SearchBox } from '@shared/ui/search-box';
 
   interface Props {
     isOpen?: boolean;
@@ -56,15 +56,10 @@
     <Dialog.Content class="palette-container">
       <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
       <Command.Root class="command-root" loop>
-        <div class="input-wrapper">
-          <Search size={16} class="search-icon" />
-          <Command.Input
-            class="command-input"
-            bind:value={searchValue}
-            placeholder="Escribe un comando o busca..."
-          />
-          <span class="esc-badge">ESC</span>
-        </div>
+        <SearchBox
+          bind:value={searchValue}
+          placeholder="Escribe un comando o busca..."
+        />
 
         <Command.List class="results-container">
           <Command.Empty class="empty-state">No se encontraron comandos</Command.Empty>
@@ -157,46 +152,6 @@
     flex-direction: column;
     width: 100%;
     outline: none;
-  }
-
-  :global(.palette-container .input-wrapper) {
-    display: flex;
-    align-items: center;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-primary, #d0d7de);
-    background: var(--bg-secondary, #f6f8fa);
-  }
-
-  :global(.palette-container .search-icon) {
-    width: 18px;
-    height: 18px;
-    color: var(--text-secondary, #656d76);
-    margin-right: 12px;
-    flex-shrink: 0;
-  }
-
-  :global(.palette-container .command-input) {
-    flex-grow: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-primary, #1f2328);
-    font-size: 15px;
-    outline: none;
-    font-family: inherit;
-  }
-
-  :global(.palette-container .command-input::placeholder) {
-    color: var(--text-secondary, #656d76);
-  }
-
-  :global(.palette-container .esc-badge) {
-    font-size: 11px;
-    font-family: var(--mono, monospace);
-    color: var(--text-secondary, #656d76);
-    background: var(--bg-primary, #ffffff);
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-primary, #d0d7de);
   }
 
   :global(.palette-container .results-container) {
