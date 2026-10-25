@@ -259,7 +259,7 @@
       <Command.Root class="fts-command-root" loop shouldFilter={false}>
         <!-- Barra de búsqueda superior -->
         <div class="fts-input-wrapper">
-          <Search size={18} class="search-icon" />
+          <Search size={16} class="search-icon" />
           <Command.Input
             class="command-input"
             bind:value={searchQuery}
@@ -528,26 +528,40 @@
   :global(.fts-container .fts-input-wrapper) {
     display: flex;
     align-items: center;
+    position: relative;
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     background: var(--bg-secondary, #f6f8fa);
     flex-shrink: 0;
-    gap: 10px;
+    gap: 12px;
   }
 
   :global(.fts-container .search-icon) {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 18px;
+    height: 18px;
     color: var(--text-secondary, #656d76);
+    margin-right: 0;
     flex-shrink: 0;
+    pointer-events: none;
+    z-index: 1;
   }
 
   :global(.fts-container .command-input) {
-    flex-grow: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
     background: transparent;
     border: none;
+    padding: 0;
+    margin: 0;
     color: var(--text-primary, #1f2328);
     font-size: 15px;
     outline: none;
     font-family: inherit;
+    box-shadow: none;
   }
 
   :global(.fts-container .command-input::placeholder) {
