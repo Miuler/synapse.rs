@@ -2,7 +2,7 @@
   import {debug, info, warn, error} from '@tauri-apps/plugin-log';
   import {onMount, tick} from "svelte";
   import {Ribbon} from "@widgets/ribbon";
-  import {EditorHeader} from "@widgets/editor-header";
+  import WorkspacePane from "./WorkspacePane.svelte";
   import {StatusBar} from "@widgets/status-bar";
   import {CommandPalette} from "@widgets/command-palette";
   import {QuickOpen} from "@widgets/quick-open";
@@ -31,15 +31,16 @@
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
-  import type {VaultItem, OpenedNote, MarkdownViewMode} from "@entities/vault-item";
+  import {vaultApi, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
+  import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
+  import {systemApi} from "@shared/api";
   import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType, createCanonicalExcalidrawContent} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
   import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
-  import {Columns2} from "lucide-svelte";
   import {
     isSyntheticTab,
     isDrawingTab,
@@ -710,7 +711,7 @@
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     if (isOfficeFile(path)) {
-      vaultRepository.openFileWithDefaultApp(path).catch((err) => {
+      systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
       return;
@@ -1086,7 +1087,7 @@
     if (!path || isSyntheticTab(path)) return;
     const vItem = vaultItems.find((v) => v.relative_path === path);
     const title = vItem?.title || path.split('/').pop() || path;
-    await vaultRepository.openTabInNewWindow(path, title);
+    await systemApi.openTabInNewWindow(path, title);
     if (moveTab) {
       closeTab(path);
     }
@@ -1144,7 +1145,7 @@
   function selectSplitTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     if (isOfficeFile(path)) {
-      vaultRepository.openFileWithDefaultApp(path).catch((err) => {
+      systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
       return;
@@ -1707,7 +1708,7 @@
 
   async function fetchNotesFromBackend() {
     try {
-      const activePath = await vaultRepository.getActiveVaultPath();
+      const activePath = await vaultApi.getActiveVaultPath();
       if (!activePath) {
         vaultItems = [];
         isConnectedToRust = vaultRepository.isConnected();
@@ -1897,20 +1898,20 @@
     // Cargar la configuración de tipos soportados a través de la entidad file-type
     loadSupportedFileTypes();
 
-    vaultRepository.getStartupTarget().then(async (startupTarget) => {
+    systemApi.getStartupTarget().then(async (startupTarget) => {
       if (startupTarget?.type === 'standalone') {
         await openStandaloneFile(startupTarget.path);
         return;
       } else if (startupTarget?.type === 'vault') {
         showWelcomeScreen = false;
         hasActiveWorkspaceLoaded = true;
-        await vaultRepository.setActiveVaultPath(startupTarget.path);
+        await vaultApi.setActiveVaultPath(startupTarget.path);
         appSettings.setLastOpenedFolder(startupTarget.path);
         await fetchNotesFromBackend();
         return;
       }
 
-      vaultRepository.getDetachedWindowTab().then(async (detachedTab) => {
+      systemApi.getDetachedWindowTab().then(async (detachedTab) => {
         if (detachedTab) {
           isDetachedWindow = true;
           showWelcomeScreen = false;
@@ -1928,7 +1929,7 @@
         if (vaultQueryParam) {
           showWelcomeScreen = false;
           hasActiveWorkspaceLoaded = true;
-          await vaultRepository.setActiveVaultPath(vaultQueryParam);
+          await vaultApi.setActiveVaultPath(vaultQueryParam);
           appSettings.setLastOpenedFolder(vaultQueryParam);
           await fetchNotesFromBackend();
           return;
@@ -1939,7 +1940,7 @@
           handleNewEmptyTab();
         }
 
-        const activePath = await vaultRepository.getActiveVaultPath();
+        const activePath = await vaultApi.getActiveVaultPath();
         if (!activePath) {
           showWelcomeScreen = true;
           hasActiveWorkspaceLoaded = false;
@@ -2575,7 +2576,7 @@
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
-            await vaultRepository.gitAdd([activeTabPath]);
+            await gitApi.add([activeTabPath]);
             await refreshGitStatus();
           } catch (e) {
             console.error("Error en git add:", e);
@@ -2589,7 +2590,7 @@
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
-            await vaultRepository.gitRestoreStaged([activeTabPath]);
+            await gitApi.restoreStaged([activeTabPath]);
             await refreshGitStatus();
           } catch (e) {
             console.error("Error en git restore --staged:", e);
@@ -2603,7 +2604,7 @@
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
-            await vaultRepository.gitRestore([activeTabPath]);
+            await gitApi.restore([activeTabPath]);
             await handleGitRestoreFiles([activeTabPath]);
             if (vaultExplorerRef?.refreshTree) {
               await vaultExplorerRef.refreshTree();
@@ -2986,7 +2987,7 @@
 
   async function handleOpenVaultFolder() {
     try {
-      const result = await vaultRepository.selectVaultFolder(appSettings.lastOpenedFolder);
+      const result = await vaultApi.selectVaultFolder(appSettings.lastOpenedFolder);
       if (result) {
         isStandaloneMode = false;
         if (result.folder_path) {
@@ -3366,7 +3367,8 @@
   <main class="main-workspace" class:is-resizing={isResizingSidebar || isResizingSplit}>
     {#if !isSplit}
       <!-- MODO NORMAL: UN SOLO PANEL -->
-      <EditorHeader
+      <WorkspacePane
+        paneId="single"
         bind:isEditing
         tabs={tabsInfo}
         {activeTabPath}
@@ -3387,132 +3389,91 @@
             isMarkdownFile(currentVaultItem.relative_path) ||
             isDrawingTab(currentVaultItem.relative_path, activeContent) ||
             isPdfFile(currentVaultItem.relative_path))}
+        showWindowControls={true}
+        isSplitActive={false}
+        bind:containerRef={editorContainerRef}
+        showSplitDropZoneOverlay={isDragOverSplitRight}
         onSelectTab={(path) => selectTab(path)}
         onCloseTab={(path) => requestCloseTab(path)}
         onCloseAllTabs={requestCloseAllTabs}
         onCloseOtherTabs={requestCloseOtherTabs}
         onCloseTabsToRight={requestCloseTabsToRight}
-        onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
-        onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
         onOpenInNewWindow={handleOpenInNewWindow}
         onReorderTab={reorderTab}
-        onReceiveTabFromOtherWindow={receiveTabFromOtherWindow}
+        onReceiveTab={receiveTabFromOtherWindow}
         onNewTab={handleNewEmptyTab}
         onNewFile={() => createNewVaultItem()}
         onOpenQuickOpen={() => (isQuickOpenOpen = true)}
         onSplitView={handleSplitView}
-        onAction={(actionId) => {
-          if (actionId === 'nav-back') navigateBack();
-          else if (actionId === 'nav-forward') navigateForward();
-          else if (actionId === 'new-file') createNewVaultItem();
-          else if (actionId === 'quick-open') isQuickOpenOpen = true;
-        }}
-        onToggleView={() => {
-          toggleViewMode();
-        }}
+        onToggleView={toggleViewMode}
         onSave={() => {
           if (activeTabPath && currentVaultItem.relative_path) {
             persistVaultItemToRust(currentVaultItem, undefined, true);
           }
         }}
         onOpenCommandPalette={() => (isPaletteOpen = true)}
-        showWindowControls={true}
-        isSplitActive={false}
-      />
-
-      <!-- CONTENEDOR DEL EDITOR CON MULTI-TAB Y CARGA BAJO DEMANDA -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="editor-container"
-        bind:this={editorContainerRef}
-        ondragover={handleEditorDragOver}
-        ondragleave={handleEditorDragLeave}
-        ondrop={handleEditorDrop}
-        onpointerdown={() => { activeFocusedPane = 'left'; }}
+        onPointerDown={() => { activeFocusedPane = 'left'; }}
+        onDragOver={handleEditorDragOver}
+        onDragLeave={handleEditorDragLeave}
+        onDrop={handleEditorDrop}
       >
         {@render renderPaneContent(openTabPaths, activeTabPath, false)}
-
-        {#if isDragOverSplitRight}
-          <div class="split-drop-zone-overlay">
-            <div class="split-drop-zone-content">
-              <Columns2 size={36} />
-              <span>Dividir panel a la derecha</span>
-            </div>
-          </div>
-        {/if}
-      </div>
+      </WorkspacePane>
     {:else}
       <!-- MODO DIVIDIDO: DOS PANELES LADO A LADO -->
       <div class="split-workspace-container" bind:this={splitContainerRef}>
         <!-- PANEL IZQUIERDO -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="split-pane-wrapper left-pane"
+        <WorkspacePane
+          paneId="left"
+          isSplit={true}
           style="width: {splitRatio}%;"
-          onpointerdown={() => { activeFocusedPane = 'left'; }}
+          bind:isEditing
+          tabs={tabsInfo}
+          {activeTabPath}
+          {canGoBack}
+          {canGoForward}
+          onNavigateBack={navigateBack}
+          onNavigateForward={navigateForward}
+          isMarkdownFile={isMarkdownTab}
+          showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
+          markdownViewMode={!isEditing ? "reading" : markdownViewMode}
+          onChangeMarkdownView={handleChangeMarkdownView}
+          title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
+          showSaveButton={(!autoSave || (!!activeTabPath && lockedFiles.has(activeTabPath))) &&
+            isEditing &&
+            !!activeTabPath &&
+            !isSyntheticTab(activeTabPath) &&
+            (!currentVaultItem.relative_path ||
+              isMarkdownFile(currentVaultItem.relative_path) ||
+              isDrawingTab(currentVaultItem.relative_path, activeContent) ||
+              isPdfFile(currentVaultItem.relative_path))}
+          showWindowControls={false}
+          isSplitActive={true}
+          onSelectTab={(path) => selectTab(path)}
+          onCloseTab={(path) => requestCloseTab(path)}
+          onCloseAllTabs={requestCloseAllTabs}
+          onCloseOtherTabs={requestCloseOtherTabs}
+          onCloseTabsToRight={requestCloseTabsToRight}
+          onOpenInNewWindow={handleOpenInNewWindow}
+          onReorderTab={reorderTab}
+          onReceiveTab={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
+          onNewTab={handleNewEmptyTab}
+          onNewFile={() => createNewVaultItem()}
+          onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+          onSplitView={handleSplitView}
+          onToggleView={toggleViewMode}
+          onSave={() => {
+            if (activeTabPath && currentVaultItem.relative_path) {
+              persistVaultItemToRust(currentVaultItem, undefined, true);
+            }
+          }}
+          onOpenCommandPalette={() => (isPaletteOpen = true)}
+          onPointerDown={() => { activeFocusedPane = 'left'; }}
+          onDragOver={(e) => handlePaneDragOver(e, 'left')}
+          onDrop={(e) => handlePaneDrop(e, 'left')}
         >
-          <EditorHeader
-            bind:isEditing
-            tabs={tabsInfo}
-            {activeTabPath}
-            {canGoBack}
-            {canGoForward}
-            onNavigateBack={navigateBack}
-            onNavigateForward={navigateForward}
-            isMarkdownFile={isMarkdownTab}
-            showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
-            markdownViewMode={!isEditing ? "reading" : markdownViewMode}
-            onChangeMarkdownView={handleChangeMarkdownView}
-            title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
-            showSaveButton={(!autoSave || (!!activeTabPath && lockedFiles.has(activeTabPath))) &&
-              isEditing &&
-              !!activeTabPath &&
-              !isSyntheticTab(activeTabPath) &&
-              (!currentVaultItem.relative_path ||
-                isMarkdownFile(currentVaultItem.relative_path) ||
-                isDrawingTab(currentVaultItem.relative_path, activeContent) ||
-                isPdfFile(currentVaultItem.relative_path))}
-            onSelectTab={(path) => selectTab(path)}
-            onCloseTab={(path) => requestCloseTab(path)}
-            onCloseAllTabs={requestCloseAllTabs}
-            onCloseOtherTabs={requestCloseOtherTabs}
-            onCloseTabsToRight={requestCloseTabsToRight}
-            onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
-            onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
-            onOpenInNewWindow={handleOpenInNewWindow}
-            onReorderTab={reorderTab}
-            onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
-            onNewTab={handleNewEmptyTab}
-            onNewFile={() => createNewVaultItem()}
-            onOpenQuickOpen={() => (isQuickOpenOpen = true)}
-            onSplitView={handleSplitView}
-            onAction={(actionId) => {
-              if (actionId === 'nav-back') navigateBack();
-              else if (actionId === 'nav-forward') navigateForward();
-              else if (actionId === 'new-file') createNewVaultItem();
-              else if (actionId === 'quick-open') isQuickOpenOpen = true;
-            }}
-            onToggleView={() => {
-              toggleViewMode();
-            }}
-            onSave={() => {
-              if (activeTabPath && currentVaultItem.relative_path) {
-                persistVaultItemToRust(currentVaultItem, undefined, true);
-              }
-            }}
-            onOpenCommandPalette={() => (isPaletteOpen = true)}
-            showWindowControls={false}
-            isSplitActive={true}
-          />
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="editor-container"
-            ondragover={(e) => handlePaneDragOver(e, 'left')}
-            ondrop={(e) => handlePaneDrop(e, 'left')}
-          >
-            {@render renderPaneContent(openTabPaths, activeTabPath, false)}
-          </div>
-        </div>
+          {@render renderPaneContent(openTabPaths, activeTabPath, false)}
+        </WorkspacePane>
 
         <!-- DIVISOR REDIMENSIONABLE -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -3526,70 +3487,55 @@
         </div>
 
         <!-- PANEL DERECHO -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="split-pane-wrapper right-pane"
+        <WorkspacePane
+          paneId="right"
+          isSplit={true}
           style="width: {100 - splitRatio}%;"
-          onpointerdown={() => { activeFocusedPane = 'right'; }}
+          bind:isEditing={isSplitEditing}
+          tabs={rightTabsInfo}
+          activeTabPath={activeSplitTabPath}
+          canGoBack={false}
+          canGoForward={false}
+          isMarkdownFile={isMarkdownSplitTab}
+          showViewToggle={hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)}
+          markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
+          onChangeMarkdownView={handleChangeSplitMarkdownView}
+          title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
+          showSaveButton={(!autoSave || (!!activeSplitTabPath && lockedFiles.has(activeSplitTabPath))) &&
+            isSplitEditing &&
+            !!activeSplitTabPath &&
+            !isSyntheticTab(activeSplitTabPath) &&
+            (!currentSplitVaultItem.relative_path ||
+              isMarkdownFile(currentSplitVaultItem.relative_path) ||
+              isDrawingTab(currentSplitVaultItem.relative_path, openedNotes[activeSplitTabPath]?.content) ||
+              isPdfFile(currentSplitVaultItem.relative_path))}
+          showWindowControls={true}
+          isSplitActive={true}
+          onSelectTab={(path) => selectSplitTab(path)}
+          onCloseTab={(path) => requestCloseSplitTab(path)}
+          onCloseAllTabs={closeAllSplitTabs}
+          onCloseOtherTabs={closeOtherSplitTabs}
+          onCloseTabsToRight={closeSplitTabsToRight}
+          onOpenInNewWindow={handleOpenInNewWindow}
+          onReorderTab={reorderSplitTab}
+          onReceiveTab={(p, idx, src) => receiveTabFromSplitOrWindow(p, true, idx, src)}
+          onNewTab={handleNewSplitEmptyTab}
+          onNewFile={() => createNewVaultItem()}
+          onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+          onSplitView={handleSplitView}
+          onToggleView={toggleSplitViewMode}
+          onSave={() => {
+            if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
+              persistVaultItemToRust(currentSplitVaultItem, undefined, true);
+            }
+          }}
+          onOpenCommandPalette={() => (isPaletteOpen = true)}
+          onPointerDown={() => { activeFocusedPane = 'right'; }}
+          onDragOver={(e) => handlePaneDragOver(e, 'right')}
+          onDrop={(e) => handlePaneDrop(e, 'right')}
         >
-          <EditorHeader
-            bind:isEditing={isSplitEditing}
-            tabs={rightTabsInfo}
-            activeTabPath={activeSplitTabPath}
-            canGoBack={false}
-            canGoForward={false}
-            isMarkdownFile={isMarkdownSplitTab}
-            showViewToggle={hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)}
-            markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
-            onChangeMarkdownView={handleChangeSplitMarkdownView}
-            title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
-            showSaveButton={(!autoSave || (!!activeSplitTabPath && lockedFiles.has(activeSplitTabPath))) &&
-              isSplitEditing &&
-              !!activeSplitTabPath &&
-              !isSyntheticTab(activeSplitTabPath) &&
-              (!currentSplitVaultItem.relative_path ||
-                isMarkdownFile(currentSplitVaultItem.relative_path) ||
-                isDrawingTab(currentSplitVaultItem.relative_path, openedNotes[activeSplitTabPath]?.content) ||
-                isPdfFile(currentSplitVaultItem.relative_path))}
-            onSelectTab={(path) => selectSplitTab(path)}
-            onCloseTab={(path) => requestCloseSplitTab(path)}
-            onCloseAllTabs={closeAllSplitTabs}
-            onCloseOtherTabs={closeOtherSplitTabs}
-            onCloseTabsToRight={closeSplitTabsToRight}
-            onOpenFileWithDefaultApp={(p) => vaultRepository.openFileWithDefaultApp(p)}
-            onShowItemInFolder={(p) => vaultRepository.showItemInFolder(p)}
-            onOpenInNewWindow={handleOpenInNewWindow}
-            onReorderTab={reorderSplitTab}
-            onReceiveTabFromOtherWindow={(p, idx, src) => receiveTabFromSplitOrWindow(p, true, idx, src)}
-            onNewTab={handleNewSplitEmptyTab}
-            onNewFile={() => createNewVaultItem()}
-            onOpenQuickOpen={() => (isQuickOpenOpen = true)}
-            onSplitView={handleSplitView}
-            onAction={(actionId) => {
-              if (actionId === 'new-file') createNewVaultItem();
-              else if (actionId === 'quick-open') isQuickOpenOpen = true;
-            }}
-            onToggleView={() => {
-              toggleSplitViewMode();
-            }}
-            onSave={() => {
-              if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
-                persistVaultItemToRust(currentSplitVaultItem, undefined, true);
-              }
-            }}
-            onOpenCommandPalette={() => (isPaletteOpen = true)}
-            showWindowControls={true}
-            isSplitActive={true}
-          />
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="editor-container"
-            ondragover={(e) => handlePaneDragOver(e, 'right')}
-            ondrop={(e) => handlePaneDrop(e, 'right')}
-          >
-            {@render renderPaneContent(splitTabPaths, activeSplitTabPath, true)}
-          </div>
-        </div>
+          {@render renderPaneContent(splitTabPaths, activeSplitTabPath, true)}
+        </WorkspacePane>
       </div>
     {/if}
 
@@ -3693,15 +3639,6 @@
     user-select: none;
   }
 
-  .editor-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    position: relative;
-  }
-
   .tab-pane {
     display: flex;
     flex-direction: column;
@@ -3779,16 +3716,6 @@
     position: relative;
   }
 
-  .split-pane-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    min-width: 0;
-    overflow: hidden;
-    position: relative;
-  }
-
   .split-resizer {
     width: 6px;
     height: 100%;
@@ -3809,48 +3736,5 @@
   .split-resizer-line {
     width: 100%;
     height: 100%;
-  }
-
-  .split-drop-zone-overlay {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 50%;
-    background-color: rgba(9, 105, 218, 0.12);
-    border: 2px dashed var(--accent, #0969da);
-    border-radius: 8px;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    animation: fadeIn 0.15s ease-out;
-  }
-
-  .split-drop-zone-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    color: var(--accent, #0969da);
-    font-weight: 600;
-    font-size: 14px;
-    padding: 16px 24px;
-    background: var(--bg-primary, #ffffff);
-    border: 1px solid var(--accent, #0969da);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
   }
 </style>
