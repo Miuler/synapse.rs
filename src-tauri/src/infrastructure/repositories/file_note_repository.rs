@@ -174,17 +174,36 @@ impl FileNoteRepository {
                         if let Some(rel_str) = rel_path_buf.to_str() {
                             if let Ok(rel_path) = NoteRelativePath::new(rel_str) {
                                 let content = String::new();
-                                let title = path
+                                let mut note_title = path
                                     .file_stem()
                                     .and_then(|s| s.to_str())
                                     .unwrap_or(file_name)
                                     .to_string();
-                                notes.push(Note::new(
-                                    rel_path,
-                                    path.into_string().unwrap(),
-                                    title,
-                                    content,
-                                ));
+
+                                let mut note_fm = None;
+                                // Para archivos markdown, inspeccionar rápidamente si tiene frontmatter
+                                let file_types = SupportedFileTypes::default();
+                                if file_types.is_markdown_file(file_name) {
+                                    if let Ok(file_prefix) = fs::read_to_string(&path) {
+                                        let (fm, _) = crate::domain::services::frontmatter_service::parse_frontmatter_and_content(&file_prefix);
+                                        if let Some(ref parsed_fm) = fm {
+                                            if let Some(ref explicit_title) = parsed_fm.title {
+                                                note_title = explicit_title.clone();
+                                            }
+                                        }
+                                        note_fm = fm;
+                                    }
+                                }
+
+                                notes.push(
+                                    Note::new(
+                                        rel_path,
+                                        path.into_string().unwrap(),
+                                        note_title,
+                                        content,
+                                    )
+                                    .with_frontmatter(note_fm),
+                                );
                             }
                         }
                     }

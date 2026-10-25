@@ -4,6 +4,7 @@ pub mod file_types;
 pub mod frontmatter;
 pub mod full_text;
 pub mod git;
+pub mod mcp;
 pub mod note;
 pub mod startup;
 pub mod workspace_registry;

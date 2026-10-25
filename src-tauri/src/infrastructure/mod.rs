@@ -1,3 +1,4 @@
+pub mod mcp;
 pub mod navigation;
 pub mod repositories;
 pub mod search;
