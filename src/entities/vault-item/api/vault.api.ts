@@ -2,7 +2,7 @@ import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
-import type { NoteFrontmatter, VaultSyncState } from '../model/types';
+import type { NoteFrontmatter, VaultGraphData, VaultSyncState } from '../model/types';
 
 export interface VaultNoteDto {
   relative_path: string;
@@ -153,6 +153,10 @@ export const vaultApi = {
     return await listen<{ paths: string[]; deleted: string[] }>('vault:files-changed', (event) => {
       callback(event.payload);
     });
+  },
+
+  async getVaultGraph(focusPath?: string | null, depth?: number | null): Promise<VaultGraphData> {
+    return await invokeTauri<VaultGraphData>('get_vault_graph', { focusPath, depth });
   },
 
   async getActiveVaultPath(): Promise<string | null> {

@@ -1237,5 +1237,58 @@ fn test_get_note_meta_o1_and_streaming_files() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_vault_graph_local_and_global() {
+    let test_dir = std::env::temp_dir().join("synapse_vault_graph_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    // Crear 4 notas: NoteA -> NoteB -> NoteC y NoteD aislada
+    let note_a = test_dir.join("NoteA.md");
+    let note_b = test_dir.join("NoteB.md");
+    let note_c = test_dir.join("NoteC.md");
+    let note_d = test_dir.join("NoteD.md");
+
+    fs::write(&note_a, "# Note A\nLinks to [[NoteB]]").unwrap();
+    fs::write(&note_b, "# Note B\nLinks to [[NoteC]]").unwrap();
+    fs::write(&note_c, "# Note C\nEnd of chain").unwrap();
+    fs::write(&note_d, "# Note D\nIsolated note").unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+    engine.reconcile_sync();
+
+    // 1. Grafo Global: Debe contener todas las notas y conexiones
+    let global_graph = engine.get_vault_graph(None, None);
+    assert!(global_graph.nodes.len() >= 4);
+    let node_ids: Vec<String> = global_graph.nodes.iter().map(|n| n.id.clone()).collect();
+    assert!(node_ids.contains(&"NoteA.md".to_string()));
+    assert!(node_ids.contains(&"NoteB.md".to_string()));
+    assert!(node_ids.contains(&"NoteC.md".to_string()));
+    assert!(node_ids.contains(&"NoteD.md".to_string()));
+
+    // Verificar aristas globales
+    assert!(global_graph.links.iter().any(|e| e.source == "NoteA.md" && e.target == "NoteB.md"));
+    assert!(global_graph.links.iter().any(|e| e.source == "NoteB.md" && e.target == "NoteC.md"));
+
+    // 2. Grafo Local para NoteA con max_depth = 1 (vecindario directo: A y B)
+    let local_graph_a1 = engine.get_vault_graph(Some("NoteA.md"), Some(1));
+    let local_ids_a1: Vec<String> = local_graph_a1.nodes.iter().map(|n| n.id.clone()).collect();
+    assert!(local_ids_a1.contains(&"NoteA.md".to_string()));
+    assert!(local_ids_a1.contains(&"NoteB.md".to_string()));
+    assert!(!local_ids_a1.contains(&"NoteC.md".to_string()));
+    assert!(!local_ids_a1.contains(&"NoteD.md".to_string()));
+
+    // 3. Grafo Local para NoteA con max_depth = 2 (debe alcanzar C: A -> B -> C)
+    let local_graph_a2 = engine.get_vault_graph(Some("NoteA.md"), Some(2));
+    let local_ids_a2: Vec<String> = local_graph_a2.nodes.iter().map(|n| n.id.clone()).collect();
+    assert!(local_ids_a2.contains(&"NoteA.md".to_string()));
+    assert!(local_ids_a2.contains(&"NoteB.md".to_string()));
+    assert!(local_ids_a2.contains(&"NoteC.md".to_string()));
+    assert!(!local_ids_a2.contains(&"NoteD.md".to_string()));
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
 
 

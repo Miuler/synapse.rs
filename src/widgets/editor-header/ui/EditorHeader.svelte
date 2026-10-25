@@ -108,7 +108,8 @@
       p.startsWith('diff:') ||
       p.startsWith('diff-staged:') ||
       p.startsWith('diff-rev:') ||
-      p.startsWith('rev:')
+      p.startsWith('rev:') ||
+      p.startsWith('synapse://')
     );
   }
 

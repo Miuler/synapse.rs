@@ -9,7 +9,7 @@ use infrastructure::tauri::commands::{
     copy_vault_items, delete_vault_item, full_text_search, get_active_vault_path, get_full_text_index_status,
     get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
     get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
-    get_note_meta, get_vault_ui_state, git_add_paths, git_commit_paths, git_restore_paths, git_restore_staged_paths,
+    get_note_meta, get_vault_ui_state, get_vault_graph, git_add_paths, git_commit_paths, git_restore_paths, git_restore_staged_paths,
     get_git_file_diff, get_git_file_revision, get_git_image_diff, get_git_file_log, get_git_branches, git_checkout_branch, git_create_branch,
     read_asset_data_url, read_binary_file, write_binary_file, create_vault_folder, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
     render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
@@ -135,7 +135,8 @@ pub fn run() {
             get_installed_community_plugins,
             check_community_plugin_updates,
             check_vault_path_exists,
-            list_vault_directory
+            list_vault_directory,
+            get_vault_graph
         ])
         .setup(|app| {
             let handle = app.handle().clone();

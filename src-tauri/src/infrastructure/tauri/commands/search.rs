@@ -145,3 +145,16 @@ pub fn render_markdown_wikilinks(
     };
     Ok(engine.render_wikilinks_in_markdown_with_base(&content, base_file.as_deref()))
 }
+
+#[tauri::command]
+pub fn get_vault_graph(
+    state: State<'_, AppState>,
+    focus_path: Option<String>,
+    depth: Option<usize>,
+) -> Result<crate::domain::models::graph::VaultGraphData, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(crate::domain::models::graph::VaultGraphData::default());
+    };
+    Ok(engine.get_vault_graph(focus_path.as_deref(), depth))
+}

@@ -1,6 +1,23 @@
-export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'image' | 'pdf' | 'other';
+export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'image' | 'pdf' | 'graph' | 'other';
 
 export type VaultSyncState = 'local' | 'ghost' | 'cached' | 'pinned';
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  group: string;
+  val: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+}
+
+export interface VaultGraphData {
+  nodes: GraphNode[];
+  links: GraphEdge[];
+}
 
 export interface NoteRelations {
   up?: string;

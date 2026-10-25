@@ -1436,6 +1436,134 @@ impl NavigationEngine {
             self.resolve_link_path_with_base(target, base_file)
         })
     }
+
+    /// Construye el grafo de conexiones (Local o Global) bajo demanda sin persistencia adicional.
+    pub fn get_vault_graph(
+        &self,
+        focus_path: Option<&str>,
+        max_depth: Option<usize>,
+    ) -> crate::domain::models::graph::VaultGraphData {
+        use crate::domain::models::graph::{GraphEdge, GraphNode, VaultGraphData};
+        use crate::domain::services::link_resolution::extract_wikilinks;
+        use std::collections::{HashMap, HashSet, VecDeque};
+
+        // 1. Extraer outlinks de todas las notas Markdown de la bóveda
+        let mut outlinks_map: HashMap<String, Vec<String>> = HashMap::new();
+        let mut node_labels: HashMap<String, String> = HashMap::new();
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
+
+        for item in self.notes.iter() {
+            let meta = item.value();
+            let p_str = meta.path.as_str().to_string();
+            node_labels.insert(p_str.clone(), meta.title.to_string());
+
+            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
+            if is_md {
+                let full = self.vault_path.join(&p_str);
+                if let Ok(content) = std::fs::read_to_string(&full) {
+                    let wlinks = extract_wikilinks(&content);
+                    let mut resolved_links = Vec::new();
+                    for wl in wlinks {
+                        if let Some(target) = self.resolve_link_path_with_base(&wl.target, Some(&p_str)) {
+                            if target != p_str {
+                                resolved_links.push(target);
+                            }
+                        }
+                    }
+                    outlinks_map.insert(p_str, resolved_links);
+                }
+            }
+        }
+
+        // Construir mapa de backlinks para facilitar la navegación bidireccional
+        let mut backlinks_map: HashMap<String, Vec<String>> = HashMap::new();
+        for (src, targets) in &outlinks_map {
+            for tgt in targets {
+                backlinks_map.entry(tgt.clone()).or_default().push(src.clone());
+                *in_degree.entry(tgt.clone()).or_insert(0) += 1;
+            }
+        }
+
+        // Determinar el conjunto de nodos incluidos
+        let included_nodes: HashSet<String> = if let Some(focus) = focus_path {
+            let clean_focus = focus.trim_start_matches('/').replace('\\', "/");
+            let mut visited = HashSet::new();
+            let mut queue = VecDeque::new();
+            let depth_limit = max_depth.unwrap_or(1);
+
+            queue.push_back((clean_focus.clone(), 0));
+            visited.insert(clean_focus);
+
+            while let Some((curr, d)) = queue.pop_front() {
+                if d < depth_limit {
+                    // Vecinos salientes
+                    if let Some(out_edges) = outlinks_map.get(&curr) {
+                        for tgt in out_edges {
+                            if visited.insert(tgt.clone()) {
+                                queue.push_back((tgt.clone(), d + 1));
+                            }
+                        }
+                    }
+                    // Vecinos entrantes (backlinks)
+                    if let Some(in_edges) = backlinks_map.get(&curr) {
+                        for src in in_edges {
+                            if visited.insert(src.clone()) {
+                                queue.push_back((src.clone(), d + 1));
+                            }
+                        }
+                    }
+                }
+            }
+            visited
+        } else {
+            // Modo Global: incluir todas las notas registradas en DashMap
+            self.notes.iter().map(|item| item.value().path.to_string()).collect()
+        };
+
+        // Construir aristas únicas entre nodos incluidos
+        let mut edges_set = HashSet::new();
+        let mut edges = Vec::new();
+
+        for src in &included_nodes {
+            if let Some(targets) = outlinks_map.get(src) {
+                for tgt in targets {
+                    if included_nodes.contains(tgt) {
+                        let edge = GraphEdge {
+                            source: src.clone(),
+                            target: tgt.clone(),
+                        };
+                        if edges_set.insert((src.clone(), tgt.clone())) {
+                            edges.push(edge);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Construir lista de nodos
+        let mut nodes = Vec::new();
+        for id in included_nodes {
+            let label = node_labels.get(&id).cloned().unwrap_or_else(|| {
+                id.rsplit('/').next().unwrap_or(&id).to_string()
+            });
+
+            let group = match id.rfind('/') {
+                Some(idx) => id[..idx].to_string(),
+                None => "root".to_string(),
+            };
+
+            let val = in_degree.get(&id).copied().unwrap_or(0) + 1;
+
+            nodes.push(GraphNode {
+                id,
+                label,
+                group,
+                val,
+            });
+        }
+
+        VaultGraphData { nodes, links: edges }
+    }
 }
 
 fn collect_supported_files_recursive(

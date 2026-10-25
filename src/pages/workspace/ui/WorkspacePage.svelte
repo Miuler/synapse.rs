@@ -19,6 +19,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
+  import {GraphViewer} from "@features/graph-viewer";
   import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import {
@@ -1518,6 +1519,12 @@
       : { id: "0", title: "", relative_path: "", abs_path: undefined }
   );
 
+  let currentActiveNonGraphPath = $derived(
+    activeTabPath && !isSyntheticTab(activeTabPath)
+      ? activeTabPath
+      : (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath) ? activeSplitTabPath : null)
+  );
+
   let currentSplitVaultItem = $derived(
     activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)
       ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeSplitTabPath) || {
@@ -2891,6 +2898,8 @@
       isQuickOpenOpen = true;
     } else if (actionId === "search") {
       isFullTextSearchOpen = true;
+    } else if (actionId === "graph") {
+      selectTab("synapse://graph");
     } else if (actionId === "welcome") {
       showWelcomeScreen = true;
     }
@@ -3329,6 +3338,11 @@
                       isMarkdown={true}
                     />
                   </div>
+                {:else if tabPath === "synapse://graph"}
+                  <GraphViewer
+                    activeNotePath={currentActiveNonGraphPath}
+                    onSelectNote={(notePath) => selectTab(notePath)}
+                  />
                 {:else if isImageFile(tabPath)}
                   <ImageViewer
                     src={note?.abs_path || tabPath}
