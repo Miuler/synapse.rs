@@ -1,23 +1,37 @@
 use crate::domain::models::frontmatter::NoteFrontmatter;
+use crate::domain::models::full_text::FullTextQuery;
 use crate::domain::models::mcp::*;
 use crate::domain::models::note::Note;
 use crate::domain::repositories::note_repository::NoteRepository;
 use crate::domain::services::frontmatter_service;
+use crate::domain::services::full_text_index::FullTextIndex;
+use crate::domain::services::git_service::GitPort;
+use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-/// Casos de uso de MCP para consultar y manipular la bóveda desde agentes de IA.
-pub struct McpUseCases<R: NoteRepository> {
+/// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks y Git.
+pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> {
     vault_path: PathBuf,
     note_repository: R,
+    full_text_index: Option<Arc<I>>,
+    git_service: Option<Arc<G>>,
 }
 
-impl<R: NoteRepository> McpUseCases<R> {
-    pub fn new(vault_path: PathBuf, note_repository: R) -> Self {
+impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I, G> {
+    pub fn new(
+        vault_path: PathBuf,
+        note_repository: R,
+        full_text_index: Option<Arc<I>>,
+        git_service: Option<Arc<G>>,
+    ) -> Self {
         Self {
             vault_path,
             note_repository,
+            full_text_index,
+            git_service,
         }
     }
 
@@ -67,6 +81,24 @@ impl<R: NoteRepository> McpUseCases<R> {
                     }),
                 },
                 McpTool {
+                    name: "full_text_search".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados de la bóveda.".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Frase o palabras clave a buscar en el cuerpo de las notas"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Número máximo de resultados (por defecto 20)"
+                            }
+                        },
+                        "required": ["query"]
+                    }),
+                },
+                McpTool {
                     name: "read_note".to_string(),
                     description: "Lee el contenido completo y los metadatos OKF (YAML frontmatter) de una nota.".to_string(),
                     input_schema: json!({
@@ -110,6 +142,28 @@ impl<R: NoteRepository> McpUseCases<R> {
                             }
                         },
                         "required": ["relative_path", "title", "content"]
+                    }),
+                },
+                McpTool {
+                    name: "get_backlinks_and_relations".to_string(),
+                    description: "Obtiene los enlaces entrantes (backlinks) y enlaces salientes semánticos de una nota específica.".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota a analizar"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                McpTool {
+                    name: "get_vault_git_status".to_string(),
+                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, modificados, staged, untracked).".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {}
                     }),
                 },
                 McpTool {
@@ -172,6 +226,47 @@ impl<R: NoteRepository> McpUseCases<R> {
                     Err(err) => McpCallToolResult::error(format!("Error al buscar notas: {}", err)),
                 }
             }
+            "full_text_search" => {
+                let query_str = match args.get("query").and_then(|v| v.as_str()) {
+                    Some(q) => q.trim(),
+                    None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+                };
+                if query_str.is_empty() {
+                    return McpCallToolResult::text("[]");
+                }
+                let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+
+                if let Some(ref fts) = self.full_text_index {
+                    let q = FullTextQuery {
+                        text: query_str.to_string(),
+                        limit,
+                        prefix_last_term: true,
+                    };
+                    match fts.search(&q) {
+                        Ok((hits, total)) => {
+                            let results = json!({
+                                "total_matches": total,
+                                "hits": hits.into_iter().map(|h| {
+                                    json!({
+                                        "path": h.note_path,
+                                        "title": h.title,
+                                        "score": h.score,
+                                        "snippet": h.snippet,
+                                        "matched_terms": h.matched_terms,
+                                    })
+                                }).collect::<Vec<_>>()
+                            });
+                            match serde_json::to_string_pretty(&results) {
+                                Ok(text) => McpCallToolResult::text(text),
+                                Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+                            }
+                        }
+                        Err(err) => McpCallToolResult::error(format!("Error en full-text search: {}", err)),
+                    }
+                } else {
+                    McpCallToolResult::error("El índice Tantivy de búsqueda de texto completo no está disponible.")
+                }
+            }
             "read_note" => {
                 let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
                     Some(p) => p,
@@ -218,8 +313,6 @@ impl<R: NoteRepository> McpUseCases<R> {
                     Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
                 };
 
-                // Si el contenido ya incluye delimitadores `---`, usar tal cual;
-                // si no, estructurar el frontmatter OKF si se especificaron tags o título.
                 let final_body = if content.trim_start().starts_with("---") {
                     content.to_string()
                 } else {
@@ -251,6 +344,90 @@ impl<R: NoteRepository> McpUseCases<R> {
                 match self.note_repository.save_note(&self.vault_path, &note) {
                     Ok(_) => McpCallToolResult::text(format!("Nota '{}' guardada exitosamente.", rel_path_str)),
                     Err(err) => McpCallToolResult::error(format!("Error al guardar la nota: {}", err)),
+                }
+            }
+            "get_backlinks_and_relations" => {
+                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+                    Some(p) => p,
+                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+                };
+
+                let extensions = vec!["md".to_string(), "markdown".to_string()];
+                let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
+                    Ok(notes) => notes,
+                    Err(e) => return McpCallToolResult::error(format!("Error al listar notas: {}", e)),
+                };
+
+                let target_normalized = rel_path_str.trim_start_matches('/').replace('\\', "/");
+                let target_stem = target_normalized
+                    .rsplit('/')
+                    .next()
+                    .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
+                    .unwrap_or(&target_normalized);
+
+                let mut backlinks = Vec::new();
+                let mut outlinks = Vec::new();
+
+                for note in &all_notes {
+                    let n_path = note.relative_path.as_str();
+                    let full_note = match self.note_repository.read_note(&self.vault_path, &note.relative_path) {
+                        Ok(n) => n,
+                        Err(_) => continue,
+                    };
+
+                    let wikilinks = extract_wikilinks(&full_note.content);
+                    let mut links_to_target = false;
+
+                    for wl in wikilinks {
+                        let (norm_target, _) = normalize_link_target(&wl.target);
+                        if norm_target == target_normalized
+                            || norm_target == format!("{}.md", target_stem)
+                            || wl.target.eq_ignore_ascii_case(target_stem)
+                        {
+                            links_to_target = true;
+                        }
+
+                        if n_path == target_normalized {
+                            outlinks.push(json!({
+                                "target": wl.target,
+                                "alias": wl.alias,
+                                "is_embed": wl.is_embed,
+                            }));
+                        }
+                    }
+
+                    if links_to_target && n_path != target_normalized {
+                        backlinks.push(json!({
+                            "source_path": n_path,
+                            "title": note.title,
+                        }));
+                    }
+                }
+
+                let payload = json!({
+                    "target_note": target_normalized,
+                    "backlinks_count": backlinks.len(),
+                    "backlinks": backlinks,
+                    "outlinks_count": outlinks.len(),
+                    "outlinks": outlinks,
+                });
+
+                match serde_json::to_string_pretty(&payload) {
+                    Ok(text) => McpCallToolResult::text(text),
+                    Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+                }
+            }
+            "get_vault_git_status" => {
+                if let Some(ref git) = self.git_service {
+                    match git.get_vault_status(&self.vault_path) {
+                        Ok(status) => match serde_json::to_string_pretty(&status) {
+                            Ok(text) => McpCallToolResult::text(text),
+                            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+                        },
+                        Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
+                    }
+                } else {
+                    McpCallToolResult::error("El servicio Git no está disponible o la carpeta no es un repositorio.")
                 }
             }
             "list_vault_tree" => {

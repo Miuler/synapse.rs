@@ -1,21 +1,23 @@
 use crate::application::use_cases::mcp_use_cases::McpUseCases;
 use crate::domain::models::mcp::*;
 use crate::domain::repositories::note_repository::NoteRepository;
+use crate::domain::services::full_text_index::FullTextIndex;
+use crate::domain::services::git_service::GitPort;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
 /// Servidor MCP local que se comunica a través de entrada/salida estándar (stdio) con JSON-RPC 2.0.
-pub struct McpStdioServer<R: NoteRepository> {
-    use_cases: McpUseCases<R>,
+pub struct McpStdioServer<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> {
+    use_cases: McpUseCases<R, I, G>,
 }
 
-impl<R: NoteRepository> McpStdioServer<R> {
-    pub fn new(use_cases: McpUseCases<R>) -> Self {
+impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpStdioServer<R, I, G> {
+    pub fn new(use_cases: McpUseCases<R, I, G>) -> Self {
         Self { use_cases }
     }
 
     /// Ejecuta el bucle de eventos stdio hasta EOF
-    pub fn run_loop<I: BufRead, O: Write>(&self, mut reader: I, mut writer: O) -> io::Result<()> {
+    pub fn run_loop<Rdr: BufRead, Wtr: Write>(&self, mut reader: Rdr, mut writer: Wtr) -> io::Result<()> {
         let mut line = String::new();
         while reader.read_line(&mut line)? > 0 {
             let trimmed = line.trim();
