@@ -1,3 +1,4 @@
+use crate::domain::models::frontmatter::NoteFrontmatter;
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,8 @@ pub struct Note {
     pub encoding: String,
     #[serde(default)]
     pub view_mode: Option<String>,
+    #[serde(default)]
+    pub frontmatter: Option<NoteFrontmatter>,
 }
 
 impl Note {
@@ -32,6 +35,7 @@ impl Note {
             content,
             encoding: "---".to_string(),
             view_mode: None,
+            frontmatter: None,
         }
     }
 
@@ -49,6 +53,12 @@ impl Note {
             content,
             encoding,
             view_mode: None,
+            frontmatter: None,
         }
+    }
+
+    pub fn with_frontmatter(mut self, frontmatter: Option<NoteFrontmatter>) -> Self {
+        self.frontmatter = frontmatter;
+        self
     }
 }

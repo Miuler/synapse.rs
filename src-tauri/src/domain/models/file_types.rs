@@ -45,6 +45,20 @@ impl SupportedFileTypes {
         all
     }
 
+    /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a Markdown
+    pub fn is_markdown_extension(&self, ext: &str) -> bool {
+        self.markdown.iter().any(|e| e.eq_ignore_ascii_case(ext))
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo Markdown (.md, .markdown, etc.)
+    pub fn is_markdown_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.markdown.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
     /// Verifica si una extensión dada (insensible a mayúsculas) corresponde a una imagen
     pub fn is_image_extension(&self, ext: &str) -> bool {
         self.images.iter().any(|e| e.eq_ignore_ascii_case(ext))

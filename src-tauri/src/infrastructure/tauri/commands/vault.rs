@@ -222,6 +222,7 @@ pub fn read_note_content(
                                 content: String::new(),
                                 view_mode: meta.view_mode.clone(),
                                 encoding: "UTF-8".to_string(),
+                                frontmatter: None,
                             }
                         } else {
                             return Err(err);

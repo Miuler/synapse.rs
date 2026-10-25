@@ -46,7 +46,18 @@ pub struct VaultUiState {
 
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
 pub fn extract_title_from_markdown(content: &str, file_stem: &str) -> String {
-    let parser = Parser::new(content);
+    // Si contiene frontmatter YAML con propiedad title, priorizarla
+    let (fm, body) = crate::domain::services::frontmatter_service::parse_frontmatter_and_content(content);
+    if let Some(fm) = fm {
+        if let Some(explicit_title) = fm.title {
+            let trimmed = explicit_title.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+
+    let parser = Parser::new(&body);
     let mut in_h1 = false;
     let mut title = String::new();
 

@@ -231,7 +231,7 @@ impl NoteRepository for FileNoteRepository {
             return Err(format!("El archivo no existe en {:?}", abs_path));
         }
 
-        let (encoding, content) = if is_binary {
+        let (encoding, raw_content) = if is_binary {
             ("binary".to_string(), "".to_string())
         } else {
             let bytes = fs::read(&abs_path)
@@ -241,11 +241,22 @@ impl NoteRepository for FileNoteRepository {
             (encoding, content)
         };
 
-        let title = abs_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Sin título")
-            .to_string();
+        let is_markdown = file_types.is_markdown_file(file_name);
+        let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
+            let (fm, _body) = crate::domain::services::frontmatter_service::parse_frontmatter_and_content(&raw_content);
+            let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
+            (fm, raw_content, explicit_title)
+        } else {
+            (None, raw_content, None)
+        };
+
+        let title = resolved_title.unwrap_or_else(|| {
+            abs_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Sin título")
+                .to_string()
+        });
 
         Ok(Note::with_encoding(
             relative_path.clone(),
@@ -253,7 +264,7 @@ impl NoteRepository for FileNoteRepository {
             title,
             content,
             encoding,
-        ))
+        ).with_frontmatter(frontmatter))
     }
 
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String> {
@@ -296,7 +307,7 @@ impl NoteRepository for FileNoteRepository {
         let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
         let is_binary = is_image || file_types.is_pdf_extension(ext_str);
 
-        let (encoding, content) = if is_binary {
+        let (encoding, raw_content) = if is_binary {
             ("binary".to_string(), "".to_string())
         } else {
             let bytes = fs::read(path)
@@ -305,11 +316,22 @@ impl NoteRepository for FileNoteRepository {
             (encoding, content)
         };
 
-        let title = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or(file_name)
-            .to_string();
+        let is_markdown = file_types.is_markdown_file(file_name);
+        let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
+            let (fm, _body) = crate::domain::services::frontmatter_service::parse_frontmatter_and_content(&raw_content);
+            let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
+            (fm, raw_content, explicit_title)
+        } else {
+            (None, raw_content, None)
+        };
+
+        let title = resolved_title.unwrap_or_else(|| {
+            path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(file_name)
+                .to_string()
+        });
 
         let abs_path_str = path.to_string_lossy().to_string();
         let relative_path = NoteRelativePath::from_absolute_path(&abs_path_str)?;
@@ -320,7 +342,7 @@ impl NoteRepository for FileNoteRepository {
             title,
             content,
             encoding,
-        ))
+        ).with_frontmatter(frontmatter))
     }
 
     fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String> {

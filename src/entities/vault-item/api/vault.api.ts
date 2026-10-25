@@ -2,7 +2,7 @@ import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
-import type { VaultSyncState } from '../model/types';
+import type { NoteFrontmatter, VaultSyncState } from '../model/types';
 
 export interface VaultNoteDto {
   relative_path: string;
@@ -12,6 +12,7 @@ export interface VaultNoteDto {
   encoding?: string;
   view_mode?: string;
   sync_state?: VaultSyncState;
+  frontmatter?: NoteFrontmatter;
 }
 
 export interface VaultFileStatDto {

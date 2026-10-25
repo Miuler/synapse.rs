@@ -2,6 +2,28 @@ export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'image' | 'p
 
 export type VaultSyncState = 'local' | 'ghost' | 'cached' | 'pinned';
 
+export interface NoteRelations {
+  up?: string;
+  related?: string[];
+  [key: string]: unknown;
+}
+
+export interface NoteFrontmatter {
+  id?: string;
+  title?: string;
+  created?: string;
+  updated?: string;
+  type?: string;
+  tags?: string[];
+  aliases?: string[];
+  relations?: NoteRelations;
+  sync?: {
+    state?: string;
+    version?: number;
+  };
+  [key: string]: unknown;
+}
+
 export interface VaultItem {
   id: string;
   title: string;
@@ -35,6 +57,7 @@ export interface OpenedNote {
   isLoaded?: boolean;
   viewMode?: MarkdownViewMode;
   sync_state?: VaultSyncState;
+  frontmatter?: NoteFrontmatter;
   lastReloaded?: number;
   excalidrawViewer?: 'native' | 'obsidian';
 }
