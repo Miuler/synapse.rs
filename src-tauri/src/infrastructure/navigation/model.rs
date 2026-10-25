@@ -3,6 +3,28 @@ use serde::{Deserialize, Serialize};
 
 pub type NoteId = u32;
 
+/// Estado de sincronización del archivo (Local, Ghost/Remoto, Cached, Pinned).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum NoteSyncState {
+    #[default]
+    Local,  // Presente físicamente en el disco local
+    Ghost,  // Solo metadatos (en la nube / placeholder sin descargar)
+    Cached, // Descargado temporalmente en caché local (desalojable por LRU)
+    Pinned, // Fijado explícitamente para permanencia offline
+}
+
+impl NoteSyncState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NoteSyncState::Local => "local",
+            NoteSyncState::Ghost => "ghost",
+            NoteSyncState::Cached => "cached",
+            NoteSyncState::Pinned => "pinned",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct NoteMeta {
     pub id: NoteId,
@@ -22,6 +44,8 @@ pub struct NoteMeta {
     pub is_active_tab: bool,             // Si era la pestaña activa seleccionada en pantalla
     #[serde(default)]
     pub view_mode: Option<CompactString>, // Modo del archivo ("reading", "live", "source")
+    #[serde(default)]
+    pub sync_state: NoteSyncState,       // Estado de sincronización (Local por defecto)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +65,8 @@ pub struct VaultFileDto {
     pub stat: VaultFileStatDto,
     #[serde(default)]
     pub view_mode: Option<String>,
+    #[serde(default)]
+    pub sync_state: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -59,4 +85,5 @@ pub struct VaultFileRef<'a> {
     pub parent: Option<&'a str>,
     pub stat: VaultFileStatRef,
     pub view_mode: Option<&'a str>,
+    pub sync_state: Option<&'a str>,
 }

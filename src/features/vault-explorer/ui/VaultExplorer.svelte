@@ -10,7 +10,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
 
@@ -143,6 +143,7 @@
               id: entry.relative_path,
               title: entry.title || entry.name.replace(/\.[^/.]+$/, ''),
               relative_path: entry.relative_path,
+              sync_state: entry.sync_state,
             },
         children: [],
       }));
@@ -2195,6 +2196,7 @@
       class:active={node.relativePath === activeTabPath}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
+      class:is-ghost={node.item?.sync_state === 'ghost'}
       class:git-staged={fileGitStatus?.index && !fileGitStatus?.worktree}
       class:git-modified={fileGitStatus?.worktree === 'M'}
       class:git-untracked={fileGitStatus?.worktree === '?'}
@@ -2210,6 +2212,12 @@
         class="file-icon {fileGitStatus?.worktree === 'M' ? 'file-icon-modified' : fileGitStatus?.index ? 'file-icon-staged' : fileGitStatus?.worktree === '?' ? 'file-icon-untracked' : fileGitStatus?.is_stashed ? 'file-icon-stashed' : ''}"
       />
       <span class="file-name" title={node.name}>{node.name}</span>
+
+      {#if node.item?.sync_state === 'ghost'}
+        <span class="ghost-file-badge" title="Archivo en la nube (No descargado)">
+          <Cloud size={12} class="ghost-file-icon" />
+        </span>
+      {/if}
 
       {#if lockedFiles?.has(node.relativePath)}
         <span class="lock-file-badge" title="Archivo bloqueado (auto-guardado desactivado)">
@@ -2481,6 +2489,24 @@
   .file-tree-item.folder {
     font-weight: 600;
     color: var(--text-primary, #1f2328);
+  }
+
+  .file-tree-item.is-ghost {
+    opacity: 0.65;
+    font-style: italic;
+  }
+
+  .file-tree-item.is-ghost:hover {
+    opacity: 0.9;
+  }
+
+  .ghost-file-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #8c959f);
+    margin-left: 4px;
+    flex-shrink: 0;
   }
 
   .file-tree-item.active {

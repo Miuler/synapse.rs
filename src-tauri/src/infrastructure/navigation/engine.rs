@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{
-    NoteId, NoteMeta, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef,
+    NoteId, NoteMeta, NoteSyncState, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef,
 };
 use super::storage;
 use super::watcher::VaultFsWatcher;
@@ -411,6 +411,7 @@ impl NavigationEngine {
                     prev_tab_order,
                     prev_is_active,
                     prev_view_mode,
+                    prev_sync_state,
                 ) = if let Some(existing_meta) = self.notes.get(&existing_id) {
                     (
                         existing_meta.mtime_nanos == mtime_nanos
@@ -420,9 +421,10 @@ impl NavigationEngine {
                         existing_meta.tab_order,
                         existing_meta.is_active_tab,
                         existing_meta.view_mode.clone(),
+                        existing_meta.sync_state,
                     )
                 } else {
-                    (false, None, false, None, false, None)
+                    (false, None, false, None, false, None, NoteSyncState::Local)
                 };
 
                 if is_unchanged {
@@ -448,6 +450,7 @@ impl NavigationEngine {
                         tab_order: prev_tab_order,
                         is_active_tab: prev_is_active,
                         view_mode: prev_view_mode,
+                        sync_state: prev_sync_state,
                     };
 
                     self.notes.insert(existing_id, note_meta);
@@ -493,6 +496,7 @@ impl NavigationEngine {
                     tab_order: None,
                     is_active_tab: false,
                     view_mode: Some(CompactString::new("reading")),
+                    sync_state: NoteSyncState::Local,
                 };
 
                 self.path_index.insert(compact_path.clone(), new_id);
@@ -770,6 +774,7 @@ impl NavigationEngine {
                         size: meta.size_bytes,
                     },
                     view_mode: meta.view_mode.as_ref().map(|s| s.to_string()),
+                    sync_state: Some(meta.sync_state.as_str().to_string()),
                 });
             }
         }
@@ -1221,7 +1226,7 @@ impl NavigationEngine {
             let existing_id = *id_ref.value();
             drop(id_ref);
 
-            let (prev_last_opened, prev_is_open, prev_tab_order, prev_is_active, prev_view_mode) = {
+            let (prev_last_opened, prev_is_open, prev_tab_order, prev_is_active, prev_view_mode, prev_sync_state) = {
                 let meta_opt = self.notes.get(&existing_id);
                 let vals = if let Some(ref existing_meta) = meta_opt {
                     (
@@ -1230,9 +1235,10 @@ impl NavigationEngine {
                         existing_meta.tab_order,
                         existing_meta.is_active_tab,
                         existing_meta.view_mode.clone(),
+                        existing_meta.sync_state,
                     )
                 } else {
-                    (None, false, None, false, None)
+                    (None, false, None, false, None, NoteSyncState::Local)
                 };
                 drop(meta_opt);
                 vals
@@ -1252,6 +1258,7 @@ impl NavigationEngine {
                     tab_order: prev_tab_order,
                     is_active_tab: prev_is_active,
                     view_mode: prev_view_mode,
+                    sync_state: prev_sync_state,
                 },
             )
         } else {
@@ -1271,6 +1278,7 @@ impl NavigationEngine {
                     tab_order: None,
                     is_active_tab: false,
                     view_mode: Some(CompactString::new("reading")),
+                    sync_state: NoteSyncState::Local,
                 },
             )
         };
@@ -1476,6 +1484,7 @@ impl Serialize for VaultFilesStream {
                     size: meta.size_bytes,
                 },
                 view_mode: meta.view_mode.as_deref(),
+                sync_state: Some(meta.sync_state.as_str()),
             };
             seq.serialize_element(&file_ref)?;
         }

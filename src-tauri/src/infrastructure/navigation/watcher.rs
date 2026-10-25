@@ -12,7 +12,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use super::engine::extract_title_from_markdown;
 use super::matcher::populate_nucleo_from_dashmap;
-use super::model::{NoteId, NoteMeta};
+use super::model::{NoteId, NoteMeta, NoteSyncState};
 use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::models::file_types::SupportedFileTypes;
 use std::sync::RwLock;
@@ -243,6 +243,7 @@ pub fn process_paths_batch(
                 prev_tab_order,
                 prev_is_active,
                 prev_view_mode,
+                prev_sync_state,
             ) = if let Some(existing) = notes.get(&existing_id) {
                 (
                     existing.last_opened_nanos,
@@ -250,9 +251,10 @@ pub fn process_paths_batch(
                     existing.tab_order,
                     existing.is_active_tab,
                     existing.view_mode.clone(),
+                    existing.sync_state,
                 )
             } else {
-                (None, false, None, false, None)
+                (None, false, None, false, None, NoteSyncState::Local)
             };
 
             let updated_meta = NoteMeta {
@@ -267,6 +269,7 @@ pub fn process_paths_batch(
                 tab_order: prev_tab_order,
                 is_active_tab: prev_is_active,
                 view_mode: prev_view_mode,
+                sync_state: prev_sync_state,
             };
 
             notes.insert(existing_id, updated_meta);
@@ -302,6 +305,7 @@ pub fn process_paths_batch(
                 tab_order: None,
                 is_active_tab: false,
                 view_mode: Some(CompactString::new("reading")),
+                sync_state: NoteSyncState::Local,
             };
 
             path_index.insert(item.compact_path.clone(), new_id);

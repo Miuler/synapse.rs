@@ -18,6 +18,8 @@ pub struct VaultEntryNode {
     pub relative_path: String,
     pub is_folder: bool,
     pub title: Option<String>,
+    #[serde(default)]
+    pub sync_state: Option<String>,
 }
 
 pub struct VaultFilesResponse {

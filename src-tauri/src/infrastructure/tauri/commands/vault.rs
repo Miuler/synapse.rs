@@ -99,6 +99,7 @@ pub fn get_vault_directory_children(
                         relative_path: rel_path.to_string(),
                         is_folder: false,
                         title: Some(item.value().title.to_string()),
+                        sync_state: Some(item.value().sync_state.as_str().to_string()),
                     },
                 );
             }
@@ -114,6 +115,7 @@ pub fn get_vault_directory_children(
                         relative_path: rel_path.to_string(),
                         is_folder: false,
                         title: Some(item.value().title.to_string()),
+                        sync_state: Some(item.value().sync_state.as_str().to_string()),
                     },
                 );
             }
@@ -152,6 +154,7 @@ pub fn get_vault_directory_children(
                         relative_path: full_rel,
                         is_folder: false,
                         title: None,
+                        sync_state: Some("local".to_string()),
                     });
                 }
             }
@@ -166,6 +169,7 @@ pub fn get_vault_directory_children(
             relative_path: folder_rel,
             is_folder: true,
             title: None,
+            sync_state: None,
         });
     }
 
@@ -198,7 +202,41 @@ pub fn read_note_content(
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let mut note = state.note_use_cases.read_note(vault_path, &relative_path)?;
+    let note_res = state.note_use_cases.read_note(vault_path, &relative_path);
+    let mut note = match note_res {
+        Ok(n) => n,
+        Err(err) => {
+            // Si el archivo no existe en disco pero está indexado como Ghost en el engine,
+            // devolvemos una nota placeholder vacía en modo lectura para visualización.
+            if let Ok(guard) = state.navigation_engine.lock() {
+                if let Some(ref engine) = *guard {
+                    if let Some(meta) = engine.get_note_meta(&relative_path) {
+                        if meta.sync_state.as_deref() == Some("ghost") {
+                            let note_rel = crate::domain::value_objects::note_path::NoteRelativePath::new(&relative_path)
+                                .map_err(|e| e.to_string())?;
+                            let abs = vault_path.join(&relative_path).to_string_lossy().to_string();
+                            Note {
+                                relative_path: note_rel,
+                                abs_path: abs,
+                                title: meta.basename.clone(),
+                                content: String::new(),
+                                view_mode: meta.view_mode.clone(),
+                                encoding: "UTF-8".to_string(),
+                            }
+                        } else {
+                            return Err(err);
+                        }
+                    } else {
+                        return Err(err);
+                    }
+                } else {
+                    return Err(err);
+                }
+            } else {
+                return Err(err);
+            }
+        }
+    };
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.record_opened(&relative_path);

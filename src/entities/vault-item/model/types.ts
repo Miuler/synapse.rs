@@ -1,5 +1,7 @@
 export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'image' | 'pdf' | 'other';
 
+export type VaultSyncState = 'local' | 'ghost' | 'cached' | 'pinned';
+
 export interface VaultItem {
   id: string;
   title: string;
@@ -7,6 +9,7 @@ export interface VaultItem {
   abs_path?: string;
   kind?: VaultItemKind;
   view_mode?: string;
+  sync_state?: VaultSyncState;
 }
 
 export interface TabItem {
@@ -16,6 +19,7 @@ export interface TabItem {
   isDirty?: boolean;
   isLocked?: boolean;
   kind?: VaultItemKind;
+  sync_state?: VaultSyncState;
 }
 
 export type MarkdownViewMode = 'live' | 'source' | 'reading';
@@ -30,6 +34,7 @@ export interface OpenedNote {
   isLoading: boolean;
   isLoaded?: boolean;
   viewMode?: MarkdownViewMode;
+  sync_state?: VaultSyncState;
   lastReloaded?: number;
   excalidrawViewer?: 'native' | 'obsidian';
 }

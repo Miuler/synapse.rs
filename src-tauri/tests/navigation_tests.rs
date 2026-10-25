@@ -1,6 +1,6 @@
 use app_lib::infrastructure::navigation::engine::{extract_title_from_markdown, NavigationEngine};
 use app_lib::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
-use app_lib::infrastructure::navigation::model::{NoteId, NoteMeta};
+use app_lib::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
 use app_lib::infrastructure::navigation::storage::{load_cache_from_disk, save_cache_to_disk};
 use compact_str::CompactString;
 use dashmap::DashMap;
@@ -32,6 +32,7 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             tab_order: Some(0),
             is_active_tab: true,
             view_mode: Some(CompactString::new("reading")),
+            sync_state: NoteSyncState::Local,
         },
     );
     map.insert(
@@ -48,6 +49,7 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
 
@@ -112,6 +114,7 @@ fn test_populate_nucleo_and_matching() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     map.insert(
@@ -128,6 +131,7 @@ fn test_populate_nucleo_and_matching() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
 
@@ -176,6 +180,7 @@ fn test_cold_start_hydration_timing_sub_10ms() {
                 tab_order: None,
                 is_active_tab: false,
                 view_mode: None,
+                sync_state: NoteSyncState::Local,
             },
         );
     }
@@ -304,6 +309,7 @@ fn test_debounce_persistence_worker() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.mark_dirty();
@@ -353,6 +359,7 @@ fn test_dashmap_directory_children_resolution() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.notes.insert(
@@ -369,6 +376,7 @@ fn test_dashmap_directory_children_resolution() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.notes.insert(
@@ -385,6 +393,7 @@ fn test_dashmap_directory_children_resolution() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
 
@@ -542,6 +551,7 @@ fn test_search_large_vault_over_5000_notes() {
                 tab_order: None,
                 is_active_tab: false,
                 view_mode: None,
+                sync_state: NoteSyncState::Local,
             },
         );
     }
@@ -1018,6 +1028,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.path_index.insert(CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"), 1);
@@ -1036,6 +1047,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.notes.insert(
@@ -1052,6 +1064,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             tab_order: None,
             is_active_tab: false,
             view_mode: None,
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.path_index.insert(CompactString::new("assets/img/FILE.png"), 3);
@@ -1119,6 +1132,7 @@ fn test_duplicate_filenames_proximity_resolution() {
                 tab_order: None,
                 is_active_tab: false,
                 view_mode: None,
+                sync_state: NoteSyncState::Local,
             },
         );
         engine.path_index.insert(CompactString::new(*p), id);
@@ -1143,20 +1157,22 @@ fn test_duplicate_filenames_proximity_resolution() {
     // Creamos un escenario donde sólo hay una subcarpeta y una carpeta padre
     let engine_sub = Arc::new(NavigationEngine::new(test_dir.clone(), test_dir.join("cache2.bin")));
     engine_sub.notes.insert(1, NoteMeta {
-        id: 1,
         path: CompactString::new("docs/foto.png"), // padre
         title: CompactString::new("foto"),
         mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
         is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
+        sync_state: NoteSyncState::Local,
+        id: 1,
     });
     engine_sub.path_index.insert(CompactString::new("docs/foto.png"), 1);
 
     engine_sub.notes.insert(2, NoteMeta {
-        id: 2,
         path: CompactString::new("docs/sub/adjuntos/foto.png"), // subcarpeta
         title: CompactString::new("foto"),
         mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
         is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
+        sync_state: NoteSyncState::Local,
+        id: 2,
     });
     engine_sub.path_index.insert(CompactString::new("docs/sub/adjuntos/foto.png"), 2);
 
@@ -1191,6 +1207,7 @@ fn test_get_note_meta_o1_and_streaming_files() {
             tab_order: None,
             is_active_tab: false,
             view_mode: Some(CompactString::new("live")),
+            sync_state: NoteSyncState::Local,
         },
     );
     engine.path_index.insert(CompactString::new("diagramas/esquema.excalidraw"), 42);

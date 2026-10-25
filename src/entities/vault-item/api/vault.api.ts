@@ -2,6 +2,8 @@ import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
+import type { VaultSyncState } from '../model/types';
+
 export interface VaultNoteDto {
   relative_path: string;
   abs_path?: string;
@@ -9,6 +11,7 @@ export interface VaultNoteDto {
   content: string;
   encoding?: string;
   view_mode?: string;
+  sync_state?: VaultSyncState;
 }
 
 export interface VaultFileStatDto {
@@ -22,6 +25,7 @@ export interface VaultFileDto {
   stat?: VaultFileStatDto;
   last_opened_nanos?: number;
   view_mode?: string;
+  sync_state?: VaultSyncState;
 }
 
 export interface VaultEntryNodeDto {
@@ -29,6 +33,7 @@ export interface VaultEntryNodeDto {
   relative_path: string;
   is_folder: boolean;
   title?: string;
+  sync_state?: VaultSyncState;
 }
 
 export interface SaveNoteParams {
