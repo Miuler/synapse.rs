@@ -105,6 +105,7 @@ class FileTypesManager {
 
   isMarkdownFile(path: string | null | undefined): boolean {
     if (!path) return false;
+    if (path.startsWith('synapse://')) return false;
     const lower = path.toLowerCase().split('?')[0].split('#')[0];
     if (lower.endsWith('.excalidraw.md') || lower.endsWith('.excalidraw.excalidraw')) {
       return false;

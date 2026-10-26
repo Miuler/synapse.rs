@@ -3259,14 +3259,17 @@
             class:full-pane={isDiagramFile(tabPath) ||
               isImageFile(tabPath) ||
               isDrawing ||
-              isPdfFile(tabPath)}
+              isPdfFile(tabPath) ||
+              tabPath.startsWith('synapse://')}
           >
-            <BreadCrumb
-              path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
-              readOnly={isStandaloneMode}
-              onNavigateFolder={handleBreadcrumbNavigateFolder}
-              onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
-            />
+            {#if !tabPath.startsWith('synapse://')}
+              <BreadCrumb
+                path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
+                readOnly={isStandaloneMode}
+                onNavigateFolder={handleBreadcrumbNavigateFolder}
+                onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
+              />
+            {/if}
             {#if isLoading}
               <div class="content-loading">
                 <span class="spinner"></span>
