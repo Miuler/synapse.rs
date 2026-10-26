@@ -138,6 +138,8 @@ pub struct WorkspaceShortcutsConfig {
     pub toggle_theme: String,
     #[serde(default = "default_ws_toggle_devtools")]
     pub toggle_devtools: String,
+    #[serde(default = "default_ws_toggle_edit_mode")]
+    pub toggle_edit_mode: String,
 }
 
 fn default_ws_quick_open() -> String {
@@ -191,6 +193,9 @@ fn default_ws_toggle_theme() -> String {
 fn default_ws_toggle_devtools() -> String {
     "F12, Ctrl+Shift+I".to_string()
 }
+fn default_ws_toggle_edit_mode() -> String {
+    "Ctrl+E".to_string()
+}
 
 impl Default for WorkspaceShortcutsConfig {
     fn default() -> Self {
@@ -212,6 +217,7 @@ impl Default for WorkspaceShortcutsConfig {
             nav_forward: default_ws_nav_forward(),
             toggle_theme: default_ws_toggle_theme(),
             toggle_devtools: default_ws_toggle_devtools(),
+            toggle_edit_mode: default_ws_toggle_edit_mode(),
         }
     }
 }
@@ -352,6 +358,7 @@ mod tests {
         assert_eq!(config.shortcuts.welcome.open_folder, "Ctrl+Shift+O");
         assert_eq!(config.shortcuts.workspace.quick_open, "Ctrl+O");
         assert_eq!(config.shortcuts.workspace.command_palette, "Ctrl+P");
+        assert_eq!(config.shortcuts.workspace.toggle_edit_mode, "Ctrl+E");
 
         assert_eq!(config.indexing.max_pdf_file_size, 31_457_280);
         assert_eq!(config.indexing.max_pdf_pages, 80);

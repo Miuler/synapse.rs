@@ -25,6 +25,7 @@ export interface WorkspaceShortcutsConfig {
   nav_forward: string;
   toggle_theme: string;
   toggle_devtools: string;
+  toggle_edit_mode: string;
 }
 
 export interface ShortcutsConfig {
@@ -57,6 +58,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     nav_forward: 'Alt+ArrowRight',
     toggle_theme: 'Ctrl+Shift+T',
     toggle_devtools: 'F12, Ctrl+Shift+I',
+    toggle_edit_mode: 'Ctrl+E',
   },
 };
 

@@ -68,10 +68,40 @@
   let isPaletteOpen = $state(false);
   let isQuickOpenOpen = $state(false);
   let isFullTextSearchOpen = $state(false);
+  let quickOpenSearchQuery = $state("");
+  let ftsSearchQuery = $state("");
   let isPluginsModalOpen = $state(false);
+
+  function openQuickOpenModal() {
+    if (isFullTextSearchOpen) {
+      const carriedQuery = ftsSearchQuery;
+      isFullTextSearchOpen = false;
+      ftsSearchQuery = "";
+      quickOpenSearchQuery = carriedQuery;
+    }
+    if (isPaletteOpen) {
+      isPaletteOpen = false;
+    }
+    isQuickOpenOpen = true;
+  }
+
+  function openFullTextSearchModal() {
+    if (isQuickOpenOpen) {
+      const carriedQuery = quickOpenSearchQuery.startsWith("?")
+        ? quickOpenSearchQuery.slice(1).trim()
+        : quickOpenSearchQuery;
+      isQuickOpenOpen = false;
+      quickOpenSearchQuery = "";
+      ftsSearchQuery = carriedQuery;
+    }
+    if (isPaletteOpen) {
+      isPaletteOpen = false;
+    }
+    isFullTextSearchOpen = true;
+  }
   let pendingScrollTerms = $state<Record<string, string[]>>({});
   let isEditing = $state(false);
-  let isVimMode = $state(false);
+  let isVimMode = $derived(appSettings.vimMode);
   let markdownViewMode = $state<MarkdownViewMode>("reading");
   let isConnectedToRust = $state(false);
   let syncState = $state<"synced" | "saving" | "error">("synced");
@@ -2482,7 +2512,7 @@
         name: "Alternar modo Vim",
         category: "Editor",
         action: () => {
-          isVimMode = !isVimMode;
+          appSettings.toggleVimMode();
         },
       },
       {
@@ -2490,6 +2520,19 @@
         name: "Alternar vista Markdown (En vivo / Fuente / Lectura)",
         category: "Vista",
         action: toggleMarkdownViewMode,
+      },
+      {
+        id: "cmd-toggle-edit-mode",
+        name: "Alternar modo Edición / Lectura",
+        category: "Vista",
+        shortcut: shortcutsConfig.workspace.toggle_edit_mode,
+        action: () => {
+          if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
+            toggleSplitViewMode();
+          } else {
+            toggleViewMode();
+          }
+        },
       },
       {
         id: "cmd-toggle-sidebar",
@@ -2652,7 +2695,7 @@
         category: "Búsqueda",
         shortcut: shortcutsConfig.workspace.search_fulltext,
         action: () => {
-          isFullTextSearchOpen = true;
+          openFullTextSearchModal();
         },
       },
       {
@@ -2784,7 +2827,7 @@
       }
       if (matchesShortcut(e, ws.search_fulltext)) {
         stopEvent();
-        isFullTextSearchOpen = true;
+        openFullTextSearchModal();
         return;
       }
       if (matchesShortcut(e, ws.reload_vault)) {
@@ -2833,12 +2876,23 @@
       }
       if (matchesShortcut(e, ws.quick_open)) {
         stopEvent();
-        isQuickOpenOpen = true;
+        openQuickOpenModal();
         return;
       }
       if (matchesShortcut(e, ws.command_palette)) {
         stopEvent();
+        isQuickOpenOpen = false;
+        isFullTextSearchOpen = false;
         isPaletteOpen = true;
+        return;
+      }
+      if (matchesShortcut(e, ws.toggle_edit_mode)) {
+        stopEvent();
+        if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
+          toggleSplitViewMode();
+        } else {
+          toggleViewMode();
+        }
         return;
       }
     };
@@ -2901,9 +2955,9 @@
     } else if (actionId === "new-excalidraw") {
       createNewVaultItem(undefined, 'obsidian-excalidraw');
     } else if (actionId === "quick-open") {
-      isQuickOpenOpen = true;
+      openQuickOpenModal();
     } else if (actionId === "search") {
-      isFullTextSearchOpen = true;
+      openFullTextSearchModal();
     } else if (actionId === "graph") {
       const target = (activeTabPath && !isSyntheticTab(activeTabPath))
         ? activeTabPath
@@ -3372,6 +3426,7 @@
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       viewMode={paneViewMode}
+                      isActive={tabPath === activePath}
                       scrollToTerms={pendingScrollTerms[tabPath]}
                       onNavigate={handleNavigateLink}
                       onChange={(updatedMarkdown: string) => {
@@ -3464,7 +3519,7 @@
         onReceiveTab={receiveTabFromOtherWindow}
         onNewTab={handleNewEmptyTab}
         onNewFile={() => createNewVaultItem()}
-        onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+        onOpenQuickOpen={openQuickOpenModal}
         onSplitView={handleSplitView}
         onToggleView={toggleViewMode}
         onSave={() => {
@@ -3520,7 +3575,7 @@
           onReceiveTab={(p, idx, src) => receiveTabFromSplitOrWindow(p, false, idx, src)}
           onNewTab={handleNewEmptyTab}
           onNewFile={() => createNewVaultItem()}
-          onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+          onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
           onToggleView={toggleViewMode}
           onSave={() => {
@@ -3582,7 +3637,7 @@
           onReceiveTab={(p, idx, src) => receiveTabFromSplitOrWindow(p, true, idx, src)}
           onNewTab={handleNewSplitEmptyTab}
           onNewFile={() => createNewVaultItem()}
-          onOpenQuickOpen={() => (isQuickOpenOpen = true)}
+          onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
           onToggleView={toggleSplitViewMode}
           onSave={() => {
@@ -3612,7 +3667,7 @@
       encoding={currentEncoding}
       isMarkdownFile={isMarkdownTab}
       markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
-      onToggleVim={() => (isVimMode = !isVimMode)}
+      onToggleVim={() => appSettings.toggleVimMode()}
       onToggleMarkdownView={toggleMarkdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}
       onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3626,6 +3681,7 @@
   <!-- 5. BUSCADOR RÁPIDO DE ARCHIVOS (OVERLAY CTRL+O) -->
   <QuickOpen
     bind:isOpen={isQuickOpenOpen}
+    bind:searchQuery={quickOpenSearchQuery}
     {vaultItems}
     {recentFiles}
     onSelectFile={handleSelectQuickOpenFile}
@@ -3634,6 +3690,7 @@
   <!-- 6. BÚSQUEDA EN EL CONTENIDO DE NOTAS (FULL-TEXT SEARCH CTRL+SHIFT+F) -->
   <FullTextSearch
     bind:isOpen={isFullTextSearchOpen}
+    bind:searchQuery={ftsSearchQuery}
     onSelectHit={handleSelectFullTextHit}
   />
 

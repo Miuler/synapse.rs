@@ -201,7 +201,9 @@
       // Alternar entre tema Claro y Oscuro
       "toggle_theme": "Ctrl+Shift+T",
       // Abrir o cerrar herramientas de desarrollo (DevTools)
-      "toggle_devtools": "F12, Ctrl+Shift+I"
+      "toggle_devtools": "F12, Ctrl+Shift+I",
+      // Alternar entre modo Edición y modo Lectura de la nota activa
+      "toggle_edit_mode": "Ctrl+E"
     }
   }
 }

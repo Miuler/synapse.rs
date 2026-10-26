@@ -930,32 +930,42 @@ impl NavigationEngine {
         let query_lower = trimmed_query.to_lowercase();
 
         let mut candidates = Vec::new();
+        let mut seen_candidate_ids = HashSet::new();
         // Take matched items (up to 5000) and preserve their original nucleo rank
         for (nucleo_rank, item) in snapshot.matched_items(..).take(5000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
+                seen_candidate_ids.insert(id);
                 candidates.push((meta.clone(), nucleo_rank));
             }
         }
         drop(nucleo);
 
-        // Fallback: If nucleo returned 0 matches (e.g. still parsing, asynchronous injector lag,
-        // or strict fuzzy mismatch), perform a direct fast scan over in-memory `self.notes`.
-        if candidates.is_empty() && !self.notes.is_empty() {
+        // Garantizar siempre que cualquier coincidencia exacta o de subcadena en nombre de archivo o título
+        // esté presente en `candidates` (incluso si nucleo devolvió >5000 matches difusos, o aún está procesando,
+        // o hubo desfase del inyector asíncrono).
+        if !self.notes.is_empty() {
+            let had_nucleo_matches = !candidates.is_empty();
             for item in self.notes.iter() {
+                let id = *item.key();
+                if seen_candidate_ids.contains(&id) {
+                    continue;
+                }
                 let meta = item.value();
                 let name = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str());
-                if name.to_lowercase().contains(&query_lower)
-                    || meta.title.to_lowercase().contains(&query_lower)
-                    || meta.path.to_lowercase().contains(&query_lower)
-                {
+                let is_name_or_title_match = name.to_lowercase().contains(&query_lower)
+                    || meta.title.to_lowercase().contains(&query_lower);
+                let is_path_match =
+                    !had_nucleo_matches && meta.path.to_lowercase().contains(&query_lower);
+
+                if is_name_or_title_match || is_path_match {
+                    seen_candidate_ids.insert(id);
                     candidates.push((meta.clone(), candidates.len()));
-                    if candidates.len() >= 500 {
-                        break;
-                    }
                 }
             }
-            matched_count = candidates.len();
+            if !had_nucleo_matches || candidates.len() > matched_count {
+                matched_count = candidates.len();
+            }
         }
 
         candidates.sort_by(|(a, rank_a), (b, rank_b)| {
@@ -975,31 +985,40 @@ impl NavigationEngine {
 
             let title_a_lower = a.title.to_lowercase();
             let title_b_lower = b.title.to_lowercase();
+            let path_a_lower = a.path.to_lowercase();
+            let path_b_lower = b.path.to_lowercase();
 
             // Compute match tier:
             // 0: Exact filename/stem match
             // 1: Filename contains query
-            // 2: Title contains query
-            // 3: Folder or fuzzy match
-            let tier = |name_lower: &str, stem_lower: &str, title_lower: &str| -> u8 {
-                if stem_lower == query_lower {
-                    0
-                } else if name_lower.contains(&query_lower) {
-                    1
-                } else if title_lower.contains(&query_lower) {
-                    2
-                } else {
-                    3
-                }
-            };
+            // 2: Exact title match
+            // 3: Title contains query
+            // 4: Path/folder contains query as substring
+            // 5: Scattered fuzzy match only (e.g. t...o...d...o)
+            let tier =
+                |name_lower: &str, stem_lower: &str, title_lower: &str, path_lower: &str| -> u8 {
+                    if stem_lower == query_lower || name_lower == query_lower {
+                        0
+                    } else if name_lower.contains(&query_lower) {
+                        1
+                    } else if title_lower == query_lower {
+                        2
+                    } else if title_lower.contains(&query_lower) {
+                        3
+                    } else if path_lower.contains(&query_lower) {
+                        4
+                    } else {
+                        5
+                    }
+                };
 
-            let tier_a = tier(&name_a_lower, stem_a_lower, &title_a_lower);
-            let tier_b = tier(&name_b_lower, stem_b_lower, &title_b_lower);
+            let tier_a = tier(&name_a_lower, stem_a_lower, &title_a_lower, &path_a_lower);
+            let tier_b = tier(&name_b_lower, stem_b_lower, &title_b_lower, &path_b_lower);
 
             let is_filename_a = tier_a <= 1;
             let is_filename_b = tier_b <= 1;
 
-            // Rule 1: Prioritize matches by file name first
+            // Rule 1: Prioritize matches by file name first (Tier 0 & Tier 1)
             if is_filename_a != is_filename_b {
                 return if is_filename_a {
                     std::cmp::Ordering::Less
@@ -1008,7 +1027,15 @@ impl NavigationEngine {
                 };
             }
 
-            // Rule 2: If both match by file name (or within same group), recently opened files first
+            // Rule 2: If they are NOT both filename matches, strictly compare by tier BEFORE recency!
+            // That way a Title match (tier 2/3) or Folder match (tier 4) ALWAYS beats a scattered fuzzy match (tier 5),
+            // even if the fuzzy match was opened recently.
+            if !is_filename_a && tier_a != tier_b {
+                return tier_a.cmp(&tier_b);
+            }
+
+            // Rule 3: Within the same group (both filename matches, or both in the same tier),
+            // recently opened files come first
             match (a.last_opened_nanos, b.last_opened_nanos) {
                 (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
                 (Some(_), None) => return std::cmp::Ordering::Less,
@@ -1016,13 +1043,13 @@ impl NavigationEngine {
                 _ => {}
             }
 
-            // If neither was opened (or opened at the exact same time):
+            // If neither was opened (or opened at the exact same time), exact filename match beats partial filename match
             if tier_a != tier_b {
                 return tier_a.cmp(&tier_b);
             }
 
-            // Rule 3: For filename matches, alphabetical order by file name
-            if is_filename_a {
+            // Rule 4: For filename or title matches, alphabetical order by file name
+            if tier_a <= 3 {
                 let cmp_name = name_a_lower.cmp(&name_b_lower);
                 if cmp_name != std::cmp::Ordering::Equal {
                     return cmp_name;

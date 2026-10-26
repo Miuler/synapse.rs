@@ -34,6 +34,7 @@
     readOnly?: boolean;
     vimMode?: boolean;
     viewMode?: MarkdownViewMode;
+    isActive?: boolean;
     scrollToTerms?: string[];
     onNavigate?: (path: string) => void;
     onChange?: (markdown: string) => void;
@@ -47,6 +48,7 @@
     readOnly = false,
     vimMode = false,
     viewMode = 'live',
+    isActive = true,
     scrollToTerms = [],
     onNavigate,
     onChange,
@@ -623,19 +625,20 @@
       border: '1px solid var(--border-primary, #d0d7de) !important',
       borderRadius: '8px !important',
       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12) !important',
-      padding: '4px !important',
+      padding: '6px 4px !important',
       fontFamily: 'inherit !important',
-      maxWidth: '360px !important',
+      minWidth: '340px !important',
+      maxWidth: '560px !important',
       zIndex: '100 !important',
     },
     '.cm-tooltip-autocomplete > ul': {
-      maxHeight: '240px !important',
+      maxHeight: '320px !important',
       fontFamily: 'inherit !important',
     },
     '.cm-tooltip-autocomplete > ul > li': {
-      padding: '5px 8px !important',
+      padding: '6px 10px !important',
       borderRadius: '4px !important',
-      fontSize: '12px !important',
+      fontSize: '13px !important',
       color: 'var(--text-primary, #1f2328) !important',
       display: 'flex !important',
       alignItems: 'center !important',
@@ -648,13 +651,13 @@
     },
     '.cm-completionDetail': {
       marginLeft: 'auto !important',
-      fontSize: '10px !important',
+      fontSize: '11px !important',
       color: 'var(--text-muted, #8c959f) !important',
       fontStyle: 'normal !important',
       overflow: 'hidden !important',
       textOverflow: 'ellipsis !important',
       whiteSpace: 'nowrap !important',
-      maxWidth: '140px !important',
+      maxWidth: '220px !important',
     },
   });
 
@@ -702,9 +705,20 @@
 
       emitSelectionInfo(editorView.state);
       editorView.requestMeasure();
+      focusEditorIfEditable();
     } catch (e) {
       console.error('Error al inicializar CodeMirror en MarkdownViewer:', e);
     }
+  }
+
+  function focusEditorIfEditable() {
+    if (!editorView || !isActive || readOnly || viewMode === 'reading') return;
+    tick().then(() => {
+      if (editorView && containerRef && containerRef.clientHeight > 0 && !editorView.hasFocus) {
+        editorView.requestMeasure();
+        editorView.focus();
+      }
+    });
   }
 
   onMount(() => {
@@ -782,8 +796,19 @@
       if (mode !== 'reading') {
         tick().then(() => {
           editorView?.requestMeasure();
+          focusEditorIfEditable();
         });
       }
+    }
+  });
+
+  // Reaccionar a la activación de la pestaña para otorgar el foco automáticamente
+  $effect(() => {
+    const active = isActive;
+    const ro = readOnly;
+    const mode = viewMode;
+    if (active && !ro && mode !== 'reading' && editorView) {
+      focusEditorIfEditable();
     }
   });
 

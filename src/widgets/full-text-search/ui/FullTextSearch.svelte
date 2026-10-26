@@ -11,17 +11,18 @@
 
   interface Props {
     isOpen?: boolean;
+    searchQuery?: string;
     onSelectHit?: (path: string, matchedTerms: string[]) => void;
     onClose?: () => void;
   }
 
   let {
     isOpen = $bindable(false),
+    searchQuery = $bindable(''),
     onSelectHit,
     onClose,
   }: Props = $props();
 
-  let searchQuery = $state('');
   let hits = $state<FullTextHit[]>([]);
   let totalHits = $state(0);
   let elapsedMs = $state(0);
@@ -168,22 +169,6 @@
     };
   });
 
-  // Atajo global Ctrl+Shift+F para abrir/cerrar
-  $effect(() => {
-    const handleKeydown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault();
-        isOpen = !isOpen;
-        if (isOpen) {
-          searchQuery = '';
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  });
-
   function closeDialog() {
     isOpen = false;
     searchQuery = '';
@@ -302,6 +287,7 @@
             {#each hits as hit (hit.note_path)}
               <Command.Item
                 value={hit.note_path}
+                forceMount={true}
                 onSelect={() => selectHit(hit)}
                 class="fts-hit-item"
               >

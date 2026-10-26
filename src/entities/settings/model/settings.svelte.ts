@@ -10,6 +10,7 @@ export interface AppSettings {
   lastOpenedFolder?: string;
   theme: ThemeMode;
   defaultExcalidrawViewer: ExcalidrawViewerType;
+  vimMode: boolean;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastOpenedFolder: undefined,
   theme: 'system', // Por defecto sigue el tema del sistema operativo
   defaultExcalidrawViewer: 'native', // Por defecto los archivos .excalidraw se abren con Excalidraw nativo
+  vimMode: false, // Por defecto modo Vim desactivado
 };
 
 function loadInitialSettings(): AppSettings {
@@ -38,6 +40,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.defaultExcalidrawViewer === 'native' || parsed.defaultExcalidrawViewer === 'obsidian') {
         settings.defaultExcalidrawViewer = parsed.defaultExcalidrawViewer;
+      }
+      if (typeof parsed.vimMode === 'boolean') {
+        settings.vimMode = parsed.vimMode;
       }
     }
   } catch (e) {
@@ -184,6 +189,21 @@ class SettingsManager {
   setLastOpenedFolder(folder: string | undefined) {
     this.settings.lastOpenedFolder = folder;
     this.persist();
+  }
+
+  get vimMode(): boolean {
+    return this.settings.vimMode ?? false;
+  }
+
+  setVimMode(enabled: boolean) {
+    this.settings.vimMode = enabled;
+    this.persist();
+  }
+
+  toggleVimMode(): boolean {
+    const next = !this.vimMode;
+    this.setVimMode(next);
+    return next;
   }
 
   private persist() {

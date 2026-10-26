@@ -514,6 +514,26 @@ fn test_search_prioritization_filename_recency_and_alphabetical() {
     // 4th: "sub/arquitectura/otras_notas.md" because it does NOT contain "arquitectura" in filename, only in path
     assert_eq!(results[3].path.as_str(), "sub/arquitectura/otras_notas.md");
 
+    // Verify that a note with Title "TODO" (even if never opened) beats a recently opened note
+    // that only has a weak scattered fuzzy match for lowercase "todo" (e.g. "tutoria_de_codigo.md")
+    let mut todo_note = File::create(test_dir.join("tareas_pendientes.md")).unwrap();
+    writeln!(todo_note, "# TODO\nLista").unwrap();
+    File::create(test_dir.join("tutoria_de_codigo.md")).unwrap(); // contains t...o...d...o
+    engine.reconcile_sync();
+    engine.record_opened("tutoria_de_codigo.md");
+
+    let todo_results_lower = engine.search("todo", 10);
+    assert!(!todo_results_lower.is_empty());
+    assert_eq!(
+        todo_results_lower[0].path.as_str(),
+        "tareas_pendientes.md",
+        "Lowercase 'todo' must rank the note with title 'TODO' above a recently opened scattered fuzzy match"
+    );
+
+    let todo_results_upper = engine.search("TODO", 10);
+    assert!(!todo_results_upper.is_empty());
+    assert_eq!(todo_results_upper[0].path.as_str(), "tareas_pendientes.md");
+
     let _ = fs::remove_dir_all(&test_dir);
 }
 

@@ -13,6 +13,7 @@
 
   interface Props {
     isOpen?: boolean;
+    searchQuery?: string;
     vaultItems?: VaultItem[];
     recentFiles?: string[];
     onSelectFile?: (path: string, matchedTerms?: string[]) => void;
@@ -21,6 +22,7 @@
 
   let {
     isOpen = $bindable(false),
+    searchQuery = $bindable(''),
     vaultItems = [],
     recentFiles = [],
     onSelectFile,
@@ -30,8 +32,8 @@
   // Constante de paginado para carga bajo demanda en scroll
   const PAGE_SIZE = 25;
 
-  let searchQuery = $state('');
   let nucleoResults = $state<SearchResult[]>([]);
+  let nucleoQuery = $state('');
   let visibleCount = $state(PAGE_SIZE);
   let listContainerEl = $state<HTMLElement | null>(null);
   let isSearching = $state(false);
@@ -142,19 +144,93 @@
 
   // Prepara los candidatos completos para la lista priorizando el nombre del archivo
   let allCandidates = $derived.by<FileItemDisplay[]>(() => {
-    if (searchQuery.trim().length > 0) {
-      return nucleoResults.map((r) => {
-        const path = r.note_path || r.text;
+    const trimmed = searchQuery.trim();
+    if (trimmed.length > 0) {
+      if (nucleoResults.length > 0 && nucleoQuery === trimmed) {
+        return nucleoResults.map((r) => {
+          const path = r.note_path || r.text;
+          const fileName = path.split('/').pop() || path;
+          const isRecent = Boolean(r.is_recent || recentFiles.includes(path));
+          return {
+            id: path,
+            title: r.text,
+            path: path,
+            fileName,
+            isRecent,
+          };
+        });
+      }
+
+      // Fallback instantáneo en cliente (0ms): mientras nucleo responde o si no hubo resultados de nucleo
+      const qLower = trimmed.toLowerCase();
+      const filtered: FileItemDisplay[] = [];
+      const added = new Set<string>();
+
+      // Priorizar recientes
+      for (const path of recentFiles) {
+        if (!path || path.startsWith('empty:') || added.has(path)) continue;
         const fileName = path.split('/').pop() || path;
-        const isRecent = Boolean(r.is_recent || recentFiles.includes(path));
-        return {
-          id: path,
-          title: r.text,
-          path: path,
-          fileName,
-          isRecent,
-        };
+        const item = vaultItems.find((v) => v.relative_path === path);
+        const title = item ? item.title : fileName.replace(/\.[^/.]+$/, '');
+        if (fileName.toLowerCase().includes(qLower) || title.toLowerCase().includes(qLower) || path.toLowerCase().includes(qLower)) {
+          filtered.push({
+            id: path,
+            title,
+            path,
+            fileName,
+            isRecent: true,
+          });
+          added.add(path);
+        }
+      }
+
+      // Añadir el resto de archivos que coincidan
+      for (const item of vaultItems) {
+        if (!item.relative_path || item.relative_path.startsWith('empty:') || added.has(item.relative_path)) continue;
+        const fileName = item.relative_path.split('/').pop() || item.relative_path;
+        if (fileName.toLowerCase().includes(qLower) || item.title.toLowerCase().includes(qLower) || item.relative_path.toLowerCase().includes(qLower)) {
+          filtered.push({
+            id: item.relative_path,
+            title: item.title,
+            path: item.relative_path,
+            fileName,
+            isRecent: false,
+          });
+          added.add(item.relative_path);
+        }
+      }
+
+      // Ordenar con los mismos tiers estrictos de Rust:
+      // 0: Stem/filename exacto
+      // 1: Filename contiene query
+      // 2: Título exacto
+      // 3: Título contiene query
+      // 4: Ruta contiene query
+      const getTier = (item: FileItemDisplay): number => {
+        const fLower = item.fileName.toLowerCase();
+        const stem = fLower.includes('.') ? fLower.slice(0, fLower.lastIndexOf('.')) : fLower;
+        const tLower = item.title.toLowerCase();
+        if (stem === qLower || fLower === qLower) return 0;
+        if (fLower.includes(qLower)) return 1;
+        if (tLower === qLower) return 2;
+        if (tLower.includes(qLower)) return 3;
+        return 4;
+      };
+
+      filtered.sort((a, b) => {
+        const tierA = getTier(a);
+        const tierB = getTier(b);
+        const isFileA = tierA <= 1;
+        const isFileB = tierB <= 1;
+
+        if (isFileA !== isFileB) return isFileA ? -1 : 1;
+        if (!isFileA && tierA !== tierB) return tierA - tierB;
+        if (a.isRecent !== b.isRecent) return a.isRecent ? -1 : 1;
+        if (tierA !== tierB) return tierA - tierB;
+        return a.fileName.localeCompare(b.fileName);
       });
+
+      return filtered;
     }
 
     const list: FileItemDisplay[] = [];
@@ -232,6 +308,7 @@
     const q = searchQuery.trim();
     if (!q || !isOpen || isFtsMode) {
       nucleoResults = [];
+      nucleoQuery = '';
       matchedFiles = totalFiles;
       isSearching = false;
       return;
@@ -245,6 +322,7 @@
       vaultRepository.searchNotes(q).then((resp) => {
         if (active) {
           nucleoResults = resp.results;
+          nucleoQuery = q;
           if (resp.total_files > 0) totalFiles = resp.total_files;
           matchedFiles = resp.matched_files;
           isSearching = false;
@@ -307,23 +385,6 @@
       active = false;
       clearTimeout(timer);
     };
-  });
-
-  // Atajo global Ctrl+O o Cmd+O para abrir/cerrar el diálogo de archivos
-  $effect(() => {
-    const handleKeydown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
-        e.preventDefault();
-        isOpen = !isOpen;
-        if (isOpen) {
-          searchQuery = '';
-          visibleCount = PAGE_SIZE;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
   });
 
   function handleScroll(e: Event) {
@@ -452,6 +513,7 @@
                 <Command.Item
                   class="palette-item quick-fts-item"
                   value={hit.note_path}
+                  forceMount={true}
                   onSelect={() => selectFile(hit.note_path, hit.matched_terms)}
                 >
                   <div class="quick-fts-main">
@@ -506,6 +568,7 @@
               <Command.Item
                 class="palette-item"
                 value={`${file.fileName} ${file.title} ${file.path}`}
+                forceMount={true}
                 onSelect={() => selectFile(file.path)}
               >
                 <FileIcon path={file.path} name={file.fileName} size={15} class="file-icon" />

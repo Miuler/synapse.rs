@@ -27,14 +27,16 @@ export async function wikilinkCompletionSource(
     const results = searchResp.results || [];
 
     const options: Completion[] = results.map((r) => {
-      const path = r.note_path || r.text;
+      const fullPath = r.note_path || r.text;
+      // Obtener únicamente el nombre del archivo (sin directorios)
+      const fileName = fullPath.includes('/') ? fullPath.split('/').pop() || fullPath : fullPath;
       // Si termina en .md, removerlo para una presentación más limpia como estilo Obsidian
-      const cleanLabel = path.endsWith('.md') ? path.slice(0, -3) : path;
-      const title = r.text || cleanLabel;
+      const cleanName = fileName.endsWith('.md') ? fileName.slice(0, -3) : fileName;
+      const title = r.text || cleanName;
 
       return {
-        label: cleanLabel,
-        detail: cleanLabel !== title ? title : (path.includes('/') ? path : undefined),
+        label: cleanName,
+        detail: cleanName !== title ? title : undefined,
         type: 'file',
         boost: r.is_recent ? 2 : (r.score ? r.score / 100 : 0),
         apply: (view, completion, from, to) => {
