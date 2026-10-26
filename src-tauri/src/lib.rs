@@ -178,6 +178,18 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::Destroyed = event {
+                    let app = window.app_handle();
+                    for (label, other_win) in app.webview_windows() {
+                        if label != "main" {
+                            let _ = other_win.destroy();
+                        }
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

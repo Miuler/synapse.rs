@@ -43,7 +43,7 @@
   import {systemApi, type McpRuntimeStatus} from "@shared/api";
   import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType, createCanonicalExcalidrawContent} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
-  import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
+  import {getCurrentWebviewWindow, getAllWebviewWindows} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
   import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
   import {
@@ -1115,6 +1115,16 @@
       if (isTauriEnvironment()) {
         try {
           const appWindow = getCurrentWebviewWindow();
+          if (appWindow.label === 'main') {
+            const allWindows = await getAllWebviewWindows();
+            for (const win of allWindows) {
+              if (win.label !== 'main') {
+                try {
+                  await win.destroy();
+                } catch {}
+              }
+            }
+          }
           await appWindow.destroy();
         } catch {}
       }
@@ -1164,6 +1174,16 @@
         if (isTauriEnvironment()) {
           try {
             const appWindow = getCurrentWebviewWindow();
+            if (appWindow.label === 'main') {
+              const allWindows = await getAllWebviewWindows();
+              for (const win of allWindows) {
+                if (win.label !== 'main') {
+                  try {
+                    await win.destroy();
+                  } catch {}
+                }
+              }
+            }
             await appWindow.destroy();
           } catch {}
         }
@@ -2070,6 +2090,22 @@
             return;
           }
           await flushAllModifiedTabs();
+
+          // Si la ventana que se está cerrando es la ventana principal, cerrar también todas las ventanas secundarias desacopladas
+          if (appWindow.label === 'main') {
+            try {
+              const allWindows = await getAllWebviewWindows();
+              for (const win of allWindows) {
+                if (win.label !== 'main') {
+                  try {
+                    await win.destroy();
+                  } catch {}
+                }
+              }
+            } catch (err) {
+              console.warn('Error cerrando ventanas secundarias:', err);
+            }
+          }
         }).then((unsub) => {
           unlistenCloseRequested = unsub;
         }).catch((e) => {
