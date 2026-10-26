@@ -445,22 +445,29 @@
         e.stopImmediatePropagation();
       }
     } else if (e.key === 'Escape') {
-      // Al presionar Escape, garantizar que viewModeEnabled siga desactivado si estamos en edición,
-      // restaurar la herramienta de selección y devolver el foco al contenedor de Excalidraw
+      // Comportamiento idéntico a Excalidraw Web: al presionar Escape se deselecciona todo
+      // y se vuelve a la herramienta de selección sin perder el foco del contenedor de dibujo
       if (!readOnly && excalidrawAPI) {
         setTimeout(() => {
           if (!readOnly && excalidrawAPI) {
-            if (excalidrawAPI.getAppState?.()?.viewModeEnabled) {
-              excalidrawAPI.updateScene({
-                appState: { viewModeEnabled: false },
-              });
-            }
+            excalidrawAPI.updateScene({
+              appState: {
+                viewModeEnabled: false,
+                selectedElementIds: {},
+                selectedGroupIds: {},
+                selectedLinearElement: null,
+                editingLinearElement: null,
+                activeEmbeddable: null,
+              },
+            });
             if (excalidrawAPI.setActiveTool) {
               excalidrawAPI.setActiveTool({ type: 'selection' });
             }
-            if (containerRef && (!document.activeElement || document.activeElement === document.body || !containerRef.contains(document.activeElement))) {
+            if (containerRef) {
               const excalEl = containerRef.querySelector<HTMLElement>('.excalidraw');
-              excalEl?.focus();
+              if (excalEl && document.activeElement !== excalEl) {
+                excalEl.focus();
+              }
             }
           }
         }, 0);

@@ -213,7 +213,11 @@ impl FileWorkspaceRegistryRepository {
     // Alternar entre tema Claro y Oscuro
     "toggle_theme": "Ctrl+Shift+T",
     // Abrir o cerrar herramientas de desarrollo (DevTools)
-    "toggle_devtools": "F12, Ctrl+Shift+I"
+    "toggle_devtools": "F12, Ctrl+Shift+I",
+    // Cambiar a la pestaña siguiente
+    "next_tab": "Ctrl+PageDown, Ctrl+Tab",
+    // Cambiar a la pestaña anterior
+    "prev_tab": "Ctrl+PageUp, Ctrl+Shift+Tab"
   }
 }
 "#

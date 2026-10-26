@@ -26,6 +26,8 @@ export interface WorkspaceShortcutsConfig {
   toggle_theme: string;
   toggle_devtools: string;
   toggle_edit_mode: string;
+  next_tab: string;
+  prev_tab: string;
 }
 
 export interface ShortcutsConfig {
@@ -59,6 +61,8 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     toggle_theme: 'Ctrl+Shift+T',
     toggle_devtools: 'F12, Ctrl+Shift+I',
     toggle_edit_mode: 'Ctrl+E',
+    next_tab: 'Ctrl+PageDown, Ctrl+Tab',
+    prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
   },
 };
 
@@ -109,6 +113,14 @@ function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
   }
   if (targetKey === 'down' || targetKey === 'arrowdown') {
     return eventKey === 'arrowdown';
+  }
+
+  // Normalizar PageUp / PageDown (ej. Ctrl+PageUp, Ctrl+PgUp, Ctrl+PageDown, Ctrl+PgDn)
+  if (targetKey === 'pageup' || targetKey === 'pgup' || targetKey === 'prior') {
+    return eventKey === 'pageup' || eventCode === 'pageup';
+  }
+  if (targetKey === 'pagedown' || targetKey === 'pgdn' || targetKey === 'next') {
+    return eventKey === 'pagedown' || eventCode === 'pagedown';
   }
 
   // Normalizar dígitos (ej. Alt+1 o Ctrl+Alt+1 donde Shift o teclado puede alterar e.key)

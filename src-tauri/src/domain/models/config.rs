@@ -140,6 +140,10 @@ pub struct WorkspaceShortcutsConfig {
     pub toggle_devtools: String,
     #[serde(default = "default_ws_toggle_edit_mode")]
     pub toggle_edit_mode: String,
+    #[serde(default = "default_ws_next_tab")]
+    pub next_tab: String,
+    #[serde(default = "default_ws_prev_tab")]
+    pub prev_tab: String,
 }
 
 fn default_ws_quick_open() -> String {
@@ -196,6 +200,12 @@ fn default_ws_toggle_devtools() -> String {
 fn default_ws_toggle_edit_mode() -> String {
     "Ctrl+E".to_string()
 }
+fn default_ws_next_tab() -> String {
+    "Ctrl+PageDown, Ctrl+Tab".to_string()
+}
+fn default_ws_prev_tab() -> String {
+    "Ctrl+PageUp, Ctrl+Shift+Tab".to_string()
+}
 
 impl Default for WorkspaceShortcutsConfig {
     fn default() -> Self {
@@ -218,6 +228,8 @@ impl Default for WorkspaceShortcutsConfig {
             toggle_theme: default_ws_toggle_theme(),
             toggle_devtools: default_ws_toggle_devtools(),
             toggle_edit_mode: default_ws_toggle_edit_mode(),
+            next_tab: default_ws_next_tab(),
+            prev_tab: default_ws_prev_tab(),
         }
     }
 }

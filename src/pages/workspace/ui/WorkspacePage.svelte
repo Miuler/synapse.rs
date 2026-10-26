@@ -1215,6 +1215,34 @@
     persistTabsState();
   }
 
+  function switchToNextTab() {
+    if (activeFocusedPane === 'right' && isSplit && splitTabPaths.length > 0) {
+      if (splitTabPaths.length < 2) return;
+      const currentIndex = activeSplitTabPath ? splitTabPaths.indexOf(activeSplitTabPath) : -1;
+      const nextIndex = (currentIndex + 1) % splitTabPaths.length;
+      selectSplitTab(splitTabPaths[nextIndex]);
+    } else if (openTabPaths.length > 0) {
+      if (openTabPaths.length < 2) return;
+      const currentIndex = activeTabPath ? openTabPaths.indexOf(activeTabPath) : -1;
+      const nextIndex = (currentIndex + 1) % openTabPaths.length;
+      selectTab(openTabPaths[nextIndex]);
+    }
+  }
+
+  function switchToPrevTab() {
+    if (activeFocusedPane === 'right' && isSplit && splitTabPaths.length > 0) {
+      if (splitTabPaths.length < 2) return;
+      const currentIndex = activeSplitTabPath ? splitTabPaths.indexOf(activeSplitTabPath) : 0;
+      const prevIndex = (currentIndex - 1 + splitTabPaths.length) % splitTabPaths.length;
+      selectSplitTab(splitTabPaths[prevIndex]);
+    } else if (openTabPaths.length > 0) {
+      if (openTabPaths.length < 2) return;
+      const currentIndex = activeTabPath ? openTabPaths.indexOf(activeTabPath) : 0;
+      const prevIndex = (currentIndex - 1 + openTabPaths.length) % openTabPaths.length;
+      selectTab(openTabPaths[prevIndex]);
+    }
+  }
+
   function receiveTabFromOtherWindow(path: string, targetIndex?: number, sourceWindow?: string) {
     if (!openTabPaths.includes(path)) {
       const newPaths = [...openTabPaths];
@@ -2543,6 +2571,20 @@
         action: handleNewEmptyTab,
       },
       {
+        id: "cmd-next-tab",
+        name: "Pestaña siguiente",
+        category: "Pestañas",
+        shortcut: shortcutsConfig.workspace.next_tab,
+        action: switchToNextTab,
+      },
+      {
+        id: "cmd-prev-tab",
+        name: "Pestaña anterior",
+        category: "Pestañas",
+        shortcut: shortcutsConfig.workspace.prev_tab,
+        action: switchToPrevTab,
+      },
+      {
         id: "cmd-open-in-new-window",
         name: "Abrir pestaña activa en nueva ventana",
         category: "Pestañas",
@@ -3005,6 +3047,16 @@
       if (matchesShortcut(e, ws.new_tab)) {
         stopEvent();
         handleNewEmptyTab();
+        return;
+      }
+      if (matchesShortcut(e, ws.next_tab)) {
+        stopEvent();
+        switchToNextTab();
+        return;
+      }
+      if (matchesShortcut(e, ws.prev_tab)) {
+        stopEvent();
+        switchToPrevTab();
         return;
       }
       if (matchesShortcut(e, ws.split_view)) {
