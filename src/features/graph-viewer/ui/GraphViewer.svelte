@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import ForceGraph from 'force-graph';
+  import ForceGraph3D from '3d-force-graph';
+  import * as THREE from 'three';
   import type { VaultGraphData, GraphNode } from '@entities/vault-item';
   import { vaultApi } from '@entities/vault-item';
-  import { Globe, Crosshair, RefreshCw, Layers, Search, Ghost, Filter } from 'lucide-svelte';
+  import { Globe, Crosshair, RefreshCw, Layers, Search, Ghost, Box, Sparkles } from 'lucide-svelte';
 
   interface Props {
     activeNotePath?: string | null;
@@ -17,6 +19,7 @@
 
   // Estado del Grafo
   let isGlobalMode = $state(false);
+  let is3DMode = $state(false);
   let depth = $state(1);
   let isLoading = $state(false);
   let showGhostNodes = $state(true);
@@ -87,80 +90,112 @@
   function initForceGraph() {
     if (!containerEl) return;
 
+    if (graphInstance) {
+      try {
+        graphInstance._destructor?.();
+      } catch {}
+      containerEl.innerHTML = '';
+      graphInstance = null;
+    }
+
     const width = containerEl.clientWidth || 800;
     const height = containerEl.clientHeight || 600;
 
-    graphInstance = new ForceGraph(containerEl)
-      .width(width)
-      .height(height)
-      .backgroundColor('transparent')
-      .nodeId('id')
-      .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Nota pendiente por crear)' : ` (${node.id})`}`)
-      .nodeVal((node: any) => (node.is_ghost ? 2.5 : Math.max(3, Math.min(node.val * 2, 18))))
-      .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-        const isMatched = searchQuery.trim() &&
-          (node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           node.id.toLowerCase().includes(searchQuery.toLowerCase()));
-        const isFocused = activeNotePath && node.id === activeNotePath;
-        const radius = Math.max(3, Math.min((node.val || 1) * 2, 16));
-
-        // Dibujar círculo del nodo
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-
-        if (node.is_ghost) {
-          // Estilo fantasma: trazo punteado gris/lavanda
-          ctx.setLineDash([3, 2]);
-          ctx.strokeStyle = '#9ca3af';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
-          ctx.fill();
-          ctx.setLineDash([]);
-        } else {
-          // Color estándar según grupo o resaltado
-          ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6'));
-          ctx.fill();
-
-          if (isMatched || isFocused) {
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#ffffff';
-            ctx.stroke();
+    if (is3DMode) {
+      // Motor WebGL 3D acelerado completamente por GPU
+      graphInstance = new ForceGraph3D(containerEl)
+        .width(width)
+        .height(height)
+        .backgroundColor('#0d1117')
+        .nodeId('id')
+        .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Fantasma)' : ` (${node.id})`}`)
+        .nodeVal((node: any) => (node.is_ghost ? 1.5 : Math.max(2, Math.min(node.val * 1.5, 12))))
+        .nodeColor((node: any) => {
+          if (node.is_ghost) return '#9ca3af';
+          if (activeNotePath && node.id === activeNotePath) return '#3b82f6';
+          return node.color || '#60a5fa';
+        })
+        .linkColor(() => 'rgba(255, 255, 255, 0.2)')
+        .linkWidth(0.8)
+        .warmupTicks(isGlobalMode ? 30 : 10)
+        .cooldownTicks(isGlobalMode ? 80 : 120)
+        .onNodeClick((node: any) => {
+          if (node && node.id && onSelectNote) {
+            onSelectNote(node.id);
           }
-        }
+        });
+    } else {
+      // Motor Canvas 2D
+      graphInstance = new ForceGraph(containerEl)
+        .width(width)
+        .height(height)
+        .backgroundColor('transparent')
+        .nodeId('id')
+        .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Nota pendiente por crear)' : ` (${node.id})`}`)
+        .nodeVal((node: any) => (node.is_ghost ? 2.5 : Math.max(3, Math.min(node.val * 2, 18))))
+        .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+          const isMatched = searchQuery.trim() &&
+            (node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             node.id.toLowerCase().includes(searchQuery.toLowerCase()));
+          const isFocused = activeNotePath && node.id === activeNotePath;
+          const radius = Math.max(3, Math.min((node.val || 1) * 2, 16));
 
-        // Mostrar etiqueta de texto si hay zoom suficiente o si coincide con la búsqueda
-        const showLabel = globalScale >= 1.2 || isMatched || isFocused;
-        if (showLabel) {
-          const fontSize = Math.max(10 / globalScale, 3);
-          ctx.font = `${fontSize}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151');
-          ctx.fillText(node.label, node.x, node.y + radius + 2);
-        }
-      })
-      .linkSource('source')
-      .linkTarget('target')
-      .linkColor((link: any) => {
-        const targetNode = typeof link.target === 'object' ? link.target : null;
-        if (targetNode?.is_ghost) {
-          return 'rgba(156, 163, 175, 0.35)';
-        }
-        return 'rgba(150, 150, 150, 0.35)';
-      })
-      .linkDirectionalParticles(isGlobalMode ? 0 : 2)
-      .linkDirectionalParticleSpeed(0.006)
-      .linkDirectionalParticleWidth(1.5)
-      .warmupTicks(isGlobalMode ? 40 : 15)
-      .cooldownTicks(isGlobalMode ? 100 : 200)
-      .d3AlphaDecay(isGlobalMode ? 0.05 : 0.02)
-      .d3VelocityDecay(isGlobalMode ? 0.4 : 0.3)
-      .onNodeClick((node: any) => {
-        if (node && node.id && onSelectNote) {
-          onSelectNote(node.id);
-        }
-      });
+          // Dibujar círculo del nodo
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+
+          if (node.is_ghost) {
+            ctx.setLineDash([3, 2]);
+            ctx.strokeStyle = '#9ca3af';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
+            ctx.fill();
+            ctx.setLineDash([]);
+          } else {
+            ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6'));
+            ctx.fill();
+
+            if (isMatched || isFocused) {
+              ctx.lineWidth = 2;
+              ctx.strokeStyle = '#ffffff';
+              ctx.stroke();
+            }
+          }
+
+          // Mostrar etiqueta si hay suficiente zoom o coincide con la búsqueda
+          const showLabel = globalScale >= 1.2 || isMatched || isFocused;
+          if (showLabel) {
+            const fontSize = Math.max(10 / globalScale, 3);
+            ctx.font = `${fontSize}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151');
+            ctx.fillText(node.label, node.x, node.y + radius + 2);
+          }
+        })
+        .linkSource('source')
+        .linkTarget('target')
+        .linkColor((link: any) => {
+          const targetNode = typeof link.target === 'object' ? link.target : null;
+          if (targetNode?.is_ghost) {
+            return 'rgba(156, 163, 175, 0.35)';
+          }
+          return 'rgba(150, 150, 150, 0.35)';
+        })
+        .linkDirectionalParticles(isGlobalMode ? 0 : 2)
+        .linkDirectionalParticleSpeed(0.006)
+        .linkDirectionalParticleWidth(1.5)
+        .warmupTicks(isGlobalMode ? 40 : 15)
+        .cooldownTicks(isGlobalMode ? 100 : 200)
+        .d3AlphaDecay(isGlobalMode ? 0.05 : 0.02)
+        .d3VelocityDecay(isGlobalMode ? 0.4 : 0.3)
+        .onNodeClick((node: any) => {
+          if (node && node.id && onSelectNote) {
+            onSelectNote(node.id);
+          }
+        });
+    }
 
     loadGraph();
   }
@@ -256,6 +291,20 @@
     >
       <Ghost size={13} />
       <span>Fantasmas</span>
+    </button>
+
+    <!-- Alternador 2D / 3D WebGL -->
+    <button
+      class="toggle-ghost-btn"
+      class:active={is3DMode}
+      onclick={() => {
+        is3DMode = !is3DMode;
+        initForceGraph();
+      }}
+      title={is3DMode ? 'Cambiar a vista Canvas 2D' : 'Acelerar por GPU con vista 3D WebGL'}
+    >
+      <Box size={13} />
+      <span>{is3DMode ? '3D WebGL' : '2D Canvas'}</span>
     </button>
 
     <!-- Barra de Búsqueda Rápida de Nodos -->
