@@ -226,3 +226,13 @@ pub struct McpGetPromptResult {
     pub description: Option<String>,
     pub messages: Vec<McpPromptMessage>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpRuntimeStatus {
+    pub running: bool,
+    pub port: u16,
+    pub endpoint: String,
+    pub active_vault: Option<String>,
+    pub requests_handled: usize,
+    pub last_error: Option<String>,
+}

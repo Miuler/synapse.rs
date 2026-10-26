@@ -1,6 +1,7 @@
 pub mod assets;
 pub mod file_ops;
 pub mod git;
+pub mod mcp;
 pub mod plugins;
 pub mod search;
 pub mod session;
@@ -11,6 +12,7 @@ pub mod workspace;
 pub use assets::*;
 pub use file_ops::*;
 pub use git::*;
+pub use mcp::*;
 pub use plugins::*;
 pub use search::*;
 pub use session::*;

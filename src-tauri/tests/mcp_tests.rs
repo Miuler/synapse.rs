@@ -142,3 +142,75 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     assert!(output_str.contains("synapse-mcp-server"));
     assert!(output_str.contains("full_text_search"));
 }
+
+struct DummyMcpProvider {
+    vault: std::path::PathBuf,
+}
+
+impl app_lib::infrastructure::mcp::server::McpContextProvider for DummyMcpProvider {
+    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::services::full_text_index::FullTextIndex>>) {
+        (Some(self.vault.clone()), None)
+    }
+}
+
+#[test]
+fn test_mcp_background_runtime_lifecycle_and_http() {
+    use app_lib::infrastructure::mcp::server::McpBackgroundRuntime;
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let vault_path = temp_dir.path().to_path_buf();
+    let provider = Arc::new(DummyMcpProvider { vault: vault_path });
+    let runtime = McpBackgroundRuntime::new(provider);
+
+    // 1. Estado inicial
+    let initial_status = runtime.get_status();
+    assert!(!initial_status.running);
+
+    // 2. Start
+    let started_status = runtime.start().expect("Debe iniciar runtime MCP");
+    assert!(started_status.running);
+    let port = started_status.port;
+
+    // 3. Probar GET /health
+    {
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).expect("Debe conectar a servidor HTTP");
+        stream.write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(response.contains("200 OK"));
+        assert!(response.contains("synapse-mcp-server"));
+    }
+
+    // 4. Probar POST /mcp con JSON-RPC initialize
+    {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "initialize",
+            "params": {}
+        }).to_string();
+
+        let req = format!(
+            "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\nContent-Type: application/json\r\n\r\n{}",
+            body.len(),
+            body
+        );
+
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).expect("Debe conectar a servidor HTTP");
+        stream.write_all(req.as_bytes()).unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(response.contains("200 OK"));
+        assert!(response.contains("protocolVersion"));
+        assert!(response.contains("synapse-mcp-server"));
+    }
+
+    // 5. Toggle (apagar)
+    let toggled_status = runtime.toggle().expect("Debe alternar runtime");
+    assert!(!toggled_status.running);
+    assert_eq!(toggled_status.requests_handled, 2);
+}

@@ -5,6 +5,15 @@ export type StartupTarget =
   | { type: 'vault'; path: string }
   | null;
 
+export interface McpRuntimeStatus {
+  running: boolean;
+  port: number;
+  endpoint: string;
+  active_vault?: string | null;
+  requests_handled: number;
+  last_error?: string | null;
+}
+
 export const systemApi = {
   async openFileWithDefaultApp(relativePath: string): Promise<void> {
     if (!relativePath) return;
@@ -61,6 +70,42 @@ export const systemApi = {
       return await invokeTauri<string | null>('select_standalone_file');
     } catch (error) {
       console.error('Error al seleccionar archivo puntual:', error);
+      return null;
+    }
+  },
+
+  async getMcpServerStatus(): Promise<McpRuntimeStatus | null> {
+    try {
+      return await invokeTauri<McpRuntimeStatus>('get_mcp_server_status');
+    } catch (error) {
+      console.error('Error al obtener estado del servidor MCP:', error);
+      return null;
+    }
+  },
+
+  async toggleMcpServer(): Promise<McpRuntimeStatus | null> {
+    try {
+      return await invokeTauri<McpRuntimeStatus>('toggle_mcp_server');
+    } catch (error) {
+      console.error('Error al alternar servidor MCP:', error);
+      return null;
+    }
+  },
+
+  async startMcpServer(): Promise<McpRuntimeStatus | null> {
+    try {
+      return await invokeTauri<McpRuntimeStatus>('start_mcp_server');
+    } catch (error) {
+      console.error('Error al iniciar servidor MCP:', error);
+      return null;
+    }
+  },
+
+  async stopMcpServer(): Promise<McpRuntimeStatus | null> {
+    try {
+      return await invokeTauri<McpRuntimeStatus>('stop_mcp_server');
+    } catch (error) {
+      console.error('Error al detener servidor MCP:', error);
       return null;
     }
   },

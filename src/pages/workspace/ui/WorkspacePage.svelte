@@ -38,7 +38,7 @@
   import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
-  import {systemApi} from "@shared/api";
+  import {systemApi, type McpRuntimeStatus} from "@shared/api";
   import {createSynapseApp, type SynapseApp, isExcalidrawMarkdown, resolvePluginViewType, createCanonicalExcalidrawContent} from "@shared/obsidian-api";
   import {listen, emit} from "@tauri-apps/api/event";
   import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
@@ -298,6 +298,42 @@
   let unsavedDialogOpen = $state(false);
   let unsavedDialogFiles = $state<string[]>([]);
   let unsavedDialogIsWindowClose = $state(false);
+
+  // Estado reactivo del Servidor MCP en proceso
+  let mcpStatus = $state<McpRuntimeStatus | null>(null);
+
+  async function refreshMcpStatus() {
+    try {
+      const status = await systemApi.getMcpServerStatus();
+      if (status) {
+        mcpStatus = status;
+      }
+    } catch (e) {
+      console.warn('Error al consultar estado MCP:', e);
+    }
+  }
+
+  async function handleToggleMcp() {
+    try {
+      const updated = await systemApi.toggleMcpServer();
+      if (updated) {
+        mcpStatus = updated;
+        appSettings.setMcpServerEnabled(updated.running);
+      }
+    } catch (e) {
+      console.error('Error al alternar servidor MCP:', e);
+    }
+  }
+
+  async function copyMcpUrlToClipboard() {
+    if (mcpStatus?.endpoint) {
+      try {
+        await navigator.clipboard.writeText(mcpStatus.endpoint);
+      } catch (e) {
+        console.warn('Error al copiar endpoint MCP al portapapeles:', e);
+      }
+    }
+  }
   let isForceSavingUnsaved = $state(false);
   let pendingCloseAction = $state<{
     type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close';
@@ -2761,6 +2797,18 @@
         category: "Apariencia",
         action: () => appSettings.setTheme('light'),
       },
+      {
+        id: "cmd-toggle-mcp-server",
+        name: "MCP: Alternar servidor MCP local (Activar / Desactivar)",
+        category: "MCP",
+        action: handleToggleMcp,
+      },
+      {
+        id: "cmd-copy-mcp-endpoint",
+        name: "MCP: Copiar URL del servidor MCP al portapapeles",
+        category: "MCP",
+        action: copyMcpUrlToClipboard,
+      },
     ]);
   }
 
@@ -2770,6 +2818,25 @@
     shortcutsConfig.loadFromBackend().then(() => {
       registerWorkspaceCommands();
     });
+
+    // Escuchar cambios de estado en el servidor MCP y restaurar preferencia
+    refreshMcpStatus();
+    if (appSettings.mcpServerEnabled) {
+      systemApi.startMcpServer().then((s) => {
+        if (s) mcpStatus = s;
+      });
+    }
+
+    let unlistenMcp: (() => void) | undefined;
+    if (isTauriEnvironment()) {
+      listen<McpRuntimeStatus>('mcp:status-changed', (event) => {
+        mcpStatus = event.payload;
+      }).then((u) => {
+        unlistenMcp = u;
+      }).catch((e) => {
+        console.warn('Error escuchando eventos de estado MCP:', e);
+      });
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showWelcomeScreen) {
@@ -2942,6 +3009,7 @@
       window.removeEventListener('mouseup', handleMouseNavUp, true);
       window.removeEventListener('pointerup', handleMouseNavUp, true);
       window.removeEventListener('auxclick', handleAuxClick, true);
+      if (unlistenMcp) unlistenMcp();
     };
   });
 
@@ -3667,6 +3735,8 @@
       encoding={currentEncoding}
       isMarkdownFile={isMarkdownTab}
       markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
+      mcpStatus={mcpStatus}
+      onToggleMcp={handleToggleMcp}
       onToggleVim={() => appSettings.toggleVimMode()}
       onToggleMarkdownView={toggleMarkdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}

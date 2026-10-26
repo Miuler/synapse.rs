@@ -43,4 +43,8 @@ impl<I: FullTextIndex + ?Sized> FullTextSearchUseCases<I> {
     pub fn num_docs(&self) -> u64 {
         self.index.num_docs()
     }
+
+    pub fn index_arc(&self) -> Arc<I> {
+        Arc::clone(&self.index)
+    }
 }

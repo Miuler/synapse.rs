@@ -11,6 +11,7 @@ export interface AppSettings {
   theme: ThemeMode;
   defaultExcalidrawViewer: ExcalidrawViewerType;
   vimMode: boolean;
+  mcpServerEnabled: boolean;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system', // Por defecto sigue el tema del sistema operativo
   defaultExcalidrawViewer: 'native', // Por defecto los archivos .excalidraw se abren con Excalidraw nativo
   vimMode: false, // Por defecto modo Vim desactivado
+  mcpServerEnabled: false, // Por defecto servidor MCP desactivado
 };
 
 function loadInitialSettings(): AppSettings {
@@ -43,6 +45,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.vimMode === 'boolean') {
         settings.vimMode = parsed.vimMode;
+      }
+      if (typeof parsed.mcpServerEnabled === 'boolean') {
+        settings.mcpServerEnabled = parsed.mcpServerEnabled;
       }
     }
   } catch (e) {
@@ -203,6 +208,21 @@ class SettingsManager {
   toggleVimMode(): boolean {
     const next = !this.vimMode;
     this.setVimMode(next);
+    return next;
+  }
+
+  get mcpServerEnabled(): boolean {
+    return this.settings.mcpServerEnabled ?? false;
+  }
+
+  setMcpServerEnabled(enabled: boolean) {
+    this.settings.mcpServerEnabled = enabled;
+    this.persist();
+  }
+
+  toggleMcpServerEnabled(): boolean {
+    const next = !this.mcpServerEnabled;
+    this.setMcpServerEnabled(next);
     return next;
   }
 

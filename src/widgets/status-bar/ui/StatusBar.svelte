@@ -14,10 +14,12 @@
     AlertCircle,
     FileText,
     RefreshCw,
+    Bot,
   } from 'lucide-svelte';
   import { ThemeToggle } from '@features/theme-toggle';
   import { type MarkdownViewMode } from '@entities/vault-item';
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
+  import type { McpRuntimeStatus } from '@shared/api';
   import { listen } from '@tauri-apps/api/event';
 
   interface Props {
@@ -31,6 +33,8 @@
     encoding?: string;
     isMarkdownFile?: boolean;
     markdownViewMode?: MarkdownViewMode;
+    mcpStatus?: McpRuntimeStatus | null;
+    onToggleMcp?: () => void;
     onToggleVim?: () => void;
     onToggleMarkdownView?: () => void;
     onChangeMarkdownView?: (newMode: MarkdownViewMode) => void;
@@ -49,6 +53,8 @@
     encoding = '---',
     isMarkdownFile = false,
     markdownViewMode = 'live',
+    mcpStatus = null,
+    onToggleMcp,
     onToggleVim,
     onToggleMarkdownView,
     onChangeMarkdownView,
@@ -404,6 +410,27 @@
         </Popover.Portal>
       </Popover.Root>
     </div>
+
+    <div class="divider"></div>
+
+    <!-- Indicador y Toggle del Servidor MCP Local -->
+    <button
+      type="button"
+      class="status-item clickable mcp-btn"
+      class:mcp-running={mcpStatus?.running}
+      onclick={() => { if (onToggleMcp) onToggleMcp(); }}
+      title={mcpStatus?.running
+        ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar)`
+        : 'Servidor MCP Desactivado (Clic para activar en esta instancia)'}
+    >
+      <Bot size={13} class="icon mcp-icon" />
+      <span class="mcp-label">
+        MCP {mcpStatus?.running ? 'ON' : 'OFF'}
+      </span>
+      {#if mcpStatus?.running}
+        <span class="mcp-port-tag">:{mcpStatus.port}</span>
+      {/if}
+    </button>
   </div>
 
   <div class="right-group">
@@ -1009,6 +1036,34 @@
   :global(.vim-btn[data-state="on"] .vim-badge) {
     background: var(--accent, #0969da);
     color: #ffffff;
+  }
+
+  /* Indicador MCP */
+  .mcp-btn {
+    font-weight: 600;
+    gap: 4px;
+    font-size: 11px;
+    transition: all 0.2s ease;
+  }
+
+  .mcp-btn.mcp-running {
+    color: #1a7f37;
+    background: rgba(46, 160, 67, 0.12);
+  }
+
+  .mcp-btn.mcp-running:hover {
+    background: rgba(46, 160, 67, 0.2);
+  }
+
+  .mcp-btn.mcp-running :global(.mcp-icon) {
+    opacity: 1;
+    color: #1a7f37;
+  }
+
+  .mcp-port-tag {
+    font-family: var(--mono, monospace);
+    font-size: 10px;
+    opacity: 0.85;
   }
 
   .selection-badge {
