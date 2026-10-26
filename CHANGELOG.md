@@ -9,6 +9,29 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Renderizado Embebido de Dibujos Excalidraw en Markdown con Caché**:
+  - Soporte completo para renderizar visualmente archivos de dibujo Excalidraw (`.excalidraw`, `.excalidraw.json`, `.excalidraw.md`) como gráficos vectoriales SVG directamente dentro de las notas Markdown.
+  - Compatibilidad total con transclusiones de wikilinks (`![[dibujo.excalidraw]]`, `![[esquema.excalidraw.md|500]]`), sintaxis estándar de imagen (`![](./diagrama.excalidraw)`) y bloques de código dedicados (````excalidraw ... ````) con soporte para directivas `{{#include ...}}`.
+  - **Sistema de Caché Multinivel de Alto Rendimiento**:
+    - **Nivel 1 (RAM)**: Caché en memoria LRU de 0 ms para visualización instantánea.
+    - **Nivel 2 (Disco)**: Persistencia de SVGs prerenderizados en `<vault>/.synapse/cache/excalidraw/<hash>_<theme>.svg`. Lee el SVG en menos de 2 ms sin invocar React ni volver a calcular la geometría si el contenido no ha cambiado.
+    - **Nivel 3 (Motor)**: Renderizado bajo demanda con `exportToSvg` adaptado al tema activo claro u oscuro de Synapse.
+  - Integración transparente en el editor en vivo CodeMirror (sustitución interactiva al salir del cursor con botón de edición) y en la vista de lectura `MarkdownReadingView`.
+- **Visualizador y Editor de Diagramas D2 (`.d2`) con WebAssembly (`@terrastruct/d2`)**:
+  - Soporte completo para abrir, editar y previsualizar archivos de diagramas `.d2` con renderizado SVG nativo de alto rendimiento vía WASM.
+  - Reconocimiento de la extensión `.d2` en la categoría `diagrams` tanto en el backend Rust (`file_types.rs`) como en la configuración (`config.jsonc`) y entidades frontend (`file-types.svelte.ts`).
+  - **Configuración Declarativa In-File**: Soporte nativo del bloque `vars: { d2-config: { ... } }` para definir motor de layout (`dagre`, `elk`), tema (`theme-id`), tema oscuro (`dark-theme-id`), modo boceto (`sketch`) y padding directamente en el código fuente.
+  - Detección automática del tema claro u oscuro de Synapse como fallback si el archivo no especifica un `theme-id`.
+  - Integración en `WorkspacePage`, comparador de diff (`VisualDiffViewer`), visor de revisiones Git (`RevisionViewer`) y renderizado de bloques de código ````d2` en notas Markdown (tanto en lectura como en edición en vivo).
+- **Refactorización Unificada `DiagramSplitViewer` (`src/shared/ui/diagram-viewer/`)**:
+  - Extracción de componentes comunes de visualización de diagramas en un único componente base reutilizable, reduciendo más de 1,300 líneas de código duplicado entre `MermaidViewer`, `MermanViewer` y `D2Viewer`.
+  - Lienzo SVG unificado con zoom y paneo interactivo sobre `viewBox`, motor gráfico de Puntero Láser sobre canvas 2D con estela y controles flotantes con `bits-ui`.
+- **Autocompletado y Linter Sintáctico en Tiempo Real para D2 y Mermaid (`CodeEditor.svelte`)**:
+  - **Autocompletado Contextual (`@codemirror/autocomplete`)**:
+    - En **D2**: sugerencias para motores (`dagre`, `elk`), catálogo de 20 temas oficiales con nombre descriptivo (`0` Neutral, `3` Flagship, `200` Dark Mauve, `300` Terminal, `303` C4, etc.), formas geométricas (`shape:`), direcciones (`direction:`), estilos (`style.*`) y snippets de `d2-config`.
+    - En **Mermaid**: sugerencias para directivas `%%{init: ...}%%`, frontmatter `config:`, catálogo de temas de Mermaid.js y Merman, `look` (`classic`, `handDrawn`), `layout` (`dagre`, `elk`), `curve` y tipos de diagrama (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `erDiagram`, `architecture-beta`, etc.).
+  - **Linter y Diagnóstico en Línea (`@codemirror/lint` + `lintGutter`)**:
+    - Subrayado rojo ondulado en la línea y columna exacta del error sintáctico devuelto por los parsers de D2 (rangos AST) y Mermaid (`err.hash.loc`), con marcadores en el margen de línea y tooltips informativos.
 - **Atajo de Teclado para Alternar/Entrar en Modo Edición**:
   - Nuevo atajo de teclado por defecto `Ctrl+E` (`toggle_edit_mode`) para alternar instantáneamente entre el modo lectura y el modo edición en el visor Markdown activo sin necesidad de hacer clic con el ratón.
   - Registro del atajo en la configuración global y en el mapa de atajos (`shortcuts.svelte.ts`).
@@ -35,12 +58,16 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - **Indicador e Interruptor en `StatusBar`**: Botón interactivo en la barra de estado inferior que muestra el estado en vivo (`MCP ON :27182` / `MCP OFF`), permite activar o apagar el servidor con un clic y expone información de la bóveda activa y peticiones atendidas vía tooltip.
   - **Comandos en Paleta (`Ctrl+P`)**: Acciones rápidas para alternar el servidor MCP local y copiar la URL de conexión al portapapeles.
   - **Persistencia de Estado**: Opción recordada en `localStorage` (`appSettings.mcpServerEnabled`) para restaurar automáticamente el servidor encendido al reabrir la app.
-  - Herramientas MCP avanzadas para búsqueda full-text, inspección de relaciones/backlinks, lectura de notas y estado Git.
+  - Herramientas MCP avanzadas para búsqueda full-text, inspección de relaciones/backlinks, lectura de notas, listado de contenido de carpetas (`list_folder_contents`), listado de notas vecinas en la misma carpeta (`list_sibling_notes`), movimiento en lote de notas entre carpetas (`move_notes`) y estado Git.
 - **Soporte de Frontmatter YAML según OKF**:
   - Parseo, indexación y preservación bidireccional de metadatos YAML frontmatter alineados con las especificaciones Open Knowledge Format (OKF) y herramientas de IA.
 
 ### Corregido
 
+- **Prevención de Recarga Redundante y Bloqueo de Edición en Excalidraw al presionar Esc**:
+  - Se corrigió un bug en `ExcalidrawViewer` donde al pulsar <kbd>Esc</kbd> o producirse una deselección con pérdida de foco (`focusout`), la serialización y guardado del archivo desencadenaba una actualización externa reactiva que sobreescribía la escena de Excalidraw (`updateScene`). Esto provocaba la pérdida del puntero interactivo del canvas y requería alternar a modo lectura y volver a edición para reactivar el dibujo.
+  - Implementación de discriminación de cambios locales (`isLocalChange`) y comparación semántica con hash de versión de escena (`hasSceneDiverged` utilizando `getSceneVersion`) para impedir reescrituras de la escena viva generadas por el propio visor.
+  - Restauración automática y garantizada de la herramienta de selección (`setActiveTool({ type: 'selection' })`) tras la captura del evento `Escape`.
 - **Foco Automático en el Editor al Reabrir o Alternar Notas**:
   - Al abrir o reabrir una nota que quedó en modo edición, o alternar entre pestañas editables, el editor CodeMirror recibe el foco de entrada automáticamente (`focus()`), permitiendo escribir o desplazarse inmediatamente con las teclas sin necesidad de hacer clic manual previo.
 - **Precisión y Ranking en Búsqueda Difusa (`search_with_stats`)**:
