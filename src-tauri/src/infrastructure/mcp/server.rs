@@ -223,8 +223,8 @@ impl McpBackgroundRuntime {
         };
 
         // Configurar timeout no bloqueante en listener para poder evaluar is_running regularmente
-        if let Err(e) = listener.set_nonblocking(false) {
-            log::warn!("No se pudo configurar modo en TcpListener MCP: {}", e);
+        if let Err(e) = listener.set_nonblocking(true) {
+            log::warn!("No se pudo configurar modo no bloqueante en TcpListener MCP: {}", e);
         }
 
         self.is_running.store(true, Ordering::SeqCst);

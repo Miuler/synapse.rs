@@ -141,12 +141,15 @@ impl AppState {
 
         let handle_for_mcp = Arc::clone(&app_handle);
         mcp_runtime.set_on_status_change(Arc::new(move |status| {
-            if let Ok(guard) = handle_for_mcp.lock() {
-                if let Some(ref handle) = *guard {
-                    use tauri::Emitter;
-                    let _ = handle.emit("mcp:status-changed", &status);
+            let handle_clone = Arc::clone(&handle_for_mcp);
+            std::thread::spawn(move || {
+                if let Ok(guard) = handle_clone.lock() {
+                    if let Some(ref handle) = *guard {
+                        use tauri::Emitter;
+                        let _ = handle.emit("mcp:status-changed", &status);
+                    }
                 }
-            }
+            });
         }));
 
         Self {
@@ -191,12 +194,15 @@ impl AppState {
 
         let handle_for_mcp = Arc::clone(&app_handle);
         mcp_runtime.set_on_status_change(Arc::new(move |status| {
-            if let Ok(guard) = handle_for_mcp.lock() {
-                if let Some(ref handle) = *guard {
-                    use tauri::Emitter;
-                    let _ = handle.emit("mcp:status-changed", &status);
+            let handle_clone = Arc::clone(&handle_for_mcp);
+            std::thread::spawn(move || {
+                if let Ok(guard) = handle_clone.lock() {
+                    if let Some(ref handle) = *guard {
+                        use tauri::Emitter;
+                        let _ = handle.emit("mcp:status-changed", &status);
+                    }
                 }
-            }
+            });
         }));
 
         Self {
@@ -219,8 +225,10 @@ impl AppState {
     pub fn activate_vault(&self, path: PathBuf, is_git: Option<bool>) -> Result<SelectVaultFolderResult, String> {
         let folder_path_str = path.to_string_lossy().to_string();
 
-        let mut vault_path = self.active_vault_path.lock().map_err(|e| e.to_string())?;
-        *vault_path = Some(path.clone());
+        {
+            let mut vault_path = self.active_vault_path.lock().map_err(|e| e.to_string())?;
+            *vault_path = Some(path.clone());
+        }
 
         let (new_engine, new_ft) = open_vault_components(
             path.clone(),
@@ -250,14 +258,18 @@ impl AppState {
         }
         notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
 
-        // Si el runtime de MCP está activo, notificar el cambio de bóveda al frontend
-        if self.mcp_runtime.get_status().running {
-            if let Ok(guard) = self.app_handle.lock() {
-                if let Some(ref handle) = *guard {
-                    use tauri::Emitter;
-                    let _ = handle.emit("mcp:status-changed", &self.mcp_runtime.get_status());
+        // Notificar en un hilo separado o después de soltar locks para evitar deadlocks con eventos de Tauri
+        let mcp_status = self.mcp_runtime.get_status();
+        if mcp_status.running {
+            let app_handle_arc = Arc::clone(&self.app_handle);
+            std::thread::spawn(move || {
+                if let Ok(guard) = app_handle_arc.lock() {
+                    if let Some(ref handle) = *guard {
+                        use tauri::Emitter;
+                        let _ = handle.emit("mcp:status-changed", &mcp_status);
+                    }
                 }
-            }
+            });
         }
 
         let _ = self.workspace_registry_use_cases.record_workspace_opened(
