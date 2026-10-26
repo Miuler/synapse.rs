@@ -69,6 +69,10 @@
   let readingViewRef = $state<any>(null);
 
   export function triggerSearch() {
+    if (viewMode === 'reading') {
+      readingViewRef?.triggerSearch();
+      return;
+    }
     if (editorView) {
       openSearchPanel(editorView as any);
     }

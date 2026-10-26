@@ -9,6 +9,15 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Búsqueda en Vista de Markdown de Solo Lectura (Reading Mode)**:
+  - Soporte para buscar texto dentro de notas Markdown en modo lectura interactivo:
+    - Barra de búsqueda flotante accesible con <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd>.
+    - Resaltado visual en el documento (`<mark class="reading-search-highlight">`) con scroll automático suave hacia la coincidencia seleccionada (`.reading-search-active`).
+    - Contador de coincidencias en tiempo real (`X de N` o `Sin coincidencias`).
+    - Navegación bidireccional entre resultados mediante <kbd>Enter</kbd> (siguiente), <kbd>Shift+Enter</kbd> (anterior) o botones de interfaz.
+    - Alternancia de coincidencia de mayúsculas y minúsculas (*case-sensitive*) con el botón `Aa`.
+    - Cierre rápido y limpieza de resaltados mediante tecla <kbd>Escape</kbd> o botón de cierre.
+  - Integración transparente en `MarkdownViewer.svelte` y el despachador de atajos globales de `WorkspacePage.svelte`.
 - **Navegación Circular entre Pestañas con Atajos de Teclado**:
   - Soporte para alternar rápidamente entre pestañas abiertas:
     - **Pestaña siguiente**: <kbd>Ctrl+PageDown</kbd> o <kbd>Ctrl+Tab</kbd>.

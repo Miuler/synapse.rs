@@ -942,6 +942,7 @@
     delete openedNotes[path];
     delete excalidrawViewers[path];
     delete pdfViewers[path];
+    delete markdownViewers[path];
     delete recentSaveTimestamps[path];
     // Se conserva tabSelections[path] para preservar la posición del cursor si se reabre
 
@@ -972,6 +973,7 @@
     openedNotes = {};
     excalidrawViewers = {};
     pdfViewers = {};
+    markdownViewers = {};
     recentSaveTimestamps = {};
     tabSelections = {};
     tabHistory.clear();
@@ -1643,6 +1645,7 @@
 
   let excalidrawViewers = $state<Record<string, any>>({});
   let pdfViewers = $state<Record<string, any>>({});
+  let markdownViewers = $state<Record<string, any>>({});
   let recentSaveTimestamps: Record<string, number> = {};
 
   let currentVaultItem = $derived(
@@ -3014,6 +3017,14 @@
         appSettings.toggleTheme();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        const targetPath = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
+        if (targetPath && markdownViewers[targetPath]) {
+          stopEvent();
+          markdownViewers[targetPath].triggerSearch();
+          return;
+        }
+      }
       if (matchesShortcut(e, ws.search_fulltext)) {
         stopEvent();
         openFullTextSearchModal();
@@ -3633,6 +3644,7 @@
 
                   <div class="editor-main-content">
                     <MarkdownViewer
+                      bind:this={markdownViewers[tabPath]}
                       {content}
                       filePath={tabPath}
                       readOnly={!paneEditing}

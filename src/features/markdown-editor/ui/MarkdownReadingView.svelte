@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Marked } from 'marked';
+  import { Search, ChevronUp, ChevronDown, X } from 'lucide-svelte';
   import { resolveIncludes } from '../lib/include-resolver';
   import { appSettings } from '@entities/settings';
   import { renderUnifiedDiagramSvg, renderExcalidrawToSvg } from '@shared/lib/diagrams';
@@ -19,6 +20,182 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
+
+  // Estado del panel de búsqueda en modo lectura
+  let showSearchBar = $state(false);
+  let searchQuery = $state('');
+  let caseSensitive = $state(false);
+  let matchCount = $state(0);
+  let currentMatchIndex = $state(0);
+  let searchInputRef = $state<HTMLInputElement | null>(null);
+  let matchesNodes = $state<HTMLElement[]>([]);
+
+  export function triggerSearch() {
+    showSearchBar = true;
+    tick().then(() => {
+      searchInputRef?.focus();
+      searchInputRef?.select();
+    });
+  }
+
+  export function closeSearch() {
+    showSearchBar = false;
+    searchQuery = '';
+    clearHighlights();
+  }
+
+  function clearHighlights() {
+    if (!containerRef) return;
+    const marks = containerRef.querySelectorAll('mark.reading-search-highlight');
+    marks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (!parent) return;
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      parent.removeChild(mark);
+      parent.normalize();
+    });
+    matchesNodes = [];
+    matchCount = 0;
+    currentMatchIndex = 0;
+  }
+
+  function performSearch() {
+    clearHighlights();
+    const query = searchQuery.trim();
+    if (!containerRef || !query) return;
+
+    const article = containerRef.querySelector('.markdown-body');
+    if (!article) return;
+
+    // Buscar en los nodos de texto de .markdown-body ignorando scripts/estilos
+    const walker = document.createTreeWalker(
+      article,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          const tagName = parent.tagName.toUpperCase();
+          if (tagName === 'SCRIPT' || tagName === 'STYLE') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          if (parent.closest('.reading-search-bar')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    const nodesToReplace: { node: Text; matches: { start: number; end: number }[] }[] = [];
+    let textNode: Node | null = walker.nextNode();
+
+    while (textNode) {
+      const text = textNode.textContent || '';
+      const flags = caseSensitive ? 'g' : 'gi';
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, flags);
+      const matches: { start: number; end: number }[] = [];
+      let m: RegExpExecArray | null;
+
+      while ((m = regex.exec(text)) !== null) {
+        matches.push({ start: m.index, end: m.index + m[0].length });
+      }
+
+      if (matches.length > 0) {
+        nodesToReplace.push({ node: textNode as Text, matches });
+      }
+
+      textNode = walker.nextNode();
+    }
+
+    const createdMarks: HTMLElement[] = [];
+
+    for (const { node, matches } of nodesToReplace) {
+      const parent = node.parentNode;
+      if (!parent) continue;
+
+      const fullText = node.textContent || '';
+      const fragment = document.createDocumentFragment();
+      let lastIdx = 0;
+
+      for (const { start, end } of matches) {
+        if (start > lastIdx) {
+          fragment.appendChild(document.createTextNode(fullText.substring(lastIdx, start)));
+        }
+        const mark = document.createElement('mark');
+        mark.className = 'reading-search-highlight';
+        mark.textContent = fullText.substring(start, end);
+        fragment.appendChild(mark);
+        createdMarks.push(mark);
+        lastIdx = end;
+      }
+
+      if (lastIdx < fullText.length) {
+        fragment.appendChild(document.createTextNode(fullText.substring(lastIdx)));
+      }
+
+      parent.replaceChild(fragment, node);
+    }
+
+    matchesNodes = createdMarks;
+    matchCount = createdMarks.length;
+    currentMatchIndex = createdMarks.length > 0 ? 1 : 0;
+
+    if (createdMarks.length > 0) {
+      updateActiveHighlight();
+    }
+  }
+
+  function updateActiveHighlight() {
+    matchesNodes.forEach((mark, idx) => {
+      if (idx === currentMatchIndex - 1) {
+        mark.classList.add('reading-search-active');
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        mark.classList.remove('reading-search-active');
+      }
+    });
+  }
+
+  function findNext() {
+    if (matchCount === 0) return;
+    currentMatchIndex = currentMatchIndex >= matchCount ? 1 : currentMatchIndex + 1;
+    updateActiveHighlight();
+  }
+
+  function findPrevious() {
+    if (matchCount === 0) return;
+    currentMatchIndex = currentMatchIndex <= 1 ? matchCount : currentMatchIndex - 1;
+    updateActiveHighlight();
+  }
+
+  function handleSearchKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSearch();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        findPrevious();
+      } else {
+        findNext();
+      }
+    }
+  }
+
+  function handleWrapperKeyDown(e: KeyboardEvent) {
+    const isFind = (e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F');
+    if (isFind) {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerSearch();
+    }
+  }
 
   const marked = new Marked();
 
@@ -306,9 +483,111 @@
       });
     }
   });
+  $effect(() => {
+    if (showSearchBar && searchQuery) {
+      performSearch();
+    }
+  });
+
+  $effect(() => {
+    // Si se re-renderiza el HTML y la barra de búsqueda está abierta, refrescar
+    if (renderedHtml && showSearchBar && searchQuery) {
+      tick().then(() => {
+        performSearch();
+      });
+    }
+  });
 </script>
 
-<div class="markdown-reading-wrapper" bind:this={containerRef}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="markdown-reading-wrapper"
+  bind:this={containerRef}
+  onkeydown={handleWrapperKeyDown}
+  tabindex="-1"
+>
+  {#if showSearchBar}
+    <div class="reading-search-bar" role="search">
+      <div class="reading-search-input-wrapper">
+        <Search size={14} class="reading-search-icon" />
+        <input
+          bind:this={searchInputRef}
+          type="text"
+          class="reading-search-input"
+          placeholder="Buscar en el documento..."
+          bind:value={searchQuery}
+          oninput={() => {
+            performSearch();
+          }}
+          onkeydown={handleSearchKeyDown}
+        />
+        {#if searchQuery}
+          <button
+            type="button"
+            class="reading-search-icon-btn"
+            title="Borrar búsqueda"
+            onclick={() => {
+              searchQuery = '';
+              clearHighlights();
+              searchInputRef?.focus();
+            }}
+          >
+            <X size={12} />
+          </button>
+        {/if}
+      </div>
+
+      <div class="reading-search-info">
+        {#if searchQuery}
+          <span class="reading-search-count">
+            {matchCount > 0 ? `${currentMatchIndex} de ${matchCount}` : 'Sin coincidencias'}
+          </span>
+        {/if}
+      </div>
+
+      <div class="reading-search-actions">
+        <button
+          type="button"
+          class="reading-search-btn"
+          title="Anterior (Shift+Enter)"
+          disabled={matchCount === 0}
+          onclick={findPrevious}
+        >
+          <ChevronUp size={14} />
+        </button>
+        <button
+          type="button"
+          class="reading-search-btn"
+          title="Siguiente (Enter)"
+          disabled={matchCount === 0}
+          onclick={findNext}
+        >
+          <ChevronDown size={14} />
+        </button>
+        <button
+          type="button"
+          class="reading-search-btn reading-search-case-btn"
+          class:active={caseSensitive}
+          title="Coincidir mayúsculas y minúsculas"
+          onclick={() => {
+            caseSensitive = !caseSensitive;
+            performSearch();
+          }}
+        >
+          Aa
+        </button>
+        <button
+          type="button"
+          class="reading-search-btn reading-search-close-btn"
+          title="Cerrar búsqueda (Esc)"
+          onclick={closeSearch}
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <article class="markdown-body" onclick={handleContainerClick}>
@@ -331,6 +610,150 @@
     color: var(--text-primary, #1f2328);
     font-family: var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
     line-height: 1.7;
+    position: relative;
+    outline: none;
+  }
+
+  /* Barra de búsqueda flotante en vista de lectura */
+  .reading-search-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: -16px -24px 16px -24px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--bg-secondary, #f6f8fa);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .reading-search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 160px;
+    max-width: 320px;
+  }
+
+  :global(.reading-search-icon) {
+    position: absolute;
+    left: 8px;
+    color: var(--text-secondary, #656d76);
+    pointer-events: none;
+  }
+
+  .reading-search-input {
+    width: 100%;
+    height: 28px;
+    padding: 0 26px 0 28px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-primary, #1f2328);
+    background-color: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .reading-search-input:focus {
+    border-color: var(--accent, #0969da);
+    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
+  }
+
+  .reading-search-icon-btn {
+    position: absolute;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    border-radius: 3px;
+  }
+
+  .reading-search-icon-btn:hover {
+    color: var(--text-primary, #1f2328);
+    background-color: var(--bg-secondary, #f6f8fa);
+  }
+
+  .reading-search-info {
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+    min-width: 70px;
+    user-select: none;
+  }
+
+  .reading-search-count {
+    white-space: nowrap;
+  }
+
+  .reading-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .reading-search-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    min-width: 26px;
+    padding: 0 6px;
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 4px;
+    background-color: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    font-size: 11px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .reading-search-btn:hover:not(:disabled) {
+    background-color: var(--bg-secondary, #f6f8fa);
+    border-color: var(--text-secondary, #656d76);
+  }
+
+  .reading-search-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .reading-search-case-btn {
+    font-weight: 600;
+  }
+
+  .reading-search-case-btn.active {
+    background-color: rgba(9, 105, 218, 0.15);
+    border-color: var(--accent, #0969da);
+    color: var(--accent, #0969da);
+  }
+
+  .reading-search-close-btn:hover {
+    color: var(--error-text, #cf222e);
+  }
+
+  :global(mark.reading-search-highlight) {
+    background-color: rgba(255, 223, 93, 0.45);
+    color: inherit;
+    border-radius: 2px;
+    padding: 1px 2px;
+  }
+
+  :global(mark.reading-search-highlight.reading-search-active) {
+    background-color: #ff9632 !important;
+    color: #000000 !important;
+    outline: 2px solid #ff9632;
+    border-radius: 2px;
   }
 
   .markdown-body {
