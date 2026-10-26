@@ -2,7 +2,7 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import React from 'react';
   import { createRoot, type Root } from 'react-dom/client';
-  import { Excalidraw } from '@excalidraw/excalidraw';
+  import { Excalidraw, getSceneVersion } from '@excalidraw/excalidraw';
   import '@excalidraw/excalidraw/index.css';
   import {
     parseExcalidrawContent,
@@ -110,9 +110,35 @@
     }
   }
 
-  // Guardar la última cadena de contenido conocida en Excalidraw
+  // Guardar la última cadena de contenido conocida en Excalidraw y rastrear cambios locales
   let lastKnownScene = untrack(() => content);
   let lastReadOnly = untrack(() => readOnly);
+  let isLocalChange = false;
+
+  function hasSceneDiverged(newContent: string): boolean {
+    if (newContent === lastKnownScene) return false;
+    if (!excalidrawAPI) return true;
+
+    try {
+      const currentElements = excalidrawAPI.getSceneElements?.() || [];
+      const currentNonDeleted = currentElements.filter((el: any) => !el.isDeleted);
+      const currentVersion = getSceneVersion(currentElements);
+
+      const parsed = parseExcalidrawContent(newContent);
+      const newElements = parsed.scene?.elements || [];
+      const newNonDeleted = newElements.filter((el: any) => !el.isDeleted);
+      const newVersion = getSceneVersion(newElements);
+
+      // Si tanto la cantidad de elementos visibles como la suma de versiones coinciden, no hubo divergencia real
+      if (currentNonDeleted.length === newNonDeleted.length && currentVersion === newVersion) {
+        return false;
+      }
+    } catch {
+      // En caso de error de parseo o comparación, confiar en la comparación textual
+    }
+
+    return true;
+  }
 
   function parseInitialData(raw: string, isReadOnly: boolean) {
     if (!raw || !raw.trim()) {
@@ -218,6 +244,7 @@
 
   export function saveCurrentScene(): string {
     const serialized = getCurrentSerializedScene();
+    isLocalChange = true;
     if (onChange) {
       onChange(serialized);
     }
@@ -274,6 +301,7 @@
           const serialized = serializeSceneData(elements, appState, files);
           if (serialized !== lastKnownScene) {
             lastKnownScene = serialized;
+            isLocalChange = true;
             if (onChange) onChange(serialized);
           }
         }, 300);
@@ -318,7 +346,14 @@
     const r = readOnly;
 
     const readOnlyChanged = r !== lastReadOnly;
-    const contentChanged = c !== lastKnownScene;
+    // Si fue originado localmente por el propio visor de Excalidraw, no recargar
+    let contentChanged = false;
+    if (isLocalChange) {
+      isLocalChange = false;
+      lastKnownScene = c;
+    } else {
+      contentChanged = hasSceneDiverged(c);
+    }
 
     if (!root || !containerRef) return;
 
@@ -339,7 +374,7 @@
       }
     }
 
-    // Solo si el contenido cambió externamente (diferente de lo que Excalidraw emitió)
+    // Solo si el contenido cambió externamente y divergió de la escena viva
     if (contentChanged) {
       lastKnownScene = c;
       if (excalidrawAPI) {
@@ -392,6 +427,16 @@
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+      }
+    } else if (e.key === 'Escape') {
+      // Al presionar Escape, restaurar explícitamente la herramienta de selección en el siguiente tick
+      // para evitar que el canvas quede deshabilitado o en un estado inconsistente
+      if (!readOnly && excalidrawAPI?.setActiveTool) {
+        setTimeout(() => {
+          if (!readOnly && excalidrawAPI?.setActiveTool) {
+            excalidrawAPI.setActiveTool({ type: 'selection' });
+          }
+        }, 0);
       }
     }
   }
