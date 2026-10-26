@@ -282,6 +282,7 @@
   let vaultItems = $state<VaultItem[]>([]);
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
+  let lastActiveDocumentPath = $state<string | null>(null);
 
   // Estado para panel dividido (Split View vertical)
   let splitTabPaths = $state<string[]>([]);
@@ -749,6 +750,7 @@
     }
     activeTabPath = path;
     if (!isSyntheticTab(path)) {
+      lastActiveDocumentPath = path;
       const vItem = vaultItems.find((v) => v.relative_path === path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
@@ -1524,7 +1526,9 @@
   let currentActiveNonGraphPath = $derived(
     activeTabPath && !isSyntheticTab(activeTabPath)
       ? activeTabPath
-      : (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath) ? activeSplitTabPath : null)
+      : (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)
+          ? activeSplitTabPath
+          : lastActiveDocumentPath)
   );
 
   let currentSplitVaultItem = $derived(

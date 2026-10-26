@@ -262,6 +262,12 @@
     </div>
 
     <div class="stats-badge">
+      {#if !isGlobalMode && activeNotePath}
+        <span class="focus-label" title={activeNotePath}>
+          Nota: <strong>{activeNotePath.split('/').pop()}</strong>
+        </span>
+        <span class="dot">•</span>
+      {/if}
       <span>{totalNodes} nodos</span>
       <span class="dot">•</span>
       <span>{totalLinks} enlaces</span>
@@ -418,6 +424,15 @@
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .focus-label {
+    color: var(--accent, #0969da);
+    font-weight: 500;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .dot {

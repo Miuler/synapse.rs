@@ -1504,7 +1504,15 @@ impl NavigationEngine {
 
         // Determinar el conjunto de nodos incluidos
         let included_nodes: HashSet<String> = if let Some(focus) = focus_path {
-            let clean_focus = focus.trim_start_matches('/').replace('\\', "/");
+            let mut clean_focus = focus.trim_start_matches('/').replace('\\', "/");
+            // Si la ruta no termina en .md ni otra extensión pero existe como .md, normalizar
+            if !self.path_index.contains_key(clean_focus.as_str()) && !clean_focus.contains('.') {
+                let with_md = format!("{}.md", clean_focus);
+                if self.path_index.contains_key(with_md.as_str()) {
+                    clean_focus = with_md;
+                }
+            }
+
             let mut visited = HashSet::new();
             let mut queue = VecDeque::new();
             let depth_limit = max_depth.unwrap_or(1);
