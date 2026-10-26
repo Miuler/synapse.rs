@@ -132,6 +132,11 @@ function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
     );
   }
 
+  // Normalizar Tab / Backtab (en Linux/WebKit/X11, Shift+Tab genera e.key = "Backtab")
+  if (targetKey === 'tab') {
+    return eventKey === 'tab' || eventKey === 'backtab' || eventCode === 'tab';
+  }
+
   // Normalizar barra invertida (Ctrl+\ o Ctrl+|)
   if (targetKey === '\\' || targetKey === 'backslash') {
     return eventKey === '\\' || eventKey === '|' || eventCode === 'backslash';
