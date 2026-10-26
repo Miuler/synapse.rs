@@ -81,8 +81,8 @@ export function extractImageTokens(lineText: string, lineOffset = 0): ImageToken
 
     const filePart = src.split('#')[0].trim();
 
-    // Solo considerar imágenes comunes si es sintaxis wiki
-    const isImageExt = /\.(?:png|jpe?g|webp|gif|svg|bmp|ico|avif|tiff?)$/i.test(filePart);
+    // Solo considerar imágenes comunes o archivos Excalidraw si es sintaxis wiki
+    const isImageExt = /\.(?:png|jpe?g|webp|gif|svg|bmp|ico|avif|tiff?|excalidraw(?:\.md|\.json)?)$/i.test(filePart);
     if (!isImageExt) continue;
 
     const { cleanAlt, width, height } = parseImageDimensions(rawAlt || filePart);

@@ -3,7 +3,8 @@
   import { Marked } from 'marked';
   import { resolveIncludes } from '../lib/include-resolver';
   import { appSettings } from '@entities/settings';
-  import { renderUnifiedDiagramSvg } from '@shared/lib/diagrams';
+  import { renderUnifiedDiagramSvg, renderExcalidrawToSvg } from '@shared/lib/diagrams';
+  import { vaultRepository } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
 
@@ -73,6 +74,16 @@
             </div>
           </div>`;
         }
+        if (cleanLang === 'excalidraw') {
+          return `<div class="reading-excalidraw-card" data-code="${encodeURIComponent(text)}">
+            <div class="reading-mermaid-header">
+              <span class="reading-mermaid-badge">Dibujo Excalidraw</span>
+            </div>
+            <div class="reading-excalidraw-body">
+              <span class="reading-mermaid-loading">Cargando dibujo Excalidraw...</span>
+            </div>
+          </div>`;
+        }
         return false;
       },
     },
@@ -80,10 +91,42 @@
 
   async function renderImages() {
     if (!containerRef) return;
+    const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
     const figures = containerRef.querySelectorAll<HTMLElement>('.reading-image-figure');
     for (const fig of figures) {
       const rawSrc = fig.getAttribute('data-raw-src') || '';
       if (!rawSrc) continue;
+
+      const cleanSrcLower = rawSrc.toLowerCase().split('?')[0].split('#')[0];
+      const isExcalidraw = /\.(?:excalidraw|excalidraw\.json|excalidraw\.md)$/i.test(cleanSrcLower);
+
+      if (isExcalidraw) {
+        // Renderizado especial de Excalidraw embebido con caché
+        const container = fig.querySelector<HTMLElement>('.reading-image-container');
+        if (!container) continue;
+
+        try {
+          let targetPath = rawSrc.trim().replace(/^['"]|['"]$/g, '').split('#')[0].trim();
+          if (filePath && !targetPath.startsWith('/')) {
+            const lastSlash = filePath.lastIndexOf('/');
+            const baseDir = lastSlash >= 0 ? filePath.slice(0, lastSlash) : '';
+            targetPath = baseDir ? `${baseDir}/${targetPath}` : targetPath;
+          }
+          targetPath = targetPath.replace(/^\/+/, '');
+
+          const note = await vaultRepository.readNote(targetPath);
+          if (note && note.content) {
+            const svgString = await renderExcalidrawToSvg(note.content, targetPath, isDark);
+            if (svgString) {
+              container.innerHTML = `<div class="reading-excalidraw-svg-wrapper">${svgString}</div>`;
+              continue;
+            }
+          }
+        } catch (err) {
+          console.warn('Error renderizando Excalidraw en modo lectura:', err);
+        }
+      }
+
       const img = fig.querySelector<HTMLImageElement>('.reading-image-el');
       if (!img) continue;
 
@@ -100,6 +143,36 @@
 
   async function renderDiagrams() {
     if (!containerRef) return;
+    const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+
+    // 1. Renderizar tarjetas de bloques ```excalidraw
+    const excalidrawCards = containerRef.querySelectorAll<HTMLDivElement>('.reading-excalidraw-card');
+    for (const card of excalidrawCards) {
+      const rawCode = card.getAttribute('data-code');
+      if (!rawCode) continue;
+      const code = decodeURIComponent(rawCode);
+      const body = card.querySelector('.reading-excalidraw-body');
+      if (!body) continue;
+
+      try {
+        const resolvedCode = await resolveIncludes(code, filePath);
+        const svgString = await renderExcalidrawToSvg(resolvedCode, filePath || undefined, isDark);
+        if (svgString) {
+          body.innerHTML = `<div class="reading-excalidraw-svg-wrapper">${svgString}</div>`;
+        } else {
+          body.innerHTML = `<div class="reading-mermaid-empty">Dibujo Excalidraw vacío</div>`;
+        }
+      } catch (err: any) {
+        body.innerHTML = `
+          <div class="reading-mermaid-error">
+            <div class="error-badge">Error al renderizar Excalidraw</div>
+            <pre>${escapeHtml(String(err?.message || err))}</pre>
+          </div>
+        `;
+      }
+    }
+
+    // 2. Renderizar diagramas Mermaid y D2
     const cards = containerRef.querySelectorAll<HTMLDivElement>('.reading-mermaid-card');
     for (const card of cards) {
       const rawCode = card.getAttribute('data-code');

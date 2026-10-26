@@ -2,6 +2,8 @@ import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemir
 import { StateField, type EditorState } from '@codemirror/state';
 import { activeFilePathFacet } from './mermaid-extension';
 import { extractImageTokens, resolveVaultImageUrl, type ImageToken } from './image-resolver';
+import { renderExcalidrawToSvg } from '@shared/lib/diagrams';
+import { vaultRepository } from '@shared/repositories';
 
 class ImageWidget extends WidgetType {
   constructor(
@@ -66,6 +68,89 @@ class ImageWidget extends WidgetType {
       <span>Cargando imagen...</span>
     `;
     imgContainer.appendChild(loadingPlaceholder);
+
+    // Comprobar si el token es un dibujo Excalidraw
+    const cleanSrcLower = this.token.src.toLowerCase().split('?')[0].split('#')[0];
+    const isExcalidraw = /\.(?:excalidraw|excalidraw\.json|excalidraw\.md)$/i.test(cleanSrcLower);
+
+    if (isExcalidraw) {
+      editBtn.title = 'Editar dibujo Excalidraw';
+      loadingPlaceholder.innerHTML = `
+        <span class="cm-image-spinner"></span>
+        <span>Cargando dibujo Excalidraw...</span>
+      `;
+
+      const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+
+      // Cargar contenido del archivo de la bóveda y renderizar con caché
+      (async () => {
+        try {
+          // Resolver ruta relativa completa
+          let targetPath = this.token.src.trim().replace(/^['"]|['"]$/g, '').split('#')[0].trim();
+          if (this.basePath && !targetPath.startsWith('/')) {
+            const lastSlash = this.basePath.lastIndexOf('/');
+            const baseDir = lastSlash >= 0 ? this.basePath.slice(0, lastSlash) : '';
+            targetPath = baseDir ? `${baseDir}/${targetPath}` : targetPath;
+          }
+          targetPath = targetPath.replace(/^\/+/, '');
+
+          const note = await vaultRepository.readNote(targetPath);
+          if (!note || !note.content) {
+            throw new Error(`No se encontró el archivo Excalidraw: ${targetPath}`);
+          }
+
+          const svgString = await renderExcalidrawToSvg(note.content, targetPath, isDark);
+          loadingPlaceholder.remove();
+
+          if (svgString) {
+            const svgWrapper = document.createElement('div');
+            svgWrapper.className = 'cm-excalidraw-svg-wrapper';
+            svgWrapper.style.width = this.token.width || '100%';
+            if (this.token.height) svgWrapper.style.height = this.token.height;
+            svgWrapper.innerHTML = svgString;
+
+            svgWrapper.addEventListener('click', (e) => {
+              e.preventDefault();
+              view.dispatch({
+                selection: { anchor: this.token.from },
+                scrollIntoView: true,
+              });
+              view.focus();
+            });
+
+            imgContainer.appendChild(svgWrapper);
+          } else {
+            throw new Error('No se pudo renderizar el SVG de Excalidraw.');
+          }
+        } catch (err: any) {
+          loadingPlaceholder.remove();
+          const errorEl = document.createElement('div');
+          errorEl.className = 'cm-image-error';
+          errorEl.innerHTML = `
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>Error cargando Excalidraw: <code>${escapeHtml(err?.message || this.token.src)}</code></span>
+          `;
+          imgContainer.appendChild(errorEl);
+        }
+        view.requestMeasure();
+      })();
+
+      card.appendChild(imgContainer);
+
+      if (this.token.alt && this.token.alt !== this.token.src) {
+        const caption = document.createElement('div');
+        caption.className = 'cm-image-caption';
+        caption.textContent = this.token.alt;
+        card.appendChild(caption);
+      }
+
+      container.appendChild(card);
+      return container;
+    }
 
     const img = document.createElement('img');
     img.alt = this.token.alt || 'Imagen';
