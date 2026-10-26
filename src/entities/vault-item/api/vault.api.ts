@@ -2,7 +2,7 @@ import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
-import type { NoteFrontmatter, VaultGraphData, TagCountItem, NoteBacklinksReport, VaultSyncState } from '../model/types';
+import type { NoteFrontmatter, VaultGraphData, TagCountItem, NoteBacklinksReport, QuickOpenSearchResult, VaultSyncState } from '../model/types';
 
 export interface VaultNoteDto {
   relative_path: string;
@@ -169,6 +169,10 @@ export const vaultApi = {
 
   async getNoteBacklinksAndRelations(targetPath: string): Promise<NoteBacklinksReport> {
     return await invokeTauri<NoteBacklinksReport>('get_note_backlinks_and_relations', { targetPath });
+  },
+
+  async searchNotes(query: string): Promise<QuickOpenSearchResult> {
+    return await invokeTauri<QuickOpenSearchResult>('search_notes_command', { query });
   },
 
   async getActiveVaultPath(): Promise<string | null> {

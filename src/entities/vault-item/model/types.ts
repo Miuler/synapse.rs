@@ -51,6 +51,19 @@ export interface NoteBacklinksReport {
   unlinked_mentions: UnlinkedMentionItem[];
 }
 
+export interface QuickOpenSearchResult {
+  results: Array<{
+    text: string;
+    score: number;
+    match_indices: number[];
+    note_path?: string;
+    is_recent?: boolean;
+    last_opened_nanos?: number;
+  }>;
+  total_files: number;
+  matched_files: number;
+}
+
 export interface NoteRelations {
   up?: string;
   related?: string[];

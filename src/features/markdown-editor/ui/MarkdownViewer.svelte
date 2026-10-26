@@ -14,6 +14,7 @@
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
+  import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -616,6 +617,45 @@
       backgroundColor: 'rgba(9, 105, 218, 0.08)',
       borderColor: 'var(--accent, #0969da)',
     },
+    /* Estilos del popup de autocompletado de wikilinks */
+    '.cm-tooltip-autocomplete': {
+      backgroundColor: 'var(--bg-primary, #ffffff) !important',
+      border: '1px solid var(--border-primary, #d0d7de) !important',
+      borderRadius: '8px !important',
+      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12) !important',
+      padding: '4px !important',
+      fontFamily: 'inherit !important',
+      maxWidth: '360px !important',
+      zIndex: '100 !important',
+    },
+    '.cm-tooltip-autocomplete > ul': {
+      maxHeight: '240px !important',
+      fontFamily: 'inherit !important',
+    },
+    '.cm-tooltip-autocomplete > ul > li': {
+      padding: '5px 8px !important',
+      borderRadius: '4px !important',
+      fontSize: '12px !important',
+      color: 'var(--text-primary, #1f2328) !important',
+      display: 'flex !important',
+      alignItems: 'center !important',
+      gap: '8px !important',
+      cursor: 'pointer !important',
+    },
+    '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      backgroundColor: 'var(--accent-bg, rgba(9, 105, 218, 0.1)) !important',
+      color: 'var(--accent, #0969da) !important',
+    },
+    '.cm-completionDetail': {
+      marginLeft: 'auto !important',
+      fontSize: '10px !important',
+      color: 'var(--text-muted, #8c959f) !important',
+      fontStyle: 'normal !important',
+      overflow: 'hidden !important',
+      textOverflow: 'ellipsis !important',
+      whiteSpace: 'nowrap !important',
+      maxWidth: '140px !important',
+    },
   });
 
   function getActiveExtensions(mode: MarkdownViewMode) {
@@ -647,6 +687,7 @@
           viewModeCompartment.of(getActiveExtensions(viewMode)),
           basicSetup,
           markdown({ codeLanguages: [mermaidLanguageDescription] }),
+          wikilinkAutocomplete,
           EditorView.lineWrapping,
           keymap.of(searchKeymap as any),
           updateListener,
