@@ -10,11 +10,13 @@
     isPdfFile,
     isDrawingFile,
     isDiagramFile,
+    isD2File,
   } from '@entities/file-type';
   import { ImageViewer } from '@features/image-viewer';
   import { PdfViewer } from '@features/pdf-viewer';
   import { ExcalidrawViewer } from '@features/excalidraw-editor';
   import { MermaidViewer } from '@features/mermaid-editor';
+  import { D2Viewer } from '@features/d2-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { AlertCircle, HardDrive, GitCommit, Split, Eye, Pencil } from 'lucide-svelte';
 
@@ -187,7 +189,13 @@
             onSave={(updated) => updated && persistLocalChanges(updated)}
           />
         {:else if isDiagram}
-          {#if appSettings.mermaidRenderer === 'mermaidjs'}
+          {#if isD2File(filePath)}
+            <D2Viewer
+              content={localContent}
+              readOnly={!isLocalEditable}
+              onChange={(updated) => persistLocalChanges(updated)}
+            />
+          {:else if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer
               content={localContent}
               readOnly={!isLocalEditable}
@@ -248,7 +256,9 @@
         {:else if isDrawing}
           <ExcalidrawViewer content={gitRevision.content || ''} filePath={filePath} readOnly={true} />
         {:else if isDiagram}
-          {#if appSettings.mermaidRenderer === 'mermaidjs'}
+          {#if isD2File(filePath)}
+            <D2Viewer content={gitRevision.content || ''} readOnly={true} />
+          {:else if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer content={gitRevision.content || ''} readOnly={true} />
           {:else}
             <MermanViewer content={gitRevision.content || ''} readOnly={true} />

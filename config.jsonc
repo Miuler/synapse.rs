@@ -22,10 +22,11 @@
       "markdown"
     ],
 
-    // Diagramas Mermaid
+    // Diagramas Mermaid y D2
     "diagrams": [
       "mmd",
-      "mermaid"
+      "mermaid",
+      "d2"
     ],
 
     // Dibujos y bocetos Excalidraw

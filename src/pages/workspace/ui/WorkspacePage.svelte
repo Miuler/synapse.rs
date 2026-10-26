@@ -13,6 +13,7 @@
   import {MarkdownViewer} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
+  import {D2Viewer} from "@features/d2-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
@@ -28,6 +29,7 @@
     isImageFile,
     isMarkdownFile,
     isDiagramFile,
+    isD2File,
     isDrawingFile,
     isPdfFile,
     isOfficeFile,
@@ -3400,7 +3402,20 @@
             {:else}
               {#key note?.lastReloaded}
                 {#if isDiagramFile(tabPath)}
-                  {#if appSettings.mermaidRenderer === 'mermaidjs'}
+                  {#if isD2File(tabPath)}
+                    <D2Viewer
+                      {content}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                    />
+                  {:else if appSettings.mermaidRenderer === 'mermaidjs'}
                     <MermaidViewer
                       {content}
                       readOnly={!paneEditing}

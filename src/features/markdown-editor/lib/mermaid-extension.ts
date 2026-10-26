@@ -18,11 +18,12 @@ export interface MermaidBlock {
   codeFrom: number;
   codeTo: number;
   code: string;
+  engine?: 'mermaid' | 'd2';
 }
 
 /**
  * Escanea el documento de forma robusta e instantánea para encontrar
- * bloques de código ```mermaid o ```merman.
+ * bloques de código ```mermaid, ```merman o ```d2.
  */
 export function findMermaidBlocks(doc: Text): MermaidBlock[] {
   const blocks: MermaidBlock[] = [];
@@ -30,6 +31,7 @@ export function findMermaidBlocks(doc: Text): MermaidBlock[] {
   let inBlock = false;
   let blockStartFrom = -1;
   let codeStartFrom = -1;
+  let currentEngine: 'mermaid' | 'd2' = 'mermaid';
   const codeLines: string[] = [];
 
   for (let i = 1; i <= lineCount; i++) {
@@ -40,6 +42,13 @@ export function findMermaidBlocks(doc: Text): MermaidBlock[] {
     if (!inBlock) {
       if (/^```\s*(?:mermaid|mermair|mermai|merman)\b/i.test(trimmed)) {
         inBlock = true;
+        currentEngine = 'mermaid';
+        blockStartFrom = line.from;
+        codeStartFrom = Math.min(line.to + 1, doc.length);
+        codeLines.length = 0;
+      } else if (/^```\s*d2\b/i.test(trimmed)) {
+        inBlock = true;
+        currentEngine = 'd2';
         blockStartFrom = line.from;
         codeStartFrom = Math.min(line.to + 1, doc.length);
         codeLines.length = 0;
@@ -54,6 +63,7 @@ export function findMermaidBlocks(doc: Text): MermaidBlock[] {
           codeFrom: Math.min(codeStartFrom, line.from),
           codeTo: codeEndTo,
           code,
+          engine: currentEngine,
         });
         inBlock = false;
       } else {
@@ -75,6 +85,7 @@ class MermaidWidget extends WidgetType {
     readonly codeFrom: number,
     readonly isPreviewOnly: boolean,
     readonly basePath?: string | null,
+    readonly engine: 'mermaid' | 'd2' = 'mermaid',
   ) {
     super();
   }
@@ -85,7 +96,8 @@ class MermaidWidget extends WidgetType {
       other.isPreviewOnly === this.isPreviewOnly &&
       other.from === this.from &&
       other.to === this.to &&
-      other.basePath === this.basePath
+      other.basePath === this.basePath &&
+      other.engine === this.engine
     );
   }
 
@@ -107,11 +119,12 @@ class MermaidWidget extends WidgetType {
     titleEl.className = 'cm-mermaid-badge';
 
     const hasInclude = hasIncludeDirective(this.code);
+    const engineLabel = this.engine === 'd2' ? 'Diagrama D2' : 'Diagrama Mermaid';
     titleEl.innerHTML = `
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
-      <span>Diagrama Mermaid</span>
+      <span>${engineLabel}</span>
       ${hasInclude ? '<span class="cm-mermaid-include-pill" title="Incrusta archivos externos con {{#include}}">Include</span>' : ''}
     `;
     header.appendChild(titleEl);
@@ -171,7 +184,7 @@ class MermaidWidget extends WidgetType {
 
     const render = async () => {
       if (!this.code) {
-        body.innerHTML = `<div class="cm-mermaid-empty">Diagrama vacío. Añade contenido al bloque mermaid.</div>`;
+        body.innerHTML = `<div class="cm-mermaid-empty">Diagrama vacío. Añade contenido al bloque de diagrama.</div>`;
         return;
       }
 
@@ -182,8 +195,9 @@ class MermaidWidget extends WidgetType {
         const resolvedCode = await resolveIncludes(this.code, this.basePath);
         if (this.isCancelled) return;
 
-        // 2. Renderizar SVG usando el motor seleccionado (Mermaid.js o Merman)
-        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-mermaid', appSettings.mermaidRenderer);
+        // 2. Renderizar SVG usando el motor seleccionado
+        const targetEngine = this.engine === 'd2' ? 'd2' : appSettings.mermaidRenderer;
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-diagram', targetEngine);
         if (this.isCancelled) return;
 
         if (error) {
@@ -195,7 +209,7 @@ class MermaidWidget extends WidgetType {
                   <line x1="12" y1="8" x2="12" y2="12"/>
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
-                <span>Error de sintaxis Mermaid</span>
+                <span>Error de sintaxis (${engineLabel})</span>
               </div>
               <pre>${escapeHtml(error)}</pre>
             </div>
@@ -265,7 +279,7 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
         // Si el cursor está dentro del bloque: se muestran las líneas de código para editar
         // y se adjunta la vista previa interactiva abajo con un widget de bloque
         const deco = Decoration.widget({
-          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false, basePath),
+          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, false, basePath, block.engine),
           side: 1,
           block: true,
         });
@@ -274,7 +288,7 @@ function buildMermaidDecorations(state: EditorState): DecorationSet {
         // Si el cursor NO está dentro del bloque: sustituimos por completo el bloque
         // de código Markdown por la tarjeta interactiva del diagrama
         const deco = Decoration.replace({
-          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true, basePath),
+          widget: new MermaidWidget(block.code, block.from, block.to, block.codeFrom, true, basePath, block.engine),
           block: true,
         });
         widgets.push(deco.range(block.from, block.to));

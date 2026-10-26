@@ -9,12 +9,14 @@
     isPdfFile,
     isDrawingFile,
     isDiagramFile,
+    isD2File,
     isMarkdownFile,
   } from '@entities/file-type';
   import { ImageViewer } from '@features/image-viewer';
   import { PdfViewer } from '@features/pdf-viewer';
   import { ExcalidrawViewer } from '@features/excalidraw-editor';
   import { MermaidViewer } from '@features/mermaid-editor';
+  import { D2Viewer } from '@features/d2-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { MarkdownViewer } from '@features/markdown-editor';
   import {
@@ -278,7 +280,13 @@
             />
           {/if}
         {:else if isDiagram}
-          {#if appSettings.mermaidRenderer === 'mermaidjs'}
+          {#if isD2File(filePath)}
+            <D2Viewer
+              content={revData.content || ''}
+              readOnly={true}
+              showEditor={showMermaidEditor}
+            />
+          {:else if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer
               content={revData.content || ''}
               readOnly={true}

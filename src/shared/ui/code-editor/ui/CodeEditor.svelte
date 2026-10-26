@@ -7,7 +7,11 @@
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
   import { searchKeymap, search, openSearchPanel } from '@codemirror/search';
+  import { autocompletion } from '@codemirror/autocomplete';
+  import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
   import { vim } from '@replit/codemirror-vim';
+  import { d2Language } from '../lib/d2-language';
+  import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
 
   export interface SelectionInfo {
     hasSelection: boolean;
@@ -19,11 +23,21 @@
     cursorCol: number;
   }
 
+  export interface EditorDiagnostic {
+    line: number;
+    column: number;
+    endLine?: number;
+    endColumn?: number;
+    message: string;
+    severity?: 'error' | 'warning' | 'info';
+  }
+
   interface Props {
     content: string;
     readOnly?: boolean;
     vimMode?: boolean;
-    mode?: 'markdown' | 'mermaid';
+    mode?: 'markdown' | 'mermaid' | 'd2';
+    diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
   }
@@ -33,6 +47,7 @@
     readOnly = false,
     vimMode = false,
     mode = 'markdown',
+    diagnostics = [],
     onChange,
     onSelectionChange,
   }: Props = $props();
@@ -41,6 +56,7 @@
   let editorView: EditorView | null = null;
   let isInternalUpdate = false;
   const vimCompartment = new Compartment();
+  const lintCompartment = new Compartment();
 
   let lastContent = $state(untrack(() => content));
 
@@ -68,7 +84,7 @@
       const toLine = state.doc.lineAt(to);
       const selectedLines = toLine.number - fromLine.number + 1;
       const selectedChars = selectedText.length;
-      const selectedCols = selectedLines === 1 ? (to - from) : selectedChars;
+      const selectedCols = selectedLines === 1 ? to - from : selectedChars;
       const trimmed = selectedText.trim();
       const selectedWords = trimmed ? trimmed.split(/\s+/).length : 0;
 
@@ -109,17 +125,25 @@
       }
 
       // Palabras clave de tipos de diagrama
-      if (stream.match(/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|gantt|pie|gitGraph|mindmap|timeline)\b/i)) {
+      if (
+        stream.match(
+          /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|gantt|pie|gitGraph|mindmap|timeline|architecture-beta|xychart-beta|quadrantChart|kanban|block-beta)\b/i
+        )
+      ) {
         return 'keyword';
       }
 
       // Estructuras y palabras clave del flujo
-      if (stream.match(/^(TD|TB|BT|RL|LR|subgraph|end|click|call|style|classDef|class|linkStyle|participant|actor|boundary|control|entity|database|collections|queue|box|autonumber|activate|deactivate|loop|alt|else|opt|par|critical|option|break|rect|note|over)\b/i)) {
+      if (
+        stream.match(
+          /^(TD|TB|BT|RL|LR|subgraph|end|click|call|style|classDef|class|linkStyle|participant|actor|boundary|control|entity|database|collections|queue|box|autonumber|activate|deactivate|loop|alt|else|opt|par|critical|option|break|rect|note|over)\b/i
+        )
+      ) {
         return 'typeName';
       }
 
       // Flechas y conectores
-      if (stream.match(/^(-->|---|==>|-.->|->>|-->>|x--x|o--o|--)/)) {
+      if (stream.match(/^(-->|---|==>|-.->|->>|-->>|x--x|o--o|--|->|<-)/)) {
         return 'operator';
       }
 
@@ -135,7 +159,7 @@
 
       stream.next();
       return null;
-    }
+    },
   });
 
   // Tema de colores de sintaxis (Syntax Highlighting)
@@ -154,6 +178,37 @@
     { tag: tags.operator, color: 'var(--syntax-number, #0550ae)', fontWeight: 'bold' },
     { tag: tags.meta, color: 'var(--text-secondary, #8c959f)' },
   ]);
+
+  function buildDiagnostics(view: any, diagList: EditorDiagnostic[]): Diagnostic[] {
+    const doc = view.state.doc;
+    const result: Diagnostic[] = [];
+
+    for (const d of diagList) {
+      const lineNum = Math.min(Math.max(1, d.line), doc.lines);
+      const lineObj = doc.line(lineNum);
+      const from = Math.min(lineObj.from + Math.max(0, d.column - 1), lineObj.to);
+
+      let to = from + 1;
+      if (d.endLine && d.endColumn) {
+        const endLineNum = Math.min(Math.max(1, d.endLine), doc.lines);
+        const endLineObj = doc.line(endLineNum);
+        to = Math.min(endLineObj.from + Math.max(0, d.endColumn - 1), endLineObj.to);
+      } else {
+        to = Math.max(from + 1, lineObj.to);
+      }
+
+      if (to <= from) to = Math.min(from + 1, doc.length);
+
+      result.push({
+        from,
+        to,
+        severity: d.severity || 'error',
+        message: d.message,
+      });
+    }
+
+    return result;
+  }
 
   onMount(() => {
     if (!containerRef) return;
@@ -231,14 +286,27 @@
       },
     });
 
-    const langExtension = mode === 'mermaid' ? mermaidLanguage : markdown();
+    const langExtension =
+      mode === 'd2' ? d2Language : mode === 'mermaid' ? mermaidLanguage : markdown();
+
+    const autocompleteExtension =
+      mode === 'd2'
+        ? autocompletion({ override: [d2Autocomplete] })
+        : mode === 'mermaid'
+          ? autocompletion({ override: [mermaidAutocomplete] })
+          : autocompletion();
+
+    const currentDiag = diagnostics;
+    const linterExtension = linter((view) => buildDiagnostics(view, currentDiag));
 
     const state = EditorState.create({
       doc: content,
       extensions: [
         vimCompartment.of(vimMode ? vim() : []),
+        lintCompartment.of([linterExtension, lintGutter()]),
         basicSetup,
         langExtension,
+        autocompleteExtension,
         syntaxHighlighting(customHighlightStyle),
         search({ top: true }),
         keymap.of(searchKeymap as any),
@@ -273,6 +341,16 @@
   });
 
   $effect(() => {
+    const diagList = diagnostics;
+    if (editorView) {
+      const newLinter = linter((view) => buildDiagnostics(view, diagList));
+      editorView.dispatch({
+        effects: lintCompartment.reconfigure([newLinter, lintGutter()]),
+      });
+    }
+  });
+
+  $effect(() => {
     const c = content;
     if (editorView && c !== untrack(() => lastContent)) {
       lastContent = c;
@@ -297,4 +375,5 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }</style>
+  }
+</style>

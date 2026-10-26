@@ -117,6 +117,18 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.diagrams);
   }
 
+  isD2File(path: string | null | undefined): boolean {
+    if (!path) return false;
+    const lower = path.toLowerCase().split('?')[0].split('#')[0];
+    return lower.endsWith('.d2');
+  }
+
+  isMermaidFile(path: string | null | undefined): boolean {
+    if (!path) return false;
+    const lower = path.toLowerCase().split('?')[0].split('#')[0];
+    return lower.endsWith('.mmd') || lower.endsWith('.mermaid');
+  }
+
   isDrawingFile(path: string | null | undefined): boolean {
     if (!path) return false;
     const lower = path.toLowerCase().split('?')[0].split('#')[0];
@@ -170,6 +182,8 @@ export const isImageFile = (path: string | null | undefined) => fileTypesManager
 export const isSvgFile = (path: string | null | undefined) => fileTypesManager.isSvgFile(path);
 export const isMarkdownFile = (path: string | null | undefined) => fileTypesManager.isMarkdownFile(path);
 export const isDiagramFile = (path: string | null | undefined) => fileTypesManager.isDiagramFile(path);
+export const isD2File = (path: string | null | undefined) => fileTypesManager.isD2File(path);
+export const isMermaidFile = (path: string | null | undefined) => fileTypesManager.isMermaidFile(path);
 export const isDrawingFile = (path: string | null | undefined) => fileTypesManager.isDrawingFile(path);
 export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);
 export const isCodeFile = (path: string | null | undefined) => fileTypesManager.isCodeFile(path);

@@ -132,7 +132,96 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     let write_val: serde_json::Value = serde_json::from_str(&resp_write).unwrap();
     assert!(!write_val["result"]["isError"].as_bool().unwrap_or(false));
 
-    // 6. Test run_loop con simulación de stream
+    // Crear segunda nota en la misma carpeta 'notas/' y una subcarpeta 'notas/sub'
+    let write_req_2 = json!({
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "params": {
+            "name": "write_note",
+            "arguments": {
+                "relative_path": "notas/hermana.md",
+                "title": "Nota Hermana",
+                "content": "# Hermana\nOtra nota en la misma carpeta.",
+                "tags": ["hermana"]
+            }
+        }
+    })
+    .to_string();
+    let _ = server.handle_line(&write_req_2).expect("Debe guardar hermana.md");
+    std::fs::create_dir_all(vault_path.join("notas/subcarpeta")).unwrap();
+
+    // 6. Test list_folder_contents sobre 'notas'
+    let folder_req = json!({
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "tools/call",
+        "params": {
+            "name": "list_folder_contents",
+            "arguments": {
+                "folder_path": "notas",
+                "include_notes": true,
+                "include_folders": true
+            }
+        }
+    })
+    .to_string();
+    let resp_folder = server.handle_line(&folder_req).expect("Debe responder a list_folder_contents");
+    let folder_val: serde_json::Value = serde_json::from_str(&resp_folder).unwrap();
+    let folder_text = folder_val["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(folder_text.contains("notas/nuevo.md"));
+    assert!(folder_text.contains("notas/hermana.md"));
+    assert!(folder_text.contains("notas/subcarpeta"));
+
+    // 7. Test list_sibling_notes a partir de 'notas/nuevo.md'
+    let siblings_req = json!({
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "tools/call",
+        "params": {
+            "name": "list_sibling_notes",
+            "arguments": {
+                "relative_path": "notas/nuevo.md",
+                "include_self": false,
+                "include_folders": false
+            }
+        }
+    })
+    .to_string();
+    let resp_siblings = server.handle_line(&siblings_req).expect("Debe responder a list_sibling_notes");
+    let siblings_val: serde_json::Value = serde_json::from_str(&resp_siblings).unwrap();
+    let siblings_text = siblings_val["result"]["content"][0]["text"].as_str().unwrap();
+    let parsed_siblings: serde_json::Value = serde_json::from_str(siblings_text).unwrap();
+    assert_eq!(parsed_siblings["notes_count"], 1);
+    assert_eq!(parsed_siblings["notes"][0]["relative_path"], "notas/hermana.md");
+    assert_eq!(parsed_siblings["notes"][0]["title"], "Nota Hermana");
+
+    // 8. Test move_notes moviendo lista de notas a una subcarpeta destino
+    let move_req = json!({
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "tools/call",
+        "params": {
+            "name": "move_notes",
+            "arguments": {
+                "notes": ["notas/nuevo.md", "notas/hermana.md"],
+                "target_folder": "archivo/2026",
+                "create_target_folder": true
+            }
+        }
+    })
+    .to_string();
+    let resp_move = server.handle_line(&move_req).expect("Debe responder a move_notes");
+    let move_val: serde_json::Value = serde_json::from_str(&resp_move).unwrap();
+    let move_text = move_val["result"]["content"][0]["text"].as_str().unwrap();
+    let parsed_move: serde_json::Value = serde_json::from_str(move_text).unwrap();
+    assert_eq!(parsed_move["moved_count"], 2);
+    assert_eq!(parsed_move["errors_count"], 0);
+    assert!(vault_path.join("archivo/2026/nuevo.md").exists());
+    assert!(vault_path.join("archivo/2026/hermana.md").exists());
+    assert!(!vault_path.join("notas/nuevo.md").exists());
+
+    // 9. Test run_loop con simulación de stream
     let input_lines = format!("{}\n{}\n", init_req, list_req);
     let mut output = Vec::new();
     let input_cursor = Cursor::new(input_lines.into_bytes());

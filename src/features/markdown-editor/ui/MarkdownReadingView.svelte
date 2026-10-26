@@ -52,10 +52,21 @@
         </figure>`;
       },
       code({ text, lang }: { text: string; lang?: string }) {
-        if (/^(?:mermaid|mermair|mermai|merman)$/i.test(lang?.trim() || '')) {
-          return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}">
+        const cleanLang = (lang || '').trim().toLowerCase();
+        if (/^(?:mermaid|mermair|mermai|merman)$/i.test(cleanLang)) {
+          return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}" data-engine="mermaid">
             <div class="reading-mermaid-header">
               <span class="reading-mermaid-badge">Diagrama Mermaid</span>
+            </div>
+            <div class="reading-mermaid-body">
+              <span class="reading-mermaid-loading">Cargando diagrama...</span>
+            </div>
+          </div>`;
+        }
+        if (cleanLang === 'd2') {
+          return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}" data-engine="d2">
+            <div class="reading-mermaid-header">
+              <span class="reading-mermaid-badge">Diagrama D2</span>
             </div>
             <div class="reading-mermaid-body">
               <span class="reading-mermaid-loading">Cargando diagrama...</span>
@@ -93,13 +104,14 @@
     for (const card of cards) {
       const rawCode = card.getAttribute('data-code');
       if (!rawCode) continue;
+      const engine = card.getAttribute('data-engine') === 'd2' ? 'd2' : appSettings.mermaidRenderer;
       const code = decodeURIComponent(rawCode);
       const body = card.querySelector('.reading-mermaid-body');
       if (!body) continue;
 
       try {
         const resolvedCode = await resolveIncludes(code, filePath);
-        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-mermaid', appSettings.mermaidRenderer);
+        const { svg, error } = await renderUnifiedDiagramSvg(resolvedCode, 'cm-diagram', engine);
         if (error) {
           body.innerHTML = `
             <div class="reading-mermaid-error">

@@ -179,6 +179,80 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         }
                     }),
                 },
+                McpTool {
+                    name: "list_folder_contents".to_string(),
+                    description: "Lista las notas y/o subdirectorios que están dentro de una carpeta específica de la bóveda.".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "folder_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la carpeta a consultar (ej: 'proyectos/rust'). Dejar vacío o '' para la raíz de la bóveda."
+                            },
+                            "include_notes": {
+                                "type": "boolean",
+                                "description": "Incluir las notas y archivos dentro de la carpeta (por defecto true)"
+                            },
+                            "include_folders": {
+                                "type": "boolean",
+                                "description": "Incluir los subdirectorios dentro de la carpeta (por defecto true)"
+                            },
+                            "recursive": {
+                                "type": "boolean",
+                                "description": "Si es true, lista recursivamente el contenido de subcarpetas; si es false, solo el nivel inmediato (por defecto false)"
+                            }
+                        }
+                    }),
+                },
+                McpTool {
+                    name: "list_sibling_notes".to_string(),
+                    description: "A partir de una nota de referencia, lista todas las demás notas (y opcionalmente subdirectorios) ubicadas en la misma carpeta.".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota de referencia (ej: 'notas/arquitectura/hexagonal.md')"
+                            },
+                            "include_self": {
+                                "type": "boolean",
+                                "description": "Si es true, incluye también la misma nota de referencia en el listado (por defecto false)"
+                            },
+                            "include_folders": {
+                                "type": "boolean",
+                                "description": "Si es true, incluye también las subcarpetas hermanas ubicadas en el mismo directorio (por defecto false)"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                McpTool {
+                    name: "move_notes".to_string(),
+                    description: "Mueve una o múltiples notas a una carpeta de destino dentro de la bóveda. Si la carpeta destino no existe, puede ser creada automáticamente.".to_string(),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "notes": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Lista de rutas relativas de las notas o archivos a mover (ej: ['nota1.md', 'carpeta/nota2.md'])"
+                            },
+                            "target_folder": {
+                                "type": "string",
+                                "description": "Carpeta relativa de destino hacia donde se moverán las notas (ej: 'archivo/2026' o '' para la raíz)"
+                            },
+                            "create_target_folder": {
+                                "type": "boolean",
+                                "description": "Crea la carpeta destino y sus carpetas intermedias si no existen (por defecto true)"
+                            },
+                            "overwrite": {
+                                "type": "boolean",
+                                "description": "Sobrescribe archivos en el destino si ya existen con el mismo nombre (por defecto false)"
+                            }
+                        },
+                        "required": ["notes", "target_folder"]
+                    }),
+                },
             ],
         }
     }
@@ -469,7 +543,363 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                     Err(e) => McpCallToolResult::error(format!("Error al serializar árbol: {}", e)),
                 }
             }
+            "list_folder_contents" => {
+                let folder = args.get("folder_path").and_then(|v| v.as_str()).unwrap_or("");
+                let include_notes = args.get("include_notes").and_then(|v| v.as_bool()).unwrap_or(true);
+                let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(true);
+                let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                self.execute_list_folder_contents(folder, include_notes, include_folders, recursive, None)
+            }
+            "list_sibling_notes" => {
+                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+                    Some(p) => p.trim_matches('/').replace('\\', "/"),
+                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+                };
+                if rel_path_str.is_empty() {
+                    return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
+                }
+
+                let include_self = args.get("include_self").and_then(|v| v.as_bool()).unwrap_or(false);
+                let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                let parent_folder = match rel_path_str.rsplit_once('/') {
+                    Some((dir, _)) => dir,
+                    None => "",
+                };
+
+                let exclude_path = if include_self {
+                    None
+                } else {
+                    Some(rel_path_str.as_str())
+                };
+
+                self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path)
+            }
+            "move_notes" => {
+                let notes_val = match args.get("notes").and_then(|v| v.as_array()) {
+                    Some(n) => n,
+                    None => return McpCallToolResult::error("El argumento 'notes' debe ser una lista de rutas de notas"),
+                };
+                let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
+                    Some(tf) => tf,
+                    None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
+                };
+                let create_target_folder = args.get("create_target_folder").and_then(|v| v.as_bool()).unwrap_or(true);
+                let overwrite = args.get("overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                let note_paths: Vec<String> = notes_val
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+
+                self.execute_move_notes(&note_paths, target_folder, create_target_folder, overwrite)
+            }
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
+        }
+    }
+
+    fn execute_list_folder_contents(
+        &self,
+        folder: &str,
+        include_notes: bool,
+        include_folders: bool,
+        recursive: bool,
+        exclude_note_path: Option<&str>,
+    ) -> McpCallToolResult {
+        let clean_folder = folder.trim_matches('/').replace('\\', "/");
+        if clean_folder.split('/').any(|seg| seg == "..") {
+            return McpCallToolResult::error("Ruta de carpeta no permitida ('..' detectado)");
+        }
+
+        let target_dir = if clean_folder.is_empty() {
+            self.vault_path.clone()
+        } else {
+            self.vault_path.join(&clean_folder)
+        };
+
+        if !target_dir.exists() || !target_dir.is_dir() {
+            return McpCallToolResult::error(format!("La carpeta '{}' no existe o no es un directorio", clean_folder));
+        }
+
+        let mut folders_out = Vec::new();
+        let mut notes_out = Vec::new();
+
+        if !recursive {
+            if let Ok(entries) = std::fs::read_dir(&target_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with('.') || name == "target" || name == "node_modules" {
+                        continue;
+                    }
+                    let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    let rel_path = if clean_folder.is_empty() {
+                        name.clone()
+                    } else {
+                        format!("{}/{}", clean_folder, name)
+                    };
+
+                    if is_dir {
+                        if include_folders {
+                            folders_out.push(json!({
+                                "name": name,
+                                "relative_path": rel_path,
+                            }));
+                        }
+                    } else if include_notes {
+                        if let Some(ex) = exclude_note_path {
+                            if rel_path.eq_ignore_ascii_case(ex) {
+                                continue;
+                            }
+                        }
+                        if let Ok(np) = NoteRelativePath::new(&rel_path) {
+                            if let Ok(note) = self.note_repository.read_note(&self.vault_path, &np) {
+                                notes_out.push(json!({
+                                    "name": name,
+                                    "relative_path": rel_path,
+                                    "title": note.title,
+                                    "tags": note.frontmatter.as_ref().map(|f| &f.tags),
+                                    "aliases": note.frontmatter.as_ref().map(|f| &f.aliases),
+                                }));
+                                continue;
+                            }
+                        }
+                        notes_out.push(json!({
+                            "name": name,
+                            "relative_path": rel_path,
+                            "title": name,
+                        }));
+                    }
+                }
+            }
+        } else {
+            // Modo recursivo
+            let mut stack = vec![(target_dir, clean_folder.clone())];
+            while let Some((curr_dir, curr_rel)) = stack.pop() {
+                if let Ok(entries) = std::fs::read_dir(&curr_dir) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if name.starts_with('.') || name == "target" || name == "node_modules" {
+                            continue;
+                        }
+                        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                        let rel_path = if curr_rel.is_empty() {
+                            name.clone()
+                        } else {
+                            format!("{}/{}", curr_rel, name)
+                        };
+
+                        if is_dir {
+                            if include_folders {
+                                folders_out.push(json!({
+                                    "name": name,
+                                    "relative_path": rel_path,
+                                }));
+                            }
+                            stack.push((entry.path(), rel_path));
+                        } else if include_notes {
+                            if let Some(ex) = exclude_note_path {
+                                if rel_path.eq_ignore_ascii_case(ex) {
+                                    continue;
+                                }
+                            }
+                            if let Ok(np) = NoteRelativePath::new(&rel_path) {
+                                if let Ok(note) = self.note_repository.read_note(&self.vault_path, &np) {
+                                    notes_out.push(json!({
+                                        "name": name,
+                                        "relative_path": rel_path,
+                                        "title": note.title,
+                                        "tags": note.frontmatter.as_ref().map(|f| &f.tags),
+                                        "aliases": note.frontmatter.as_ref().map(|f| &f.aliases),
+                                    }));
+                                    continue;
+                                }
+                            }
+                            notes_out.push(json!({
+                                "name": name,
+                                "relative_path": rel_path,
+                                "title": name,
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+
+        folders_out.sort_by(|a, b| {
+            let pa = a.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
+            let pb = b.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
+            pa.cmp(pb)
+        });
+        notes_out.sort_by(|a, b| {
+            let pa = a.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
+            let pb = b.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
+            pa.cmp(pb)
+        });
+
+        let mut payload = serde_json::Map::new();
+        payload.insert("folder_path".to_string(), json!(if clean_folder.is_empty() { "/" } else { &clean_folder }));
+        if let Some(ref_note) = exclude_note_path {
+            payload.insert("reference_note".to_string(), json!(ref_note));
+        }
+        if include_folders {
+            payload.insert("folders_count".to_string(), json!(folders_out.len()));
+            payload.insert("folders".to_string(), json!(folders_out));
+        }
+        if include_notes {
+            payload.insert("notes_count".to_string(), json!(notes_out.len()));
+            payload.insert("notes".to_string(), json!(notes_out));
+        }
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar contenido de carpeta: {}", e)),
+        }
+    }
+
+    fn execute_move_notes(
+        &self,
+        notes: &[String],
+        target_folder: &str,
+        create_target_folder: bool,
+        overwrite: bool,
+    ) -> McpCallToolResult {
+        if notes.is_empty() {
+            return McpCallToolResult::error("La lista de notas a mover no puede estar vacía");
+        }
+
+        let clean_target_folder = target_folder.trim_matches('/').replace('\\', "/");
+        if clean_target_folder.split('/').any(|seg| seg == "..") {
+            return McpCallToolResult::error("Ruta de destino inválida ('..' detectado)");
+        }
+
+        let target_dir = if clean_target_folder.is_empty() {
+            self.vault_path.clone()
+        } else {
+            self.vault_path.join(&clean_target_folder)
+        };
+
+        if !target_dir.exists() {
+            if create_target_folder {
+                if let Err(e) = std::fs::create_dir_all(&target_dir) {
+                    return McpCallToolResult::error(format!("No se pudo crear la carpeta destino '{}': {}", clean_target_folder, e));
+                }
+            } else {
+                return McpCallToolResult::error(format!("La carpeta destino '{}' no existe", clean_target_folder));
+            }
+        } else if !target_dir.is_dir() {
+            return McpCallToolResult::error(format!("La ruta destino '{}' existe pero no es un directorio", clean_target_folder));
+        }
+
+        let canonical_vault = match self.vault_path.canonicalize() {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Error al resolver bóveda: {}", e)),
+        };
+
+        let canonical_target = match target_dir.canonicalize() {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Error al resolver carpeta destino: {}", e)),
+        };
+
+        if !canonical_target.starts_with(&canonical_vault) {
+            return McpCallToolResult::error("La carpeta de destino está fuera de los límites de la bóveda");
+        }
+
+        let mut moved = Vec::new();
+        let mut errors = Vec::new();
+
+        for note_rel in notes {
+            let clean_note_rel = note_rel.trim_matches('/').replace('\\', "/");
+            if clean_note_rel.is_empty() || clean_note_rel.split('/').any(|seg| seg == "..") {
+                errors.push(json!({
+                    "source": note_rel,
+                    "error": "Ruta inválida ('..' detectado o vacía)"
+                }));
+                continue;
+            }
+
+            let source_path = self.vault_path.join(&clean_note_rel);
+            if !source_path.exists() || !source_path.is_file() {
+                errors.push(json!({
+                    "source": note_rel,
+                    "error": "El archivo origen no existe"
+                }));
+                continue;
+            }
+
+            let file_name = match source_path.file_name().and_then(|f| f.to_str()) {
+                Some(name) => name,
+                None => {
+                    errors.push(json!({
+                        "source": note_rel,
+                        "error": "Nombre de archivo inválido"
+                    }));
+                    continue;
+                }
+            };
+
+            let dest_path = canonical_target.join(file_name);
+            let dest_rel = if clean_target_folder.is_empty() {
+                file_name.to_string()
+            } else {
+                format!("{}/{}", clean_target_folder, file_name)
+            };
+
+            if source_path == dest_path {
+                moved.push(json!({
+                    "source": note_rel,
+                    "destination": dest_rel,
+                    "status": "already_at_destination"
+                }));
+                continue;
+            }
+
+            if dest_path.exists() && !overwrite {
+                errors.push(json!({
+                    "source": note_rel,
+                    "destination": dest_rel,
+                    "error": "Ya existe un archivo con ese nombre en el destino y overwrite=false"
+                }));
+                continue;
+            }
+
+            match std::fs::rename(&source_path, &dest_path) {
+                Ok(_) => {
+                    moved.push(json!({
+                        "source": note_rel,
+                        "destination": dest_rel,
+                        "status": "moved"
+                    }));
+                }
+                Err(e) => {
+                    errors.push(json!({
+                        "source": note_rel,
+                        "destination": dest_rel,
+                        "error": format!("Fallo al mover archivo: {}", e)
+                    }));
+                }
+            }
+        }
+
+        let is_partial_or_full_error = !errors.is_empty() && moved.is_empty();
+        let payload = json!({
+            "target_folder": if clean_target_folder.is_empty() { "/" } else { &clean_target_folder },
+            "total_requested": notes.len(),
+            "moved_count": moved.len(),
+            "moved": moved,
+            "errors_count": errors.len(),
+            "errors": errors,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => {
+                if is_partial_or_full_error {
+                    McpCallToolResult::error(text)
+                } else {
+                    McpCallToolResult::text(text)
+                }
+            }
+            Err(e) => McpCallToolResult::error(format!("Error al serializar respuesta de move_notes: {}", e)),
         }
     }
 
