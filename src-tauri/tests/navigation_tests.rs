@@ -1287,6 +1287,12 @@ fn test_vault_graph_local_and_global() {
     assert!(local_ids_a2.contains(&"NoteC.md".to_string()));
     assert!(!local_ids_a2.contains(&"NoteD.md".to_string()));
 
+    // 4. Grafo Local para nota aislada (NoteD): solo debe contener NoteD y 0 enlaces
+    let local_graph_d = engine.get_vault_graph(Some("NoteD.md"), Some(1));
+    assert_eq!(local_graph_d.nodes.len(), 1);
+    assert_eq!(local_graph_d.nodes[0].id, "NoteD.md");
+    assert!(local_graph_d.links.is_empty());
+
     let _ = fs::remove_dir_all(&test_dir);
 }
 

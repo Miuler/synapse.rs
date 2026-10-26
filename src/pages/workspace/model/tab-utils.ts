@@ -32,7 +32,14 @@ export function cleanTabTitle(rawTitle: string, path: string | null | undefined)
 export function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
   if (!path) return fallbackTitle;
   if (path.startsWith('empty:')) return 'Nueva pestaña';
-  if (path === 'synapse://graph') return 'Vista de Grafo';
+  if (path.startsWith('synapse://graph')) {
+    const target = path.slice('synapse://graph'.length).replace(/^:/, '');
+    if (target) {
+      const name = target.split('/').pop() || target;
+      return `Grafo: ${cleanTabTitle(name, target)}`;
+    }
+    return 'Vista de Grafo';
+  }
   if (path.startsWith('diff-staged:')) {
     const f = path.slice('diff-staged:'.length).split('/').pop() || path;
     return `Diff (staged): ${f}`;

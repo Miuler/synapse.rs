@@ -1521,7 +1521,7 @@ impl NavigationEngine {
         }
 
         // Determinar el conjunto de nodos incluidos
-        let included_nodes: HashSet<String> = if let Some(focus) = focus_path {
+        let included_nodes: HashSet<String> = if let Some(focus) = focus_path.filter(|f| !f.trim().is_empty()) {
             let mut clean_focus = focus.trim_start_matches('/').replace('\\', "/");
             // Si la ruta no termina en .md ni otra extensión pero existe como .md, normalizar
             if !self.path_index.contains_key(clean_focus.as_str()) && !clean_focus.contains('.') {

@@ -2905,7 +2905,16 @@
     } else if (actionId === "search") {
       isFullTextSearchOpen = true;
     } else if (actionId === "graph") {
-      selectTab("synapse://graph");
+      const target = (activeTabPath && !isSyntheticTab(activeTabPath))
+        ? activeTabPath
+        : ((activeSplitTabPath && !isSyntheticTab(activeSplitTabPath))
+            ? activeSplitTabPath
+            : lastActiveDocumentPath);
+      if (target) {
+        selectTab(`synapse://graph:${target}`);
+      } else {
+        selectTab("synapse://graph");
+      }
     } else if (actionId === "welcome") {
       showWelcomeScreen = true;
     }
@@ -3372,9 +3381,10 @@
                       isMarkdown={true}
                     />
                   </div>
-                {:else if tabPath === "synapse://graph"}
+                {:else if tabPath.startsWith("synapse://graph")}
+                  {@const targetFocus = tabPath.slice("synapse://graph".length).replace(/^:/, "") || currentActiveNonGraphPath}
                   <GraphViewer
-                    activeNotePath={currentActiveNonGraphPath}
+                    activeNotePath={targetFocus}
                     onSelectNote={(notePath: string) => selectTab(notePath)}
                   />
                 {:else if isImageFile(tabPath)}
