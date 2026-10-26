@@ -59,10 +59,16 @@
   function syncGraphData() {
     if (!graphInstance || !containerEl) return;
 
-    graphInstance.graphData({
-      nodes: filteredNodes.map((n) => ({ ...n })),
-      links: filteredLinks.map((l) => ({ ...l })),
-    });
+    graphInstance
+      .linkDirectionalParticles(isGlobalMode ? 0 : 2)
+      .warmupTicks(isGlobalMode ? 35 : 15)
+      .cooldownTicks(isGlobalMode ? 80 : 150)
+      .d3AlphaDecay(isGlobalMode ? 0.05 : 0.02)
+      .d3VelocityDecay(isGlobalMode ? 0.4 : 0.3)
+      .graphData({
+        nodes: filteredNodes.map((n) => ({ ...n })),
+        links: filteredLinks.map((l) => ({ ...l })),
+      });
 
     if (!isGlobalMode) {
       setTimeout(() => {
@@ -143,16 +149,18 @@
         }
         return 'rgba(150, 150, 150, 0.35)';
       })
-      .linkDirectionalParticles(2)
+      .linkDirectionalParticles(isGlobalMode ? 0 : 2)
       .linkDirectionalParticleSpeed(0.006)
       .linkDirectionalParticleWidth(1.5)
+      .warmupTicks(isGlobalMode ? 40 : 15)
+      .cooldownTicks(isGlobalMode ? 100 : 200)
+      .d3AlphaDecay(isGlobalMode ? 0.05 : 0.02)
+      .d3VelocityDecay(isGlobalMode ? 0.4 : 0.3)
       .onNodeClick((node: any) => {
         if (node && node.id && onSelectNote) {
           onSelectNote(node.id);
         }
-      })
-      .d3AlphaDecay(0.02)
-      .d3VelocityDecay(0.3);
+      });
 
     loadGraph();
   }

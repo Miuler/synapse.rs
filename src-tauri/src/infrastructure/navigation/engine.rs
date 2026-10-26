@@ -1447,49 +1447,67 @@ impl NavigationEngine {
         use crate::domain::services::link_resolution::extract_wikilinks;
         use std::collections::{HashMap, HashSet, VecDeque};
 
-        // 1. Extraer outlinks de todas las notas Markdown de la bóveda
-        let mut outlinks_map: HashMap<String, Vec<String>> = HashMap::new();
-        let mut node_labels: HashMap<String, String> = HashMap::new();
-        let mut in_degree: HashMap<String, usize> = HashMap::new();
-        let mut ghost_nodes_set: HashSet<String> = HashSet::new();
+        // 1. Extraer outlinks de todas las notas Markdown de la bóveda en paralelo con Rayon
+        use rayon::prelude::*;
 
-        for item in self.notes.iter() {
+        let md_items: Vec<(String, String, PathBuf)> = self.notes.iter().map(|item| {
             let meta = item.value();
             let p_str = meta.path.as_str().to_string();
-            node_labels.insert(p_str.clone(), meta.title.to_string());
+            let title = meta.title.to_string();
+            let full = self.vault_path.join(&p_str);
+            (p_str, title, full)
+        }).collect();
 
-            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
-            if is_md {
-                let full = self.vault_path.join(&p_str);
-                if let Ok(content) = std::fs::read_to_string(&full) {
-                    let wlinks = extract_wikilinks(&content);
-                    let mut resolved_links = Vec::new();
-                    for wl in wlinks {
-                        if let Some(target) = self.resolve_link_path_with_base(&wl.target, Some(&p_str)) {
-                            if target != p_str {
-                                resolved_links.push(target);
-                            }
-                        } else {
-                            // Enlace no resuelto: Es un nodo fantasma (Ghost Node)
-                            let clean_target = wl.target.trim().trim_start_matches('/').to_string();
-                            if !clean_target.is_empty() && !clean_target.contains("://") {
-                                let ghost_id = if clean_target.ends_with(".md") {
-                                    clean_target.clone()
-                                } else {
-                                    format!("{}.md", clean_target)
-                                };
-                                ghost_nodes_set.insert(ghost_id.clone());
-                                node_labels.entry(ghost_id.clone()).or_insert_with(|| {
-                                    wl.alias.clone().unwrap_or_else(|| {
+        let extracted_results: Vec<(String, String, Vec<String>, Vec<(String, String)>)> = md_items
+            .into_par_iter()
+            .map(|(p_str, title, full)| {
+                let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
+                let mut resolved_links = Vec::new();
+                let mut ghosts = Vec::new();
+
+                if is_md {
+                    if let Ok(content) = std::fs::read_to_string(&full) {
+                        let wlinks = extract_wikilinks(&content);
+                        for wl in wlinks {
+                            if let Some(target) = self.resolve_link_path_with_base(&wl.target, Some(&p_str)) {
+                                if target != p_str {
+                                    resolved_links.push(target);
+                                }
+                            } else {
+                                let clean_target = wl.target.trim().trim_start_matches('/').to_string();
+                                if !clean_target.is_empty() && !clean_target.contains("://") {
+                                    let ghost_id = if clean_target.ends_with(".md") {
+                                        clean_target.clone()
+                                    } else {
+                                        format!("{}.md", clean_target)
+                                    };
+                                    let ghost_label = wl.alias.clone().unwrap_or_else(|| {
                                         clean_target.rsplit('/').next().unwrap_or(&clean_target).to_string()
-                                    })
-                                });
-                                resolved_links.push(ghost_id);
+                                    });
+                                    ghosts.push((ghost_id.clone(), ghost_label));
+                                    resolved_links.push(ghost_id);
+                                }
                             }
                         }
                     }
-                    outlinks_map.insert(p_str, resolved_links);
                 }
+                (p_str, title, resolved_links, ghosts)
+            })
+            .collect();
+
+        let mut outlinks_map: HashMap<String, Vec<String>> = HashMap::with_capacity(extracted_results.len());
+        let mut node_labels: HashMap<String, String> = HashMap::with_capacity(extracted_results.len());
+        let mut in_degree: HashMap<String, usize> = HashMap::with_capacity(extracted_results.len());
+        let mut ghost_nodes_set: HashSet<String> = HashSet::new();
+
+        for (p_str, title, resolved_links, ghosts) in extracted_results {
+            node_labels.insert(p_str.clone(), title);
+            for (ghost_id, ghost_label) in ghosts {
+                ghost_nodes_set.insert(ghost_id.clone());
+                node_labels.entry(ghost_id).or_insert(ghost_label);
+            }
+            if !resolved_links.is_empty() {
+                outlinks_map.insert(p_str, resolved_links);
             }
         }
 
