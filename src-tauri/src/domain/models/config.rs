@@ -314,6 +314,24 @@ impl Default for IndexingConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiffConfig {
+    #[serde(default = "default_diff_max_expand_lines")]
+    pub max_expand_lines: usize,
+}
+
+fn default_diff_max_expand_lines() -> usize {
+    800
+}
+
+impl Default for DiffConfig {
+    fn default() -> Self {
+        Self {
+            max_expand_lines: default_diff_max_expand_lines(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppConfig {
     #[serde(alias = "supported_files.jsonc")]
     pub supported_files: SupportedFileTypes,
@@ -325,6 +343,8 @@ pub struct AppConfig {
     pub editor: EditorConfig,
     #[serde(default)]
     pub indexing: IndexingConfig,
+    #[serde(default)]
+    pub diff: DiffConfig,
 }
 
 impl Default for AppConfig {
@@ -377,5 +397,7 @@ mod tests {
         assert_eq!(config.indexing.max_docx_file_size, 15_728_640);
         assert_eq!(config.indexing.max_extracted_chars, 200_000);
         assert_eq!(config.indexing.max_word_length, 80);
+
+        assert_eq!(config.diff.max_expand_lines, 800);
     }
 }

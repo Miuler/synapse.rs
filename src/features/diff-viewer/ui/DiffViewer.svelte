@@ -9,6 +9,7 @@
     isPdfFile,
     isDrawingFile,
     isDiagramFile,
+    DEFAULT_APP_CONFIG,
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
   import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
@@ -119,10 +120,24 @@
         instance.initRaw();
         instance.buildSplitDiffLines();
         instance.buildUnifiedDiffLines();
-        try {
-          instance.onAllExpand('split');
-          instance.onAllExpand('unified');
-        } catch {}
+
+        // Expansión automática segura basada en el límite configurable de config.jsonc
+        // Evita colgar la interfaz en archivos extensos como .excalidraw o JSON minificados
+        const maxExpandLines = DEFAULT_APP_CONFIG.diff?.max_expand_lines ?? 800;
+        const totalLines = Math.max(
+          instance.splitLineLength ?? 0,
+          instance.unifiedLineLength ?? 0,
+          diffData.old_content ? diffData.old_content.split('\n').length : 0,
+          diffData.new_content ? diffData.new_content.split('\n').length : 0
+        );
+
+        if (totalLines <= maxExpandLines) {
+          try {
+            instance.onAllExpand('split');
+            instance.onAllExpand('unified');
+          } catch {}
+        }
+
         diffFileInstance = instance;
       } catch (err) {
         console.error('Error inicializando DiffFile:', err);

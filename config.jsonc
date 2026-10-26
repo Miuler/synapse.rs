@@ -87,6 +87,13 @@
     "auto_save_delay_ms": 600
   },
 
+  // Configuración de visualización y límites de diferencias Git (Diff Viewer)
+  "diff": {
+    // Número máximo de líneas en un archivo para expandir automáticamente todo el diff de texto
+    // Si el archivo supera este límite (ej. dibujos Excalidraw o JSON extensos), solo se muestran los bloques modificados (hunks) para prevenir congelamientos
+    "max_expand_lines": 800
+  },
+
   // Configuración de límites y parámetros para la indexación de búsqueda Full-Text (Tantivy)
   "indexing": {
     // Tamaño máximo de archivo PDF a procesar en bytes (30 MB por defecto)
