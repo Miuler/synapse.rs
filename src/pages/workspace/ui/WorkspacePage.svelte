@@ -338,7 +338,7 @@
   }
   let isForceSavingUnsaved = $state(false);
   let pendingCloseAction = $state<{
-    type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close';
+    type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close' | 'manual-save';
     paths: string[];
   } | null>(null);
 
@@ -486,8 +486,9 @@
           openTabPaths.push(tab.path);
           const vItem = vaultItems.find((v) => v.relative_path === tab.path);
           const isDrawing = isDrawingTab(tab.path);
+          const isTabLocked = unsavedChanges.isLocked(tab.path);
           const memoryMode = (tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
-          const mode: MarkdownViewMode = (!isDrawing && memoryMode && ['live', 'source', 'reading'].includes(memoryMode))
+          const mode: MarkdownViewMode = (!isDrawing && !isTabLocked && memoryMode && ['live', 'source', 'reading'].includes(memoryMode))
             ? memoryMode
             : "reading";
           const excalViewer: ExcalidrawViewerType | undefined = (tab.view_mode === 'obsidian' || tab.view_mode === 'native')
@@ -520,7 +521,8 @@
 
           activeTabPath = targetActive;
           const isTargetDrawing = isDrawingTab(targetActive);
-          const activeMode = isTargetDrawing ? "reading" : (openedNotes[targetActive]?.viewMode || "reading");
+          const isTargetLocked = unsavedChanges.isLocked(targetActive);
+          const activeMode = (isTargetDrawing || isTargetLocked) ? "reading" : (openedNotes[targetActive]?.viewMode || "reading");
           markdownViewMode = activeMode;
           isEditing = activeMode !== "reading";
           ensureContentLoaded(targetActive);
@@ -929,8 +931,8 @@
         }
       }
     }
-    // Si es un archivo PDF con visor activo, forzar guardado síncrono/inmediato antes de destruir
-    if (isPdfFile(path) && pdfViewers[path]?.saveDocument) {
+    // Si es un archivo PDF con visor activo y no está bloqueado, forzar guardado síncrono/inmediato antes de destruir
+    if (isPdfFile(path) && !unsavedChanges.isLocked(path) && pdfViewers[path]?.saveDocument) {
       pdfViewers[path].saveDocument().catch((err: any) => {
         console.error("Error al persistir PDF al cerrar pestaña:", err);
       });
@@ -1088,7 +1090,20 @@
     const action = pendingCloseAction;
     pendingCloseAction = null;
 
-    if (action.type === 'single-tab') {
+    // Revertir cambios en memoria al estado guardado en disco
+    for (const p of unsavedDialogFiles) {
+      if (openedNotes[p]) {
+        openedNotes[p] = {
+          ...openedNotes[p],
+          content: openedNotes[p].savedContent,
+          lastReloaded: Date.now(),
+        };
+      }
+    }
+
+    if (action.type === 'manual-save') {
+      return;
+    } else if (action.type === 'single-tab') {
       closeTab(action.paths[0]);
     } else if (action.type === 'single-split-tab') {
       closeSplitTab(action.paths[0]);
@@ -1134,7 +1149,9 @@
       unsavedDialogOpen = false;
       pendingCloseAction = null;
 
-      if (action.type === 'single-tab') {
+      if (action.type === 'manual-save') {
+        return;
+      } else if (action.type === 'single-tab') {
         closeTab(action.paths[0]);
       } else if (action.type === 'single-split-tab') {
         closeSplitTab(action.paths[0]);
@@ -1880,9 +1897,9 @@
       if (lockedFiles.has(relativePath)) {
         const next = new Set(lockedFiles);
         next.delete(relativePath);
-        lockedFiles = next;
+        unsavedChanges.setLockedFiles(Array.from(next));
         if (!isStandaloneMode) {
-          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(next));
         }
       }
 
@@ -1923,9 +1940,9 @@
         }
       }
       if (changedLocks) {
-        lockedFiles = nextLocks;
+        unsavedChanges.setLockedFiles(Array.from(nextLocks));
         if (!isStandaloneMode) {
-          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+          vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(nextLocks));
         }
       }
 
@@ -1961,9 +1978,9 @@
       const next = new Set(lockedFiles);
       next.delete(relativePath);
       next.add(renamedPath);
-      lockedFiles = next;
+      unsavedChanges.setLockedFiles(Array.from(next));
       if (!isStandaloneMode) {
-        vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(lockedFiles));
+        vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(next));
       }
     }
 
@@ -1999,6 +2016,7 @@
           hasActiveWorkspaceLoaded = true;
           openTabPaths = [detachedTab];
           activeTabPath = detachedTab;
+          await restoreSidebarWidth();
           await fetchNotesFromBackend();
           ensureContentLoaded(detachedTab);
           return;
@@ -2016,13 +2034,11 @@
           return;
         }
 
-        // Si al arrancar no hay ningún tab seleccionado/abierto, preparar uno vacío
-        if (openTabPaths.length === 0) {
-          handleNewEmptyTab();
-        }
-
         const activePath = await vaultApi.getActiveVaultPath();
         if (!activePath) {
+          if (openTabPaths.length === 0) {
+            handleNewEmptyTab();
+          }
           showWelcomeScreen = true;
           hasActiveWorkspaceLoaded = false;
         } else {
@@ -2231,13 +2247,39 @@
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
-    if (lockedFiles.has(vaultItem.relative_path)) return;
+    if (unsavedChanges.isLocked(vaultItem.relative_path)) return;
     const isDrawing = isDrawingTab(vaultItem.relative_path, openedNotes[vaultItem.relative_path]?.content);
     const computedDelay = delay !== undefined ? delay : (isDrawing ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       persistVaultItemToRust(vaultItem);
     }, computedDelay);
+  }
+
+  function requestManualSave(vaultItem: VaultItem) {
+    const path = vaultItem.relative_path;
+    if (!path || isSyntheticTab(path)) return;
+
+    if (isDrawingTab(path, openedNotes[path]?.content) && excalidrawViewers[path]?.getCurrentSerializedScene) {
+      try {
+        const freshContent = excalidrawViewers[path].getCurrentSerializedScene();
+        if (freshContent && openedNotes[path]) {
+          openedNotes[path].content = freshContent;
+        }
+      } catch (err) {
+        console.warn("Error al extraer escena actual de Excalidraw:", err);
+      }
+    }
+
+    if (unsavedChanges.isLocked(path)) {
+      pendingCloseAction = { type: 'manual-save', paths: [path] };
+      unsavedDialogFiles = [path];
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+      return;
+    }
+
+    persistVaultItemToRust(vaultItem, undefined, true);
   }
 
   async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string, force = false) {
@@ -2250,7 +2292,7 @@
     if ((!isConnectedToRust && !vaultRepository.isConnected()) || !path) return;
 
     // Si el archivo está bloqueado (locked), abortar guardado salvo que se fuerce explícitamente (ej: diálogo de confirmación)
-    if (!force && lockedFiles.has(path)) {
+    if (!force && unsavedChanges.isLocked(path)) {
       return;
     }
 
@@ -2645,8 +2687,8 @@
         category: "Archivo",
         shortcut: shortcutsConfig.workspace.save_file,
         action: () => {
-          if (activeTabPath && currentVaultItem.relative_path) {
-            persistVaultItemToRust(currentVaultItem, undefined, true);
+          if (currentFocusedTabPath && currentFocusedVaultItem.relative_path) {
+            requestManualSave(currentFocusedVaultItem);
           }
         },
       },
@@ -2913,8 +2955,8 @@
       }
       if (matchesShortcut(e, ws.save_file)) {
         stopEvent();
-        if (activeTabPath && currentVaultItem.relative_path) {
-          persistVaultItemToRust(currentVaultItem, undefined, true);
+        if (currentFocusedTabPath && currentFocusedVaultItem.relative_path) {
+          requestManualSave(currentFocusedVaultItem);
         }
         return;
       }
@@ -3490,14 +3532,13 @@
                   <input
                     type="text"
                     class="editor-title-input"
+                    readonly={!paneEditing}
                     bind:value={vaultItem.title}
                     oninput={() => {
                       if (openedNotes[tabPath]) {
                         openedNotes[tabPath].title = vaultItem.title;
                       }
-                      if (!lockedFiles.has(tabPath)) {
-                        persistVaultItemToRust(vaultItem);
-                      }
+                      debouncedPersistVaultItemToRust(vaultItem);
                     }}
                     placeholder="Título del archivo..."
                   />
@@ -3607,7 +3648,7 @@
         onToggleView={toggleViewMode}
         onSave={() => {
           if (activeTabPath && currentVaultItem.relative_path) {
-            persistVaultItemToRust(currentVaultItem, undefined, true);
+            requestManualSave(currentVaultItem);
           }
         }}
         onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3663,7 +3704,7 @@
           onToggleView={toggleViewMode}
           onSave={() => {
             if (activeTabPath && currentVaultItem.relative_path) {
-              persistVaultItemToRust(currentVaultItem, undefined, true);
+              requestManualSave(currentVaultItem);
             }
           }}
           onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3725,7 +3766,7 @@
           onToggleView={toggleSplitViewMode}
           onSave={() => {
             if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
-              persistVaultItemToRust(currentSplitVaultItem, undefined, true);
+              requestManualSave(currentSplitVaultItem);
             }
           }}
           onOpenCommandPalette={() => (isPaletteOpen = true)}
@@ -3791,6 +3832,7 @@
     bind:open={unsavedDialogOpen}
     files={unsavedDialogFiles}
     isWindowClose={unsavedDialogIsWindowClose}
+    isManualSave={pendingCloseAction?.type === 'manual-save'}
     loading={isForceSavingUnsaved}
     onAbort={handleUnsavedDialogAbort}
     onDiscard={handleUnsavedDialogDiscard}

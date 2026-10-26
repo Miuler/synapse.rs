@@ -7,6 +7,7 @@
     title?: string;
     files: string[];
     isWindowClose?: boolean;
+    isManualSave?: boolean;
     loading?: boolean;
     onAbort: () => void;
     onDiscard: () => void;
@@ -18,6 +19,7 @@
     title,
     files = [],
     isWindowClose = false,
+    isManualSave = false,
     loading = false,
     onAbort,
     onDiscard,
@@ -88,7 +90,9 @@
     title ||
       (isWindowClose
         ? "Cambios sin guardar al cerrar la aplicación"
-        : "Cambios sin persistir en archivo bloqueado"),
+        : isManualSave
+          ? "Confirmar guardado en archivo bloqueado"
+          : "Cambios sin persistir en archivo bloqueado"),
   );
 
   let singleFileName = $derived(
@@ -130,6 +134,10 @@
                 ? "archivo bloqueado con cambios sin persistir"
                 : "archivos bloqueados con cambios sin persistir"}. Si cierras
               la aplicación sin guardar, se perderán las modificaciones.
+            {:else if isManualSave}
+              El archivo <strong>{singleFileName}</strong> está
+              <strong>bloqueado</strong> (protegido con candado). ¿Deseas autorizar
+              y forzar el guardado de los cambios en disco?
             {:else}
               El archivo <strong>{singleFileName}</strong> está
               <strong>bloqueado</strong> y tiene cambios que no han sido guardados

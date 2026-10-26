@@ -237,13 +237,12 @@
       files = parsed.files;
     }
 
-    const serialized = serializeSceneData(elements, appState, files);
-    lastKnownScene = serialized;
-    return serialized;
+    return serializeSceneData(elements, appState, files);
   }
 
   export function saveCurrentScene(): string {
     const serialized = getCurrentSerializedScene();
+    lastKnownScene = serialized;
     isLocalChange = true;
     if (onChange) {
       onChange(serialized);
@@ -259,53 +258,63 @@
     saveCurrentScene();
   }
 
-  function renderReactApp(data: string, isReadOnly: boolean) {
+  const UI_OPTIONS = {
+    canvasActions: {
+      loadScene: false,
+      saveToActiveFile: false,
+      saveAsImage: false,
+      export: {
+        saveFileToDisk: false,
+      },
+    },
+  };
+
+  let cachedInitialData: any = null;
+
+  function handleExcalidrawAPI(api: any) {
+    excalidrawAPI = api;
+    if (cachedInitialData?.files && Object.keys(cachedInitialData.files).length > 0) {
+      api.addFiles?.(Object.values(cachedInitialData.files));
+    }
+    // Resolver y cargar imágenes vinculadas del vault (## Embedded Files)
+    resolveEmbeddedImages(content, api);
+    if (!readOnly && api?.setActiveTool) {
+      api.setActiveTool({ type: 'selection' });
+    }
+  }
+
+  function handleExcalidrawOnChange(elements: readonly any[], appState: any, files: any) {
+    if (readOnly || suppressOnChange) return;
+
+    if (onChangeDebounceTimer) clearTimeout(onChangeDebounceTimer);
+    onChangeDebounceTimer = setTimeout(() => {
+      if (readOnly || suppressOnChange) return;
+      const serialized = serializeSceneData(elements, appState, files);
+      if (serialized !== lastKnownScene) {
+        lastKnownScene = serialized;
+        isLocalChange = true;
+        if (onChange) onChange(serialized);
+      }
+    }, 300);
+  }
+
+  function renderReactApp(data: string, isReadOnly: boolean, recomputeInitialData = false) {
     if (!containerRef) return;
     if (!root) {
       root = createRoot(containerRef);
     }
 
-    const initialData = parseInitialData(data, isReadOnly);
+    if (!cachedInitialData || recomputeInitialData) {
+      cachedInitialData = parseInitialData(data, isReadOnly);
+    }
 
     const reactElement = React.createElement(Excalidraw, {
-      initialData,
-      excalidrawAPI: (api: any) => {
-        excalidrawAPI = api;
-        if (initialData.files && Object.keys(initialData.files).length > 0) {
-          api.addFiles?.(Object.values(initialData.files));
-        }
-        // Resolver y cargar imágenes vinculadas del vault (## Embedded Files)
-        resolveEmbeddedImages(data, api);
-        if (!isReadOnly && api?.setActiveTool) {
-          api.setActiveTool({ type: 'selection' });
-        }
-      },
+      initialData: cachedInitialData,
+      excalidrawAPI: handleExcalidrawAPI,
       viewModeEnabled: isReadOnly,
       handleKeyboardGlobally: false,
-      UIOptions: {
-        canvasActions: {
-          loadScene: false,
-          saveToActiveFile: false,
-          saveAsImage: false,
-          export: {
-            saveFileToDisk: false,
-          },
-        },
-      },
-      onChange: (elements: readonly any[], appState: any, files: any) => {
-        if (isReadOnly || suppressOnChange) return;
-
-        if (onChangeDebounceTimer) clearTimeout(onChangeDebounceTimer);
-        onChangeDebounceTimer = setTimeout(() => {
-          if (isReadOnly || suppressOnChange) return;
-          const serialized = serializeSceneData(elements, appState, files);
-          if (serialized !== lastKnownScene) {
-            lastKnownScene = serialized;
-            isLocalChange = true;
-            if (onChange) onChange(serialized);
-          }
-        }, 300);
-      }
+      UIOptions: UI_OPTIONS,
+      onChange: handleExcalidrawOnChange,
     });
 
     root.render(reactElement);
@@ -314,7 +323,7 @@
   onMount(() => {
     lastKnownScene = content;
     lastReadOnly = readOnly;
-    renderReactApp(content, readOnly);
+    renderReactApp(content, readOnly, true);
   });
 
   onDestroy(() => {
@@ -359,6 +368,9 @@
 
     if (readOnlyChanged) {
       lastReadOnly = r;
+      // Actualizar siempre la prop React viewModeEnabled en <Excalidraw> mediante root.render
+      // para evitar que syncActionResult (ej. al pulsar Escape) lea un this.props.viewModeEnabled obsoleto
+      renderReactApp(c, r, false);
       if (excalidrawAPI) {
         excalidrawAPI.updateScene({
           appState: {
@@ -369,8 +381,6 @@
         if (!r && excalidrawAPI.setActiveTool) {
           excalidrawAPI.setActiveTool({ type: 'selection' });
         }
-      } else {
-        renderReactApp(c, r);
       }
     }
 
@@ -379,6 +389,7 @@
       lastKnownScene = c;
       if (excalidrawAPI) {
         const parsed = parseInitialData(c, r);
+        cachedInitialData = parsed;
         const currentAppState = excalidrawAPI.getAppState?.() || {};
         excalidrawAPI.updateScene({
           elements: parsed.elements,
@@ -400,7 +411,7 @@
         }
         resolveEmbeddedImages(c, excalidrawAPI);
       } else {
-        renderReactApp(c, r);
+        renderReactApp(c, r, true);
       }
     }
   });
@@ -409,8 +420,18 @@
     if (readOnly) return;
     const currentTarget = e.currentTarget as HTMLElement;
     const relatedTarget = e.relatedTarget as HTMLElement | null;
-    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+    if (relatedTarget && !currentTarget.contains(relatedTarget)) {
       triggerSave();
+      return;
+    }
+    if (!relatedTarget) {
+      requestAnimationFrame(() => {
+        if (readOnly || !containerRef) return;
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl && activeEl !== document.body && !containerRef.contains(activeEl)) {
+          triggerSave();
+        }
+      });
     }
   }
 
@@ -418,23 +439,29 @@
     const isCtrlOrMeta = e.ctrlKey || e.metaKey;
     if (isCtrlOrMeta && !e.altKey) {
       const key = e.key.toLowerCase();
-      if (key === 's') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        triggerSave();
-      } else if (key === 'o') {
+      if (key === 'o') {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
       }
     } else if (e.key === 'Escape') {
-      // Al presionar Escape, restaurar explícitamente la herramienta de selección en el siguiente tick
-      // para evitar que el canvas quede deshabilitado o en un estado inconsistente
-      if (!readOnly && excalidrawAPI?.setActiveTool) {
+      // Al presionar Escape, garantizar que viewModeEnabled siga desactivado si estamos en edición,
+      // restaurar la herramienta de selección y devolver el foco al contenedor de Excalidraw
+      if (!readOnly && excalidrawAPI) {
         setTimeout(() => {
-          if (!readOnly && excalidrawAPI?.setActiveTool) {
-            excalidrawAPI.setActiveTool({ type: 'selection' });
+          if (!readOnly && excalidrawAPI) {
+            if (excalidrawAPI.getAppState?.()?.viewModeEnabled) {
+              excalidrawAPI.updateScene({
+                appState: { viewModeEnabled: false },
+              });
+            }
+            if (excalidrawAPI.setActiveTool) {
+              excalidrawAPI.setActiveTool({ type: 'selection' });
+            }
+            if (containerRef && (!document.activeElement || document.activeElement === document.body || !containerRef.contains(document.activeElement))) {
+              const excalEl = containerRef.querySelector<HTMLElement>('.excalidraw');
+              excalEl?.focus();
+            }
           }
         }, 0);
       }
