@@ -6,3 +6,4 @@ pub mod full_text_index;
 pub mod git_service;
 pub mod link_resolution;
 pub mod search_service;
+pub mod tag_service;

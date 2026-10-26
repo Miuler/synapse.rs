@@ -13,6 +13,8 @@
     Moon,
     LayoutGrid,
     Boxes,
+    Tag,
+    Link,
   } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
 
@@ -25,6 +27,8 @@
 
   const topTools = [
     { id: 'files', label: 'Explorador de archivos (Alt+1, Ctrl+B)', icon: 'folder' },
+    { id: 'tags', label: 'Explorador de etiquetas (#tags)', icon: 'tag' },
+    { id: 'relations', label: 'Inspector de enlaces y backlinks', icon: 'link' },
     { id: 'quick-open', label: 'Buscar archivo por nombre (Ctrl+O)', icon: 'search' },
     { id: 'search', label: 'Buscar en el contenido de las notas (Ctrl+Shift+F)', icon: 'text-search' },
     { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
@@ -35,7 +39,7 @@
   ];
 
   function handleToolClick(id: string) {
-    if (id === 'files') {
+    if (id === 'files' || id === 'tags' || id === 'relations') {
       if (activeTab === id) {
         activeTab = '';
       } else {
@@ -64,6 +68,10 @@
               >
                 {#if tool.icon === 'folder'}
                   <Folder size={18} class="icon" />
+                {:else if tool.icon === 'tag'}
+                  <Tag size={18} class="icon" />
+                {:else if tool.icon === 'link'}
+                  <Link size={18} class="icon" />
                 {:else if tool.icon === 'search'}
                   <Search size={18} class="icon" />
                 {:else if tool.icon === 'text-search'}

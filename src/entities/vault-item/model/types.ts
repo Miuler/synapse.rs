@@ -7,6 +7,7 @@ export interface GraphNode {
   label: string;
   group: string;
   val: number;
+  is_ghost?: boolean;
 }
 
 export interface GraphEdge {
@@ -17,6 +18,37 @@ export interface GraphEdge {
 export interface VaultGraphData {
   nodes: GraphNode[];
   links: GraphEdge[];
+}
+
+export interface TagCountItem {
+  tag: string;
+  count: number;
+}
+
+export interface BacklinkItem {
+  source_path: string;
+  source_title: string;
+  snippet: string;
+}
+
+export interface OutlinkItem {
+  target: string;
+  alias?: string | null;
+  resolved_path?: string | null;
+  is_embed: boolean;
+}
+
+export interface UnlinkedMentionItem {
+  source_path: string;
+  source_title: string;
+  snippet: string;
+}
+
+export interface NoteBacklinksReport {
+  target_path: string;
+  backlinks: BacklinkItem[];
+  outlinks: OutlinkItem[];
+  unlinked_mentions: UnlinkedMentionItem[];
 }
 
 export interface NoteRelations {

@@ -20,6 +20,7 @@ use infrastructure::tauri::commands::{
     fetch_community_plugins, install_community_plugin, uninstall_community_plugin,
     get_installed_community_plugins, check_community_plugin_updates,
     check_vault_path_exists, list_vault_directory,
+    get_vault_tags, get_notes_by_tag, get_note_backlinks_and_relations,
     AppState,
 };
 use std::env;
@@ -136,7 +137,10 @@ pub fn run() {
             check_community_plugin_updates,
             check_vault_path_exists,
             list_vault_directory,
-            get_vault_graph
+            get_vault_graph,
+            get_vault_tags,
+            get_notes_by_tag,
+            get_note_backlinks_and_relations
         ])
         .setup(|app| {
             let handle = app.handle().clone();

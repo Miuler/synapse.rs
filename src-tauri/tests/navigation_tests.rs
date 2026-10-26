@@ -1290,5 +1290,48 @@ fn test_vault_graph_local_and_global() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
+#[test]
+fn test_vault_tags_extraction_and_search() {
+    let test_dir = std::env::temp_dir().join("synapse_vault_tags_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let note_1 = test_dir.join("Note1.md");
+    let note_2 = test_dir.join("Note2.md");
+
+    // Nota 1 con frontmatter y tags inline
+    fs::write(
+        &note_1,
+        "---\ntitle: Primera\ntags:\n  - rust\n  - backend\n---\n# Hola\nTexto con #arquitectura y #rust",
+    )
+    .unwrap();
+
+    // Nota 2 con otro tag
+    fs::write(&note_2, "# Segunda\nTexto con #frontend y #rust").unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file.clone());
+    engine.reconcile_sync();
+
+    let tags = engine.get_vault_tags();
+    // Debe haber encontrado rust (2 veces), backend (1), arquitectura (1), frontend (1)
+    let tag_map: std::collections::HashMap<String, usize> = tags.into_iter().collect();
+    assert_eq!(tag_map.get("rust"), Some(&2));
+    assert_eq!(tag_map.get("backend"), Some(&1));
+    assert_eq!(tag_map.get("arquitectura"), Some(&1));
+    assert_eq!(tag_map.get("frontend"), Some(&1));
+
+    // Búsqueda de notas por tag
+    let rust_notes = engine.get_notes_by_tag("rust");
+    assert_eq!(rust_notes.len(), 2);
+    assert!(rust_notes.contains(&"Note1.md".to_string()));
+    assert!(rust_notes.contains(&"Note2.md".to_string()));
+
+    let frontend_notes = engine.get_notes_by_tag("frontend");
+    assert_eq!(frontend_notes, vec!["Note2.md"]);
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
 
 

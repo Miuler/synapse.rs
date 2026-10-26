@@ -3,7 +3,7 @@
   import ForceGraph from 'force-graph';
   import type { VaultGraphData, GraphNode } from '@entities/vault-item';
   import { vaultApi } from '@entities/vault-item';
-  import { Globe, Crosshair, RefreshCw, Layers } from 'lucide-svelte';
+  import { Globe, Crosshair, RefreshCw, Layers, Search, Ghost, Filter } from 'lucide-svelte';
 
   interface Props {
     activeNotePath?: string | null;
@@ -19,38 +19,64 @@
   let isGlobalMode = $state(false);
   let depth = $state(1);
   let isLoading = $state(false);
-  let graphData = $state<VaultGraphData>({ nodes: [], links: [] });
+  let showGhostNodes = $state(true);
+  let searchQuery = $state('');
+  let rawGraphData = $state<VaultGraphData>({ nodes: [], links: [] });
 
-  let totalNodes = $derived(graphData.nodes.length);
-  let totalLinks = $derived(graphData.links.length);
+  // Nodos y enlaces filtrados
+  let filteredNodes = $derived(
+    rawGraphData.nodes.filter((node) => {
+      if (!showGhostNodes && node.is_ghost) return false;
+      return true;
+    })
+  );
+
+  let filteredLinks = $derived.by(() => {
+    const validNodeIds = new Set(filteredNodes.map((n) => n.id));
+    return rawGraphData.links.filter(
+      (l) => validNodeIds.has(typeof l.source === 'object' ? (l.source as any).id : l.source) &&
+             validNodeIds.has(typeof l.target === 'object' ? (l.target as any).id : l.target)
+    );
+  });
+
+  let totalNodes = $derived(filteredNodes.length);
+  let totalLinks = $derived(filteredLinks.length);
 
   async function loadGraph() {
     isLoading = true;
     try {
       const focus = isGlobalMode ? null : activeNotePath;
       const data = await vaultApi.getVaultGraph(focus, isGlobalMode ? null : depth);
-      graphData = data;
-
-      if (graphInstance && containerEl) {
-        graphInstance
-          .graphData({
-            nodes: data.nodes.map((n) => ({ ...n })),
-            links: data.links.map((l) => ({ ...l })),
-          });
-
-        if (!isGlobalMode) {
-          // Zoom suave centrado en el nodo activo
-          setTimeout(() => {
-            if (graphInstance) graphInstance.zoomToFit(400, 40);
-          }, 300);
-        }
-      }
+      rawGraphData = data;
+      syncGraphData();
     } catch (err) {
       console.error('Error cargando datos del grafo:', err);
     } finally {
       isLoading = false;
     }
   }
+
+  function syncGraphData() {
+    if (!graphInstance || !containerEl) return;
+
+    graphInstance.graphData({
+      nodes: filteredNodes.map((n) => ({ ...n })),
+      links: filteredLinks.map((l) => ({ ...l })),
+    });
+
+    if (!isGlobalMode) {
+      setTimeout(() => {
+        if (graphInstance) graphInstance.zoomToFit(400, 40);
+      }, 300);
+    }
+  }
+
+  // Sincronizar datos si cambia el toggle de nodos fantasma
+  $effect(() => {
+    if (showGhostNodes !== undefined && rawGraphData.nodes.length > 0) {
+      syncGraphData();
+    }
+  });
 
   function initForceGraph() {
     if (!containerEl) return;
@@ -63,12 +89,60 @@
       .height(height)
       .backgroundColor('transparent')
       .nodeId('id')
-      .nodeLabel((node: any) => `${node.label} (${node.id})`)
-      .nodeVal((node: any) => Math.max(3, Math.min(node.val * 2, 18)))
-      .nodeAutoColorBy('group')
+      .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Nota pendiente por crear)' : ` (${node.id})`}`)
+      .nodeVal((node: any) => (node.is_ghost ? 2.5 : Math.max(3, Math.min(node.val * 2, 18))))
+      .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        const isMatched = searchQuery.trim() &&
+          (node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           node.id.toLowerCase().includes(searchQuery.toLowerCase()));
+        const isFocused = activeNotePath && node.id === activeNotePath;
+        const radius = Math.max(3, Math.min((node.val || 1) * 2, 16));
+
+        // Dibujar círculo del nodo
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+
+        if (node.is_ghost) {
+          // Estilo fantasma: trazo punteado gris/lavanda
+          ctx.setLineDash([3, 2]);
+          ctx.strokeStyle = '#9ca3af';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
+          ctx.fill();
+          ctx.setLineDash([]);
+        } else {
+          // Color estándar según grupo o resaltado
+          ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6'));
+          ctx.fill();
+
+          if (isMatched || isFocused) {
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+          }
+        }
+
+        // Mostrar etiqueta de texto si hay zoom suficiente o si coincide con la búsqueda
+        const showLabel = globalScale >= 1.2 || isMatched || isFocused;
+        if (showLabel) {
+          const fontSize = Math.max(10 / globalScale, 3);
+          ctx.font = `${fontSize}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151');
+          ctx.fillText(node.label, node.x, node.y + radius + 2);
+        }
+      })
       .linkSource('source')
       .linkTarget('target')
-      .linkColor(() => 'rgba(150, 150, 150, 0.35)')
+      .linkColor((link: any) => {
+        const targetNode = typeof link.target === 'object' ? link.target : null;
+        if (targetNode?.is_ghost) {
+          return 'rgba(156, 163, 175, 0.35)';
+        }
+        return 'rgba(150, 150, 150, 0.35)';
+      })
       .linkDirectionalParticles(2)
       .linkDirectionalParticleSpeed(0.006)
       .linkDirectionalParticleWidth(1.5)
@@ -165,6 +239,28 @@
       </div>
     {/if}
 
+    <!-- Filtro de Nodos Fantasma -->
+    <button
+      class="toggle-ghost-btn"
+      class:active={showGhostNodes}
+      onclick={() => (showGhostNodes = !showGhostNodes)}
+      title={showGhostNodes ? 'Ocultar notas pendientes/fantasma' : 'Mostrar notas pendientes/fantasma'}
+    >
+      <Ghost size={13} />
+      <span>Fantasmas</span>
+    </button>
+
+    <!-- Barra de Búsqueda Rápida de Nodos -->
+    <div class="graph-search-bar">
+      <Search size={13} class="search-icon" />
+      <input
+        type="text"
+        placeholder="Buscar nodo..."
+        bind:value={searchQuery}
+        class="search-input"
+      />
+    </div>
+
     <div class="stats-badge">
       <span>{totalNodes} nodos</span>
       <span class="dot">•</span>
@@ -259,6 +355,60 @@
     border-radius: 4px;
     padding: 2px 6px;
     cursor: pointer;
+  }
+
+  .toggle-ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary, #656d76);
+    background: transparent;
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .toggle-ghost-btn:hover {
+    background-color: var(--bg-tertiary, #eaeef2);
+  }
+
+  .toggle-ghost-btn.active {
+    background-color: var(--bg-primary, #ffffff);
+    color: var(--accent, #0969da);
+    border-color: var(--accent, #0969da);
+  }
+
+  .graph-search-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  :global(.search-icon) {
+    position: absolute;
+    left: 8px;
+    color: var(--text-muted, #8c959f);
+  }
+
+  .search-input {
+    width: 130px;
+    padding: 2px 6px 2px 24px;
+    font-size: 11px;
+    background-color: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 4px;
+    color: var(--text-primary, #1f2328);
+    outline: none;
+    transition: width 0.2s ease;
+  }
+
+  .search-input:focus {
+    width: 170px;
+    border-color: var(--accent, #0969da);
   }
 
   .stats-badge {

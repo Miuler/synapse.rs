@@ -20,6 +20,8 @@
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
   import {GraphViewer} from "@features/graph-viewer";
+  import {TagsExplorer} from "@features/tags-explorer";
+  import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import {
@@ -3135,6 +3137,34 @@
       onOpenDiffWithRevision={(path, revision) => selectTab(`diff-rev:${revision}:${path}`)}
       onOpenInNewWindow={handleOpenInNewWindow}
     />
+
+    {#if activeRibbonTab === 'tags'}
+      <TagsExplorer
+        {sidebarWidth}
+        {isResizingSidebar}
+        onSelectNote={(notePath) => selectTab(notePath)}
+        onResizeStart={handleSidebarResizeStart}
+        onCollapse={toggleSidebar}
+      />
+    {:else if activeRibbonTab === 'relations'}
+      <aside
+        class="relations-sidebar-wrapper"
+        style="width: {sidebarWidth}px;"
+      >
+        <RelationsInspector
+          activeNotePath={currentActiveNonGraphPath}
+          onSelectNote={(notePath) => selectTab(notePath)}
+        />
+        <div
+          role="separator"
+          tabindex="-1"
+          aria-label="Redimensionar inspector de relaciones"
+          class="sidebar-resizer"
+          class:is-resizing={isResizingSidebar}
+          onpointerdown={handleSidebarResizeStart}
+        ></div>
+      </aside>
+    {/if}
   {/if}
 
   {#snippet renderPaneContent(paneTabs: string[], activePath: string | null, isRight: boolean)}
@@ -3341,7 +3371,7 @@
                 {:else if tabPath === "synapse://graph"}
                   <GraphViewer
                     activeNotePath={currentActiveNonGraphPath}
-                    onSelectNote={(notePath) => selectTab(notePath)}
+                    onSelectNote={(notePath: string) => selectTab(notePath)}
                   />
                 {:else if isImageFile(tabPath)}
                   <ImageViewer

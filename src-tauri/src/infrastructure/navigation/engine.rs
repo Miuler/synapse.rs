@@ -1451,6 +1451,7 @@ impl NavigationEngine {
         let mut outlinks_map: HashMap<String, Vec<String>> = HashMap::new();
         let mut node_labels: HashMap<String, String> = HashMap::new();
         let mut in_degree: HashMap<String, usize> = HashMap::new();
+        let mut ghost_nodes_set: HashSet<String> = HashSet::new();
 
         for item in self.notes.iter() {
             let meta = item.value();
@@ -1467,6 +1468,23 @@ impl NavigationEngine {
                         if let Some(target) = self.resolve_link_path_with_base(&wl.target, Some(&p_str)) {
                             if target != p_str {
                                 resolved_links.push(target);
+                            }
+                        } else {
+                            // Enlace no resuelto: Es un nodo fantasma (Ghost Node)
+                            let clean_target = wl.target.trim().trim_start_matches('/').to_string();
+                            if !clean_target.is_empty() && !clean_target.contains("://") {
+                                let ghost_id = if clean_target.ends_with(".md") {
+                                    clean_target.clone()
+                                } else {
+                                    format!("{}.md", clean_target)
+                                };
+                                ghost_nodes_set.insert(ghost_id.clone());
+                                node_labels.entry(ghost_id.clone()).or_insert_with(|| {
+                                    wl.alias.clone().unwrap_or_else(|| {
+                                        clean_target.rsplit('/').next().unwrap_or(&clean_target).to_string()
+                                    })
+                                });
+                                resolved_links.push(ghost_id);
                             }
                         }
                     }
@@ -1516,8 +1534,12 @@ impl NavigationEngine {
             }
             visited
         } else {
-            // Modo Global: incluir todas las notas registradas en DashMap
-            self.notes.iter().map(|item| item.value().path.to_string()).collect()
+            // Modo Global: incluir todas las notas registradas en DashMap + nodos fantasma descubiertos
+            let mut all: HashSet<String> = self.notes.iter().map(|item| item.value().path.to_string()).collect();
+            for ghost in &ghost_nodes_set {
+                all.insert(ghost.clone());
+            }
+            all
         };
 
         // Construir aristas únicas entre nodos incluidos
@@ -1553,17 +1575,177 @@ impl NavigationEngine {
             };
 
             let val = in_degree.get(&id).copied().unwrap_or(0) + 1;
+            let is_ghost = ghost_nodes_set.contains(&id);
 
             nodes.push(GraphNode {
                 id,
                 label,
                 group,
                 val,
+                is_ghost,
             });
         }
 
         VaultGraphData { nodes, links: edges }
     }
+
+    /// Obtiene todas las etiquetas (#tags) únicas del vault con su conteo de ocurrencias.
+    pub fn get_vault_tags(&self) -> Vec<(String, usize)> {
+        use std::collections::HashMap;
+
+        let mut tag_counts: HashMap<String, usize> = HashMap::new();
+
+        for item in self.notes.iter() {
+            let meta = item.value();
+            let p_str = meta.path.as_str();
+            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
+            if is_md {
+                let full = self.vault_path.join(p_str);
+                if let Ok(content) = std::fs::read_to_string(&full) {
+                    let tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                    for tag in tags {
+                        *tag_counts.entry(tag).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        let mut list: Vec<(String, usize)> = tag_counts.into_iter().collect();
+        // Ordenar por frecuencia descendente, luego alfabético
+        list.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        list
+    }
+
+    /// Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
+    pub fn get_notes_by_tag(&self, tag: &str) -> Vec<String> {
+        let clean_tag = crate::domain::services::tag_service::normalize_tag(tag);
+        let mut matching_paths = Vec::new();
+
+        for item in self.notes.iter() {
+            let meta = item.value();
+            let p_str = meta.path.as_str();
+            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
+            if is_md {
+                let full = self.vault_path.join(p_str);
+                if let Ok(content) = std::fs::read_to_string(&full) {
+                    let tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                    if tags.iter().any(|t| t == &clean_tag) {
+                        matching_paths.push(p_str.to_string());
+                    }
+                }
+            }
+        }
+
+        matching_paths.sort();
+        matching_paths
+    }
+
+    /// Obtiene información completa de backlinks, outlinks y menciones no vinculadas para una nota específica.
+    pub fn get_note_backlinks_and_relations(
+        &self,
+        target_path: &str,
+    ) -> crate::domain::models::graph::NoteBacklinksReport {
+        use crate::domain::models::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
+        use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
+
+        let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
+        let target_stem = clean_target
+            .rsplit('/')
+            .next()
+            .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
+            .unwrap_or(&clean_target);
+
+        let mut backlinks = Vec::new();
+        let mut outlinks = Vec::new();
+        let mut unlinked_mentions = Vec::new();
+
+        for item in self.notes.iter() {
+            let meta = item.value();
+            let p_str = meta.path.as_str().to_string();
+            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
+            if !is_md {
+                continue;
+            }
+
+            let full = self.vault_path.join(&p_str);
+            let content = match std::fs::read_to_string(&full) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            let wikilinks = extract_wikilinks(&content);
+            let mut linked_in_this_file = false;
+
+            for wl in &wikilinks {
+                let resolved = self.resolve_link_path_with_base(&wl.target, Some(&p_str));
+                let matches_target = resolved.as_deref() == Some(&clean_target)
+                    || {
+                        let (norm, _) = normalize_link_target(&wl.target);
+                        norm == clean_target
+                            || norm == format!("{}.md", target_stem)
+                            || wl.target.eq_ignore_ascii_case(target_stem)
+                    };
+
+                if matches_target && p_str != clean_target {
+                    linked_in_this_file = true;
+                    // Extraer snippet de contexto
+                    let snippet = extract_context_snippet(&content, wl.start, wl.end);
+                    backlinks.push(BacklinkItem {
+                        source_path: p_str.clone(),
+                        source_title: meta.title.to_string(),
+                        snippet,
+                    });
+                }
+
+                if p_str == clean_target {
+                    outlinks.push(OutlinkItem {
+                        target: wl.target.clone(),
+                        alias: wl.alias.clone(),
+                        resolved_path: resolved,
+                        is_embed: wl.is_embed,
+                    });
+                }
+            }
+
+            // Si es otro archivo y no contiene un wikilink hacia target, buscar menciones no vinculadas del título/stem
+            if p_str != clean_target && !linked_in_this_file && target_stem.len() >= 3 {
+                let lower_content = content.to_lowercase();
+                let lower_stem = target_stem.to_lowercase();
+                if let Some(pos) = lower_content.find(&lower_stem) {
+                    let end_pos = pos + target_stem.len();
+                    let snippet = extract_context_snippet(&content, pos, end_pos);
+                    unlinked_mentions.push(UnlinkedMentionItem {
+                        source_path: p_str,
+                        source_title: meta.title.to_string(),
+                        snippet,
+                    });
+                }
+            }
+        }
+
+        NoteBacklinksReport {
+            target_path: clean_target,
+            backlinks,
+            outlinks,
+            unlinked_mentions,
+        }
+    }
+}
+
+fn extract_context_snippet(content: &str, start: usize, end: usize) -> String {
+    let window = 60;
+    let snippet_start = start.saturating_sub(window);
+    let snippet_end = (end + window).min(content.len());
+
+    let mut snippet = String::new();
+    if snippet_start > 0 {
+        snippet.push_str("...");
+    }
+    snippet.push_str(&content[snippet_start..snippet_end].replace('\n', " "));
+    if snippet_end < content.len() {
+        snippet.push_str("...");
+    }
+    snippet.trim().to_string()
 }
 
 fn collect_supported_files_recursive(

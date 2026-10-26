@@ -11,6 +11,9 @@ pub struct GraphNode {
     pub group: String,
     /// Cantidad de enlaces entrantes (backlinks) para ponderar tamaño del nodo
     pub val: usize,
+    /// Indica si es un nodo fantasma (nota referenciada que aún no existe en disco)
+    #[serde(default)]
+    pub is_ghost: bool,
 }
 
 /// Arista o conexión dirigida entre dos nodos
@@ -27,4 +30,38 @@ pub struct GraphEdge {
 pub struct VaultGraphData {
     pub nodes: Vec<GraphNode>,
     pub links: Vec<GraphEdge>,
+}
+
+/// Elemento de backlink entrante hacia una nota
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BacklinkItem {
+    pub source_path: String,
+    pub source_title: String,
+    pub snippet: String,
+}
+
+/// Elemento de outlink saliente desde una nota
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OutlinkItem {
+    pub target: String,
+    pub alias: Option<String>,
+    pub resolved_path: Option<String>,
+    pub is_embed: bool,
+}
+
+/// Mención textual no vinculada que coincide con el título o nombre de la nota
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UnlinkedMentionItem {
+    pub source_path: String,
+    pub source_title: String,
+    pub snippet: String,
+}
+
+/// Informe consolidado de inspector de relaciones para una nota activa
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct NoteBacklinksReport {
+    pub target_path: String,
+    pub backlinks: Vec<BacklinkItem>,
+    pub outlinks: Vec<OutlinkItem>,
+    pub unlinked_mentions: Vec<UnlinkedMentionItem>,
 }

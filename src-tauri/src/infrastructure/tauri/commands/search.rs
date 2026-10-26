@@ -158,3 +158,48 @@ pub fn get_vault_graph(
     };
     Ok(engine.get_vault_graph(focus_path.as_deref(), depth))
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct TagCountItem {
+    pub tag: String,
+    pub count: usize,
+}
+
+#[tauri::command]
+pub fn get_vault_tags(
+    state: State<'_, AppState>,
+) -> Result<Vec<TagCountItem>, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(Vec::new());
+    };
+    let tags = engine.get_vault_tags();
+    Ok(tags
+        .into_iter()
+        .map(|(tag, count)| TagCountItem { tag, count })
+        .collect())
+}
+
+#[tauri::command]
+pub fn get_notes_by_tag(
+    state: State<'_, AppState>,
+    tag: String,
+) -> Result<Vec<String>, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(Vec::new());
+    };
+    Ok(engine.get_notes_by_tag(&tag))
+}
+
+#[tauri::command]
+pub fn get_note_backlinks_and_relations(
+    state: State<'_, AppState>,
+    target_path: String,
+) -> Result<crate::domain::models::graph::NoteBacklinksReport, String> {
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(crate::domain::models::graph::NoteBacklinksReport::default());
+    };
+    Ok(engine.get_note_backlinks_and_relations(&target_path))
+}
