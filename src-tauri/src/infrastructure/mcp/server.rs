@@ -5,10 +5,11 @@ use crate::domain::services::full_text_index::FullTextIndex;
 use crate::domain::services::git_service::GitPort;
 use crate::infrastructure::repositories::file_note_repository::FileNoteRepository;
 use crate::infrastructure::services::git_service::GitService;
+use super::port_registry;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -141,10 +142,11 @@ pub struct McpBackgroundRuntime {
     worker_handle: Mutex<Option<thread::JoinHandle<()>>>,
     provider: Arc<dyn McpContextProvider>,
     on_status_change: Arc<Mutex<Option<McpStatusCallback>>>,
+    current_vault: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl McpBackgroundRuntime {
-    pub const DEFAULT_PORT: u16 = 27182;
+    pub const DEFAULT_PORT: u16 = port_registry::DEFAULT_MCP_PORT;
 
     pub fn new(provider: Arc<dyn McpContextProvider>) -> Self {
         Self {
@@ -155,6 +157,7 @@ impl McpBackgroundRuntime {
             worker_handle: Mutex::new(None),
             provider,
             on_status_change: Arc::new(Mutex::new(None)),
+            current_vault: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -175,9 +178,15 @@ impl McpBackgroundRuntime {
 
     pub fn get_status(&self) -> McpRuntimeStatus {
         let running = self.is_running.load(Ordering::SeqCst);
-        let port = self.port.load(Ordering::SeqCst) as u16;
-        let endpoint = format!("http://127.0.0.1:{}/mcp", port);
         let (vault_opt, _) = self.provider.get_context();
+        let port = if running {
+            self.port.load(Ordering::SeqCst) as u16
+        } else if let Some(ref v) = vault_opt {
+            port_registry::get_vault_port(v).unwrap_or(Self::DEFAULT_PORT)
+        } else {
+            self.port.load(Ordering::SeqCst) as u16
+        };
+        let endpoint = format!("http://127.0.0.1:{}/mcp", port);
         let active_vault = vault_opt.map(|p| p.to_string_lossy().to_string());
         let requests_handled = self.requests_handled.load(Ordering::SeqCst);
         let last_error = self.last_error.lock().ok().and_then(|g| g.clone());
@@ -197,30 +206,26 @@ impl McpBackgroundRuntime {
             return Ok(self.get_status());
         }
 
-        let desired_port = Self::DEFAULT_PORT;
-        let listener = match TcpListener::bind(format!("127.0.0.1:{}", desired_port)) {
-            Ok(l) => {
-                self.port.store(desired_port as usize, Ordering::SeqCst);
-                l
-            }
-            Err(e) => {
-                // Si el puerto por defecto está ocupado, intentar con puerto libre dinámico
-                match TcpListener::bind("127.0.0.1:0") {
-                    Ok(l) => {
-                        let actual_port = l.local_addr().map_err(|e| e.to_string())?.port();
-                        self.port.store(actual_port as usize, Ordering::SeqCst);
-                        l
-                    }
-                    Err(e2) => {
-                        let err_msg = format!("Fallo al enlazar socket TCP: {} (intento libre: {})", e, e2);
-                        if let Ok(mut lock) = self.last_error.lock() {
-                            *lock = Some(err_msg.clone());
-                        }
-                        return Err(err_msg);
-                    }
+        let (vault_opt, _) = self.provider.get_context();
+        let (listener, actual_port) = match vault_opt {
+            Some(ref vault_path) => {
+                let res = port_registry::allocate_and_bind_port(vault_path, None)?;
+                port_registry::record_mcp_started(vault_path, res.1);
+                if let Ok(mut lock) = self.current_vault.lock() {
+                    *lock = Some(vault_path.clone());
                 }
+                res
+            }
+            None => {
+                let l = TcpListener::bind(format!("127.0.0.1:{}", Self::DEFAULT_PORT))
+                    .or_else(|_| TcpListener::bind("127.0.0.1:0"))
+                    .map_err(|e| format!("Fallo al enlazar socket TCP: {}", e))?;
+                let p = l.local_addr().map_err(|e| e.to_string())?.port();
+                (l, p)
             }
         };
+
+        self.port.store(actual_port as usize, Ordering::SeqCst);
 
         // Configurar timeout no bloqueante en listener para poder evaluar is_running regularmente
         if let Err(e) = listener.set_nonblocking(true) {
@@ -305,14 +310,28 @@ impl McpBackgroundRuntime {
     }
 
     pub fn stop(&self) -> Result<McpRuntimeStatus, String> {
+        let (vault_opt, _) = self.provider.get_context();
+        let port = self.port.load(Ordering::SeqCst) as u16;
+
+        let target_vault = self
+            .current_vault
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .or_else(|| vault_opt.clone());
+
+        if let Some(ref v) = target_vault {
+            port_registry::record_mcp_stopped(v, port);
+        }
+
         if !self.is_running.load(Ordering::SeqCst) {
+            self.notify_status_change();
             return Ok(self.get_status());
         }
 
         self.is_running.store(false, Ordering::SeqCst);
 
         // Despertar al TcpListener intentando una conexión rápida local para salir del accept()
-        let port = self.port.load(Ordering::SeqCst);
         let _ = TcpStream::connect(format!("127.0.0.1:{}", port));
 
         if let Ok(mut lock) = self.worker_handle.lock() {
@@ -330,6 +349,38 @@ impl McpBackgroundRuntime {
             self.stop()
         } else {
             self.start()
+        }
+    }
+
+    /// Sincroniza el estado del servidor MCP con la configuración específica de la nueva bóveda
+    pub fn sync_for_vault(&self, new_vault: &Path) {
+        let should_be_enabled = port_registry::is_vault_enabled(new_vault);
+        let currently_running = self.is_running.load(Ordering::SeqCst);
+
+        let is_same_vault = if let Ok(guard) = self.current_vault.lock() {
+            guard.as_ref().map(|v| v == new_vault).unwrap_or(false)
+        } else {
+            false
+        };
+
+        if should_be_enabled {
+            if !currently_running || !is_same_vault {
+                if currently_running {
+                    let _ = self.stop();
+                }
+                let _ = self.start();
+            }
+        } else if currently_running {
+            let _ = self.stop();
+        } else {
+            // Actualizar current_vault y notificar para que el puerto refleje el de la nueva bóveda
+            if let Ok(mut lock) = self.current_vault.lock() {
+                *lock = Some(new_vault.to_path_buf());
+            }
+            if let Some(port) = port_registry::get_vault_port(new_vault) {
+                self.port.store(port as usize, Ordering::SeqCst);
+            }
+            self.notify_status_change();
         }
     }
 

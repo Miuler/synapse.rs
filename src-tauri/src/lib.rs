@@ -21,7 +21,7 @@ use infrastructure::tauri::commands::{
     get_installed_community_plugins, check_community_plugin_updates,
     check_vault_path_exists, list_vault_directory,
     get_vault_tags, get_notes_by_tag, get_note_backlinks_and_relations,
-    get_mcp_server_status, toggle_mcp_server, start_mcp_server, stop_mcp_server,
+    get_mcp_server_status, get_mcp_port_registry, toggle_mcp_server, start_mcp_server, stop_mcp_server,
     AppState,
 };
 use std::env;
@@ -143,6 +143,7 @@ pub fn run() {
             get_notes_by_tag,
             get_note_backlinks_and_relations,
             get_mcp_server_status,
+            get_mcp_port_registry,
             toggle_mcp_server,
             start_mcp_server,
             stop_mcp_server
@@ -182,6 +183,8 @@ pub fn run() {
             if window.label() == "main" {
                 if let tauri::WindowEvent::Destroyed = event {
                     let app = window.app_handle();
+                    let state = app.state::<AppState>();
+                    let _ = state.mcp_runtime.stop();
                     for (label, other_win) in app.webview_windows() {
                         if label != "main" {
                             let _ = other_win.destroy();

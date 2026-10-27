@@ -14,6 +14,20 @@ export interface McpRuntimeStatus {
   last_error?: string | null;
 }
 
+export interface McpPortRegistryEntry {
+  vault_path: string;
+  port: number;
+  enabled: boolean;
+  running: boolean;
+  pid?: number | null;
+  endpoint: string;
+  updated_at: number;
+}
+
+export interface McpPortRegistry {
+  vaults: Record<string, McpPortRegistryEntry>;
+}
+
 export const systemApi = {
   async openFileWithDefaultApp(relativePath: string): Promise<void> {
     if (!relativePath) return;
@@ -106,6 +120,15 @@ export const systemApi = {
       return await invokeTauri<McpRuntimeStatus>('stop_mcp_server');
     } catch (error) {
       console.error('Error al detener servidor MCP:', error);
+      return null;
+    }
+  },
+
+  async getMcpPortRegistry(): Promise<McpPortRegistry | null> {
+    try {
+      return await invokeTauri<McpPortRegistry>('get_mcp_port_registry');
+    } catch (error) {
+      console.error('Error al obtener registro de puertos MCP:', error);
       return null;
     }
   },

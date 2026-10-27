@@ -420,8 +420,8 @@
       class:mcp-running={mcpStatus?.running}
       onclick={() => { if (onToggleMcp) onToggleMcp(); }}
       title={mcpStatus?.running
-        ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar)`
-        : 'Servidor MCP Desactivado (Clic para activar en esta instancia)'}
+        ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar para esta bóveda)`
+        : `Servidor MCP Desactivado\nPuerto asignado: :${mcpStatus?.port || 27182}\n(Clic para activar para esta bóveda)`}
     >
       <Bot size={13} class="icon mcp-icon" />
       <span class="mcp-label">

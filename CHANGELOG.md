@@ -9,6 +9,17 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Persistencia Per-Vault y Registro Global de Puertos del Servidor MCP**:
+  - **Estado y Puerto Recordado por Bóveda**:
+    - Cada bóveda almacena su preferencia de activación (`enabled: true/false`) y su puerto TCP asignado en `<vault>/.synapse/mcp.json`.
+    - Al abrir o cambiar de bóveda (`activate_vault`), Synapse sincroniza automáticamente el servidor MCP, iniciando o apagando el runtime según corresponda para esa bóveda concreta sin interferir con otras.
+  - **Registro Global en `~/.config/synapse/mcp-ports.json`**:
+    - Se registra el mapeo de todas las bóvedas, puertos asignados, PID del proceso activo y estado de ejecución en `~/.config/synapse/mcp-ports.json` (y `~/.config/synapsers/mcp-ports.json`).
+    - Permite a múltiples instancias concurrentes de `synapsers` / MCP coordinar y descubrir qué puertos están en uso activo.
+    - **Prevención Inteligente de Conflictos**: Algoritmo de asignación que detecta procesos muertos y busca el siguiente puerto TCP disponible (rango `27182-28000`) cuando el puerto preferido ya está ocupado por otra bóveda o servicio.
+    - Limpieza automática al cerrar la ventana principal de Synapse para liberar el puerto registrado.
+    - Nuevo comando Tauri `get_mcp_port_registry` y tipos actualizados en `system.api.ts`.
+
 - **Navegación con Atajos de Vim en Modo Lectura (Reading Mode)**:
   - Soporte completo para desplazarse por notas Markdown en modo lectura utilizando teclas de movimiento estándar de Vim / *pager*:
     - **Desplazamiento vertical**: <kbd>j</kbd> (bajar) y <kbd>k</kbd> (subir) con paso continuo sin retardo al mantener la tecla pulsada; <kbd>d</kbd> / <kbd>Ctrl+D</kbd> (media página abajo) y <kbd>u</kbd> / <kbd>Ctrl+U</kbd> (media página arriba) con scroll suave; <kbd>Ctrl+E</kbd> / <kbd>Ctrl+Y</kbd> (desplazamiento línea a línea).

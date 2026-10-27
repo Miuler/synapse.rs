@@ -183,7 +183,7 @@ impl AppState {
             Arc::clone(&app_handle),
         );
 
-        let active_vault_path = Arc::new(Mutex::new(Some(initial_vault_path)));
+        let active_vault_path = Arc::new(Mutex::new(Some(initial_vault_path.clone())));
         let full_text = Arc::new(Mutex::new(Some(full_text_comps)));
 
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
@@ -204,6 +204,8 @@ impl AppState {
                 }
             });
         }));
+
+        mcp_runtime.sync_for_vault(&initial_vault_path);
 
         Self {
             active_vault_path,
@@ -258,19 +260,8 @@ impl AppState {
         }
         notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
 
-        // Notificar en un hilo separado o después de soltar locks para evitar deadlocks con eventos de Tauri
-        let mcp_status = self.mcp_runtime.get_status();
-        if mcp_status.running {
-            let app_handle_arc = Arc::clone(&self.app_handle);
-            std::thread::spawn(move || {
-                if let Ok(guard) = app_handle_arc.lock() {
-                    if let Some(ref handle) = *guard {
-                        use tauri::Emitter;
-                        let _ = handle.emit("mcp:status-changed", &mcp_status);
-                    }
-                }
-            });
-        }
+        // Sincronizar servidor MCP con la configuración específica de esta bóveda
+        self.mcp_runtime.sync_for_vault(&path);
 
         let _ = self.workspace_registry_use_cases.record_workspace_opened(
             &folder_path_str,

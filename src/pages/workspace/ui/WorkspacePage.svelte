@@ -321,7 +321,6 @@
       const updated = await systemApi.toggleMcpServer();
       if (updated) {
         mcpStatus = updated;
-        appSettings.setMcpServerEnabled(updated.running);
       }
     } catch (e) {
       console.error('Error al alternar servidor MCP:', e);
@@ -3015,13 +3014,8 @@
       registerWorkspaceCommands();
     });
 
-    // Escuchar cambios de estado en el servidor MCP y restaurar preferencia
+    // Escuchar cambios de estado en el servidor MCP para la bóveda activa
     refreshMcpStatus();
-    if (appSettings.mcpServerEnabled) {
-      systemApi.startMcpServer().then((s) => {
-        if (s) mcpStatus = s;
-      });
-    }
 
     let unlistenMcp: (() => void) | undefined;
     if (isTauriEnvironment()) {
