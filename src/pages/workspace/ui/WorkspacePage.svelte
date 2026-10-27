@@ -2156,6 +2156,7 @@
         unlistenTabMoved = unsub;
       });
 
+      let fsChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       listen<VaultFsChangeEvent>("vault:files-changed", async (event) => {
         const { paths, deleted } = event.payload;
 
@@ -2233,12 +2234,17 @@
           }
         }
 
-        // 3. Refrescar notas, estado de Git y árbol del explorador
-        await fetchNotesFromBackend();
-        await refreshGitStatus();
-        if (vaultExplorerRef?.refreshTree) {
-          await vaultExplorerRef.refreshTree();
+        // 3. Refrescar notas, estado de Git y árbol del explorador con debounce para no bloquear la UI en ráfagas
+        if (fsChangeDebounceTimer) {
+          clearTimeout(fsChangeDebounceTimer);
         }
+        fsChangeDebounceTimer = setTimeout(async () => {
+          await fetchNotesFromBackend();
+          await refreshGitStatus();
+          if (vaultExplorerRef?.refreshTree) {
+            await vaultExplorerRef.refreshTree();
+          }
+        }, 350);
       }).then((unsub) => {
         unlistenFsChange = unsub;
       }).catch((e) => {

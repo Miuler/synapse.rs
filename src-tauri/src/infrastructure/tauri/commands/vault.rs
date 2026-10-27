@@ -273,7 +273,7 @@ pub fn save_note_content(
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
     Ok(())

@@ -197,7 +197,7 @@ pub fn git_checkout_branch(
     // Sincronizar el árbol de navegación ya que los archivos cambiaron en disco
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
 
@@ -222,7 +222,7 @@ pub fn git_create_branch(
     if checkout {
         if let Ok(guard) = state.navigation_engine.lock() {
             if let Some(ref engine) = *guard {
-                engine.reconcile_sync();
+                engine.spawn_reconciliation();
             }
         }
     }

@@ -12,7 +12,7 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
 
@@ -36,7 +36,7 @@ pub fn rename_vault_item(
     let renamed_path = state.file_system_use_cases.rename_item(&vault_path, &relative_path, &new_name)?;
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
     Ok(renamed_path)
@@ -114,7 +114,7 @@ pub fn write_binary_file(
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
 
@@ -137,7 +137,7 @@ pub fn create_vault_folder(
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
-            engine.reconcile_sync();
+            engine.spawn_reconciliation();
         }
     }
 
