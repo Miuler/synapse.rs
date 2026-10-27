@@ -5,6 +5,7 @@ export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 export type ExcalidrawViewerType = 'native' | 'obsidian';
+export type PropertiesViewMode = 'expanded' | 'collapsed' | 'hidden';
 export type { SupportedLocale };
 
 export interface AppSettings {
@@ -15,6 +16,7 @@ export interface AppSettings {
   vimMode: boolean;
   mcpServerEnabled: boolean;
   locale: SupportedLocale;
+  propertiesViewMode: PropertiesViewMode;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vimMode: false, // Por defecto modo Vim desactivado
   mcpServerEnabled: false, // Por defecto servidor MCP desactivado
   locale: 'es', // Por defecto español
+  propertiesViewMode: 'expanded', // Por defecto visible y expandido
 };
 
 function loadInitialSettings(): AppSettings {
@@ -55,6 +58,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.locale === 'es' || parsed.locale === 'en') {
         settings.locale = parsed.locale;
+      }
+      if (parsed.propertiesViewMode === 'expanded' || parsed.propertiesViewMode === 'collapsed' || parsed.propertiesViewMode === 'hidden') {
+        settings.propertiesViewMode = parsed.propertiesViewMode;
       }
     }
   } catch (e) {
@@ -251,6 +257,15 @@ class SettingsManager {
 
   setMcpServerEnabled(enabled: boolean) {
     this.settings.mcpServerEnabled = enabled;
+    this.persist();
+  }
+
+  get propertiesViewMode(): PropertiesViewMode {
+    return this.settings.propertiesViewMode || 'expanded';
+  }
+
+  setPropertiesViewMode(mode: PropertiesViewMode) {
+    this.settings.propertiesViewMode = mode;
     this.persist();
   }
 

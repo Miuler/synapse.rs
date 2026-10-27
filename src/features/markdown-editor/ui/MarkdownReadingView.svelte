@@ -8,6 +8,8 @@
   import { vaultRepository } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
+  import { extractFrontmatterAndBody } from '../lib/frontmatter-extractor';
+  import NoteProperties from './NoteProperties.svelte';
 
   interface Props {
     content: string;
@@ -29,6 +31,7 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
+  let frontmatterData = $state<Record<string, any>>({});
 
   export function focus() {
     tick().then(() => {
@@ -620,7 +623,12 @@
     const raw = content;
     let isCurrent = true;
 
-    resolveMarkdownWikilinks(raw, filePath).then(async (transformed) => {
+    // Extraer frontmatter antes de resolver wikilinks y parsear markdown
+    const extracted = extractFrontmatterAndBody(raw);
+    frontmatterData = extracted.metadata;
+    const bodyContent = extracted.cleanContent;
+
+    resolveMarkdownWikilinks(bodyContent, filePath).then(async (transformed) => {
       if (!isCurrent) return;
       try {
         const parsed = await marked.parse(transformed);
@@ -644,10 +652,10 @@
       console.error('Error resolviendo wikilinks en modo lectura:', err);
       if (!isCurrent) return;
       try {
-        const parsed = marked.parse(raw);
+        const parsed = marked.parse(bodyContent);
         renderedHtml = typeof parsed === 'string' ? (parsed as string) : '';
       } catch {
-        renderedHtml = escapeHtml(raw);
+        renderedHtml = escapeHtml(bodyContent);
       }
     });
 
@@ -771,6 +779,18 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <article class="markdown-body" onclick={handleContainerClick}>
+    {#if Object.keys(frontmatterData).length > 0}
+      <NoteProperties
+        metadata={frontmatterData}
+        defaultMode={appSettings.propertiesViewMode}
+        {onNavigate}
+        onTagClick={(tag) => {
+          if (onNavigate) {
+            onNavigate(`#${tag}`);
+          }
+        }}
+      />
+    {/if}
     {#if renderedHtml}
       {@html renderedHtml}
     {:else}

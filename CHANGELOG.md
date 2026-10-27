@@ -9,6 +9,17 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Visualización de Frontmatter en Modo Lectura (Reading View)**:
+  - **Panel de Propiedades Interactivo (`NoteProperties.svelte`)**:
+    - Visualización limpia y estructurada de metadatos YAML en la parte superior del documento Markdown en modo lectura, evitando renderizar bloques de código o triples guiones crudos.
+    - Detección inteligente de tipos de propiedades: etiquetas interactivas (`#tag`) con acción de búsqueda, fechas con iconos contextuales, enlaces y wikilinks (`[[Nota]]`), badges booleanos (`Verdadero` / `Falso`) y arrays/listas en chips compactos.
+    - Botón de copiado al portapapeles en hover para cada propiedad y cabecera colapsable con recuento dinámico de metadatos.
+  - **Aislamiento y Extracción Limpia (`frontmatter-extractor.ts`)**:
+    - Separación atómica de metadatos YAML y del cuerpo Markdown antes del procesamiento con `marked`, asegurando que el contenido del documento no muestre duplicaciones de frontmatter.
+    - Suite de pruebas unitarias exhaustiva con Bun/Vitest (`frontmatter-extractor.test.ts`).
+  - **Preferencias de Usuario (`propertiesViewMode`)**:
+    - Soporte en `appSettings` y `settings.svelte.ts` para modos `'expanded'` (expandido por defecto), `'collapsed'` (colapsado por defecto) y `'hidden'` (oculto).
+
 - **Optimización de Capacidades MCP (Sub-tags, Tolerancia de Espacios y Ergonomía)**:
   - **Sub-tag Matching Jerárquico en `search_notes` y `full_text_search`**:
     - Incorporación de `matches_tag` y `any_tag_matches` en [`tag_service.rs`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/domain/services/tag_service.rs), permitiendo que búsquedas por tags como `cachyos` o `linux` coincidan automáticamente con sub-etiquetas jerárquicas como `linux/cachyos` u `os/linux/cachyos`.

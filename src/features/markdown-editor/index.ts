@@ -1,5 +1,7 @@
 import MarkdownViewer from './ui/MarkdownViewer.svelte';
+import NoteProperties from './ui/NoteProperties.svelte';
 export * from './lib/include-resolver';
+export * from './lib/frontmatter-extractor';
 export * from './lib/mermaid-extension';
 export * from './lib/image-resolver';
 export * from './lib/image-extension';
@@ -7,4 +9,4 @@ export * from './lib/table-parser';
 export * from './lib/table-extension';
 export * from './lib/link-resolver';
 export * from './lib/wikilink-extension';
-export { MarkdownViewer };
+export { MarkdownViewer, NoteProperties };
