@@ -9,6 +9,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Menú Contextual y Estado Git en Breadcrumbs de Archivo**:
+  - **Indicadores Visuales de Estado Git en Breadcrumbs**:
+    - Se muestran insignias con código de colores según el estado de Git en la barra de ruta (`BreadCrumb.svelte`) junto al archivo activo:
+      - `M` verde para cambios staged / preparados (`index: 'M'`).
+      - `A` verde para archivos nuevos staged (`index: 'A'`).
+      - `M` rojo para modificaciones locales sin preparar en el worktree (`worktree: 'M'`).
+      - `?` ámbar para archivos sin rastrear (`worktree: '?'`).
+      - `S` púrpura para archivos con cambios guardados en stash (`is_stashed: true`).
+    - Lógica de normalización desacoplada y compartida en `@entities/git` (`parseGitStatusInfo`, `NormalizedGitStatus`) respetando FSD y evitando duplicación de código.
+  - **Menú Contextual en el Archivo del Breadcrumb**:
+    - Al hacer clic derecho sobre el segmento del archivo activo en el breadcrumb, se despliega un menú contextual accesible (`bits-ui ContextMenu`) con opciones clave:
+      - *Abrir en nueva ventana* (desacopla o abre una ventana independiente del archivo).
+      - *Ver diferencias (Git Diff)* para cambios sin preparar o staged (abre pestaña comparativa).
+      - *Abrir con la app por defecto* del sistema operativo.
+      - *Mostrar en carpeta* (revela el archivo en el explorador de archivos nativo).
+      - *Renombrar archivo* (activa la edición directa inline del breadcrumb).
+      - *Copiar ruta* (copia la ruta relativa del archivo al portapapeles).
+
+
 - **Persistencia Per-Vault y Registro Global de Puertos del Servidor MCP**:
   - **Estado y Puerto Recordado por Bóveda**:
     - Cada bóveda almacena su preferencia de activación (`enabled: true/false`) y su puerto TCP asignado en `<vault>/.synapse/mcp.json`.

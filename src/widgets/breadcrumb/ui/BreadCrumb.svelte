@@ -1,23 +1,37 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ChevronRight, Edit2 } from 'lucide-svelte';
+  import { ChevronRight, Edit2, ExternalLink, FolderSearch, Copy, GitCompare } from 'lucide-svelte';
+  import { ContextMenu } from 'bits-ui';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon } from '@entities/file-type';
+  import { parseGitStatusInfo, type GitFileStatusKind } from '@entities/git';
 
   interface Props {
     path?: string;
     readOnly?: boolean;
     class?: string;
+    isGitRepo?: boolean;
+    gitStatuses?: Record<string, GitFileStatusKind>;
     onNavigateFolder?: (folderPath: string) => void;
     onRenameFile?: (newName: string) => Promise<string | void> | string | void;
+    onOpenFileWithDefaultApp?: (path: string) => void;
+    onShowItemInFolder?: (path: string) => void;
+    onOpenInNewWindow?: (path: string) => void;
+    onOpenDiff?: (path: string, staged: boolean) => void;
   }
 
   let {
     path = '',
     readOnly = false,
     class: customClass = '',
+    isGitRepo = false,
+    gitStatuses,
     onNavigateFolder,
-    onRenameFile
+    onRenameFile,
+    onOpenFileWithDefaultApp,
+    onShowItemInFolder,
+    onOpenInNewWindow,
+    onOpenDiff
   }: Props = $props();
 
   interface FolderSegment {
@@ -54,6 +68,13 @@
       accumulated = accumulated ? `${accumulated}/${segment}` : segment;
       return { name: segment, path: accumulated };
     });
+  });
+
+  // Estado de Git normalizado para el archivo actual
+  let fileGitStatus = $derived.by(() => {
+    if (!isGitRepo || !gitStatuses || !cleanPath) return null;
+    const raw = gitStatuses[cleanPath] ?? gitStatuses[cleanPath.replace(/^\.\//, '')];
+    return parseGitStatusInfo(raw);
   });
 
   function startEditing() {
@@ -111,6 +132,12 @@
       handleCancel();
     }
   }
+
+  function handleCopyPath() {
+    if (cleanPath) {
+      navigator.clipboard.writeText(cleanPath);
+    }
+  }
 </script>
 
 {#if cleanPath || path.startsWith('empty:')}
@@ -153,20 +180,133 @@
 
         {#if fileName}
           <li class="breadcrumb-item active">
-            <button
-              type="button"
-              class="breadcrumb-btn file-btn"
-              class:editable={!readOnly && !path.startsWith('empty:')}
-              onclick={startEditing}
-              title={!readOnly && !path.startsWith('empty:') ? 'Clic para renombrar' : fileName}
-              disabled={readOnly || path.startsWith('empty:')}
-            >
-              <FileIcon path={cleanPath} name={fileName} size={14} class="breadcrumb-icon" />
-              <span class="segment-text file-title">{fileName}</span>
-              {#if !readOnly && !path.startsWith('empty:')}
-                <Edit2 size={11} class="edit-icon" />
-              {/if}
-            </button>
+            {#if path.startsWith('empty:')}
+              <button
+                type="button"
+                class="breadcrumb-btn file-btn"
+                disabled
+              >
+                <FileIcon path={cleanPath} name={fileName} size={14} class="breadcrumb-icon" />
+                <span class="segment-text file-title">{fileName}</span>
+              </button>
+            {:else}
+              <ContextMenu.Root>
+                <ContextMenu.Trigger>
+                  {#snippet child({ props })}
+                    <div {...props} class="breadcrumb-file-trigger">
+                      <button
+                        type="button"
+                        class="breadcrumb-btn file-btn"
+                        class:editable={!readOnly}
+                        onclick={startEditing}
+                        title={!readOnly ? 'Clic para renombrar • Clic derecho para opciones' : fileName}
+                        disabled={readOnly}
+                      >
+                        <FileIcon path={cleanPath} name={fileName} size={14} class="breadcrumb-icon" />
+                        <span class="segment-text file-title">{fileName}</span>
+                        {#if !readOnly}
+                          <Edit2 size={11} class="edit-icon" />
+                        {/if}
+                      </button>
+
+                      {#if fileGitStatus}
+                        <div class="git-badges-group" title="Estado Git de este archivo">
+                          {#if fileGitStatus.index === 'M'}
+                            <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
+                          {:else if fileGitStatus.index === 'A'}
+                            <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
+                          {/if}
+
+                          {#if fileGitStatus.worktree === 'M'}
+                            <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
+                          {:else if fileGitStatus.worktree === '?'}
+                            <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
+                          {/if}
+
+                          {#if fileGitStatus.is_stashed}
+                            <span class="git-badge stashed" title="En Stash de Git">S</span>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
+                  {/snippet}
+                </ContextMenu.Trigger>
+
+                <ContextMenu.Portal>
+                  <ContextMenu.Content class="breadcrumb-context-menu">
+                    {#if onOpenInNewWindow}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenInNewWindow(cleanPath)}
+                      >
+                        <ExternalLink size={14} class="context-menu-item-icon" />
+                        <span>Abrir en nueva ventana</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if fileGitStatus?.worktree === 'M' && onOpenDiff}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenDiff(cleanPath, false)}
+                      >
+                        <GitCompare size={14} class="context-menu-item-icon" />
+                        <span>Ver diferencias (Git Diff)</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if (fileGitStatus?.index === 'M' || fileGitStatus?.index === 'A') && onOpenDiff}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenDiff(cleanPath, true)}
+                      >
+                        <GitCompare size={14} class="context-menu-item-icon" />
+                        <span>Ver diferencias Staged (Git Diff)</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if onOpenFileWithDefaultApp}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenFileWithDefaultApp(cleanPath)}
+                      >
+                        <ExternalLink size={14} class="context-menu-item-icon" />
+                        <span>Abrir con la app por defecto</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if onShowItemInFolder}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onShowItemInFolder(cleanPath)}
+                      >
+                        <FolderSearch size={14} class="context-menu-item-icon" />
+                        <span>Mostrar en carpeta</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    <ContextMenu.Separator class="context-menu-divider" />
+
+                    {#if !readOnly}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={startEditing}
+                      >
+                        <Edit2 size={14} class="context-menu-item-icon" />
+                        <span>Renombrar archivo</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    <ContextMenu.Item
+                      class="context-menu-item"
+                      onSelect={handleCopyPath}
+                    >
+                      <Copy size={14} class="context-menu-item-icon" />
+                      <span>Copiar ruta</span>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
+            {/if}
           </li>
         {/if}
       </ol>
@@ -210,6 +350,12 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
+  }
+
+  .breadcrumb-file-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .breadcrumb-btn {
@@ -282,6 +428,107 @@
   }
 
   :global(.breadcrumb-icon) {
+    flex-shrink: 0;
+  }
+
+  /* Git Badges */
+  .git-badges-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+
+  .git-badge {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .git-badge.staged {
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.16);
+  }
+
+  .git-badge.modified {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.16);
+  }
+
+  .git-badge.untracked {
+    color: #ca8a04;
+    background: rgba(202, 138, 4, 0.16);
+  }
+
+  .git-badge.stashed {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.16);
+  }
+
+  /* Context Menu */
+  :global(.breadcrumb-context-menu) {
+    min-width: 190px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    outline: none;
+    animation: breadcrumb-menu-fade 0.1s ease-out;
+  }
+
+  @keyframes breadcrumb-menu-fade {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  :global(.breadcrumb-context-menu .context-menu-divider) {
+    height: 1px;
+    background: var(--border-primary, #d0d7de);
+    margin: 4px 0;
+  }
+
+  :global(.breadcrumb-context-menu .context-menu-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.1s ease, color 0.1s ease;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  :global(.breadcrumb-context-menu .context-menu-item:hover),
+  :global(.breadcrumb-context-menu .context-menu-item[data-highlighted]) {
+    background: var(--accent-bg, rgba(9, 105, 218, 0.08));
+    color: var(--accent, #0969da);
+  }
+
+  :global(.breadcrumb-context-menu .context-menu-item-icon) {
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
   }
 

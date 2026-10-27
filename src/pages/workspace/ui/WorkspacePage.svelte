@@ -3609,8 +3609,14 @@
               <BreadCrumb
                 path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
                 readOnly={isStandaloneMode}
+                {isGitRepo}
+                {gitStatuses}
                 onNavigateFolder={handleBreadcrumbNavigateFolder}
                 onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
+                onOpenFileWithDefaultApp={(p) => systemApi.openFileWithDefaultApp(p)}
+                onShowItemInFolder={(p) => systemApi.showItemInFolder(p)}
+                onOpenInNewWindow={handleOpenInNewWindow}
+                onOpenDiff={(p, staged) => selectTab(staged ? `diff-staged:${p}` : `diff:${p}`)}
               />
             {/if}
             {#if isLoading}
