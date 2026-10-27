@@ -1,0 +1,215 @@
+name: Rust Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate, test and release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Verify tag and changelog
+        id: changelog
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          tag = os.environ["TAG"]
+          changelog_path = Path("CHANGELOG.md")
+
+          if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
+              sys.exit(f"ERROR: Invalid release tag: {tag}")
+
+          if not changelog_path.is_file():
+              sys.exit("ERROR: CHANGELOG.md does not exist")
+
+          version = tag[1:]
+          content = changelog_path.read_text(encoding="utf-8")
+
+          # Supported headings:
+          # ## [1.2.3] - 2026-10-27
+          # ## 1.2.3
+          heading_re = re.compile(
+              r"^##\s+\[?(Unreleased|"
+              r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+              r")\]?(?:\s+-\s+.*)?\s*$",
+              re.MULTILINE | re.IGNORECASE,
+          )
+
+          matches = list(heading_re.finditer(content))
+          if not matches:
+              sys.exit("ERROR: No valid version headings found in CHANGELOG.md")
+
+          sections = []
+          for i, match in enumerate(matches):
+              end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+              sections.append((match.group(1), content[match.end():end].strip()))
+
+          unreleased = [
+              body for name, body in sections
+              if name.lower() == "unreleased"
+          ]
+
+          # Fail if Unreleased contains actual notes.
+          # An empty Unreleased section is allowed.
+          for body in unreleased:
+              meaningful = [
+                  line.strip() for line in body.splitlines()
+                  if line.strip()
+                  and not re.fullmatch(r"[-*]\s*", line.strip())
+              ]
+              if meaningful:
+                  sys.exit(
+                      "ERROR: CHANGELOG.md still has pending Unreleased notes. "
+                      "Move them to the version being released or clear the section."
+                  )
+
+          version_sections = [
+              (name, body) for name, body in sections
+              if name.lower() != "unreleased"
+          ]
+
+          names = [name for name, _ in version_sections]
+          if names.count(version) != 1:
+              sys.exit(
+                  f"ERROR: Expected exactly one CHANGELOG section for {version}; "
+                  f"found {names.count(version)}"
+              )
+
+          current_index = names.index(version)
+          if not version_sections[current_index][1]:
+              sys.exit(f"ERROR: CHANGELOG section for {version} is empty")
+
+          # Read previously published, non-draft releases.
+          result = subprocess.run(
+              [
+                  "gh", "release", "list",
+                  "--limit", "100",
+                  "--json", "tagName,isDraft,isPrerelease,publishedAt",
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          releases = json.loads(result.stdout)
+
+          def semver(release_tag):
+              m = re.fullmatch(
+                  r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+                  release_tag,
+              )
+              return tuple(map(int, m.groups())) if m else None
+
+          published = [
+              r for r in releases
+              if not r["isDraft"]
+              and not r["isPrerelease"]
+              and r.get("publishedAt")
+              and semver(r["tagName"])
+          ]
+
+          previous = max(
+              published,
+              key=lambda r: semver(r["tagName"]),
+              default=None,
+          )
+
+          if previous:
+              previous_tag = previous["tagName"]
+              previous_version = previous_tag[1:]
+
+              if semver(tag) <= semver(previous_tag):
+                  sys.exit(
+                      f"ERROR: {tag} must be newer than the last published "
+                      f"release {previous_tag}"
+                  )
+
+              if previous_version not in names:
+                  sys.exit(
+                      f"ERROR: Previous release {previous_version} is missing "
+                      "from CHANGELOG.md; cannot safely determine the range."
+                  )
+
+              previous_index = names.index(previous_version)
+              if previous_index <= current_index:
+                  sys.exit(
+                      f"ERROR: CHANGELOG order is incorrect: {version} must "
+                      f"appear before {previous_version}."
+                  )
+
+              selected = version_sections[current_index:previous_index]
+          else:
+              # First release: include all versioned sections up to this tag.
+              selected = version_sections[:current_index + 1]
+
+          notes = []
+          for name, body in selected:
+              notes.append(f"## {name}\n\n{body}")
+
+          if not notes:
+              sys.exit("ERROR: No release notes could be generated")
+
+          output = Path("release-notes.md")
+          output.write_text("\n\n---\n\n".join(notes) + "\n", encoding="utf-8")
+
+          print(f"Tag: {tag}")
+          print(f"Previous published release: {previous['tagName'] if previous else 'none'}")
+          print(f"Versions included: {', '.join(name for name, _ in selected)}")
+          print(f"Release notes written to {output}")
+          PY
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
+      - name: Build release
+        run: cargo build --workspace --release --all-features
+
+      - name: Create GitHub Release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --draft
