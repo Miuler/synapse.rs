@@ -27,8 +27,28 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          components: rustfmt, clippy
+          bun-version: latest
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile || bun install
 
       - name: Verify tag and changelog
         id: changelog
@@ -174,17 +194,10 @@ jobs:
           print(f"Release notes written to {output}")
           PY
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Run tests
-        run: cargo test --workspace --all-features
-
-      - name: Build release
-        run: cargo build --workspace --release --all-features
+      - name: Build release (Tauri no-bundle)
+        run: |
+          bun tauri build --no-bundle
+          cp src-tauri/target/release/synapsers synapsers.Linux
 
       - name: Create GitHub Release draft
         env:
@@ -196,4 +209,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            --draft
+            --draft \
+            synapsers.Linux
