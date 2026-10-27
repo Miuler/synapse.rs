@@ -562,7 +562,7 @@ A[Cliente ACP] --> B[Servidor MCP]
             "name": "update_note_metadata",
             "arguments": {
                 "relative_path": "arquitectura.md",
-                "add_tags": ["onion-architecture", "tested"],
+                "add_tags": ["linux/cachyos", "onion-architecture", "tested"],
                 "remove_tags": ["acp"]
             }
         }
@@ -593,4 +593,81 @@ A[Cliente ACP] --> B[Servidor MCP]
     assert_eq!(diag_obj["total_diagrams"], 1);
     assert_eq!(diag_obj["diagrams"][0]["type"], "mermaid");
     assert!(diag_obj["diagrams"][0]["code"].as_str().unwrap().contains("graph TD"));
+
+    // 8. Probar búsqueda con sub-tag jerárquico ('cachyos' coincide con 'linux/cachyos') y snippet
+    let req_tag_hier = json!({
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "tools/call",
+        "params": {
+            "name": "search_notes",
+            "arguments": {
+                "tags": ["cachyos"]
+            }
+        }
+    }).to_string();
+    let resp_tag_hier = server.handle_line(&req_tag_hier).unwrap();
+    let val_tag_hier: serde_json::Value = serde_json::from_str(&resp_tag_hier).unwrap();
+    let notes_tag_hier: serde_json::Value = serde_json::from_str(val_tag_hier["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(notes_tag_hier.as_array().unwrap().len(), 1);
+    assert_eq!(notes_tag_hier[0]["title"], "Arquitectura Synapse");
+    assert!(notes_tag_hier[0]["snippet"].as_str().unwrap().contains("Este es el párrafo inicial de arquitectura"));
+    assert!(notes_tag_hier[0]["total_lines"].as_u64().unwrap() > 0);
+
+    // 9. Probar patch_note con tolerancia de saltos de línea CRLF/LF y trailing whitespace
+    let req_fuzzy_patch = json!({
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "tools/call",
+        "params": {
+            "name": "patch_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "old_text": "Este es el párrafo inicial de arquitectura.   \r\n",
+                "new_text": "Este es el párrafo inicial de arquitectura cebolla optimizada.\n",
+                "start_line": 8
+            }
+        }
+    }).to_string();
+    let resp_fuzzy_patch = server.handle_line(&req_fuzzy_patch).unwrap();
+    assert!(!resp_fuzzy_patch.contains(r#""isError":true"#));
+    let after_fuzzy = repo.read_note(&vault_path, &rel_path).unwrap();
+    assert!(after_fuzzy.content.contains("Este es el párrafo inicial de arquitectura cebolla optimizada."));
+
+    // 10. Probar read_note con outline_only: true
+    let req_outline = json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": {
+            "name": "read_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "outline_only": true
+            }
+        }
+    }).to_string();
+    let resp_outline = server.handle_line(&req_outline).unwrap();
+    let val_outline: serde_json::Value = serde_json::from_str(&resp_outline).unwrap();
+    let obj_outline: serde_json::Value = serde_json::from_str(val_outline["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(obj_outline.get("content").is_none());
+    assert!(obj_outline["toc"].as_array().unwrap().len() >= 2);
+
+    // 11. Probar read_note con section shorthand
+    let req_section = json!({
+        "jsonrpc": "2.0",
+        "id": 12,
+        "method": "tools/call",
+        "params": {
+            "name": "read_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "section": "Tareas"
+            }
+        }
+    }).to_string();
+    let resp_section = server.handle_line(&req_section).unwrap();
+    let val_section: serde_json::Value = serde_json::from_str(&resp_section).unwrap();
+    let obj_section: serde_json::Value = serde_json::from_str(val_section["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(obj_section["content"].as_str().unwrap().contains("- [ ] Tarea agregada automáticamente"));
 }

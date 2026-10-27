@@ -6,6 +6,7 @@ use crate::domain::services::frontmatter_service;
 use crate::domain::services::full_text_index::FullTextIndex;
 use crate::domain::services::git_service::GitPort;
 use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
+use crate::domain::services::tag_service::{self, matches_tag};
 use crate::domain::value_objects::note_path::NoteRelativePath;
 use crate::infrastructure::search::pdf_extractor;
 use serde_json::{json, Value};
@@ -14,6 +15,214 @@ use similar::{ChangeTag, TextDiff};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// Extrae un fragmento de texto limpio (sin frontmatter YAML, sin encabezados Markdown vacíos) para resumen o snippet.
+pub fn extract_clean_snippet(content: &str, max_chars: usize) -> String {
+    let (_, body) = frontmatter_service::parse_frontmatter_and_content(content);
+    let mut snippet_parts = Vec::new();
+    let mut char_count = 0;
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("```") || trimmed == "---" {
+            continue;
+        }
+        // Limpiar '#' de encabezados
+        let clean_line = trimmed.trim_start_matches('#').trim();
+        if clean_line.is_empty() {
+            continue;
+        }
+
+        snippet_parts.push(clean_line);
+        char_count += clean_line.len() + 1;
+        if char_count >= max_chars {
+            break;
+        }
+    }
+
+    let joined = snippet_parts.join(" ");
+    if joined.chars().count() > max_chars {
+        let truncated: String = joined.chars().take(max_chars).collect();
+        format!("{}...", truncated.trim_end())
+    } else {
+        joined
+    }
+}
+
+/// Aplica reemplazo quirúrgico de texto con tolerancia progresiva:
+/// 1. Coincidencia exacta (usando start_line para desambiguar si hay múltiples ocurrencias).
+/// 2. Normalización de saltos de línea (\r\n vs \n).
+/// 3. Tolerancia de espacios en blanco al final de línea (.trim_end()).
+/// 4. Tolerancia de indentación (.trim()).
+pub fn apply_surgical_patch(
+    full_content: &str,
+    old_text: &str,
+    new_text: &str,
+    start_line_hint: Option<usize>,
+) -> Result<String, String> {
+    if old_text.is_empty() {
+        return Err("El argumento 'old_text' no puede estar vacío".to_string());
+    }
+
+    // 1. Nivel 1: Coincidencia exacta
+    let occurrences: Vec<_> = full_content.match_indices(old_text).collect();
+    if occurrences.len() == 1 {
+        let (idx, _) = occurrences[0];
+        return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
+    } else if occurrences.len() > 1 {
+        // Desambiguar usando start_line si fue provisto
+        if let Some(target_line) = start_line_hint {
+            let mut best_match = None;
+            let mut min_diff = usize::MAX;
+
+            for (byte_idx, _) in &occurrences {
+                let line_num = full_content[..*byte_idx].lines().count() + 1;
+                let diff = (line_num as isize - target_line as isize).unsigned_abs();
+                if diff < min_diff {
+                    min_diff = diff;
+                    best_match = Some(*byte_idx);
+                }
+            }
+
+            if let Some(idx) = best_match {
+                return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
+            }
+        }
+        return Err(format!(
+            "Ambigüedad: 'old_text' aparece {} veces en el archivo. Proporciona 'start_line' o un fragmento más extenso para unicidad.",
+            occurrences.len()
+        ));
+    }
+
+    // 2. Nivel 2: Normalización CRLF a LF
+    let norm_full = full_content.replace("\r\n", "\n");
+    let norm_old = old_text.replace("\r\n", "\n");
+    let norm_new = new_text.replace("\r\n", "\n");
+    let norm_occurrences: Vec<_> = norm_full.match_indices(&norm_old).collect();
+    if norm_occurrences.len() == 1 {
+        let (idx, _) = norm_occurrences[0];
+        let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
+        // Si el archivo original usaba predominantemente CRLF, restaurar \r\n
+        return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+    } else if norm_occurrences.len() > 1 {
+        if let Some(target_line) = start_line_hint {
+            let mut best_match = None;
+            let mut min_diff = usize::MAX;
+
+            for (byte_idx, _) in &norm_occurrences {
+                let line_num = norm_full[..*byte_idx].lines().count() + 1;
+                let diff = (line_num as isize - target_line as isize).unsigned_abs();
+                if diff < min_diff {
+                    min_diff = diff;
+                    best_match = Some(*byte_idx);
+                }
+            }
+
+            if let Some(idx) = best_match {
+                let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
+                return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+            }
+        }
+        return Err(format!(
+            "Ambigüedad: 'old_text' aparece {} veces en el documento tras normalizar saltos de línea. Especifica 'start_line'.",
+            norm_occurrences.len()
+        ));
+    }
+
+    // 3. Nivel 3: Anclaje difuso por líneas (tolerancia a trailing spaces y tabs)
+    let doc_lines: Vec<&str> = norm_full.lines().collect();
+    let old_lines: Vec<&str> = norm_old.lines().collect();
+    let n_old = old_lines.len();
+
+    if n_old > 0 && n_old <= doc_lines.len() {
+        // Intentar primero con .trim_end()
+        let mut matches_trim_end = Vec::new();
+        for i in 0..=(doc_lines.len() - n_old) {
+            let window = &doc_lines[i..i + n_old];
+            let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim_end() == o.trim_end());
+            if all_match {
+                matches_trim_end.push(i);
+            }
+        }
+
+        let chosen_start = if matches_trim_end.len() == 1 {
+            Some(matches_trim_end[0])
+        } else if matches_trim_end.len() > 1 {
+            if let Some(target_line) = start_line_hint {
+                matches_trim_end.into_iter().min_by_key(|&line_idx| {
+                    (line_idx + 1).abs_diff(target_line)
+                })
+            } else {
+                return Err(format!(
+                    "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando espacios finales. Proporciona 'start_line'.",
+                    matches_trim_end.len()
+                ));
+            }
+        } else {
+            // Intentar con .trim() por línea (tolerancia de indentación)
+            let mut matches_trim = Vec::new();
+            for i in 0..=(doc_lines.len() - n_old) {
+                let window = &doc_lines[i..i + n_old];
+                let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim() == o.trim());
+                if all_match {
+                    matches_trim.push(i);
+                }
+            }
+
+            if matches_trim.len() == 1 {
+                Some(matches_trim[0])
+            } else if matches_trim.len() > 1 {
+                if let Some(target_line) = start_line_hint {
+                    matches_trim.into_iter().min_by_key(|&line_idx| {
+                        (line_idx + 1).abs_diff(target_line)
+                    })
+                } else {
+                    return Err(format!(
+                        "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando indentación. Proporciona 'start_line'.",
+                        matches_trim.len()
+                    ));
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(start_idx) = chosen_start {
+            let mut result_lines = Vec::new();
+            result_lines.extend_from_slice(&doc_lines[..start_idx]);
+            result_lines.push(&norm_new);
+            result_lines.extend_from_slice(&doc_lines[start_idx + n_old..]);
+            let patched = result_lines.join("\n");
+            return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+        }
+    }
+
+    // 4. Diagnóstico detallado si falló: buscar las líneas más cercanas similares
+    let mut closest_preview = String::new();
+    if let Some(target_line) = start_line_hint {
+        let center = target_line.saturating_sub(1).min(doc_lines.len());
+        let start = center.saturating_sub(2);
+        let end = (center + 3).min(doc_lines.len());
+        if start < end {
+            closest_preview = format!(
+                "\nLíneas reales cercanas ({}-{}):\n{}",
+                start + 1,
+                end,
+                doc_lines[start..end]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, l)| format!("{}: {}", start + i + 1, l))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+
+    Err(format!(
+        "No se pudo encontrar 'old_text' en el documento (se intentó coincidencia exacta, normalización CRLF y anclaje difuso por líneas).{}",
+        closest_preview
+    ))
+}
 
 /// Calcula el hash SHA-256 en formato hex con prefijo "sha256:" para control optimista de concurrencia.
 pub fn calculate_content_hash(text: &str) -> String {
@@ -104,26 +313,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 // 1. search_notes
                 McpTool {
                     name: "search_notes".to_string(),
-                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas y fechas.".to_string(),
+                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Texto o palabra clave para filtrar notas"
+                                "default": "",
+                                "description": "Texto o palabra clave para filtrar notas (puede dejarse vacío si se usan filtros por tags)"
                             },
                             "tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Filtro opcional de etiquetas OKF que debe poseer la nota"
+                                "description": "Filtro opcional de etiquetas OKF o sub-tags jerárquicos (ej. 'cachyos' coincide con 'linux/cachyos')"
                             },
                             "limit": {
                                 "type": "number",
                                 "description": "Número máximo de resultados a devolver (por defecto 20)"
                             }
-                        },
-                        "required": ["query"]
+                        }
                     }),
                 },
                 // 2. full_text_search
@@ -234,7 +443,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 // 6. read_note
                 McpTool {
                     name: "read_note".to_string(),
-                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only', proveyendo content_hash (OCC), TOC y detección de bloques.".to_string(),
+                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only'/'outline_only', proveyendo content_hash (OCC), TOC y detección de bloques.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -245,9 +454,17 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                             },
                             "mode": {
                                 "type": "string",
-                                "enum": ["full", "chunk", "section", "metadata_only"],
+                                "enum": ["full", "chunk", "section", "metadata_only", "outline_only"],
                                 "default": "full",
-                                "description": "'full': lee toda la nota. 'chunk': lee un rango acotado de líneas. 'section': extrae solo un encabezado. 'metadata_only': metadatos OKF, TOC y estadísticas sin el cuerpo."
+                                "description": "'full': lee toda la nota. 'chunk': lee un rango acotado de líneas. 'section': extrae solo un encabezado. 'metadata_only'/'outline_only': metadatos OKF, TOC y estadísticas sin el cuerpo."
+                            },
+                            "outline_only": {
+                                "type": "boolean",
+                                "description": "Si es true, devuelve únicamente el TOC (encabezados con números de línea) y metadatos sin el cuerpo completo"
+                            },
+                            "section": {
+                                "type": "string",
+                                "description": "Nombre del encabezado H1/H2 a extraer exclusivamente (alias directo de section_heading)"
                             },
                             "start_line": {
                                 "type": "number",
@@ -618,17 +835,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
     // ==========================================
 
     fn execute_search_notes(&self, args: &Value) -> McpCallToolResult {
-        let query = match args.get("query").and_then(|v| v.as_str()) {
-            Some(q) => q.trim().to_lowercase(),
-            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
-        };
+        let query = args.get("query").and_then(|v| v.as_str()).map(|q| q.trim().to_lowercase()).unwrap_or_default();
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
         let tags_filter: Vec<String> = args
             .get("tags")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|t| t.as_str().map(|s| s.to_lowercase()))
+                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
                     .collect()
             })
             .unwrap_or_default();
@@ -639,22 +853,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 let filtered: Vec<_> = notes
                     .into_iter()
                     .filter(|n| {
-                        let matches_query = n.title.to_lowercase().contains(&query)
+                        // Extraer todas las etiquetas (YAML + inline hashtags)
+                        let all_tags = tag_service::extract_all_tags(&n.content);
+
+                        let matches_query = query.is_empty()
+                            || n.title.to_lowercase().contains(&query)
                             || n.relative_path.as_str().to_lowercase().contains(&query)
-                            || n.frontmatter.as_ref().map_or(false, |fm| {
-                                fm.tags.iter().any(|t| t.to_lowercase().contains(&query))
-                                    || fm.aliases.iter().any(|a| a.to_lowercase().contains(&query))
+                            || all_tags.iter().any(|t| matches_tag(t, &query))
+                            || n.frontmatter.as_ref().is_some_and(|fm| {
+                                fm.aliases.iter().any(|a| a.to_lowercase().contains(&query))
                             });
                         if !matches_query {
                             return false;
                         }
+
                         if !tags_filter.is_empty() {
-                            let note_tags: HashSet<String> = n
-                                .frontmatter
-                                .as_ref()
-                                .map(|f| f.tags.iter().map(|t| t.to_lowercase()).collect())
-                                .unwrap_or_default();
-                            if !tags_filter.iter().any(|tf| note_tags.contains(tf)) {
+                            // Todas las tags especificadas en tags_filter deben coincidir jerárquicamente
+                            let matches_all_tag_filters = tags_filter.iter().all(|tf| {
+                                tag_service::any_tag_matches(&all_tags, tf)
+                            });
+                            if !matches_all_tag_filters {
                                 return false;
                             }
                         }
@@ -662,11 +880,25 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                     })
                     .take(limit)
                     .map(|n| {
+                        let snippet = extract_clean_snippet(&n.content, 200);
+                        let total_lines = n.content.lines().count();
+                        let est_tokens = estimate_tokens(&n.content);
+
+                        let description = n.frontmatter.as_ref().and_then(|fm| {
+                            fm.extra_properties.get("description")
+                                .or_else(|| fm.extra_properties.get("summary"))
+                                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                        });
+
                         json!({
                             "title": n.title,
                             "relative_path": n.relative_path.as_str(),
                             "tags": n.frontmatter.as_ref().map(|f| &f.tags),
                             "aliases": n.frontmatter.as_ref().map(|f| &f.aliases),
+                            "description": description,
+                            "snippet": snippet,
+                            "total_lines": total_lines,
+                            "estimated_tokens": est_tokens,
                         })
                     })
                     .collect();
@@ -690,11 +922,20 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         }
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
         let folder_filter = args.get("folder_path").and_then(|v| v.as_str()).map(|f| f.trim_matches('/').to_lowercase());
+        let tags_filter: Vec<String> = args
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         if let Some(ref fts) = self.full_text_index {
             let q = FullTextQuery {
                 text: query_str.to_string(),
-                limit: limit * 2,
+                limit: limit * 4,
                 prefix_last_term: true,
             };
             match fts.search(&q) {
@@ -707,16 +948,28 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                                 continue;
                             }
                         }
-                        // Leer la nota para estimar líneas y tokens
-                        let (total_lines, est_tokens) = if let Ok(rel) = NoteRelativePath::new(&h.note_path) {
+                        // Leer la nota para estimar líneas, tokens y verificar filtro de tags si aplica
+                        let (total_lines, est_tokens, matches_tags) = if let Ok(rel) = NoteRelativePath::new(&h.note_path) {
                             if let Ok(note) = self.note_repository.read_note(&self.vault_path, &rel) {
-                                (note.content.lines().count(), estimate_tokens(&note.content))
+                                let lines = note.content.lines().count();
+                                let tokens = estimate_tokens(&note.content);
+                                let ok_tags = if tags_filter.is_empty() {
+                                    true
+                                } else {
+                                    let all_tags = tag_service::extract_all_tags(&note.content);
+                                    tags_filter.iter().all(|tf| tag_service::any_tag_matches(&all_tags, tf))
+                                };
+                                (lines, tokens, ok_tags)
                             } else {
-                                (0, 0)
+                                (0, 0, tags_filter.is_empty())
                             }
                         } else {
-                            (0, 0)
+                            (0, 0, tags_filter.is_empty())
                         };
+
+                        if !matches_tags {
+                            continue;
+                        }
 
                         filtered_hits.push(json!({
                             "path": h.note_path,
@@ -809,12 +1062,23 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-        let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("full");
+        let mut mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("full");
         let start_line = args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
         let line_count = args.get("line_count").and_then(|v| v.as_u64()).unwrap_or(150) as usize;
         let line_count = line_count.min(500);
-        let section_heading = args.get("section_heading").and_then(|v| v.as_str());
+        let section_heading = args
+            .get("section")
+            .or_else(|| args.get("section_heading"))
+            .and_then(|v| v.as_str());
+        let outline_only = args.get("outline_only").and_then(|v| v.as_bool()).unwrap_or(false);
         let include_line_numbers = args.get("include_line_numbers").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        // Si se especificó outline_only o section_heading, inferir el modo automáticamente si mode es el predeterminado
+        if outline_only || mode == "outline_only" {
+            mode = "metadata_only";
+        } else if section_heading.is_some() && mode == "full" {
+            mode = "section";
+        }
 
         let relative_path = match NoteRelativePath::new(rel_path_str) {
             Ok(p) => p,
@@ -878,7 +1142,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                     "section" => {
                         let target_heading = match section_heading {
                             Some(h) => h.trim().trim_start_matches('#').trim().to_lowercase(),
-                            None => return McpCallToolResult::error("El argumento 'section_heading' es requerido en mode='section'"),
+                            None => return McpCallToolResult::error("El argumento 'section' o 'section_heading' es requerido en mode='section'"),
                         };
 
                         let mut section_start = None;
@@ -900,7 +1164,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
 
                         let start_idx = match section_start {
                             Some(s) => s,
-                            None => return McpCallToolResult::error(format!("Sección '{}' no encontrada", target_heading)),
+                            None => {
+                                let available_headings: Vec<String> = toc.iter().filter_map(|h| h.get("text").and_then(|t| t.as_str()).map(|s| s.to_string())).collect();
+                                return McpCallToolResult::error(format!(
+                                    "Sección '{}' no encontrada en la nota. Secciones disponibles: {:?}",
+                                    target_heading, available_headings
+                                ));
+                            }
                         };
 
                         let mut end_idx = lines.len();
@@ -1137,6 +1407,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             Some(t) => t,
             None => return McpCallToolResult::error("El argumento 'new_text' es obligatorio"),
         };
+        let start_line_hint = args.get("start_line").and_then(|v| v.as_u64()).map(|n| n as usize);
         let expected_hash = args.get("expected_hash").and_then(|v| v.as_str());
         let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
 
@@ -1160,32 +1431,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             }
         }
 
-        // Algoritmo de reemplazo:
+        // Algoritmo de reemplazo quirúrgico con tolerancia progresiva:
         let full_content = &note.content;
-        let occurrences: Vec<_> = full_content.match_indices(old_text).collect();
-
-        let patched_content = if occurrences.len() == 1 {
-            let (idx, _) = occurrences[0];
-            format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..])
-        } else if occurrences.is_empty() {
-            // Intentar normalizar saltos de línea (\r\n vs \n)
-            let norm_full = full_content.replace("\r\n", "\n");
-            let norm_old = old_text.replace("\r\n", "\n");
-            let norm_occurrences: Vec<_> = norm_full.match_indices(&norm_old).collect();
-            if norm_occurrences.len() == 1 {
-                let (idx, _) = norm_occurrences[0];
-                format!("{}{}{}", &norm_full[..idx], new_text, &norm_full[idx + norm_old.len()..])
-            } else {
-                return McpCallToolResult::error(format!(
-                    "No se pudo encontrar 'old_text' en '{}'. Asegúrate de copiar el texto exacto sin números de línea.",
-                    rel_path_str
-                ));
-            }
-        } else {
-            return McpCallToolResult::error(format!(
-                "Ambigüedad: 'old_text' aparece {} veces en '{}'. Proporciona un fragmento más extenso para unicidad.",
-                occurrences.len(), rel_path_str
-            ));
+        let patched_content = match apply_surgical_patch(full_content, old_text, new_text, start_line_hint) {
+            Ok(res) => res,
+            Err(err_msg) => return McpCallToolResult::error(format!("{} en '{}'", err_msg, rel_path_str)),
         };
 
         let unified_diff = generate_unified_diff(full_content, &patched_content, rel_path_str);

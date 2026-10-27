@@ -107,9 +107,70 @@ pub fn extract_inline_hashtags(markdown: &str) -> Vec<String> {
     tags
 }
 
+/// Comprueba si una etiqueta de una nota coincide con un filtro dado, soportando jerarquía.
+///
+/// Soporta:
+/// - Coincidencia exacta: `linux/cachyos` == `linux/cachyos`
+/// - Coincidencia de prefijo jerárquico: `linux/cachyos` coincide con filtro `linux`
+/// - Coincidencia de sufijo o subsegmento: `linux/cachyos` coincide con `cachyos`
+/// - Coincidencias insensibles a mayúsculas/minúsculas y símbolos `#` iniciales
+pub fn matches_tag(note_tag: &str, filter: &str) -> bool {
+    let norm_tag = normalize_tag(note_tag).to_lowercase();
+    let norm_filter = normalize_tag(filter).to_lowercase();
+
+    if norm_tag.is_empty() || norm_filter.is_empty() {
+        return false;
+    }
+
+    if norm_tag == norm_filter {
+        return true;
+    }
+
+    // Prefijo jerárquico (ej. note_tag="linux/cachyos", filter="linux")
+    if norm_tag.starts_with(&format!("{}/", norm_filter)) {
+        return true;
+    }
+
+    // Sufijo jerárquico (ej. note_tag="linux/cachyos", filter="cachyos")
+    if norm_tag.ends_with(&format!("/{}", norm_filter)) {
+        return true;
+    }
+
+    // Subsegmento intermedio (ej. note_tag="os/linux/cachyos", filter="linux")
+    if norm_tag.contains(&format!("/{}/", norm_filter)) {
+        return true;
+    }
+
+    false
+}
+
+/// Evalúa si alguna etiqueta de la lista coincide jerárquicamente con el filtro dado.
+pub fn any_tag_matches<'a, I>(note_tags: I, filter: &str) -> bool
+where
+    I: IntoIterator<Item = &'a String>,
+{
+    note_tags.into_iter().any(|t| matches_tag(t, filter))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_matches_tag_hierarchical() {
+        assert!(matches_tag("linux/cachyos", "cachyos"));
+        assert!(matches_tag("linux/cachyos", "linux"));
+        assert!(matches_tag("cachyos", "cachyos"));
+        assert!(matches_tag("#linux/cachyos", "cachyos"));
+        assert!(matches_tag("linux/cachyos", "#linux"));
+        assert!(matches_tag("os/linux/cachyos", "linux"));
+        assert!(matches_tag("os/linux/cachyos", "cachyos"));
+        assert!(matches_tag("os/linux/cachyos", "os"));
+
+        assert!(!matches_tag("linux/arch", "cachyos"));
+        assert!(!matches_tag("linux", "linux/cachyos"));
+        assert!(!matches_tag("linux-cachyos", "cachyos"));
+    }
 
     #[test]
     fn test_extract_inline_hashtags_basic() {

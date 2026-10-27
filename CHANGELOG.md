@@ -5,6 +5,34 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Sin publicar]
+
+### Añadido
+
+- **Optimización de Capacidades MCP (Sub-tags, Tolerancia de Espacios y Ergonomía)**:
+  - **Sub-tag Matching Jerárquico en `search_notes` y `full_text_search`**:
+    - Incorporación de `matches_tag` y `any_tag_matches` en [`tag_service.rs`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/domain/services/tag_service.rs), permitiendo que búsquedas por tags como `cachyos` o `linux` coincidan automáticamente con sub-etiquetas jerárquicas como `linux/cachyos` u `os/linux/cachyos`.
+    - Soporte unificado de etiquetas YAML e inline hashtags (`#etiqueta`) extraídos del cuerpo de la nota.
+    - Argumento `query` opcional en `search_notes`, facilitando el filtrado exclusivo por etiquetas.
+  - **Snippets Limpios y Métricas en `search_notes`**:
+    - Retorno de `snippet` (primeros 200 caracteres limpios de cuerpo sin frontmatter ni delimitadores de código), `description` (desde `extra_properties`), `total_lines` y `estimated_tokens`, evitando lecturas completas innecesarias con `read_note`.
+    - Carga en memoria del contenido Markdown en `FileNoteRepository::walk_directory` para entregar resultados instantáneos.
+  - **Parche Quirúrgico Tolerante y Anclaje Difuso en `patch_note`**:
+    - Función pura `apply_surgical_patch` con reemplazo en múltiples niveles de tolerancia: coincidencia exacta, normalización `\r\n` a `\n` (CRLF/LF), y anclaje difuso por líneas ignorando espacios en blanco finales (`.trim_end()`) e indentación (`.trim()`).
+    - Desambiguación automática de múltiples ocurrencias utilizando `start_line`.
+    - Mensajes de error enriquecidos que muestran las líneas reales circundantes más parecidas en caso de fallo de coincidencia.
+  - **Ergonomía de Lectura en `read_note`**:
+    - Parámetro `outline_only: true` (y modo `outline_only`) para obtener la estructura TOC y metadatos sin descargar el contenido completo.
+    - Parámetro `section` como alias de `section_heading` con inferencia automática del modo `section`, y reporte de secciones disponibles en caso de no encontrar el encabezado solicitado.
+
+- **Herramienta MCP `delete_note` y Estandarización de Anotaciones Normativas**:
+  - **`delete_note` (Nuevo)**: Eliminación permanente y segura de notas en disco con validación estricta de límites de la bóveda (prevención de Path Traversal) y soporte de Control Optimista de Concurrencia mediante `expected_hash`.
+  - **Estandarización Normativa de Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint`, `idempotentHint` y `openWorldHint` alineados con la especificación oficial de MCP y el estándar de facto de `@modelcontextprotocol/server-filesystem`:
+    - `openWorldHint: false` en todo el catálogo (entorno local cerrado).
+    - `destructiveHint: true` en operaciones que sobrescriben o eliminan datos (`write_note`, `patch_note`, `update_note_metadata`, `move_notes`, `delete_note`).
+    - `append_to_note` catalogada como la única operación de escritura puramente aditiva (`destructiveHint: false`, `idempotentHint: false`).
+    - `idempotentHint: false` para operaciones relativas, dependientes de estado o de un solo uso (`patch_note`, `move_notes`, `delete_note`, `append_to_note`).
+
 ## [2026.10.27.02-alpha] - 2026-10-27
 
 ### Añadido
@@ -22,12 +50,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
     - **`extract_note_diagrams` (Nuevo)**: Extracción especializada de diagramas Mermaid y D2lang con líneas de inicio/fin o lectura directa de archivos `.d2` y `.mmd`.
     - **`get_backlinks_and_relations` Enriquecido**: Inclusión de snippets contextuales de la línea que contiene el enlace, detección de enlaces huérfanos/no resueltos (`unresolved_links`) y cálculo de similitud Jaccard de etiquetas para el top 5 de notas conceptualmente afines (`shared_tags_neighbors`).
     - **`move_notes` con Reescritura de Wikilinks**: Reescritura automática de referencias `[[...]]` en la bóveda cuando `update_wikilinks: true`.
-    - **`delete_note` (Nuevo)**: Eliminación permanente y segura de notas en disco con validación estricta de límites de la bóveda (prevención de Path Traversal) y soporte de Control Optimista de Concurrencia mediante `expected_hash`.
-    - **Estandarización Normativa de Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint`, `idempotentHint` y `openWorldHint` alineados con la especificación oficial de MCP y el estándar de facto de `@modelcontextprotocol/server-filesystem`:
-      - `openWorldHint: false` en todo el catálogo (entorno local cerrado).
-      - `destructiveHint: true` en operaciones que sobrescriben o eliminan datos (`write_note`, `patch_note`, `update_note_metadata`, `move_notes`, `delete_note`).
-      - `append_to_note` catalogada como la única operación de escritura puramente aditiva (`destructiveHint: false`, `idempotentHint: false`).
-      - `idempotentHint: false` para operaciones relativas, dependientes de estado o de un solo uso (`patch_note`, `move_notes`, `delete_note`, `append_to_note`).
+    - **Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint` e `idempotentHint` para gobernanza segura Human-in-the-Loop en clientes ACP y UI.
 
 - **Menú Contextual y Estado Git en Breadcrumbs de Archivo**:
   - **Indicadores Visuales de Estado Git en Breadcrumbs**:
