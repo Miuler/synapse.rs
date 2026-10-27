@@ -312,6 +312,30 @@ impl NoteRepository for FileNoteRepository {
             .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
     }
 
+    fn delete_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<(), String> {
+        let abs_path = self.resolve_absolute_path(vault_path, relative_path);
+        if !abs_path.exists() {
+            return Err(format!("El archivo no existe en {:?}", abs_path));
+        }
+
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_target = abs_path.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
+            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+        }
+
+        if !canonical_target.is_file() {
+            return Err("El elemento a eliminar debe ser un archivo".to_string());
+        }
+
+        fs::remove_file(&canonical_target)
+            .map_err(|e| format!("Error al eliminar el archivo: {}", e))
+    }
+
     fn read_standalone_file(&self, path: &Path) -> Result<Note, String> {
         if !path.is_file() {
             return Err(format!("El archivo no existe en {:?}", path));

@@ -105,11 +105,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "search_notes".to_string(),
                     description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas y fechas.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -134,11 +130,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "full_text_search".to_string(),
                     description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados, con filtros por carpeta, tags y telemetría de tokens.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -167,11 +159,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "search_in_note".to_string(),
                     description: "Busca texto o patrones dentro de una nota específica y devuelve las líneas coincidentes con su número y contexto circundante.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -196,11 +184,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "list_folder_contents".to_string(),
                     description: "Lista las notas y/o subdirectorios dentro de una carpeta de la bóveda, incluyendo estadísticas de líneas y tokens estimados.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -227,11 +211,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "list_sibling_notes".to_string(),
                     description: "A partir de una nota de referencia, lista todas las demás notas ubicadas en la misma carpeta.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -255,11 +235,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "read_note".to_string(),
                     description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only', proveyendo content_hash (OCC), TOC y detección de bloques.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -298,11 +274,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "write_note".to_string(),
                     description: "Crea o actualiza una nota completa con protección de hash OCC, freno anti-truncamiento y modo dry_run.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::write(true, true)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -350,11 +322,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "patch_note".to_string(),
                     description: "Modifica un fragmento quirúrgico de una nota reemplazando un bloque de texto exacto con tolerancia de anclaje difuso y control OCC.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(false),
-                    }),
+                    annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -395,11 +363,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "append_to_note".to_string(),
                     description: "Agrega contenido al final de una nota o dentro de una sección específica de encabezado Markdown.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(false),
-                    }),
+                    annotations: Some(McpToolAnnotations::write(false, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -429,11 +393,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "update_note_metadata".to_string(),
                     description: "Actualiza atómicamente los metadatos OKF (título, tags, aliases, custom_properties) del frontmatter YAML sin tocar el cuerpo de la nota.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::write(true, true)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -472,11 +432,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                 McpTool {
                     name: "move_notes".to_string(),
                     description: "Mueve notas a una carpeta de destino con soporte de reescritura automática de wikilinks en la bóveda.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(false),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -508,15 +464,31 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["notes", "target_folder"]
                     }),
                 },
-                // 12. get_backlinks_and_relations
+                // 12. delete_note
+                McpTool {
+                    name: "delete_note".to_string(),
+                    description: "Elimina permanentemente una nota del sistema de archivos dentro de la bóveda. Soporta control de concurrencia optimista mediante expected_hash.".to_string(),
+                    annotations: Some(McpToolAnnotations::write(true, false)),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota a eliminar dentro de la bóveda (ej. 'carpeta/nota.md')"
+                            },
+                            "expected_hash": {
+                                "type": "string",
+                                "description": "Hash SHA-256 opcional (obtenido en read_note). Si se proporciona, previene la eliminación si el contenido cambió"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 13. get_backlinks_and_relations
                 McpTool {
                     name: "get_backlinks_and_relations".to_string(),
                     description: "Obtiene backlinks con snippets contextuales, outlinks no resueltos (huérfanos) y top 5 vecinos por similitud Jaccard de tags.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -528,29 +500,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["relative_path"]
                     }),
                 },
-                // 13. get_vault_git_status
+                // 14. get_vault_git_status
                 McpTool {
                     name: "get_vault_git_status".to_string(),
                     description: "Obtiene el estado de control de versiones Git de la bóveda (rama, index, worktree, stash).".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {}
                     }),
                 },
-                // 14. read_pdf_document
+                // 15. read_pdf_document
                 McpTool {
                     name: "read_pdf_document".to_string(),
                     description: "Inspecciona documentos PDF: índice/metadatos, lectura por rango de páginas (máximo 5) o búsqueda interna.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -580,15 +544,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["relative_path"]
                     }),
                 },
-                // 15. extract_note_diagrams
+                // 16. extract_note_diagrams
                 McpTool {
                     name: "extract_note_diagrams".to_string(),
                     description: "Extrae todos los bloques de código de diagramas (Mermaid, D2lang) de una nota con números de línea o lee archivos .d2 / .mmd.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -606,15 +566,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["relative_path"]
                     }),
                 },
-                // 16. list_vault_tree (alias retrocompatible)
+                // 17. list_vault_tree (alias retrocompatible)
                 McpTool {
                     name: "list_vault_tree".to_string(),
                     description: "Alias retrocompatible de list_folder_contents.".to_string(),
-                    annotations: Some(McpToolAnnotations {
-                        read_only_hint: Some(true),
-                        destructive_hint: Some(false),
-                        idempotent_hint: Some(true),
-                    }),
+                    annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
@@ -648,6 +604,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             "append_to_note" => self.execute_append_to_note(&args),
             "update_note_metadata" => self.execute_update_note_metadata(&args),
             "move_notes" => self.execute_move_notes_tool(&args),
+            "delete_note" => self.execute_delete_note(&args),
             "get_backlinks_and_relations" => self.execute_get_backlinks_and_relations(&args),
             "get_vault_git_status" => self.execute_get_vault_git_status(),
             "read_pdf_document" => self.execute_read_pdf_document(&args),
@@ -1705,6 +1662,52 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         match serde_json::to_string_pretty(&payload) {
             Ok(text) => McpCallToolResult::text(text),
             Err(e) => McpCallToolResult::error(format!("Error al serializar move_notes: {}", e)),
+        }
+    }
+
+    fn execute_delete_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p.trim_matches('/').replace('\\', "/"),
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+
+        if rel_path_str.is_empty() {
+            return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
+        }
+
+        let note_path = match NoteRelativePath::new(&rel_path_str) {
+            Ok(np) => np,
+            Err(err) => return McpCallToolResult::error(err),
+        };
+
+        // Si se especificó expected_hash, verificar OCC antes de borrar
+        if let Some(expected_hash) = args.get("expected_hash").and_then(|v| v.as_str()) {
+            let note = match self.note_repository.read_note(&self.vault_path, &note_path) {
+                Ok(n) => n,
+                Err(e) => return McpCallToolResult::error(format!("No se pudo leer la nota para validar el hash: {}", e)),
+            };
+
+            let current_hash = calculate_content_hash(&note.content);
+            if current_hash != expected_hash {
+                return McpCallToolResult::error(format!(
+                    "Conflicto de concurrencia optimista (OCC): el hash esperado '{}' no coincide con el hash actual de la nota '{}'",
+                    expected_hash, current_hash
+                ));
+            }
+        }
+
+        match self.note_repository.delete_note(&self.vault_path, &note_path) {
+            Ok(()) => {
+                let payload = json!({
+                    "status": "success",
+                    "deleted_path": rel_path_str,
+                    "message": "Nota eliminada correctamente"
+                });
+                serde_json::to_string_pretty(&payload)
+                    .map(McpCallToolResult::text)
+                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+            }
+            Err(err) => McpCallToolResult::error(format!("Error al eliminar nota: {}", err)),
         }
     }
 

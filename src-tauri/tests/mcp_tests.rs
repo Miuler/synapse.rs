@@ -72,6 +72,43 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     assert!(tools.iter().any(|t| t["name"] == "get_vault_git_status"));
     assert!(tools.iter().any(|t| t["name"] == "list_vault_tree"));
 
+    // Validar anotaciones normativas según especificación oficial MCP
+    let write_tool = tools.iter().find(|t| t["name"] == "write_note").unwrap();
+    assert_eq!(write_tool["annotations"]["readOnlyHint"], false);
+    assert_eq!(write_tool["annotations"]["destructiveHint"], true);
+    assert_eq!(write_tool["annotations"]["idempotentHint"], true);
+    assert_eq!(write_tool["annotations"]["openWorldHint"], false);
+
+    let patch_tool = tools.iter().find(|t| t["name"] == "patch_note").unwrap();
+    assert_eq!(patch_tool["annotations"]["readOnlyHint"], false);
+    assert_eq!(patch_tool["annotations"]["destructiveHint"], true);
+    assert_eq!(patch_tool["annotations"]["idempotentHint"], false);
+    assert_eq!(patch_tool["annotations"]["openWorldHint"], false);
+
+    let append_tool = tools.iter().find(|t| t["name"] == "append_to_note").unwrap();
+    assert_eq!(append_tool["annotations"]["readOnlyHint"], false);
+    assert_eq!(append_tool["annotations"]["destructiveHint"], false);
+    assert_eq!(append_tool["annotations"]["idempotentHint"], false);
+    assert_eq!(append_tool["annotations"]["openWorldHint"], false);
+
+    let move_tool = tools.iter().find(|t| t["name"] == "move_notes").unwrap();
+    assert_eq!(move_tool["annotations"]["readOnlyHint"], false);
+    assert_eq!(move_tool["annotations"]["destructiveHint"], true);
+    assert_eq!(move_tool["annotations"]["idempotentHint"], false);
+    assert_eq!(move_tool["annotations"]["openWorldHint"], false);
+
+    let delete_tool = tools.iter().find(|t| t["name"] == "delete_note").unwrap();
+    assert_eq!(delete_tool["annotations"]["readOnlyHint"], false);
+    assert_eq!(delete_tool["annotations"]["destructiveHint"], true);
+    assert_eq!(delete_tool["annotations"]["idempotentHint"], false);
+    assert_eq!(delete_tool["annotations"]["openWorldHint"], false);
+
+    let read_tool = tools.iter().find(|t| t["name"] == "read_note").unwrap();
+    assert_eq!(read_tool["annotations"]["readOnlyHint"], true);
+    assert_eq!(read_tool["annotations"]["destructiveHint"], false);
+    assert_eq!(read_tool["annotations"]["idempotentHint"], true);
+    assert_eq!(read_tool["annotations"]["openWorldHint"], false);
+
     // 3. Test tools/call search_notes
     let search_req = json!({
         "jsonrpc": "2.0",
@@ -221,7 +258,43 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     assert!(vault_path.join("archivo/2026/hermana.md").exists());
     assert!(!vault_path.join("notas/nuevo.md").exists());
 
-    // 9. Test run_loop con simulación de stream
+    // 9. Test delete_note (incluyendo verificación de expected_hash y eliminación física)
+    let del_occ_mismatch_req = json!({
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "tools/call",
+        "params": {
+            "name": "delete_note",
+            "arguments": {
+                "relative_path": "archivo/2026/nuevo.md",
+                "expected_hash": "sha256:hashincorrecto12345"
+            }
+        }
+    })
+    .to_string();
+    let resp_del_fail = server.handle_line(&del_occ_mismatch_req).expect("Debe responder a delete_note");
+    let del_fail_val: serde_json::Value = serde_json::from_str(&resp_del_fail).unwrap();
+    assert!(del_fail_val["result"]["isError"].as_bool().unwrap_or(false));
+    assert!(vault_path.join("archivo/2026/nuevo.md").exists());
+
+    let del_req = json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": {
+            "name": "delete_note",
+            "arguments": {
+                "relative_path": "archivo/2026/nuevo.md"
+            }
+        }
+    })
+    .to_string();
+    let resp_del = server.handle_line(&del_req).expect("Debe eliminar la nota");
+    let del_val: serde_json::Value = serde_json::from_str(&resp_del).unwrap();
+    assert!(!del_val["result"]["isError"].as_bool().unwrap_or(false));
+    assert!(!vault_path.join("archivo/2026/nuevo.md").exists());
+
+    // 10. Test run_loop con simulación de stream
     let input_lines = format!("{}\n{}\n", init_req, list_req);
     let mut output = Vec::new();
     let input_cursor = Cursor::new(input_lines.into_bytes());

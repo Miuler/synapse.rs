@@ -47,6 +47,21 @@ pub trait NoteRepository: Send + Sync {
     /// * `Err(String)`: Mensaje descriptivo si ocurrió un error de escritura o permisos.
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String>;
 
+    /// Elimina una nota del medio de almacenamiento persistente dentro de la bóveda.
+    ///
+    /// # Parámetros
+    /// * `vault_path`: Referencia a la ruta base absoluta de la bóveda (`Path`) en el sistema operativo.
+    /// * `relative_path`: Value object `NoteRelativePath` validado que representa la ubicación relativa de la nota a eliminar.
+    ///
+    /// # Retorno
+    /// * `Ok(())`: Si la nota fue eliminada correctamente.
+    /// * `Err(String)`: Mensaje descriptivo si ocurrió un error al eliminarla o si no existe.
+    fn delete_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<(), String>;
+
     /// Lee un archivo individual fuera de una bóveda (Modo Archivo Puntual).
     fn read_standalone_file(&self, path: &Path) -> Result<Note, String>;
 

@@ -109,7 +109,7 @@ pub struct McpInitializeResult {
     pub server_info: McpServerInfo,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct McpToolAnnotations {
     #[serde(rename = "readOnlyHint", skip_serializing_if = "Option::is_none")]
     pub read_only_hint: Option<bool>,
@@ -117,6 +117,30 @@ pub struct McpToolAnnotations {
     pub destructive_hint: Option<bool>,
     #[serde(rename = "idempotentHint", skip_serializing_if = "Option::is_none")]
     pub idempotent_hint: Option<bool>,
+    #[serde(rename = "openWorldHint", skip_serializing_if = "Option::is_none")]
+    pub open_world_hint: Option<bool>,
+}
+
+impl McpToolAnnotations {
+    /// Herramienta de solo lectura dentro de la bóveda local cerrada.
+    pub fn read_only() -> Self {
+        Self {
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        }
+    }
+
+    /// Herramienta que modifica la bóveda local cerrada.
+    pub fn write(destructive: bool, idempotent: bool) -> Self {
+        Self {
+            read_only_hint: Some(false),
+            destructive_hint: Some(destructive),
+            idempotent_hint: Some(idempotent),
+            open_world_hint: Some(false),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -52,6 +52,11 @@ impl<R: NoteRepository> NoteUseCases<R> {
         self.repository.save_note(vault_path, &note)
     }
 
+    pub fn delete_note(&self, vault_path: &Path, relative_path_str: &str) -> Result<(), String> {
+        let relative_path = NoteRelativePath::new(relative_path_str)?;
+        self.repository.delete_note(vault_path, &relative_path)
+    }
+
     pub fn read_standalone_note(&self, path: &Path) -> Result<Note, String> {
         self.repository.read_standalone_file(path)
     }
