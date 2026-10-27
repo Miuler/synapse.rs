@@ -131,6 +131,17 @@ export abstract class Plugin extends Component {
   }
 
   /**
+   * Registra una extensión de CodeMirror 6 para los editores de Markdown.
+   * Se desregistra automáticamente cuando el plugin se descarga.
+   */
+  registerEditorExtension(extension: any): void {
+    this.app.workspace.registerEditorExtension(extension);
+    this.register(() => {
+      this.app.workspace.unregisterEditorExtension(extension);
+    });
+  }
+
+  /**
    * Registra un tipo de vista personalizado en el espacio de trabajo.
    */
   registerView(type: string, viewCreator: (leaf: WorkspaceLeaf) => View): void {

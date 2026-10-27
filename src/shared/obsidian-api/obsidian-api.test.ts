@@ -37,6 +37,8 @@ import {
   extractWikilinksFromElements,
   extractFrontmatter,
   resolvePluginViewType,
+  debounce,
+  getObsidianBundle,
 } from './index';
 import type { VaultFile, VaultNote, VaultRepository } from '@shared/repositories';
 
@@ -1659,6 +1661,124 @@ img456: "[[diagrama.svg]]"
       const serialized = serializeExcalidrawMarkdown(parsed.scene, excalidrawMd);
       expect(serialized).toContain('## Embedded Files');
       expect(serialized).toContain('img123: [[adjuntos/grafico.png]]');
+    });
+  });
+
+  describe('Etapa 8: Compatibilidad extendida de Obsidian API (debounce, getRightLeaf, getLeftLeaf, registerEditorExtension)', () => {
+    it('42. debounce controla el flujo de eventos, cancela y ejecuta con finish', async () => {
+      let callCount = 0;
+      let lastVal = '';
+
+      const fn = (v: string) => {
+        callCount++;
+        lastVal = v;
+      };
+
+      const debounced = debounce(fn, 50, true);
+
+      debounced('a');
+      debounced('b');
+      debounced('c');
+
+      // No se ejecuta inmediatamente
+      expect(callCount).toBe(0);
+
+      // Esperar que transcurra el tiempo
+      await new Promise((r) => setTimeout(r, 70));
+      expect(callCount).toBe(1);
+      expect(lastVal).toBe('c');
+
+      // Prueba con cancel()
+      debounced('d');
+      debounced.cancel();
+      await new Promise((r) => setTimeout(r, 70));
+      expect(callCount).toBe(1);
+
+      // Prueba con finish()
+      debounced('e');
+      debounced.finish();
+      expect(callCount).toBe(2);
+      expect(lastVal).toBe('e');
+    });
+
+    it('43. app.workspace.getRightLeaf y getLeftLeaf gestionan hojas laterales', () => {
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+
+      const right1 = app.workspace.getRightLeaf(false);
+      expect(right1).toBeInstanceOf(WorkspaceLeaf);
+
+      // Si split es false, debe retornar la misma hoja existente
+      const right2 = app.workspace.getRightLeaf(false);
+      expect(right2).toBe(right1);
+
+      // Si split es true, crea una nueva hoja
+      const right3 = app.workspace.getRightLeaf(true);
+      expect(right3).toBeInstanceOf(WorkspaceLeaf);
+      expect(right3).not.toBe(right1);
+
+      // Similar para getLeftLeaf
+      const left1 = app.workspace.getLeftLeaf(false);
+      expect(left1).toBeInstanceOf(WorkspaceLeaf);
+      const left2 = app.workspace.getLeftLeaf(false);
+      expect(left2).toBe(left1);
+      const left3 = app.workspace.getLeftLeaf(true);
+      expect(left3).not.toBe(left1);
+
+      // Al desmontar una hoja, se limpia del conjunto
+      right1.detach();
+      const rightNew = app.workspace.getRightLeaf(false);
+      expect(rightNew).toBe(right3);
+    });
+
+    it('44. Plugin.registerEditorExtension registra extensiones de CodeMirror 6 y las limpia en onunload', () => {
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+
+      class TestPlugin extends Plugin {
+        myExtension = { dummy: true };
+        async onload() {
+          this.registerEditorExtension(this.myExtension);
+        }
+      }
+
+      let eventTriggered = false;
+      app.workspace.on('editor-extensions-change', () => {
+        eventTriggered = true;
+      });
+
+      const manifest: PluginManifest = {
+        id: 'test-cm-plugin',
+        name: 'Test CM Plugin',
+        version: '1.0.0',
+        minAppVersion: '0.15.0',
+        description: 'Test',
+      };
+
+      const plugin = new TestPlugin(app, manifest);
+      plugin.load();
+      expect(plugin.loaded).toBe(true);
+      expect(eventTriggered).toBe(true);
+
+      const exts = app.workspace.getEditorExtensions();
+      expect(exts).toContain(plugin.myExtension);
+
+      // Al descargar el plugin, la extensión se remueve automáticamente
+      plugin.unload();
+      expect(plugin.loaded).toBe(false);
+      const extsAfter = app.workspace.getEditorExtensions();
+      expect(extsAfter).not.toContain(plugin.myExtension);
+    });
+
+    it('45. getObsidianBundle expone debounce', () => {
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+      const bundle = getObsidianBundle(app);
+
+      expect(typeof bundle.debounce).toBe('function');
+      const d = bundle.debounce(() => {}, 10);
+      expect(typeof d.cancel).toBe('function');
+      expect(typeof d.finish).toBe('function');
     });
   });
 });

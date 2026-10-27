@@ -407,11 +407,16 @@
 
   // Instancia de la fachada Obsidian API para soporte de plugins
   let synapseApp = $state<SynapseApp | null>(null);
+  let pluginEditorExtensions = $state<any[]>([]);
 
   function ensureSynapseAppLoaded() {
     if (!synapseApp && vaultRepository.isConnected()) {
       try {
         synapseApp = createSynapseApp(vaultRepository);
+        pluginEditorExtensions = synapseApp.workspace.getEditorExtensions();
+        synapseApp.workspace.on('editor-extensions-change', (exts: any[]) => {
+          pluginEditorExtensions = [...exts];
+        });
         vaultRepository.getEnabledPlugins().then(async (enabledList) => {
           for (const pluginId of enabledList) {
             try {
@@ -3744,6 +3749,7 @@
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                      editorExtensions={pluginEditorExtensions}
                       isMarkdown={true}
                     />
                   </div>

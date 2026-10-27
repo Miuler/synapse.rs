@@ -303,3 +303,221 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
     assert!(!toggled_status.running);
     assert_eq!(toggled_status.requests_handled, 2);
 }
+
+#[test]
+fn test_mcp_evolved_tools_suite() {
+    use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
+    use app_lib::domain::models::note::Note;
+    use app_lib::domain::repositories::note_repository::NoteRepository;
+    use app_lib::domain::value_objects::note_path::NoteRelativePath;
+    use app_lib::infrastructure::mcp::server::McpStdioServer;
+    use app_lib::infrastructure::repositories::file_note_repository::FileNoteRepository;
+    use app_lib::infrastructure::services::git_service::GitService;
+    use serde_json::json;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let vault_path = temp_dir.path().to_path_buf();
+    let repo = FileNoteRepository::new();
+    let git = Arc::new(GitService::new());
+
+    // Crear nota de prueba con múltiples secciones, frontmatter y bloques especiales
+    let initial_content = r#"---
+title: Arquitectura Synapse
+tags: [rust, mcp, acp]
+aliases: [Synapse Arch]
+---
+
+# Introducción
+Este es el párrafo inicial de arquitectura.
+
+## Componentes
+- Frontend: Svelte 5 Runes
+- Backend: Rust Tauri v2
+
+```mermaid
+graph TD
+A[Cliente ACP] --> B[Servidor MCP]
+```
+
+## Tareas
+- [ ] Implementar patch_note
+- [x] Diseñar especificación
+"#;
+
+    let rel_path = NoteRelativePath::new("arquitectura.md").unwrap();
+    let note = Note::with_encoding(rel_path.clone(), "".to_string(), "Arquitectura Synapse".to_string(), initial_content.to_string(), "UTF-8".to_string());
+    repo.save_note(&vault_path, &note).unwrap();
+
+    let use_cases = McpUseCases::new(
+        vault_path.clone(),
+        FileNoteRepository::new(),
+        None::<Arc<dyn app_lib::domain::services::full_text_index::FullTextIndex>>,
+        Some(git),
+    );
+    let server = McpStdioServer::new(use_cases);
+
+    // 1. Probar read_note en mode='metadata_only'
+    let req_meta = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "read_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "mode": "metadata_only"
+            }
+        }
+    }).to_string();
+    let resp_meta = server.handle_line(&req_meta).unwrap();
+    let val_meta: serde_json::Value = serde_json::from_str(&resp_meta).unwrap();
+    let meta_obj: serde_json::Value = serde_json::from_str(val_meta["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(meta_obj["content_hash"].as_str().unwrap().starts_with("sha256:"));
+    assert_eq!(meta_obj["detected_blocks"]["mermaid_count"], 1);
+    assert_eq!(meta_obj["toc"].as_array().unwrap().len(), 3);
+    let expected_hash = meta_obj["content_hash"].as_str().unwrap().to_string();
+
+    // 2. Probar search_in_note
+    let req_search_in = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "search_in_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "query": "Svelte 5"
+            }
+        }
+    }).to_string();
+    let resp_search_in = server.handle_line(&req_search_in).unwrap();
+    let val_search_in: serde_json::Value = serde_json::from_str(&resp_search_in).unwrap();
+    let search_in_obj: serde_json::Value = serde_json::from_str(val_search_in["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(search_in_obj["total_matches"], 1);
+    assert!(search_in_obj["matches"][0]["context"].as_array().unwrap().len() >= 1);
+
+    // 3. Probar patch_note con dry_run y luego aplicación real con expected_hash
+    let req_patch_dry = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {
+            "name": "patch_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "old_text": "Backend: Rust Tauri v2",
+                "new_text": "Backend: Rust Tauri v2 con Onion Architecture",
+                "expected_hash": expected_hash,
+                "dry_run": true
+            }
+        }
+    }).to_string();
+    let resp_patch_dry = server.handle_line(&req_patch_dry).unwrap();
+    let val_patch_dry: serde_json::Value = serde_json::from_str(&resp_patch_dry).unwrap();
+    let patch_dry_obj: serde_json::Value = serde_json::from_str(val_patch_dry["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(patch_dry_obj["unified_diff"].as_str().unwrap().contains("+- Backend: Rust Tauri v2 con Onion Architecture"));
+
+    // Aplicar patch real
+    let req_patch_real = json!({
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "tools/call",
+        "params": {
+            "name": "patch_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "old_text": "Backend: Rust Tauri v2",
+                "new_text": "Backend: Rust Tauri v2 con Onion Architecture",
+                "expected_hash": expected_hash
+            }
+        }
+    }).to_string();
+    let resp_patch_real = server.handle_line(&req_patch_real).unwrap();
+    let val_patch_real: serde_json::Value = serde_json::from_str(&resp_patch_real).unwrap();
+    let patch_real_obj: serde_json::Value = serde_json::from_str(val_patch_real["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(patch_real_obj["status"], "success");
+
+    // Verificar en disco
+    let updated_read = repo.read_note(&vault_path, &rel_path).unwrap();
+    assert!(updated_read.content.contains("Backend: Rust Tauri v2 con Onion Architecture"));
+
+    // 4. Probar OCC failure en patch_note (hash anterior ya no es válido)
+    let req_patch_occ_fail = json!({
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tools/call",
+        "params": {
+            "name": "patch_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "old_text": "Frontend: Svelte 5 Runes",
+                "new_text": "Frontend: Svelte 5 Runes + FSD",
+                "expected_hash": expected_hash
+            }
+        }
+    }).to_string();
+    let resp_patch_occ_fail = server.handle_line(&req_patch_occ_fail).unwrap();
+    assert!(resp_patch_occ_fail.contains("Conflicto OCC") || resp_patch_occ_fail.contains("isError"));
+
+    // 5. Probar append_to_note dentro de sección Tareas
+    let req_append = json!({
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "params": {
+            "name": "append_to_note",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "content": "- [ ] Tarea agregada automáticamente por agente MCP",
+                "section_heading": "## Tareas"
+            }
+        }
+    }).to_string();
+    let resp_append = server.handle_line(&req_append).unwrap();
+    assert!(!resp_append.contains(r#""isError":true"#));
+    let after_append = repo.read_note(&vault_path, &rel_path).unwrap();
+    assert!(after_append.content.contains("- [ ] Tarea agregada automáticamente por agente MCP"));
+
+    // 6. Probar update_note_metadata atómico
+    let req_meta_up = json!({
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "tools/call",
+        "params": {
+            "name": "update_note_metadata",
+            "arguments": {
+                "relative_path": "arquitectura.md",
+                "add_tags": ["onion-architecture", "tested"],
+                "remove_tags": ["acp"]
+            }
+        }
+    }).to_string();
+    let resp_meta_up = server.handle_line(&req_meta_up).unwrap();
+    assert!(!resp_meta_up.contains(r#""isError":true"#));
+    let after_meta = repo.read_note(&vault_path, &rel_path).unwrap();
+    let tags = after_meta.frontmatter.unwrap().tags;
+    assert!(tags.contains(&"onion-architecture".to_string()));
+    assert!(tags.contains(&"tested".to_string()));
+    assert!(!tags.contains(&"acp".to_string()));
+
+    // 7. Probar extract_note_diagrams
+    let req_diagrams = json!({
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "tools/call",
+        "params": {
+            "name": "extract_note_diagrams",
+            "arguments": {
+                "relative_path": "arquitectura.md"
+            }
+        }
+    }).to_string();
+    let resp_diagrams = server.handle_line(&req_diagrams).unwrap();
+    let val_diag: serde_json::Value = serde_json::from_str(&resp_diagrams).unwrap();
+    let diag_obj: serde_json::Value = serde_json::from_str(val_diag["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(diag_obj["total_diagrams"], 1);
+    assert_eq!(diag_obj["diagrams"][0]["type"], "mermaid");
+    assert!(diag_obj["diagrams"][0]["code"].as_str().unwrap().contains("graph TD"));
+}

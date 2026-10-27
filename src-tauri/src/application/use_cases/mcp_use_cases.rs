@@ -1,4 +1,3 @@
-use crate::domain::models::frontmatter::NoteFrontmatter;
 use crate::domain::models::full_text::FullTextQuery;
 use crate::domain::models::mcp::*;
 use crate::domain::models::note::Note;
@@ -8,11 +7,51 @@ use crate::domain::services::full_text_index::FullTextIndex;
 use crate::domain::services::git_service::GitPort;
 use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
 use crate::domain::value_objects::note_path::NoteRelativePath;
+use crate::infrastructure::search::pdf_extractor;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use similar::{ChangeTag, TextDiff};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks y Git.
+/// Calcula el hash SHA-256 en formato hex con prefijo "sha256:" para control optimista de concurrencia.
+pub fn calculate_content_hash(text: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    format!("sha256:{:x}", hasher.finalize())
+}
+
+/// Estima los tokens de texto usando la heurística ceil(bytes / 4).
+pub fn estimate_tokens(text: &str) -> usize {
+    (text.len() + 3) / 4
+}
+
+/// Genera un Unified Diff entre texto anterior y nuevo texto.
+pub fn generate_unified_diff(old_text: &str, new_text: &str, file_name: &str) -> String {
+    let diff = TextDiff::from_lines(old_text, new_text);
+    let mut output = String::new();
+    let groups = diff.grouped_ops(3);
+    if groups.is_empty() {
+        return output;
+    }
+    output.push_str(&format!("--- a/{}\n+++ b/{}\n", file_name, file_name));
+    for group in groups {
+        for op in group {
+            for change in diff.iter_changes(&op) {
+                let sign = match change.tag() {
+                    ChangeTag::Delete => "-",
+                    ChangeTag::Insert => "+",
+                    ChangeTag::Equal => " ",
+                };
+                output.push_str(&format!("{}{}", sign, change.value()));
+            }
+        }
+    }
+    output
+}
+
+/// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks, Git y Multimodalidad.
 pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> {
     vault_path: PathBuf,
     note_repository: R,
@@ -58,19 +97,30 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         }
     }
 
-    /// Retorna la lista de herramientas disponibles
+    /// Retorna la lista de herramientas disponibles (Catálogo Unificado de 14 herramientas)
     pub fn list_tools(&self) -> McpToolsListResult {
         McpToolsListResult {
             tools: vec![
+                // 1. search_notes
                 McpTool {
                     name: "search_notes".to_string(),
-                    description: "Busca notas por nombre, ruta o título dentro de la bóveda de Synapse.".to_string(),
+                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas y fechas.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
                                 "description": "Texto o palabra clave para filtrar notas"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Filtro opcional de etiquetas OKF que debe poseer la nota"
                             },
                             "limit": {
                                 "type": "number",
@@ -80,15 +130,30 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["query"]
                     }),
                 },
+                // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados de la bóveda.".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados, con filtros por carpeta, tags y telemetría de tokens.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
                                 "description": "Frase o palabras clave a buscar en el cuerpo de las notas"
+                            },
+                            "folder_path": {
+                                "type": "string",
+                                "description": "Subdirectorio para restringir el alcance de búsqueda"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Filtrar por etiquetas presentes en las notas"
                             },
                             "limit": {
                                 "type": "number",
@@ -98,96 +163,50 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         "required": ["query"]
                     }),
                 },
+                // 3. search_in_note
                 McpTool {
-                    name: "read_note".to_string(),
-                    description: "Lee el contenido completo y los metadatos OKF (YAML frontmatter) de una nota.".to_string(),
+                    name: "search_in_note".to_string(),
+                    description: "Busca texto o patrones dentro de una nota específica y devuelve las líneas coincidentes con su número y contexto circundante.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del archivo dentro de la bóveda (ej: 'notas/arquitectura.md')"
+                                "description": "Ruta relativa de la nota donde buscar"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "Texto o palabra a buscar dentro del archivo"
+                            },
+                            "context_lines": {
+                                "type": "number",
+                                "default": 2,
+                                "description": "Número de líneas antes y después de cada coincidencia (máximo 10, por defecto 2)"
                             }
                         },
-                        "required": ["relative_path"]
+                        "required": ["relative_path", "query"]
                     }),
                 },
-                McpTool {
-                    name: "write_note".to_string(),
-                    description: "Crea o actualiza una nota en Markdown preservando o actualizando sus metadatos OKF.".to_string(),
-                    input_schema: json!({
-                        "type": "object",
-                        "properties": {
-                            "relative_path": {
-                                "type": "string",
-                                "description": "Ruta relativa del archivo (ej: 'proyectos/nuevo.md')"
-                            },
-                            "title": {
-                                "type": "string",
-                                "description": "Título principal del documento"
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Cuerpo en formato Markdown (sin incluir los delimitadores --- de frontmatter si se proporcionan metadatos separados)"
-                            },
-                            "tags": {
-                                "type": "array",
-                                "items": { "type": "string" },
-                                "description": "Lista opcional de etiquetas de taxonomía"
-                            },
-                            "aliases": {
-                                "type": "array",
-                                "items": { "type": "string" },
-                                "description": "Nombres o títulos alternativos para la nota"
-                            }
-                        },
-                        "required": ["relative_path", "title", "content"]
-                    }),
-                },
-                McpTool {
-                    name: "get_backlinks_and_relations".to_string(),
-                    description: "Obtiene los enlaces entrantes (backlinks) y enlaces salientes semánticos de una nota específica.".to_string(),
-                    input_schema: json!({
-                        "type": "object",
-                        "properties": {
-                            "relative_path": {
-                                "type": "string",
-                                "description": "Ruta relativa de la nota a analizar"
-                            }
-                        },
-                        "required": ["relative_path"]
-                    }),
-                },
-                McpTool {
-                    name: "get_vault_git_status".to_string(),
-                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, modificados, staged, untracked).".to_string(),
-                    input_schema: json!({
-                        "type": "object",
-                        "properties": {}
-                    }),
-                },
-                McpTool {
-                    name: "list_vault_tree".to_string(),
-                    description: "Lista los archivos y directorios inmediatos en la bóveda o en una subcarpeta.".to_string(),
-                    input_schema: json!({
-                        "type": "object",
-                        "properties": {
-                            "parent_path": {
-                                "type": "string",
-                                "description": "Carpeta relativa a inspeccionar. Deja vacío para la raíz de la bóveda."
-                            }
-                        }
-                    }),
-                },
+                // 4. list_folder_contents
                 McpTool {
                     name: "list_folder_contents".to_string(),
-                    description: "Lista las notas y/o subdirectorios que están dentro de una carpeta específica de la bóveda.".to_string(),
+                    description: "Lista las notas y/o subdirectorios dentro de una carpeta de la bóveda, incluyendo estadísticas de líneas y tokens estimados.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "folder_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la carpeta a consultar (ej: 'proyectos/rust'). Dejar vacío o '' para la raíz de la bóveda."
+                                "description": "Ruta relativa de la carpeta a consultar (ej: 'proyectos/rust'). Dejar vacío para la raíz."
                             },
                             "include_notes": {
                                 "type": "boolean",
@@ -199,58 +218,411 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                             },
                             "recursive": {
                                 "type": "boolean",
-                                "description": "Si es true, lista recursivamente el contenido de subcarpetas; si es false, solo el nivel inmediato (por defecto false)"
+                                "description": "Si es true, lista recursivamente subcarpetas (por defecto false)"
                             }
                         }
                     }),
                 },
+                // 5. list_sibling_notes
                 McpTool {
                     name: "list_sibling_notes".to_string(),
-                    description: "A partir de una nota de referencia, lista todas las demás notas (y opcionalmente subdirectorios) ubicadas en la misma carpeta.".to_string(),
+                    description: "A partir de una nota de referencia, lista todas las demás notas ubicadas en la misma carpeta.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota de referencia (ej: 'notas/arquitectura/hexagonal.md')"
+                                "description": "Ruta relativa de la nota de referencia (ej: 'notas/arquitectura.md')"
                             },
                             "include_self": {
                                 "type": "boolean",
-                                "description": "Si es true, incluye también la misma nota de referencia en el listado (por defecto false)"
+                                "description": "Incluir también la nota de referencia en el resultado (por defecto false)"
                             },
                             "include_folders": {
                                 "type": "boolean",
-                                "description": "Si es true, incluye también las subcarpetas hermanas ubicadas en el mismo directorio (por defecto false)"
+                                "description": "Incluir subcarpetas hermanas en el mismo directorio (por defecto false)"
                             }
                         },
                         "required": ["relative_path"]
                     }),
                 },
+                // 6. read_note
+                McpTool {
+                    name: "read_note".to_string(),
+                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only', proveyendo content_hash (OCC), TOC y detección de bloques.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa del archivo dentro de la bóveda (ej: 'notas/arquitectura.md')"
+                            },
+                            "mode": {
+                                "type": "string",
+                                "enum": ["full", "chunk", "section", "metadata_only"],
+                                "default": "full",
+                                "description": "'full': lee toda la nota. 'chunk': lee un rango acotado de líneas. 'section': extrae solo un encabezado. 'metadata_only': metadatos OKF, TOC y estadísticas sin el cuerpo."
+                            },
+                            "start_line": {
+                                "type": "number",
+                                "description": "Línea inicial (base 1) cuando mode='chunk' (por defecto 1)"
+                            },
+                            "line_count": {
+                                "type": "number",
+                                "description": "Cantidad de líneas a leer en mode='chunk' (por defecto 150, máximo 500)"
+                            },
+                            "section_heading": {
+                                "type": "string",
+                                "description": "Texto del encabezado a extraer cuando mode='section' (ej: '## Canal ACP')"
+                            },
+                            "include_line_numbers": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Prefija cada línea devuelta con su número (ej: '42: texto') para facilitar patch_note."
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 7. write_note
+                McpTool {
+                    name: "write_note".to_string(),
+                    description: "Crea o actualiza una nota completa con protección de hash OCC, freno anti-truncamiento y modo dry_run.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa del archivo (ej: 'proyectos/nuevo.md')"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Título principal del documento (opcional si la nota ya existe)"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Cuerpo en formato Markdown"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Lista de etiquetas de taxonomía"
+                            },
+                            "aliases": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Nombres alternativos para la nota"
+                            },
+                            "expected_hash": {
+                                "type": "string",
+                                "description": "Hash obtenido previamente en read_note para control de concurrencia optimista"
+                            },
+                            "allow_large_overwrite": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Permite sobrescritura incluso si reduce más del 40% del documento original (>150 líneas)"
+                            },
+                            "dry_run": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Si es true, valida y retorna el unified_diff sin modificar disco"
+                            }
+                        },
+                        "required": ["relative_path", "content"]
+                    }),
+                },
+                // 8. patch_note
+                McpTool {
+                    name: "patch_note".to_string(),
+                    description: "Modifica un fragmento quirúrgico de una nota reemplazando un bloque de texto exacto con tolerancia de anclaje difuso y control OCC.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(false),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota a editar"
+                            },
+                            "old_text": {
+                                "type": "string",
+                                "description": "Texto original exacto a reemplazar"
+                            },
+                            "new_text": {
+                                "type": "string",
+                                "description": "Nuevo texto en Markdown que reemplazará a old_text"
+                            },
+                            "start_line": {
+                                "type": "number",
+                                "description": "Línea inicial estimada del bloque (base 1)"
+                            },
+                            "end_line": {
+                                "type": "number",
+                                "description": "Línea final estimada del bloque"
+                            },
+                            "expected_hash": {
+                                "type": "string",
+                                "description": "Hash previo para verificar que la nota no cambió concurrentemente"
+                            },
+                            "dry_run": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Si es true, calcula el unified_diff sin alterar disco"
+                            }
+                        },
+                        "required": ["relative_path", "old_text", "new_text"]
+                    }),
+                },
+                // 9. append_to_note
+                McpTool {
+                    name: "append_to_note".to_string(),
+                    description: "Agrega contenido al final de una nota o dentro de una sección específica de encabezado Markdown.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(false),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Texto Markdown a insertar"
+                            },
+                            "section_heading": {
+                                "type": "string",
+                                "description": "Encabezado opcional donde insertar (ej: '## Tareas'). Si se omite, se agrega al final del archivo."
+                            },
+                            "position": {
+                                "type": "string",
+                                "enum": ["start_of_section", "end_of_section"],
+                                "default": "end_of_section",
+                                "description": "Posición dentro de la sección elegida"
+                            }
+                        },
+                        "required": ["relative_path", "content"]
+                    }),
+                },
+                // 10. update_note_metadata
+                McpTool {
+                    name: "update_note_metadata".to_string(),
+                    description: "Actualiza atómicamente los metadatos OKF (título, tags, aliases, custom_properties) del frontmatter YAML sin tocar el cuerpo de la nota.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Nuevo título opcional"
+                            },
+                            "add_tags": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Etiquetas a añadir (sin duplicados)"
+                            },
+                            "remove_tags": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Etiquetas a eliminar"
+                            },
+                            "aliases": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Lista de aliases a establecer"
+                            },
+                            "custom_properties": {
+                                "type": "object",
+                                "description": "Pares clave-valor adicionales para el frontmatter"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 11. move_notes
                 McpTool {
                     name: "move_notes".to_string(),
-                    description: "Mueve una o múltiples notas a una carpeta de destino dentro de la bóveda. Si la carpeta destino no existe, puede ser creada automáticamente.".to_string(),
+                    description: "Mueve notas a una carpeta de destino con soporte de reescritura automática de wikilinks en la bóveda.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "notes": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Lista de rutas relativas de las notas o archivos a mover (ej: ['nota1.md', 'carpeta/nota2.md'])"
+                                "description": "Lista de rutas de notas a mover"
                             },
                             "target_folder": {
                                 "type": "string",
-                                "description": "Carpeta relativa de destino hacia donde se moverán las notas (ej: 'archivo/2026' o '' para la raíz)"
+                                "description": "Carpeta destino relativa"
                             },
                             "create_target_folder": {
                                 "type": "boolean",
-                                "description": "Crea la carpeta destino y sus carpetas intermedias si no existen (por defecto true)"
+                                "default": true,
+                                "description": "Crear carpeta si no existe"
                             },
                             "overwrite": {
                                 "type": "boolean",
-                                "description": "Sobrescribe archivos en el destino si ya existen con el mismo nombre (por defecto false)"
+                                "default": false,
+                                "description": "Sobrescribir si ya existe en destino"
+                            },
+                            "update_wikilinks": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Reescribir enlaces entrantes en otras notas para apuntar a la nueva ubicación"
                             }
                         },
                         "required": ["notes", "target_folder"]
+                    }),
+                },
+                // 12. get_backlinks_and_relations
+                McpTool {
+                    name: "get_backlinks_and_relations".to_string(),
+                    description: "Obtiene backlinks con snippets contextuales, outlinks no resueltos (huérfanos) y top 5 vecinos por similitud Jaccard de tags.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota a analizar"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 13. get_vault_git_status
+                McpTool {
+                    name: "get_vault_git_status".to_string(),
+                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, index, worktree, stash).".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {}
+                    }),
+                },
+                // 14. read_pdf_document
+                McpTool {
+                    name: "read_pdf_document".to_string(),
+                    description: "Inspecciona documentos PDF: índice/metadatos, lectura por rango de páginas (máximo 5) o búsqueda interna.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa del archivo PDF (ej: 'docs/paper.pdf')"
+                            },
+                            "mode": {
+                                "type": "string",
+                                "enum": ["outline_only", "pages", "search"],
+                                "default": "outline_only",
+                                "description": "'outline_only': total de páginas y metadatos. 'pages': extrae texto entre start_page y end_page. 'search': busca un término en el PDF."
+                            },
+                            "start_page": {
+                                "type": "number",
+                                "description": "Página inicial (base 1, por defecto 1)"
+                            },
+                            "end_page": {
+                                "type": "number",
+                                "description": "Página final (máximo 5 páginas por llamada)"
+                            },
+                            "search_query": {
+                                "type": "string",
+                                "description": "Término a buscar cuando mode='search'"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 15. extract_note_diagrams
+                McpTool {
+                    name: "extract_note_diagrams".to_string(),
+                    description: "Extrae todos los bloques de código de diagramas (Mermaid, D2lang) de una nota con números de línea o lee archivos .d2 / .mmd.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa de la nota Markdown o archivo .d2 / .mmd"
+                            },
+                            "diagram_type": {
+                                "type": "string",
+                                "enum": ["all", "mermaid", "d2"],
+                                "default": "all",
+                                "description": "Filtrar por tipo de diagrama"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 16. list_vault_tree (alias retrocompatible)
+                McpTool {
+                    name: "list_vault_tree".to_string(),
+                    description: "Alias retrocompatible de list_folder_contents.".to_string(),
+                    annotations: Some(McpToolAnnotations {
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                    }),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "parent_path": {
+                                "type": "string",
+                                "description": "Carpeta relativa"
+                            }
+                        }
                     }),
                 },
             ],
@@ -261,342 +633,837 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
     pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> McpCallToolResult {
         let args = arguments.unwrap_or(Value::Object(serde_json::Map::new()));
         match name {
-            "search_notes" => {
-                let query = match args.get("query").and_then(|v| v.as_str()) {
-                    Some(q) => q.trim().to_lowercase(),
-                    None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
-                };
-                let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
-
-                let extensions = vec!["md".to_string(), "markdown".to_string()];
-                match self.note_repository.list_notes(&self.vault_path, &extensions) {
-                    Ok(notes) => {
-                        let filtered: Vec<_> = notes
-                            .into_iter()
-                            .filter(|n| {
-                                n.title.to_lowercase().contains(&query)
-                                    || n.relative_path.as_str().to_lowercase().contains(&query)
-                                    || n.frontmatter.as_ref().map_or(false, |fm| {
-                                        fm.tags.iter().any(|t| t.to_lowercase().contains(&query))
-                                            || fm.aliases.iter().any(|a| a.to_lowercase().contains(&query))
-                                    })
-                            })
-                            .take(limit)
-                            .map(|n| {
-                                json!({
-                                    "title": n.title,
-                                    "relative_path": n.relative_path.as_str(),
-                                    "tags": n.frontmatter.as_ref().map(|f| &f.tags),
-                                    "aliases": n.frontmatter.as_ref().map(|f| &f.aliases),
-                                })
-                            })
-                            .collect();
-
-                        match serde_json::to_string_pretty(&filtered) {
-                            Ok(text) => McpCallToolResult::text(text),
-                            Err(e) => McpCallToolResult::error(format!("Error al serializar notas: {}", e)),
-                        }
-                    }
-                    Err(err) => McpCallToolResult::error(format!("Error al buscar notas: {}", err)),
-                }
+            "search_notes" => self.execute_search_notes(&args),
+            "full_text_search" => self.execute_full_text_search(&args),
+            "search_in_note" => self.execute_search_in_note(&args),
+            "list_folder_contents" => self.execute_list_folder_contents_tool(&args),
+            "list_vault_tree" => {
+                let parent = args.get("parent_path").and_then(|v| v.as_str()).unwrap_or("");
+                self.execute_list_folder_contents(parent, true, true, false, None)
             }
-            "full_text_search" => {
-                let query_str = match args.get("query").and_then(|v| v.as_str()) {
-                    Some(q) => q.trim(),
-                    None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
-                };
-                if query_str.is_empty() {
-                    return McpCallToolResult::text("[]");
-                }
-                let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+            "list_sibling_notes" => self.execute_list_sibling_notes(&args),
+            "read_note" => self.execute_read_note(&args),
+            "write_note" => self.execute_write_note(&args),
+            "patch_note" => self.execute_patch_note(&args),
+            "append_to_note" => self.execute_append_to_note(&args),
+            "update_note_metadata" => self.execute_update_note_metadata(&args),
+            "move_notes" => self.execute_move_notes_tool(&args),
+            "get_backlinks_and_relations" => self.execute_get_backlinks_and_relations(&args),
+            "get_vault_git_status" => self.execute_get_vault_git_status(),
+            "read_pdf_document" => self.execute_read_pdf_document(&args),
+            "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
+            other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
+        }
+    }
 
-                if let Some(ref fts) = self.full_text_index {
-                    let q = FullTextQuery {
-                        text: query_str.to_string(),
-                        limit,
-                        prefix_last_term: true,
-                    };
-                    match fts.search(&q) {
-                        Ok((hits, total)) => {
-                            let results = json!({
-                                "total_matches": total,
-                                "hits": hits.into_iter().map(|h| {
-                                    json!({
-                                        "path": h.note_path,
-                                        "title": h.title,
-                                        "score": h.score,
-                                        "snippet": h.snippet,
-                                        "matched_terms": h.matched_terms,
-                                    })
-                                }).collect::<Vec<_>>()
+    // ==========================================
+    // Implementaciones individuales de Tool calls
+    // ==========================================
+
+    fn execute_search_notes(&self, args: &Value) -> McpCallToolResult {
+        let query = match args.get("query").and_then(|v| v.as_str()) {
+            Some(q) => q.trim().to_lowercase(),
+            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+        };
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+        let tags_filter: Vec<String> = args
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|t| t.as_str().map(|s| s.to_lowercase()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let extensions = vec!["md".to_string(), "markdown".to_string()];
+        match self.note_repository.list_notes(&self.vault_path, &extensions) {
+            Ok(notes) => {
+                let filtered: Vec<_> = notes
+                    .into_iter()
+                    .filter(|n| {
+                        let matches_query = n.title.to_lowercase().contains(&query)
+                            || n.relative_path.as_str().to_lowercase().contains(&query)
+                            || n.frontmatter.as_ref().map_or(false, |fm| {
+                                fm.tags.iter().any(|t| t.to_lowercase().contains(&query))
+                                    || fm.aliases.iter().any(|a| a.to_lowercase().contains(&query))
                             });
-                            match serde_json::to_string_pretty(&results) {
-                                Ok(text) => McpCallToolResult::text(text),
-                                Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+                        if !matches_query {
+                            return false;
+                        }
+                        if !tags_filter.is_empty() {
+                            let note_tags: HashSet<String> = n
+                                .frontmatter
+                                .as_ref()
+                                .map(|f| f.tags.iter().map(|t| t.to_lowercase()).collect())
+                                .unwrap_or_default();
+                            if !tags_filter.iter().any(|tf| note_tags.contains(tf)) {
+                                return false;
                             }
                         }
-                        Err(err) => McpCallToolResult::error(format!("Error en full-text search: {}", err)),
-                    }
-                } else {
-                    McpCallToolResult::error("El índice Tantivy de búsqueda de texto completo no está disponible.")
+                        true
+                    })
+                    .take(limit)
+                    .map(|n| {
+                        json!({
+                            "title": n.title,
+                            "relative_path": n.relative_path.as_str(),
+                            "tags": n.frontmatter.as_ref().map(|f| &f.tags),
+                            "aliases": n.frontmatter.as_ref().map(|f| &f.aliases),
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&filtered) {
+                    Ok(text) => McpCallToolResult::text(text),
+                    Err(e) => McpCallToolResult::error(format!("Error al serializar notas: {}", e)),
                 }
             }
-            "read_note" => {
-                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
-                    Some(p) => p,
-                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
-                };
+            Err(err) => McpCallToolResult::error(format!("Error al buscar notas: {}", err)),
+        }
+    }
 
-                let relative_path = match NoteRelativePath::new(rel_path_str) {
-                    Ok(p) => p,
-                    Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
-                };
+    fn execute_full_text_search(&self, args: &Value) -> McpCallToolResult {
+        let query_str = match args.get("query").and_then(|v| v.as_str()) {
+            Some(q) => q.trim(),
+            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+        };
+        if query_str.is_empty() {
+            return McpCallToolResult::text("[]");
+        }
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+        let folder_filter = args.get("folder_path").and_then(|v| v.as_str()).map(|f| f.trim_matches('/').to_lowercase());
 
-                match self.note_repository.read_note(&self.vault_path, &relative_path) {
-                    Ok(note) => {
-                        let payload = json!({
-                            "title": note.title,
-                            "relative_path": note.relative_path.as_str(),
-                            "frontmatter": note.frontmatter,
-                            "content": note.content,
-                        });
-                        match serde_json::to_string_pretty(&payload) {
-                            Ok(text) => McpCallToolResult::text(text),
-                            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+        if let Some(ref fts) = self.full_text_index {
+            let q = FullTextQuery {
+                text: query_str.to_string(),
+                limit: limit * 2,
+                prefix_last_term: true,
+            };
+            match fts.search(&q) {
+                Ok((hits, total)) => {
+                    let mut filtered_hits = Vec::new();
+                    for h in hits {
+                        if let Some(ref ff) = folder_filter {
+                            let lower_path = h.note_path.to_lowercase();
+                            if !lower_path.starts_with(ff) {
+                                continue;
+                            }
+                        }
+                        // Leer la nota para estimar líneas y tokens
+                        let (total_lines, est_tokens) = if let Ok(rel) = NoteRelativePath::new(&h.note_path) {
+                            if let Ok(note) = self.note_repository.read_note(&self.vault_path, &rel) {
+                                (note.content.lines().count(), estimate_tokens(&note.content))
+                            } else {
+                                (0, 0)
+                            }
+                        } else {
+                            (0, 0)
+                        };
+
+                        filtered_hits.push(json!({
+                            "path": h.note_path,
+                            "title": h.title,
+                            "score": h.score,
+                            "snippet": h.snippet,
+                            "total_lines": total_lines,
+                            "estimated_tokens": est_tokens,
+                            "matched_terms": h.matched_terms,
+                        }));
+
+                        if filtered_hits.len() >= limit {
+                            break;
                         }
                     }
-                    Err(err) => McpCallToolResult::error(format!("Error al leer nota: {}", err)),
-                }
-            }
-            "write_note" => {
-                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
-                    Some(p) => p,
-                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
-                };
-                let title = match args.get("title").and_then(|v| v.as_str()) {
-                    Some(t) => t,
-                    None => return McpCallToolResult::error("El argumento 'title' es obligatorio"),
-                };
-                let content = match args.get("content").and_then(|v| v.as_str()) {
-                    Some(c) => c,
-                    None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
-                };
 
-                let relative_path = match NoteRelativePath::new(rel_path_str) {
-                    Ok(p) => p,
-                    Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
-                };
-
-                let final_body = if content.trim_start().starts_with("---") {
-                    content.to_string()
-                } else {
-                    let mut fm = NoteFrontmatter::default();
-                    fm.title = Some(title.to_string());
-                    if let Some(tags_val) = args.get("tags").and_then(|v| v.as_array()) {
-                        fm.tags = tags_val
-                            .iter()
-                            .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                            .collect();
+                    let results = json!({
+                        "total_matches": total,
+                        "returned_matches": filtered_hits.len(),
+                        "hits": filtered_hits,
+                    });
+                    match serde_json::to_string_pretty(&results) {
+                        Ok(text) => McpCallToolResult::text(text),
+                        Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
                     }
-                    if let Some(aliases_val) = args.get("aliases").and_then(|v| v.as_array()) {
-                        fm.aliases = aliases_val
-                            .iter()
-                            .filter_map(|a| a.as_str().map(|s| s.to_string()))
-                            .collect();
-                    }
-                    frontmatter_service::serialize_frontmatter_and_content(Some(&fm), content)
-                };
-
-                let note = Note::with_encoding(
-                    relative_path,
-                    "".to_string(),
-                    title.to_string(),
-                    final_body,
-                    "UTF-8".to_string(),
-                );
-
-                match self.note_repository.save_note(&self.vault_path, &note) {
-                    Ok(_) => McpCallToolResult::text(format!("Nota '{}' guardada exitosamente.", rel_path_str)),
-                    Err(err) => McpCallToolResult::error(format!("Error al guardar la nota: {}", err)),
                 }
+                Err(err) => McpCallToolResult::error(format!("Error en full-text search: {}", err)),
             }
-            "get_backlinks_and_relations" => {
-                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
-                    Some(p) => p,
-                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
-                };
+        } else {
+            McpCallToolResult::error("El índice Tantivy de búsqueda de texto completo no está disponible.")
+        }
+    }
 
-                let extensions = vec!["md".to_string(), "markdown".to_string()];
-                let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
-                    Ok(notes) => notes,
-                    Err(e) => return McpCallToolResult::error(format!("Error al listar notas: {}", e)),
-                };
+    fn execute_search_in_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let query = match args.get("query").and_then(|v| v.as_str()) {
+            Some(q) => q,
+            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+        };
+        let context_lines = args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
+        let context_lines = context_lines.min(10);
 
-                let target_normalized = rel_path_str.trim_start_matches('/').replace('\\', "/");
-                let target_stem = target_normalized
-                    .rsplit('/')
-                    .next()
-                    .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
-                    .unwrap_or(&target_normalized);
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
 
-                let mut backlinks = Vec::new();
-                let mut outlinks = Vec::new();
+        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        };
 
-                for note in &all_notes {
-                    let n_path = note.relative_path.as_str();
-                    let full_note = match self.note_repository.read_note(&self.vault_path, &note.relative_path) {
-                        Ok(n) => n,
-                        Err(_) => continue,
-                    };
+        let lines: Vec<&str> = note.content.lines().collect();
+        let query_lower = query.to_lowercase();
+        let mut matches = Vec::new();
 
-                    let wikilinks = extract_wikilinks(&full_note.content);
-                    let mut links_to_target = false;
+        for (i, line) in lines.iter().enumerate() {
+            if line.to_lowercase().contains(&query_lower) {
+                let start_idx = i.saturating_sub(context_lines);
+                let end_idx = (i + context_lines + 1).min(lines.len());
+                let context_snippet: Vec<String> = (start_idx..end_idx)
+                    .map(|idx| format!("{}: {}", idx + 1, lines[idx]))
+                    .collect();
 
-                    for wl in wikilinks {
-                        let (norm_target, _) = normalize_link_target(&wl.target);
-                        if norm_target == target_normalized
-                            || norm_target == format!("{}.md", target_stem)
-                            || wl.target.eq_ignore_ascii_case(target_stem)
-                        {
-                            links_to_target = true;
-                        }
+                matches.push(json!({
+                    "line_number": i + 1,
+                    "matched_line": line,
+                    "context": context_snippet,
+                }));
+            }
+        }
 
-                        if n_path == target_normalized {
-                            outlinks.push(json!({
-                                "target": wl.target,
-                                "alias": wl.alias,
-                                "is_embed": wl.is_embed,
+        let payload = json!({
+            "relative_path": rel_path_str,
+            "total_matches": matches.len(),
+            "matches": matches,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+        }
+    }
+
+    fn execute_read_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("full");
+        let start_line = args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+        let line_count = args.get("line_count").and_then(|v| v.as_u64()).unwrap_or(150) as usize;
+        let line_count = line_count.min(500);
+        let section_heading = args.get("section_heading").and_then(|v| v.as_str());
+        let include_line_numbers = args.get("include_line_numbers").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(note) => {
+                let lines: Vec<&str> = note.content.lines().collect();
+                let total_lines = lines.len();
+                let content_hash = calculate_content_hash(&note.content);
+                let est_tokens = estimate_tokens(&note.content);
+
+                // 1. Extraer TOC (Table of Contents)
+                let mut toc = Vec::new();
+                for (idx, line) in lines.iter().enumerate() {
+                    let trimmed = line.trim_start();
+                    if trimmed.starts_with('#') {
+                        let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+                        if hashes >= 1 && hashes <= 6 && trimmed.chars().nth(hashes) == Some(' ') {
+                            let heading_text = trimmed[hashes..].trim().to_string();
+                            toc.push(json!({
+                                "level": hashes,
+                                "text": heading_text,
+                                "line": idx + 1,
                             }));
                         }
                     }
-
-                    if links_to_target && n_path != target_normalized {
-                        backlinks.push(json!({
-                            "source_path": n_path,
-                            "title": note.title,
-                        }));
-                    }
                 }
 
-                let payload = json!({
-                    "target_note": target_normalized,
-                    "backlinks_count": backlinks.len(),
-                    "backlinks": backlinks,
-                    "outlinks_count": outlinks.len(),
-                    "outlinks": outlinks,
+                // 2. Detectar bloques especiales
+                let mut mermaid_count = 0;
+                let mut d2_count = 0;
+                for line in &lines {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("```mermaid") { mermaid_count += 1; }
+                    if trimmed.starts_with("```d2") { d2_count += 1; }
+                }
+
+                let detected_blocks = json!({
+                    "mermaid_count": mermaid_count,
+                    "d2_count": d2_count,
                 });
 
-                match serde_json::to_string_pretty(&payload) {
-                    Ok(text) => McpCallToolResult::text(text),
-                    Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-                }
-            }
-            "get_vault_git_status" => {
-                if let Some(ref git) = self.git_service {
-                    match git.get_vault_status(&self.vault_path) {
-                        Ok(status) => match serde_json::to_string_pretty(&status) {
-                            Ok(text) => McpCallToolResult::text(text),
-                            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-                        },
-                        Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
+                match mode {
+                    "metadata_only" => {
+                        let payload = json!({
+                            "relative_path": note.relative_path.as_str(),
+                            "title": note.title,
+                            "content_hash": content_hash,
+                            "total_lines": total_lines,
+                            "estimated_tokens": est_tokens,
+                            "okf_metadata": note.frontmatter,
+                            "toc": toc,
+                            "detected_blocks": detected_blocks,
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
                     }
-                } else {
-                    McpCallToolResult::error("El servicio Git no está disponible o la carpeta no es un repositorio.")
-                }
-            }
-            "list_vault_tree" => {
-                let parent = args.get("parent_path").and_then(|v| v.as_str()).unwrap_or("");
-                let clean_parent = parent.trim_matches('/').replace('\\', "/");
-                let target_dir = if clean_parent.is_empty() {
-                    self.vault_path.clone()
-                } else {
-                    self.vault_path.join(&clean_parent)
-                };
-
-                if !target_dir.exists() || !target_dir.is_dir() {
-                    return McpCallToolResult::error(format!("Directorio no encontrado: {}", clean_parent));
-                }
-
-                let mut entries_list = Vec::new();
-                if let Ok(entries) = std::fs::read_dir(&target_dir) {
-                    for entry in entries.flatten() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        if name.starts_with('.') || name == "target" || name == "node_modules" {
-                            continue;
-                        }
-                        let is_folder = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                        let rel = if clean_parent.is_empty() {
-                            name.clone()
-                        } else {
-                            format!("{}/{}", clean_parent, name)
+                    "section" => {
+                        let target_heading = match section_heading {
+                            Some(h) => h.trim().trim_start_matches('#').trim().to_lowercase(),
+                            None => return McpCallToolResult::error("El argumento 'section_heading' es requerido en mode='section'"),
                         };
-                        entries_list.push(json!({
-                            "name": name,
-                            "relative_path": rel,
-                            "is_folder": is_folder,
-                        }));
+
+                        let mut section_start = None;
+                        let mut section_level = 1;
+                        for (idx, line) in lines.iter().enumerate() {
+                            let trimmed = line.trim_start();
+                            if trimmed.starts_with('#') {
+                                let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+                                if hashes >= 1 && hashes <= 6 {
+                                    let h_text = trimmed[hashes..].trim().to_lowercase();
+                                    if h_text.contains(&target_heading) {
+                                        section_start = Some(idx);
+                                        section_level = hashes;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        let start_idx = match section_start {
+                            Some(s) => s,
+                            None => return McpCallToolResult::error(format!("Sección '{}' no encontrada", target_heading)),
+                        };
+
+                        let mut end_idx = lines.len();
+                        for (idx, line) in lines.iter().enumerate().skip(start_idx + 1) {
+                            let trimmed = line.trim_start();
+                            if trimmed.starts_with('#') {
+                                let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+                                if hashes <= section_level {
+                                    end_idx = idx;
+                                    break;
+                                }
+                            }
+                        }
+
+                        let selected_lines = &lines[start_idx..end_idx];
+                        let rendered_content = if include_line_numbers {
+                            selected_lines
+                                .iter()
+                                .enumerate()
+                                .map(|(i, l)| format!("{}: {}", start_idx + i + 1, l))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        } else {
+                            selected_lines.join("\n")
+                        };
+
+                        let payload = json!({
+                            "relative_path": note.relative_path.as_str(),
+                            "title": note.title,
+                            "content_hash": content_hash,
+                            "total_lines": total_lines,
+                            "returned_lines": { "start": start_idx + 1, "end": end_idx },
+                            "okf_metadata": note.frontmatter,
+                            "toc": toc,
+                            "content": rendered_content,
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+                    }
+                    "chunk" => {
+                        let start_idx = start_line.saturating_sub(1).min(total_lines);
+                        let end_idx = (start_idx + line_count).min(total_lines);
+                        let selected_lines = if start_idx < end_idx { &lines[start_idx..end_idx] } else { &[] };
+
+                        let rendered_content = if include_line_numbers {
+                            selected_lines
+                                .iter()
+                                .enumerate()
+                                .map(|(i, l)| format!("{}: {}", start_idx + i + 1, l))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        } else {
+                            selected_lines.join("\n")
+                        };
+
+                        let payload = json!({
+                            "relative_path": note.relative_path.as_str(),
+                            "title": note.title,
+                            "content_hash": content_hash,
+                            "total_lines": total_lines,
+                            "returned_lines": { "start": start_idx + 1, "end": end_idx },
+                            "has_more": end_idx < total_lines,
+                            "okf_metadata": note.frontmatter,
+                            "toc": toc,
+                            "content": rendered_content,
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+                    }
+                    _ => {
+                        // mode = "full"
+                        let rendered_content = if include_line_numbers {
+                            lines
+                                .iter()
+                                .enumerate()
+                                .map(|(i, l)| format!("{}: {}", i + 1, l))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        } else {
+                            note.content.clone()
+                        };
+
+                        let payload = json!({
+                            "relative_path": note.relative_path.as_str(),
+                            "title": note.title,
+                            "content_hash": content_hash,
+                            "total_lines": total_lines,
+                            "estimated_tokens": est_tokens,
+                            "okf_metadata": note.frontmatter,
+                            "toc": toc,
+                            "detected_blocks": detected_blocks,
+                            "content": rendered_content,
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
                     }
                 }
-
-                match serde_json::to_string_pretty(&entries_list) {
-                    Ok(text) => McpCallToolResult::text(text),
-                    Err(e) => McpCallToolResult::error(format!("Error al serializar árbol: {}", e)),
-                }
             }
-            "list_folder_contents" => {
-                let folder = args.get("folder_path").and_then(|v| v.as_str()).unwrap_or("");
-                let include_notes = args.get("include_notes").and_then(|v| v.as_bool()).unwrap_or(true);
-                let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(true);
-                let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
-
-                self.execute_list_folder_contents(folder, include_notes, include_folders, recursive, None)
-            }
-            "list_sibling_notes" => {
-                let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
-                    Some(p) => p.trim_matches('/').replace('\\', "/"),
-                    None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
-                };
-                if rel_path_str.is_empty() {
-                    return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
-                }
-
-                let include_self = args.get("include_self").and_then(|v| v.as_bool()).unwrap_or(false);
-                let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(false);
-
-                let parent_folder = match rel_path_str.rsplit_once('/') {
-                    Some((dir, _)) => dir,
-                    None => "",
-                };
-
-                let exclude_path = if include_self {
-                    None
-                } else {
-                    Some(rel_path_str.as_str())
-                };
-
-                self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path)
-            }
-            "move_notes" => {
-                let notes_val = match args.get("notes").and_then(|v| v.as_array()) {
-                    Some(n) => n,
-                    None => return McpCallToolResult::error("El argumento 'notes' debe ser una lista de rutas de notas"),
-                };
-                let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
-                    Some(tf) => tf,
-                    None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
-                };
-                let create_target_folder = args.get("create_target_folder").and_then(|v| v.as_bool()).unwrap_or(true);
-                let overwrite = args.get("overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
-
-                let note_paths: Vec<String> = notes_val
-                    .iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect();
-
-                self.execute_move_notes(&note_paths, target_folder, create_target_folder, overwrite)
-            }
-            other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
+            Err(err) => McpCallToolResult::error(format!("Error al leer nota: {}", err)),
         }
+    }
+
+    fn execute_write_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let content = match args.get("content").and_then(|v| v.as_str()) {
+            Some(c) => c,
+            None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
+        };
+        let expected_hash = args.get("expected_hash").and_then(|v| v.as_str());
+        let allow_large_overwrite = args.get("allow_large_overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
+        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        // Leer nota existente si existe
+        let existing_note = self.note_repository.read_note(&self.vault_path, &relative_path).ok();
+
+        if let Some(ref note) = existing_note {
+            let current_hash = calculate_content_hash(&note.content);
+            if let Some(exp) = expected_hash {
+                if exp != current_hash {
+                    return McpCallToolResult::error(format!(
+                        "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento antes de escribir.",
+                        current_hash, exp
+                    ));
+                }
+            }
+
+            // Freno anti-truncamiento (>150 líneas y reduce más del 40%)
+            let old_line_count = note.content.lines().count();
+            let new_line_count = content.lines().count();
+            if old_line_count > 150 && !allow_large_overwrite {
+                if new_line_count < (old_line_count * 60) / 100 {
+                    return McpCallToolResult::error(format!(
+                        "Freno anti-truncamiento activado: la nota original tiene {} líneas y la nueva tiene {}. Usa patch_note para ediciones parciales o establece allow_large_overwrite: true.",
+                        old_line_count, new_line_count
+                    ));
+                }
+            }
+        }
+
+        let title = args
+            .get("title")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                existing_note
+                    .as_ref()
+                    .map(|n| n.title.clone())
+                    .unwrap_or_else(|| "Sin título".to_string())
+            });
+
+        let final_body = if content.trim_start().starts_with("---") {
+            content.to_string()
+        } else {
+            let mut fm = existing_note
+                .as_ref()
+                .and_then(|n| n.frontmatter.clone())
+                .unwrap_or_default();
+            fm.title = Some(title.clone());
+
+            if let Some(tags_val) = args.get("tags").and_then(|v| v.as_array()) {
+                fm.tags = tags_val
+                    .iter()
+                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                    .collect();
+            }
+            if let Some(aliases_val) = args.get("aliases").and_then(|v| v.as_array()) {
+                fm.aliases = aliases_val
+                    .iter()
+                    .filter_map(|a| a.as_str().map(|s| s.to_string()))
+                    .collect();
+            }
+            frontmatter_service::serialize_frontmatter_and_content(Some(&fm), content)
+        };
+
+        if dry_run {
+            let old_content = existing_note.as_ref().map(|n| n.content.as_str()).unwrap_or("");
+            let unified_diff = generate_unified_diff(old_content, &final_body, rel_path_str);
+            let payload = json!({
+                "dry_run": true,
+                "relative_path": rel_path_str,
+                "unified_diff": unified_diff,
+            });
+            return serde_json::to_string_pretty(&payload)
+                .map(McpCallToolResult::text)
+                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
+        }
+
+        let note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            title,
+            final_body.clone(),
+            "UTF-8".to_string(),
+        );
+
+        match self.note_repository.save_note(&self.vault_path, &note) {
+            Ok(_) => {
+                let new_hash = calculate_content_hash(&final_body);
+                let payload = json!({
+                    "status": "success",
+                    "relative_path": rel_path_str,
+                    "new_content_hash": new_hash,
+                    "message": format!("Nota '{}' guardada exitosamente.", rel_path_str),
+                });
+                serde_json::to_string_pretty(&payload)
+                    .map(McpCallToolResult::text)
+                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+            }
+            Err(err) => McpCallToolResult::error(format!("Error al guardar la nota: {}", err)),
+        }
+    }
+
+    fn execute_patch_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let old_text = match args.get("old_text").and_then(|v| v.as_str()) {
+            Some(t) => t,
+            None => return McpCallToolResult::error("El argumento 'old_text' es obligatorio"),
+        };
+        let new_text = match args.get("new_text").and_then(|v| v.as_str()) {
+            Some(t) => t,
+            None => return McpCallToolResult::error("El argumento 'new_text' es obligatorio"),
+        };
+        let expected_hash = args.get("expected_hash").and_then(|v| v.as_str());
+        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        };
+
+        let current_hash = calculate_content_hash(&note.content);
+        if let Some(exp) = expected_hash {
+            if exp != current_hash {
+                return McpCallToolResult::error(format!(
+                    "Conflicto OCC en patch_note: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento.",
+                    current_hash, exp
+                ));
+            }
+        }
+
+        // Algoritmo de reemplazo:
+        let full_content = &note.content;
+        let occurrences: Vec<_> = full_content.match_indices(old_text).collect();
+
+        let patched_content = if occurrences.len() == 1 {
+            let (idx, _) = occurrences[0];
+            format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..])
+        } else if occurrences.is_empty() {
+            // Intentar normalizar saltos de línea (\r\n vs \n)
+            let norm_full = full_content.replace("\r\n", "\n");
+            let norm_old = old_text.replace("\r\n", "\n");
+            let norm_occurrences: Vec<_> = norm_full.match_indices(&norm_old).collect();
+            if norm_occurrences.len() == 1 {
+                let (idx, _) = norm_occurrences[0];
+                format!("{}{}{}", &norm_full[..idx], new_text, &norm_full[idx + norm_old.len()..])
+            } else {
+                return McpCallToolResult::error(format!(
+                    "No se pudo encontrar 'old_text' en '{}'. Asegúrate de copiar el texto exacto sin números de línea.",
+                    rel_path_str
+                ));
+            }
+        } else {
+            return McpCallToolResult::error(format!(
+                "Ambigüedad: 'old_text' aparece {} veces en '{}'. Proporciona un fragmento más extenso para unicidad.",
+                occurrences.len(), rel_path_str
+            ));
+        };
+
+        let unified_diff = generate_unified_diff(full_content, &patched_content, rel_path_str);
+
+        if dry_run {
+            let payload = json!({
+                "dry_run": true,
+                "relative_path": rel_path_str,
+                "unified_diff": unified_diff,
+            });
+            return serde_json::to_string_pretty(&payload)
+                .map(McpCallToolResult::text)
+                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
+        }
+
+        let new_hash = calculate_content_hash(&patched_content);
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            note.title,
+            patched_content,
+            note.encoding,
+        );
+
+        match self.note_repository.save_note(&self.vault_path, &updated_note) {
+            Ok(_) => {
+                let payload = json!({
+                    "status": "success",
+                    "relative_path": rel_path_str,
+                    "new_content_hash": new_hash,
+                    "unified_diff": unified_diff,
+                });
+                serde_json::to_string_pretty(&payload)
+                    .map(McpCallToolResult::text)
+                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+            }
+            Err(err) => McpCallToolResult::error(format!("Error al guardar parche: {}", err)),
+        }
+    }
+
+    fn execute_append_to_note(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let content_to_append = match args.get("content").and_then(|v| v.as_str()) {
+            Some(c) => c,
+            None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
+        };
+        let section_heading = args.get("section_heading").and_then(|v| v.as_str());
+        let position = args.get("position").and_then(|v| v.as_str()).unwrap_or("end_of_section");
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        };
+
+        let mut lines: Vec<String> = note.content.lines().map(|s| s.to_string()).collect();
+
+        if let Some(heading) = section_heading {
+            let target_h = heading.trim().trim_start_matches('#').trim().to_lowercase();
+            let mut sec_idx = None;
+            let mut sec_level = 1;
+            for (idx, line) in lines.iter().enumerate() {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with('#') {
+                    let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+                    if hashes >= 1 && hashes <= 6 {
+                        if trimmed[hashes..].trim().to_lowercase().contains(&target_h) {
+                            sec_idx = Some(idx);
+                            sec_level = hashes;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let start_h = match sec_idx {
+                Some(s) => s,
+                None => return McpCallToolResult::error(format!("Encabezado de sección '{}' no encontrado", heading)),
+            };
+
+            if position == "start_of_section" {
+                lines.insert(start_h + 1, content_to_append.to_string());
+            } else {
+                let mut insert_idx = lines.len();
+                for (idx, line) in lines.iter().enumerate().skip(start_h + 1) {
+                    let trimmed = line.trim_start();
+                    if trimmed.starts_with('#') {
+                        let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+                        if hashes <= sec_level {
+                            insert_idx = idx;
+                            break;
+                        }
+                    }
+                }
+                lines.insert(insert_idx, content_to_append.to_string());
+            }
+        } else {
+            lines.push(content_to_append.to_string());
+        }
+
+        let new_content = lines.join("\n");
+        let new_hash = calculate_content_hash(&new_content);
+
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            note.title,
+            new_content,
+            note.encoding,
+        );
+
+        match self.note_repository.save_note(&self.vault_path, &updated_note) {
+            Ok(_) => {
+                let payload = json!({
+                    "status": "success",
+                    "relative_path": rel_path_str,
+                    "new_content_hash": new_hash,
+                });
+                serde_json::to_string_pretty(&payload)
+                    .map(McpCallToolResult::text)
+                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+            }
+            Err(err) => McpCallToolResult::error(format!("Error al anexar contenido: {}", err)),
+        }
+    }
+
+    fn execute_update_note_metadata(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        };
+
+        let (fm_opt, body) = frontmatter_service::parse_frontmatter_and_content(&note.content);
+        let mut fm = fm_opt.unwrap_or_default();
+
+        if let Some(new_title) = args.get("title").and_then(|v| v.as_str()) {
+            fm.title = Some(new_title.to_string());
+        }
+
+        if let Some(add_tags) = args.get("add_tags").and_then(|v| v.as_array()) {
+            let mut tag_set: HashSet<String> = fm.tags.into_iter().collect();
+            for t in add_tags.iter().filter_map(|t| t.as_str()) {
+                tag_set.insert(t.to_string());
+            }
+            fm.tags = tag_set.into_iter().collect();
+            fm.tags.sort();
+        }
+
+        if let Some(remove_tags) = args.get("remove_tags").and_then(|v| v.as_array()) {
+            let remove_set: HashSet<&str> = remove_tags.iter().filter_map(|t| t.as_str()).collect();
+            fm.tags.retain(|t| !remove_set.contains(t.as_str()));
+        }
+
+        if let Some(aliases_val) = args.get("aliases").and_then(|v| v.as_array()) {
+            fm.aliases = aliases_val.iter().filter_map(|a| a.as_str().map(|s| s.to_string())).collect();
+        }
+
+        let new_full_content = frontmatter_service::serialize_frontmatter_and_content(Some(&fm), &body);
+        let new_hash = calculate_content_hash(&new_full_content);
+
+        let final_title = fm.title.clone().unwrap_or(note.title);
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            final_title,
+            new_full_content,
+            note.encoding,
+        );
+
+        match self.note_repository.save_note(&self.vault_path, &updated_note) {
+            Ok(_) => {
+                let payload = json!({
+                    "status": "success",
+                    "relative_path": rel_path_str,
+                    "updated_metadata": fm,
+                    "new_content_hash": new_hash,
+                });
+                serde_json::to_string_pretty(&payload)
+                    .map(McpCallToolResult::text)
+                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+            }
+            Err(err) => McpCallToolResult::error(format!("Error al actualizar metadatos: {}", err)),
+        }
+    }
+
+    fn execute_list_folder_contents_tool(&self, args: &Value) -> McpCallToolResult {
+        let folder = args.get("folder_path").and_then(|v| v.as_str()).unwrap_or("");
+        let include_notes = args.get("include_notes").and_then(|v| v.as_bool()).unwrap_or(true);
+        let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(true);
+        let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        self.execute_list_folder_contents(folder, include_notes, include_folders, recursive, None)
+    }
+
+    fn execute_list_sibling_notes(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p.trim_matches('/').replace('\\', "/"),
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        if rel_path_str.is_empty() {
+            return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
+        }
+
+        let include_self = args.get("include_self").and_then(|v| v.as_bool()).unwrap_or(false);
+        let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let parent_folder = match rel_path_str.rsplit_once('/') {
+            Some((dir, _)) => dir,
+            None => "",
+        };
+
+        let exclude_path = if include_self {
+            None
+        } else {
+            Some(rel_path_str.as_str())
+        };
+
+        self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path)
     }
 
     fn execute_list_folder_contents(
@@ -648,77 +1515,48 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                         }
                     } else if include_notes {
                         if let Some(ex) = exclude_note_path {
-                            if rel_path.eq_ignore_ascii_case(ex) {
+                            if rel_path == ex {
                                 continue;
                             }
                         }
-                        if let Ok(np) = NoteRelativePath::new(&rel_path) {
-                            if let Ok(note) = self.note_repository.read_note(&self.vault_path, &np) {
-                                notes_out.push(json!({
-                                    "name": name,
-                                    "relative_path": rel_path,
-                                    "title": note.title,
-                                    "tags": note.frontmatter.as_ref().map(|f| &f.tags),
-                                    "aliases": note.frontmatter.as_ref().map(|f| &f.aliases),
-                                }));
-                                continue;
-                            }
-                        }
+
+                        let line_count = if let Ok(rel) = NoteRelativePath::new(&rel_path) {
+                            self.note_repository.read_note(&self.vault_path, &rel).map(|n| n.content.lines().count()).unwrap_or(0)
+                        } else {
+                            0
+                        };
+
+                        let note_title = if let Ok(rel) = NoteRelativePath::new(&rel_path) {
+                            self.note_repository.read_note(&self.vault_path, &rel).map(|n| n.title).unwrap_or_else(|_| name.clone())
+                        } else {
+                            name.clone()
+                        };
                         notes_out.push(json!({
                             "name": name,
+                            "title": note_title,
                             "relative_path": rel_path,
-                            "title": name,
+                            "line_count": line_count,
                         }));
                     }
                 }
             }
         } else {
-            // Modo recursivo
-            let mut stack = vec![(target_dir, clean_folder.clone())];
-            while let Some((curr_dir, curr_rel)) = stack.pop() {
-                if let Ok(entries) = std::fs::read_dir(&curr_dir) {
-                    for entry in entries.flatten() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        if name.starts_with('.') || name == "target" || name == "node_modules" {
-                            continue;
-                        }
-                        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                        let rel_path = if curr_rel.is_empty() {
-                            name.clone()
-                        } else {
-                            format!("{}/{}", curr_rel, name)
-                        };
-
-                        if is_dir {
-                            if include_folders {
-                                folders_out.push(json!({
-                                    "name": name,
-                                    "relative_path": rel_path,
-                                }));
-                            }
-                            stack.push((entry.path(), rel_path));
-                        } else if include_notes {
+            let extensions = vec!["md".to_string(), "markdown".to_string()];
+            if include_notes {
+                if let Ok(all_notes) = self.note_repository.list_notes(&self.vault_path, &extensions) {
+                    for n in all_notes {
+                        let path_str = n.relative_path.as_str();
+                        if clean_folder.is_empty() || path_str.starts_with(&format!("{}/", clean_folder)) {
                             if let Some(ex) = exclude_note_path {
-                                if rel_path.eq_ignore_ascii_case(ex) {
+                                if path_str == ex {
                                     continue;
                                 }
                             }
-                            if let Ok(np) = NoteRelativePath::new(&rel_path) {
-                                if let Ok(note) = self.note_repository.read_note(&self.vault_path, &np) {
-                                    notes_out.push(json!({
-                                        "name": name,
-                                        "relative_path": rel_path,
-                                        "title": note.title,
-                                        "tags": note.frontmatter.as_ref().map(|f| &f.tags),
-                                        "aliases": note.frontmatter.as_ref().map(|f| &f.aliases),
-                                    }));
-                                    continue;
-                                }
-                            }
+                            let name = path_str.rsplit('/').next().unwrap_or(path_str).to_string();
                             notes_out.push(json!({
                                 "name": name,
-                                "relative_path": rel_path,
-                                "title": name,
+                                "relative_path": path_str,
+                                "title": n.title,
                             }));
                         }
                     }
@@ -726,35 +1564,41 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             }
         }
 
-        folders_out.sort_by(|a, b| {
-            let pa = a.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
-            let pb = b.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
-            pa.cmp(pb)
+        let payload = json!({
+            "folder_path": clean_folder,
+            "total_folders": folders_out.len(),
+            "folders_count": folders_out.len(),
+            "folders": folders_out,
+            "total_notes": notes_out.len(),
+            "notes_count": notes_out.len(),
+            "notes": notes_out,
         });
-        notes_out.sort_by(|a, b| {
-            let pa = a.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
-            let pb = b.get("relative_path").and_then(|v| v.as_str()).unwrap_or("");
-            pa.cmp(pb)
-        });
-
-        let mut payload = serde_json::Map::new();
-        payload.insert("folder_path".to_string(), json!(if clean_folder.is_empty() { "/" } else { &clean_folder }));
-        if let Some(ref_note) = exclude_note_path {
-            payload.insert("reference_note".to_string(), json!(ref_note));
-        }
-        if include_folders {
-            payload.insert("folders_count".to_string(), json!(folders_out.len()));
-            payload.insert("folders".to_string(), json!(folders_out));
-        }
-        if include_notes {
-            payload.insert("notes_count".to_string(), json!(notes_out.len()));
-            payload.insert("notes".to_string(), json!(notes_out));
-        }
 
         match serde_json::to_string_pretty(&payload) {
             Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar contenido de carpeta: {}", e)),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar contenidos: {}", e)),
         }
+    }
+
+    fn execute_move_notes_tool(&self, args: &Value) -> McpCallToolResult {
+        let notes_val = match args.get("notes").and_then(|v| v.as_array()) {
+            Some(n) => n,
+            None => return McpCallToolResult::error("El argumento 'notes' debe ser una lista de rutas"),
+        };
+        let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
+            Some(tf) => tf,
+            None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
+        };
+        let create_target_folder = args.get("create_target_folder").and_then(|v| v.as_bool()).unwrap_or(true);
+        let overwrite = args.get("overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
+        let update_wikilinks = args.get("update_wikilinks").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let note_paths: Vec<String> = notes_val
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        self.execute_move_notes(&note_paths, target_folder, create_target_folder, overwrite, update_wikilinks)
     }
 
     fn execute_move_notes(
@@ -763,143 +1607,397 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         target_folder: &str,
         create_target_folder: bool,
         overwrite: bool,
+        update_wikilinks: bool,
     ) -> McpCallToolResult {
-        if notes.is_empty() {
-            return McpCallToolResult::error("La lista de notas a mover no puede estar vacía");
+        let clean_target = target_folder.trim_matches('/').replace('\\', "/");
+        if clean_target.split('/').any(|seg| seg == "..") {
+            return McpCallToolResult::error("Ruta de destino no permitida ('..' detectado)");
         }
 
-        let clean_target_folder = target_folder.trim_matches('/').replace('\\', "/");
-        if clean_target_folder.split('/').any(|seg| seg == "..") {
-            return McpCallToolResult::error("Ruta de destino inválida ('..' detectado)");
-        }
-
-        let target_dir = if clean_target_folder.is_empty() {
+        let dest_dir = if clean_target.is_empty() {
             self.vault_path.clone()
         } else {
-            self.vault_path.join(&clean_target_folder)
+            self.vault_path.join(&clean_target)
         };
 
-        if !target_dir.exists() {
+        if !dest_dir.exists() {
             if create_target_folder {
-                if let Err(e) = std::fs::create_dir_all(&target_dir) {
-                    return McpCallToolResult::error(format!("No se pudo crear la carpeta destino '{}': {}", clean_target_folder, e));
+                if let Err(e) = std::fs::create_dir_all(&dest_dir) {
+                    return McpCallToolResult::error(format!("Error al crear carpeta de destino: {}", e));
                 }
             } else {
-                return McpCallToolResult::error(format!("La carpeta destino '{}' no existe", clean_target_folder));
+                return McpCallToolResult::error(format!("La carpeta destino '{}' no existe", clean_target));
             }
-        } else if !target_dir.is_dir() {
-            return McpCallToolResult::error(format!("La ruta destino '{}' existe pero no es un directorio", clean_target_folder));
         }
 
-        let canonical_vault = match self.vault_path.canonicalize() {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Error al resolver bóveda: {}", e)),
-        };
-
-        let canonical_target = match target_dir.canonicalize() {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Error al resolver carpeta destino: {}", e)),
-        };
-
-        if !canonical_target.starts_with(&canonical_vault) {
-            return McpCallToolResult::error("La carpeta de destino está fuera de los límites de la bóveda");
-        }
-
-        let mut moved = Vec::new();
+        let mut moved_success = Vec::new();
         let mut errors = Vec::new();
 
-        for note_rel in notes {
-            let clean_note_rel = note_rel.trim_matches('/').replace('\\', "/");
-            if clean_note_rel.is_empty() || clean_note_rel.split('/').any(|seg| seg == "..") {
-                errors.push(json!({
-                    "source": note_rel,
-                    "error": "Ruta inválida ('..' detectado o vacía)"
-                }));
-                continue;
-            }
-
-            let source_path = self.vault_path.join(&clean_note_rel);
-            if !source_path.exists() || !source_path.is_file() {
-                errors.push(json!({
-                    "source": note_rel,
-                    "error": "El archivo origen no existe"
-                }));
-                continue;
-            }
-
-            let file_name = match source_path.file_name().and_then(|f| f.to_str()) {
-                Some(name) => name,
+        for source_rel in notes {
+            let clean_src = source_rel.trim_matches('/').replace('\\', "/");
+            let file_name = match clean_src.rsplit('/').next() {
+                Some(f) => f,
                 None => {
-                    errors.push(json!({
-                        "source": note_rel,
-                        "error": "Nombre de archivo inválido"
-                    }));
+                    errors.push(json!({ "source": source_rel, "error": "Ruta inválida" }));
                     continue;
                 }
             };
 
-            let dest_path = canonical_target.join(file_name);
-            let dest_rel = if clean_target_folder.is_empty() {
+            let src_path = self.vault_path.join(&clean_src);
+            let target_rel = if clean_target.is_empty() {
                 file_name.to_string()
             } else {
-                format!("{}/{}", clean_target_folder, file_name)
+                format!("{}/{}", clean_target, file_name)
             };
+            let dst_path = self.vault_path.join(&target_rel);
 
-            if source_path == dest_path {
-                moved.push(json!({
-                    "source": note_rel,
-                    "destination": dest_rel,
-                    "status": "already_at_destination"
-                }));
+            if !src_path.exists() {
+                errors.push(json!({ "source": source_rel, "error": "Archivo origen no existe" }));
                 continue;
             }
 
-            if dest_path.exists() && !overwrite {
-                errors.push(json!({
-                    "source": note_rel,
-                    "destination": dest_rel,
-                    "error": "Ya existe un archivo con ese nombre en el destino y overwrite=false"
-                }));
+            if dst_path.exists() && !overwrite {
+                errors.push(json!({ "source": source_rel, "error": "Ya existe un archivo en destino" }));
                 continue;
             }
 
-            match std::fs::rename(&source_path, &dest_path) {
+            match std::fs::rename(&src_path, &dst_path) {
                 Ok(_) => {
-                    moved.push(json!({
-                        "source": note_rel,
-                        "destination": dest_rel,
-                        "status": "moved"
+                    moved_success.push(json!({
+                        "source": clean_src,
+                        "destination": target_rel,
                     }));
+
+                    if update_wikilinks {
+                        // Reescritura simple de wikilinks para este archivo
+                        let old_stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
+                        let extensions = vec!["md".to_string(), "markdown".to_string()];
+                        if let Ok(all_notes) = self.note_repository.list_notes(&self.vault_path, &extensions) {
+                            for other in all_notes {
+                                if other.relative_path.as_str() == target_rel { continue; }
+                                if let Ok(mut note_to_patch) = self.note_repository.read_note(&self.vault_path, &other.relative_path) {
+                                    if note_to_patch.content.contains(&format!("[[{}]]", old_stem)) || note_to_patch.content.contains(&format!("[[{}]]", clean_src)) {
+                                        let updated = note_to_patch.content
+                                            .replace(&format!("[[{}]]", clean_src), &format!("[[{}]]", target_rel))
+                                            .replace(&format!("[[{}]]", old_stem), &format!("[[{}]]", target_rel));
+                                        note_to_patch.content = updated;
+                                        let _ = self.note_repository.save_note(&self.vault_path, &note_to_patch);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 Err(e) => {
-                    errors.push(json!({
-                        "source": note_rel,
-                        "destination": dest_rel,
-                        "error": format!("Fallo al mover archivo: {}", e)
-                    }));
+                    errors.push(json!({ "source": source_rel, "error": e.to_string() }));
                 }
             }
         }
 
-        let is_partial_or_full_error = !errors.is_empty() && moved.is_empty();
         let payload = json!({
-            "target_folder": if clean_target_folder.is_empty() { "/" } else { &clean_target_folder },
-            "total_requested": notes.len(),
-            "moved_count": moved.len(),
-            "moved": moved,
+            "moved_count": moved_success.len(),
+            "moved": moved_success,
+            "error_count": errors.len(),
             "errors_count": errors.len(),
             "errors": errors,
         });
 
         match serde_json::to_string_pretty(&payload) {
-            Ok(text) => {
-                if is_partial_or_full_error {
-                    McpCallToolResult::error(text)
-                } else {
-                    McpCallToolResult::text(text)
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar move_notes: {}", e)),
+        }
+    }
+
+    fn execute_get_backlinks_and_relations(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+
+        let extensions = vec!["md".to_string(), "markdown".to_string()];
+        let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
+            Ok(notes) => notes,
+            Err(e) => return McpCallToolResult::error(format!("Error al listar notas: {}", e)),
+        };
+
+        let target_normalized = rel_path_str.trim_start_matches('/').replace('\\', "/");
+        let target_stem = target_normalized
+            .rsplit('/')
+            .next()
+            .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
+            .unwrap_or(&target_normalized);
+
+        let mut target_tags: HashSet<String> = HashSet::new();
+        let mut backlinks = Vec::new();
+        let mut outlinks = Vec::new();
+        let mut all_note_tags: HashMap<String, HashSet<String>> = HashMap::new();
+        let all_note_paths: HashSet<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
+
+        for note in &all_notes {
+            let n_path = note.relative_path.as_str();
+            let full_note = match self.note_repository.read_note(&self.vault_path, &note.relative_path) {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+
+            let note_tags_set: HashSet<String> = full_note
+                .frontmatter
+                .as_ref()
+                .map(|fm| fm.tags.iter().map(|t| t.to_lowercase()).collect())
+                .unwrap_or_default();
+
+            if n_path == target_normalized {
+                target_tags = note_tags_set.clone();
+            }
+            all_note_tags.insert(n_path.to_string(), note_tags_set);
+
+            let wikilinks = extract_wikilinks(&full_note.content);
+            let mut links_to_target = false;
+            let mut matching_snippet = String::new();
+
+            for wl in wikilinks {
+                let (norm_target, _) = normalize_link_target(&wl.target);
+                if norm_target == target_normalized
+                    || norm_target == format!("{}.md", target_stem)
+                    || wl.target.eq_ignore_ascii_case(target_stem)
+                {
+                    links_to_target = true;
+                    // Extraer snippet de contexto de la línea
+                    for line in full_note.content.lines() {
+                        if line.contains(&format!("[[{}]]", wl.target)) || line.contains(&wl.target) {
+                            matching_snippet = line.trim().to_string();
+                            break;
+                        }
+                    }
+                }
+
+                if n_path == target_normalized {
+                    let is_resolved = all_note_paths.contains(&norm_target) || all_note_paths.contains(&format!("{}.md", norm_target));
+                    outlinks.push(json!({
+                        "target": wl.target,
+                        "alias": wl.alias,
+                        "is_embed": wl.is_embed,
+                        "is_resolved": is_resolved,
+                    }));
                 }
             }
-            Err(e) => McpCallToolResult::error(format!("Error al serializar respuesta de move_notes: {}", e)),
+
+            if links_to_target && n_path != target_normalized {
+                backlinks.push(json!({
+                    "source_path": n_path,
+                    "title": note.title,
+                    "context_snippet": matching_snippet,
+                }));
+            }
+        }
+
+        // Similitud Jaccard de etiquetas (Top 5 vecinos)
+        let mut jaccard_neighbors = Vec::new();
+        if !target_tags.is_empty() {
+            for (other_path, other_tags) in &all_note_tags {
+                if other_path == &target_normalized || other_tags.is_empty() {
+                    continue;
+                }
+                let intersection = target_tags.intersection(other_tags).count();
+                let union = target_tags.union(other_tags).count();
+                if union > 0 && intersection > 0 {
+                    let score = (intersection as f64) / (union as f64);
+                    jaccard_neighbors.push((other_path.clone(), score));
+                }
+            }
+            jaccard_neighbors.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            jaccard_neighbors.truncate(5);
+        }
+
+        let neighbors_json: Vec<_> = jaccard_neighbors
+            .into_iter()
+            .map(|(p, s)| json!({ "path": p, "jaccard_score": (s * 100.0).round() / 100.0 }))
+            .collect();
+
+        let payload = json!({
+            "target_note": target_normalized,
+            "backlinks_count": backlinks.len(),
+            "backlinks": backlinks,
+            "outlinks_count": outlinks.len(),
+            "outlinks": outlinks,
+            "shared_tags_neighbors": neighbors_json,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+        }
+    }
+
+    fn execute_get_vault_git_status(&self) -> McpCallToolResult {
+        if let Some(ref git) = self.git_service {
+            match git.get_vault_status(&self.vault_path) {
+                Ok(status) => match serde_json::to_string_pretty(&status) {
+                    Ok(text) => McpCallToolResult::text(text),
+                    Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
+                },
+                Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
+            }
+        } else {
+            McpCallToolResult::error("El servicio Git no está disponible o la carpeta no es un repositorio.")
+        }
+    }
+
+    fn execute_read_pdf_document(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("outline_only");
+        let start_page = args.get("start_page").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+        let end_page = args.get("end_page").and_then(|v| v.as_u64()).unwrap_or(start_page as u64 + 4) as usize;
+        let end_page = end_page.min(start_page + 4); // Límite estricto: máximo 5 páginas
+        let search_query = args.get("search_query").and_then(|v| v.as_str());
+
+        let pdf_path = self.vault_path.join(rel_path_str);
+        if !pdf_path.exists() {
+            return McpCallToolResult::error(format!("El archivo PDF '{}' no existe", rel_path_str));
+        }
+
+        let bytes = match std::fs::read(&pdf_path) {
+            Ok(b) => b,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer PDF: {}", e)),
+        };
+
+        match mode {
+            "pages" => {
+                match pdf_extractor::extract_pdf_page_range(&bytes, start_page, end_page, 20_000) {
+                    Ok(res) => serde_json::to_string_pretty(&res)
+                        .map(McpCallToolResult::text)
+                        .unwrap_or_else(|e| McpCallToolResult::error(e.to_string())),
+                    Err(err) => McpCallToolResult::error(err),
+                }
+            }
+            "search" => {
+                let query = match search_query {
+                    Some(q) => q,
+                    None => return McpCallToolResult::error("El argumento 'search_query' es obligatorio en mode='search'"),
+                };
+                match pdf_extractor::search_pdf_content(&bytes, query, 20) {
+                    Ok(matches) => {
+                        let payload = json!({
+                            "relative_path": rel_path_str,
+                            "query": query,
+                            "matches_count": matches.len(),
+                            "matches": matches,
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+                    }
+                    Err(err) => McpCallToolResult::error(err),
+                }
+            }
+            _ => {
+                // "outline_only"
+                match pdf_extractor::extract_pdf_page_range(&bytes, 1, 1, 100) {
+                    Ok(res) => {
+                        let payload = json!({
+                            "relative_path": rel_path_str,
+                            "total_pages": res.total_pages,
+                            "file_size_bytes": bytes.len(),
+                        });
+                        serde_json::to_string_pretty(&payload)
+                            .map(McpCallToolResult::text)
+                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
+                    }
+                    Err(err) => McpCallToolResult::error(err),
+                }
+            }
+        }
+    }
+
+    fn execute_extract_note_diagrams(&self, args: &Value) -> McpCallToolResult {
+        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
+            Some(p) => p,
+            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        };
+        let diagram_type = args.get("diagram_type").and_then(|v| v.as_str()).unwrap_or("all");
+
+        let relative_path = match NoteRelativePath::new(rel_path_str) {
+            Ok(p) => p,
+            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        };
+
+        // Si es archivo directo .d2 o .mmd
+        if rel_path_str.ends_with(".d2") || rel_path_str.ends_with(".mmd") {
+            let full_path = self.vault_path.join(rel_path_str);
+            let content = match std::fs::read_to_string(&full_path) {
+                Ok(c) => c,
+                Err(e) => return McpCallToolResult::error(format!("Error al leer archivo de diagrama: {}", e)),
+            };
+            let kind = if rel_path_str.ends_with(".d2") { "d2" } else { "mermaid" };
+            let payload = json!({
+                "relative_path": rel_path_str,
+                "is_dedicated_file": true,
+                "diagrams": [{
+                    "type": kind,
+                    "start_line": 1,
+                    "end_line": content.lines().count(),
+                    "code": content,
+                }],
+            });
+            return serde_json::to_string_pretty(&payload)
+                .map(McpCallToolResult::text)
+                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
+        }
+
+        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        };
+
+        let lines: Vec<&str> = note.content.lines().collect();
+        let mut diagrams = Vec::new();
+        let mut in_block = false;
+        let mut current_type = "";
+        let mut start_l = 0;
+        let mut block_lines = Vec::new();
+
+        for (idx, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            if !in_block {
+                if trimmed.starts_with("```mermaid") {
+                    in_block = true;
+                    current_type = "mermaid";
+                    start_l = idx + 1;
+                    block_lines.clear();
+                } else if trimmed.starts_with("```d2") {
+                    in_block = true;
+                    current_type = "d2";
+                    start_l = idx + 1;
+                    block_lines.clear();
+                }
+            } else if trimmed.starts_with("```") {
+                in_block = false;
+                let matches_filter = diagram_type == "all" || diagram_type == current_type;
+                if matches_filter {
+                    diagrams.push(json!({
+                        "type": current_type,
+                        "start_line": start_l,
+                        "end_line": idx + 1,
+                        "code": block_lines.join("\n"),
+                    }));
+                }
+            } else {
+                block_lines.push(*line);
+            }
+        }
+
+        let payload = json!({
+            "relative_path": rel_path_str,
+            "total_diagrams": diagrams.len(),
+            "diagrams": diagrams,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error al serializar diagramas: {}", e)),
         }
     }
 

@@ -63,6 +63,8 @@ quick-xml = "0.37"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 lopdf = "0.34"
 serde_yaml = "0.9.34"
+sha2 = "0.10"
+similar = { version = "2.6", default-features = false, features = ["text"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "2.2.0"

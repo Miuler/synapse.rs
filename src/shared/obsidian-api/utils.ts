@@ -446,3 +446,69 @@ export function setIcon(el: HTMLElement, id: string): void {
     el.innerHTML = svg;
   }
 }
+
+export interface Debouncer<Args extends any[], ReturnVal = void> {
+  (...args: Args): ReturnVal;
+  cancel(): void;
+  finish(): ReturnVal | void;
+}
+
+/**
+ * Control de flujo temporal (debounce) compatible con la API canónica de Obsidian.
+ * Pospone la ejecución del callback hasta que haya transcurrido `timeout` ms de inactividad.
+ * Si `resetTimer` es true, cada llamada reinicia el temporizador; si es false, respeta la primera llamada (throttle-like).
+ */
+export function debounce<Args extends any[], ReturnVal = void>(
+  cb: (...args: Args) => ReturnVal,
+  timeout = 0,
+  resetTimer = false
+): Debouncer<Args, ReturnVal> {
+  let timerId: any = null;
+  let lastArgs: Args | null = null;
+  let lastThis: any = null;
+  let lastResult: any;
+
+  function invoke() {
+    timerId = null;
+    if (lastArgs) {
+      lastResult = cb.apply(lastThis, lastArgs);
+      lastArgs = null;
+      lastThis = null;
+    }
+  }
+
+  const debounced = function (this: any, ...args: Args): any {
+    lastArgs = args;
+    lastThis = this;
+
+    if (timerId !== null) {
+      if (resetTimer) {
+        clearTimeout(timerId);
+        timerId = setTimeout(invoke, timeout);
+      }
+    } else {
+      timerId = setTimeout(invoke, timeout);
+    }
+
+    return lastResult;
+  } as Debouncer<Args, ReturnVal>;
+
+  debounced.cancel = () => {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+    lastArgs = null;
+    lastThis = null;
+  };
+
+  debounced.finish = () => {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+      invoke();
+    }
+    return lastResult;
+  };
+
+  return debounced;
+}

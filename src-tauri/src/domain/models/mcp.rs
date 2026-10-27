@@ -109,10 +109,22 @@ pub struct McpInitializeResult {
     pub server_info: McpServerInfo,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct McpToolAnnotations {
+    #[serde(rename = "readOnlyHint", skip_serializing_if = "Option::is_none")]
+    pub read_only_hint: Option<bool>,
+    #[serde(rename = "destructiveHint", skip_serializing_if = "Option::is_none")]
+    pub destructive_hint: Option<bool>,
+    #[serde(rename = "idempotentHint", skip_serializing_if = "Option::is_none")]
+    pub idempotent_hint: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpTool {
     pub name: String,
     pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<McpToolAnnotations>,
     #[serde(rename = "inputSchema")]
     pub input_schema: Value,
 }

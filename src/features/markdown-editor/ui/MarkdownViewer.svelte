@@ -36,6 +36,7 @@
     viewMode?: MarkdownViewMode;
     isActive?: boolean;
     scrollToTerms?: string[];
+    editorExtensions?: any[];
     onNavigate?: (path: string) => void;
     onChange?: (markdown: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
@@ -50,6 +51,7 @@
     viewMode = 'live',
     isActive = true,
     scrollToTerms = [],
+    editorExtensions = [],
     onNavigate,
     onChange,
     onSelectionChange,
@@ -65,6 +67,7 @@
   const viewModeCompartment = new Compartment();
   const filePathCompartment = new Compartment();
   const onNavigateCompartment = new Compartment();
+  const pluginExtensionsCompartment = new Compartment();
 
   let readingViewRef = $state<any>(null);
 
@@ -701,6 +704,7 @@
           vimCompartment.of(vimMode ? vim() : []),
           readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
           viewModeCompartment.of(getActiveExtensions(viewMode)),
+          pluginExtensionsCompartment.of(editorExtensions || []),
           basicSetup,
           markdown({ codeLanguages: [mermaidLanguageDescription] }),
           wikilinkAutocomplete,
@@ -806,6 +810,20 @@
       editorView.dispatch({
         effects: onNavigateCompartment.reconfigure(onNavigateFacet.of(nav || (() => {}))),
       });
+    }
+  });
+
+  // Reaccionar a cambios en extensiones registradas por plugins comunitarios
+  $effect(() => {
+    const exts = editorExtensions;
+    if (editorView) {
+      try {
+        editorView.dispatch({
+          effects: pluginExtensionsCompartment.reconfigure(exts || []),
+        });
+      } catch (e) {
+        console.warn('Error al actualizar extensiones de plugins en CodeMirror:', e);
+      }
     }
   });
 

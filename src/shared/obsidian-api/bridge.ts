@@ -59,6 +59,7 @@ import {
   addIcon,
   getIcon,
   setIcon,
+  debounce,
 } from './utils';
 import { createDiv, createEl, createSpan, empty } from './dom';
 import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
@@ -169,6 +170,7 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     createDiv,
     createSpan,
     empty,
+    debounce,
   };
 }
 
@@ -221,6 +223,8 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
   target.ea = ea;
 
   const bundle = getObsidianBundle(app);
+  target.obsidian = bundle;
+  target.debounce = debounce;
 
   const prevRequire = target.require;
   target.require = function (moduleId: string) {

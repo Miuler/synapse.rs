@@ -45,6 +45,108 @@ pub fn extract_pdf_text(
     Ok(text)
 }
 
+/// Extrae información detallada de un PDF: páginas totales, metadatos y texto por páginas.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PdfPageSnippet {
+    pub page: u32,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PdfInspectionResult {
+    pub total_pages: usize,
+    pub pages: Vec<PdfPageSnippet>,
+}
+
+/// Extrae texto acotado entre `start_page` y `end_page` (base 1, inclusive).
+pub fn extract_pdf_page_range(
+    bytes: &[u8],
+    start_page: usize,
+    end_page: usize,
+    max_chars_per_page: usize,
+) -> Result<PdfInspectionResult, String> {
+    let doc = Document::load_mem(bytes)
+        .map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+
+    let pages_map = doc.get_pages();
+    let total_pages = pages_map.len();
+    let mut sorted_page_nums: Vec<u32> = pages_map.keys().copied().collect();
+    sorted_page_nums.sort_unstable();
+
+    let start = start_page.max(1);
+    let end = end_page.min(total_pages).max(start);
+
+    let mut snippets = Vec::new();
+
+    for &page_num in sorted_page_nums.iter() {
+        let p_idx = page_num as usize;
+        if p_idx >= start && p_idx <= end {
+            let page_text = doc.extract_text(&[page_num]).unwrap_or_default();
+            let mut cleaned = String::with_capacity(page_text.len().min(max_chars_per_page));
+            for word in page_text.split_whitespace() {
+                if word.len() > 80 { continue; }
+                if !cleaned.is_empty() { cleaned.push(' '); }
+                cleaned.push_str(word);
+                if cleaned.len() >= max_chars_per_page {
+                    cleaned.truncate(max_chars_per_page);
+                    break;
+                }
+            }
+            snippets.push(PdfPageSnippet {
+                page: page_num,
+                text: cleaned,
+            });
+        }
+    }
+
+    Ok(PdfInspectionResult {
+        total_pages,
+        pages: snippets,
+    })
+}
+
+/// Busca una palabra o frase clave dentro de todas las páginas del PDF y devuelve las coincidencias con snippets.
+pub fn search_pdf_content(
+    bytes: &[u8],
+    query: &str,
+    max_results: usize,
+) -> Result<Vec<PdfPageSnippet>, String> {
+    let doc = Document::load_mem(bytes)
+        .map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+
+    let query_lower = query.to_lowercase();
+    let pages_map = doc.get_pages();
+    let mut sorted_page_nums: Vec<u32> = pages_map.keys().copied().collect();
+    sorted_page_nums.sort_unstable();
+
+    let mut matches = Vec::new();
+
+    for &page_num in sorted_page_nums.iter() {
+        let page_text = doc.extract_text(&[page_num]).unwrap_or_default();
+        if page_text.to_lowercase().contains(&query_lower) {
+            // Generar un snippet contextual
+            let snippet = page_text
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            let truncated = if snippet.len() > 300 {
+                format!("{}...", &snippet[..300])
+            } else {
+                snippet
+            };
+            matches.push(PdfPageSnippet {
+                page: page_num,
+                text: truncated,
+            });
+            if matches.len() >= max_results {
+                break;
+            }
+        }
+    }
+
+    Ok(matches)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

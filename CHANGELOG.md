@@ -9,6 +9,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Evolución del Catálogo Unificado de Herramientas MCP para Synapse**:
+  - **Catálogo de 14 Herramientas de Precisión Quirúrgica y Multimodalidad**:
+    - **Control Optimista de Concurrencia (OCC) y Hashing Criptográfico**: Incorporación de `calculate_content_hash` con SHA-256 (`sha256:<hex>`) en `read_note`, `write_note`, `patch_note`, `append_to_note` y `update_note_metadata` para prevenir sobreescrituras ciegas entre agentes y la UI de edición.
+    - **`read_note` Extendido**: Modos `full`, `chunk` (rango acotado con `start_line` y `line_count`), `section` (extracción aislada de encabezados) y `metadata_only`. Generación de Tabla de Contenidos (TOC) con números de línea, conteo de bloques `mermaid`/`d2`, estimación de tokens (`estimated_tokens`) y prefijo opcional de números de línea (`include_line_numbers`).
+    - **`write_note` Robusto**: Título opcional conservando metadatos OKF preexistentes, freno anti-truncamiento (>150 líneas y >40% de reducción), validación `expected_hash` y previsualización con `dry_run` generando `unified_diff`.
+    - **`patch_note` (Nuevo)**: Edición quirúrgica de fragmentos con reemplazo atómico, anclaje difuso tolerante a desfases, control de concurrencia OCC y generación de diffs unificados (`similar`).
+    - **`search_in_note` (Nuevo)**: Grep contextual dentro de una nota que retorna número de línea, coincidencia y líneas de contexto circundantes (`context_lines`).
+    - **`append_to_note` (Nuevo)**: Inserción directa al final del documento o en secciones de encabezado específicas (`start_of_section` o `end_of_section`).
+    - **`update_note_metadata` (Nuevo)**: Mutación atómica exclusiva de frontmatter YAML (añadir/quitar etiquetas sin duplicados, actualizar título, aliases y propiedades personalizadas) preservando el cuerpo intacto.
+    - **`read_pdf_document` (Nuevo)**: Inspección de documentos PDF con `lopdf` (modos `outline_only`, lectura por rango de páginas con límite estricto de 5 páginas para proteger la ventana de contexto, y búsqueda interna `search`).
+    - **`extract_note_diagrams` (Nuevo)**: Extracción especializada de diagramas Mermaid y D2lang con líneas de inicio/fin o lectura directa de archivos `.d2` y `.mmd`.
+    - **`get_backlinks_and_relations` Enriquecido**: Inclusión de snippets contextuales de la línea que contiene el enlace, detección de enlaces huérfanos/no resueltos (`unresolved_links`) y cálculo de similitud Jaccard de etiquetas para el top 5 de notas conceptualmente afines (`shared_tags_neighbors`).
+    - **`move_notes` con Reescritura de Wikilinks**: Reescritura automática de referencias `[[...]]` en la bóveda cuando `update_wikilinks: true`.
+    - **Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint` e `idempotentHint` para gobernanza segura Human-in-the-Loop en clientes ACP y UI.
+
+
 - **Menú Contextual y Estado Git en Breadcrumbs de Archivo**:
   - **Indicadores Visuales de Estado Git en Breadcrumbs**:
     - Se muestran insignias con código de colores según el estado de Git en la barra de ruta (`BreadCrumb.svelte`) junto al archivo activo:

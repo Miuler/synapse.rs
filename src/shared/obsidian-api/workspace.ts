@@ -15,6 +15,9 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   private readonly viewCreators: Map<string, (leaf: WorkspaceLeaf) => View> = new Map();
   private readonly extensionViewTypes: Map<string, string> = new Map();
   private readonly leaves: Set<WorkspaceLeaf> = new Set();
+  private readonly rightLeaves: Set<WorkspaceLeaf> = new Set();
+  private readonly leftLeaves: Set<WorkspaceLeaf> = new Set();
+  private readonly editorExtensions: any[] = [];
   activeLeaf: WorkspaceLeaf | null = null;
   layoutReady = true;
 
@@ -145,10 +148,66 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   }
 
   /**
+   * Obtiene o crea una hoja de trabajo (WorkspaceLeaf) ubicada en el panel lateral derecho.
+   * Si `split` es falso y ya existe una hoja en el panel derecho, la reutiliza.
+   */
+  getRightLeaf(split?: boolean): WorkspaceLeaf {
+    if (!split && this.rightLeaves.size > 0) {
+      const existing = this.rightLeaves.values().next().value;
+      if (existing) return existing;
+    }
+    const leaf = this.getLeaf(true);
+    this.rightLeaves.add(leaf);
+    return leaf;
+  }
+
+  /**
+   * Obtiene o crea una hoja de trabajo (WorkspaceLeaf) ubicada en el panel lateral izquierdo.
+   * Si `split` es falso y ya existe una hoja en el panel izquierdo, la reutiliza.
+   */
+  getLeftLeaf(split?: boolean): WorkspaceLeaf {
+    if (!split && this.leftLeaves.size > 0) {
+      const existing = this.leftLeaves.values().next().value;
+      if (existing) return existing;
+    }
+    const leaf = this.getLeaf(true);
+    this.leftLeaves.add(leaf);
+    return leaf;
+  }
+
+  /**
    * Crea una nueva hoja dividiendo un panel existente.
    */
   createLeafBySplit(_leaf: WorkspaceLeaf, _direction?: 'horizontal' | 'vertical', _before?: boolean): WorkspaceLeaf {
     return this.getLeaf(true);
+  }
+
+  /**
+   * Registra una extensión de CodeMirror 6 aplicable a los editores de Markdown.
+   * Dispara el evento 'editor-extensions-change'.
+   */
+  registerEditorExtension(extension: any): void {
+    this.editorExtensions.push(extension);
+    this.trigger('editor-extensions-change', this.editorExtensions);
+  }
+
+  /**
+   * Desregistra una extensión de CodeMirror 6 previamente registrada.
+   * Dispara el evento 'editor-extensions-change'.
+   */
+  unregisterEditorExtension(extension: any): void {
+    const index = this.editorExtensions.indexOf(extension);
+    if (index !== -1) {
+      this.editorExtensions.splice(index, 1);
+      this.trigger('editor-extensions-change', this.editorExtensions);
+    }
+  }
+
+  /**
+   * Retorna todas las extensiones de CodeMirror 6 registradas actualmente.
+   */
+  getEditorExtensions(): any[] {
+    return [...this.editorExtensions];
   }
 
   /**
@@ -184,6 +243,8 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
    */
   removeLeaf(leaf: WorkspaceLeaf): void {
     this.leaves.delete(leaf);
+    this.rightLeaves.delete(leaf);
+    this.leftLeaves.delete(leaf);
     if (this.activeLeaf === leaf) {
       this.activeLeaf = this.leaves.values().next().value || null;
       this.trigger('active-leaf-change', this.activeLeaf);
