@@ -14,12 +14,58 @@
     filePath?: string | null;
     scrollToTerms?: string[];
     onNavigate?: (path: string) => void;
+    isActive?: boolean;
+    vimMode?: boolean;
   }
 
-  let { content = '', filePath = null, scrollToTerms = [], onNavigate }: Props = $props();
+  let {
+    content = '',
+    filePath = null,
+    scrollToTerms = [],
+    onNavigate,
+    isActive = true,
+    vimMode = false,
+  }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
+
+  export function focus() {
+    tick().then(() => {
+      requestAnimationFrame(() => {
+        autoFocus();
+      });
+    });
+  }
+
+  function autoFocus() {
+    if (!containerRef || !isActive) return;
+    const activeEl = document.activeElement;
+    if (activeEl && (containerRef.contains(activeEl) || activeEl.closest('[role="dialog"]'))) return;
+    containerRef.focus({ preventScroll: true });
+  }
+
+  $effect(() => {
+    const active = isActive;
+    if (active) {
+      tick().then(() => {
+        requestAnimationFrame(() => {
+          autoFocus();
+        });
+      });
+    }
+  });
+
+  $effect(() => {
+    if (!containerRef) return;
+    const ro = new ResizeObserver(() => {
+      if (isActive && containerRef && containerRef.clientHeight > 0) {
+        autoFocus();
+      }
+    });
+    ro.observe(containerRef);
+    return () => ro.disconnect();
+  });
 
   // Estado del panel de búsqueda en modo lectura
   let showSearchBar = $state(false);
@@ -42,6 +88,7 @@
     showSearchBar = false;
     searchQuery = '';
     clearHighlights();
+    containerRef?.focus({ preventScroll: true });
   }
 
   function clearHighlights() {
@@ -188,12 +235,142 @@
     }
   }
 
+  let lastGPressTime = 0;
+
   function handleWrapperKeyDown(e: KeyboardEvent) {
     const isFind = (e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F');
     if (isFind) {
       e.preventDefault();
       e.stopPropagation();
       triggerSearch();
+      return;
+    }
+
+    // Si el usuario está interactuando con un input, textarea o contenido editable, no interceptar teclas
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      (e.target as HTMLElement)?.isContentEditable
+    ) {
+      return;
+    }
+
+    if (!containerRef) return;
+
+    // Atajos estilo Vim en modo lectura:
+    // 1. Búsqueda con '/' estilo Vim
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerSearch();
+      return;
+    }
+
+    // 2. Siguiente / anterior coincidencia con 'n' / 'N' si hay búsqueda activa
+    if (searchQuery && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === 'n') {
+        e.preventDefault();
+        findNext();
+        return;
+      }
+      if (e.key === 'N') {
+        e.preventDefault();
+        findPrevious();
+        return;
+      }
+    }
+
+    // 3. Desplazamiento vertical elemental ('j' para bajar, 'k' para subir)
+    if (e.key === 'j' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollBy({ top: 60, behavior: 'auto' });
+      return;
+    }
+    if (e.key === 'k' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollBy({ top: -60, behavior: 'auto' });
+      return;
+    }
+
+    // 4. Desplazamiento de media página ('d' / 'Ctrl+d' para bajar, 'u' / 'Ctrl+u' para subir)
+    const isHalfDown =
+      ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) ||
+      (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'd');
+    if (isHalfDown) {
+      e.preventDefault();
+      containerRef.scrollBy({
+        top: Math.max(100, containerRef.clientHeight * 0.5),
+        behavior: 'smooth',
+      });
+      return;
+    }
+
+    const isHalfUp =
+      ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) ||
+      (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'u');
+    if (isHalfUp) {
+      e.preventDefault();
+      containerRef.scrollBy({
+        top: -Math.max(100, containerRef.clientHeight * 0.5),
+        behavior: 'smooth',
+      });
+      return;
+    }
+
+    // 5. Desplazamiento línea a línea con Ctrl+e y Ctrl+y
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      containerRef.scrollBy({ top: 60, behavior: 'auto' });
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      containerRef.scrollBy({ top: -60, behavior: 'auto' });
+      return;
+    }
+
+    // 6. 'gg' para ir al inicio del documento
+    if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const now = Date.now();
+      if (now - lastGPressTime < 500) {
+        e.preventDefault();
+        containerRef.scrollTo({ top: 0, behavior: 'smooth' });
+        lastGPressTime = 0;
+      } else {
+        lastGPressTime = now;
+      }
+      return;
+    }
+
+    // 7. 'G' para ir al final del documento
+    if (e.key === 'G' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollTo({ top: containerRef.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+
+    // 8. Desplazamiento horizontal ('h' izquierda, 'l' derecha)
+    if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollBy({ left: -60, behavior: 'auto' });
+      return;
+    }
+    if (e.key === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollBy({ left: 60, behavior: 'auto' });
+      return;
+    }
+
+    // 9. '0' al inicio horizontal, '$' al final horizontal
+    if (e.key === '0' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollTo({ left: 0, behavior: 'smooth' });
+      return;
+    }
+    if (e.key === '$' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      containerRef.scrollTo({ left: containerRef.scrollWidth, behavior: 'smooth' });
+      return;
     }
   }
 
@@ -459,6 +636,9 @@
       renderImages();
       if (scrollToTerms && scrollToTerms.length > 0) {
         scrollToMatch(scrollToTerms);
+      }
+      if (isActive) {
+        autoFocus();
       }
     }).catch((err) => {
       console.error('Error resolviendo wikilinks en modo lectura:', err);

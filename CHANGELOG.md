@@ -9,6 +9,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Navegación con Atajos de Vim en Modo Lectura (Reading Mode)**:
+  - Soporte completo para desplazarse por notas Markdown en modo lectura utilizando teclas de movimiento estándar de Vim / *pager*:
+    - **Desplazamiento vertical**: <kbd>j</kbd> (bajar) y <kbd>k</kbd> (subir) con paso continuo sin retardo al mantener la tecla pulsada; <kbd>d</kbd> / <kbd>Ctrl+D</kbd> (media página abajo) y <kbd>u</kbd> / <kbd>Ctrl+U</kbd> (media página arriba) con scroll suave; <kbd>Ctrl+E</kbd> / <kbd>Ctrl+Y</kbd> (desplazamiento línea a línea).
+    - **Salto al inicio y fin**: <kbd>gg</kbd> (doble pulsación rápida de `g`) para desplazarse al inicio del documento y <kbd>G</kbd> (<kbd>Shift+G</kbd>) para ir directamente al final.
+    - **Desplazamiento horizontal**: <kbd>h</kbd> (izquierda), <kbd>l</kbd> (derecha), <kbd>0</kbd> (inicio horizontal) y <kbd>$</kbd> (fin horizontal).
+    - **Búsqueda interactiva estilo Vim**: <kbd>/</kbd> para abrir la barra de búsqueda en el documento, <kbd>n</kbd> / <kbd>N</kbd> para navegar entre coincidencias y <kbd>Escape</kbd> para cerrar la búsqueda devolviendo el foco inmediatamente al documento para continuar navegando.
+    - **Aislamiento seguro**: no se interceptan teclas cuando el usuario escribe en un campo de texto, `<input>` o `<textarea>`.
+
+### Corregido
+
+- **Foco Automático en el Contenido Markdown al Cambiar de Pestaña**:
+  - Se corrigió la pérdida de foco al alternar pestañas (mediante clic en pestaña, atajos <kbd>Ctrl+Tab</kbd> / <kbd>Ctrl+PageDown</kbd> o desde QuickOpen): el foco se transfiere automáticamente al contenido principal de la nota (`.markdown-reading-wrapper` en modo lectura y `editorView` de CodeMirror en modo edición).
+  - Permite utilizar las flechas de teclado (<kbd>ArrowDown</kbd>, <kbd>ArrowUp</kbd>, <kbd>PageDown</kbd>, <kbd>PageUp</kbd>) inmediatamente sin necesidad de hacer clic manual con el ratón sobre el documento.
+  - Sincronización precisa con el ciclo de vida de Svelte 5 y `ResizeObserver` para otorgar el foco en el momento exacto en que la pestaña pasa de `display: none` (`.tab-pane.hidden`) a visible, respetando diálogos modales activos (`[role="dialog"]`).
+
+## [2026.10.27.01-alpha] - 2026-10-27
+
+### Añadido
+
 - **Soporte Multilenguaje (i18n) con Svelte 5 Runes**:
   - Implementación nativa de internacionalización en `src/shared/lib/i18n/` sin dependencias externas:
     - Diccionarios en español (`es.ts`) e inglés (`en.ts`) con tipado estricto en TypeScript (`TranslationKey`, `LocaleSchema`) y verificación de paridad de claves en tiempo de compilación.

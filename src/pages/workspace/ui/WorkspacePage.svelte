@@ -560,6 +560,11 @@
       vaultRepository.setNoteViewMode(activeTabPath, newMode);
       persistTabsState();
     }
+    tick().then(() => {
+      requestAnimationFrame(() => {
+        if (activeTabPath) markdownViewers[activeTabPath]?.focus();
+      });
+    });
   }
 
   function toggleMarkdownViewMode() {
@@ -876,6 +881,11 @@
     }
     recordTabVisit(path);
     persistTabsState();
+    tick().then(() => {
+      requestAnimationFrame(() => {
+        markdownViewers[path]?.focus();
+      });
+    });
   }
 
   function getExcalidrawViewerForTab(tabPath: string): ExcalidrawViewerType {
@@ -1353,6 +1363,11 @@
       vaultRepository.recordNoteOpened(path);
     }
     activeFocusedPane = 'right';
+    tick().then(() => {
+      requestAnimationFrame(() => {
+        markdownViewers[path]?.focus();
+      });
+    });
   }
 
   function closeSplitTab(path: string) {
@@ -1556,6 +1571,11 @@
       vaultRepository.setNoteViewMode(activeSplitTabPath, newMode);
       persistTabsState();
     }
+    tick().then(() => {
+      requestAnimationFrame(() => {
+        if (activeSplitTabPath) markdownViewers[activeSplitTabPath]?.focus();
+      });
+    });
   }
 
   function toggleSplitViewMode() {

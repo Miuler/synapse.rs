@@ -82,6 +82,15 @@
     return editorView;
   }
 
+  export function focus() {
+    if (viewMode === 'reading') {
+      readingViewRef?.focus();
+    } else if (editorView) {
+      editorView.requestMeasure();
+      editorView.focus();
+    }
+  }
+
   export function scrollToMatch(terms: string[]) {
     if (!terms || terms.length === 0) return;
     if (viewMode === 'reading') {
@@ -716,12 +725,16 @@
   }
 
   function focusEditorIfEditable() {
-    if (!editorView || !isActive || readOnly || viewMode === 'reading') return;
+    if (!editorView || !isActive || viewMode === 'reading') return;
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.closest('[role="dialog"]')) return;
     tick().then(() => {
-      if (editorView && containerRef && containerRef.clientHeight > 0 && !editorView.hasFocus) {
-        editorView.requestMeasure();
-        editorView.focus();
-      }
+      requestAnimationFrame(() => {
+        if (editorView && containerRef && containerRef.clientHeight > 0 && !editorView.hasFocus) {
+          editorView.requestMeasure();
+          editorView.focus();
+        }
+      });
     });
   }
 
@@ -744,6 +757,12 @@
     const ro = new ResizeObserver(() => {
       if (editorView && containerRef && containerRef.clientHeight > 0) {
         editorView.requestMeasure();
+        if (isActive && viewMode !== 'reading' && !editorView.hasFocus) {
+          const activeEl = document.activeElement;
+          if (!activeEl || !activeEl.closest('[role="dialog"]')) {
+            editorView.focus();
+          }
+        }
       }
     });
     ro.observe(containerRef);
@@ -804,15 +823,29 @@
         });
       }
     }
+    if (mode === 'reading') {
+      tick().then(() => {
+        requestAnimationFrame(() => {
+          readingViewRef?.focus();
+        });
+      });
+    }
   });
 
   // Reaccionar a la activación de la pestaña para otorgar el foco automáticamente
   $effect(() => {
     const active = isActive;
-    const ro = readOnly;
     const mode = viewMode;
-    if (active && !ro && mode !== 'reading' && editorView) {
-      focusEditorIfEditable();
+    if (active) {
+      tick().then(() => {
+        requestAnimationFrame(() => {
+          if (mode === 'reading') {
+            readingViewRef?.focus();
+          } else if (editorView) {
+            focusEditorIfEditable();
+          }
+        });
+      });
     }
   });
 
@@ -842,7 +875,7 @@
 
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {onNavigate} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {onNavigate} {isActive} {vimMode} />
   {/if}
   <div
     class="editor-container"
