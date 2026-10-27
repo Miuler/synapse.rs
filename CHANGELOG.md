@@ -9,6 +9,20 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Búsqueda y Exploración por Etiquetas (#tags) en Quick Open (`Ctrl+O`)**:
+  - **Integración en Memoria RAM (`DashMap<NoteId, NoteMeta>`)**:
+    - Persistencia de `tags: Vec<CompactString>` directamente en la estructura caliente `NoteMeta`, extrayendo etiquetas automáticamente (tanto YAML frontmatter como hashtags `#tag` inline) durante la reconciliación y el monitoreo de cambios (`watcher`).
+    - Consumo de memoria ultra-reducido (< 1 MB de RAM para 10,000 notas) mediante `CompactString` inline sin asignaciones en heap para tags de hasta 24 bytes.
+    - `get_vault_tags()` y `get_notes_by_tag()` ahora resuelven en memoria en **< 0.5 ms** (eliminando I/O y lecturas sincrónicas a disco).
+  - **Indexación Multihilo en `nucleo`**:
+    - Inyección de etiquetas en el motor difuso `nucleo` para permitir coincidencias a 60 FPS al buscar por nombre de tag con o sin el símbolo `#`.
+    - Soporte completo a sub-etiquetas jerárquicas con coincidencia flexible (`linux/cachyos` responde a consultas como `#linux` o `#cachyos`).
+    - Búsqueda combinada de texto y etiqueta (ej. `kernel #cachyos`).
+  - **Experiencia de Usuario en Frontend (`QuickOpen.svelte`)**:
+    - Modo de exploración de etiquetas: al escribir `#`, sugiere la lista de tags disponibles con conteo dinámico de notas asociadas y autocompletado en un clic.
+    - Badges/pills de etiquetas interactivos en los resultados de búsqueda: permiten re-enfocar la consulta en una etiqueta específica al hacer clic.
+    - Indicador visual y badge `TAG` en la caja de búsqueda.
+
 - **Visualización de Frontmatter en Modo Lectura (Reading View)**:
   - **Panel de Propiedades Interactivo (`NoteProperties.svelte`)**:
     - Visualización limpia y estructurada de metadatos YAML en la parte superior del documento Markdown en modo lectura, evitando renderizar bloques de código o triples guiones crudos.

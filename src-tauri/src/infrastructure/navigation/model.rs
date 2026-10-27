@@ -30,6 +30,8 @@ pub struct NoteMeta {
     pub id: NoteId,
     pub path: CompactString,             // Ruta relativa normalizada
     pub title: CompactString,            // Título derivado del H1 o nombre de archivo
+    #[serde(default)]
+    pub tags: Vec<CompactString>,        // Tags normalizados (YAML frontmatter + hashtags inline)
     pub mtime_nanos: u128,               // Timestamp de modificación en nanosegundos (cuándo se editó)
     pub size_bytes: u64,                 // Tamaño en bytes para detección rápida de cambios
     #[serde(default)]

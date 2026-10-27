@@ -1,8 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { VaultItem } from '@entities/vault-item';
+  import type { VaultItem, TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
-  import { Search, TextSearch } from 'lucide-svelte';
+  import { Search, TextSearch, Tag } from 'lucide-svelte';
   import { FileIcon } from '@entities/file-type';
   import { SearchBox } from '@shared/ui/search-box';
   import {
@@ -141,7 +141,18 @@
     path: string;
     fileName: string;
     isRecent?: boolean;
+    tags?: string[];
   }
+
+  // Lista de tags de la bóveda para autocompletado y sugerencias
+  let vaultTags = $state<TagCountItem[]>([]);
+  let isTagMode = $derived(searchQuery.trim().startsWith('#') && !searchQuery.trim().includes(' '));
+  let tagSearchPrefix = $derived(isTagMode ? searchQuery.trim().slice(1).toLowerCase() : '');
+  let filteredTagSuggestions = $derived.by<TagCountItem[]>(() => {
+    if (!isTagMode) return [];
+    if (!tagSearchPrefix) return vaultTags.slice(0, 30);
+    return vaultTags.filter((t) => t.tag.toLowerCase().includes(tagSearchPrefix)).slice(0, 30);
+  });
 
   // Mapa indexado de vaultItems para búsquedas O(1) en vez de find() O(N)
   let vaultItemMap = $derived.by<Map<string, VaultItem>>(() => {
@@ -169,6 +180,7 @@
             path: path,
             fileName,
             isRecent,
+            tags: r.tags,
           };
         });
       }
@@ -307,7 +319,7 @@
     }
   });
 
-  // Obtener el total de archivos en memoria solo al abrir el diálogo
+  // Obtener el total de archivos y etiquetas en memoria solo al abrir el diálogo
   let wasOpenForCount = false;
   $effect(() => {
     const currentOpen = isOpen;
@@ -326,6 +338,11 @@
               matchedFiles = vaultItems.length;
             }
           }
+        });
+        vaultRepository.getVaultTags().then((tags) => {
+          vaultTags = tags;
+        }).catch(() => {
+          vaultTags = [];
         });
       });
     } else if (!currentOpen) {
@@ -527,14 +544,16 @@
         onkeydown={handleKeydownRoot}
       >
         <SearchBox
-          class={isFtsMode ? 'is-fts' : ''}
+          class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : ''}
           bind:value={searchQuery}
-          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : "Buscar archivo por nombre... (Ctrl+O, escribe '?' para contenido)"}
+          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : "Buscar archivo o tag... (Ctrl+O, escribe '?' para contenido, '#' para tags)"}
           loading={isFtsLoading}
         >
           {#snippet icon()}
             {#if isFtsMode}
               <TextSearch size={16} class="search-box-icon fts-active-icon" />
+            {:else if isTagMode}
+              <Tag size={16} class="search-box-icon tag-active-icon" />
             {:else}
               <Search size={16} class="search-box-icon" />
             {/if}
@@ -543,6 +562,8 @@
           {#snippet badge()}
             {#if isFtsMode}
               <span class="fts-indicator-badge">FTS</span>
+            {:else if isTagMode}
+              <span class="tag-indicator-badge">TAG</span>
             {/if}
           {/snippet}
         </SearchBox>
@@ -611,7 +632,26 @@
               {/each}
             {/if}
           {:else}
-            {#if isSearching}
+            {#if isTagMode && filteredTagSuggestions.length > 0 && fileList.length === 0}
+              <div class="tag-suggestions-header">
+                <Tag size={13} />
+                <span>Etiquetas disponibles ({filteredTagSuggestions.length})</span>
+              </div>
+              {#each filteredTagSuggestions as t}
+                <Command.Item
+                  class="palette-item tag-suggestion-item"
+                  value={`#${t.tag}`}
+                  forceMount={true}
+                  onSelect={() => {
+                    searchQuery = `#${t.tag} `;
+                  }}
+                >
+                  <Tag size={14} class="tag-icon" />
+                  <span class="tag-name">#{t.tag}</span>
+                  <span class="tag-count">{t.count} {t.count === 1 ? 'nota' : 'notas'}</span>
+                </Command.Item>
+              {/each}
+            {:else if isSearching}
               <div class="empty-state">Buscando...</div>
             {:else if fileList.length === 0}
               <div class="empty-state">No se encontraron archivos</div>
@@ -631,12 +671,28 @@
 
               <Command.Item
                 class="palette-item"
-                value={`${file.fileName} ${file.title} ${file.path}`}
+                value={`${file.fileName} ${file.title} ${file.path} ${(file.tags || []).join(' ')}`}
                 forceMount={true}
                 onSelect={() => selectFile(file.path)}
               >
                 <FileIcon path={file.path} name={file.fileName} size={15} class="file-icon" />
                 <span class="item-name">{file.fileName}</span>
+                {#if file.tags && file.tags.length > 0}
+                  <div class="item-tags-container">
+                    {#each file.tags as tag}
+                      <button
+                        type="button"
+                        class="item-tag-pill"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          searchQuery = `#${tag} `;
+                        }}
+                      >
+                        #{tag}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
                 <span class="item-path">
                   {file.path}{file.title && file.title !== file.fileName && file.title !== file.fileName.replace(/\.[^/.]+$/, '') ? ` · ${file.title}` : ''}
                 </span>
@@ -664,6 +720,8 @@
               {:else}
                 <span>Modo Full-Text (?...)</span>
               {/if}
+            {:else if isTagMode}
+              <span>Filtro de etiquetas (#tag) · {matchedFiles.toLocaleString()} notas</span>
             {:else if searchQuery.trim().length > 0}
               <span>{matchedFiles.toLocaleString()} de {totalFiles.toLocaleString()} archivos</span>
             {:else if totalFiles > 0}
@@ -1111,5 +1169,80 @@
     font-weight: 600;
     border-radius: 2px;
     padding: 0 1px;
+  }
+
+  /* Estilos para badges e indicadores de etiquetas */
+  :global(.quick-open-container .tag-indicator-badge) {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(130, 80, 223, 0.15);
+    color: var(--accent-purple, #8250df);
+    border: 1px solid rgba(130, 80, 223, 0.3);
+  }
+
+  :global(.quick-open-container .tag-active-icon) {
+    color: var(--accent-purple, #8250df);
+  }
+
+  .tag-suggestions-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted, #8c959f);
+  }
+
+  :global(.quick-open-container .tag-suggestion-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+  }
+
+  :global(.quick-open-container .tag-suggestion-item .tag-name) {
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+    font-family: var(--mono, monospace);
+    font-size: 13px;
+  }
+
+  :global(.quick-open-container .tag-suggestion-item .tag-count) {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted, #8c959f);
+  }
+
+  .item-tags-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+    flex-shrink: 0;
+  }
+
+  .item-tag-pill {
+    background: var(--bg-tertiary, #eaeef2);
+    color: var(--text-secondary, #656d76);
+    border: 1px solid var(--border-secondary, #d8dee4);
+    font-size: 10.5px;
+    font-family: var(--mono, monospace);
+    padding: 1px 6px;
+    border-radius: 10px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+
+  .item-tag-pill:hover {
+    background: var(--accent, #0969da);
+    color: #ffffff;
+    border-color: var(--accent, #0969da);
   }
 </style>

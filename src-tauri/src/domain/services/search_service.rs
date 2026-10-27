@@ -25,6 +25,10 @@ pub struct SearchResult {
     /// Timestamp en nanosegundos de cuándo se abrió por última vez
     #[serde(default)]
     pub last_opened_nanos: Option<u128>,
+
+    /// Etiquetas asociadas a la nota (YAML + inline hashtags)
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 }
 
 /// Puerto (Trait) del servicio de búsqueda difusa dentro de la Capa de Dominio.

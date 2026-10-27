@@ -24,6 +24,7 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             id: 1,
             path: CompactString::new("folder/note_one.md"),
             title: CompactString::new("First Note"),
+            tags: Vec::new(),
             mtime_nanos: 123456789,
             size_bytes: 42,
             created_nanos: Some(123450000),
@@ -41,6 +42,7 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
             id: 2,
             path: CompactString::new("note_two.md"),
             title: CompactString::new("Second Note"),
+            tags: Vec::new(),
             mtime_nanos: 987654321,
             size_bytes: 100,
             created_nanos: None,
@@ -106,6 +108,7 @@ fn test_populate_nucleo_and_matching() {
             id: 10,
             path: CompactString::new("rust_guide.md"),
             title: CompactString::new("Rust Programming Language"),
+            tags: Vec::new(),
             mtime_nanos: 1,
             size_bytes: 10,
             created_nanos: None,
@@ -123,6 +126,7 @@ fn test_populate_nucleo_and_matching() {
             id: 20,
             path: CompactString::new("svelte_ui.md"),
             title: CompactString::new("Svelte 5 Components"),
+            tags: Vec::new(),
             mtime_nanos: 2,
             size_bytes: 20,
             created_nanos: None,
@@ -172,6 +176,7 @@ fn test_cold_start_hydration_timing_sub_10ms() {
                 id: i,
                 path: CompactString::new(format!("notes/section_{}/note_{}.md", i % 10, i)),
                 title: CompactString::new(format!("Note Title #{} for Testing", i)),
+                tags: Vec::new(),
                 mtime_nanos: 1_000_000 + i as u128,
                 size_bytes: 500 + i as u64,
                 created_nanos: None,
@@ -301,6 +306,7 @@ fn test_debounce_persistence_worker() {
             id: 1,
             path: CompactString::new("debounce_note.md"),
             title: CompactString::new("Debounced Note"),
+            tags: Vec::new(),
             mtime_nanos: 12345,
             size_bytes: 678,
             created_nanos: None,
@@ -351,6 +357,7 @@ fn test_dashmap_directory_children_resolution() {
             id: 1,
             path: CompactString::new("root_note.md"),
             title: CompactString::new("Root Note"),
+            tags: Vec::new(),
             mtime_nanos: 1,
             size_bytes: 10,
             created_nanos: None,
@@ -368,6 +375,7 @@ fn test_dashmap_directory_children_resolution() {
             id: 2,
             path: CompactString::new("docs/intro.md"),
             title: CompactString::new("Intro"),
+            tags: Vec::new(),
             mtime_nanos: 2,
             size_bytes: 20,
             created_nanos: None,
@@ -385,6 +393,7 @@ fn test_dashmap_directory_children_resolution() {
             id: 3,
             path: CompactString::new("docs/advanced/tuning.md"),
             title: CompactString::new("Tuning"),
+            tags: Vec::new(),
             mtime_nanos: 3,
             size_bytes: 30,
             created_nanos: None,
@@ -563,6 +572,7 @@ fn test_search_large_vault_over_5000_notes() {
                 id: i as u32,
                 path,
                 title,
+                tags: Vec::new(),
                 mtime_nanos: 1000,
                 size_bytes: 50,
                 created_nanos: None,
@@ -1040,6 +1050,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             id: 1,
             path: CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"),
             title: CompactString::new("NOMBRE ARCHIVO"),
+            tags: Vec::new(),
             mtime_nanos: 100,
             size_bytes: 50,
             created_nanos: None,
@@ -1059,6 +1070,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             id: 2,
             path: CompactString::new("guias/Mi Nota.md"),
             title: CompactString::new("Mi Nota"),
+            tags: Vec::new(),
             mtime_nanos: 200,
             size_bytes: 80,
             created_nanos: None,
@@ -1076,6 +1088,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             id: 3,
             path: CompactString::new("assets/img/FILE.png"),
             title: CompactString::new("FILE"),
+            tags: Vec::new(),
             mtime_nanos: 300,
             size_bytes: 120,
             created_nanos: None,
@@ -1144,6 +1157,7 @@ fn test_duplicate_filenames_proximity_resolution() {
                 id,
                 path: CompactString::new(*p),
                 title: CompactString::new("foto"),
+                tags: Vec::new(),
                 mtime_nanos: 100,
                 size_bytes: 50,
                 created_nanos: None,
@@ -1179,6 +1193,7 @@ fn test_duplicate_filenames_proximity_resolution() {
     engine_sub.notes.insert(1, NoteMeta {
         path: CompactString::new("docs/foto.png"), // padre
         title: CompactString::new("foto"),
+        tags: Vec::new(),
         mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
         is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
         sync_state: NoteSyncState::Local,
@@ -1189,6 +1204,7 @@ fn test_duplicate_filenames_proximity_resolution() {
     engine_sub.notes.insert(2, NoteMeta {
         path: CompactString::new("docs/sub/adjuntos/foto.png"), // subcarpeta
         title: CompactString::new("foto"),
+        tags: Vec::new(),
         mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
         is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
         sync_state: NoteSyncState::Local,
@@ -1219,6 +1235,7 @@ fn test_get_note_meta_o1_and_streaming_files() {
             id: 42,
             path: CompactString::new("diagramas/esquema.excalidraw"),
             title: CompactString::new("Esquema General"),
+            tags: Vec::new(),
             mtime_nanos: 1700000000_000_000_000,
             size_bytes: 1024,
             created_nanos: Some(1690000000_000_000_000),
@@ -1355,6 +1372,25 @@ fn test_vault_tags_extraction_and_search() {
 
     let frontend_notes = engine.get_notes_by_tag("frontend");
     assert_eq!(frontend_notes, vec!["Note2.md"]);
+
+    // Búsqueda difusa y combinada en search_with_stats
+    // 1. Búsqueda por tag exacto o con prefijo '#'
+    let (matches_hash_rust, _, _) = engine.search_with_stats("#rust", 10);
+    assert_eq!(matches_hash_rust.len(), 2);
+
+    let (matches_hash_front, _, _) = engine.search_with_stats("#frontend", 10);
+    assert_eq!(matches_hash_front.len(), 1);
+    assert_eq!(matches_hash_front[0].path.as_str(), "Note2.md");
+
+    // 2. Búsqueda por tag sin '#' (encuentra por coincidencia difusa en nucleo)
+    let (matches_plain_tag, _, _) = engine.search_with_stats("arquitectura", 10);
+    assert!(!matches_plain_tag.is_empty());
+    assert_eq!(matches_plain_tag[0].path.as_str(), "Note1.md");
+
+    // 3. Búsqueda combinada: título/texto + #tag
+    let (matches_combined, _, _) = engine.search_with_stats("Segunda #rust", 10);
+    assert_eq!(matches_combined.len(), 1);
+    assert_eq!(matches_combined[0].path.as_str(), "Note2.md");
 
     let _ = fs::remove_dir_all(&test_dir);
 }

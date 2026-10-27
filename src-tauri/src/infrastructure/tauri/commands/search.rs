@@ -40,6 +40,11 @@ pub async fn search_notes_command(
             .enumerate()
             .map(|(idx, m)| {
                 let is_recent = recent_set.contains(&m.path);
+                let tags = if !m.tags.is_empty() {
+                    Some(m.tags.iter().map(|t| t.to_string()).collect())
+                } else {
+                    None
+                };
                 SearchResult {
                     text: m.title.to_string(),
                     score: (1000_u32).saturating_sub(idx as u32 * 10),
@@ -47,6 +52,7 @@ pub async fn search_notes_command(
                     note_path: Some(m.path.to_string()),
                     is_recent: Some(is_recent),
                     last_opened_nanos: m.last_opened_nanos,
+                    tags,
                 }
             })
             .collect();

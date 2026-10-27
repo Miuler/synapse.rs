@@ -23,6 +23,7 @@ impl SearchService for NucleoSearchService {
                     note_path: None,
                     is_recent: None,
                     last_opened_nanos: None,
+                    tags: None,
                 })
                 .collect();
         }
@@ -44,6 +45,7 @@ impl SearchService for NucleoSearchService {
                     note_path: None,
                     is_recent: None,
                     last_opened_nanos: None,
+                    tags: None,
                 });
             }
         }
@@ -64,6 +66,7 @@ impl SearchService for NucleoSearchService {
                     note_path: Some(n.relative_path.as_str().to_string()),
                     is_recent: None,
                     last_opened_nanos: None,
+                    tags: n.frontmatter.as_ref().map(|f| f.tags.clone()),
                 })
                 .collect();
         }
@@ -102,6 +105,7 @@ impl SearchService for NucleoSearchService {
                     note_path: Some(note.relative_path.as_str().to_string()),
                     is_recent: None,
                     last_opened_nanos: None,
+                    tags: note.frontmatter.as_ref().map(|f| f.tags.clone()),
                 });
             }
         }

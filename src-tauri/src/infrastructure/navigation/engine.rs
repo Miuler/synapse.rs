@@ -441,11 +441,14 @@ impl NavigationEngine {
                 if is_unchanged {
                     stats.unchanged += 1;
                 } else {
-                    let title = if is_markdown {
+                    let (title, tags) = if is_markdown {
                         let content = std::fs::read_to_string(&path).unwrap_or_default();
-                        extract_title_from_markdown(&content, file_stem)
+                        let t = extract_title_from_markdown(&content, file_stem);
+                        let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                        let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+                        (t, compact_tags)
                     } else {
-                        file_name.to_string()
+                        (file_name.to_string(), Vec::new())
                     };
                     let compact_title = CompactString::new(&title);
 
@@ -453,6 +456,7 @@ impl NavigationEngine {
                         id: existing_id,
                         path: compact_path.clone(),
                         title: compact_title.clone(),
+                        tags: tags.clone(),
                         mtime_nanos,
                         size_bytes,
                         created_nanos,
@@ -470,16 +474,21 @@ impl NavigationEngine {
                     upserted_paths.push(compact_path.to_string());
 
                     injector.push(existing_id, move |_target, cols| {
-                        if compact_title.as_str() == compact_path.as_str() {
-                            cols[0] = Utf32String::from(compact_title.as_str());
-                        } else {
-                            let mut s =
-                                String::with_capacity(compact_title.len() + 1 + compact_path.len());
-                            s.push_str(compact_title.as_str());
+                        let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
+                        let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                        s.push_str(compact_title.as_str());
+                        if compact_title.as_str() != compact_path.as_str() {
                             s.push(' ');
                             s.push_str(compact_path.as_str());
-                            cols[0] = Utf32String::from(s.as_str());
                         }
+                        for tag in &tags {
+                            s.push(' ');
+                            s.push('#');
+                            s.push_str(tag.as_str());
+                            s.push(' ');
+                            s.push_str(tag.as_str());
+                        }
+                        cols[0] = Utf32String::from(s.as_str());
                     });
                 }
             } else {
@@ -487,11 +496,14 @@ impl NavigationEngine {
                 let new_id = self.next_id.fetch_add(1, Ordering::Relaxed);
                 seen_ids.insert(new_id);
 
-                let title = if is_markdown {
+                let (title, tags) = if is_markdown {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
-                    extract_title_from_markdown(&content, file_stem)
+                    let t = extract_title_from_markdown(&content, file_stem);
+                    let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                    let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+                    (t, compact_tags)
                 } else {
-                    file_name.to_string()
+                    (file_name.to_string(), Vec::new())
                 };
                 let compact_title = CompactString::new(&title);
 
@@ -499,6 +511,7 @@ impl NavigationEngine {
                     id: new_id,
                     path: compact_path.clone(),
                     title: compact_title.clone(),
+                    tags: tags.clone(),
                     mtime_nanos,
                     size_bytes,
                     created_nanos,
@@ -517,16 +530,21 @@ impl NavigationEngine {
                 upserted_paths.push(compact_path.to_string());
 
                 injector.push(new_id, move |_target, cols| {
-                    if compact_title.as_str() == compact_path.as_str() {
-                        cols[0] = Utf32String::from(compact_title.as_str());
-                    } else {
-                        let mut s =
-                            String::with_capacity(compact_title.len() + 1 + compact_path.len());
-                        s.push_str(compact_title.as_str());
+                    let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
+                    let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                    s.push_str(compact_title.as_str());
+                    if compact_title.as_str() != compact_path.as_str() {
                         s.push(' ');
                         s.push_str(compact_path.as_str());
-                        cols[0] = Utf32String::from(s.as_str());
                     }
+                    for tag in &tags {
+                        s.push(' ');
+                        s.push('#');
+                        s.push_str(tag.as_str());
+                        s.push(' ');
+                        s.push_str(tag.as_str());
+                    }
+                    cols[0] = Utf32String::from(s.as_str());
                 });
             }
         }
@@ -911,9 +929,37 @@ impl NavigationEngine {
             Err(_) => return (Vec::new(), total_files, 0),
         };
 
+        // Extraer filtros explícitos de etiquetas (tokens que inician con '#')
+        // Si el token tras '#' contiene solo números (ej. '#500' en un título), no es una etiqueta, es texto
+        let mut tag_filters = Vec::new();
+        let mut non_tag_tokens = Vec::new();
+
+        for part in trimmed_query.split_whitespace() {
+            let after_hash = part.trim_start_matches('#');
+            let is_tag = part.starts_with('#') && part.len() > 1 && !after_hash.chars().all(|c| c.is_ascii_digit());
+            if is_tag {
+                let clean = crate::domain::services::tag_service::normalize_tag(part);
+                if !clean.is_empty() {
+                    tag_filters.push(clean);
+                }
+            } else if !part.is_empty() {
+                non_tag_tokens.push(part);
+            }
+        }
+
+        let effective_search_query = if !tag_filters.is_empty() {
+            if !non_tag_tokens.is_empty() {
+                non_tag_tokens.join(" ")
+            } else {
+                tag_filters.join(" ")
+            }
+        } else {
+            trimmed_query.to_string()
+        };
+
         nucleo.pattern.reparse(
             0,
-            trimmed_query,
+            &effective_search_query,
             nucleo::pattern::CaseMatching::Ignore,
             nucleo::pattern::Normalization::Smart,
             false,
@@ -927,7 +973,7 @@ impl NavigationEngine {
         }
         let snapshot = nucleo.snapshot();
         let mut matched_count = snapshot.matched_item_count() as usize;
-        let query_lower = trimmed_query.to_lowercase();
+        let query_lower = effective_search_query.to_lowercase();
 
         let mut candidates = Vec::new();
         let mut seen_candidate_ids = HashSet::new();
@@ -935,15 +981,22 @@ impl NavigationEngine {
         for (nucleo_rank, item) in snapshot.matched_items(..).take(5000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
+                if !tag_filters.is_empty() {
+                    let matches_tags = tag_filters.iter().all(|tf| {
+                        meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
+                    });
+                    if !matches_tags {
+                        continue;
+                    }
+                }
                 seen_candidate_ids.insert(id);
                 candidates.push((meta.clone(), nucleo_rank));
             }
         }
         drop(nucleo);
 
-        // Garantizar siempre que cualquier coincidencia exacta o de subcadena en nombre de archivo o título
-        // esté presente en `candidates` (incluso si nucleo devolvió >5000 matches difusos, o aún está procesando,
-        // o hubo desfase del inyector asíncrono).
+        // Garantizar siempre que cualquier coincidencia exacta o de subcadena en nombre de archivo, título o tags
+        // esté presente en `candidates`
         if !self.notes.is_empty() {
             let had_nucleo_matches = !candidates.is_empty();
             for item in self.notes.iter() {
@@ -952,13 +1005,26 @@ impl NavigationEngine {
                     continue;
                 }
                 let meta = item.value();
+
+                if !tag_filters.is_empty() {
+                    let matches_tags = tag_filters.iter().all(|tf| {
+                        meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
+                    });
+                    if !matches_tags {
+                        continue;
+                    }
+                }
+
                 let name = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str());
                 let is_name_or_title_match = name.to_lowercase().contains(&query_lower)
                     || meta.title.to_lowercase().contains(&query_lower);
+                let is_tag_match = meta.tags.iter().any(|t| {
+                    crate::domain::services::tag_service::matches_tag(t.as_str(), &query_lower)
+                });
                 let is_path_match =
                     !had_nucleo_matches && meta.path.to_lowercase().contains(&query_lower);
 
-                if is_name_or_title_match || is_path_match {
+                if is_name_or_title_match || is_tag_match || is_path_match || (!tag_filters.is_empty() && non_tag_tokens.is_empty()) {
                     seen_candidate_ids.insert(id);
                     candidates.push((meta.clone(), candidates.len()));
                 }
@@ -993,10 +1059,11 @@ impl NavigationEngine {
             // 1: Filename contains query
             // 2: Exact title match
             // 3: Title contains query
-            // 4: Path/folder contains query as substring
-            // 5: Scattered fuzzy match only (e.g. t...o...d...o)
+            // 4: Tag exact or hierarchical match
+            // 5: Path/folder contains query as substring
+            // 6: Scattered fuzzy match only (e.g. t...o...d...o)
             let tier =
-                |name_lower: &str, stem_lower: &str, title_lower: &str, path_lower: &str| -> u8 {
+                |meta: &NoteMeta, name_lower: &str, stem_lower: &str, title_lower: &str, path_lower: &str| -> u8 {
                     if stem_lower == query_lower || name_lower == query_lower {
                         0
                     } else if name_lower.contains(&query_lower) {
@@ -1005,15 +1072,17 @@ impl NavigationEngine {
                         2
                     } else if title_lower.contains(&query_lower) {
                         3
-                    } else if path_lower.contains(&query_lower) {
+                    } else if meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), &query_lower)) {
                         4
-                    } else {
+                    } else if path_lower.contains(&query_lower) {
                         5
+                    } else {
+                        6
                     }
                 };
 
-            let tier_a = tier(&name_a_lower, stem_a_lower, &title_a_lower, &path_a_lower);
-            let tier_b = tier(&name_b_lower, stem_b_lower, &title_b_lower, &path_b_lower);
+            let tier_a = tier(a, &name_a_lower, stem_a_lower, &title_a_lower, &path_a_lower);
+            let tier_b = tier(b, &name_b_lower, stem_b_lower, &title_b_lower, &path_b_lower);
 
             let is_filename_a = tier_a <= 1;
             let is_filename_b = tier_b <= 1;
@@ -1250,11 +1319,14 @@ impl NavigationEngine {
             .map(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
             .unwrap_or(false);
 
-        let title = if is_markdown {
+        let (title, tags) = if is_markdown {
             let content = std::fs::read_to_string(path).unwrap_or_default();
-            extract_title_from_markdown(&content, file_stem)
+            let t = extract_title_from_markdown(&content, file_stem);
+            let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+            let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+            (t, compact_tags)
         } else {
-            file_name.to_string()
+            (file_name.to_string(), Vec::new())
         };
 
         let compact_title = CompactString::new(&title);
@@ -1288,6 +1360,7 @@ impl NavigationEngine {
                     id: existing_id,
                     path: compact_path.clone(),
                     title: compact_title.clone(),
+                    tags: tags.clone(),
                     mtime_nanos,
                     size_bytes,
                     created_nanos,
@@ -1308,6 +1381,7 @@ impl NavigationEngine {
                     id: new_id,
                     path: compact_path.clone(),
                     title: compact_title.clone(),
+                    tags: tags.clone(),
                     mtime_nanos,
                     size_bytes,
                     created_nanos,
@@ -1643,6 +1717,7 @@ impl NavigationEngine {
     }
 
     /// Obtiene todas las etiquetas (#tags) únicas del vault con su conteo de ocurrencias.
+    /// Resuelve directamente desde `self.notes` en memoria RAM (O(N) notas, 0 lecturas a disco).
     pub fn get_vault_tags(&self) -> Vec<(String, usize)> {
         use std::collections::HashMap;
 
@@ -1650,16 +1725,8 @@ impl NavigationEngine {
 
         for item in self.notes.iter() {
             let meta = item.value();
-            let p_str = meta.path.as_str();
-            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
-            if is_md {
-                let full = self.vault_path.join(p_str);
-                if let Ok(content) = std::fs::read_to_string(&full) {
-                    let tags = crate::domain::services::tag_service::extract_all_tags(&content);
-                    for tag in tags {
-                        *tag_counts.entry(tag).or_insert(0) += 1;
-                    }
-                }
+            for tag in &meta.tags {
+                *tag_counts.entry(tag.to_string()).or_insert(0) += 1;
             }
         }
 
@@ -1670,22 +1737,15 @@ impl NavigationEngine {
     }
 
     /// Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
+    /// Resuelve directamente desde `self.notes` en memoria RAM con soporte jerárquico.
     pub fn get_notes_by_tag(&self, tag: &str) -> Vec<String> {
         let clean_tag = crate::domain::services::tag_service::normalize_tag(tag);
         let mut matching_paths = Vec::new();
 
         for item in self.notes.iter() {
             let meta = item.value();
-            let p_str = meta.path.as_str();
-            let is_md = p_str.ends_with(".md") || p_str.ends_with(".markdown");
-            if is_md {
-                let full = self.vault_path.join(p_str);
-                if let Ok(content) = std::fs::read_to_string(&full) {
-                    let tags = crate::domain::services::tag_service::extract_all_tags(&content);
-                    if tags.iter().any(|t| t == &clean_tag) {
-                        matching_paths.push(p_str.to_string());
-                    }
-                }
+            if meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), &clean_tag)) {
+                matching_paths.push(meta.path.to_string());
             }
         }
 

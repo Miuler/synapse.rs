@@ -171,6 +171,7 @@ export interface SearchResult {
   note_path?: string;
   is_recent?: boolean;
   last_opened_nanos?: number;
+  tags?: string[];
 }
 
 export interface QuickOpenSearchResult {
@@ -298,6 +299,16 @@ export interface VaultRepository {
    * Realiza una búsqueda difusa interactiva utilizando el motor nucleo en Rust en memoria.
    */
   searchNotes(query: string): Promise<QuickOpenSearchResult>;
+
+  /**
+   * Obtiene todas las etiquetas (#tags) únicas del vault con su conteo de ocurrencias.
+   */
+  getVaultTags(): Promise<Array<{ tag: string; count: number }>>;
+
+  /**
+   * Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
+   */
+  getNotesByTag(tag: string): Promise<string[]>;
 
   /**
    * Obtiene la ruta absoluta de la carpeta de la bóveda activa.
@@ -795,6 +806,26 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.warn('Error en TauriVaultRepository al buscar notas con nucleo:', error);
       return { results: [], total_files: 0, matched_files: 0 };
+    }
+  }
+
+  async getVaultTags(): Promise<Array<{ tag: string; count: number }>> {
+    if (!this.isConnected()) return [];
+    try {
+      return await invokeTauri<Array<{ tag: string; count: number }>>('get_vault_tags');
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener etiquetas:', error);
+      return [];
+    }
+  }
+
+  async getNotesByTag(tag: string): Promise<string[]> {
+    if (!this.isConnected() || !tag) return [];
+    try {
+      return await invokeTauri<string[]>('get_notes_by_tag', { tag });
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al obtener notas por etiqueta:', error);
+      return [];
     }
   }
 

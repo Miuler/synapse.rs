@@ -41,11 +41,17 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 ### 5. 🐙 Git Nativo en Puro Rust (Sin Dependencias Externas)
 - **Control de versiones con `gix`:** Historial de revisiones, branching, estados de sincronización y visor visual de diferencias (*diff viewer*) sin necesidad de tener git instalado en el sistema operativo.
 
-### 6. 🔌 Ecosistema Extensible: Plugins Comunitarios de Obsidian
+### 6. 🤖 Servidor MCP Integrado de Alto Rendimiento (Model Context Protocol)
+- **Tu conocimiento al servicio de la IA:** Conecta agentes de IA (Claude Code, Google Antigravity, Cursor, Windsurf, Roo Code, etc.) directamente a tu bóveda personal como un servidor MCP nativo.
+- **Búsqueda Cognitiva por Sub-tags Jerárquicos:** Los agentes pueden filtrar notas con etiquetas jerárquicas como `#linux/cachyos` buscando directamente por tags raíz o sub-etiquetas (`tags: ["cachyos"]`), obteniendo snippets inmediatos y conteo de tokens sin descargas innecesarias.
+- **Lectura Eficiente y Ahorro Masivo de Tokens:** Soporte para lectura de tabla de contenidos (`outline_only: true`) calculada en tiempo real (< 0.5 ms en Rust) y extracción quirúrgica por sección (`section`). Los LLMs consumen una fracción de contexto y tiempo de respuesta sin desincronización de caché.
+- **Edición Quirúrgica Tolerante y Concurrencia Optimista (OCC):** `patch_note` con verificación por hash criptográfico y anclaje difuso tolerante a espacios y saltos de línea (CRLF/LF), evitando colisiones y errores de edición entre el usuario y la IA.
+
+### 7. 🔌 Ecosistema Extensible: Plugins Comunitarios de Obsidian
 - **No empiezas de cero:** Explora, instala y ejecuta plugins directamente desde el catálogo oficial de la comunidad de Obsidian.
 - **Caché inteligente de doble nivel:** Navegación fluida por el catálogo sin saturar la red ni bloquear el trabajo.
 
-### 7. ⌨️ Diseñado para la Productividad de Teclado
+### 8. ⌨️ Diseñado para la Productividad de Teclado
 - **Modo VIM nativo:** Actívalo y desactívalo al vuelo desde la barra de estado para una edición táctil y precisa.
 - **Paleta de Comandos Unificada (Ctrl+P):** Controla toda la aplicación sin levantar las manos del teclado.
 - **Modo Standalone:** ¿Solo quieres editar un archivo `.md` o `.excalidraw` suelto en tu disco? Ábrelo directamente sin verte forzado a crear un workspace.
@@ -64,6 +70,7 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 | **Diagramas Mermaid Interactivos** | **Nativo + Puntero Láser** | Básico (estático) | Básico | Básico | Con extensiones |
 | **Lienzo Excalidraw Integrado** | **Nativo (.excalidraw.md)** | Vía Plugin | No | Vía Plugin | Con extensiones |
 | **Git Nativo Integrado** | **Puro Rust (`gix`)** | Requiere Git CLI | No | Vía Git local | Requiere Git CLI |
+| **Servidor MCP Nativo (AI Ready)** | **Sí (Sub-tags, OCC, Outline & Snippets)** | Requiere Plugins de terceros | No | No | Vía extensiones |
 | **Modo VIM al vuelo** | **Sí (Toggle instantáneo)** | Sí (Configuración) | No | Experimental | Vía extensión |
 | **Modo Archivo Único (Standalone)** | **Sí (Abre archivos sueltos)** | No (Exige Vault) | No | No (Exige Grafo) | Sí |
 | **Distribución Portable** | **Binario Único sin instalador** | Instalador/AppImage | Instalador | Instalador/AppImage | Instalador/Tarball |

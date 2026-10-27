@@ -29,6 +29,7 @@ pub type ChangeCallback = Arc<dyn Fn(VaultFsChangeEvent) + Send + Sync>;
 pub struct ParsedFileMeta {
     pub compact_path: CompactString,
     pub compact_title: CompactString,
+    pub tags: Vec<CompactString>,
     pub mtime_nanos: u128,
     pub size_bytes: u64,
     pub created_nanos: Option<u128>,
@@ -208,20 +209,27 @@ pub fn process_paths_batch(
                 .map(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
                 .unwrap_or(false);
 
-            let title = if is_markdown {
+            let (title, tags) = if is_markdown {
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
-                extract_title_from_markdown(&content, file_stem)
+                let t = extract_title_from_markdown(&content, file_stem);
+                let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+                (t, compact_tags)
             } else {
-                abs_path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(file_stem)
-                    .to_string()
+                (
+                    abs_path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(file_stem)
+                        .to_string(),
+                    Vec::new(),
+                )
             };
 
             Some(ParsedFileMeta {
                 compact_path,
                 compact_title: CompactString::new(title),
+                tags,
                 mtime_nanos,
                 size_bytes,
                 created_nanos,
@@ -261,6 +269,7 @@ pub fn process_paths_batch(
                 id: existing_id,
                 path: item.compact_path.clone(),
                 title: item.compact_title.clone(),
+                tags: item.tags.clone(),
                 mtime_nanos: item.mtime_nanos,
                 size_bytes: item.size_bytes,
                 created_nanos: item.created_nanos,
@@ -278,17 +287,23 @@ pub fn process_paths_batch(
             if let Some(ref inj) = injector {
                 let compact_title = item.compact_title.clone();
                 let compact_path = item.compact_path.clone();
+                let tags = item.tags.clone();
                 inj.push(existing_id, move |_target, cols| {
-                    if compact_title.as_str() == compact_path.as_str() {
-                        cols[0] = Utf32String::from(compact_title.as_str());
-                    } else {
-                        let mut s =
-                            String::with_capacity(compact_title.len() + 1 + compact_path.len());
-                        s.push_str(compact_title.as_str());
+                    let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
+                    let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                    s.push_str(compact_title.as_str());
+                    if compact_title.as_str() != compact_path.as_str() {
                         s.push(' ');
                         s.push_str(compact_path.as_str());
-                        cols[0] = Utf32String::from(s.as_str());
                     }
+                    for tag in &tags {
+                        s.push(' ');
+                        s.push('#');
+                        s.push_str(tag.as_str());
+                        s.push(' ');
+                        s.push_str(tag.as_str());
+                    }
+                    cols[0] = Utf32String::from(s.as_str());
                 });
             }
         } else {
@@ -297,6 +312,7 @@ pub fn process_paths_batch(
                 id: new_id,
                 path: item.compact_path.clone(),
                 title: item.compact_title.clone(),
+                tags: item.tags.clone(),
                 mtime_nanos: item.mtime_nanos,
                 size_bytes: item.size_bytes,
                 created_nanos: item.created_nanos,
@@ -315,17 +331,23 @@ pub fn process_paths_batch(
             if let Some(ref inj) = injector {
                 let compact_title = item.compact_title.clone();
                 let compact_path = item.compact_path.clone();
+                let tags = item.tags.clone();
                 inj.push(new_id, move |_target, cols| {
-                    if compact_title.as_str() == compact_path.as_str() {
-                        cols[0] = Utf32String::from(compact_title.as_str());
-                    } else {
-                        let mut s =
-                            String::with_capacity(compact_title.len() + 1 + compact_path.len());
-                        s.push_str(compact_title.as_str());
+                    let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
+                    let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                    s.push_str(compact_title.as_str());
+                    if compact_title.as_str() != compact_path.as_str() {
                         s.push(' ');
                         s.push_str(compact_path.as_str());
-                        cols[0] = Utf32String::from(s.as_str());
                     }
+                    for tag in &tags {
+                        s.push(' ');
+                        s.push('#');
+                        s.push_str(tag.as_str());
+                        s.push(' ');
+                        s.push_str(tag.as_str());
+                    }
+                    cols[0] = Utf32String::from(s.as_str());
                 });
             }
         }
