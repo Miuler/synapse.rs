@@ -8,6 +8,7 @@
     type SelectVaultFolderResult,
   } from '@shared/repositories';
   import { appSettings, shortcutsConfig, matchesShortcut } from '@entities/settings';
+  import { t } from '@shared/lib/i18n';
   import { ThemeToggle } from '@features/theme-toggle';
   import { WindowControls } from '@shared/ui/window-controls';
   import {
@@ -32,6 +33,7 @@
     X,
     Cpu,
     Zap,
+    Languages,
   } from 'lucide-svelte';
 
   interface Props {
@@ -115,27 +117,30 @@
   });
 
   function formatRelativeTime(timestampMs: number): string {
-    if (!timestampMs) return 'Reciente';
+    if (!timestampMs) return t('welcome.timeRecent');
     const diffSec = Math.max(0, Math.floor((Date.now() - timestampMs) / 1000));
-    if (diffSec < 60) return 'Hace unos seg';
+    if (diffSec < 60) return t('welcome.timeJustNow');
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `Hace ${diffMin} min`;
+    if (diffMin < 60) return t('welcome.timeMinAgo', { min: diffMin });
     const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return diffHours === 1 ? 'Hace 1 hora' : `Hace ${diffHours} horas`;
+    if (diffHours < 24) return diffHours === 1 ? t('welcome.timeHourAgo') : t('welcome.timeHoursAgo', { hours: diffHours });
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays === 1) {
       const d = new Date(timestampMs);
       const hh = String(d.getHours()).padStart(2, '0');
       const mm = String(d.getMinutes()).padStart(2, '0');
-      return `Ayer, ${hh}:${mm}`;
+      return t('welcome.timeYesterday', { time: `${hh}:${mm}` });
     }
-    if (diffDays < 30) return `Hace ${diffDays} días`;
+    if (diffDays < 30) return t('welcome.timeDaysAgo', { days: diffDays });
     const d = new Date(timestampMs);
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+    const localeStr = appSettings.locale === 'es' ? 'es-ES' : 'en-US';
+    return d.toLocaleDateString(localeStr, { day: '2-digit', month: 'short' });
   }
 
   function formatNotesCount(count: number): string {
-    return count.toLocaleString('en-US') + (count === 1 ? ' nota' : ' notas');
+    const localeStr = appSettings.locale === 'es' ? 'es-ES' : 'en-US';
+    const formatted = count.toLocaleString(localeStr);
+    return count === 1 ? t('welcome.notesCountSingle', { count: formatted }) : t('welcome.notesCountPlural', { count: formatted });
   }
 
   async function loadWorkspaces() {
@@ -333,23 +338,33 @@
           type="button"
           class="back-to-editor-btn"
           onclick={onCloseWelcome}
-          title="Volver al editor activo (Esc)"
+          title={t('welcome.backToWorkspaceTitle')}
         >
-          <span>Volver al workspace activo</span>
+          <span>{t('welcome.backToWorkspace')}</span>
         </button>
       {/if}
 
-      <div class="engine-status-pill" title="Motor de indexación full-text Tantivy activo">
+      <div class="engine-status-pill" title={t('welcome.tantivyTitle')}>
         <span class="status-dot"></span>
-        <span>Rust Tantivy Core Online</span>
+        <span>{t('welcome.tantivyCoreOnline')}</span>
       </div>
 
       <button
         type="button"
         class="top-icon-btn"
+        onclick={() => appSettings.toggleLocale()}
+        title={t('ribbon.languageTooltip', { lang: appSettings.locale === 'es' ? 'Español' : 'English' })}
+        aria-label={t('ribbon.toggleLanguageAria', { lang: appSettings.locale === 'es' ? 'English' : 'Español' })}
+      >
+        <Languages size={15} />
+      </button>
+
+      <button
+        type="button"
+        class="top-icon-btn"
         onclick={() => (isShortcutsOpen = true)}
-        title="Ayuda y atajos de teclado"
-        aria-label="Ayuda"
+        title={t('welcome.helpTitle')}
+        aria-label={t('welcome.helpAria')}
       >
         <HelpCircle size={15} />
       </button>
@@ -371,18 +386,18 @@
         <h1 class="hero-title">SYNAPSE</h1>
 
         <div class="hero-badges">
-          <span class="rust-engine-badge">RUST ENGINE</span>
-          <span class="local-vault-label">Local-first vault</span>
+          <span class="rust-engine-badge">{t('welcome.heroEngineBadge')}</span>
+          <span class="local-vault-label">{t('welcome.heroVaultLabel')}</span>
         </div>
 
         <p class="hero-description">
-          Gestión hiperrápida de conocimiento y grafos interconectados sin nube obligatoria.
+          {t('welcome.heroDescription')}
         </p>
       </div>
 
       <!-- INICIO RÁPIDO -->
       <div class="quick-start-section">
-        <span class="section-heading">INICIO RÁPIDO</span>
+        <span class="section-heading">{t('welcome.quickStartSection')}</span>
 
         <button
           type="button"
@@ -394,8 +409,8 @@
               <PlusCircle size={18} />
             </div>
             <div class="qa-texts">
-              <span class="qa-title">Nuevo Workspace</span>
-              <span class="qa-subtitle">Crear directorio vacío</span>
+              <span class="qa-title">{t('welcome.newWorkspaceTitle')}</span>
+              <span class="qa-subtitle">{t('welcome.newWorkspaceSubtitle')}</span>
             </div>
           </div>
           <kbd class="qa-kbd">{shortcutsConfig.welcome.new_workspace}</kbd>
@@ -406,7 +421,7 @@
             <div class="qa-icon-wrap amber-icon">
               <FolderOpen size={17} />
             </div>
-            <span class="qa-title">Abrir carpeta local...</span>
+            <span class="qa-title">{t('welcome.openLocalFolder')}</span>
           </div>
           <kbd class="qa-kbd">{shortcutsConfig.welcome.open_folder}</kbd>
         </button>
@@ -417,8 +432,8 @@
               <FileText size={17} />
             </div>
             <div class="qa-texts">
-              <span class="qa-title">Abrir archivo puntual...</span>
-              <span class="qa-subtitle">Markdown, Mermaid, Excalidraw</span>
+              <span class="qa-title">{t('welcome.openStandaloneFileTitle')}</span>
+              <span class="qa-subtitle">{t('welcome.openStandaloneFileSubtitle')}</span>
             </div>
           </div>
           <kbd class="qa-kbd">Ctrl+O</kbd>
@@ -436,7 +451,7 @@
             <div class="qa-icon-wrap orange-icon">
               <GitBranch size={17} />
             </div>
-            <span class="qa-title">Clonar repositorio Git</span>
+            <span class="qa-title">{t('welcome.cloneGit')}</span>
           </div>
           <kbd class="qa-kbd">{shortcutsConfig.welcome.clone_git}</kbd>
         </button>
@@ -455,16 +470,16 @@
         <div class="tech-spec-row">
           <div class="spec-label">
             <Database size={14} class="spec-icon amber" />
-            <span>Indexador Tantivy</span>
+            <span>{t('welcome.tantivyStatus')}</span>
           </div>
           <span class="spec-value">0ms Latencia</span>
         </div>
 
         <div class="sidebar-footer-links">
           <button type="button" class="footer-link-btn" onclick={() => (isShortcutsOpen = true)}>
-            Atajos de teclado
+            {t('welcome.shortcutsLink')}
           </button>
-          <span class="footer-license">Licencia MIT</span>
+          <span class="footer-license">{t('welcome.mitLicense')}</span>
         </div>
       </div>
     </aside>
@@ -475,11 +490,11 @@
       <div class="main-header">
         <div class="main-header-titles">
           <div class="title-with-count">
-            <h2>Workspaces Recientes</h2>
+            <h2>{t('welcome.recentWorkspacesHeading')}</h2>
             <span class="count-pill">{workspaces.length}</span>
           </div>
           <p class="main-subtitle">
-            Selecciona un espacio de trabajo local para cargar el grafo neuronal de notas.
+            {t('welcome.recentWorkspacesSubtitle')}
           </p>
         </div>
 
@@ -489,7 +504,7 @@
             type="text"
             bind:this={searchInputRef}
             bind:value={searchQuery}
-            placeholder="Buscar workspace o ruta..."
+            placeholder={t('welcome.searchPlaceholder')}
             class="search-input"
           />
           <kbd class="search-kbd">{shortcutsConfig.welcome.search_workspaces}</kbd>
@@ -507,7 +522,7 @@
             class:active={activeFilter === 'all'}
             onclick={() => (activeFilter = 'all')}
           >
-            Todos
+            {t('welcome.filterAll')}
           </button>
           <button
             type="button"
@@ -517,7 +532,7 @@
             class:active={activeFilter === 'pinned'}
             onclick={() => (activeFilter = 'pinned')}
           >
-            Fijados
+            {t('welcome.filterPinned')}
           </button>
           <button
             type="button"
@@ -527,16 +542,16 @@
             class:active={activeFilter === 'git'}
             onclick={() => (activeFilter = 'git')}
           >
-            Git Synced
+            {t('welcome.filterGit')}
           </button>
         </div>
 
         <div class="sort-control">
-          <span class="sort-label">Ordenar:</span>
-          <select bind:value={sortOrder} class="sort-select" aria-label="Ordenar workspaces">
-            <option value="recent">Último acceso</option>
-            <option value="name">Nombre (A-Z)</option>
-            <option value="notes">Cantidad de notas</option>
+          <span class="sort-label">{t('welcome.sortLabel')}</span>
+          <select bind:value={sortOrder} class="sort-select" aria-label={t('welcome.sortLabel')}>
+            <option value="recent">{t('welcome.sortRecent')}</option>
+            <option value="name">{t('welcome.sortName')}</option>
+            <option value="notes">{t('welcome.sortNotes')}</option>
           </select>
         </div>
       </div>
@@ -545,24 +560,23 @@
       <div class="workspaces-list">
         {#if isLoading}
           <div class="empty-list-state">
-            <span>Cargando espacios de trabajo...</span>
+            <span>{t('welcome.loadingWorkspaces')}</span>
           </div>
         {:else if filteredWorkspaces.length === 0}
           <div class="empty-list-state">
             <FolderOpen size={42} strokeWidth={1.4} class="empty-folder-icon" />
             {#if workspaces.length === 0}
-              <h3>Aún no has abierto ningún Workspace</h3>
+              <h3>{t('welcome.emptyWorkspacesTitle')}</h3>
               <p>
-                Crea un nuevo directorio o abre una carpeta existente con notas Markdown para comenzar.
-                Tu historial se guardará automáticamente en <code>~/.config/synapsers/workspaces.json</code>.
+                {t('welcome.emptyWorkspacesDescription')}
               </p>
               <button type="button" class="open-primary-cta" onclick={handleSelectLocalFolder}>
                 <FolderOpen size={16} />
-                <span>Abrir carpeta local</span>
+                <span>{t('welcome.openFolderCta')}</span>
               </button>
             {:else}
-              <h3>No se encontraron workspaces para este filtro</h3>
-              <p>Prueba cambiando el término de búsqueda o seleccionando la pestaña "Todos".</p>
+              <h3>{t('welcome.emptyFilterTitle')}</h3>
+              <p>{t('welcome.emptyFilterDescription')}</p>
             {/if}
           </div>
         {:else}
@@ -592,11 +606,11 @@
                   {#if ws.pinned}
                     <span class="pinned-badge">
                       <Star size={10} fill="currentColor" />
-                      <span>Fijado</span>
+                      <span>{t('welcome.pinnedBadge')}</span>
                     </span>
                   {/if}
                   {#if !ws.exists}
-                    <span class="missing-badge">No encontrado en disco</span>
+                    <span class="missing-badge">{t('welcome.missingDiskBadge')}</span>
                   {/if}
                 </div>
 
@@ -635,7 +649,7 @@
 
                   <span class="status-ok-badge">
                     <Zap size={11} />
-                    <span>{ws.exists ? '100% OK' : 'Offline'}</span>
+                    <span>{ws.exists ? t('welcome.statusOk') : t('welcome.statusOffline')}</span>
                   </span>
                 </div>
               </div>
@@ -647,8 +661,8 @@
                   class="ws-action-icon-btn"
                   class:pinned={ws.pinned}
                   onclick={(e) => handleTogglePin(ws, e)}
-                  title={ws.pinned ? 'Quitar de fijados' : 'Fijar workspace'}
-                  aria-label="Fijar workspace"
+                  title={ws.pinned ? t('welcome.unpinWorkspace') : t('welcome.pinWorkspace')}
+                  aria-label={t('welcome.pinWorkspace')}
                 >
                   <Star size={15} fill={ws.pinned ? 'currentColor' : 'none'} />
                 </button>
@@ -657,8 +671,8 @@
                   type="button"
                   class="ws-action-icon-btn"
                   onclick={(e) => handleOpenInNewWindow(ws, e)}
-                  title="Abrir en nueva ventana"
-                  aria-label="Abrir en nueva ventana"
+                  title={t('welcome.openInNewWindow')}
+                  aria-label={t('welcome.openInNewWindow')}
                 >
                   <ExternalLink size={15} />
                 </button>
@@ -671,7 +685,7 @@
                     handleOpenWorkspace(ws);
                   }}
                 >
-                  <span>Abrir</span>
+                  <span>{t('welcome.openWorkspaceBtn')}</span>
                   <ArrowRight size={15} />
                 </button>
 
@@ -679,8 +693,8 @@
                   type="button"
                   class="ws-action-icon-btn delete-btn"
                   onclick={(e) => handleRemoveWorkspace(ws, e)}
-                  title="Quitar de la lista de recientes"
-                  aria-label="Quitar de recientes"
+                  title={t('welcome.removeRecentWorkspace')}
+                  aria-label={t('welcome.removeRecentWorkspace')}
                 >
                   <Trash2 size={15} />
                 </button>
@@ -696,8 +710,8 @@
         <ThemeToggle />
 
         <div class="keyboard-hints">
-          <span class="hint-pair"><kbd>Enter</kbd> para abrir</span>
-          <span class="hint-pair"><kbd>Supr</kbd> quitar</span>
+          <span class="hint-pair"><kbd>Enter</kbd> {t('welcome.hintOpen')}</span>
+          <span class="hint-pair"><kbd>Supr</kbd> {t('welcome.hintRemove')}</span>
         </div>
       </footer>
     </main>
@@ -711,7 +725,7 @@
   <div class="modal-backdrop" onclick={() => !isCloning && (isCloneModalOpen = false)}>
     <div class="modal-dialog" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
-        <h3>Clonar repositorio Git</h3>
+        <h3>{t('welcome.cloneModalTitle')}</h3>
         <button
           type="button"
           class="modal-close-btn"
@@ -723,13 +737,13 @@
       </div>
       <form onsubmit={handleCloneSubmit} class="modal-body">
         <label for="git-url-input" class="modal-label">
-          URL del repositorio remoto (HTTPS o SSH)
+          {t('welcome.cloneRemoteRepoUrlLabel')}
         </label>
         <input
           id="git-url-input"
           type="text"
           class="modal-input"
-          placeholder="https://github.com/usuario/mi-boveda.git"
+          placeholder={t('welcome.cloneRepoUrlPlaceholder')}
           bind:value={cloneRepoUrl}
           disabled={isCloning}
         />
@@ -743,14 +757,14 @@
             onclick={() => (isCloneModalOpen = false)}
             disabled={isCloning}
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             class="modal-btn primary"
             disabled={!cloneRepoUrl.trim() || isCloning}
           >
-            {isCloning ? 'Clonando...' : 'Seleccionar destino y clonar'}
+            {isCloning ? t('common.loading') : t('welcome.cloneSelectDestAndClone')}
           </button>
         </div>
       </form>
@@ -765,42 +779,42 @@
   <div class="modal-backdrop" onclick={() => (isShortcutsOpen = false)}>
     <div class="modal-dialog" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
-        <h3>Atajos de teclado rápidos</h3>
+        <h3>{t('welcome.shortcutsModalTitle')}</h3>
         <button type="button" class="modal-close-btn" onclick={() => (isShortcutsOpen = false)}>
           <X size={16} />
         </button>
       </div>
       <div class="shortcuts-grid">
         <div class="shortcut-row">
-          <span>Nuevo Workspace</span>
+          <span>{t('welcome.newWorkspaceTitle')}</span>
           <kbd>{shortcutsConfig.welcome.new_workspace}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Abrir carpeta local</span>
+          <span>{t('welcome.openLocalFolder')}</span>
           <kbd>{shortcutsConfig.welcome.open_folder}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Clonar repositorio Git</span>
+          <span>{t('welcome.cloneGit')}</span>
           <kbd>{shortcutsConfig.welcome.clone_git}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Buscar en Workspaces recientes</span>
+          <span>{t('welcome.recentWorkspacesHeading')}</span>
           <kbd>{shortcutsConfig.welcome.search_workspaces}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Navegar en la lista</span>
+          <span>{t('welcome.shortcutNavList')}</span>
           <kbd>↑ / ↓ / Enter</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Buscar archivos en Workspace</span>
+          <span>{t('welcome.shortcutFindFiles')}</span>
           <kbd>{shortcutsConfig.workspace.quick_open}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Nueva nota en Workspace</span>
+          <span>{t('welcome.shortcutNewNote')}</span>
           <kbd>{shortcutsConfig.workspace.new_file}</kbd>
         </div>
         <div class="shortcut-row">
-          <span>Paleta de comandos</span>
+          <span>{t('welcome.shortcutCommandPalette')}</span>
           <kbd>{shortcutsConfig.workspace.command_palette}</kbd>
         </div>
       </div>

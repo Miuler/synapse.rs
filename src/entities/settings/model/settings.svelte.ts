@@ -1,9 +1,11 @@
 import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
+import { i18n, type SupportedLocale } from '@shared/lib/i18n';
 
 export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 export type ExcalidrawViewerType = 'native' | 'obsidian';
+export type { SupportedLocale };
 
 export interface AppSettings {
   mermaidRenderer: MermaidRendererType;
@@ -12,6 +14,7 @@ export interface AppSettings {
   defaultExcalidrawViewer: ExcalidrawViewerType;
   vimMode: boolean;
   mcpServerEnabled: boolean;
+  locale: SupportedLocale;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -23,10 +26,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultExcalidrawViewer: 'native', // Por defecto los archivos .excalidraw se abren con Excalidraw nativo
   vimMode: false, // Por defecto modo Vim desactivado
   mcpServerEnabled: false, // Por defecto servidor MCP desactivado
+  locale: 'es', // Por defecto español
 };
 
 function loadInitialSettings(): AppSettings {
-  const settings: AppSettings = { ...DEFAULT_SETTINGS };
+  const settings: AppSettings = { ...DEFAULT_SETTINGS, locale: i18n.locale };
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -49,6 +53,9 @@ function loadInitialSettings(): AppSettings {
       if (typeof parsed.mcpServerEnabled === 'boolean') {
         settings.mcpServerEnabled = parsed.mcpServerEnabled;
       }
+      if (parsed.locale === 'es' || parsed.locale === 'en') {
+        settings.locale = parsed.locale;
+      }
     }
   } catch (e) {
     // Si localStorage no está disponible o falla el parseo, usar valores por defecto
@@ -62,6 +69,10 @@ class SettingsManager {
   systemTheme = $state<ResolvedTheme>('light');
 
   constructor() {
+    if (this.settings.locale) {
+      i18n.setLocale(this.settings.locale);
+    }
+
     if (typeof window !== 'undefined') {
       if (window.matchMedia) {
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -155,6 +166,22 @@ class SettingsManager {
     const resolved = this.resolvedTheme;
     document.documentElement.setAttribute('data-theme', resolved);
     document.documentElement.style.colorScheme = resolved;
+  }
+
+  get locale(): SupportedLocale {
+    return this.settings.locale || 'es';
+  }
+
+  setLocale(locale: SupportedLocale) {
+    this.settings.locale = locale;
+    i18n.setLocale(locale);
+    this.persist();
+  }
+
+  toggleLocale(): SupportedLocale {
+    const next: SupportedLocale = this.locale === 'es' ? 'en' : 'es';
+    this.setLocale(next);
+    return next;
   }
 
   get mermaidRenderer(): MermaidRendererType {

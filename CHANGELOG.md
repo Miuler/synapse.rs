@@ -9,6 +9,17 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Soporte Multilenguaje (i18n) con Svelte 5 Runes**:
+  - Implementación nativa de internacionalización en `src/shared/lib/i18n/` sin dependencias externas:
+    - Diccionarios en español (`es.ts`) e inglés (`en.ts`) con tipado estricto en TypeScript (`TranslationKey`, `LocaleSchema`) y verificación de paridad de claves en tiempo de compilación.
+    - Gestor reactivo `I18nManager` (`i18n.svelte.ts`) usando `$state` de Svelte 5 y función de traducción `t(...)` con soporte para interpolación dinámica de variables (`{param}`).
+    - Detección automática del idioma preferido del sistema/navegador y persistencia en `localStorage` sincronizada con `AppSettings`.
+  - Integración completa en el modelo de configuración global (`appSettings.locale`, `setLocale`, `toggleLocale`).
+  - Botón de cambio rápido de idioma en la barra de herramientas lateral (`Ribbon`) con el icono de `Languages`, y en la barra superior de la pantalla de bienvenida (`WelcomeScreen`).
+  - Nuevo comando en la paleta de comandos (<kbd>Ctrl+P</kbd>): *"Cambiar idioma de la interfaz (Español / English)"* bajo la categoría *"Configuración"*.
+  - Internacionalización reactiva de la barra lateral (`Ribbon`), pantalla de bienvenida (`WelcomeScreen`), formateador de tiempo relativo y plurales de conteo de notas.
+
+
 - **Búsqueda en Vista de Markdown de Solo Lectura (Reading Mode)**:
   - Soporte para buscar texto dentro de notas Markdown en modo lectura interactivo:
     - Barra de búsqueda flotante accesible con <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd>.

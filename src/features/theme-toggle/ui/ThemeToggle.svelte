@@ -1,5 +1,6 @@
 <script lang="ts">
   import { appSettings } from '@entities/settings';
+  import { t } from '@shared/lib/i18n';
   import { Sun, Moon } from 'lucide-svelte';
 
   interface Props {
@@ -7,21 +8,45 @@
   }
 
   let { class: className = '' }: Props = $props();
+
+  const themeLabel = $derived(
+    appSettings.theme === 'system'
+      ? 'Auto'
+      : appSettings.theme === 'dark'
+        ? t('ribbon.themeDark')
+        : t('ribbon.themeLight')
+  );
+
+  const themeTitle = $derived(
+    t('ribbon.themeTooltip', {
+      theme:
+        appSettings.theme === 'system'
+          ? t('ribbon.themeSystem', {
+              mode:
+                appSettings.resolvedTheme === 'dark'
+                  ? t('ribbon.themeDark')
+                  : t('ribbon.themeLight'),
+            })
+          : appSettings.theme === 'dark'
+            ? t('ribbon.themeDark')
+            : t('ribbon.themeLight'),
+    })
+  );
 </script>
 
 <button
   type="button"
   class="theme-btn {className}"
   onclick={() => appSettings.cycleTheme()}
-  title="Cambiar tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para alternar)"
-  aria-label="Cambiar tema"
+  title={themeTitle}
+  aria-label={t('ribbon.cycleThemeAria')}
 >
   {#if appSettings.resolvedTheme === 'dark'}
     <Moon size={13} class="theme-icon" />
   {:else}
     <Sun size={13} class="theme-icon" />
   {/if}
-  <span class="theme-text">{appSettings.theme === 'system' ? 'Auto' : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'}</span>
+  <span class="theme-text">{themeLabel}</span>
 </button>
 
 <style>

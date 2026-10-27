@@ -15,8 +15,10 @@
     Boxes,
     Tag,
     Link,
+    Languages,
   } from 'lucide-svelte';
-  import { appSettings } from '@entities/settings';
+  import { appSettings, shortcutsConfig } from '@entities/settings';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     activeTab?: string;
@@ -25,18 +27,58 @@
 
   let { activeTab = $bindable('files'), onAction }: Props = $props();
 
-  const topTools = [
-    { id: 'files', label: 'Explorador de archivos (Alt+1, Ctrl+B)', icon: 'folder' },
-    { id: 'tags', label: 'Explorador de etiquetas (#tags)', icon: 'tag' },
-    { id: 'relations', label: 'Inspector de enlaces y backlinks', icon: 'link' },
-    { id: 'quick-open', label: 'Buscar archivo por nombre (Ctrl+O)', icon: 'search' },
-    { id: 'search', label: 'Buscar en el contenido de las notas (Ctrl+Shift+F)', icon: 'text-search' },
-    { id: 'new-note', label: 'Crear nueva nota', icon: 'file-plus' },
-    { id: 'new-excalidraw', label: 'Nuevo dibujo Excalidraw (.excalidraw.md)', icon: 'pen-tool' },
-    { id: 'command-palette', label: 'Paleta de comandos (Ctrl+P)', icon: 'command' },
-    { id: 'plugins', label: 'Plugins de la comunidad (Obsidian)', icon: 'plugins' },
-    { id: 'graph', label: 'Vista de gráfico', icon: 'graph' },
-  ];
+  const topTools = $derived([
+    {
+      id: 'files',
+      label: t('ribbon.files', { shortcut: shortcutsConfig.workspace.toggle_sidebar }),
+      icon: 'folder',
+    },
+    {
+      id: 'tags',
+      label: t('ribbon.tags'),
+      icon: 'tag',
+    },
+    {
+      id: 'relations',
+      label: t('ribbon.relations'),
+      icon: 'link',
+    },
+    {
+      id: 'quick-open',
+      label: t('ribbon.quickOpen', { shortcut: shortcutsConfig.workspace.quick_open }),
+      icon: 'search',
+    },
+    {
+      id: 'search',
+      label: t('ribbon.searchContent', { shortcut: shortcutsConfig.workspace.search_fulltext }),
+      icon: 'text-search',
+    },
+    {
+      id: 'new-note',
+      label: t('ribbon.newNote'),
+      icon: 'file-plus',
+    },
+    {
+      id: 'new-excalidraw',
+      label: t('ribbon.newExcalidraw'),
+      icon: 'pen-tool',
+    },
+    {
+      id: 'command-palette',
+      label: t('ribbon.commandPalette', { shortcut: shortcutsConfig.workspace.command_palette }),
+      icon: 'command',
+    },
+    {
+      id: 'plugins',
+      label: t('ribbon.plugins'),
+      icon: 'plugins',
+    },
+    {
+      id: 'graph',
+      label: t('ribbon.graph'),
+      icon: 'graph',
+    },
+  ]);
 
   function handleToolClick(id: string) {
     if (id === 'files' || id === 'tags' || id === 'relations') {
@@ -110,7 +152,7 @@
                 (props as Record<string, any>).onclick?.(e);
                 handleToolClick('welcome');
               }}
-              aria-label="Workspaces Recientes / Pantalla de Bienvenida"
+              aria-label={t('ribbon.recentWorkspaces')}
             >
               <LayoutGrid size={18} class="icon" />
             </Toolbar.Button>
@@ -118,7 +160,7 @@
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
-            Workspaces Recientes / Cambiar Workspace
+            {t('ribbon.recentWorkspacesTooltip')}
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
@@ -130,7 +172,7 @@
               {...props}
               class="ribbon-btn"
               onclick={() => appSettings.cycleTheme()}
-              aria-label="Cambiar tema (Claro / Oscuro / Sistema)"
+              aria-label={t('ribbon.cycleThemeAria')}
             >
               {#if appSettings.resolvedTheme === 'dark'}
                 <Moon size={18} class="icon" />
@@ -142,7 +184,43 @@
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
-            Tema: {appSettings.theme === 'system' ? `Sistema (${appSettings.resolvedTheme === 'dark' ? 'Oscuro' : 'Claro'})` : appSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} (Clic para cambiar)
+            {t('ribbon.themeTooltip', {
+              theme:
+                appSettings.theme === 'system'
+                  ? t('ribbon.themeSystem', {
+                      mode:
+                        appSettings.resolvedTheme === 'dark'
+                          ? t('ribbon.themeDark')
+                          : t('ribbon.themeLight'),
+                    })
+                  : appSettings.theme === 'dark'
+                    ? t('ribbon.themeDark')
+                    : t('ribbon.themeLight'),
+            })}
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Toolbar.Button
+              {...props}
+              class="ribbon-btn"
+              onclick={() => appSettings.toggleLocale()}
+              aria-label={t('ribbon.toggleLanguageAria', {
+                lang: appSettings.locale === 'es' ? 'English' : 'Español',
+              })}
+            >
+              <Languages size={18} class="icon" />
+            </Toolbar.Button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
+            {t('ribbon.languageTooltip', {
+              lang: appSettings.locale === 'es' ? 'Español' : 'English',
+            })}
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
@@ -157,7 +235,7 @@
                 (props as Record<string, any>).onclick?.(e);
                 handleToolClick('settings');
               }}
-              aria-label="Configuración"
+              aria-label={t('common.settings')}
             >
               <Settings size={18} class="icon" />
             </Toolbar.Button>
@@ -165,7 +243,7 @@
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content side="right" sideOffset={10} class="ribbon-tooltip">
-            Configuración
+            {t('ribbon.settingsTooltip')}
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

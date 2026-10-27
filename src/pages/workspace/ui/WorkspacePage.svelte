@@ -25,6 +25,7 @@
   import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
+  import { t } from "@shared/lib/i18n";
   import {
     isImageFile,
     isMarkdownFile,
@@ -2703,9 +2704,17 @@
         action: toggleExplorer,
       },
       {
+        id: "cmd-switch-language",
+        name: t('commands.switchLanguage'),
+        category: t('commands.categories.settings'),
+        action: () => {
+          appSettings.toggleLocale();
+        },
+      },
+      {
         id: "cmd-toggle-mermaid-engine",
-        name: "Alternar motor de diagramas Mermaid (Mermaid.js / Merman)",
-        category: "Configuración",
+        name: t('commands.toggleMermaidEngine'),
+        category: t('commands.categories.settings'),
         action: () => {
           appSettings.toggleMermaidRenderer();
         },
@@ -2936,6 +2945,12 @@
       },
     ]);
   }
+
+  // Re-registrar comandos al cambiar idioma reactivamente
+  $effect(() => {
+    const _loc = appSettings.locale;
+    registerWorkspaceCommands();
+  });
 
   // Registrar comandos por defecto y cargar atajos JSONC al iniciar
   onMount(() => {
