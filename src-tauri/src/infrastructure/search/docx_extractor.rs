@@ -32,29 +32,28 @@ pub fn extract_docx_text(
 
     loop {
         match xml_reader.read_event() {
-            Ok(Event::Start(e)) if e.name().as_ref() == b"w:t" => {
+            Ok(Event::Start(e)) if e.name().as_ref() == "w:t" => {
                 inside_t = true;
             }
-            Ok(Event::End(e)) if e.name().as_ref() == b"w:t" => {
+            Ok(Event::End(e)) if e.name().as_ref() == "w:t" => {
                 inside_t = false;
             }
             Ok(Event::Text(e)) if inside_t => {
-                if let Ok(unescaped) = e.unescape() {
-                    for word in unescaped.split_whitespace() {
-                        // Descartar tokens anormalmente largos (evita basura de fuentes o hashes en Tantivy)
-                        if word.len() > max_word_length {
-                            continue;
-                        }
+                let content_str: &str = &e;
+                for word in content_str.split_whitespace() {
+                    // Descartar tokens anormalmente largos (evita basura de fuentes o hashes en Tantivy)
+                    if word.len() > max_word_length {
+                        continue;
+                    }
 
-                        if !text.is_empty() {
-                            text.push(' ');
-                        }
-                        text.push_str(word);
+                    if !text.is_empty() {
+                        text.push(' ');
+                    }
+                    text.push_str(word);
 
-                        if text.len() >= max_extracted_chars {
-                            text.truncate(max_extracted_chars);
-                            return Ok(text);
-                        }
+                    if text.len() >= max_extracted_chars {
+                        text.truncate(max_extracted_chars);
+                        return Ok(text);
                     }
                 }
             }

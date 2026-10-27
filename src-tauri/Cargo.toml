@@ -51,7 +51,7 @@ gix = { version = "0.90.0", default-features = false, features = [
   "sha1",
 ] }
 rayon = "1.10.0"
-tantivy = "0.26"
+tantivy = "0.27"
 image = { version = "0.25", default-features = false, features = [
   "png",
   "jpeg",
@@ -62,9 +62,9 @@ image = { version = "0.25", default-features = false, features = [
   "tiff",
 ] }
 pixelmatch = "0.1"
-quick-xml = "0.37"
+quick-xml = "0.42"
 zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
-lopdf = "0.36"
+lopdf = "0.46"
 serde_yaml = "0.9.34"
 sha2 = "0.10"
 similar = { version = "3.2.1", default-features = false, features = ["text"] }

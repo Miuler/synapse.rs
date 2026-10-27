@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar]
 
+### Cambiado
+
+- **Actualización de dependencias del Backend (Rust / Cargo)**:
+  - Actualización del motor de búsqueda de texto completo `tantivy` a `0.27.0`.
+  - Actualización del parser XML `quick-xml` a `0.42.0`, adaptando `docx_extractor.rs` al nuevo tipado `&str` de nombres de elementos y eventos de texto.
+  - Actualización de `lopdf` a `0.46.0` para extracción e indexación de PDFs.
+  - Fijada la dependencia de `bincode` en `2.0.1` (con feature `serde`) garantizando serialización binaria estable y compatible en caché.
+
 ### Añadido
 
 - **Búsqueda y Exploración por Etiquetas (#tags) en Quick Open (`Ctrl+O`)**:
