@@ -59,7 +59,18 @@
   let sortOrder = $state<SortOrder>('recent');
   let searchQuery = $state('');
   let selectedIndex = $state(0);
+  let isKeyboardNav = $state(false);
+  let hoveredIndex: number | null = null;
   let searchInputRef = $state<HTMLInputElement | null>(null);
+
+  const numberFormatters = {
+    es: new Intl.NumberFormat('es-ES'),
+    en: new Intl.NumberFormat('en-US'),
+  };
+  const dateFormatters = {
+    es: new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' }),
+    en: new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'short' }),
+  };
 
   // Estado modal Clonar Git
   let isCloneModalOpen = $state(false);
@@ -107,10 +118,11 @@
   });
 
   $effect(() => {
-    if (filteredWorkspaces.length === 0) {
+    const len = filteredWorkspaces.length;
+    if (len === 0) {
       selectedIndex = 0;
-    } else if (selectedIndex >= filteredWorkspaces.length) {
-      selectedIndex = filteredWorkspaces.length - 1;
+    } else if (selectedIndex >= len) {
+      selectedIndex = len - 1;
     } else if (selectedIndex < 0) {
       selectedIndex = 0;
     }
@@ -133,13 +145,13 @@
     }
     if (diffDays < 30) return t('welcome.timeDaysAgo', { days: diffDays });
     const d = new Date(timestampMs);
-    const localeStr = appSettings.locale === 'es' ? 'es-ES' : 'en-US';
-    return d.toLocaleDateString(localeStr, { day: '2-digit', month: 'short' });
+    const loc = appSettings.locale === 'es' ? 'es' : 'en';
+    return dateFormatters[loc].format(d);
   }
 
   function formatNotesCount(count: number): string {
-    const localeStr = appSettings.locale === 'es' ? 'es-ES' : 'en-US';
-    const formatted = count.toLocaleString(localeStr);
+    const loc = appSettings.locale === 'es' ? 'es' : 'en';
+    const formatted = numberFormatters[loc].format(count);
     return count === 1 ? t('welcome.notesCountSingle', { count: formatted }) : t('welcome.notesCountPlural', { count: formatted });
   }
 
@@ -291,21 +303,26 @@
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (filteredWorkspaces.length > 0) {
-        selectedIndex = (selectedIndex + 1) % filteredWorkspaces.length;
+        const base = !isKeyboardNav && hoveredIndex !== null ? hoveredIndex : selectedIndex;
+        isKeyboardNav = true;
+        selectedIndex = (base + 1) % filteredWorkspaces.length;
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (filteredWorkspaces.length > 0) {
+        const base = !isKeyboardNav && hoveredIndex !== null ? hoveredIndex : selectedIndex;
+        isKeyboardNav = true;
         selectedIndex =
-          (selectedIndex - 1 + filteredWorkspaces.length) % filteredWorkspaces.length;
+          (base - 1 + filteredWorkspaces.length) % filteredWorkspaces.length;
       }
     } else if (e.key === 'Enter') {
       const activeEl = document.activeElement;
       const isButtonFocused =
         activeEl instanceof HTMLButtonElement || activeEl instanceof HTMLSelectElement;
-      if (!isButtonFocused && filteredWorkspaces[selectedIndex]) {
+      const targetIdx = !isKeyboardNav && hoveredIndex !== null ? hoveredIndex : selectedIndex;
+      if (!isButtonFocused && filteredWorkspaces[targetIdx]) {
         e.preventDefault();
-        handleOpenWorkspace(filteredWorkspaces[selectedIndex]);
+        handleOpenWorkspace(filteredWorkspaces[targetIdx]);
       }
     }
   }
@@ -557,7 +574,17 @@
       </div>
 
       <!-- LISTA DE TARJETAS DE WORKSPACE -->
-      <div class="workspaces-list">
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="workspaces-list"
+        class:keyboard-nav={isKeyboardNav}
+        onpointermove={() => {
+          if (isKeyboardNav) isKeyboardNav = false;
+        }}
+        onpointerleave={() => {
+          hoveredIndex = null;
+        }}
+      >
         {#if isLoading}
           <div class="empty-list-state">
             <span>{t('welcome.loadingWorkspaces')}</span>
@@ -587,7 +614,9 @@
               class="workspace-card"
               class:selected={idx === selectedIndex}
               class:missing={!ws.exists}
-              onmouseenter={() => (selectedIndex = idx)}
+              onpointerenter={() => {
+                hoveredIndex = idx;
+              }}
               onclick={() => handleOpenWorkspace(ws)}
             >
               <!-- ICONO IZQUIERDO -->
@@ -836,6 +865,7 @@
     user-select: none;
     overflow: hidden;
     z-index: 2000;
+    contain: strict;
   }
 
   :global(html[data-theme='light']) .welcome-root {
@@ -916,7 +946,7 @@
     color: #38bdf8;
     border: 1px solid rgba(56, 189, 248, 0.3);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color 0.08s ease;
   }
 
   .back-to-editor-btn:hover {
@@ -941,7 +971,6 @@
     height: 7px;
     border-radius: 50%;
     background-color: #10b981;
-    box-shadow: 0 0 8px #10b981;
   }
 
   .top-icon-btn {
@@ -955,7 +984,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: background-color 0.08s ease, color 0.08s ease;
   }
 
   .top-icon-btn:hover {
@@ -1019,7 +1048,6 @@
     object-fit: contain;
     user-select: none;
     -webkit-user-drag: none;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
   }
 
   :global(html[data-theme='light']) .logo-card {
@@ -1099,7 +1127,7 @@
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
-    transition: all 0.16s ease;
+    transition: background-color 0.08s ease, border-color 0.08s ease;
     text-align: left;
   }
 
@@ -1112,7 +1140,6 @@
   .quick-action-btn:hover {
     background-color: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.16);
-    transform: translateY(-1px);
   }
 
   :global(html[data-theme='light']) .quick-action-btn:hover {
@@ -1121,12 +1148,12 @@
 
   .quick-action-btn.primary-action {
     padding: 13px;
-    background: linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(15, 118, 110, 0.08) 100%);
+    background-color: rgba(20, 184, 166, 0.13);
     border-color: rgba(45, 212, 191, 0.35);
   }
 
   .quick-action-btn.primary-action:hover {
-    background: linear-gradient(135deg, rgba(20, 184, 166, 0.24) 0%, rgba(15, 118, 110, 0.14) 100%);
+    background-color: rgba(20, 184, 166, 0.22);
     border-color: rgba(45, 212, 191, 0.55);
   }
 
@@ -1405,7 +1432,7 @@
     font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color 0.08s ease, color 0.08s ease, border-color 0.08s ease;
   }
 
   .filter-tab:hover {
@@ -1525,7 +1552,8 @@
     background-color: #15181e;
     border: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
-    transition: all 0.16s ease;
+    contain: layout style paint;
+    transition: background-color 0.08s ease, border-color 0.08s ease;
   }
 
   :global(html[data-theme='light']) .workspace-card {
@@ -1533,18 +1561,18 @@
     border-color: #d0d7de;
   }
 
-  .workspace-card:hover,
-  .workspace-card.selected {
+  .workspaces-list:not(:hover) .workspace-card.selected,
+  .workspaces-list.keyboard-nav .workspace-card.selected,
+  .workspaces-list:not(.keyboard-nav) .workspace-card:hover {
     background-color: #1a1e26;
-    border-color: rgba(245, 158, 11, 0.35);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    border-color: rgba(245, 158, 11, 0.4);
   }
 
-  :global(html[data-theme='light']) .workspace-card:hover,
-  :global(html[data-theme='light']) .workspace-card.selected {
+  :global(html[data-theme='light']) .workspaces-list:not(:hover) .workspace-card.selected,
+  :global(html[data-theme='light']) .workspaces-list.keyboard-nav .workspace-card.selected,
+  :global(html[data-theme='light']) .workspaces-list:not(.keyboard-nav) .workspace-card:hover {
     background-color: #f0f6fc;
     border-color: #0969da;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   }
 
   .ws-icon-box {
@@ -1694,7 +1722,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background-color 0.08s ease, color 0.08s ease, border-color 0.08s ease;
   }
 
   :global(html[data-theme='light']) .ws-action-icon-btn {
@@ -1730,18 +1758,17 @@
     gap: 7px;
     padding: 8px 16px;
     border-radius: 9px;
-    background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+    background-color: #f59e0b;
     color: #0d1117;
     font-size: 13px;
     font-weight: 700;
     border: none;
     cursor: pointer;
-    transition: filter 0.15s ease, transform 0.15s ease;
+    transition: background-color 0.08s ease;
   }
 
   .ws-open-btn:hover {
-    filter: brightness(1.08);
-    transform: translateY(-1px);
+    background-color: #fbbf24;
   }
 
   /* FOOTER PRINCIPAL */

@@ -66,12 +66,21 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
   },
 };
 
-function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
+interface ParsedCombo {
+  wantCtrl: boolean;
+  wantAlt: boolean;
+  wantShift: boolean;
+  targetKey: string;
+}
+
+const comboCache = new Map<string, ParsedCombo[]>();
+
+function parseCombo(comboStr: string): ParsedCombo | null {
   const parts = comboStr
     .split('+')
     .map((p) => p.trim())
     .filter(Boolean);
-  if (parts.length === 0) return false;
+  if (parts.length === 0) return null;
 
   let wantCtrl = false;
   let wantAlt = false;
@@ -91,13 +100,32 @@ function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
     }
   }
 
+  if (!targetKey) return null;
+
+  return { wantCtrl, wantAlt, wantShift, targetKey };
+}
+
+function getParsedCombos(spec: string): ParsedCombo[] {
+  let cached = comboCache.get(spec);
+  if (!cached) {
+    cached = spec
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map(parseCombo)
+      .filter((c): c is ParsedCombo => c !== null);
+    comboCache.set(spec, cached);
+  }
+  return cached;
+}
+
+function matchesSingleCombo(e: KeyboardEvent, combo: ParsedCombo): boolean {
   const hasCtrl = e.ctrlKey || e.metaKey;
-  if (hasCtrl !== wantCtrl) return false;
-  if (e.altKey !== wantAlt) return false;
-  if (e.shiftKey !== wantShift) return false;
+  if (hasCtrl !== combo.wantCtrl) return false;
+  if (e.altKey !== combo.wantAlt) return false;
+  if (e.shiftKey !== combo.wantShift) return false;
 
-  if (!targetKey) return false;
-
+  const targetKey = combo.targetKey;
   const eventKey = e.key.toLowerCase();
   const eventCode = (e.code || '').toLowerCase();
 
@@ -151,10 +179,7 @@ function matchesSingleCombo(e: KeyboardEvent, comboStr: string): boolean {
  */
 export function matchesShortcut(e: KeyboardEvent, shortcutSpec: string | undefined | null): boolean {
   if (!shortcutSpec) return false;
-  const combos = shortcutSpec
-    .split(',')
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const combos = getParsedCombos(shortcutSpec);
   return combos.some((combo) => matchesSingleCombo(e, combo));
 }
 
@@ -163,6 +188,7 @@ class ShortcutsConfigManager {
     welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome },
     workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace },
   });
+  private loadPromise: Promise<void> | null = null;
 
   get welcome(): WelcomeShortcutsConfig {
     return this.config.welcome;
@@ -172,19 +198,25 @@ class ShortcutsConfigManager {
     return this.config.workspace;
   }
 
-  async loadFromBackend(): Promise<void> {
+  async loadFromBackend(force = false): Promise<void> {
     if (!isTauriEnvironment()) return;
-    try {
-      const loaded = await invokeTauri<ShortcutsConfig>('get_shortcuts_config');
-      if (loaded && loaded.welcome && loaded.workspace) {
-        this.config = {
-          welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome, ...loaded.welcome },
-          workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace, ...loaded.workspace },
-        };
-      }
-    } catch (err) {
-      console.warn('No se pudo cargar shortcuts.jsonc desde Rust, usando valores por defecto:', err);
+    if (this.loadPromise && !force) {
+      return this.loadPromise;
     }
+    this.loadPromise = (async () => {
+      try {
+        const loaded = await invokeTauri<ShortcutsConfig>('get_shortcuts_config');
+        if (loaded && loaded.welcome && loaded.workspace) {
+          this.config = {
+            welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome, ...loaded.welcome },
+            workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace, ...loaded.workspace },
+          };
+        }
+      } catch (err) {
+        console.warn('No se pudo cargar shortcuts.jsonc desde Rust, usando valores por defecto:', err);
+      }
+    })();
+    return this.loadPromise;
   }
 }
 

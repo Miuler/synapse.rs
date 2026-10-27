@@ -43,6 +43,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
+  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
+  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
+  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
+  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
+  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+
+- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
+  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
+  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+
+- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
+  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
+  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+
 - **Optimización de Rendimiento y Eliminación de Congelamientos ("Micro-Stutters") al Guardar y Modificar Archivos**:
   - **Backend Rust Asíncrono**: Se reemplazaron las llamadas sincrónicas y bloqueantes de `reconcile_sync()` por [`spawn_reconciliation()`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/infrastructure/navigation/engine.rs#L313) en los comandos Tauri de guardado de notas (`save_note_content`), creación de carpetas (`create_vault_folder`), operaciones de archivos (`delete_vault_item`, `rename_vault_item`, `write_binary_file`, `save_binary_asset`) y cambio de ramas Git (`git_checkout_branch`, `git_create_branch`). Esto evita que el hilo de comandos de Tauri quede bloqueado esperando recorridos completos de disco (`jwalk`).
   - **Debounce en Eventos del Frontend**: Se añadió un temporizador de debounce (350 ms) en el listener de `vault:files-changed` dentro de `WorkspacePage.svelte`, evitando re-renderizados en cascada, recálculos pesados de Git y llamadas continuas a `fetchNotesFromBackend()` durante operaciones rápidas o ráfagas de auto-guardado.
@@ -122,6 +138,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
+  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
+  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
+  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
+  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
+  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+
+- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
+  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
+  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+
+- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
+  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
+  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+
 - **Prevención de Recarga Redundante y Bloqueo de Edición en Excalidraw al presionar Esc**:
   - Se corrigió un bug en `ExcalidrawViewer` donde al pulsar <kbd>Esc</kbd> o producirse una deselección con pérdida de foco (`focusout`), la serialización y guardado del archivo desencadenaba una actualización externa reactiva que sobreescribía la escena de Excalidraw (`updateScene`). Esto provocaba la pérdida del puntero interactivo del canvas y requería alternar a modo lectura y volver a edición para reactivar el dibujo.
   - Implementación de discriminación de cambios locales (`isLocalChange`) y comparación semántica con hash de versión de escena (`hasSceneDiverged` utilizando `getSceneVersion`) para impedir reescrituras de la escena viva generadas por el propio visor.
@@ -151,6 +183,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ## [2026.10.24.02-alpha] - 2026-10-24
 
 ### Corregido
+
+- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
+  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
+  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
+  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
+  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
+  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+
+- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
+  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
+  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+
+- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
+  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
+  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
 
 - **Auto-guardado al perder foco y persistencia del modo edición en Excalidraw y Obsidian Excalidraw**:
   - Se implementó guardado automático instantáneo al perder foco (`onfocusout`, `onblur` y `<svelte:window onblur>`) tanto en el editor interactivo de Excalidraw como en el visor/editor de Obsidian Excalidraw.
@@ -182,6 +230,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Preservación íntegra de la sección `## Embedded Files` durante el guardado y serialización de archivos.
 
 ### Corregido
+
+- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
+  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
+  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
+  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
+  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
+  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+
+- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
+  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
+  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+
+- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
+  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
+  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
 
 - **Prevención de Congelamiento y Optimización de Memoria en Obsidian Excalidraw**:
   - Se eliminó el filtro CSS `drop-shadow` en el contenedor SVG del visor de Obsidian Excalidraw, evitando que WebKitGTK asigne búfers rasterizados masivos de varios gigabytes (hasta 4 GB) para diagramas vectoriales extensos.

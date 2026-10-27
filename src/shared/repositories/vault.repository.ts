@@ -836,8 +836,12 @@ export class TauriVaultRepository implements VaultRepository {
         relativePath,
         relative_path: relativePath,
       });
-    } catch (error) {
-      console.error(`Error en TauriVaultRepository al leer ${relativePath}:`, error);
+    } catch (error: any) {
+      // No saturar la consola con errores para archivos de configuración opcionales que pueden no existir
+      const isOptionalConfig = relativePath.startsWith('.synapse/') || relativePath.startsWith('.obsidian/');
+      if (!isOptionalConfig) {
+        console.error(`Error en TauriVaultRepository al leer ${relativePath}:`, error);
+      }
       return null;
     }
   }
@@ -1478,8 +1482,8 @@ export class TauriVaultRepository implements VaultRepository {
       }
     } catch {}
 
-    // 3. Fallback por defecto: Excalidraw si existe
-    return ['obsidian-excalidraw-plugin'];
+    // 3. Fallback por defecto: ningún plugin habilitado si no existe configuración en la bóveda
+    return [];
   }
 
   async setEnabledPlugins(plugins: string[], _vaultPath?: string): Promise<void> {

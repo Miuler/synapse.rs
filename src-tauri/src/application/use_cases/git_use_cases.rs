@@ -6,6 +6,7 @@ use crate::domain::services::git_service::GitPort;
 use std::path::Path;
 
 /// Casos de uso de la aplicación para operaciones de Git.
+#[derive(Clone)]
 pub struct GitUseCases<G: GitPort> {
     port: G,
 }

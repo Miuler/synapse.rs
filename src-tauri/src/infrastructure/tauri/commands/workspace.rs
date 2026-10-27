@@ -83,17 +83,17 @@ pub async fn select_vault_folder(
 }
 
 #[tauri::command]
-pub fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
+pub async fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
     state.workspace_registry_use_cases.list_workspaces()
 }
 
 #[tauri::command]
-pub fn get_shortcuts_config(state: State<'_, AppState>) -> Result<ShortcutsConfig, String> {
+pub async fn get_shortcuts_config(state: State<'_, AppState>) -> Result<ShortcutsConfig, String> {
     state.workspace_registry_use_cases.get_shortcuts_config()
 }
 
 #[tauri::command]
-pub fn toggle_pin_workspace(
+pub async fn toggle_pin_workspace(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<Vec<RecentWorkspaceEntry>, String> {
@@ -101,7 +101,7 @@ pub fn toggle_pin_workspace(
 }
 
 #[tauri::command]
-pub fn remove_recent_workspace(
+pub async fn remove_recent_workspace(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<Vec<RecentWorkspaceEntry>, String> {

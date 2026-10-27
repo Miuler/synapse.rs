@@ -374,7 +374,6 @@
     inset: 0;
     z-index: 9998;
     background-color: var(--dialog-backdrop, rgba(0, 0, 0, 0.45));
-    backdrop-filter: blur(2px);
     animation: fadeIn 0.15s ease-out;
   }
 
@@ -586,9 +585,9 @@
     cursor: pointer;
     font-size: 14px;
     color: var(--text-secondary, #656d76);
-    transition: background-color 0.1s ease, color 0.1s ease;
     user-select: none;
     outline: none;
+    contain: layout style paint;
     border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.05));
   }
 

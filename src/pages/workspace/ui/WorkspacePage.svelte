@@ -1,6 +1,6 @@
 <script lang="ts">
   import {debug, info, warn, error} from '@tauri-apps/plugin-log';
-  import {onMount, tick} from "svelte";
+  import {onMount, tick, untrack} from "svelte";
   import {Ribbon} from "@widgets/ribbon";
   import WorkspacePane from "./WorkspacePane.svelte";
   import {StatusBar} from "@widgets/status-bar";
@@ -754,32 +754,50 @@
   }
 
   $effect(() => {
-    if (activeTabPath && !isSyntheticTab(activeTabPath) && openedNotes[activeTabPath]) {
-      const targetMode: MarkdownViewMode = isEditing
-        ? (markdownViewMode === 'reading' ? 'live' : markdownViewMode)
-        : 'reading';
-      if (openedNotes[activeTabPath].viewMode !== targetMode) {
-        openedNotes[activeTabPath].viewMode = targetMode;
-        const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
-        if (vItem) vItem.view_mode = targetMode;
-        vaultRepository.setNoteViewMode(activeTabPath, targetMode);
-        persistTabsState();
-      }
+    const path = activeTabPath;
+    const editing = isEditing;
+    const viewMode = markdownViewMode;
+
+    if (path && !isSyntheticTab(path)) {
+      untrack(() => {
+        const note = openedNotes[path];
+        if (note) {
+          const targetMode: MarkdownViewMode = editing
+            ? (viewMode === 'reading' ? 'live' : viewMode)
+            : 'reading';
+          if (note.viewMode !== targetMode) {
+            note.viewMode = targetMode;
+            const vItem = vaultItems.find((v) => v.relative_path === path);
+            if (vItem) vItem.view_mode = targetMode;
+            vaultRepository.setNoteViewMode(path, targetMode);
+            persistTabsState();
+          }
+        }
+      });
     }
   });
 
   $effect(() => {
-    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath) && openedNotes[activeSplitTabPath]) {
-      const targetMode: MarkdownViewMode = isSplitEditing
-        ? (splitMarkdownViewMode === 'reading' ? 'live' : splitMarkdownViewMode)
-        : 'reading';
-      if (openedNotes[activeSplitTabPath].viewMode !== targetMode) {
-        openedNotes[activeSplitTabPath].viewMode = targetMode;
-        const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
-        if (vItem) vItem.view_mode = targetMode;
-        vaultRepository.setNoteViewMode(activeSplitTabPath, targetMode);
-        persistTabsState();
-      }
+    const path = activeSplitTabPath;
+    const editing = isSplitEditing;
+    const viewMode = splitMarkdownViewMode;
+
+    if (path && !isSyntheticTab(path)) {
+      untrack(() => {
+        const note = openedNotes[path];
+        if (note) {
+          const targetMode: MarkdownViewMode = editing
+            ? (viewMode === 'reading' ? 'live' : viewMode)
+            : 'reading';
+          if (note.viewMode !== targetMode) {
+            note.viewMode = targetMode;
+            const vItem = vaultItems.find((v) => v.relative_path === path);
+            if (vItem) vItem.view_mode = targetMode;
+            vaultRepository.setNoteViewMode(path, targetMode);
+            persistTabsState();
+          }
+        }
+      });
     }
   });
 
@@ -1834,14 +1852,22 @@
 
   // Asegurar que activeTabPath sea siempre una pestaña válida si hay pestañas abiertas
   $effect(() => {
-    if (openTabPaths.length > 0 && (!activeTabPath || !openTabPaths.includes(activeTabPath))) {
-      selectTab(openTabPaths[0]);
+    const paths = openTabPaths;
+    const currentActive = activeTabPath;
+    if (paths.length > 0 && (!currentActive || !paths.includes(currentActive))) {
+      untrack(() => {
+        selectTab(paths[0]);
+      });
     }
   });
 
   $effect(() => {
-    if (splitTabPaths.length > 0 && (!activeSplitTabPath || !splitTabPaths.includes(activeSplitTabPath))) {
-      selectSplitTab(splitTabPaths[0]);
+    const paths = splitTabPaths;
+    const currentSplitActive = activeSplitTabPath;
+    if (paths.length > 0 && (!currentSplitActive || !paths.includes(currentSplitActive))) {
+      untrack(() => {
+        selectSplitTab(paths[0]);
+      });
     }
   });
 
@@ -1849,7 +1875,9 @@
   $effect(() => {
     const path = activeTabPath;
     if (path && !isSyntheticTab(path)) {
-      ensureContentLoaded(path);
+      untrack(() => {
+        ensureContentLoaded(path);
+      });
     }
     tick().then(() => {
       if (editorContainerRef) editorContainerRef.scrollTop = 0;
@@ -2955,7 +2983,9 @@
   // Re-registrar comandos al cambiar idioma reactivamente
   $effect(() => {
     const _loc = appSettings.locale;
-    registerWorkspaceCommands();
+    untrack(() => {
+      registerWorkspaceCommands();
+    });
   });
 
   // Registrar comandos por defecto y cargar atajos JSONC al iniciar
@@ -2987,6 +3017,18 @@
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showWelcomeScreen) {
         return;
+      }
+
+      // Fast-reject para teclas comunes sin modificadores (evita recorrer 19 matchesShortcut en O(1))
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'F12') {
+        return;
+      }
+
+      // Si un modal de búsqueda o paleta está abierto, no robar teclas de navegación con modificadores
+      if (isQuickOpenOpen || isFullTextSearchOpen || isPaletteOpen) {
+        if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          return;
+        }
       }
       const ws = shortcutsConfig.workspace;
       const stopEvent = () => {
@@ -3157,6 +3199,7 @@
     };
 
     const handleFocus = () => {
+      if (showWelcomeScreen) return;
       refreshGitStatus();
     };
     window.addEventListener('focus', handleFocus);
@@ -3390,7 +3433,7 @@
 
 <svelte:window onblur={handleWindowBlur} />
 
-<div class="workspace-layout">
+<div class="workspace-layout" class:welcome-active={showWelcomeScreen && !isDetachedWindow}>
   {#if showWelcomeScreen && !isDetachedWindow}
     <WelcomeScreen
       onWorkspaceOpened={handleWorkspaceSelectedFromWelcome}
@@ -3984,6 +4027,10 @@
     overflow: hidden;
     overscroll-behavior: none;
     background-color: var(--bg-primary, #ffffff);
+  }
+
+  .workspace-layout.welcome-active > :not(:global(.welcome-root)) {
+    display: none !important;
   }
 
   :global(body.is-resizing-col) {

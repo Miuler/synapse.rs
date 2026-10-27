@@ -67,6 +67,7 @@ function loadInitialSettings(): AppSettings {
 class SettingsManager {
   settings = $state<AppSettings>(loadInitialSettings());
   systemTheme = $state<ResolvedTheme>('light');
+  private isCheckingTheme = false;
 
   constructor() {
     if (this.settings.locale) {
@@ -93,39 +94,45 @@ class SettingsManager {
         }
       });
 
-      // Polling ligero cada 3s para sincronización en tiempo real
+      // Polling ligero para sincronización en tiempo real cuando la ventana está visible
       window.setInterval(() => {
-        if (this.settings.theme === 'system') {
+        if (this.settings.theme === 'system' && !document.hidden) {
           this.checkSystemTheme();
         }
-      }, 3000);
+      }, 5000);
     }
     this.applyTheme();
   }
 
   async checkSystemTheme(): Promise<void> {
-    if (isTauriEnvironment()) {
-      try {
-        const theme = await invokeTauri<string>('get_system_theme');
-        if (theme === 'dark' || theme === 'light') {
-          if (this.systemTheme !== theme) {
-            this.systemTheme = theme;
-            this.applyTheme();
+    if (this.isCheckingTheme) return;
+    this.isCheckingTheme = true;
+    try {
+      if (isTauriEnvironment()) {
+        try {
+          const theme = await invokeTauri<string>('get_system_theme');
+          if (theme === 'dark' || theme === 'light') {
+            if (this.systemTheme !== theme) {
+              this.systemTheme = theme;
+              this.applyTheme();
+            }
+            return;
           }
-          return;
+        } catch (e) {
+          // Fallback al navegador
         }
-      } catch (e) {
-        // Fallback al navegador
       }
-    }
 
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      const theme = mq.matches ? 'dark' : 'light';
-      if (this.systemTheme !== theme) {
-        this.systemTheme = theme;
-        this.applyTheme();
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const theme = mq.matches ? 'dark' : 'light';
+        if (this.systemTheme !== theme) {
+          this.systemTheme = theme;
+          this.applyTheme();
+        }
       }
+    } finally {
+      this.isCheckingTheme = false;
     }
   }
 

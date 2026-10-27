@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch } from 'lucide-svelte';
@@ -142,6 +143,17 @@
     isRecent?: boolean;
   }
 
+  // Mapa indexado de vaultItems para búsquedas O(1) en vez de find() O(N)
+  let vaultItemMap = $derived.by<Map<string, VaultItem>>(() => {
+    const map = new Map<string, VaultItem>();
+    for (const item of vaultItems) {
+      if (item.relative_path) {
+        map.set(item.relative_path, item);
+      }
+    }
+    return map;
+  });
+
   // Prepara los candidatos completos para la lista priorizando el nombre del archivo
   let allCandidates = $derived.by<FileItemDisplay[]>(() => {
     const trimmed = searchQuery.trim();
@@ -170,7 +182,7 @@
       for (const path of recentFiles) {
         if (!path || path.startsWith('empty:') || added.has(path)) continue;
         const fileName = path.split('/').pop() || path;
-        const item = vaultItems.find((v) => v.relative_path === path);
+        const item = vaultItemMap.get(path);
         const title = item ? item.title : fileName.replace(/\.[^/.]+$/, '');
         if (fileName.toLowerCase().includes(qLower) || title.toLowerCase().includes(qLower) || path.toLowerCase().includes(qLower)) {
           filtered.push({
@@ -239,7 +251,7 @@
     // 1. Si no hay búsqueda, PRIORIDAD a los últimos archivos que abrió el usuario
     for (const path of recentFiles) {
       if (!path || path.startsWith('empty:') || addedPaths.has(path)) continue;
-      const item = vaultItems.find((v) => v.relative_path === path);
+      const item = vaultItemMap.get(path);
       const fileName = path.split('/').pop() || path;
       list.push({
         id: path,
@@ -274,117 +286,169 @@
   // Determinar si existen archivos recientes para condicionalmente renderizar líneas divisoras
   let hasRecents = $derived(fileList.some((f) => f.isRecent));
 
-  // Reiniciar el límite de página visible al abrir o cambiar la búsqueda
+  let prevQuery = '';
+  let prevIsOpen = false;
+
+  // Reiniciar el límite de página visible solo cuando realmente cambia la búsqueda o se abre el diálogo
   $effect(() => {
-    const _q = searchQuery;
-    const _open = isOpen;
-    visibleCount = PAGE_SIZE;
-    if (listContainerEl) {
-      listContainerEl.scrollTop = 0;
+    const currentQ = searchQuery;
+    const currentOpen = isOpen;
+
+    if (currentQ !== prevQuery || currentOpen !== prevIsOpen) {
+      prevQuery = currentQ;
+      prevIsOpen = currentOpen;
+
+      untrack(() => {
+        visibleCount = PAGE_SIZE;
+        if (listContainerEl) {
+          listContainerEl.scrollTop = 0;
+        }
+      });
     }
   });
 
-  // Obtener el total de archivos en memoria al abrir el diálogo
+  // Obtener el total de archivos en memoria solo al abrir el diálogo
+  let wasOpenForCount = false;
   $effect(() => {
-    if (isOpen) {
-      vaultRepository.getVaultFilesCount().then((count) => {
-        if (count > 0) {
-          totalFiles = count;
-          if (!searchQuery.trim()) {
-            matchedFiles = count;
+    const currentOpen = isOpen;
+    if (currentOpen && !wasOpenForCount) {
+      wasOpenForCount = true;
+      untrack(() => {
+        vaultRepository.getVaultFilesCount().then((count) => {
+          if (count > 0) {
+            totalFiles = count;
+            if (!searchQuery.trim()) {
+              matchedFiles = count;
+            }
+          } else if (vaultItems.length > 0) {
+            totalFiles = vaultItems.length;
+            if (!searchQuery.trim()) {
+              matchedFiles = vaultItems.length;
+            }
           }
-        } else if (vaultItems.length > 0) {
-          totalFiles = vaultItems.length;
-          if (!searchQuery.trim()) {
-            matchedFiles = vaultItems.length;
-          }
-        }
+        });
       });
+    } else if (!currentOpen) {
+      wasOpenForCount = false;
     }
   });
 
   // Búsqueda interactiva ultrarrápida con Nucleo en Rust (solo cuando no es modo FTS)
+  let prevNucleoQuery = '';
+  let prevNucleoOpen = false;
+  let prevNucleoFts = false;
+
   $effect(() => {
     const q = searchQuery.trim();
-    if (!q || !isOpen || isFtsMode) {
-      nucleoResults = [];
-      nucleoQuery = '';
-      matchedFiles = totalFiles;
-      isSearching = false;
-      return;
-    }
+    const currentOpen = isOpen;
+    const fts = isFtsMode;
 
-    isSearching = true;
-    let active = true;
+    if (q !== prevNucleoQuery || currentOpen !== prevNucleoOpen || fts !== prevNucleoFts) {
+      prevNucleoQuery = q;
+      prevNucleoOpen = currentOpen;
+      prevNucleoFts = fts;
 
-    // Pequeño debounce para no saturar llamadas IPC durante tecleo continuo rápido
-    const timer = setTimeout(() => {
-      vaultRepository.searchNotes(q).then((resp) => {
-        if (active) {
-          nucleoResults = resp.results;
-          nucleoQuery = q;
-          if (resp.total_files > 0) totalFiles = resp.total_files;
-          matchedFiles = resp.matched_files;
+      if (!q || !currentOpen || fts) {
+        untrack(() => {
+          nucleoResults = [];
+          nucleoQuery = '';
+          matchedFiles = untrack(() => totalFiles);
           isSearching = false;
-        }
-      }).catch(() => {
-        if (active) {
-          isSearching = false;
-        }
+        });
+        return;
+      }
+
+      untrack(() => {
+        isSearching = true;
       });
-    }, 40);
+      let active = true;
 
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
+      // Pequeño debounce para no saturar llamadas IPC durante tecleo continuo rápido
+      const timer = setTimeout(() => {
+        vaultRepository.searchNotes(q).then((resp) => {
+          if (active) {
+            untrack(() => {
+              nucleoResults = resp.results;
+              nucleoQuery = q;
+              if (resp.total_files > 0) totalFiles = resp.total_files;
+              matchedFiles = resp.matched_files;
+              isSearching = false;
+            });
+          }
+        }).catch(() => {
+          if (active) {
+            untrack(() => {
+              isSearching = false;
+            });
+          }
+        });
+      }, 40);
+
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }
   });
 
   // Búsqueda interactiva Full-Text con Tantivy cuando inicia con '?'
+  let prevFtsQuery = '';
+  let prevFtsOpen = false;
+  let prevFtsMode = false;
+
   $effect(() => {
-    if (!isOpen || !isFtsMode) {
-      ftsResults = [];
-      ftsTotalHits = 0;
-      ftsElapsedMs = 0;
-      isFtsLoading = false;
-      return;
-    }
-
+    const currentOpen = isOpen;
+    const fts = isFtsMode;
     const q = ftsQuery;
-    if (!q) {
-      ftsResults = [];
-      ftsTotalHits = 0;
-      ftsElapsedMs = 0;
-      isFtsLoading = false;
-      return;
-    }
 
-    isFtsLoading = true;
-    let active = true;
+    if (currentOpen !== prevFtsOpen || fts !== prevFtsMode || q !== prevFtsQuery) {
+      prevFtsOpen = currentOpen;
+      prevFtsMode = fts;
+      prevFtsQuery = q;
 
-    const timer = setTimeout(() => {
-      searchRepository
-        .search(q, 50)
-        .then((resp) => {
-          if (active) {
-            ftsResults = resp.hits;
-            ftsTotalHits = resp.total_hits;
-            ftsElapsedMs = resp.elapsed_ms;
-            isFtsLoading = false;
-          }
-        })
-        .catch((err) => {
-          if (active) {
-            console.error('Error en búsqueda FTS desde QuickOpen:', err);
-            isFtsLoading = false;
-          }
+      if (!currentOpen || !fts || !q) {
+        untrack(() => {
+          ftsResults = [];
+          ftsTotalHits = 0;
+          ftsElapsedMs = 0;
+          isFtsLoading = false;
         });
-    }, 120);
+        return;
+      }
 
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
+      untrack(() => {
+        isFtsLoading = true;
+      });
+      let active = true;
+
+      const timer = setTimeout(() => {
+        searchRepository
+          .search(q, 50)
+          .then((resp) => {
+            if (active) {
+              untrack(() => {
+                ftsResults = resp.hits;
+                ftsTotalHits = resp.total_hits;
+                ftsElapsedMs = resp.elapsed_ms;
+                isFtsLoading = false;
+              });
+            }
+          })
+          .catch((err) => {
+            if (active) {
+              console.error('Error en búsqueda FTS desde QuickOpen:', err);
+              untrack(() => {
+                isFtsLoading = false;
+              });
+            }
+          });
+      }, 120);
+
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }
   });
 
   function handleScroll(e: Event) {
@@ -631,8 +695,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(10, 12, 16, 0.7);
-    backdrop-filter: blur(10px);
+    background-color: var(--dialog-backdrop, rgba(10, 12, 16, 0.7));
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -820,9 +883,9 @@
     cursor: pointer;
     font-size: 14px;
     color: var(--text-secondary, #656d76);
-    transition: background-color 0.1s ease, color 0.1s ease;
     user-select: none;
     outline: none;
+    contain: layout style paint;
   }
 
   :global(.quick-open-container .palette-item:hover),

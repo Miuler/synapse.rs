@@ -13,43 +13,51 @@ pub fn search_items_command(query: String, items: Vec<String>) -> Vec<SearchResu
 }
 
 #[tauri::command]
-pub fn search_notes_command(
+pub async fn search_notes_command(
     state: State<'_, AppState>,
     query: String,
 ) -> Result<QuickOpenSearchResult, String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    let Some(ref engine) = *guard else {
+    let engine = {
+        let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+        guard.clone()
+    };
+    let Some(engine) = engine else {
         return Ok(QuickOpenSearchResult {
             results: Vec::new(),
             total_files: 0,
             matched_files: 0,
         });
     };
-    let (matches, total_files, matched_files) = engine.search_with_stats(&query, 50);
-    let recent_notes = engine.get_recent_notes(15);
-    let recent_set: std::collections::HashSet<compact_str::CompactString> =
-        recent_notes.into_iter().map(|n| n.path).collect();
 
-    let results = matches
-        .into_iter()
-        .enumerate()
-        .map(|(idx, m)| {
-            let is_recent = recent_set.contains(&m.path);
-            SearchResult {
-                text: m.title.to_string(),
-                score: (1000_u32).saturating_sub(idx as u32 * 10),
-                match_indices: Vec::new(),
-                note_path: Some(m.path.to_string()),
-                is_recent: Some(is_recent),
-                last_opened_nanos: m.last_opened_nanos,
-            }
+    tauri::async_runtime::spawn_blocking(move || {
+        let (matches, total_files, matched_files) = engine.search_with_stats(&query, 50);
+        let recent_notes = engine.get_recent_notes(15);
+        let recent_set: std::collections::HashSet<compact_str::CompactString> =
+            recent_notes.into_iter().map(|n| n.path).collect();
+
+        let results = matches
+            .into_iter()
+            .enumerate()
+            .map(|(idx, m)| {
+                let is_recent = recent_set.contains(&m.path);
+                SearchResult {
+                    text: m.title.to_string(),
+                    score: (1000_u32).saturating_sub(idx as u32 * 10),
+                    match_indices: Vec::new(),
+                    note_path: Some(m.path.to_string()),
+                    is_recent: Some(is_recent),
+                    last_opened_nanos: m.last_opened_nanos,
+                }
+            })
+            .collect();
+        Ok(QuickOpenSearchResult {
+            results,
+            total_files,
+            matched_files,
         })
-        .collect();
-    Ok(QuickOpenSearchResult {
-        results,
-        total_files,
-        matched_files,
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

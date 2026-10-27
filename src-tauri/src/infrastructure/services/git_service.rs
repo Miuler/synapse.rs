@@ -6,6 +6,7 @@ use crate::domain::services::git_service::GitPort;
 use std::collections::HashMap;
 use std::path::Path;
 
+#[derive(Clone, Copy, Default)]
 pub struct GitService;
 
 impl GitPort for GitService {

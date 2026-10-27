@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use tauri::State;
 
 #[tauri::command]
-pub fn get_vault_git_status(
+pub async fn get_vault_git_status(
     state: State<'_, AppState>,
     folder_path: Option<String>,
 ) -> Result<VaultGitStatus, String> {
@@ -27,7 +27,10 @@ pub fn get_vault_git_status(
             }
         }
     };
-    state.git_use_cases.get_status(&vault_path)
+    let git_use_cases = state.git_use_cases.clone();
+    tauri::async_runtime::spawn_blocking(move || git_use_cases.get_status(&vault_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

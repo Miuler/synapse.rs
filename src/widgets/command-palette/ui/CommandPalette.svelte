@@ -12,21 +12,7 @@
 
   let searchValue = $state('');
 
-  // Escuchar atajo global Ctrl+P o Cmd+P para abrir/cerrar la paleta de comandos
-  $effect(() => {
-    const handleKeydown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'p' || e.key === 'P')) {
-        e.preventDefault();
-        isOpen = !isOpen;
-        if (isOpen) {
-          searchValue = '';
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  });
+  // La apertura global Ctrl+P se maneja de forma centralizada en WorkspacePage para evitar listeners duplicados
 
   function closePalette() {
     isOpen = false;
@@ -108,8 +94,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(10, 12, 16, 0.7);
-    backdrop-filter: blur(10px);
+    background-color: var(--dialog-backdrop, rgba(10, 12, 16, 0.7));
     display: flex;
     justify-content: center;
     align-items: flex-start;
@@ -175,9 +160,9 @@
     cursor: pointer;
     font-size: 14px;
     color: var(--text-secondary, #656d76);
-    transition: background-color 0.1s ease, color 0.1s ease;
     user-select: none;
     outline: none;
+    contain: layout style paint;
   }
 
   :global(.palette-container .command-item:hover),
