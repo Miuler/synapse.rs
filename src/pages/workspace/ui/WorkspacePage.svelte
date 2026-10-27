@@ -1925,6 +1925,7 @@
       isConnectedToRust = vaultRepository.isConnected();
       ensureSynapseAppLoaded();
       await refreshGitStatus();
+      refreshMcpStatus();
 
       if (notes && Array.isArray(notes) && notes.length > 0) {
         vaultItems = notes.map((n, index) => {
@@ -3320,6 +3321,7 @@
       });
       isConnectedToRust = vaultRepository.isConnected();
       await refreshGitStatus();
+      refreshMcpStatus();
       vaultRepository.getRecentNotes(15).then((recents) => {
         if (recents && recents.length > 0) {
           recentFiles = recents;
@@ -3400,6 +3402,7 @@
         });
         tabHistory.clear();
         await restoreSidebarWidth();
+        refreshMcpStatus();
         const restored = await restoreOpenTabsState();
         if (!restored) {
           handleNewEmptyTab();
@@ -3985,6 +3988,7 @@
       markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
       mcpStatus={mcpStatus}
       onToggleMcp={handleToggleMcp}
+      onCopyMcpUrl={copyMcpUrlToClipboard}
       onToggleVim={() => appSettings.toggleVimMode()}
       onToggleMarkdownView={toggleMarkdownViewMode}
       onChangeMarkdownView={handleChangeMarkdownView}

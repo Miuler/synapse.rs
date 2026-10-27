@@ -5,7 +5,15 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Sin publicar]
+## [2026.10.27.03-alpha] - 2026-10-27
+
+### Añadido
+
+- **Menú contextual y copiado de URL del Servidor MCP en la barra de estado**:
+  - **Menú contextual accesible con Bits-UI (`ContextMenu.Root`)**: Permite hacer clic derecho sobre el indicador MCP en la barra de estado para acceder rápidamente a acciones clave.
+  - **Acción para copiar URL de MCP**: Opción "Copiar URL del servidor MCP" (`/mcp` endpoint con puerto dinámico) al portapapeles con feedback visual mediante toast en la barra de estado.
+  - **Acción rápida para alternar servidor**: Alternar activación/desactivación del servidor MCP para la bóveda actual directamente desde el menú contextual.
+  - **Sincronización de estado reactiva en WorkspacePage**: Llamadas a `refreshMcpStatus()` en la apertura de la bóveda, al cargar carpetas recientes y al inicializar pestañas de workspace.
 
 ### Cambiado
 
@@ -445,8 +453,9 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
-[2026.10.27.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.26.01-alpha
-[2026.10.27.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.26.01-alpha
+[2026.10.27.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.03-alpha
+[2026.10.27.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.02-alpha
+[2026.10.27.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.01-alpha
 [2026.10.26.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.26.01-alpha
 [2026.10.24.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.24.02-alpha
 [2026.10.24.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.24.01-alpha

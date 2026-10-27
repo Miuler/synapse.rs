@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { DropdownMenu, Popover, Toggle } from 'bits-ui';
+  import { DropdownMenu, Popover, Toggle, ContextMenu } from 'bits-ui';
   import {
     Command,
     Sparkles,
@@ -15,6 +15,9 @@
     FileText,
     RefreshCw,
     Bot,
+    Copy,
+    ExternalLink,
+    Power,
   } from 'lucide-svelte';
   import { ThemeToggle } from '@features/theme-toggle';
   import { type MarkdownViewMode } from '@entities/vault-item';
@@ -35,6 +38,7 @@
     markdownViewMode?: MarkdownViewMode;
     mcpStatus?: McpRuntimeStatus | null;
     onToggleMcp?: () => void;
+    onCopyMcpUrl?: () => void;
     onToggleVim?: () => void;
     onToggleMarkdownView?: () => void;
     onChangeMarkdownView?: (newMode: MarkdownViewMode) => void;
@@ -55,6 +59,7 @@
     markdownViewMode = 'live',
     mcpStatus = null,
     onToggleMcp,
+    onCopyMcpUrl,
     onToggleVim,
     onToggleMarkdownView,
     onChangeMarkdownView,
@@ -237,6 +242,35 @@
     }, 800);
     return () => clearInterval(interval);
   });
+
+  // Estado para notificación toast en la barra de estado
+  let toastMessage = $state<string | null>(null);
+  let toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function showToast(msg: string) {
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastMessage = msg;
+    toastTimeout = setTimeout(() => {
+      toastMessage = null;
+      toastTimeout = null;
+    }, 2000);
+  }
+
+  async function handleCopyMcpUrl() {
+    if (onCopyMcpUrl) {
+      onCopyMcpUrl();
+      showToast('URL de MCP copiada');
+      return;
+    }
+    const endpoint = mcpStatus?.endpoint || (mcpStatus?.port ? `http://127.0.0.1:${mcpStatus.port}/mcp` : 'http://127.0.0.1:27182/mcp');
+    try {
+      await navigator.clipboard.writeText(endpoint);
+      showToast('URL de MCP copiada');
+    } catch (e) {
+      console.warn('Error al copiar URL de MCP:', e);
+      showToast('Error al copiar al portapapeles');
+    }
+  }
 </script>
 
 <footer class="status-bar">
@@ -413,24 +447,55 @@
 
     <div class="divider"></div>
 
-    <!-- Indicador y Toggle del Servidor MCP Local -->
-    <button
-      type="button"
-      class="status-item clickable mcp-btn"
-      class:mcp-running={mcpStatus?.running}
-      onclick={() => { if (onToggleMcp) onToggleMcp(); }}
-      title={mcpStatus?.running
-        ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar para esta bóveda)`
-        : `Servidor MCP Desactivado\nPuerto asignado: :${mcpStatus?.port || 27182}\n(Clic para activar para esta bóveda)`}
-    >
-      <Bot size={13} class="icon mcp-icon" />
-      <span class="mcp-label">
-        MCP {mcpStatus?.running ? 'ON' : 'OFF'}
-      </span>
-      {#if mcpStatus?.running}
-        <span class="mcp-port-tag">:{mcpStatus.port}</span>
-      {/if}
-    </button>
+    <!-- Indicador y Toggle del Servidor MCP Local con Menú Contextual -->
+    <ContextMenu.Root>
+      <ContextMenu.Trigger>
+        {#snippet child({ props })}
+          <button
+            {...props}
+            type="button"
+            class="status-item clickable mcp-btn"
+            class:mcp-running={mcpStatus?.running}
+            onclick={() => { if (onToggleMcp) onToggleMcp(); }}
+            title={mcpStatus?.running
+              ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar, clic secundario para opciones)`
+              : `Servidor MCP Desactivado\nPuerto asignado: :${mcpStatus?.port || 27182}\n(Clic para activar, clic secundario para opciones)`}
+          >
+            <Bot size={13} class="icon mcp-icon" />
+            <span class="mcp-label">
+              MCP {mcpStatus?.running ? 'ON' : 'OFF'}
+            </span>
+            {#if mcpStatus?.running}
+              <span class="mcp-port-tag">:{mcpStatus.port}</span>
+            {/if}
+          </button>
+        {/snippet}
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content class="status-context-menu">
+          <ContextMenu.Item
+            class="status-context-menu-item"
+            onSelect={handleCopyMcpUrl}
+          >
+            <Copy size={13} class="context-menu-item-icon" />
+            <span class="context-menu-item-text">Copiar URL del servidor MCP</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Separator class="status-context-menu-divider" />
+
+          <ContextMenu.Item
+            class="status-context-menu-item"
+            onSelect={() => { if (onToggleMcp) onToggleMcp(); }}
+          >
+            <Power size={13} class="context-menu-item-icon" />
+            <span class="context-menu-item-text">
+              {mcpStatus?.running ? 'Desactivar MCP en este workspace' : 'Activar MCP en este workspace'}
+            </span>
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   </div>
 
   <div class="right-group">
@@ -633,6 +698,13 @@
     <ThemeToggle />
   </div>
 </footer>
+
+{#if toastMessage}
+  <div class="status-toast">
+    <Check size={14} class="status-toast-icon" />
+    <span>{toastMessage}</span>
+  </div>
+{/if}
 
 <style>
   .status-bar {
@@ -1433,5 +1505,124 @@
   :global(.indexing-popover .rebuild-btn:disabled) {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  /* Menú Contextual Bits-UI de la Barra de Estado */
+  :global(.status-context-menu) {
+    min-width: 220px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 9999;
+    animation: scaleIn 0.1s ease-out;
+    outline: none;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  :global(.status-context-menu .status-context-menu-divider) {
+    height: 1px;
+    background: var(--border-primary, #d0d7de);
+    margin: 4px 0;
+  }
+
+  :global(.status-context-menu .status-context-menu-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.1s ease, color 0.1s ease;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  :global(.status-context-menu .status-context-menu-item:hover),
+  :global(.status-context-menu .status-context-menu-item[data-highlighted]) {
+    background: var(--accent-bg, rgba(9, 105, 218, 0.08));
+    color: var(--accent, #0969da);
+  }
+
+  :global(.status-context-menu .status-context-menu-item[data-disabled]),
+  :global(.status-context-menu .status-context-menu-item:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  :global(.status-context-menu .context-menu-item-icon) {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    color: var(--text-secondary, #656d76);
+  }
+
+  :global(.status-context-menu .status-context-menu-item:hover .context-menu-item-icon),
+  :global(.status-context-menu .status-context-menu-item[data-highlighted] .context-menu-item-icon) {
+    color: var(--accent, #0969da);
+  }
+
+  :global(.status-context-menu .context-menu-item-text) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Notificación Toast rápida en StatusBar */
+  .status-toast {
+    position: fixed;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary, #1f2328);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--popover-shadow, 0 4px 14px rgba(0, 0, 0, 0.25));
+    z-index: 10000;
+    pointer-events: none;
+    animation: toast-fade-in 0.15s ease-out;
+  }
+
+  :global(.status-toast-icon) {
+    color: #2da44e;
+    flex-shrink: 0;
+  }
+
+  @keyframes toast-fade-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 6px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 </style>
