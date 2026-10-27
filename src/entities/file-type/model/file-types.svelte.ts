@@ -23,10 +23,15 @@ export interface EditorConfig {
   auto_save_delay_ms: number;
 }
 
+export interface DiffConfig {
+  max_expand_lines: number;
+}
+
 export interface AppConfig {
   supported_files: SupportedFileTypes;
   ignored: IgnoredConfig;
   editor?: EditorConfig;
+  diff?: DiffConfig;
 }
 
 function parseJsonc<T>(raw: string): T {
