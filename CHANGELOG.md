@@ -34,14 +34,20 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
       - `?` ámbar para archivos sin rastrear (`worktree: '?'`).
       - `S` púrpura para archivos con cambios guardados en stash (`is_stashed: true`).
     - Lógica de normalización desacoplada y compartida en `@entities/git` (`parseGitStatusInfo`, `NormalizedGitStatus`) respetando FSD y evitando duplicación de código.
-  - **Menú Contextual en el Archivo del Breadcrumb**:
-    - Al hacer clic derecho sobre el segmento del archivo activo en el breadcrumb, se despliega un menú contextual accesible (`bits-ui ContextMenu`) con opciones clave:
+  - **Menú Contextual Extendido con Soporte Completo de Git**:
+    - Al hacer clic derecho sobre el segmento del archivo activo en el breadcrumb, se despliega un menú contextual accesible (`bits-ui ContextMenu`) con opciones clave del archivo y suite completa de acciones Git:
+      - *Hacer commit...*: Abre directamente el diálogo de confirmación de Git para el archivo actual.
+      - *Ver diferencias (Diff / Diff staged)*: Soporte para diff de texto y visual (2 paneles) para archivos gráficos, diagramas o PDFs.
+      - *Historial de Git (Log)...*: Abre el diálogo de historial de revisiones del archivo activo.
+      - *Git Add*: Prepara el archivo activo directamente al índice/stage de Git con notificación toast.
+      - *Git Restore --staged*: Desmarca el archivo del stage (`git restore --staged`).
+      - *Git Restore*: Abre diálogo de confirmación seguro y descarta las modificaciones locales en el árbol de trabajo.
       - *Abrir en nueva ventana* (desacopla o abre una ventana independiente del archivo).
-      - *Ver diferencias (Git Diff)* para cambios sin preparar o staged (abre pestaña comparativa).
       - *Abrir con la app por defecto* del sistema operativo.
       - *Mostrar en carpeta* (revela el archivo en el explorador de archivos nativo).
       - *Renombrar archivo* (activa la edición directa inline del breadcrumb).
       - *Copiar ruta* (copia la ruta relativa del archivo al portapapeles).
+    - **Reutilización y Arquitectura FSD**: Componente [`GitRestoreDialog`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src/shared/ui/git-restore-dialog/) promovido a `@shared/ui` para ser reutilizado tanto por el explorador de la bóveda (`VaultExplorer`) como por el breadcrumb (`BreadCrumb`).
 
 
 - **Persistencia Per-Vault y Registro Global de Puertos del Servidor MCP**:

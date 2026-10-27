@@ -1,10 +1,26 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ChevronRight, Edit2, ExternalLink, FolderSearch, Copy, GitCompare } from 'lucide-svelte';
+  import {
+    ChevronRight,
+    Edit2,
+    ExternalLink,
+    FolderSearch,
+    Copy,
+    GitCompare,
+    GitCompareArrows,
+    GitCommitHorizontal,
+    Plus,
+    Undo2,
+    RotateCcw,
+    History,
+    Columns,
+    Check,
+  } from 'lucide-svelte';
   import { ContextMenu } from 'bits-ui';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon } from '@entities/file-type';
-  import { parseGitStatusInfo, type GitFileStatusKind } from '@entities/git';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
+  import { parseGitStatusInfo, gitDialogState, gitApi, type GitFileStatusKind } from '@entities/git';
+  import { GitRestoreDialog } from '@shared/ui/git-restore-dialog';
 
   interface Props {
     path?: string;
@@ -18,6 +34,8 @@
     onShowItemInFolder?: (path: string) => void;
     onOpenInNewWindow?: (path: string) => void;
     onOpenDiff?: (path: string, staged: boolean) => void;
+    onRefreshGit?: () => Promise<void> | void;
+    onGitRestore?: (paths: string[]) => Promise<void> | void;
   }
 
   let {
@@ -31,7 +49,9 @@
     onOpenFileWithDefaultApp,
     onShowItemInFolder,
     onOpenInNewWindow,
-    onOpenDiff
+    onOpenDiff,
+    onRefreshGit,
+    onGitRestore,
   }: Props = $props();
 
   interface FolderSegment {
@@ -43,6 +63,21 @@
   let editValue = $state('');
   let inputEl = $state<HTMLInputElement | null>(null);
   let isSubmitting = $state(false);
+
+  // Estado para diálogo de Git Restore y Toast
+  let isRestoreDialogOpen = $state(false);
+  let isRestoring = $state(false);
+  let toastMessage = $state<string | null>(null);
+  let toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function showToast(msg: string) {
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastMessage = msg;
+    toastTimeout = setTimeout(() => {
+      toastMessage = null;
+      toastTimeout = null;
+    }, 2500);
+  }
 
   // Normalizar y dividir la ruta
   let cleanPath = $derived(
@@ -76,6 +111,123 @@
     const raw = gitStatuses[cleanPath] ?? gitStatuses[cleanPath.replace(/^\.\//, '')];
     return parseGitStatusInfo(raw);
   });
+
+  // Capacidades de Git para el archivo actual
+  let canGitAdd = $derived.by(() => {
+    if (!isGitRepo || !fileGitStatus) return false;
+    const isModifiedOrDeletedNotStashed =
+      (fileGitStatus.worktree === 'M' || fileGitStatus.worktree === 'D') && !fileGitStatus.is_stashed;
+    const isUntracked = fileGitStatus.worktree === '?' && !fileGitStatus.is_stashed;
+    return Boolean(isModifiedOrDeletedNotStashed || isUntracked);
+  });
+
+  let canGitRestoreStaged = $derived.by(() => {
+    if (!isGitRepo || !fileGitStatus) return false;
+    return Boolean(fileGitStatus.index);
+  });
+
+  let canGitRestore = $derived.by(() => {
+    if (!isGitRepo || !fileGitStatus) return false;
+    return fileGitStatus.worktree === 'M' || fileGitStatus.worktree === 'D';
+  });
+
+  let canGitCommit = $derived.by(() => {
+    if (!isGitRepo || !fileGitStatus) return false;
+    const hasStage = Boolean(fileGitStatus.index);
+    const isModifiedOrDeletedNotStashed =
+      (fileGitStatus.worktree === 'M' || fileGitStatus.worktree === 'D') && !fileGitStatus.is_stashed;
+    const isUntracked = fileGitStatus.worktree === '?' && !fileGitStatus.is_stashed;
+    return Boolean(hasStage || isModifiedOrDeletedNotStashed || isUntracked);
+  });
+
+  let canGitDiff = $derived.by(() => {
+    if (!isGitRepo || !cleanPath) return false;
+    return Boolean(fileGitStatus?.worktree || (!fileGitStatus?.index && isGitRepo));
+  });
+
+  let canGitDiffStaged = $derived.by(() => {
+    if (!isGitRepo || !cleanPath) return false;
+    return Boolean(fileGitStatus?.index);
+  });
+
+  let isVisualCandidateForDiff = $derived.by(() => {
+    if (!cleanPath) return false;
+    return (
+      isImageFile(cleanPath) ||
+      isPdfFile(cleanPath) ||
+      isDrawingFile(cleanPath) ||
+      isDiagramFile(cleanPath)
+    );
+  });
+
+  // Acciones de Git
+  async function handleGitAdd() {
+    if (!cleanPath) return;
+    try {
+      await gitApi.add([cleanPath]);
+      showToast('Elemento añadido al stage (git add)');
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al ejecutar git add desde breadcrumb:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git add: ${msg}`);
+    }
+  }
+
+  async function handleGitRestoreStaged() {
+    if (!cleanPath) return;
+    try {
+      await gitApi.restoreStaged([cleanPath]);
+      showToast('Elemento desmarcado de stage (git restore --staged)');
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al ejecutar git restore --staged desde breadcrumb:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git restore --staged: ${msg}`);
+    }
+  }
+
+  function handlePromptGitRestore() {
+    if (!cleanPath) return;
+    isRestoreDialogOpen = true;
+  }
+
+  function cancelGitRestore() {
+    if (isRestoring) return;
+    isRestoreDialogOpen = false;
+  }
+
+  async function confirmGitRestore() {
+    if (!cleanPath || isRestoring) return;
+    isRestoring = true;
+    try {
+      await gitApi.restore([cleanPath]);
+      showToast('Elemento restaurado (git restore)');
+      if (onGitRestore) {
+        await onGitRestore([cleanPath]);
+      }
+      if (onRefreshGit) {
+        onRefreshGit();
+      }
+      isRestoreDialogOpen = false;
+    } catch (err: unknown) {
+      console.error('Error al restaurar con git restore desde breadcrumb:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error en git restore: ${msg}`);
+    } finally {
+      isRestoring = false;
+    }
+  }
+
+  function handlePromptGitCommit() {
+    if (!cleanPath) return;
+    gitDialogState.openCommitDialog([cleanPath]);
+  }
+
+  function handleOpenFileLog() {
+    if (!cleanPath) return;
+    gitDialogState.openFileLog(cleanPath);
+  }
 
   function startEditing() {
     if (readOnly || !fileName || path.startsWith('empty:') || isEditing) return;
@@ -244,26 +396,6 @@
                       </ContextMenu.Item>
                     {/if}
 
-                    {#if fileGitStatus?.worktree === 'M' && onOpenDiff}
-                      <ContextMenu.Item
-                        class="context-menu-item"
-                        onSelect={() => onOpenDiff(cleanPath, false)}
-                      >
-                        <GitCompare size={14} class="context-menu-item-icon" />
-                        <span>Ver diferencias (Git Diff)</span>
-                      </ContextMenu.Item>
-                    {/if}
-
-                    {#if (fileGitStatus?.index === 'M' || fileGitStatus?.index === 'A') && onOpenDiff}
-                      <ContextMenu.Item
-                        class="context-menu-item"
-                        onSelect={() => onOpenDiff(cleanPath, true)}
-                      >
-                        <GitCompare size={14} class="context-menu-item-icon" />
-                        <span>Ver diferencias Staged (Git Diff)</span>
-                      </ContextMenu.Item>
-                    {/if}
-
                     {#if onOpenFileWithDefaultApp}
                       <ContextMenu.Item
                         class="context-menu-item"
@@ -282,6 +414,89 @@
                         <FolderSearch size={14} class="context-menu-item-icon" />
                         <span>Mostrar en carpeta</span>
                       </ContextMenu.Item>
+                    {/if}
+
+                    <!-- Opciones de Git -->
+                    {#if isGitRepo}
+                      <ContextMenu.Separator class="context-menu-divider" />
+
+                      {#if canGitCommit}
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          onSelect={handlePromptGitCommit}
+                        >
+                          <GitCommitHorizontal size={14} class="context-menu-item-icon" />
+                          <span>Hacer commit...</span>
+                        </ContextMenu.Item>
+                      {/if}
+
+                      {#if onOpenDiff}
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          disabled={!canGitDiff}
+                          onSelect={() => onOpenDiff(cleanPath, false)}
+                        >
+                          {#if isVisualCandidateForDiff}
+                            <Columns size={14} class="context-menu-item-icon" />
+                            <span>Diff visual (2 paneles)</span>
+                          {:else}
+                            <GitCompare size={14} class="context-menu-item-icon" />
+                            <span>Diff</span>
+                          {/if}
+                        </ContextMenu.Item>
+
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          disabled={!canGitDiffStaged}
+                          onSelect={() => onOpenDiff(cleanPath, true)}
+                        >
+                          {#if isVisualCandidateForDiff}
+                            <Columns size={14} class="context-menu-item-icon" />
+                            <span>Diff visual --staged</span>
+                          {:else}
+                            <GitCompareArrows size={14} class="context-menu-item-icon" />
+                            <span>Diff --staged</span>
+                          {/if}
+                        </ContextMenu.Item>
+                      {/if}
+
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={handleOpenFileLog}
+                      >
+                        <History size={14} class="context-menu-item-icon" />
+                        <span>Historial de Git (Log)...</span>
+                      </ContextMenu.Item>
+
+                      {#if canGitAdd}
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          onSelect={handleGitAdd}
+                        >
+                          <Plus size={14} class="context-menu-item-icon" />
+                          <span>Git Add</span>
+                        </ContextMenu.Item>
+                      {/if}
+
+                      {#if canGitRestoreStaged}
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          onSelect={handleGitRestoreStaged}
+                        >
+                          <Undo2 size={14} class="context-menu-item-icon" />
+                          <span>Git Restore --staged</span>
+                        </ContextMenu.Item>
+                      {/if}
+
+                      {#if canGitRestore}
+                        <ContextMenu.Item
+                          class="context-menu-item"
+                          onSelect={handlePromptGitRestore}
+                        >
+                          <RotateCcw size={14} class="context-menu-item-icon" />
+                          <span>Git Restore</span>
+                        </ContextMenu.Item>
+                      {/if}
                     {/if}
 
                     <ContextMenu.Separator class="context-menu-divider" />
@@ -312,6 +527,21 @@
       </ol>
     {/if}
   </nav>
+
+  <GitRestoreDialog
+    bind:open={isRestoreDialogOpen}
+    items={cleanPath ? [cleanPath] : []}
+    loading={isRestoring}
+    onConfirm={confirmGitRestore}
+    onCancel={cancelGitRestore}
+  />
+
+  {#if toastMessage}
+    <div class="breadcrumb-toast">
+      <Check class="breadcrumb-toast-icon" />
+      <span>{toastMessage}</span>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -361,130 +591,139 @@
   .breadcrumb-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     padding: 3px 6px;
+    border: none;
     background: transparent;
-    border: 1px solid transparent;
     border-radius: 4px;
-    color: var(--text-secondary, #656d76);
     font-size: 12px;
     font-family: inherit;
-    line-height: 1;
+    color: var(--text-secondary, #656d76);
     cursor: pointer;
-    transition:
-      background-color 0.15s ease,
-      color 0.15s ease,
-      border-color 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    max-width: 260px;
+    outline: none;
   }
 
   .breadcrumb-btn:hover:not(:disabled) {
-    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+    background: var(--bg-secondary, rgba(0, 0, 0, 0.05));
     color: var(--text-primary, #1f2328);
   }
 
-  .breadcrumb-btn.folder-btn:hover {
-    color: var(--accent, #0969da);
+  .breadcrumb-btn:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent, #0969da);
   }
 
   .breadcrumb-btn.file-btn {
+    font-weight: 600;
     color: var(--text-primary, #1f2328);
-    font-weight: 500;
   }
 
-  .breadcrumb-btn.file-btn.editable:hover {
-    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
-    border-color: var(--border-primary, rgba(0, 0, 0, 0.15));
-  }
-
-  .breadcrumb-btn.file-btn.editable:hover :global(.edit-icon) {
-    opacity: 1;
-  }
-
-  :global(.synapse-breadcrumb .edit-icon) {
-    opacity: 0;
-    margin-left: 2px;
-    color: var(--text-muted, #8c959f);
-    transition: opacity 0.15s ease;
+  .breadcrumb-btn.file-btn.editable {
+    cursor: pointer;
   }
 
   .breadcrumb-btn:disabled {
     cursor: default;
+    opacity: 0.9;
   }
 
-  .separator {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted, #8c959f);
-    opacity: 0.6;
-    margin: 0 1px;
+  :global(.breadcrumb-icon) {
+    flex-shrink: 0;
+    opacity: 0.85;
   }
 
   .segment-text {
-    max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  :global(.breadcrumb-icon) {
-    flex-shrink: 0;
+  .file-title {
+    max-width: 220px;
   }
 
-  /* Git Badges */
+  :global(.edit-icon) {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    margin-left: 2px;
+    flex-shrink: 0;
+    color: var(--text-muted, #8c959f);
+  }
+
+  .breadcrumb-btn:hover :global(.edit-icon) {
+    opacity: 0.8;
+  }
+
+  .separator {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted, #8c959f);
+    opacity: 0.6;
+    margin: 0 1px;
+    user-select: none;
+  }
+
+  /* Badges de estado Git */
   .git-badges-group {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    flex-shrink: 0;
+    margin-left: 4px;
   }
 
   .git-badge {
-    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
     font-weight: 700;
-    line-height: 1;
-    padding: 2px 4px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
     border-radius: 3px;
-    flex-shrink: 0;
-  }
-
-  .git-badge.staged {
-    color: #16a34a;
-    background: rgba(22, 163, 74, 0.16);
+    line-height: 1;
+    cursor: help;
   }
 
   .git-badge.modified {
-    color: #dc2626;
-    background: rgba(220, 38, 38, 0.16);
+    background: rgba(217, 119, 6, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(217, 119, 6, 0.3);
+  }
+
+  .git-badge.staged {
+    background: rgba(22, 163, 74, 0.15);
+    color: #16a34a;
+    border: 1px solid rgba(22, 163, 74, 0.3);
   }
 
   .git-badge.untracked {
-    color: #ca8a04;
-    background: rgba(202, 138, 4, 0.16);
+    background: rgba(147, 51, 234, 0.15);
+    color: #9333ea;
+    border: 1px solid rgba(147, 51, 234, 0.3);
   }
 
   .git-badge.stashed {
-    color: #7c3aed;
-    background: rgba(124, 58, 237, 0.16);
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
   }
 
-  /* Context Menu */
+  /* Menú Contextual Bits-UI */
   :global(.breadcrumb-context-menu) {
-    min-width: 190px;
+    min-width: 210px;
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--border-primary, #d0d7de);
+    box-shadow: var(--popover-shadow, 0 8px 24px rgba(0, 0, 0, 0.12));
     border-radius: 8px;
     padding: 4px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
     z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    user-select: none;
+    animation: scaleIn 0.1s ease-out;
     outline: none;
-    animation: breadcrumb-menu-fade 0.1s ease-out;
   }
 
-  @keyframes breadcrumb-menu-fade {
+  @keyframes scaleIn {
     from {
       opacity: 0;
       transform: scale(0.96);
@@ -526,6 +765,13 @@
     color: var(--accent, #0969da);
   }
 
+  :global(.breadcrumb-context-menu .context-menu-item[data-disabled]),
+  :global(.breadcrumb-context-menu .context-menu-item:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
   :global(.breadcrumb-context-menu .context-menu-item-icon) {
     width: 14px;
     height: 14px;
@@ -564,5 +810,45 @@
     color: var(--text-muted, #8c959f);
     white-space: nowrap;
     opacity: 0.8;
+  }
+
+  /* Notificación Toast rápida */
+  .breadcrumb-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary, #1f2328);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--popover-shadow, 0 4px 14px rgba(0, 0, 0, 0.25));
+    z-index: 10000;
+    pointer-events: none;
+    animation: toast-fade-in 0.15s ease-out;
+  }
+
+  :global(.breadcrumb-toast-icon) {
+    width: 14px;
+    height: 14px;
+    color: #2da44e;
+    flex-shrink: 0;
+  }
+
+  @keyframes toast-fade-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 6px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 </style>

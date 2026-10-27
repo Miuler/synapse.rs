@@ -3622,6 +3622,8 @@
                 onShowItemInFolder={(p) => systemApi.showItemInFolder(p)}
                 onOpenInNewWindow={handleOpenInNewWindow}
                 onOpenDiff={(p, staged) => selectTab(staged ? `diff-staged:${p}` : `diff:${p}`)}
+                onRefreshGit={refreshGitStatus}
+                onGitRestore={handleGitRestoreFiles}
               />
             {/if}
             {#if isLoading}
