@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+*"
 
 permissions:
   contents: write
@@ -49,21 +50,25 @@ jobs:
           tag = os.environ["TAG"]
           changelog_path = Path("CHANGELOG.md")
 
-          if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
+          tag_pattern = r"^(?:v)?((?:[0-9]+(?:\.[0-9]+)+(?:-[0-9a-zA-Z.]+)?)|(?:(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)))$"
+          m_tag = re.fullmatch(tag_pattern, tag)
+          if not m_tag:
               sys.exit(f"ERROR: Invalid release tag: {tag}")
 
           if not changelog_path.is_file():
               sys.exit("ERROR: CHANGELOG.md does not exist")
 
-          version = tag[1:]
+          version = m_tag.group(1)
           content = changelog_path.read_text(encoding="utf-8")
 
           # Supported headings:
           # ## [1.2.3] - 2026-10-27
+          # ## [2026.10.27.03-alpha] - 2026-10-27
           # ## 1.2.3
+          # ## [Sin publicar] / ## [Unreleased]
           heading_re = re.compile(
-              r"^##\s+\[?(Unreleased|"
-              r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+              r"^##\s+\[?(Unreleased|Sin publicar|"
+              r"(?:v)?(?:[0-9]+(?:\.[0-9]+)+(?:-[0-9a-zA-Z.]+)?)|(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
               r")\]?(?:\s+-\s+.*)?\s*$",
               re.MULTILINE | re.IGNORECASE,
           )
@@ -79,7 +84,7 @@ jobs:
 
           unreleased = [
               body for name, body in sections
-              if name.lower() == "unreleased"
+              if name.lower() in ("unreleased", "sin publicar")
           ]
 
           # Fail if Unreleased contains actual notes.
@@ -92,25 +97,26 @@ jobs:
               ]
               if meaningful:
                   sys.exit(
-                      "ERROR: CHANGELOG.md still has pending Unreleased notes. "
+                      "ERROR: CHANGELOG.md still has pending Unreleased / Sin publicar notes. "
                       "Move them to the version being released or clear the section."
                   )
 
           version_sections = [
-              (name, body) for name, body in sections
-              if name.lower() != "unreleased"
+              (name.lstrip("v"), body) for name, body in sections
+              if name.lower() not in ("unreleased", "sin publicar")
           ]
 
           names = [name for name, _ in version_sections]
-          if names.count(version) != 1:
+          clean_version = version.lstrip("v")
+          if names.count(clean_version) != 1:
               sys.exit(
-                  f"ERROR: Expected exactly one CHANGELOG section for {version}; "
-                  f"found {names.count(version)}"
+                  f"ERROR: Expected exactly one CHANGELOG section for {clean_version}; "
+                  f"found {names.count(clean_version)}"
               )
 
-          current_index = names.index(version)
+          current_index = names.index(clean_version)
           if not version_sections[current_index][1]:
-              sys.exit(f"ERROR: CHANGELOG section for {version} is empty")
+              sys.exit(f"ERROR: CHANGELOG section for {clean_version} is empty")
 
           # Read previously published, non-draft releases.
           result = subprocess.run(
@@ -125,51 +131,29 @@ jobs:
           )
           releases = json.loads(result.stdout)
 
-          def semver(release_tag):
-              m = re.fullmatch(
-                  r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
-                  release_tag,
-              )
-              return tuple(map(int, m.groups())) if m else None
-
           published = [
               r for r in releases
               if not r["isDraft"]
               and not r["isPrerelease"]
               and r.get("publishedAt")
-              and semver(r["tagName"])
           ]
 
-          previous = max(
-              published,
-              key=lambda r: semver(r["tagName"]),
-              default=None,
-          )
+          previous = published[0] if published else None
 
           if previous:
               previous_tag = previous["tagName"]
-              previous_version = previous_tag[1:]
+              previous_version = previous_tag.lstrip("v")
 
-              if semver(tag) <= semver(previous_tag):
-                  sys.exit(
-                      f"ERROR: {tag} must be newer than the last published "
-                      f"release {previous_tag}"
-                  )
-
-              if previous_version not in names:
-                  sys.exit(
-                      f"ERROR: Previous release {previous_version} is missing "
-                      "from CHANGELOG.md; cannot safely determine the range."
-                  )
-
-              previous_index = names.index(previous_version)
-              if previous_index <= current_index:
-                  sys.exit(
-                      f"ERROR: CHANGELOG order is incorrect: {version} must "
-                      f"appear before {previous_version}."
-                  )
-
-              selected = version_sections[current_index:previous_index]
+              if previous_version in names:
+                  previous_index = names.index(previous_version)
+                  if previous_index <= current_index:
+                      sys.exit(
+                          f"ERROR: CHANGELOG order is incorrect: {clean_version} must "
+                          f"appear before {previous_version}."
+                      )
+                  selected = version_sections[current_index:previous_index]
+              else:
+                  selected = [version_sections[current_index]]
           else:
               # First release: include all versioned sections up to this tag.
               selected = version_sections[:current_index + 1]
