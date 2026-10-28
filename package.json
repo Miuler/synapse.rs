@@ -43,6 +43,7 @@
     "@mermanjs/web": "^0.7.0",
     "@replit/codemirror-vim": "^6.4.0",
     "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-cli": "^2.5.0",
     "@tauri-apps/plugin-log": "^2.10.1",
     "@terrastruct/d2": "^0.1.33",
     "bits-ui": "^2.20.1",

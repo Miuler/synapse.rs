@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Integración del plugin CLI de Tauri (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:
+  - Incorporación de soporte CLI formal en la aplicación de escritorio mediante el plugin oficial de Tauri v2.
+  - Opciones de consulta de versión (`--version`, `-V`) y ayuda detallada (`--help`, `-h`) que imprimen información directamente en la terminal y finalizan la ejecución de forma inmediata sin instanciar la interfaz gráfica.
+  - Documentación en `--help` de las opciones de apertura de bóveda/archivo (`--vault`/`-v`, `--file`/`-f`, ruta posicional) y de inicio de servidor local stdio MCP (`--mcp`).
+
 - **Preservación y reapertura de pestañas cerradas en la navegación del historial**:
   - Al cerrar una pestaña activa o en segundo plano, su registro se mantiene en `tabHistory` de forma desacoplada y con bajo consumo de memoria.
   - Al utilizar la navegación hacia atrás o adelante (incluyendo los botones laterales del ratón o <kbd>Alt+Left</kbd>/<kbd>Alt+Right</kbd>), si la pestaña destino había sido cerrada, se reabre automáticamente restituyendo su posición física original en la barra de pestañas y conservando el estado de selección del cursor.

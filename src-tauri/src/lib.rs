@@ -26,6 +26,7 @@ use infrastructure::tauri::commands::{
 };
 use std::env;
 use tauri::Manager;
+use tauri_plugin_cli::CliExt;
 use tauri_plugin_log::{Target, TargetKind};
 //use webkit2gtk_nvidia_quirk::ApplyWorkaroundOptions;
 #[cfg(target_os = "linux")]
@@ -51,6 +52,8 @@ pub fn run() {
     }
 
     let mut builder = tauri::Builder::default();
+
+    builder = builder.plugin(tauri_plugin_cli::init());
 
     if cfg!(debug_assertions) {
         builder = builder.plugin(
@@ -151,6 +154,24 @@ pub fn run() {
             stop_mcp_server
         ])
         .setup(|app| {
+            if let Ok(matches) = app.cli().matches() {
+                if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
+                    print!("{}", help);
+                    std::process::exit(0);
+                }
+                if let Some(arg) = matches.args.get("version") {
+                    if let Some(version) = arg.value.as_str() {
+                        println!("{}", version);
+                        std::process::exit(0);
+                    } else {
+                        // Cuando se invoca con -V o --version, clap pasa version con val Null
+                        let version = app.package_info().version.to_string();
+                        println!("synapsers {}", version);
+                        std::process::exit(0);
+                    }
+                }
+            }
+
             let handle = app.handle().clone();
             let state = app.state::<AppState>();
             if let Ok(mut h) = state.app_handle.lock() {

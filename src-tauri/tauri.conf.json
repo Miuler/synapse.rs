@@ -46,5 +46,35 @@
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }
+  },
+  "plugins": {
+    "cli": {
+      "description": "Synapse - Modern extensible markdown note-taking and knowledge base",
+      "args": [
+        {
+          "name": "vault",
+          "short": "v",
+          "description": "Ruta a la carpeta de la bóveda (vault) a abrir",
+          "takesValue": true
+        },
+        {
+          "name": "file",
+          "short": "f",
+          "description": "Ruta al archivo Markdown individual a abrir",
+          "takesValue": true
+        },
+        {
+          "name": "mcp",
+          "description": "Inicia el servidor local MCP (Model Context Protocol) vía stdio para IA / LLMs",
+          "takesValue": false
+        },
+        {
+          "name": "path",
+          "index": 1,
+          "description": "Ruta posicional a un archivo o bóveda",
+          "takesValue": true
+        }
+      ]
+    }
   }
 }
