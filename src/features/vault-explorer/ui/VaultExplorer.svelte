@@ -475,6 +475,27 @@
     });
   }
 
+  function scrollPathPreservingRelativePosition(targetPath: string, currentPath?: string | null) {
+    tick().then(() => {
+      if (!sidebarContentEl) return;
+      const targetEl = sidebarContentEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(targetPath)}"]`);
+      if (!targetEl) return;
+
+      const currentEl = currentPath
+        ? sidebarContentEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(currentPath)}"]`)
+        : null;
+
+      if (currentEl && currentEl !== targetEl) {
+        const currentRect = currentEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const deltaY = targetRect.top - currentRect.top;
+        sidebarContentEl.scrollTop += deltaY;
+      } else {
+        targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      }
+    });
+  }
+
   export async function locateActiveFile(targetPath?: string) {
     const pathToLocate = targetPath || activeTabPath;
     if (!pathToLocate || pathToLocate.startsWith('empty:')) {
@@ -644,6 +665,53 @@
     scrollPathIntoView(targetNode.relativePath);
   }
 
+  function navigateTreePage(direction: 'pagedown' | 'pageup', e: KeyboardEvent) {
+    const visible = getVisibleNodes(displayTreeNodes);
+    if (visible.length === 0) return;
+
+    let currentIndex = -1;
+    if (lastFocusedPath) {
+      currentIndex = visible.findIndex((n) => n.relativePath === lastFocusedPath);
+    }
+    if (currentIndex === -1 && selectedPaths.length > 0) {
+      currentIndex = visible.findIndex((n) => selectedPaths.includes(n.relativePath));
+    }
+    if (currentIndex === -1 && activeTabPath) {
+      currentIndex = visible.findIndex((n) => n.relativePath === activeTabPath);
+    }
+
+    const ITEM_HEIGHT = 28;
+    const visibleHeight = sidebarContentEl?.clientHeight || 400;
+    const pageJump = Math.max(1, Math.floor(visibleHeight / ITEM_HEIGHT));
+
+    const baseIndex = currentIndex === -1 ? 0 : currentIndex;
+    let newIndex: number;
+    if (direction === 'pagedown') {
+      newIndex = Math.min(baseIndex + pageJump, visible.length - 1);
+    } else {
+      newIndex = Math.max(baseIndex - pageJump, 0);
+    }
+
+    const targetNode = visible[newIndex];
+    if (!targetNode) return;
+
+    e.preventDefault();
+
+    const currentNode = visible[baseIndex];
+
+    if (e.shiftKey) {
+      const anchor = anchorPath || lastFocusedPath || targetNode.relativePath;
+      anchorPath = anchor;
+      selectRange(anchor, targetNode.relativePath);
+    } else {
+      selectedPaths = [targetNode.relativePath];
+      lastFocusedPath = targetNode.relativePath;
+      anchorPath = targetNode.relativePath;
+    }
+
+    scrollPathPreservingRelativePosition(targetNode.relativePath, currentNode?.relativePath);
+  }
+
   // Nodos correspondientes a la selección activa
   let selectedNodes = $derived.by(() => {
     if (selectedPaths.length === 0) {
@@ -732,6 +800,10 @@
       navigateTree('down', e);
     } else if (e.key === 'ArrowUp') {
       navigateTree('up', e);
+    } else if (e.key === 'PageDown') {
+      navigateTreePage('pagedown', e);
+    } else if (e.key === 'PageUp') {
+      navigateTreePage('pageup', e);
     } else if (e.key === 'ArrowRight') {
       if (lastFocusedPath) {
         const visible = getVisibleNodes(displayTreeNodes);

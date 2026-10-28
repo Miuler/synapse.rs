@@ -26,8 +26,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - **Modo `/` (`DIR`)**: Escribir `/` filtra exclusivamente carpetas en la bóveda con badge indicador visual.
   - **Colapso inteligente a Top 3 en búsqueda normal**: En consultas generales, las carpetas coincidentes se limitan a las 3 más relevantes para evitar desplazar las notas y archivos hacia abajo.
   - **Elemento interactivo "Ver X carpetas más..."**: Alternancia expandir/colapsar con soporte completo de clic de ratón o teclado (`Enter`).
-  - **Navegación por páginas (`PageDown` / `PageUp`)**: Avance y retroceso rápido por bloques de resultados mediante teclado sin disparar la selección ni abrir archivos accidentalmente.
   - **Drill-down interactivo y botón Revelar**: Presionar Enter sobre una carpeta autocompleta la búsqueda a `ruta/carpeta/`, o botón para revelarla directamente en el explorador lateral.
+
+- **Navegación unificada por páginas con retención de altura relativa (`PageDown` / `PageUp`)**:
+  - **Módulo compartido `shared/lib/navigation` (`relative-page-navigator.ts`)**: Utilidad modular reusable que calcula el vector $\Delta Y = Y_{\text{target}} - Y_{\text{current}}$ y desplaza el contenedor asegurando que el elemento seleccionado mantenga la misma fila visual o altura en pantalla (Relative Viewport Retention).
+  - **QuickOpen (`Ctrl+O`)**: Navegación adaptativa a 60 FPS fijos que preserva la posición vertical del elemento seleccionado o hace clamping seguro en los extremos.
+  - **Búsqueda Full-Text (`Ctrl+Shift+F`)**: Soporte completo de `PageDown` y `PageUp` en `FullTextSearch` con retención de posición relativa y sincronización de foco.
+  - **VaultExplorer (Explorador lateral)**: Soporte de `PageDown` y `PageUp` con navegación relativa tanto para selección simple como por bloques de rango con `Shift`.
 
 ## [2026.10.27.04-alpha] - 2026-10-27
 

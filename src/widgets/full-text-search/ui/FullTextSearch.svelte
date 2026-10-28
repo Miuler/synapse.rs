@@ -3,6 +3,7 @@
   import { RefreshCw } from 'lucide-svelte';
   import { SearchBox } from '@shared/ui/search-box';
   import { FileIcon } from '@entities/file-type';
+  import { handleRelativePageJump } from '@shared/lib/navigation';
   import {
     searchRepository,
     type FullTextHit,
@@ -169,6 +170,32 @@
     };
   });
 
+  let listContainerEl = $state<HTMLElement | null>(null);
+  let selectedCommandValue = $state('');
+
+  function handleKeyDownRoot(e: KeyboardEvent) {
+    if (e.key === 'PageDown' || e.key === 'PageUp') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const allItems = listContainerEl?.querySelectorAll<HTMLElement>('.fts-hit-item');
+      if (!allItems || allItems.length === 0) return;
+
+      handleRelativePageJump({
+        containerEl: listContainerEl,
+        direction: e.key === 'PageDown' ? 'pagedown' : 'pageup',
+        items: allItems,
+        fallbackItemHeight: 64,
+        onSelect: (targetItem) => {
+          const val = targetItem.getAttribute('data-value');
+          if (val) {
+            selectedCommandValue = val;
+          }
+        },
+      });
+    }
+  }
+
   function closeDialog() {
     isOpen = false;
     searchQuery = '';
@@ -242,7 +269,13 @@
 
       <Dialog.Title class="sr-only">Búsqueda en el Contenido de Notas (Full-Text)</Dialog.Title>
 
-      <Command.Root class="fts-command-root" loop shouldFilter={false}>
+      <Command.Root
+        class="fts-command-root"
+        loop
+        shouldFilter={false}
+        bind:value={selectedCommandValue}
+        onkeydown={handleKeyDownRoot}
+      >
         <!-- Barra de búsqueda superior -->
         <SearchBox
           bind:value={searchQuery}
@@ -251,7 +284,7 @@
         />
 
         <!-- Contenedor de resultados -->
-        <Command.List class="fts-results-container">
+        <Command.List bind:ref={listContainerEl} class="fts-results-container">
           {#if searchQuery.trim().length === 0}
             <!-- Guía de sintaxis y tips cuando no hay texto -->
             <div class="fts-guide-box">
