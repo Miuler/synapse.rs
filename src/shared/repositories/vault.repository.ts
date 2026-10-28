@@ -560,7 +560,7 @@ export interface VaultRepository {
   fetchCommunityPlugins(forceRefresh?: boolean): Promise<CommunityPluginDto[]>;
 
   /**
-   * Obtiene la lista de plugins instalados en la bóveda actual escaneando .synapse/plugins y .obsidian/plugins.
+   * Obtiene la lista de plugins instalados en la bóveda actual escaneando .synapse/plugins.
    */
   getInstalledCommunityPlugins(vaultPath?: string): Promise<InstalledPluginDto[]>;
 
@@ -1538,7 +1538,7 @@ export class TauriVaultRepository implements VaultRepository {
   }
 
   async getEnabledPlugins(_vaultPath?: string): Promise<string[]> {
-    // 1. Intentar leer .synapse/community-plugins.json
+    // Leer .synapse/community-plugins.json
     try {
       const primary = await this.readNote('.synapse/community-plugins.json');
       if (primary && primary.content) {
@@ -1547,16 +1547,7 @@ export class TauriVaultRepository implements VaultRepository {
       }
     } catch {}
 
-    // 2. Fallback a .obsidian/community-plugins.json
-    try {
-      const fallback = await this.readNote('.obsidian/community-plugins.json');
-      if (fallback && fallback.content) {
-        const parsed = JSON.parse(fallback.content);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-
-    // 3. Fallback por defecto: ningún plugin habilitado si no existe configuración en la bóveda
+    // Fallback por defecto: ningún plugin habilitado si no existe configuración en la bóveda
     return [];
   }
 

@@ -125,7 +125,7 @@ export class CommunityPluginsState {
       const enabledList = await repository.getEnabledPlugins();
       let discovered: Array<{ dir: string; manifest: PluginManifest }> = [];
 
-      // 1. Escaneo backend directo a disco en .synapse/plugins y .obsidian/plugins
+      // 1. Escaneo backend directo a disco en .synapse/plugins
       if (typeof repository.getInstalledCommunityPlugins === 'function') {
         const backendPlugins = await repository.getInstalledCommunityPlugins();
         if (backendPlugins && backendPlugins.length > 0) {

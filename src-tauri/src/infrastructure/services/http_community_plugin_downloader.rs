@@ -309,32 +309,19 @@ impl CommunityPluginDownloader for HttpCommunityPluginDownloader {
         plugin_id: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
         Box::pin(async move {
-            let mut removed = false;
-
-            // 1. Eliminar de .synapse/plugins/{id}
             let synapse_plugin_dir = vault_path.join(".synapse").join("plugins").join(plugin_id);
-            if synapse_plugin_dir.exists() {
-                fs::remove_dir_all(&synapse_plugin_dir).map_err(|e| {
-                    format!(
-                        "Error al eliminar plugin de '{}': {e}",
-                        synapse_plugin_dir.display()
-                    )
-                })?;
-                removed = true;
-            }
-
-            // 2. Eliminar de .obsidian/plugins/{id} si existe
-            let obsidian_plugin_dir = vault_path.join(".obsidian").join("plugins").join(plugin_id);
-            if obsidian_plugin_dir.exists() {
-                let _ = fs::remove_dir_all(&obsidian_plugin_dir);
-                removed = true;
-            }
-
-            if !removed {
+            if !synapse_plugin_dir.exists() {
                 return Err(format!(
-                    "No se encontró el plugin '{plugin_id}' en .synapse/plugins ni en .obsidian/plugins"
+                    "No se encontró el plugin '{plugin_id}' en .synapse/plugins"
                 ));
             }
+
+            fs::remove_dir_all(&synapse_plugin_dir).map_err(|e| {
+                format!(
+                    "Error al eliminar plugin de '{}': {e}",
+                    synapse_plugin_dir.display()
+                )
+            })?;
 
             Ok(())
         })

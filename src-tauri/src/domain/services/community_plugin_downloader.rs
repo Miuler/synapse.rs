@@ -23,7 +23,7 @@ pub trait CommunityPluginDownloader: Send + Sync {
         repo: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<CommunityPluginInstallResult, String>> + Send + 'a>>;
 
-    /// Desinstala un plugin eliminando su directorio en `.synapse/plugins/{id}` (o `.obsidian/plugins/{id}`).
+    /// Desinstala un plugin eliminando su directorio en `.synapse/plugins/{id}`.
     fn uninstall_plugin<'a>(
         &'a self,
         vault_path: &'a Path,

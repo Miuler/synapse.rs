@@ -8,10 +8,96 @@ export type AdapterMutationCallback = (
 ) => void;
 
 export class SynapseDataAdapter implements DataAdapter {
+  private readonly activeReads = new Set<string>();
+  private readonly activeReadBinaries = new Set<string>();
+  private readonly activeWrites = new Set<string>();
+
+  read!: (normalizedPath: string) => Promise<string>;
+  readBinary!: (normalizedPath: string) => Promise<ArrayBuffer>;
+  write!: (normalizedPath: string, data: string, options?: DataWriteOptions) => Promise<void>;
+
   constructor(
     private readonly repository: VaultRepository,
     private readonly onMutation?: AdapterMutationCallback
-  ) {}
+  ) {
+    let userRead = this.rawRead.bind(this);
+    let userReadBinary = this.rawReadBinary.bind(this);
+    let userWrite = this.rawWrite.bind(this);
+
+    Object.defineProperty(this, 'read', {
+      get: () => {
+        return async (normalizedPath: string) => {
+          const clean = normalizedPath.replace(/^\/+/, '');
+          if (this.activeReads.has(clean)) {
+            // Ciclo de llamada recursiva detectado; evitar desbordamiento de pila
+            const note = await this.repository.readNote(clean);
+            return note?.content ?? '';
+          }
+          this.activeReads.add(clean);
+          try {
+            return await userRead(normalizedPath);
+          } finally {
+            this.activeReads.delete(clean);
+          }
+        };
+      },
+      set: (fn: (path: string) => Promise<string>) => {
+        if (typeof fn === 'function') {
+          userRead = fn;
+        }
+      },
+      configurable: true,
+      enumerable: true,
+    });
+
+    Object.defineProperty(this, 'readBinary', {
+      get: () => {
+        return async (normalizedPath: string) => {
+          const clean = normalizedPath.replace(/^\/+/, '');
+          if (this.activeReadBinaries.has(clean)) {
+            return await this.repository.readBinary(clean);
+          }
+          this.activeReadBinaries.add(clean);
+          try {
+            return await userReadBinary(normalizedPath);
+          } finally {
+            this.activeReadBinaries.delete(clean);
+          }
+        };
+      },
+      set: (fn: (path: string) => Promise<ArrayBuffer>) => {
+        if (typeof fn === 'function') {
+          userReadBinary = fn;
+        }
+      },
+      configurable: true,
+      enumerable: true,
+    });
+
+    Object.defineProperty(this, 'write', {
+      get: () => {
+        return async (normalizedPath: string, data: string, options?: DataWriteOptions) => {
+          const clean = normalizedPath.replace(/^\/+/, '');
+          if (this.activeWrites.has(clean)) {
+            return await this.rawWrite(normalizedPath, data, options);
+          }
+          this.activeWrites.add(clean);
+          try {
+            return await userWrite(normalizedPath, data, options);
+          } finally {
+            this.activeWrites.delete(clean);
+          }
+        };
+      },
+      set: (fn: (path: string, data: string, options?: DataWriteOptions) => Promise<void>) => {
+        if (typeof fn === 'function') {
+          userWrite = fn;
+        }
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
 
   getName(): string {
     return 'SynapseDataAdapter';
@@ -87,19 +173,19 @@ export class SynapseDataAdapter implements DataAdapter {
     return { files, folders };
   }
 
-  async read(normalizedPath: string): Promise<string> {
+  async rawRead(normalizedPath: string): Promise<string> {
     const clean = normalizedPath.replace(/^\/+/, '');
     const note = await this.repository.readNote(clean);
     if (!note) throw new Error(`Archivo no encontrado: ${clean}`);
     return note.content ?? '';
   }
 
-  async readBinary(normalizedPath: string): Promise<ArrayBuffer> {
+  async rawReadBinary(normalizedPath: string): Promise<ArrayBuffer> {
     const clean = normalizedPath.replace(/^\/+/, '');
     return this.repository.readBinary(clean);
   }
 
-  async write(normalizedPath: string, data: string, _options?: DataWriteOptions): Promise<void> {
+  async rawWrite(normalizedPath: string, data: string, _options?: DataWriteOptions): Promise<void> {
     const clean = normalizedPath.replace(/^\/+/, '');
     const current = await this.repository.readNote(clean);
     const name = clean.split('/').pop() || clean;

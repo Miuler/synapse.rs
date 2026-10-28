@@ -39,7 +39,6 @@ impl<D: CommunityPluginDownloader> CommunityPluginUseCases<D> {
 
         let search_dirs = [
             (".synapse/plugins", vault_path.join(".synapse").join("plugins")),
-            (".obsidian/plugins", vault_path.join(".obsidian").join("plugins")),
         ];
 
         for (rel_prefix, abs_dir) in &search_dirs {

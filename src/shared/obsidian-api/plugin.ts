@@ -36,27 +36,17 @@ export abstract class Plugin extends Component {
 
   /**
    * Carga los datos persistidos de configuración del plugin (`data.json`).
-   * Busca prioritariamente en `.synapse/plugins/<id>/data.json` y de forma secundaria en `.obsidian/plugins/<id>/data.json`.
+   * Busca en `.synapse/plugins/<id>/data.json`.
    */
   async loadData(): Promise<any> {
     const primaryPath = `.synapse/plugins/${this.manifest.id}/data.json`;
-    const fallbackPath = `.obsidian/plugins/${this.manifest.id}/data.json`;
 
     if (await this.app.vault.adapter.exists(primaryPath)) {
       try {
         const text = await this.app.vault.adapter.read(primaryPath);
         return JSON.parse(text);
       } catch (e) {
-        console.warn(`[Plugin ${this.manifest.id}] Error al leer data.json primario:`, e);
-      }
-    }
-
-    if (await this.app.vault.adapter.exists(fallbackPath)) {
-      try {
-        const text = await this.app.vault.adapter.read(fallbackPath);
-        return JSON.parse(text);
-      } catch (e) {
-        console.warn(`[Plugin ${this.manifest.id}] Error al leer data.json fallback:`, e);
+        console.warn(`[Plugin ${this.manifest.id}] Error al leer data.json:`, e);
       }
     }
 

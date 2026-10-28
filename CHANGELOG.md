@@ -5,6 +5,21 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.10.28.04-alpha] - 2026-10-28
+
+### Corregido
+
+- **Eliminación de la doble ejecución de `onload()` en el ciclo de vida de plugins**:
+  - En `PluginLoader`, corrección de la invocación redundante de `instance.onload()` tras `instance.load()`, asegurando que `onload()` se ejecute una única vez por plugin activo.
+  - Soporte para métodos de ciclo de vida asíncronos en `Component.prototype.load()` y `Component.prototype.unload()`, aguardando adecuadamente promesas devueltas por `onload()` y `onunload()`.
+
+- **Protección defensiva contra desbordamiento de pila (`Maximum call stack size exceeded`) por monkey-patching**:
+  - **`SynapseDataAdapter` (`adapter.read`, `readBinary`, `write`)**: Detección y corte automático de ciclos recursivos en lecturas y escrituras simultáneas sobre la misma ruta activa provocados por plugins comunitarios (ej. `gpg-crypt`), delegando de manera segura en el repositorio base sin agotar la pila de llamadas.
+  - **Plugin interno `file-recovery`**: Guardianes de reingreso por archivo (`activeFileRecoveryPaths`) en `onFileChanged` y `forceAdd`, garantizando que intercepciones circulares sobre eventos de modificación se resuelvan sin recursión infinita.
+
+- **Aislamiento de plugins comunitarios en `.synapse/plugins`**:
+  - Restricción del descubrimiento, escaneo, carga y desinstalación de plugins para operar de manera autónoma en el directorio `.synapse/plugins/` de la bóveda, evitando colisiones o interferencias con la configuración nativa de `.obsidian/plugins/`.
+
 ## [2026.10.28.03-alpha] - 2026-10-28
 
 ### Añadido

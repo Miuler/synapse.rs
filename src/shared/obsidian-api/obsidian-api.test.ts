@@ -903,9 +903,8 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
       // 1. Guardar datos iniciales
       await plugin.saveData({ theme: 'dark', autoSave: false });
 
-      // 2. Cargar plugin (onload)
-      plugin.load();
-      await plugin.onload();
+      // 2. Cargar plugin (load)
+      await plugin.load();
 
       // Verificar que cargó datos correctamente
       expect(plugin.settings.theme).toBe('dark');
@@ -1923,6 +1922,68 @@ img456: "[[diagrama.svg]]"
       expect(g.Buffer).toBeDefined();
       const buf = g.Buffer.from('Hola Synapse');
       expect(buf.toString()).toBe('Hola Synapse');
+    });
+
+    it('49. file-recovery y adapter.read están protegidos contra recursión infinita por monkey-patching', async () => {
+      const mockRepo = new MockVaultRepository();
+      await mockRepo.saveNote({
+        relativePath: 'test.md',
+        title: 'test',
+        content: 'contenido seguro',
+      });
+      const app = createSynapseApp(mockRepo);
+
+      // 1. Simular monkey-patching recursivo de gpg-crypt sobre adapter.read
+      let hookCallCount = 0;
+      app.vault.adapter.read = async (path: string) => {
+        hookCallCount++;
+        // Intencionalmente reingresa a través de app.vault.adapter.read simulando un hook circular
+        return await app.vault.adapter.read(path);
+      };
+
+      // Debe resolver el contenido sin lanzar RangeError: Maximum call stack size exceeded
+      const readRes = await app.vault.adapter.read('test.md');
+      expect(readRes).toBe('contenido seguro');
+      expect(hookCallCount).toBe(1);
+
+      // 2. Simular monkey-patching recursivo sobre file-recovery
+      let recoveryHookCount = 0;
+      const fileRecoveryInstance = app.internalPlugins.plugins['file-recovery'].instance;
+      fileRecoveryInstance.onFileChanged = async (file: any) => {
+        recoveryHookCount++;
+        return await fileRecoveryInstance.onFileChanged(file);
+      };
+
+      // Disparar hook recursivo
+      await fileRecoveryInstance.onFileChanged({ path: 'test.md' });
+      expect(recoveryHookCount).toBe(1);
+    });
+
+    it('50. PluginLoader solo lee plugins de .synapse/plugins e ignora .obsidian/plugins', async () => {
+      const mockRepo = new MockVaultRepository();
+      const app = createSynapseApp(mockRepo);
+
+      // Plugin en .obsidian/plugins
+      await app.vault.adapter.mkdir('.obsidian/plugins/obsidian-only-plugin');
+      await app.vault.adapter.write(
+        '.obsidian/plugins/obsidian-only-plugin/manifest.json',
+        JSON.stringify({ id: 'obsidian-only-plugin', name: 'Obsidian Only' })
+      );
+
+      // Plugin en .synapse/plugins
+      await app.vault.adapter.mkdir('.synapse/plugins/synapse-only-plugin');
+      await app.vault.adapter.write(
+        '.synapse/plugins/synapse-only-plugin/manifest.json',
+        JSON.stringify({ id: 'synapse-only-plugin', name: 'Synapse Only' })
+      );
+
+      const scanned = await app.plugins.scanPlugins();
+
+      expect(scanned.some((p) => p.manifest.id === 'synapse-only-plugin')).toBe(true);
+      expect(scanned.some((p) => p.manifest.id === 'obsidian-only-plugin')).toBe(false);
+
+      // Intento de carga directa por ID falla para plugins fuera de .synapse/plugins
+      await expect(app.plugins.loadPlugin('obsidian-only-plugin')).rejects.toThrow();
     });
   });
 });

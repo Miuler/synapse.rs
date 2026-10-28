@@ -26,12 +26,12 @@ export class PluginLoader {
   }
 
   /**
-   * Escanea las carpetas de plugins `.synapse/plugins` y `.obsidian/plugins`
+   * Escanea la carpeta de plugins `.synapse/plugins`
    * en la bóveda actual buscando archivos `manifest.json`.
    */
   async scanPlugins(): Promise<Array<{ dir: string; manifest: PluginManifest }>> {
     const results: Array<{ dir: string; manifest: PluginManifest }> = [];
-    const searchDirs = ['.synapse/plugins', '.obsidian/plugins'];
+    const searchDirs = ['.synapse/plugins'];
 
     for (const baseDir of searchDirs) {
       const exists = await this.app.vault.adapter.exists(baseDir);
@@ -144,8 +144,7 @@ export class PluginLoader {
 
     this.loadedPlugins.set(manifest.id, entry);
 
-    instance.load();
-    await instance.onload();
+    await instance.load();
 
     return entry;
   }
@@ -158,7 +157,7 @@ export class PluginLoader {
     if (!entry) return;
 
     try {
-      entry.instance.unload();
+      await entry.instance.unload();
     } catch (e) {
       console.error(`[PluginLoader] Error al descargar ${pluginId}:`, e);
     }
@@ -173,10 +172,10 @@ export class PluginLoader {
   }
 
   /**
-   * Carga un plugin específico por su ID buscando en los directorios de plugins.
+   * Carga un plugin específico por su ID buscando en la carpeta de plugins de Synapse.
    */
   async loadPlugin(pluginId: string): Promise<PluginEntry> {
-    const searchDirs = ['.synapse/plugins', '.obsidian/plugins'];
+    const searchDirs = ['.synapse/plugins'];
     for (const baseDir of searchDirs) {
       const targetDir = `${baseDir}/${pluginId}`;
       const manifestPath = `${targetDir}/manifest.json`;
@@ -184,7 +183,7 @@ export class PluginLoader {
         return this.loadPluginFromDir(targetDir);
       }
     }
-    throw new Error(`[PluginLoader] No se encontró el plugin '${pluginId}' en .synapse/plugins ni en .obsidian/plugins`);
+    throw new Error(`[PluginLoader] No se encontró el plugin '${pluginId}' en .synapse/plugins`);
   }
 
   /**

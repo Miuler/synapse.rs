@@ -66,15 +66,62 @@ export class SynapseInternalPluginsManager {
     };
     this.plugins['workspaces'] = workspacesEntry;
 
-    // 3. Core plugin: file-recovery con stubs que evitan recursión infinita
+    // 3. Core plugin: file-recovery con protección contra recursión infinita
+    const activeFileRecoveryPaths = new Set<string>();
+    let currentOnFileChanged = (_file: any) => Promise.resolve();
+    let currentForceAdd = (_path: any, _data: any) => Promise.resolve();
+
+    const safeFileRecoveryInstance: InternalPluginInstance = {
+      options: {},
+      get onFileChanged() {
+        return async (file: any) => {
+          const path =
+            file && typeof file.path === 'string'
+              ? file.path
+              : typeof file === 'string'
+                ? file
+                : '__synapse_anon_file__';
+          if (activeFileRecoveryPaths.has(path)) {
+            return;
+          }
+          activeFileRecoveryPaths.add(path);
+          try {
+            return await currentOnFileChanged(file);
+          } finally {
+            activeFileRecoveryPaths.delete(path);
+          }
+        };
+      },
+      set onFileChanged(fn: any) {
+        if (typeof fn === 'function') {
+          currentOnFileChanged = fn;
+        }
+      },
+      get forceAdd() {
+        return async (path: any, data: any) => {
+          const key = typeof path === 'string' ? path : '__synapse_anon_file__';
+          if (activeFileRecoveryPaths.has(key)) {
+            return;
+          }
+          activeFileRecoveryPaths.add(key);
+          try {
+            return await currentForceAdd(path, data);
+          } finally {
+            activeFileRecoveryPaths.delete(key);
+          }
+        };
+      },
+      set forceAdd(fn: any) {
+        if (typeof fn === 'function') {
+          currentForceAdd = fn;
+        }
+      },
+    };
+
     this.plugins['file-recovery'] = {
       id: 'file-recovery',
       enabled: true,
-      instance: {
-        options: {},
-        onFileChanged: (_file: any) => Promise.resolve(),
-        forceAdd: (_path: any, _data: any) => Promise.resolve(),
-      },
+      instance: safeFileRecoveryInstance,
     };
 
     // 4. Stubs para otros core plugins habituales

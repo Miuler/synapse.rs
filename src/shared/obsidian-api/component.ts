@@ -25,13 +25,21 @@ export class Component {
   /**
    * Carga el componente y activa sus subcomponentes.
    */
-  load(): void {
+  load(): Promise<void> | void {
     if (this._loaded) return;
     this._loaded = true;
+    let promise: any;
     try {
-      this.onload();
+      promise = this.onload();
     } catch (e) {
       console.error('[Component] Error en onload():', e);
+    }
+    if (promise && typeof promise.then === 'function') {
+      return promise.then(() => {
+        for (const child of this._children) {
+          child.load();
+        }
+      });
     }
     for (const child of this._children) {
       child.load();
@@ -41,7 +49,7 @@ export class Component {
   /**
    * Descarga el componente, cancela eventos registrados y limpia listeners DOM e intervalos.
    */
-  unload(): void {
+  unload(): Promise<void> | void {
     if (!this._loaded) return;
 
     // 1. Descargar componentes hijos en orden inverso
@@ -51,47 +59,55 @@ export class Component {
     this._children = [];
 
     // 2. Invocar onunload del ciclo de vida
+    let unloadPromise: any;
     try {
-      this.onunload();
+      unloadPromise = this.onunload();
     } catch (e) {
       console.error('[Component] Error en onunload():', e);
     }
 
-    // 3. Cancelar referencias de eventos registradas
-    for (const ref of this._eventRefs) {
-      if (ref.e && typeof ref.e.offref === 'function') {
-        ref.e.offref(ref);
+    const cleanupRest = () => {
+      // 3. Cancelar referencias de eventos registradas
+      for (const ref of this._eventRefs) {
+        if (ref.e && typeof ref.e.offref === 'function') {
+          ref.e.offref(ref);
+        }
       }
-    }
-    this._eventRefs = [];
+      this._eventRefs = [];
 
-    // 4. Remover listeners DOM
-    for (const item of this._domListeners) {
-      try {
-        item.el.removeEventListener(item.type, item.callback, item.options);
-      } catch (e) {
-        console.warn('[Component] Error al remover listener DOM:', e);
+      // 4. Remover listeners DOM
+      for (const item of this._domListeners) {
+        try {
+          item.el.removeEventListener(item.type, item.callback, item.options);
+        } catch (e) {
+          console.warn('[Component] Error al remover listener DOM:', e);
+        }
       }
-    }
-    this._domListeners = [];
+      this._domListeners = [];
 
-    // 5. Limpiar intervalos
-    for (const id of this._intervals) {
-      clearInterval(id);
-    }
-    this._intervals = [];
-
-    // 6. Ejecutar callbacks de limpieza genéricos
-    for (const cleanup of this._cleanups) {
-      try {
-        cleanup();
-      } catch (e) {
-        console.warn('[Component] Error en cleanup callback:', e);
+      // 5. Limpiar intervalos
+      for (const id of this._intervals) {
+        clearInterval(id);
       }
-    }
-    this._cleanups = [];
+      this._intervals = [];
 
-    this._loaded = false;
+      // 6. Ejecutar callbacks de limpieza genéricos
+      for (const cleanup of this._cleanups) {
+        try {
+          cleanup();
+        } catch (e) {
+          console.warn('[Component] Error en cleanup callback:', e);
+        }
+      }
+      this._cleanups = [];
+
+      this._loaded = false;
+    };
+
+    if (unloadPromise && typeof unloadPromise.then === 'function') {
+      return unloadPromise.finally(cleanupRest);
+    }
+    cleanupRest();
   }
 
   /** Método de ciclo de vida invocado al cargar. Sobrescrito por vistas y plugins. */
