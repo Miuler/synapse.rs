@@ -10,6 +10,7 @@
     isExcalidrawMarkdown,
   } from '@shared/obsidian-api';
   import { vaultApi } from '@entities/vault-item';
+  import { DEFAULT_APP_CONFIG } from '@entities/file-type';
   import { Sparkles } from 'lucide-svelte';
 
   interface Props {
@@ -25,7 +26,10 @@
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let root: Root | null = null;
-  let excalidrawAPI = $state<any>(null);
+  // Instancia imperativa de ExcalidrawAPI no envuelta en $state reactivo profundo para evitar sobrecostos de proxy
+  let excalidrawAPI: any = null;
+
+  const drawingChangeDebounceMs = DEFAULT_APP_CONFIG.editor?.drawing_change_debounce_ms ?? 400;
 
   // Mapeo en memoria de archivos/imágenes resueltas (fileId -> { id, dataURL, mimeType })
   let resolvedFilesMap: Record<string, any> = {};
@@ -286,16 +290,25 @@
   function handleExcalidrawOnChange(elements: readonly any[], appState: any, files: any) {
     if (readOnly || suppressOnChange) return;
 
+    // Si el usuario está redactando activamente dentro de un elemento de texto, no ejecutar
+    // serializaciones ni compresión LZ pesadas en el hilo principal durante el tecleo
+    if (appState?.editingTextElement) {
+      return;
+    }
+
     if (onChangeDebounceTimer) clearTimeout(onChangeDebounceTimer);
     onChangeDebounceTimer = setTimeout(() => {
       if (readOnly || suppressOnChange) return;
-      const serialized = serializeSceneData(elements, appState, files);
+      const currentAppState = excalidrawAPI?.getAppState?.() || appState;
+      if (currentAppState?.editingTextElement) return;
+
+      const serialized = serializeSceneData(elements, currentAppState, files);
       if (serialized !== lastKnownScene) {
         lastKnownScene = serialized;
         isLocalChange = true;
         if (onChange) onChange(serialized);
       }
-    }, 300);
+    }, drawingChangeDebounceMs);
   }
 
   function renderReactApp(data: string, isReadOnly: boolean, recomputeInitialData = false) {
@@ -388,9 +401,15 @@
     if (contentChanged) {
       lastKnownScene = c;
       if (excalidrawAPI) {
+        // Si el usuario está escribiendo o interactuando activamente con el lienzo,
+        // no sobreescribir la escena viva para no interrumpir el input ni congelar la escritura
+        const currentAppState = excalidrawAPI.getAppState?.() || {};
+        if (currentAppState.editingTextElement) {
+          return;
+        }
+
         const parsed = parseInitialData(c, r);
         cachedInitialData = parsed;
-        const currentAppState = excalidrawAPI.getAppState?.() || {};
         excalidrawAPI.updateScene({
           elements: parsed.elements,
           appState: {

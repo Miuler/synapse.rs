@@ -1091,12 +1091,6 @@
     if (!path || isSyntheticTab(path)) return false;
     const note = openedNotes[path];
     if (!note) return false;
-    if (isDrawingTab(path, note.content) && excalidrawViewers[path]?.getCurrentSerializedScene) {
-      try {
-        const fresh = excalidrawViewers[path].getCurrentSerializedScene();
-        if (fresh && fresh !== note.savedContent) return true;
-      } catch {}
-    }
     return note.isLoaded ? note.content !== note.savedContent : false;
   }
 
@@ -1897,13 +1891,20 @@
       : defaultSelection
   );
 
-  // Contadores calculados reactivamente sobre todo el documento
+  // Contadores calculados reactivamente sobre todo el documento (omite dibujos/diagramas para no penalizar CPU)
+  let isCurrentFocusedDrawing = $derived(isDrawingTab(currentFocusedTabPath));
   let docWordCount = $derived(
-    focusedContent && focusedContent.trim()
-      ? focusedContent.trim().split(/\s+/).length
-      : 0
+    isCurrentFocusedDrawing
+      ? 0
+      : (focusedContent && focusedContent.trim()
+          ? focusedContent.trim().split(/\s+/).length
+          : 0)
   );
-  let docCharCount = $derived(focusedContent ? focusedContent.length : 0);
+  let docCharCount = $derived(
+    isCurrentFocusedDrawing
+      ? 0
+      : (focusedContent ? focusedContent.length : 0)
+  );
 
   // Dos comportamientos:
   // 1) Si no hay selección: cuenta sobre todo el documento y posición del cursor (Lín, Col)
@@ -2336,7 +2337,27 @@
           }
         }
 
-        // 3. Refrescar notas, estado de Git y árbol del explorador con debounce para no bloquear la UI en ráfagas
+        // 3. Refrescar notas, estado de Git y árbol del explorador con debounce para no bloquear la UI en ráfagas.
+        // Si TODOS los archivos modificados provienen de un guardado propio reciente dentro de la ventana de gracia
+        // y no hay archivos eliminados, no es necesario recargar todas las notas ni reconstruir el árbol del explorador.
+        const watcherGraceMs = DEFAULT_APP_CONFIG.editor?.fs_watcher_recent_save_grace_ms ?? 3000;
+        const allPathsSelfSaved = paths.length > 0 && paths.every((p) => {
+          const clean = p.replace(/^\.\//, '').replace(/\\/g, '/');
+          const lastSave = recentSaveTimestamps[clean] || recentSaveTimestamps[p] || 0;
+          return Date.now() - lastSave < watcherGraceMs;
+        });
+
+        if (allPathsSelfSaved && deleted.length === 0) {
+          // Solo refrescar Git con debounce para actualizar indicadores de diff sin trabar el canvas
+          if (fsChangeDebounceTimer) {
+            clearTimeout(fsChangeDebounceTimer);
+          }
+          fsChangeDebounceTimer = setTimeout(async () => {
+            await refreshGitStatus();
+          }, 600);
+          return;
+        }
+
         if (fsChangeDebounceTimer) {
           clearTimeout(fsChangeDebounceTimer);
         }
@@ -2419,13 +2440,14 @@
   // Estado de Auto-Guardado (inicializado desde config.jsonc)
   let autoSave = $state(DEFAULT_APP_CONFIG.editor?.auto_save ?? true);
   let autoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.auto_save_delay_ms ?? 600;
+  let drawingAutoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.drawing_auto_save_delay_ms ?? 3000;
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
     if (unsavedChanges.isLocked(vaultItem.relative_path)) return;
     const isDrawing = isDrawingTab(vaultItem.relative_path, openedNotes[vaultItem.relative_path]?.content);
-    const computedDelay = delay !== undefined ? delay : (isDrawing ? Math.max(autoSaveDelayMs, 1000) : autoSaveDelayMs);
+    const computedDelay = delay !== undefined ? delay : (isDrawing ? drawingAutoSaveDelayMs : autoSaveDelayMs);
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       persistVaultItemToRust(vaultItem);

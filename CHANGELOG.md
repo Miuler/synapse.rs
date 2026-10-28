@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Sin publicar] (Unreleased)
+
+### Corregido
+
+- **Optimización de rendimiento y fluidez en la edición de Excalidraw**:
+  - **Eliminación del retardo al escribir texto**: Se suspendió la serialización de escena y compresión LZ en el hilo principal mientras el usuario edita activamente texto (`appState.editingTextElement`), evitando que los caracteres se retengan en búfer y se dibujen con desfase.
+  - **Desacoplamiento del Proxy reactivo de Svelte 5**: Sustitución de `$state<any>(null)` por variable plana no reactiva para `excalidrawAPI` en `ExcalidrawViewer`, eliminando sobrecostos de intercepción por Proxy sobre métodos y estructuras internas complejas de Excalidraw.
+  - **Protección contra sobreescritura destructiva de escena**: En el `$effect` sincronizador, se evita llamar a `excalidrawAPI.updateScene()` durante la edición de texto activa para impedir el bloqueo y congelamiento momentáneo del textarea WYSIWYG.
+  - **Eliminación de doble compresión y serialización en `isTabDirty`**: `WorkspacePage` ahora verifica el estado sucio mediante comparación directa en memoria (`note.content !== note.savedContent`), prescindiendo de llamadas síncronas a `getCurrentSerializedScene()` en cada re-renderizado reactivo de la barra de pestañas.
+  - **Omisión de conteo de palabras en dibujos**: `docWordCount` y `docCharCount` se omiten cuando la pestaña activa es de tipo dibujo (`isDrawingTab`), ahorrando costosas ejecuciones de expresiones regulares sobre JSON y base64.
+  - **Generación perezosa de SVG en Obsidian Excalidraw**: En `ObsidianExcalidrawViewer`, la generación vectorial con `ExcalidrawAutomate.toSVG` ahora se ejecuta exclusivamente en modo visual (`viewMode === 'visual'`), evitando cálculos pesados en cada pulsación del modo código.
+  - **Supresión de recargas redundantes del backend en `vault:files-changed`**: Si todos los archivos notificados por el watcher del sistema provienen de guardados propios recientes dentro de la ventana de gracia y no hay archivos eliminados, se omite `fetchNotesFromBackend()` y `refreshTree()`, refrescando únicamente el estado de Git de manera desacoplada.
+
+### Añadido
+
+- **Parámetros de temporización de editor y Excalidraw configurables en `config.jsonc`**:
+  - Nuevas propiedades bajo el bloque `"editor"` tipadas y validadas tanto en el modelo de dominio Rust (`EditorConfig`) como en la entidad frontend (`file-types.svelte.ts`):
+    - `drawing_auto_save_delay_ms`: Tiempo de inactividad antes de persistir dibujos a disco (3000 ms por defecto).
+    - `drawing_change_debounce_ms`: Tiempo de espera para propagar cambios de escena hacia la pestaña (400 ms por defecto).
+    - `fs_watcher_recent_save_grace_ms`: Ventana de gracia para ignorar eventos del watcher originados por guardados propios (3000 ms por defecto).
+
 ## [2026.10.28.04-alpha] - 2026-10-28
 
 ### Corregido

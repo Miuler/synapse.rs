@@ -254,6 +254,12 @@ pub struct EditorConfig {
     pub auto_save: bool,
     #[serde(default = "default_auto_save_delay_ms")]
     pub auto_save_delay_ms: u64,
+    #[serde(default = "default_drawing_auto_save_delay_ms")]
+    pub drawing_auto_save_delay_ms: u64,
+    #[serde(default = "default_drawing_change_debounce_ms")]
+    pub drawing_change_debounce_ms: u64,
+    #[serde(default = "default_fs_watcher_recent_save_grace_ms")]
+    pub fs_watcher_recent_save_grace_ms: u64,
 }
 
 fn default_auto_save() -> bool {
@@ -264,11 +270,26 @@ fn default_auto_save_delay_ms() -> u64 {
     600
 }
 
+fn default_drawing_auto_save_delay_ms() -> u64 {
+    3000
+}
+
+fn default_drawing_change_debounce_ms() -> u64 {
+    400
+}
+
+fn default_fs_watcher_recent_save_grace_ms() -> u64 {
+    3000
+}
+
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
             auto_save: default_auto_save(),
             auto_save_delay_ms: default_auto_save_delay_ms(),
+            drawing_auto_save_delay_ms: default_drawing_auto_save_delay_ms(),
+            drawing_change_debounce_ms: default_drawing_change_debounce_ms(),
+            fs_watcher_recent_save_grace_ms: default_fs_watcher_recent_save_grace_ms(),
         }
     }
 }

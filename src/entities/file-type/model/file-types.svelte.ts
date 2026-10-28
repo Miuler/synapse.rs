@@ -21,6 +21,9 @@ export interface IgnoredConfig {
 export interface EditorConfig {
   auto_save: boolean;
   auto_save_delay_ms: number;
+  drawing_auto_save_delay_ms?: number;
+  drawing_change_debounce_ms?: number;
+  fs_watcher_recent_save_grace_ms?: number;
 }
 
 export interface DiffConfig {

@@ -144,8 +144,9 @@
   let wikilinks = $derived(extractWikilinksFromElements(scene.elements || []));
   let activeElementCount = $derived((scene.elements || []).filter((el) => !el.isDeleted).length);
 
-  // Generar SVG con ExcalidrawAutomate
+  // Generar SVG con ExcalidrawAutomate solo cuando esté en modo visual para no bloquear edición de texto
   let svgContent = $derived.by(() => {
+    if (viewMode !== 'visual') return '';
     try {
       const ea = new ExcalidrawAutomate(synapseApp || undefined);
       const combinedFiles = {
