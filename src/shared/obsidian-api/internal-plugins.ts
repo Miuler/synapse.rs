@@ -52,7 +52,43 @@ export class SynapseInternalPluginsManager {
 
     this.plugins['daily-notes'] = dailyNotesEntry;
 
-    // 2. Intentar cargar configuración guardada previamente desde .obsidian/daily-notes.json o .synapse/daily-notes.json
+    // 2. Core plugin: workspaces
+    const workspacesEntry: InternalPluginEntry = {
+      id: 'workspaces',
+      enabled: true,
+      instance: {
+        options: {},
+        activeWorkspace: 'default',
+        getWorkspaces: () => ['default'],
+        saveWorkspace: () => {},
+        loadWorkspace: () => {},
+      },
+    };
+    this.plugins['workspaces'] = workspacesEntry;
+
+    // 3. Core plugin: file-recovery con stubs que evitan recursión infinita
+    this.plugins['file-recovery'] = {
+      id: 'file-recovery',
+      enabled: true,
+      instance: {
+        options: {},
+        onFileChanged: (_file: any) => Promise.resolve(),
+        forceAdd: (_path: any, _data: any) => Promise.resolve(),
+      },
+    };
+
+    // 4. Stubs para otros core plugins habituales
+    for (const id of ['backlink', 'outgoing-link', 'tag-pane', 'page-preview', 'graph']) {
+      this.plugins[id] = {
+        id,
+        enabled: true,
+        instance: {
+          options: {},
+        },
+      };
+    }
+
+    // 5. Intentar cargar configuración guardada previamente desde .obsidian/daily-notes.json o .synapse/daily-notes.json
     this.loadDailyNotesSettingsAsync();
   }
 

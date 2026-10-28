@@ -67,6 +67,41 @@ export class SynapseApp {
   addStatusBarItem(): HTMLElement {
     return this.statusBar.addStatusBarItem();
   }
+
+  private readonly memoryStorage = new Map<string, string>();
+
+  /**
+   * Carga datos guardados en el almacenamiento local seguro de Obsidian.
+   */
+  loadLocalStorage(key: string): any {
+    try {
+      const storageKey = `synapse-storage-${key}`;
+      let val: string | null = null;
+      if (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function') {
+        val = localStorage.getItem(storageKey);
+      }
+      if (!val && this.memoryStorage.has(storageKey)) {
+        val = this.memoryStorage.get(storageKey) || null;
+      }
+      return val ? JSON.parse(val) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Guarda datos en el almacenamiento local de Obsidian.
+   */
+  saveLocalStorage(key: string, data: any): void {
+    try {
+      const storageKey = `synapse-storage-${key}`;
+      const serialized = JSON.stringify(data);
+      this.memoryStorage.set(storageKey, serialized);
+      if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+        localStorage.setItem(storageKey, serialized);
+      }
+    } catch {}
+  }
 }
 
 export function createSynapseApp(repository: VaultRepository): SynapseApp {

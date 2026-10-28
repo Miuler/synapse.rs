@@ -239,6 +239,24 @@ export function setupObsidianDomExtensions(): void {
       return this;
     };
   }
+  if (!proto.removeClasses) {
+    proto.removeClasses = function (cls: string[] | string) {
+      const arr = Array.isArray(cls) ? cls : [cls];
+      for (const c of arr) {
+        if (c) this.classList.remove(...c.split(/\s+/).filter(Boolean));
+      }
+      return this;
+    };
+  }
+  if (!proto.addClasses) {
+    proto.addClasses = function (cls: string[] | string) {
+      const arr = Array.isArray(cls) ? cls : [cls];
+      for (const c of arr) {
+        if (c) this.classList.add(...c.split(/\s+/).filter(Boolean));
+      }
+      return this;
+    };
+  }
   if (!proto.toggleClass) {
     proto.toggleClass = function (cls: string, force?: boolean) {
       return this.classList.toggle(cls, force);

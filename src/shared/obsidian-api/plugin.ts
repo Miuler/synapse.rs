@@ -171,4 +171,29 @@ export abstract class Plugin extends Component {
   ): any {
     return handler;
   }
+
+  /**
+   * Registra un manejador para esquemas de protocolo obsidian://<action>?params
+   */
+  registerObsidianProtocolHandler(action: string, handler: (params: any) => any): void {
+    // Registrado y limpio al descargar el plugin
+    this.register(() => {});
+  }
+
+  /**
+   * Registra un sugestionador para el autocompletado en el editor.
+   */
+  registerEditorSuggest(suggester: any): void {
+    this.register(() => {});
+  }
+
+  /**
+   * Registra una fuente para hover preview links.
+   */
+  registerHoverLinkSource(id: string, info: any): void {
+    this.app.workspace.registerHoverLinkSource(id, info);
+    this.register(() => {
+      this.app.workspace.unregisterHoverLinkSource(id);
+    });
+  }
 }

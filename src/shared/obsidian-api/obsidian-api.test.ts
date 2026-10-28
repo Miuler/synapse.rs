@@ -1860,5 +1860,69 @@ img456: "[[diagrama.svg]]"
       expect(typeof app.foldManager.save).toBe('function');
       expect(app.isMobile).toBe(false);
     });
+
+    it('48. app, workspace, vault y bridge implementan soporte completo para plugins comunitarios avanzados', async () => {
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+
+      // 1. workspace.containerEl y updateOptions
+      expect(app.workspace.containerEl).toBeDefined();
+      let updateOptionsFired = false;
+      app.workspace.on('update-options', () => {
+        updateOptionsFired = true;
+      });
+      app.workspace.updateOptions();
+      expect(updateOptionsFired).toBe(true);
+      expect(app.workspace.getMostRecentLeaf()).toBeDefined();
+
+      // 2. hover link sources
+      app.workspace.registerHoverLinkSource('test-source', { display: 'Test' });
+      app.workspace.unregisterHoverLinkSource('test-source');
+
+      // 3. vault.getConfig
+      expect(app.vault.getConfig('vimMode')).toBe(false);
+      expect(app.vault.getConfig('livePreview')).toBe(true);
+
+      // 4. app localStorage
+      app.saveLocalStorage('test-key', { foo: 'bar' });
+      expect(app.loadLocalStorage('test-key')).toEqual({ foo: 'bar' });
+
+      // 5. metadataCache.getCachedFiles
+      expect(Array.isArray(app.metadataCache.getCachedFiles())).toBe(true);
+
+      // 6. internalPlugins workspaces
+      const workspacesPlugin = app.internalPlugins.getPluginById('workspaces');
+      expect(workspacesPlugin).toBeDefined();
+      expect(workspacesPlugin?.instance).toBeDefined();
+
+      // 7. Bridge global require
+      const g = (typeof window !== 'undefined' ? window : globalThis) as any;
+      const pathMod = g.require('path');
+      expect(pathMod.join('a', 'b', 'c.md')).toBe('a/b/c.md');
+      expect(pathMod.dirname('a/b/c.md')).toBe('a/b');
+      expect(pathMod.basename('a/b/c.md', '.md')).toBe('c');
+
+      const eventsMod = g.require('events');
+      expect(eventsMod.EventEmitter).toBeDefined();
+
+      const searchMod = g.require('@codemirror/search');
+      expect(searchMod).toBeDefined();
+
+      const autoMod = g.require('@codemirror/autocomplete');
+      expect(autoMod).toBeDefined();
+
+      // 8. Bridge obsidian bundle exports
+      const obs = g.require('obsidian');
+      expect(typeof obs.loadMermaid).toBe('function');
+      expect(typeof obs.loadMathJax).toBe('function');
+      expect(obs.SuggestModal).toBeDefined();
+
+      // 9. Globals
+      expect(g.activeWindow).toBeDefined();
+      expect(g.process).toBeDefined();
+      expect(g.Buffer).toBeDefined();
+      const buf = g.Buffer.from('Hola Synapse');
+      expect(buf.toString()).toBe('Hola Synapse');
+    });
   });
 });

@@ -20,6 +20,45 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   private readonly editorExtensions: any[] = [];
   activeLeaf: WorkspaceLeaf | null = null;
   layoutReady = true;
+  private readonly hoverLinkSources: Map<string, any> = new Map();
+
+  /**
+   * Elemento raíz del área de trabajo (utilizado por plugins para inyectar estilos o escuchar eventos globales).
+   */
+  get containerEl(): HTMLElement {
+    if (typeof document !== 'undefined') {
+      return (document.querySelector('.workspace') as HTMLElement) || document.body;
+    }
+    return {} as HTMLElement;
+  }
+
+  /**
+   * Notifica a los editores abiertos que deben refrescar sus opciones y extensiones activas.
+   */
+  updateOptions(): void {
+    this.trigger('update-options');
+  }
+
+  /**
+   * Retorna la hoja de trabajo más recientemente enfocada.
+   */
+  getMostRecentLeaf(): WorkspaceLeaf | null {
+    return this.activeLeaf || this.leaves.values().next().value || null;
+  }
+
+  /**
+   * Registra una fuente personalizada de vista previa al pasar el cursor (Hover Link).
+   */
+  registerHoverLinkSource(source: string, info: any): void {
+    this.hoverLinkSources.set(source, info);
+  }
+
+  /**
+   * Desregistra una fuente de vista previa al pasar el cursor.
+   */
+  unregisterHoverLinkSource(source: string): void {
+    this.hoverLinkSources.delete(source);
+  }
 
   /**
    * Ejecuta el callback una vez que el layout de la interfaz está completamente listo.

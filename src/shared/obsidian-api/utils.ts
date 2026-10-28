@@ -243,6 +243,7 @@ export interface MomentInstance {
   locale(): string;
   locale(loc: string): MomentInstance;
   localeData(): any;
+  calendar(referenceTime?: any, formats?: any): string;
   startOf(unit: string): MomentInstance;
   endOf(unit: string): MomentInstance;
 }
@@ -497,6 +498,14 @@ export const moment: MomentStatic = Object.assign(
         }
         return currentGlobalLocale;
       },
+      calendar(referenceTime?: any, formats?: any): string {
+        const ref = referenceTime ? moment(referenceTime) : moment();
+        const diffDays = Math.round((d.getTime() - ref.toDate().getTime()) / 86400000);
+        if (diffDays === 0) return 'Today at ' + this.format('LT');
+        if (diffDays === 1) return 'Tomorrow at ' + this.format('LT');
+        if (diffDays === -1) return 'Yesterday at ' + this.format('LT');
+        return this.format('L');
+      },
       localeData(): any {
         return moment.localeData(currentGlobalLocale);
       },
@@ -737,6 +746,13 @@ export function addIcon(id: string, svg: string): void {
  */
 export function getIcon(id: string): string | null {
   return iconsRegistry.get(id) || null;
+}
+
+/**
+ * Retorna todos los IDs de iconos registrados en Obsidian.
+ */
+export function getIconIds(): string[] {
+  return Array.from(iconsRegistry.keys());
 }
 
 /**

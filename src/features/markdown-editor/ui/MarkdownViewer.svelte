@@ -681,10 +681,8 @@
     return mode === 'source' ? sourceModeExtensions : livePreviewExtensions;
   }
 
-  function initEditor() {
-    if (!containerRef || editorView) return;
-
-    const updateListener = EditorView.updateListener.of((update) => {
+  function createUpdateListener() {
+    return EditorView.updateListener.of((update) => {
       if (update.docChanged && !isInternalUpdate) {
         const newText = update.state.doc.toString();
         lastContent = newText;
@@ -694,6 +692,12 @@
         emitSelectionInfo(update.state);
       }
     });
+  }
+
+  function initEditor() {
+    if (!containerRef || editorView) return;
+
+    const updateListener = createUpdateListener();
 
     try {
       const state = EditorState.create({
@@ -821,8 +825,38 @@
         editorView.dispatch({
           effects: pluginExtensionsCompartment.reconfigure(exts || []),
         });
-      } catch (e) {
-        console.warn('Error al actualizar extensiones de plugins en CodeMirror:', e);
+      } catch (e: any) {
+        console.warn('Advertencia al reconfigurar extensiones de plugins en CodeMirror:', e);
+        // Si el fallo es debido a un StateField faltante inyectado dinámicamente,
+        // reinicializamos el EditorState completo de forma transparente preservando documento y selección
+        if (e && String(e).includes('Field is not present in this state')) {
+          try {
+            const currentDoc = editorView.state.doc;
+            const currentSelection = editorView.state.selection;
+            const newState = EditorState.create({
+              doc: currentDoc,
+              selection: currentSelection,
+              extensions: [
+                filePathCompartment.of(activeFilePathFacet.of(filePath)),
+                onNavigateCompartment.of(onNavigateFacet.of(onNavigate || (() => {}))),
+                vimCompartment.of(vimMode ? vim() : []),
+                readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
+                viewModeCompartment.of(getActiveExtensions(viewMode)),
+                pluginExtensionsCompartment.of(exts || []),
+                basicSetup,
+                markdown({ codeLanguages: [mermaidLanguageDescription] }),
+                wikilinkAutocomplete,
+                EditorView.lineWrapping,
+                keymap.of(searchKeymap as any),
+                createUpdateListener(),
+                baseEditorTheme,
+              ],
+            });
+            editorView.setState(newState);
+          } catch (resetErr) {
+            console.warn('No se pudo resetear el estado con extensiones de plugins incompatibles:', resetErr);
+          }
+        }
       }
     }
   });

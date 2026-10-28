@@ -120,6 +120,14 @@ export class Modal extends Component {
     }
     return this;
   }
+
+  setInstructions(instructions: Array<{ command: string; purpose: string }>): this {
+    return this;
+  }
+
+  setPlaceholder(placeholder: string): this {
+    return this;
+  }
 }
 
 /**
@@ -234,12 +242,60 @@ export class Menu extends Component {
 }
 
 /**
+ * Modal base para sugerencias interactivas (SuggestModal).
+ */
+export abstract class SuggestModal<T> extends Modal {
+  readonly inputEl: HTMLInputElement;
+  readonly resultContainerEl: HTMLElement;
+  emptyStateText = 'No matches found';
+
+  constructor(app: any) {
+    super(app);
+    this.inputEl = createEl('input', {
+      attr: { type: 'text' },
+      cls: 'prompt-input',
+      parent: this.contentEl,
+    }) as HTMLInputElement;
+    this.resultContainerEl = createDiv({
+      cls: 'prompt-results',
+      parent: this.contentEl,
+    });
+  }
+
+  setPlaceholder(placeholder: string): this {
+    this.inputEl.placeholder = placeholder;
+    return this;
+  }
+
+  setInstructions(instructions: Array<{ command: string; purpose: string }>): this {
+    return this;
+  }
+
+  abstract getSuggestions(query: string): T[] | Promise<T[]>;
+  abstract renderSuggestion(value: T, el: HTMLElement): void;
+  abstract onChooseSuggestion(item: T, evt: MouseEvent | KeyboardEvent): void;
+}
+
+/**
  * Modal de sugerencias con búsqueda difusa (FuzzySuggestModal).
  */
-export abstract class FuzzySuggestModal<T> extends Modal {
+export abstract class FuzzySuggestModal<T> extends SuggestModal<T> {
   abstract getItems(): T[];
   abstract getItemText(item: T): string;
   abstract onChooseItem(item: T, evt: MouseEvent | KeyboardEvent): void;
+
+  getSuggestions(query: string): T[] {
+    const q = query.toLowerCase();
+    return this.getItems().filter((item) => this.getItemText(item).toLowerCase().includes(q));
+  }
+
+  renderSuggestion(item: T, el: HTMLElement): void {
+    el.textContent = this.getItemText(item);
+  }
+
+  onChooseSuggestion(item: T, evt: MouseEvent | KeyboardEvent): void {
+    this.onChooseItem(item, evt);
+  }
 }
 
 /**

@@ -179,6 +179,13 @@ export class SynapseMetadataCache extends Events implements SynapseMetadataCache
   }
 
   /**
+   * Obtiene la lista de rutas de todos los archivos actualmente en la caché de metadatos.
+   */
+  getCachedFiles(): string[] {
+    return Array.from(this._cache.keys());
+  }
+
+  /**
    * Notifica a los observadores que los enlaces de un archivo han sido resueltos.
    */
   triggerResolve(file: TFile): void {

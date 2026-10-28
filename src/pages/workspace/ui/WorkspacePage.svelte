@@ -443,6 +443,7 @@
   // Instancia de la fachada Obsidian API para soporte de plugins
   let synapseApp = $state<SynapseApp | null>(null);
   let pluginEditorExtensions = $state<any[]>([]);
+  let editorExtensionsTimeout: ReturnType<typeof setTimeout> | null = null;
   let pluginStatusBarContainer = $state<HTMLElement | null>(null);
 
   function handlePluginStatusBarRef(el: HTMLElement | null) {
@@ -459,7 +460,11 @@
         }
         pluginEditorExtensions = synapseApp.workspace.getEditorExtensions();
         synapseApp.workspace.on('editor-extensions-change', (exts: any[]) => {
-          pluginEditorExtensions = [...exts];
+          // Debounce para esperar a que todos los plugins completen su registro antes de recrear extensiones de CodeMirror
+          if (editorExtensionsTimeout) clearTimeout(editorExtensionsTimeout);
+          editorExtensionsTimeout = setTimeout(() => {
+            pluginEditorExtensions = [...exts];
+          }, 150);
         });
         vaultRepository.getEnabledPlugins().then(async (enabledList) => {
           for (const pluginId of enabledList) {

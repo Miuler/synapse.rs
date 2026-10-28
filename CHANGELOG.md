@@ -5,6 +5,31 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.10.28.03-alpha] - 2026-10-28
+
+### Añadido
+
+- **Capa de compatibilidad Obsidian API: Entorno global, emulación Node.js y stubs CodeMirror**:
+  - **Emulación de módulos en `require()`**: Soporte para paquetes `@codemirror/search` y `@codemirror/autocomplete`, así como módulos esenciales de Node.js requeridos por plugins comunitarios (`path`, `events`, `constants`, `url`, `punycode`, `crypto` con `createHash` y `randomBytes`, `stream`, `process`, `util` y `querystring`), junto a stubs seguros para dependencias de escritorio (`electron`, `child_process`, `fs`, `http`, `https`, `os`).
+  - **Polyfill nativo de `Buffer`**: Implementación basada en `Uint8Array` con codificación y decodificación binaria UTF-8 y Base64 (`Buffer.from`, `isBuffer`, `toString`).
+  - **Entorno global y objetos canónicos**: Exposición de `activeWindow`, `global`, `process` y `CodeMirror.defineMode` / `defineSimpleMode` en el contexto global de ejecución.
+  - **Nuevas exportaciones en bundle Obsidian**: Incorporación de la clase `Vault` (`SynapseVault`), `SuggestModal`, `loadMermaid` (con import dinámico seguro), `loadMathJax` y función `getIconIds`.
+
+- **Capa de compatibilidad Obsidian API: Soporte ampliado para Vault, Workspace y Plugins**:
+  - **Opciones y recorrido en `SynapseVault`**: Métodos `vault.getConfig` (`vimMode`, `theme`, `legacyEditor`, `livePreview`), `vault.getName` y `recurseChildren(folder, callback)` para iteración recursiva de jerarquías de archivos.
+  - **Extensiones en `SynapseWorkspace`**: Propiedad `containerEl`, método `getMostRecentLeaf()`, disparo de eventos con `updateOptions()` y registro de fuentes de vista previa flotante (`registerHoverLinkSource` / `unregisterHoverLinkSource`).
+  - **Persistencia local en `SynapseApp`**: Métodos `loadLocalStorage` y `saveLocalStorage` para plugins que almacenan ajustes o estados temporales de sesión.
+  - **Caché de metadatos**: Método `metadataCache.getCachedFiles()` para consultar todas las rutas registradas en la caché.
+  - **Ciclo de vida en `Plugin`**: Métodos `registerObsidianProtocolHandler`, `registerEditorSuggest` y `registerHoverLinkSource` con limpieza automática en `onunload`.
+  - **Componentes de UI y modales**: Clase base `SuggestModal<T>` con contenedor de resultados y `FuzzySuggestModal<T>` conectada; métodos fluidos `setPlaceholder` y `setInstructions` en `Modal`.
+  - **Plugins internos nativos adicionales**: Registro de `workspaces`, `file-recovery` (con manejadores asíncronos seguros) y stubs para `backlink`, `outgoing-link`, `tag-pane`, `page-preview` y `graph`.
+  - **Extensiones DOM en `HTMLElement`**: Métodos `addClasses` y `removeClasses` para manipulación de múltiples clases CSS en lote.
+  - **Extensiones de fecha en `moment()`**: Método `calendar()` para formateo relativo de fechas ("Today at...", "Tomorrow at...", etc.).
+
+- **Estabilidad y robustez en el editor Markdown (CodeMirror 6)**:
+  - **Recuperación transparente ante reconfiguración de extensiones**: Detección del error `Field is not present in this state` al inyectar dinámicamente StateFields de plugins, recreando el `EditorState` completo sin interrumpir al usuario y preservando la posición de selección y el documento activo.
+  - **Debounce en actualización de extensiones de plugins**: Debounce de 150 ms en `WorkspacePage` para el evento `editor-extensions-change`, agrupando la inicialización concurrente de múltiples plugins comunitarios.
+
 ## [2026.10.28.02-alpha] - 2026-10-28
 
 ### Añadido
@@ -524,6 +549,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[2026.10.28.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.03-alpha
 [2026.10.28.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.02-alpha
 [2026.10.28.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.01-alpha
 [2026.10.27.04-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.04-alpha

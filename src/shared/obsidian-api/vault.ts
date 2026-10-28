@@ -46,6 +46,24 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   }
 
   /**
+   * Obtiene la configuración de una opción interna de la bóveda (ej. 'vimMode', 'theme').
+   */
+  getConfig(key: string): any {
+    switch (key) {
+      case 'vimMode':
+        return false;
+      case 'theme':
+        return 'obsidian';
+      case 'legacyEditor':
+        return false;
+      case 'livePreview':
+        return true;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
    * Conecta la caché reactiva de metadatos a la bóveda para mantenerla sincronizada con las mutaciones.
    */
   setMetadataCache(cache: SynapseMetadataCache): void {
@@ -455,5 +473,34 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   getResourcePath(file: TFile | string): string {
     const path = pathOf(file);
     return this.adapter.getResourcePath(path);
+  }
+
+  /**
+   * Retorna el nombre de la bóveda actual (ej. nombre de la carpeta raíz).
+   */
+  getName(): string {
+    return 'Synapse Vault';
+  }
+
+  /**
+   * Itera recursivamente sobre los hijos de una carpeta invocando el callback para cada nodo.
+   */
+  static recurseChildren(folder: any, cb: (file: any) => any): void {
+    if (!folder) return;
+    if (Array.isArray(folder.children)) {
+      for (const child of folder.children) {
+        cb(child);
+        if (child.children) {
+          SynapseVault.recurseChildren(child, cb);
+        }
+      }
+    }
+  }
+
+  /**
+   * Versión de instancia de recurseChildren.
+   */
+  recurseChildren(folder: any, cb: (file: any) => any): void {
+    SynapseVault.recurseChildren(folder, cb);
   }
 }
