@@ -144,6 +144,8 @@ pub struct WorkspaceShortcutsConfig {
     pub next_tab: String,
     #[serde(default = "default_ws_prev_tab")]
     pub prev_tab: String,
+    #[serde(default = "default_ws_git_push")]
+    pub git_push: String,
 }
 
 fn default_ws_quick_open() -> String {
@@ -206,6 +208,9 @@ fn default_ws_next_tab() -> String {
 fn default_ws_prev_tab() -> String {
     "Ctrl+PageUp, Ctrl+Shift+Tab".to_string()
 }
+fn default_ws_git_push() -> String {
+    "Ctrl+Shift+K".to_string()
+}
 
 impl Default for WorkspaceShortcutsConfig {
     fn default() -> Self {
@@ -230,6 +235,7 @@ impl Default for WorkspaceShortcutsConfig {
             toggle_edit_mode: default_ws_toggle_edit_mode(),
             next_tab: default_ws_next_tab(),
             prev_tab: default_ws_prev_tab(),
+            git_push: default_ws_git_push(),
         }
     }
 }

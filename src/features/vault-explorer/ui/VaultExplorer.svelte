@@ -10,7 +10,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
 
@@ -933,7 +933,7 @@
 
   async function handleNewNote(
     fromKeyboard: boolean | unknown = false,
-    fileType: 'markdown' | 'mermaid' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
   ) {
     if (isCreatingNote) return;
     isCreatingNote = true;
@@ -950,6 +950,10 @@
         extension = 'mmd';
         baseTitle = 'Diagrama';
         initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+      } else if (fileType === 'd2') {
+        extension = 'd2';
+        baseTitle = 'Diagrama';
+        initialContent = 'x -> y: conexión\n';
       } else if (fileType === 'excalidraw') {
         extension = 'excalidraw';
         baseTitle = 'Dibujo';
@@ -1043,6 +1047,77 @@
       showToast(`Error al crear nueva nota: ${msg}`);
     } finally {
       isCreatingNote = false;
+    }
+  }
+
+  let isCreatingFolder = $state(false);
+
+  async function handleCreateFolder(fromKeyboard: boolean | unknown = false) {
+    if (isCreatingFolder) return;
+
+    const isKbd = typeof fromKeyboard === 'boolean' ? fromKeyboard : false;
+    const destDir = getTargetDirectory(isKbd);
+
+    const folderName = window.prompt(
+      destDir ? `Crear subcarpeta en "${destDir}":` : 'Nombre de la nueva carpeta:'
+    )?.trim();
+    if (!folderName) return;
+
+    if (folderName.includes('/') || folderName.includes('\\') || folderName === '.' || folderName === '..') {
+      showToast('Nombre de carpeta no válido');
+      return;
+    }
+
+    const candidateRelPath = destDir ? `${destDir}/${folderName}` : folderName;
+
+    isCreatingFolder = true;
+    try {
+      await vaultApi.createFolder(candidateRelPath);
+
+      // Expandir recursivamente todas las carpetas ancestro incluyendo la nueva
+      const parts = candidateRelPath.split('/').filter(Boolean);
+      let curr = '';
+      let changed = false;
+      for (let i = 0; i < parts.length; i++) {
+        curr = curr ? `${curr}/${parts[i]}` : parts[i];
+        if (!folderChildren[curr]) {
+          await loadDirectory(curr);
+        }
+        if (!expandedFolders[curr]) {
+          expandedFolders[curr] = true;
+          changed = true;
+        }
+      }
+      if (changed) {
+        persistExpandedFolders();
+      }
+
+      // Recargar la carpeta padre y subdirectorios en el explorador
+      await reloadDirectoryAndSubdirectories(destDir);
+      await loadDirectory(candidateRelPath);
+
+      // Notificar recarga a la vista
+      if (onReloadItems) {
+        await onReloadItems([destDir || '', candidateRelPath]);
+      }
+
+      // Seleccionar y enfocar la nueva carpeta
+      selectedPaths = [candidateRelPath];
+      lastFocusedPath = candidateRelPath;
+      anchorPath = candidateRelPath;
+      scrollPathIntoView(candidateRelPath);
+
+      showToast(`Carpeta creada: "${folderName}"`);
+
+      if (onRefreshGit) {
+        await onRefreshGit();
+      }
+    } catch (err: unknown) {
+      console.error('Error al crear carpeta:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al crear carpeta: ${msg}`);
+    } finally {
+      isCreatingFolder = false;
     }
   }
 
@@ -1241,11 +1316,13 @@
   }
 
   async function handleRename() {
-    // Renombrar sólo un archivo evita resultados ambiguos al haber selección múltiple.
-    if (!contextMenuNode || contextMenuNode.isFolder || selectedPaths.length > 1) return;
+    // Renombrar sólo un elemento evita resultados ambiguos al haber selección múltiple.
+    if (!contextMenuNode || selectedPaths.length > 1) return;
 
+    const isFolder = contextMenuNode.isFolder;
     const oldName = contextMenuNode.name;
-    const newName = window.prompt('Nuevo nombre del archivo:', oldName)?.trim();
+    const promptLabel = isFolder ? 'Nuevo nombre de la carpeta:' : 'Nuevo nombre del archivo:';
+    const newName = window.prompt(promptLabel, oldName)?.trim();
     if (!newName || newName === oldName) return;
 
     try {
@@ -1256,11 +1333,16 @@
       selectedPaths = [finalPath];
       lastFocusedPath = finalPath;
       anchorPath = finalPath;
-      await loadDirectory(parentDir(finalPath));
+
+      const pDir = parentDir(finalPath);
+      await loadDirectory(pDir);
+      if (isFolder) {
+        await reloadDirectoryAndSubdirectories(pDir);
+      }
       showToast(`Renombrado como "${newName}"`);
       if (onRefreshGit) await onRefreshGit();
     } catch (err: unknown) {
-      console.error('Error al renombrar archivo:', err);
+      console.error('Error al renombrar:', err);
       const msg = err instanceof Error ? err.message : String(err);
       showToast(`Error al renombrar: ${msg}`);
     }
@@ -1662,6 +1744,24 @@
               <button
                 type="button"
                 class="sidebar-action-btn"
+                onclick={() => handleNewNote(false, 'markdown')}
+                title="Nueva nota (en carpeta seleccionada o raíz)"
+                aria-label="Nueva nota"
+              >
+                <FilePlus size={14} />
+              </button>
+              <button
+                type="button"
+                class="sidebar-action-btn"
+                onclick={() => handleCreateFolder(false)}
+                title="Nueva carpeta (en carpeta seleccionada o raíz)"
+                aria-label="Nueva carpeta"
+              >
+                <FolderPlus size={14} />
+              </button>
+              <button
+                type="button"
+                class="sidebar-action-btn"
                 onclick={() => locateActiveFile()}
                 title="Ubicar archivo activo (Ctrl+Alt+1, Alt+L)"
                 aria-label="Ubicar archivo activo"
@@ -1908,6 +2008,16 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          onSelect={() => handleCreateFolder(false)}
+        >
+          <FolderPlus class="context-menu-item-icon" />
+          <span>Nueva carpeta</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Separator class="context-menu-divider" />
+
+        <ContextMenu.Item
+          class="context-menu-item"
           onSelect={() => handleNewNote(false, 'markdown')}
         >
           <FilePlus class="context-menu-item-icon" />
@@ -1920,6 +2030,14 @@
         >
           <FileCode class="context-menu-item-icon" />
           <span>Nuevo diagrama Mermaid (.mmd)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'd2')}
+        >
+          <FileCode class="context-menu-item-icon" />
+          <span>Nuevo diagrama D2 (.d2)</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2068,7 +2186,7 @@
         {#if selectedPaths.length > 0 || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />
 
-          {#if contextMenuNode && !contextMenuNode.isFolder && selectedPaths.length <= 1}
+          {#if contextMenuNode && selectedPaths.length <= 1}
             <ContextMenu.Item
               class="context-menu-item"
               onSelect={handleRename}

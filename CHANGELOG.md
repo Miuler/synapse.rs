@@ -5,6 +5,29 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.10.27.04-alpha] - 2026-10-27
+
+### Añadido
+
+- **Creación y visibilidad de carpetas en VaultExplorer**:
+  - **Creación directa de carpetas**: Botón de acceso rápido con icono `FolderPlus` en la cabecera del explorador de la bóveda y opción "Nueva carpeta" en el menú contextual del árbol de archivos.
+  - **Soporte y persistencia de carpetas vacías**: Se garantiza que las carpetas vacías se listen y permanezcan visibles en la jerarquía del explorador sin ser ocultadas ni descartadas en el filtrado de archivos.
+  - **Soporte para renombrar carpetas**: Integración fluida del renombrado en línea para nodos de tipo carpeta en el árbol.
+
+- **Comando Git Push y atajo de teclado (`Ctrl+Shift+K`)**:
+  - **Paleta de comandos (`Ctrl+P`)**: Nuevo comando "Bóveda: Empujar cambios a Git (Push)" registrado en la paleta de comandos del espacio de trabajo.
+  - **Atajo global configurable**: Asignado por defecto a `Ctrl+Shift+K`, configurable en `config.jsonc` y gestionado mediante el store de atajos de la aplicación.
+  - **Backend y Arquitectura Cebolla**:
+    - Puerto `git_push` en el trait `GitPort` en `domain/services/git_service.rs`.
+    - Caso de uso `git_push` en `application/use_cases/git_use_cases.rs`.
+    - Adaptador de infraestructura en `infrastructure/services/git_service.rs` invocando `git push` con manejo seguro de errores.
+    - Exposición del comando Tauri `git_push_vault` en `infrastructure/tauri/commands/git.rs`.
+  - **Feedback visual**: Notificaciones toast contextuales de éxito y error en la interfaz de usuario al sincronizar con el repositorio remoto.
+
+- **Creación de archivos de diagramas D2 (`.d2`)**:
+  - **Opción en menú contextual y paleta de comandos**: Acción "Nuevo diagrama D2" añadida al menú contextual de archivos/carpetas y en la paleta de comandos (`cmd-new-d2`).
+  - **Plantilla predeterminada**: Generación automática de código fuente inicial (`x -> y: conexión\n`) y apertura directa en el visor de diagramas D2.
+
 ## [2026.10.27.03-alpha] - 2026-10-27
 
 ### Añadido

@@ -28,6 +28,7 @@ export interface WorkspaceShortcutsConfig {
   toggle_edit_mode: string;
   next_tab: string;
   prev_tab: string;
+  git_push: string;
 }
 
 export interface ShortcutsConfig {
@@ -63,6 +64,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     toggle_edit_mode: 'Ctrl+E',
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
+    git_push: 'Ctrl+Shift+K',
   },
 };
 

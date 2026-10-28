@@ -67,6 +67,10 @@ impl GitPort for GitService {
     fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
         self.clone_repository(repo_url, target_path)
     }
+
+    fn git_push(&self, vault_path: &Path) -> Result<String, String> {
+        self.git_push(vault_path)
+    }
 }
 
 impl GitService {
@@ -1568,6 +1572,43 @@ fn resolve_git_lfs_bytes_if_needed(
         };
 
         Ok(msg)
+    }
+
+    pub fn git_push(&self, vault_path: &Path) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .arg("push")
+            .output()
+            .map_err(|e| format!("Error al ejecutar git push: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            return Err(format!("git push falló: {detail}"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let out = if !stdout.trim().is_empty() {
+            stdout.trim().to_string()
+        } else if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            "Push completado exitosamente".to_string()
+        };
+
+        Ok(out)
     }
 }
 

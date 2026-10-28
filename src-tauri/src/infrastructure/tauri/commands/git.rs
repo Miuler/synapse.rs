@@ -232,3 +232,18 @@ pub fn git_create_branch(
 
     Ok(result)
 }
+
+#[tauri::command]
+pub async fn git_push_vault(state: State<'_, AppState>) -> Result<String, String> {
+    let vault_path = {
+        let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        match *guard {
+            Some(ref p) => p.clone(),
+            None => return Err("No hay ninguna bóveda abierta".to_string()),
+        }
+    };
+    let git_use_cases = state.git_use_cases.clone();
+    tauri::async_runtime::spawn_blocking(move || git_use_cases.git_push(&vault_path))
+        .await
+        .map_err(|e| e.to_string())?
+}

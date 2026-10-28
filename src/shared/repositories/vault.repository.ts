@@ -373,6 +373,11 @@ export interface VaultRepository {
   gitRestoreStaged(paths: string[]): Promise<void>;
 
   /**
+   * Ejecuta `git push` en la bóveda actual hacia el remoto.
+   */
+  gitPush(): Promise<string>;
+
+  /**
    * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD (o una revisión específica).
    */
   getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse>;
@@ -980,6 +985,13 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     await invokeTauri('git_restore_staged_paths', { paths });
+  }
+
+  async gitPush(): Promise<string> {
+    if (!this.isConnected()) {
+      throw new Error('No hay conexión con el backend de Tauri');
+    }
+    return await invokeTauri<string>('git_push_vault');
   }
 
   async getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse> {

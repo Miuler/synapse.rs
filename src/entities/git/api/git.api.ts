@@ -76,4 +76,8 @@ export const gitApi = {
       checkout: params.checkout,
     });
   },
+
+  async gitPush(): Promise<string> {
+    return await invokeTauri<string>('git_push_vault');
+  },
 };

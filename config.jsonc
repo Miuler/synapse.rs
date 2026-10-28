@@ -211,7 +211,9 @@
       // Abrir o cerrar herramientas de desarrollo (DevTools)
       "toggle_devtools": "F12, Ctrl+Shift+I",
       // Alternar entre modo Edición y modo Lectura de la nota activa
-      "toggle_edit_mode": "Ctrl+E"
+      "toggle_edit_mode": "Ctrl+E",
+      // Enviar commits locales al repositorio remoto (Git Push)
+      "git_push": "Ctrl+Shift+K"
     }
   }
 }

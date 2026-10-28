@@ -47,6 +47,7 @@
   import {getCurrentWebviewWindow, getAllWebviewWindows} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
   import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
+  import { Check } from "lucide-svelte";
   import {
     isSyntheticTab,
     isDrawingTab,
@@ -74,6 +75,40 @@
   let quickOpenSearchQuery = $state("");
   let ftsSearchQuery = $state("");
   let isPluginsModalOpen = $state(false);
+
+  // Notificación toast rápida en Workspace
+  let workspaceToastMessage = $state<string | null>(null);
+  let workspaceToastTimeout: ReturnType<typeof setTimeout> | null = null;
+  function showWorkspaceToast(msg: string) {
+    if (workspaceToastTimeout) clearTimeout(workspaceToastTimeout);
+    workspaceToastMessage = msg;
+    workspaceToastTimeout = setTimeout(() => {
+      workspaceToastMessage = null;
+      workspaceToastTimeout = null;
+    }, 2800);
+  }
+
+  let isPushingGit = $state(false);
+  async function handleGitPush() {
+    if (isPushingGit) return;
+    if (!isGitRepo && !appSettings.lastOpenedFolder) {
+      showWorkspaceToast('No hay repositorio Git activo');
+      return;
+    }
+    isPushingGit = true;
+    showWorkspaceToast('Enviando cambios a Git (push)...');
+    try {
+      const res = await gitApi.gitPush();
+      showWorkspaceToast(res || 'Git push completado');
+      await refreshGitStatus();
+    } catch (e: unknown) {
+      console.error('Error en git push:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      showWorkspaceToast(`Error en git push: ${msg}`);
+    } finally {
+      isPushingGit = false;
+    }
+  }
 
   function openQuickOpenModal() {
     if (isFullTextSearchOpen) {
@@ -2510,7 +2545,7 @@
 
   async function createNewVaultItem(
     emptyTabPathToReplace?: string,
-    fileType: 'markdown' | 'mermaid' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
   ) {
     let extension = 'md';
     let defaultBaseTitle = 'Nuevo Archivo';
@@ -2520,6 +2555,10 @@
       extension = 'mmd';
       defaultBaseTitle = 'Nuevo Diagrama';
       initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+    } else if (fileType === 'd2') {
+      extension = 'd2';
+      defaultBaseTitle = 'Nuevo Diagrama D2';
+      initialContent = 'x -> y: conexión\n';
     } else if (fileType === 'excalidraw') {
       extension = 'excalidraw';
       defaultBaseTitle = 'Nuevo Dibujo';
@@ -2698,6 +2737,14 @@
         },
       },
       {
+        id: "cmd-new-d2",
+        name: "Crear nuevo archivo D2 (.d2)",
+        category: "Archivo",
+        action: () => {
+          createNewVaultItem(undefined, 'd2');
+        },
+      },
+      {
         id: "cmd-new-excalidraw",
         name: "Crear nuevo dibujo Excalidraw (.excalidraw)",
         category: "Archivo",
@@ -2853,6 +2900,13 @@
         name: "Actualizar estado de Git",
         category: "Git",
         action: refreshGitStatus,
+      },
+      {
+        id: "cmd-git-push",
+        name: "Git: Enviar cambios al remoto (git push)",
+        category: "Git",
+        shortcut: shortcutsConfig.workspace.git_push,
+        action: handleGitPush,
       },
       {
         id: "cmd-git-add-active",
@@ -3177,6 +3231,11 @@
         isQuickOpenOpen = false;
         isFullTextSearchOpen = false;
         isPaletteOpen = true;
+        return;
+      }
+      if (matchesShortcut(e, ws.git_push)) {
+        stopEvent();
+        handleGitPush();
         return;
       }
       if (matchesShortcut(e, ws.toggle_edit_mode)) {
@@ -4043,6 +4102,13 @@
     onViewRevision={(p, rev) => selectTab(`rev:${rev}:${p}`)}
     onDiffRevision={(p, rev) => selectTab(`diff-rev:${rev}:${p}`)}
   />
+
+  {#if workspaceToastMessage}
+    <div class="workspace-toast">
+      <Check class="workspace-toast-icon" />
+      <span>{workspaceToastMessage}</span>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -4181,5 +4247,45 @@
   .split-resizer-line {
     width: 100%;
     height: 100%;
+  }
+
+  /* Notificación Toast rápida en Workspace */
+  .workspace-toast {
+    position: fixed;
+    bottom: 38px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary, #1f2328);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-primary, #d0d7de);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--popover-shadow, 0 4px 14px rgba(0, 0, 0, 0.25));
+    z-index: 10000;
+    pointer-events: none;
+    animation: workspace-toast-fade-in 0.15s ease-out;
+  }
+
+  :global(.workspace-toast-icon) {
+    width: 14px;
+    height: 14px;
+    color: #2da44e;
+    flex-shrink: 0;
+  }
+
+  @keyframes workspace-toast-fade-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 6px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 </style>

@@ -67,4 +67,8 @@ impl<G: GitPort> GitUseCases<G> {
     pub fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
         self.port.clone_repository(repo_url, target_path)
     }
+
+    pub fn git_push(&self, vault_path: &Path) -> Result<String, String> {
+        self.port.git_push(vault_path)
+    }
 }
