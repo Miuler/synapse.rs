@@ -5,6 +5,30 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.10.28.01-alpha] - 2026-10-28
+
+### Añadido
+
+- **Indexación en memoria de carpetas (`DashSet`) y navegación rápida**:
+  - **`NavigationEngine` (Backend Rust)**: Nueva colección concurrente `folders: Arc<DashSet<CompactString>>` para registrar directorios de la bóveda (incluidas carpetas vacías).
+  - **Hidratación en frío (<1ms)**: Pre-poblado instantáneo de carpetas ancestros al arrancar desde las rutas en RAM de las notas sin romper la compatibilidad binaria del caché `bincode`.
+  - **Watcher reactivo de filesystem**: Sincronización en vivo de carpetas ante eventos de creación, eliminación y renombrado en disco.
+  - **Servicio de dominio puro (`domain/services/folder_service.rs`)**: Métodos `extract_ancestor_folders` y `summarize_folder` para cálculo de huella semántica (`notes_count`, `subfolders_count`, `dominant_tags` y `sample_notes`) en memoria sin I/O directo.
+  - **Comando Tauri `search_folders_command`**: Búsqueda difusa y paginada de carpetas con retorno de huella semántica.
+
+- **Herramientas Agénticas MCP avanzadas para carpetas**:
+  - **`search_folders`**: Permite a los LLMs buscar carpetas con coincidencia difusa y recibir su huella semántica (conteo, tags más frecuentes y notas de muestra) para desambiguar carpetas homónimas en una sola llamada sin sobrecargar la ventana de contexto.
+  - **`move_folder_contents`**: Mueve de forma masiva notas entre directorios con prevención de path traversal y bucles infinitos, filtro opcional por extensión, estrategia de resolución de conflictos (`skip`, `rename`, `overwrite`) y soporte de simulacro `dry_run`.
+  - **Paginación en `list_folder_contents`**: Soporte de `limit` y `offset` con `has_more` y `next_offset` para directorios con cientos de notas.
+  - **Filtro de ruta en `full_text_search`**: Soporte de coincidencias parciales por segmento de carpeta con alto recall.
+
+- **UX mejorada en `Ctrl+O` (Quick Open)**:
+  - **Modo `/` (`DIR`)**: Escribir `/` filtra exclusivamente carpetas en la bóveda con badge indicador visual.
+  - **Colapso inteligente a Top 3 en búsqueda normal**: En consultas generales, las carpetas coincidentes se limitan a las 3 más relevantes para evitar desplazar las notas y archivos hacia abajo.
+  - **Elemento interactivo "Ver X carpetas más..."**: Alternancia expandir/colapsar con soporte completo de clic de ratón o teclado (`Enter`).
+  - **Navegación por páginas (`PageDown` / `PageUp`)**: Avance y retroceso rápido por bloques de resultados mediante teclado sin disparar la selección ni abrir archivos accidentalmente.
+  - **Drill-down interactivo y botón Revelar**: Presionar Enter sobre una carpeta autocompleta la búsqueda a `ruta/carpeta/`, o botón para revelarla directamente en el explorador lateral.
+
 ## [2026.10.27.04-alpha] - 2026-10-27
 
 ### Añadido

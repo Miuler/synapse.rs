@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import type { VaultItem, TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
-  import { Search, TextSearch, Tag } from 'lucide-svelte';
+  import { Search, TextSearch, Tag, Folder, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { FileIcon } from '@entities/file-type';
   import { SearchBox } from '@shared/ui/search-box';
   import {
@@ -10,6 +10,7 @@
     searchRepository,
     type SearchResult,
     type FullTextHit,
+    type FolderMeta,
   } from '@shared/repositories';
 
   interface Props {
@@ -18,6 +19,7 @@
     vaultItems?: VaultItem[];
     recentFiles?: string[];
     onSelectFile?: (path: string, matchedTerms?: string[]) => void;
+    onRevealFolder?: (folderPath: string) => void;
     onClose?: () => void;
   }
 
@@ -27,6 +29,7 @@
     vaultItems = [],
     recentFiles = [],
     onSelectFile,
+    onRevealFolder,
     onClose
   }: Props = $props();
 
@@ -35,9 +38,29 @@
 
   let nucleoResults = $state<SearchResult[]>([]);
   let nucleoQuery = $state('');
+  let folderResults = $state<FolderMeta[]>([]);
+  let isFoldersExpanded = $state(false);
   let visibleCount = $state(PAGE_SIZE);
   let listContainerEl = $state<HTMLElement | null>(null);
   let isSearching = $state(false);
+
+  // Modo carpeta si la consulta inicia con '/'
+  const isFolderMode = $derived(searchQuery.trim().startsWith('/'));
+  const folderQuery = $derived(isFolderMode ? searchQuery.trim().slice(1).trim() : '');
+
+  // Carpetas visibles: en modo normal se muestran solo las 3 primeras a menos que se hayan expandido
+  const visibleFolders = $derived.by<FolderMeta[]>(() => {
+    if (isFolderMode || isFoldersExpanded || folderResults.length <= 3) {
+      return folderResults;
+    }
+    return folderResults.slice(0, 3);
+  });
+
+  const remainingFoldersCount = $derived(
+    !isFolderMode && !isFoldersExpanded && folderResults.length > 3
+      ? folderResults.length - 3
+      : 0
+  );
 
   // Modo búsqueda full-text si la consulta inicia con '?'
   const isFtsMode = $derived(searchQuery.startsWith('?'));
@@ -312,6 +335,7 @@
 
       untrack(() => {
         visibleCount = PAGE_SIZE;
+        isFoldersExpanded = false;
         if (listContainerEl) {
           listContainerEl.scrollTop = 0;
         }
@@ -369,6 +393,7 @@
         untrack(() => {
           nucleoResults = [];
           nucleoQuery = '';
+          folderResults = [];
           matchedFiles = untrack(() => totalFiles);
           isSearching = false;
         });
@@ -382,23 +407,44 @@
 
       // Pequeño debounce para no saturar llamadas IPC durante tecleo continuo rápido
       const timer = setTimeout(() => {
-        vaultRepository.searchNotes(q).then((resp) => {
-          if (active) {
-            untrack(() => {
-              nucleoResults = resp.results;
-              nucleoQuery = q;
-              if (resp.total_files > 0) totalFiles = resp.total_files;
-              matchedFiles = resp.matched_files;
-              isSearching = false;
-            });
-          }
-        }).catch(() => {
-          if (active) {
-            untrack(() => {
-              isSearching = false;
-            });
-          }
-        });
+        if (isFolderMode) {
+          vaultRepository.searchFolders(folderQuery, 30, 0).then((folders) => {
+            if (active) {
+              untrack(() => {
+                folderResults = folders;
+                nucleoResults = [];
+                nucleoQuery = q;
+                isSearching = false;
+              });
+            }
+          }).catch(() => {
+            if (active) {
+              untrack(() => {
+                folderResults = [];
+                isSearching = false;
+              });
+            }
+          });
+        } else {
+          vaultRepository.searchNotes(q).then((resp) => {
+            if (active) {
+              untrack(() => {
+                nucleoResults = resp.results;
+                folderResults = resp.folders || [];
+                nucleoQuery = q;
+                if (resp.total_files > 0) totalFiles = resp.total_files;
+                matchedFiles = resp.matched_files;
+                isSearching = false;
+              });
+            }
+          }).catch(() => {
+            if (active) {
+              untrack(() => {
+                isSearching = false;
+              });
+            }
+          });
+        }
       }, 40);
 
       return () => {
@@ -483,6 +529,38 @@
       if (highlighted && highlighted.nextElementSibling === null) {
         visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
       }
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      const jumpCount = 8;
+      for (let i = 0; i < jumpCount; i++) {
+        if (visibleCount < allCandidates.length) {
+          const highlighted = listContainerEl?.querySelector('[data-highlighted], [data-selected]');
+          if (highlighted && highlighted.nextElementSibling === null) {
+            visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
+          }
+        }
+        const downEvent = new KeyboardEvent('keydown', {
+          key: 'ArrowDown',
+          code: 'ArrowDown',
+          bubbles: true,
+          cancelable: true,
+        });
+        e.currentTarget?.dispatchEvent(downEvent);
+      }
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      const jumpCount = 8;
+      for (let i = 0; i < jumpCount; i++) {
+        const upEvent = new KeyboardEvent('keydown', {
+          key: 'ArrowUp',
+          code: 'ArrowUp',
+          bubbles: true,
+          cancelable: true,
+        });
+        e.currentTarget?.dispatchEvent(upEvent);
+      }
     }
   }
 
@@ -544,9 +622,9 @@
         onkeydown={handleKeydownRoot}
       >
         <SearchBox
-          class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : ''}
+          class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : isFolderMode ? 'is-folder-mode' : ''}
           bind:value={searchQuery}
-          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : "Buscar archivo o tag... (Ctrl+O, escribe '?' para contenido, '#' para tags)"}
+          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags)"}
           loading={isFtsLoading}
         >
           {#snippet icon()}
@@ -554,6 +632,8 @@
               <TextSearch size={16} class="search-box-icon fts-active-icon" />
             {:else if isTagMode}
               <Tag size={16} class="search-box-icon tag-active-icon" />
+            {:else if isFolderMode}
+              <Folder size={16} class="search-box-icon folder-active-icon" />
             {:else}
               <Search size={16} class="search-box-icon" />
             {/if}
@@ -564,6 +644,8 @@
               <span class="fts-indicator-badge">FTS</span>
             {:else if isTagMode}
               <span class="tag-indicator-badge">TAG</span>
+            {:else if isFolderMode}
+              <span class="folder-indicator-badge">DIR</span>
             {/if}
           {/snippet}
         </SearchBox>
@@ -653,8 +735,82 @@
               {/each}
             {:else if isSearching}
               <div class="empty-state">Buscando...</div>
-            {:else if fileList.length === 0}
-              <div class="empty-state">No se encontraron archivos</div>
+            {:else if fileList.length === 0 && folderResults.length === 0}
+              <div class="empty-state">{isFolderMode ? 'No se encontraron carpetas' : 'No se encontraron archivos'}</div>
+            {/if}
+
+            <!-- SECCIÓN DE CARPETAS COINCIDENTES -->
+            {#if folderResults.length > 0}
+              <div class="section-divider">
+                <span class="section-divider-label">
+                  Carpetas ({folderResults.length})
+                </span>
+              </div>
+              {#each visibleFolders as folder (folder.relative_path)}
+                <Command.Item
+                  class="palette-item folder-palette-item"
+                  value={`folder:${folder.relative_path} ${folder.name} ${(folder.dominant_tags || []).join(' ')}`}
+                  forceMount={true}
+                  onSelect={() => {
+                    // Enter en carpeta: autocompleta la ruta con '/' para drill-down inmediato
+                    searchQuery = `${folder.relative_path}/`;
+                  }}
+                >
+                  <Folder size={15} class="folder-item-icon" />
+                  <div class="folder-name-container">
+                    <span class="item-name folder-title">{folder.name}</span>
+                    {#if folder.parent}
+                      <span class="folder-parent-path">{folder.parent}/</span>
+                    {/if}
+                  </div>
+
+                  {#if folder.dominant_tags && folder.dominant_tags.length > 0}
+                    <div class="item-tags-container">
+                      {#each folder.dominant_tags.slice(0, 3) as tag}
+                        <span class="folder-tag-pill">{tag}</span>
+                      {/each}
+                    </div>
+                  {/if}
+
+                  <div class="folder-meta-badge">
+                    <span class="folder-notes-count">{folder.notes_count} {folder.notes_count === 1 ? 'nota' : 'notas'}</span>
+                    {#if onRevealFolder}
+                      <button
+                        type="button"
+                        class="folder-reveal-btn"
+                        title="Revelar carpeta en el explorador"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          if (onRevealFolder) onRevealFolder(folder.relative_path);
+                          closeDialog();
+                        }}
+                      >
+                        Revelar
+                      </button>
+                    {/if}
+                  </div>
+                </Command.Item>
+              {/each}
+
+              <!-- Elemento interactivo para colapsar / expandir más de 3 carpetas -->
+              {#if !isFolderMode && folderResults.length > 3}
+                <Command.Item
+                  class="palette-item toggle-folders-item"
+                  value="toggle_folders_expand"
+                  forceMount={true}
+                  onSelect={() => {
+                    isFoldersExpanded = !isFoldersExpanded;
+                  }}
+                >
+                  {#if !isFoldersExpanded}
+                    <ChevronDown size={14} class="toggle-folders-icon" />
+                    <span class="toggle-folders-label">Ver {remainingFoldersCount} carpetas más...</span>
+                  {:else}
+                    <ChevronUp size={14} class="toggle-folders-icon" />
+                    <span class="toggle-folders-label">Mostrar menos carpetas</span>
+                  {/if}
+                </Command.Item>
+              {/if}
             {/if}
 
             {#each fileList as file, i (file.id)}
@@ -722,6 +878,8 @@
               {/if}
             {:else if isTagMode}
               <span>Filtro de etiquetas (#tag) · {matchedFiles.toLocaleString()} notas</span>
+            {:else if isFolderMode}
+              <span>Modo Carpetas (/...) · {folderResults.length} carpetas</span>
             {:else if searchQuery.trim().length > 0}
               <span>{matchedFiles.toLocaleString()} de {totalFiles.toLocaleString()} archivos</span>
             {:else if totalFiles > 0}
@@ -1169,6 +1327,124 @@
     font-weight: 600;
     border-radius: 2px;
     padding: 0 1px;
+  }
+
+  :global(.quick-open-container .folder-active-icon) {
+    color: var(--accent, #0969da) !important;
+  }
+
+  :global(.quick-open-container .folder-indicator-badge) {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--mono, monospace);
+    color: var(--accent, #0969da);
+    background: rgba(9, 105, 218, 0.12);
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid rgba(9, 105, 218, 0.25);
+    flex-shrink: 0;
+  }
+
+  :global(.quick-open-container .folder-palette-item) {
+    gap: 8px;
+  }
+
+  :global(.quick-open-container .folder-item-icon) {
+    color: var(--accent, #0969da);
+    flex-shrink: 0;
+    margin-right: 2px;
+  }
+
+  :global(.quick-open-container .folder-name-container) {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  :global(.quick-open-container .folder-title) {
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+  }
+
+  :global(.quick-open-container .folder-parent-path) {
+    font-size: 11px;
+    color: var(--text-secondary, #656d76);
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  :global(.quick-open-container .folder-tag-pill) {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 9999px;
+    background: var(--bg-tertiary, #eaeef2);
+    color: var(--text-secondary, #656d76);
+    font-weight: 500;
+  }
+
+  :global(.quick-open-container .folder-meta-badge) {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  :global(.quick-open-container .folder-notes-count) {
+    font-size: 11px;
+    opacity: 0.8;
+    white-space: nowrap;
+  }
+
+  :global(.quick-open-container .folder-reveal-btn) {
+    border: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-secondary, #656d76);
+    border-radius: 3px;
+    font-size: 10px;
+    padding: 1px 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  :global(.quick-open-container .folder-reveal-btn:hover) {
+    background: var(--accent-bg, rgba(9, 105, 218, 0.1));
+    color: var(--accent, #0969da);
+    border-color: var(--accent, #0969da);
+  }
+
+  :global(.quick-open-container .toggle-folders-item) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px 6px 36px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent, #0969da);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 4px;
+    margin: 2px 8px;
+    transition: background-color 0.12s ease;
+  }
+
+  :global(.quick-open-container .toggle-folders-item:hover),
+  :global(.quick-open-container .toggle-folders-item[data-selected]),
+  :global(.quick-open-container .toggle-folders-item[data-highlighted]) {
+    background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
+  }
+
+  :global(.quick-open-container .toggle-folders-icon) {
+    color: var(--accent, #0969da);
+    flex-shrink: 0;
+  }
+
+  :global(.quick-open-container .toggle-folders-label) {
+    color: var(--accent, #0969da);
   }
 
   /* Estilos para badges e indicadores de etiquetas */

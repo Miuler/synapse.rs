@@ -1,6 +1,7 @@
 pub mod community_plugin;
 pub mod config;
 pub mod file_types;
+pub mod folder;
 pub mod frontmatter;
 pub mod full_text;
 pub mod git;

@@ -1,5 +1,5 @@
 use compact_str::CompactString;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use nucleo::{Config, Nucleo, Utf32String};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use serde::ser::{SerializeSeq, Serializer};
@@ -113,6 +113,7 @@ pub struct NavigationEngine {
     pub shutdown_flag: Arc<AtomicBool>,
     pub file_types: SupportedFileTypes,
     pub sidebar_width: Arc<AtomicU32>,
+    pub folders: Arc<DashSet<CompactString>>,
     pub expanded_folders: Arc<DashMap<CompactString, bool>>,
     pub locked_files: Arc<DashMap<CompactString, bool>>,
     pub diff_visual_mode: Arc<RwLock<Option<String>>>,
@@ -161,6 +162,7 @@ impl NavigationEngine {
         };
 
         let path_index = DashMap::new();
+        let folders = DashSet::new();
         let mut max_id = 0u32;
         for item in notes_map.iter() {
             let id = *item.key();
@@ -168,6 +170,17 @@ impl NavigationEngine {
                 max_id = id;
             }
             path_index.insert(item.value().path.clone(), id);
+
+            // Pre-poblar carpetas ancestros a partir de las rutas de las notas en RAM
+            let p_str = item.value().path.as_str();
+            let mut curr = p_str;
+            while let Some((parent, _)) = curr.rsplit_once('/') {
+                let parent_clean = parent.trim_matches('/');
+                if !parent_clean.is_empty() {
+                    folders.insert(CompactString::new(parent_clean));
+                }
+                curr = parent;
+            }
         }
 
         let mut initial_sidebar_width = 240u32;
@@ -209,6 +222,7 @@ impl NavigationEngine {
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             file_types,
             sidebar_width: Arc::new(AtomicU32::new(initial_sidebar_width)),
+            folders: Arc::new(folders),
             expanded_folders: Arc::new(expanded_folders),
             locked_files: Arc::new(locked_files),
             diff_visual_mode: Arc::new(RwLock::new(initial_diff_visual_mode)),
@@ -286,6 +300,7 @@ impl NavigationEngine {
             debounce_duration,
             Arc::clone(&self.notes),
             Arc::clone(&self.path_index),
+            Arc::clone(&self.folders),
             Arc::clone(&self.nucleo),
             Arc::clone(&self.dirty_flag),
             Arc::clone(&self.last_mutation),
@@ -319,6 +334,7 @@ impl NavigationEngine {
     pub fn reconcile_sync(&self) -> ReconciliationStats {
         let mut stats = ReconciliationStats::default();
         let mut seen_ids = HashSet::new();
+        let mut seen_folders = HashSet::new();
         let mut upserted_paths = Vec::new();
         let mut deleted_paths = Vec::new();
 
@@ -351,6 +367,19 @@ impl NavigationEngine {
                 Ok(e) => e,
                 Err(_) => continue,
             };
+
+            if entry.file_type.is_dir() {
+                let path = entry.path();
+                if let Ok(rel) = path.strip_prefix(&self.vault_path) {
+                    let rel_clean = rel.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                    if !rel_clean.is_empty() {
+                        let compact = CompactString::new(&rel_clean);
+                        seen_folders.insert(compact.clone());
+                        self.folders.insert(compact);
+                    }
+                }
+                continue;
+            }
 
             if !entry.file_type.is_file() {
                 continue;
@@ -574,6 +603,9 @@ impl NavigationEngine {
                 populate_nucleo_from_dashmap(&self.notes, &mut nucleo_lock);
             }
         }
+
+        // Detectar eliminación de carpetas que ya no existen en disco
+        self.folders.retain(|f| seen_folders.contains(f));
 
         // Notificar al frontend: el watcher ignorará estos cambios porque ya quedaron indexados
         self.emit_fs_change(upserted_paths.clone(), deleted_paths.clone());
@@ -1201,6 +1233,11 @@ impl NavigationEngine {
                         deleted_files.push(removed.path.to_string());
                     }
                 }
+                // Si la carpeta fue eliminada, removerla y a sus subdirectorios de self.folders
+                self.folders.retain(|f| {
+                    let f_str = f.as_str();
+                    !(f_str == clean_rel || f_str.starts_with(&format!("{}/", clean_rel)))
+                });
                 continue;
             }
 
@@ -1209,6 +1246,10 @@ impl NavigationEngine {
                 collect_supported_files_recursive(&full_path, &self.file_types, &mut files_in_dir);
 
                 let mut seen_in_dir = HashSet::new();
+            // Asegurar que esta carpeta esté registrada en self.folders
+            if !clean_rel.is_empty() {
+                self.folders.insert(CompactString::new(&clean_rel));
+            }
                 for p in files_in_dir {
                     let rel_path_str = match p.strip_prefix(&self.vault_path) {
                         Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
@@ -1332,6 +1373,16 @@ impl NavigationEngine {
         let compact_title = CompactString::new(&title);
         let compact_path = CompactString::new(rel_path_str);
 
+        // Asegurar que las carpetas ancestros queden registradas en self.folders
+        let mut curr = rel_path_str;
+        while let Some((parent, _)) = curr.rsplit_once('/') {
+            let parent_clean = parent.trim_matches('/');
+            if !parent_clean.is_empty() {
+                self.folders.insert(CompactString::new(parent_clean));
+            }
+            curr = parent;
+        }
+
         let (note_id, note_meta) = if let Some(id_ref) = self.path_index.get(&compact_path) {
             let existing_id = *id_ref.value();
             drop(id_ref);
@@ -1396,6 +1447,88 @@ impl NavigationEngine {
         };
 
         self.notes.insert(note_id, note_meta);
+    }
+
+    /// Busca carpetas en memoria aplicando búsqueda difusa o substring, calculando su huella semántica.
+    pub fn search_folders(
+        &self,
+        query: &str,
+        limit: usize,
+        offset: usize,
+    ) -> (Vec<crate::domain::models::folder::FolderMeta>, usize) {
+        let q_clean = query.trim().trim_start_matches('/').to_lowercase();
+
+        // 1. Recolectar todas las carpetas conocidas en orden
+        let all_folders: Vec<String> = self.folders.iter().map(|f| f.to_string()).collect();
+
+        // 2. Preparar resumen de archivos para calcular huella semántica
+        let all_files_vec: Vec<(String, String, Vec<String>)> = self
+            .notes
+            .iter()
+            .map(|item| {
+                let m = item.value();
+                let rel = m.path.to_string();
+                let title = m.title.to_string();
+                let tags: Vec<String> = m.tags.iter().map(|t| t.to_string()).collect();
+                (rel, title, tags)
+            })
+            .collect();
+
+        let files_ref: Vec<(&str, &str, &[String])> = all_files_vec
+            .iter()
+            .map(|(p, t, tags)| (p.as_str(), t.as_str(), tags.as_slice()))
+            .collect();
+
+        // 3. Filtrar y ordenar por relevancia
+        let mut matched_folders: Vec<String> = if q_clean.is_empty() {
+            all_folders.clone()
+        } else {
+            all_folders
+                .iter()
+                .filter(|f| {
+                    let f_lower = f.to_lowercase();
+                    f_lower.contains(&q_clean)
+                })
+                .cloned()
+                .collect()
+        };
+
+        // Ordenar: coincidencia exacta de nombre > contiene en nombre > ruta general
+        if !q_clean.is_empty() {
+            matched_folders.sort_by(|a, b| {
+                let name_a = a.rsplit('/').next().unwrap_or(a).to_lowercase();
+                let name_b = b.rsplit('/').next().unwrap_or(b).to_lowercase();
+                let exact_a = name_a == q_clean;
+                let exact_b = name_b == q_clean;
+                if exact_a != exact_b {
+                    return if exact_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                }
+                let prefix_a = name_a.starts_with(&q_clean);
+                let prefix_b = name_b.starts_with(&q_clean);
+                if prefix_a != prefix_b {
+                    return if prefix_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                }
+                a.cmp(b)
+            });
+        } else {
+            matched_folders.sort();
+        }
+
+        let total_matched = matched_folders.len();
+        let paginated: Vec<crate::domain::models::folder::FolderMeta> = matched_folders
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|folder_path| {
+                crate::domain::services::folder_service::summarize_folder(
+                    &folder_path,
+                    &all_folders,
+                    &files_ref,
+                )
+            })
+            .collect();
+
+        (paginated, total_matched)
     }
 
     /// Resuelve la ruta completa de un enlace o WikiLink (`[[...]]`) dentro de la bóveda utilizando el DashMap.

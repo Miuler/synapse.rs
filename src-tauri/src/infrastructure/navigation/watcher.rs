@@ -1,5 +1,5 @@
 use compact_str::CompactString;
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nucleo::{Nucleo, Utf32String};
 use rayon::prelude::*;
@@ -59,6 +59,7 @@ pub fn process_paths_batch(
     file_types: &SupportedFileTypes,
     notes: &Arc<DashMap<NoteId, NoteMeta>>,
     path_index: &Arc<DashMap<CompactString, NoteId>>,
+    folders: &Arc<DashSet<CompactString>>,
     nucleo: &Arc<Mutex<Nucleo<NoteId>>>,
     dirty_flag: &Arc<AtomicBool>,
     last_mutation: &Arc<Mutex<Instant>>,
@@ -85,10 +86,13 @@ pub fn process_paths_batch(
 
         if abs_path.exists() {
             if abs_path.is_dir() {
+                let rel_str = rel_path.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                if !rel_str.is_empty() {
+                    folders.insert(CompactString::new(&rel_str));
+                }
                 // Check if this directory is already known in our index.
                 // If it already has notes indexed under this directory prefix, DO NOT re-walk it.
                 // This completely prevents infinite inotify IN_OPEN feedback loops on existing directories!
-                let rel_str = rel_path.to_string_lossy().replace('\\', "/");
                 let dir_prefix = if rel_str.is_empty() {
                     String::new()
                 } else {
@@ -146,8 +150,11 @@ pub fn process_paths_batch(
             let rel_str = rel_path.to_string_lossy().replace('\\', "/");
             let compact_del = CompactString::new(&rel_str);
             // Only consider it a deleted path if it was actually tracked in path_index
-            // or is a directory prefix of tracked notes.
+            // or is a directory prefix of tracked notes / folders.
             if path_index.contains_key(&compact_del) {
+                deleted_paths.insert(rel_str);
+            } else if folders.contains(&compact_del) {
+                folders.remove(&compact_del);
                 deleted_paths.insert(rel_str);
             } else {
                 let dir_prefix = format!("{}/", rel_str);
@@ -430,6 +437,7 @@ impl VaultFsWatcher {
         debounce_duration: Duration,
         notes: Arc<DashMap<NoteId, NoteMeta>>,
         path_index: Arc<DashMap<CompactString, NoteId>>,
+        folders: Arc<DashSet<CompactString>>,
         nucleo: Arc<Mutex<Nucleo<NoteId>>>,
         dirty_flag: Arc<AtomicBool>,
         last_mutation: Arc<Mutex<Instant>>,
@@ -564,6 +572,7 @@ impl VaultFsWatcher {
                             &file_types,
                             &notes,
                             &path_index,
+                            &folders,
                             &nucleo,
                             &dirty_flag,
                             &last_mutation,

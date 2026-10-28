@@ -174,8 +174,19 @@ export interface SearchResult {
   tags?: string[];
 }
 
+export interface FolderMeta {
+  relative_path: string;
+  name: string;
+  parent?: string | null;
+  notes_count: number;
+  subfolders_count: number;
+  dominant_tags: string[];
+  sample_notes: string[];
+}
+
 export interface QuickOpenSearchResult {
   results: SearchResult[];
+  folders?: FolderMeta[];
   total_files: number;
   matched_files: number;
 }
@@ -299,6 +310,11 @@ export interface VaultRepository {
    * Realiza una búsqueda difusa interactiva utilizando el motor nucleo en Rust en memoria.
    */
   searchNotes(query: string): Promise<QuickOpenSearchResult>;
+
+  /**
+   * Busca carpetas por coincidencia de nombre o ruta relativa con huella semántica.
+   */
+  searchFolders(query: string, limit?: number, offset?: number): Promise<FolderMeta[]>;
 
   /**
    * Obtiene todas las etiquetas (#tags) únicas del vault con su conteo de ocurrencias.
@@ -811,6 +827,21 @@ export class TauriVaultRepository implements VaultRepository {
     } catch (error) {
       console.warn('Error en TauriVaultRepository al buscar notas con nucleo:', error);
       return { results: [], total_files: 0, matched_files: 0 };
+    }
+  }
+
+  async searchFolders(query: string, limit?: number, offset?: number): Promise<FolderMeta[]> {
+    if (!this.isConnected()) return [];
+    try {
+      const resp = await invokeTauri<FolderMeta[]>('search_folders_command', {
+        query,
+        limit: limit ?? null,
+        offset: offset ?? null,
+      });
+      return resp || [];
+    } catch (error) {
+      console.warn('Error en TauriVaultRepository al buscar carpetas:', error);
+      return [];
     }
   }
 

@@ -4066,6 +4066,7 @@
     {vaultItems}
     {recentFiles}
     onSelectFile={handleSelectQuickOpenFile}
+    onRevealFolder={handleBreadcrumbNavigateFolder}
   />
 
   <!-- 6. BÚSQUEDA EN EL CONTENIDO DE NOTAS (FULL-TEXT SEARCH CTRL+SHIFT+F) -->

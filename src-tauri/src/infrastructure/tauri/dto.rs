@@ -46,6 +46,8 @@ impl Serialize for VaultFilesResponse {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct QuickOpenSearchResult {
     pub results: Vec<SearchResult>,
+    #[serde(default)]
+    pub folders: Vec<crate::domain::models::folder::FolderMeta>,
     pub total_files: usize,
     pub matched_files: usize,
 }

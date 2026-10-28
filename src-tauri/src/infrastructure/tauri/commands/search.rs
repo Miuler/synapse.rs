@@ -24,6 +24,7 @@ pub async fn search_notes_command(
     let Some(engine) = engine else {
         return Ok(QuickOpenSearchResult {
             results: Vec::new(),
+            folders: Vec::new(),
             total_files: 0,
             matched_files: 0,
         });
@@ -56,8 +57,15 @@ pub async fn search_notes_command(
                 }
             })
             .collect();
+        let (folders, _) = if !query.trim().is_empty() {
+            engine.search_folders(&query, 10, 0)
+        } else {
+            (Vec::new(), 0)
+        };
+
         Ok(QuickOpenSearchResult {
             results,
+            folders,
             total_files,
             matched_files,
         })
@@ -204,6 +212,32 @@ pub fn get_notes_by_tag(
         return Ok(Vec::new());
     };
     Ok(engine.get_notes_by_tag(&tag))
+}
+
+#[tauri::command]
+pub async fn search_folders_command(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<Vec<crate::domain::models::folder::FolderMeta>, String> {
+    let engine = {
+        let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+        guard.clone()
+    };
+    let Some(engine) = engine else {
+        return Ok(Vec::new());
+    };
+
+    let lim = limit.unwrap_or(20);
+    let off = offset.unwrap_or(0);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let (folders, _) = engine.search_folders(&query, lim, off);
+        Ok(folders)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

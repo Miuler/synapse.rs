@@ -51,6 +51,16 @@ export interface NoteBacklinksReport {
   unlinked_mentions: UnlinkedMentionItem[];
 }
 
+export interface FolderMeta {
+  relative_path: string;
+  name: string;
+  parent?: string | null;
+  notes_count: number;
+  subfolders_count: number;
+  dominant_tags: string[];
+  sample_notes: string[];
+}
+
 export interface QuickOpenSearchResult {
   results: Array<{
     text: string;
@@ -59,7 +69,9 @@ export interface QuickOpenSearchResult {
     note_path?: string;
     is_recent?: boolean;
     last_opened_nanos?: number;
+    tags?: string[];
   }>;
+  folders?: FolderMeta[];
   total_files: number;
   matched_files: number;
 }

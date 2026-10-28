@@ -412,8 +412,78 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                             "recursive": {
                                 "type": "boolean",
                                 "description": "Si es true, lista recursivamente subcarpetas (por defecto false)"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "default": 50,
+                                "description": "Límite máximo de notas devueltas (por defecto 50, máx 200)"
+                            },
+                            "offset": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Desplazamiento para paginación de notas (por defecto 0)"
                             }
                         }
+                    }),
+                },
+                // 4.1. search_folders
+                McpTool {
+                    name: "search_folders".to_string(),
+                    description: "Busca carpetas por coincidencia difusa de nombre o ruta, devolviendo huella semántica (conteo de notas, tags dominantes y notas de muestra) para desambiguar carpetas homónimas.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Término o nombre parcial de la carpeta a buscar (ej: 'azure', 'facturas', 'cli')"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "default": 20,
+                                "description": "Límite de carpetas coincidentes a devolver (por defecto 20)"
+                            },
+                            "offset": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Desplazamiento para paginación (por defecto 0)"
+                            }
+                        }
+                    }),
+                },
+                // 4.2. move_folder_contents
+                McpTool {
+                    name: "move_folder_contents".to_string(),
+                    description: "Mueve todas las notas de una carpeta de origen a una carpeta de destino, con soporte para estrategia de colisiones, extensión y simulacro (dry_run).".to_string(),
+                    annotations: Some(McpToolAnnotations::write(true, false)),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "source_folder": {
+                                "type": "string",
+                                "description": "Ruta relativa de la carpeta origen (ej: 'descargas' o 'proyectos/azure')"
+                            },
+                            "target_folder": {
+                                "type": "string",
+                                "description": "Ruta relativa de la carpeta destino (ej: 'archivo/azure' o 'clientes/bcp')"
+                            },
+                            "extension": {
+                                "type": "string",
+                                "description": "Filtro opcional por extensión de archivo a mover (ej: 'md' o 'pdf')"
+                            },
+                            "conflict_strategy": {
+                                "type": "string",
+                                "enum": ["skip", "rename", "overwrite"],
+                                "default": "skip",
+                                "description": "Estrategia ante archivos duplicados en destino: 'skip' (omite), 'rename' (añade sufijo numérico) o 'overwrite' (sobrescribe)"
+                            },
+                            "dry_run": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Si es true, solo simula y devuelve la lista de archivos que se moverían sin alterar el disco"
+                            }
+                        },
+                        "required": ["source_folder", "target_folder"]
                     }),
                 },
                 // 5. list_sibling_notes
@@ -807,12 +877,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         let args = arguments.unwrap_or(Value::Object(serde_json::Map::new()));
         match name {
             "search_notes" => self.execute_search_notes(&args),
+            "search_folders" => self.execute_search_folders(&args),
+            "move_folder_contents" => self.execute_move_folder_contents_tool(&args),
             "full_text_search" => self.execute_full_text_search(&args),
             "search_in_note" => self.execute_search_in_note(&args),
             "list_folder_contents" => self.execute_list_folder_contents_tool(&args),
             "list_vault_tree" => {
                 let parent = args.get("parent_path").and_then(|v| v.as_str()).unwrap_or("");
-                self.execute_list_folder_contents(parent, true, true, false, None)
+                self.execute_list_folder_contents(parent, true, true, false, None, None, None)
             }
             "list_sibling_notes" => self.execute_list_sibling_notes(&args),
             "read_note" => self.execute_read_note(&args),
@@ -912,6 +984,278 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         }
     }
 
+    fn execute_search_folders(&self, args: &Value) -> McpCallToolResult {
+        let query = args.get("query").and_then(|v| v.as_str()).map(|q| q.trim().to_lowercase()).unwrap_or_default();
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+        let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+
+        let extensions = vec!["md".to_string(), "markdown".to_string(), "pdf".to_string(), "excalidraw".to_string()];
+        let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
+            Ok(n) => n,
+            Err(e) => return McpCallToolResult::error(format!("Error leyendo notas para indexar carpetas: {}", e)),
+        };
+
+        // Recolectar todas las carpetas a partir de las notas y del filesystem
+        let file_paths: Vec<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
+        let mut folder_set: HashSet<String> = crate::domain::services::folder_service::extract_ancestor_folders(&file_paths)
+            .into_iter()
+            .collect();
+
+        // Incluir también carpetas vacías descubiertas en disco
+        if let Ok(entries) = jwalk::WalkDir::new(&self.vault_path)
+            .skip_hidden(true)
+            .process_read_dir(|depth, _path, _state, children| {
+                if depth.is_none() {
+                    return;
+                }
+                children.retain(|entry_res| {
+                    if let Ok(entry) = entry_res {
+                        let name = entry.file_name.to_string_lossy();
+                        !name.starts_with('.') && name != "target" && name != "node_modules"
+                    } else {
+                        true
+                    }
+                });
+            })
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+        {
+            for entry in entries {
+                if entry.file_type.is_dir() {
+                    if let Ok(rel) = entry.path().strip_prefix(&self.vault_path) {
+                        let clean = rel.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                        if !clean.is_empty() {
+                            folder_set.insert(clean);
+                        }
+                    }
+                }
+            }
+        }
+
+        let all_folders: Vec<String> = folder_set.into_iter().collect();
+
+        // Preparar información de archivos para resumir huella semántica
+        let all_files_vec: Vec<(String, String, Vec<String>)> = all_notes
+            .iter()
+            .map(|n| {
+                let tags = tag_service::extract_all_tags(&n.content);
+                (n.relative_path.as_str().to_string(), n.title.clone(), tags)
+            })
+            .collect();
+
+        let files_ref: Vec<(&str, &str, &[String])> = all_files_vec
+            .iter()
+            .map(|(p, t, tags)| (p.as_str(), t.as_str(), tags.as_slice()))
+            .collect();
+
+        let mut matched: Vec<String> = if query.is_empty() {
+            all_folders.clone()
+        } else {
+            all_folders
+                .iter()
+                .filter(|f| f.to_lowercase().contains(&query))
+                .cloned()
+                .collect()
+        };
+
+        if !query.is_empty() {
+            matched.sort_by(|a, b| {
+                let name_a = a.rsplit('/').next().unwrap_or(a).to_lowercase();
+                let name_b = b.rsplit('/').next().unwrap_or(b).to_lowercase();
+                let exact_a = name_a == query;
+                let exact_b = name_b == query;
+                if exact_a != exact_b {
+                    return if exact_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                }
+                let prefix_a = name_a.starts_with(&query);
+                let prefix_b = name_b.starts_with(&query);
+                if prefix_a != prefix_b {
+                    return if prefix_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                }
+                a.cmp(b)
+            });
+        } else {
+            matched.sort();
+        }
+
+        let total_matched = matched.len();
+        let paginated: Vec<_> = matched
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|f| crate::domain::services::folder_service::summarize_folder(&f, &all_folders, &files_ref))
+            .collect();
+
+        let has_more = offset + limit < total_matched;
+        let next_offset = if has_more { Some(offset + limit) } else { None };
+
+        let payload = json!({
+            "total_folders": total_matched,
+            "returned_folders": paginated.len(),
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
+            "next_offset": next_offset,
+            "folders": paginated,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(text) => McpCallToolResult::text(text),
+            Err(e) => McpCallToolResult::error(format!("Error serializando carpetas: {}", e)),
+        }
+    }
+
+    fn execute_move_folder_contents_tool(&self, args: &Value) -> McpCallToolResult {
+        let source_folder = match args.get("source_folder").and_then(|v| v.as_str()) {
+            Some(sf) => sf.trim_matches('/').replace('\\', "/"),
+            None => return McpCallToolResult::error("El argumento 'source_folder' es obligatorio"),
+        };
+        let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
+            Some(tf) => tf.trim_matches('/').replace('\\', "/"),
+            None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
+        };
+
+        if source_folder.split('/').any(|s| s == "..") || target_folder.split('/').any(|s| s == "..") {
+            return McpCallToolResult::error("Ruta no permitida ('..' detectado)");
+        }
+
+        if source_folder == target_folder {
+            return McpCallToolResult::error("La carpeta de origen y destino no pueden ser la misma");
+        }
+
+        // Prevenir bucle infinito: target no puede ser subcarpeta de source
+        if target_folder.starts_with(&format!("{}/", source_folder)) {
+            return McpCallToolResult::error("La carpeta destino no puede estar dentro de la carpeta origen");
+        }
+
+        let extension_filter = args.get("extension").and_then(|v| v.as_str()).map(|e| e.trim_start_matches('.').to_lowercase());
+        let conflict_strategy = args.get("conflict_strategy").and_then(|v| v.as_str()).unwrap_or("skip");
+        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let source_dir = self.vault_path.join(&source_folder);
+        if !source_dir.exists() || !source_dir.is_dir() {
+            return McpCallToolResult::error(format!("La carpeta origen '{}' no existe", source_folder));
+        }
+
+        let target_dir = self.vault_path.join(&target_folder);
+
+        // Listar todos los archivos dentro de source_folder
+        let mut files_to_move = Vec::new();
+        if let Ok(entries) = jwalk::WalkDir::new(&source_dir).skip_hidden(true).into_iter().collect::<Result<Vec<_>, _>>() {
+            for entry in entries {
+                if entry.file_type.is_file() {
+                    let path = entry.path();
+                    if let Ok(rel) = path.strip_prefix(&source_dir) {
+                        let rel_str = rel.to_string_lossy().replace('\\', "/");
+                        if let Some(ref ext) = extension_filter {
+                            if !rel_str.to_lowercase().ends_with(&format!(".{}", ext)) {
+                                continue;
+                            }
+                        }
+                        files_to_move.push(rel_str);
+                    }
+                }
+            }
+        }
+
+        if dry_run {
+            let payload = json!({
+                "dry_run": true,
+                "source_folder": source_folder,
+                "target_folder": target_folder,
+                "total_files_to_move": files_to_move.len(),
+                "files": files_to_move,
+            });
+            return match serde_json::to_string_pretty(&payload) {
+                Ok(t) => McpCallToolResult::text(t),
+                Err(e) => McpCallToolResult::error(e.to_string()),
+            };
+        }
+
+        // Crear target_dir si no existe
+        if let Err(e) = std::fs::create_dir_all(&target_dir) {
+            return McpCallToolResult::error(format!("No se pudo crear la carpeta destino: {}", e));
+        }
+
+        let mut moved = Vec::new();
+        let mut skipped = Vec::new();
+        let mut errors = Vec::new();
+
+        for rel_file in files_to_move {
+            let src_file_path = source_dir.join(&rel_file);
+            let mut dest_file_path = target_dir.join(&rel_file);
+
+            if let Some(parent) = dest_file_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if dest_file_path.exists() {
+                match conflict_strategy {
+                    "skip" => {
+                        skipped.push(rel_file);
+                        continue;
+                    }
+                    "overwrite" => {
+                        // Proceder con rename/sobrescritura
+                    }
+                    "rename" => {
+                        // Generar nombre no colisionante: archivo_1.ext
+                        let stem = dest_file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
+                        let ext = dest_file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                        let parent = dest_file_path.parent().unwrap();
+                        let mut counter = 1;
+                        loop {
+                            let candidate_name = if ext.is_empty() {
+                                format!("{}_{}", stem, counter)
+                            } else {
+                                format!("{}_{}.{}", stem, counter, ext)
+                            };
+                            let candidate_path = parent.join(&candidate_name);
+                            if !candidate_path.exists() {
+                                dest_file_path = candidate_path;
+                                break;
+                            }
+                            counter += 1;
+                        }
+                    }
+                    _ => {
+                        skipped.push(rel_file);
+                        continue;
+                    }
+                }
+            }
+
+            match std::fs::rename(&src_file_path, &dest_file_path) {
+                Ok(_) => {
+                    let new_rel = dest_file_path.strip_prefix(&self.vault_path).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default();
+                    moved.push(json!({
+                        "original": rel_file,
+                        "new_path": new_rel,
+                    }));
+                }
+                Err(e) => {
+                    errors.push(format!("Error moviendo '{}': {}", rel_file, e));
+                }
+            }
+        }
+
+        let payload = json!({
+            "source_folder": source_folder,
+            "target_folder": target_folder,
+            "moved_count": moved.len(),
+            "skipped_count": skipped.len(),
+            "errors_count": errors.len(),
+            "moved_files": moved,
+            "skipped_files": skipped,
+            "errors": errors,
+        });
+
+        match serde_json::to_string_pretty(&payload) {
+            Ok(t) => McpCallToolResult::text(t),
+            Err(e) => McpCallToolResult::error(e.to_string()),
+        }
+    }
+
     fn execute_full_text_search(&self, args: &Value) -> McpCallToolResult {
         let query_str = match args.get("query").and_then(|v| v.as_str()) {
             Some(q) => q.trim(),
@@ -944,7 +1288,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
                     for h in hits {
                         if let Some(ref ff) = folder_filter {
                             let lower_path = h.note_path.to_lowercase();
-                            if !lower_path.starts_with(ff) {
+                            let is_prefix = lower_path.starts_with(ff);
+                            let is_segment = lower_path.contains(&format!("/{}/", ff))
+                                || lower_path.starts_with(&format!("{}/", ff))
+                                || lower_path.contains(&format!("/{}", ff));
+                            if !is_prefix && !is_segment {
                                 continue;
                             }
                         }
@@ -1643,8 +1991,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         let include_notes = args.get("include_notes").and_then(|v| v.as_bool()).unwrap_or(true);
         let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(true);
         let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50).clamp(1, 200) as usize;
+        let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
-        self.execute_list_folder_contents(folder, include_notes, include_folders, recursive, None)
+        self.execute_list_folder_contents(folder, include_notes, include_folders, recursive, None, Some(limit), Some(offset))
     }
 
     fn execute_list_sibling_notes(&self, args: &Value) -> McpCallToolResult {
@@ -1670,7 +2020,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             Some(rel_path_str.as_str())
         };
 
-        self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path)
+        self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path, None, None)
     }
 
     fn execute_list_folder_contents(
@@ -1680,6 +2030,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
         include_folders: bool,
         recursive: bool,
         exclude_note_path: Option<&str>,
+        limit_opt: Option<usize>,
+        offset_opt: Option<usize>,
     ) -> McpCallToolResult {
         let clean_folder = folder.trim_matches('/').replace('\\', "/");
         if clean_folder.split('/').any(|seg| seg == "..") {
@@ -1771,14 +2123,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             }
         }
 
+        let total_notes = notes_out.len();
+        let offset = offset_opt.unwrap_or(0);
+        let limit = limit_opt.unwrap_or(50);
+        let has_more = offset + limit < total_notes;
+        let next_offset = if has_more { Some(offset + limit) } else { None };
+
+        let paged_notes: Vec<_> = notes_out.into_iter().skip(offset).take(limit).collect();
+
         let payload = json!({
             "folder_path": clean_folder,
             "total_folders": folders_out.len(),
             "folders_count": folders_out.len(),
             "folders": folders_out,
-            "total_notes": notes_out.len(),
-            "notes_count": notes_out.len(),
-            "notes": notes_out,
+            "total_notes": total_notes,
+            "notes_count": paged_notes.len(),
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
+            "next_offset": next_offset,
+            "notes": paged_notes,
         });
 
         match serde_json::to_string_pretty(&payload) {
