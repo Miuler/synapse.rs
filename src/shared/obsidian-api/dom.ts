@@ -212,6 +212,54 @@ export function setupObsidianDomExtensions(): void {
       return createSpan(options, this);
     };
   }
+  if (!proto.setText) {
+    proto.setText = function (val: any) {
+      this.textContent = val !== undefined && val !== null ? String(val) : '';
+      return this;
+    };
+  }
+  if (!proto.getText) {
+    proto.getText = function () {
+      return this.textContent || '';
+    };
+  }
+  if (!proto.addClass) {
+    proto.addClass = function (...cls: string[]) {
+      for (const c of cls) {
+        if (c) this.classList.add(...c.split(/\s+/).filter(Boolean));
+      }
+      return this;
+    };
+  }
+  if (!proto.removeClass) {
+    proto.removeClass = function (...cls: string[]) {
+      for (const c of cls) {
+        if (c) this.classList.remove(...c.split(/\s+/).filter(Boolean));
+      }
+      return this;
+    };
+  }
+  if (!proto.toggleClass) {
+    proto.toggleClass = function (cls: string, force?: boolean) {
+      return this.classList.toggle(cls, force);
+    };
+  }
+  if (!proto.hasClass) {
+    proto.hasClass = function (cls: string) {
+      return this.classList.contains(cls);
+    };
+  }
+  if (!proto.setAttr) {
+    proto.setAttr = function (qualifiedName: string, value: any) {
+      this.setAttribute(qualifiedName, String(value));
+      return this;
+    };
+  }
+  if (!proto.getAttr) {
+    proto.getAttr = function (qualifiedName: string) {
+      return this.getAttribute(qualifiedName);
+    };
+  }
   if (!proto.empty) {
     proto.empty = function () {
       while (this.firstChild) {

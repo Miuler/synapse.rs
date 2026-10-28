@@ -221,6 +221,18 @@ export interface MomentInstance {
   subtract(amount: number, unit: string): MomentInstance;
   clone(): MomentInstance;
   isValid(): boolean;
+  isSame(other?: any, granularity?: string): boolean;
+  isBefore(other?: any, granularity?: string): boolean;
+  isAfter(other?: any, granularity?: string): boolean;
+  year(): number;
+  year(y: number): MomentInstance;
+  month(): number;
+  month(m: number): MomentInstance;
+  date(): number;
+  date(d: number): MomentInstance;
+  day(): number;
+  startOf(unit: string): MomentInstance;
+  endOf(unit: string): MomentInstance;
 }
 
 export function moment(dateInput?: string | number | Date | MomentInstance): MomentInstance {
@@ -284,6 +296,80 @@ export function moment(dateInput?: string | number | Date | MomentInstance): Mom
     },
     isValid(): boolean {
       return !isNaN(d.getTime());
+    },
+    isSame(other?: any, granularity = 'millisecond'): boolean {
+      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+      const g = granularity.toLowerCase();
+      if (g.startsWith('y')) return d.getFullYear() === otherDate.getFullYear();
+      if (g.startsWith('m') && !g.startsWith('mi')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth();
+      if (g.startsWith('d')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth() && d.getDate() === otherDate.getDate();
+      return d.getTime() === otherDate.getTime();
+    },
+    isBefore(other?: any, granularity = 'millisecond'): boolean {
+      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+      return d.getTime() < otherDate.getTime();
+    },
+    isAfter(other?: any, granularity = 'millisecond'): boolean {
+      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+      return d.getTime() > otherDate.getTime();
+    },
+    year(val?: number): any {
+      if (val !== undefined) {
+        const copy = new Date(d.getTime());
+        copy.setFullYear(val);
+        return moment(copy);
+      }
+      return d.getFullYear();
+    },
+    month(val?: number): any {
+      if (val !== undefined) {
+        const copy = new Date(d.getTime());
+        copy.setMonth(val);
+        return moment(copy);
+      }
+      return d.getMonth();
+    },
+    date(val?: number): any {
+      if (val !== undefined) {
+        const copy = new Date(d.getTime());
+        copy.setDate(val);
+        return moment(copy);
+      }
+      return d.getDate();
+    },
+    day(): number {
+      return d.getDay();
+    },
+    startOf(unit: string): MomentInstance {
+      const copy = new Date(d.getTime());
+      const u = unit.toLowerCase();
+      if (u.startsWith('y')) {
+        copy.setMonth(0, 1);
+        copy.setHours(0, 0, 0, 0);
+      } else if (u.startsWith('m') && !u.startsWith('mi')) {
+        copy.setDate(1);
+        copy.setHours(0, 0, 0, 0);
+      } else if (u.startsWith('d')) {
+        copy.setHours(0, 0, 0, 0);
+      }
+      return moment(copy);
+    },
+    endOf(unit: string): MomentInstance {
+      const copy = new Date(d.getTime());
+      const u = unit.toLowerCase();
+      if (u.startsWith('y')) {
+        copy.setMonth(11, 31);
+        copy.setHours(23, 59, 59, 999);
+      } else if (u.startsWith('m') && !u.startsWith('mi')) {
+        copy.setMonth(copy.getMonth() + 1, 0);
+        copy.setHours(23, 59, 59, 999);
+      } else if (u.startsWith('d')) {
+        copy.setHours(23, 59, 59, 999);
+      }
+      return moment(copy);
     },
   };
 

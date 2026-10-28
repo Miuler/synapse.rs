@@ -443,11 +443,20 @@
   // Instancia de la fachada Obsidian API para soporte de plugins
   let synapseApp = $state<SynapseApp | null>(null);
   let pluginEditorExtensions = $state<any[]>([]);
+  let pluginStatusBarContainer = $state<HTMLElement | null>(null);
+
+  function handlePluginStatusBarRef(el: HTMLElement | null) {
+    pluginStatusBarContainer = el;
+    synapseApp?.statusBar.setContainer(el);
+  }
 
   function ensureSynapseAppLoaded() {
     if (!synapseApp && vaultRepository.isConnected()) {
       try {
         synapseApp = createSynapseApp(vaultRepository);
+        if (pluginStatusBarContainer) {
+          synapseApp.statusBar.setContainer(pluginStatusBarContainer);
+        }
         pluginEditorExtensions = synapseApp.workspace.getEditorExtensions();
         synapseApp.workspace.on('editor-extensions-change', (exts: any[]) => {
           pluginEditorExtensions = [...exts];
@@ -4046,6 +4055,7 @@
       isMarkdownFile={isMarkdownTab}
       markdownViewMode={!isEditing ? 'reading' : markdownViewMode}
       mcpStatus={mcpStatus}
+      pluginStatusContainerRef={handlePluginStatusBarRef}
       onToggleMcp={handleToggleMcp}
       onCopyMcpUrl={copyMcpUrlToClipboard}
       onToggleVim={() => appSettings.toggleVimMode()}

@@ -37,6 +37,7 @@
     isMarkdownFile?: boolean;
     markdownViewMode?: MarkdownViewMode;
     mcpStatus?: McpRuntimeStatus | null;
+    pluginStatusContainerRef?: (el: HTMLElement | null) => void;
     onToggleMcp?: () => void;
     onCopyMcpUrl?: () => void;
     onToggleVim?: () => void;
@@ -58,6 +59,7 @@
     isMarkdownFile = false,
     markdownViewMode = 'live',
     mcpStatus = null,
+    pluginStatusContainerRef,
     onToggleMcp,
     onCopyMcpUrl,
     onToggleVim,
@@ -66,6 +68,15 @@
     onOpenCommandPalette,
     onChangeEncoding
   }: Props = $props();
+
+  function pluginContainerAction(node: HTMLElement) {
+    pluginStatusContainerRef?.(node);
+    return {
+      destroy() {
+        pluginStatusContainerRef?.(null);
+      }
+    };
+  }
 
   // Estados para el selector de vistas Markdown
   let isViewMenuOpen = $state(false);
@@ -696,6 +707,12 @@
 
     <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
     <ThemeToggle />
+
+    <!-- Contenedor dinámico de elementos de barra de estado para plugins de Obsidian / Synapse -->
+    <div
+      class="plugin-status-container"
+      use:pluginContainerAction
+    ></div>
   </div>
 </footer>
 
@@ -1613,6 +1630,29 @@
   :global(.status-toast-icon) {
     color: #2da44e;
     flex-shrink: 0;
+  }
+
+  /* Contenedor e items para plugins de la comunidad */
+  .plugin-status-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  :global(.plugin-status-container .status-bar-item) {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text-secondary, #8b949e);
+    padding: 0 4px;
+    cursor: default;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  :global(.plugin-status-container .status-bar-item:hover) {
+    color: var(--text-primary, #ffffff);
   }
 
   @keyframes toast-fade-in {

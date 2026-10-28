@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Capa de compatibilidad Obsidian API: Soporte para StatusBar y helpers DOM**:
+  - **Extensiones DOM nativas en `HTMLElement.prototype`**: Añadidos métodos canónicos de Obsidian (`setText`, `getText`, `addClass`, `removeClass`, `toggleClass`, `hasClass`, `setAttr`, `getAttr`) al prototipo global del DOM, permitiendo que plugins comunitarios manipulen elementos sin lanzar excepciones en tiempo de ejecución.
+  - **Soporte extendido para fechas en `moment()`**: Implementados métodos `isSame`, `isBefore`, `isAfter`, `year`, `month`, `date`, `day`, `startOf` y `endOf` requeridos por plugins de calendario y vistas mensuales.
+  - **Integración visual de plugins en la barra de estado**: `SynapseStatusBarManager` ahora conecta directamente los elementos `.status-bar-item.plugin-status-item` creados por plugins con el componente visual `StatusBar.svelte` en la parte inferior del espacio de trabajo.
+
 - **Indexación en memoria de carpetas (`DashSet`) y navegación rápida**:
   - **`NavigationEngine` (Backend Rust)**: Nueva colección concurrente `folders: Arc<DashSet<CompactString>>` para registrar directorios de la bóveda (incluidas carpetas vacías).
   - **Hidratación en frío (<1ms)**: Pre-poblado instantáneo de carpetas ancestros al arrancar desde las rutas en RAM de las notas sin romper la compatibilidad binaria del caché `bincode`.

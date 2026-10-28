@@ -45,10 +45,25 @@ export class SynapseRibbonManager {
  */
 export class SynapseStatusBarManager {
   readonly items: HTMLElement[] = [];
+  private containerEl: HTMLElement | null = null;
+
+  setContainer(container: HTMLElement | null): void {
+    this.containerEl = container;
+    if (this.containerEl) {
+      for (const item of this.items) {
+        if (!this.containerEl.contains(item)) {
+          this.containerEl.appendChild(item);
+        }
+      }
+    }
+  }
 
   addStatusBarItem(): HTMLElement {
     const el = createDiv({ cls: 'status-bar-item plugin-status-item' });
     this.items.push(el);
+    if (this.containerEl && !this.containerEl.contains(el)) {
+      this.containerEl.appendChild(el);
+    }
     return el;
   }
 
