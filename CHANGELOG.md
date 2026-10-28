@@ -5,6 +5,20 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026.10.28.02-alpha] - 2026-10-28
+
+### Añadido
+
+- **Capa de compatibilidad Obsidian API: Soporte para InternalPlugins y Daily Notes**:
+  - **Gestor `SynapseInternalPluginsManager` (`app.internalPlugins`)**: Soporte para plugins nativos e internos del ecosistema Obsidian (`app.internalPlugins.getPluginById` y `getEnabledPluginById`), requerido por plugins comunitarios como `Calendar`, `Periodic Notes` y la biblioteca `obsidian-daily-notes-interface`.
+  - **Soporte nativo de `daily-notes`**: Registro del plugin interno `daily-notes` con configuración predeterminada (`YYYY-MM-DD`, carpeta y plantilla), cargando asíncronamente las opciones de `.obsidian/daily-notes.json` o `.synapse/daily-notes.json`.
+  - **Propiedades globales en `SynapseApp`**: Exposición de `app.foldManager` (`load`, `save`) para soporte de plegado de código/secciones y bandera `app.isMobile = false` para compatibilidad con plugins de calendario y vistas de notas diarias.
+
+- **Capa de compatibilidad Obsidian API: Soporte ampliado de Moment.js y Workspace**:
+  - **Funciones de calendario y locales en `moment()`**: Métodos de instancia `weekday`, `isoWeekday`, `week`, `day(d)`, `set`, `get`, `locale`, `localeData` y métodos estáticos `moment.locale`, `moment.localeData`, `moment.updateLocale`, `moment.locales`, `moment.weekdays`, `moment.weekdaysShort`, `moment.weekdaysMin`, junto con el spec global `_bundledLocaleWeekSpec`.
+  - **Iteración de hojas en el espacio de trabajo**: Incorporación de `iterateAllLeaves(callback)` en `SynapseWorkspace` y exportación canónica de `Workspace` en el bundle virtual de Obsidian (`getObsidianBundle`).
+  - **Registro centralizado de instancias en `PluginLoader`**: Exposición del mapa `app.plugins.plugins[pluginId]` asignado antes de la inicialización de cada plugin y limpieza al descargarse.
+
 ## [2026.10.28.01-alpha] - 2026-10-28
 
 ### Añadido
@@ -510,6 +524,9 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[2026.10.28.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.02-alpha
+[2026.10.28.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.01-alpha
+[2026.10.27.04-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.04-alpha
 [2026.10.27.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.03-alpha
 [2026.10.27.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.02-alpha
 [2026.10.27.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.01-alpha

@@ -7,6 +7,7 @@ import { SynapseCommandManager } from './command';
 import { SynapseSettingManager } from './setting';
 import { SynapseRibbonManager, SynapseStatusBarManager } from './ribbon';
 import { PluginLoader } from './loader';
+import { SynapseInternalPluginsManager } from './internal-plugins';
 import { ExcalidrawAutomate } from './excalidraw-automate';
 import { setupObsidianGlobalEnvironment } from './bridge';
 
@@ -20,6 +21,12 @@ export class SynapseApp {
   readonly ribbon: SynapseRibbonManager;
   readonly statusBar: SynapseStatusBarManager;
   readonly plugins: PluginLoader;
+  readonly internalPlugins: SynapseInternalPluginsManager;
+  readonly foldManager: {
+    load(file?: any): any;
+    save(file?: any, info?: any): void;
+  };
+  readonly isMobile: boolean = false;
   readonly ea: ExcalidrawAutomate;
 
   constructor(repository: VaultRepository) {
@@ -32,6 +39,11 @@ export class SynapseApp {
     this.ribbon = new SynapseRibbonManager();
     this.statusBar = new SynapseStatusBarManager();
     this.plugins = new PluginLoader(this);
+    this.internalPlugins = new SynapseInternalPluginsManager(this);
+    this.foldManager = {
+      load: () => null,
+      save: () => {},
+    };
     this.ea = new ExcalidrawAutomate(this);
 
     // Conectar caché reactiva a la bóveda para sincronización bidireccional automática de eventos

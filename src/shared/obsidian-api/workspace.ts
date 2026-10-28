@@ -222,6 +222,15 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   }
 
   /**
+   * Itera sobre todas las hojas de trabajo abiertas en el espacio de trabajo.
+   */
+  iterateAllLeaves(callback: (leaf: WorkspaceLeaf) => any): void {
+    for (const leaf of this.leaves) {
+      callback(leaf);
+    }
+  }
+
+  /**
    * Retorna todas las hojas de trabajo que tengan una vista del tipo especificado.
    */
   getLeavesOfType(type: string): WorkspaceLeaf[] {

@@ -19,6 +19,7 @@ export interface PluginEntry {
 export class PluginLoader {
   readonly app: SynapseApp;
   readonly loadedPlugins = new Map<string, PluginEntry>();
+  readonly plugins: Record<string, any> = {};
 
   constructor(app: SynapseApp) {
     this.app = app;
@@ -131,8 +132,7 @@ export class PluginLoader {
 
     // 3. Instanciar e iniciar ciclo de vida
     const instance: Plugin = new PluginClass(this.app, manifest);
-    instance.load();
-    await instance.onload();
+    this.plugins[manifest.id] = instance;
 
     const entry: PluginEntry = {
       manifest,
@@ -143,6 +143,10 @@ export class PluginLoader {
     };
 
     this.loadedPlugins.set(manifest.id, entry);
+
+    instance.load();
+    await instance.onload();
+
     return entry;
   }
 
@@ -158,6 +162,8 @@ export class PluginLoader {
     } catch (e) {
       console.error(`[PluginLoader] Error al descargar ${pluginId}:`, e);
     }
+
+    delete this.plugins[pluginId];
 
     if (entry.styleEl) {
       entry.styleEl.remove();

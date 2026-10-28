@@ -20,4 +20,5 @@ export * from './adapter';
 export * from './workspace';
 export * from './metadata-cache';
 export * from './file-manager';
+export * from './internal-plugins';
 export * from './types';

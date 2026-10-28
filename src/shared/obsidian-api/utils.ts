@@ -210,15 +210,15 @@ export const Platform = {
 };
 
 /**
- * Interfaz e implementación de compatibilidad para Moment.js (utilizada en Excalidraw para marcas de tiempo).
+ * Interfaz e implementación de compatibilidad para Moment.js (utilizada en Excalidraw, Calendar, etc.).
  */
 export interface MomentInstance {
   format(pattern?: string): string;
   valueOf(): number;
   toISOString(): string;
   toDate(): Date;
-  add(amount: number, unit: string): MomentInstance;
-  subtract(amount: number, unit: string): MomentInstance;
+  add(amount: number, unit?: string): MomentInstance;
+  subtract(amount: number, unit?: string): MomentInstance;
   clone(): MomentInstance;
   isValid(): boolean;
   isSame(other?: any, granularity?: string): boolean;
@@ -231,150 +231,366 @@ export interface MomentInstance {
   date(): number;
   date(d: number): MomentInstance;
   day(): number;
+  day(d: number): MomentInstance;
+  weekday(): number;
+  weekday(d: number): MomentInstance;
+  isoWeekday(): number;
+  isoWeekday(d: number): MomentInstance;
+  week(): number;
+  week(w: number): MomentInstance;
+  set(unitOrValues: string | Record<string, number>, val?: number): MomentInstance;
+  get(unit: string): number;
+  locale(): string;
+  locale(loc: string): MomentInstance;
+  localeData(): any;
   startOf(unit: string): MomentInstance;
   endOf(unit: string): MomentInstance;
 }
 
-export function moment(dateInput?: string | number | Date | MomentInstance): MomentInstance {
-  let d: Date;
-  if (!dateInput) {
-    d = new Date();
-  } else if (dateInput instanceof Date) {
-    d = new Date(dateInput.getTime());
-  } else if (typeof dateInput === 'object' && 'toDate' in dateInput) {
-    d = dateInput.toDate();
-  } else {
-    d = new Date(dateInput);
+const defaultLocaleWeekSpec = {
+  dow: 1, // Lunes por defecto
+  doy: 4,
+};
+
+let currentGlobalLocale = 'en';
+const localeWeekSpecs: Record<string, { dow: number; doy: number }> = {
+  en: { dow: 0, doy: 6 },
+  'en-gb': { dow: 1, doy: 4 },
+  es: { dow: 1, doy: 4 },
+};
+
+function getWeekNumber(date: Date, dow = 1): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay();
+  // Ajustar día según dow
+  const diff = (dayNum < dow ? 7 : 0) + dayNum - dow;
+  d.setUTCDate(d.getUTCDate() - diff + 3);
+  const firstThursday = d.getTime();
+  d.setUTCMonth(0, 1);
+  if (d.getUTCDay() !== 4) {
+    d.setUTCMonth(0, 1 + ((4 - d.getUTCDay() + 7) % 7));
   }
-
-  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
-
-  const instance: MomentInstance = {
-    format(pattern = 'YYYY-MM-DDTHH:mm:ssZ'): string {
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      const date = d.getDate();
-      const hours = d.getHours();
-      const minutes = d.getMinutes();
-      const seconds = d.getSeconds();
-      const ms = d.getMilliseconds();
-
-      return pattern
-        .replace(/YYYY/g, String(year))
-        .replace(/YY/g, String(year).slice(-2))
-        .replace(/MM/g, pad(month))
-        .replace(/DD/g, pad(date))
-        .replace(/HH/g, pad(hours))
-        .replace(/mm/g, pad(minutes))
-        .replace(/ss/g, pad(seconds))
-        .replace(/SSS/g, pad(ms, 3));
-    },
-    valueOf(): number {
-      return d.getTime();
-    },
-    toISOString(): string {
-      return d.toISOString();
-    },
-    toDate(): Date {
-      return new Date(d.getTime());
-    },
-    add(amount: number, unit: string): MomentInstance {
-      const copy = new Date(d.getTime());
-      if (/day|d/i.test(unit)) copy.setDate(copy.getDate() + amount);
-      else if (/month|m/i.test(unit)) copy.setMonth(copy.getMonth() + amount);
-      else if (/year|y/i.test(unit)) copy.setFullYear(copy.getFullYear() + amount);
-      else if (/hour|h/i.test(unit)) copy.setHours(copy.getHours() + amount);
-      else if (/minute/i.test(unit)) copy.setMinutes(copy.getMinutes() + amount);
-      else if (/second|s/i.test(unit)) copy.setSeconds(copy.getSeconds() + amount);
-      return moment(copy);
-    },
-    subtract(amount: number, unit: string): MomentInstance {
-      return this.add(-amount, unit);
-    },
-    clone(): MomentInstance {
-      return moment(new Date(d.getTime()));
-    },
-    isValid(): boolean {
-      return !isNaN(d.getTime());
-    },
-    isSame(other?: any, granularity = 'millisecond'): boolean {
-      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
-      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
-      const g = granularity.toLowerCase();
-      if (g.startsWith('y')) return d.getFullYear() === otherDate.getFullYear();
-      if (g.startsWith('m') && !g.startsWith('mi')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth();
-      if (g.startsWith('d')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth() && d.getDate() === otherDate.getDate();
-      return d.getTime() === otherDate.getTime();
-    },
-    isBefore(other?: any, granularity = 'millisecond'): boolean {
-      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
-      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
-      return d.getTime() < otherDate.getTime();
-    },
-    isAfter(other?: any, granularity = 'millisecond'): boolean {
-      const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
-      if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
-      return d.getTime() > otherDate.getTime();
-    },
-    year(val?: number): any {
-      if (val !== undefined) {
-        const copy = new Date(d.getTime());
-        copy.setFullYear(val);
-        return moment(copy);
-      }
-      return d.getFullYear();
-    },
-    month(val?: number): any {
-      if (val !== undefined) {
-        const copy = new Date(d.getTime());
-        copy.setMonth(val);
-        return moment(copy);
-      }
-      return d.getMonth();
-    },
-    date(val?: number): any {
-      if (val !== undefined) {
-        const copy = new Date(d.getTime());
-        copy.setDate(val);
-        return moment(copy);
-      }
-      return d.getDate();
-    },
-    day(): number {
-      return d.getDay();
-    },
-    startOf(unit: string): MomentInstance {
-      const copy = new Date(d.getTime());
-      const u = unit.toLowerCase();
-      if (u.startsWith('y')) {
-        copy.setMonth(0, 1);
-        copy.setHours(0, 0, 0, 0);
-      } else if (u.startsWith('m') && !u.startsWith('mi')) {
-        copy.setDate(1);
-        copy.setHours(0, 0, 0, 0);
-      } else if (u.startsWith('d')) {
-        copy.setHours(0, 0, 0, 0);
-      }
-      return moment(copy);
-    },
-    endOf(unit: string): MomentInstance {
-      const copy = new Date(d.getTime());
-      const u = unit.toLowerCase();
-      if (u.startsWith('y')) {
-        copy.setMonth(11, 31);
-        copy.setHours(23, 59, 59, 999);
-      } else if (u.startsWith('m') && !u.startsWith('mi')) {
-        copy.setMonth(copy.getMonth() + 1, 0);
-        copy.setHours(23, 59, 59, 999);
-      } else if (u.startsWith('d')) {
-        copy.setHours(23, 59, 59, 999);
-      }
-      return moment(copy);
-    },
-  };
-
-  return instance;
+  return 1 + Math.ceil((firstThursday - d.getTime()) / 604800000);
 }
+
+export interface MomentStatic {
+  (dateInput?: string | number | Date | MomentInstance, format?: string, strict?: boolean): MomentInstance;
+  locale(loc?: string): string;
+  localeData(loc?: string): any;
+  updateLocale(loc: string, config: any): any;
+  locales(): string[];
+  weekdays(localeSorted?: boolean): string[];
+  weekdaysShort(localeSorted?: boolean): string[];
+  weekdaysMin(localeSorted?: boolean): string[];
+}
+
+export const moment: MomentStatic = Object.assign(
+  function (
+    dateInput?: string | number | Date | MomentInstance,
+    format?: string,
+    _strict?: boolean
+  ): MomentInstance {
+    let d: Date;
+    let valid = true;
+
+    if (!dateInput && dateInput !== 0) {
+      d = new Date();
+    } else if (dateInput instanceof Date) {
+      d = new Date(dateInput.getTime());
+      valid = !isNaN(d.getTime());
+    } else if (typeof dateInput === 'object' && dateInput !== null && 'toDate' in dateInput) {
+      d = dateInput.toDate();
+      valid = !isNaN(d.getTime());
+    } else if (typeof dateInput === 'number') {
+      d = new Date(dateInput);
+      valid = !isNaN(d.getTime());
+    } else if (typeof dateInput === 'string') {
+      // Si se provee formato estricto (ej. YYYY-MM-DD)
+      if (format) {
+        // Formato simple YYYY-MM-DD
+        const isoMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(dateInput.trim());
+        if (isoMatch) {
+          const y = parseInt(isoMatch[1], 10);
+          const m = parseInt(isoMatch[2], 10) - 1;
+          const day = parseInt(isoMatch[3], 10);
+          d = new Date(y, m, day);
+          valid = d.getFullYear() === y && d.getMonth() === m && d.getDate() === day;
+        } else {
+          d = new Date(dateInput);
+          valid = !isNaN(d.getTime());
+        }
+      } else {
+        d = new Date(dateInput);
+        valid = !isNaN(d.getTime());
+      }
+    } else {
+      d = new Date(NaN);
+      valid = false;
+    }
+
+    const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+
+    const instance: MomentInstance = {
+      format(pattern = 'YYYY-MM-DDTHH:mm:ssZ'): string {
+        if (!valid || isNaN(d.getTime())) return 'Invalid date';
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const date = d.getDate();
+        const hours = d.getHours();
+        const minutes = d.getMinutes();
+        const seconds = d.getSeconds();
+        const ms = d.getMilliseconds();
+
+        return pattern
+          .replace(/YYYY/g, String(year))
+          .replace(/YY/g, String(year).slice(-2))
+          .replace(/MM/g, pad(month))
+          .replace(/DD/g, pad(date))
+          .replace(/HH/g, pad(hours))
+          .replace(/mm/g, pad(minutes))
+          .replace(/ss/g, pad(seconds))
+          .replace(/SSS/g, pad(ms, 3));
+      },
+      valueOf(): number {
+        return d.getTime();
+      },
+      toISOString(): string {
+        return valid ? d.toISOString() : 'Invalid date';
+      },
+      toDate(): Date {
+        return new Date(d.getTime());
+      },
+      add(amount: number, unit = 'day'): MomentInstance {
+        const copy = new Date(d.getTime());
+        if (/day|d/i.test(unit)) copy.setDate(copy.getDate() + amount);
+        else if (/month|m/i.test(unit)) copy.setMonth(copy.getMonth() + amount);
+        else if (/year|y/i.test(unit)) copy.setFullYear(copy.getFullYear() + amount);
+        else if (/hour|h/i.test(unit)) copy.setHours(copy.getHours() + amount);
+        else if (/minute/i.test(unit)) copy.setMinutes(copy.getMinutes() + amount);
+        else if (/second|s/i.test(unit)) copy.setSeconds(copy.getSeconds() + amount);
+        return moment(copy);
+      },
+      subtract(amount: number, unit = 'day'): MomentInstance {
+        return this.add(-amount, unit);
+      },
+      clone(): MomentInstance {
+        return moment(new Date(d.getTime()));
+      },
+      isValid(): boolean {
+        return valid && !isNaN(d.getTime());
+      },
+      isSame(other?: any, granularity = 'millisecond'): boolean {
+        const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+        if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+        const g = granularity.toLowerCase();
+        if (g.startsWith('y')) return d.getFullYear() === otherDate.getFullYear();
+        if (g.startsWith('m') && !g.startsWith('mi')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth();
+        if (g.startsWith('d')) return d.getFullYear() === otherDate.getFullYear() && d.getMonth() === otherDate.getMonth() && d.getDate() === otherDate.getDate();
+        return d.getTime() === otherDate.getTime();
+      },
+      isBefore(other?: any, granularity = 'millisecond'): boolean {
+        const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+        if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+        return d.getTime() < otherDate.getTime();
+      },
+      isAfter(other?: any, granularity = 'millisecond'): boolean {
+        const otherDate = other ? (typeof other.toDate === 'function' ? other.toDate() : new Date(other)) : new Date();
+        if (isNaN(otherDate.getTime()) || isNaN(d.getTime())) return false;
+        return d.getTime() > otherDate.getTime();
+      },
+      year(val?: number): any {
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setFullYear(val);
+          return moment(copy);
+        }
+        return d.getFullYear();
+      },
+      month(val?: number): any {
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setMonth(val);
+          return moment(copy);
+        }
+        return d.getMonth();
+      },
+      date(val?: number): any {
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setDate(val);
+          return moment(copy);
+        }
+        return d.getDate();
+      },
+      day(val?: number): any {
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          const diff = val - copy.getDay();
+          copy.setDate(copy.getDate() + diff);
+          return moment(copy);
+        }
+        return d.getDay();
+      },
+      weekday(val?: number): any {
+        const weekSpec = localeWeekSpecs[currentGlobalLocale] || defaultLocaleWeekSpec;
+        const currentWeekday = (d.getDay() - weekSpec.dow + 7) % 7;
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setDate(copy.getDate() + (val - currentWeekday));
+          return moment(copy);
+        }
+        return currentWeekday;
+      },
+      isoWeekday(val?: number): any {
+        const currentIso = d.getDay() === 0 ? 7 : d.getDay();
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setDate(copy.getDate() + (val - currentIso));
+          return moment(copy);
+        }
+        return currentIso;
+      },
+      week(val?: number): any {
+        const weekSpec = localeWeekSpecs[currentGlobalLocale] || defaultLocaleWeekSpec;
+        const currentW = getWeekNumber(d, weekSpec.dow);
+        if (val !== undefined) {
+          const copy = new Date(d.getTime());
+          copy.setDate(copy.getDate() + (val - currentW) * 7);
+          return moment(copy);
+        }
+        return currentW;
+      },
+      set(unitOrValues: string | Record<string, number>, val?: number): MomentInstance {
+        const copy = new Date(d.getTime());
+        if (typeof unitOrValues === 'object') {
+          for (const [k, v] of Object.entries(unitOrValues)) {
+            if (/hour/i.test(k)) copy.setHours(v);
+            else if (/minute/i.test(k)) copy.setMinutes(v);
+            else if (/second/i.test(k)) copy.setSeconds(v);
+            else if (/millisecond/i.test(k)) copy.setMilliseconds(v);
+            else if (/date|day/i.test(k)) copy.setDate(v);
+            else if (/month/i.test(k)) copy.setMonth(v);
+            else if (/year/i.test(k)) copy.setFullYear(v);
+          }
+        } else if (typeof unitOrValues === 'string' && typeof val === 'number') {
+          if (/hour/i.test(unitOrValues)) copy.setHours(val);
+          else if (/minute/i.test(unitOrValues)) copy.setMinutes(val);
+          else if (/second/i.test(unitOrValues)) copy.setSeconds(val);
+          else if (/millisecond/i.test(unitOrValues)) copy.setMilliseconds(val);
+        }
+        return moment(copy);
+      },
+      get(unit: string): number {
+        if (/hour/i.test(unit)) return d.getHours();
+        if (/minute/i.test(unit)) return d.getMinutes();
+        if (/second/i.test(unit)) return d.getSeconds();
+        if (/millisecond/i.test(unit)) return d.getMilliseconds();
+        if (/date/i.test(unit)) return d.getDate();
+        if (/day/i.test(unit)) return d.getDay();
+        if (/month/i.test(unit)) return d.getMonth();
+        if (/year/i.test(unit)) return d.getFullYear();
+        return 0;
+      },
+      locale(loc?: string): any {
+        if (loc) {
+          return this;
+        }
+        return currentGlobalLocale;
+      },
+      localeData(): any {
+        return moment.localeData(currentGlobalLocale);
+      },
+      startOf(unit: string): MomentInstance {
+        const copy = new Date(d.getTime());
+        const u = unit.toLowerCase();
+        if (u.startsWith('y')) {
+          copy.setMonth(0, 1);
+          copy.setHours(0, 0, 0, 0);
+        } else if (u.startsWith('m') && !u.startsWith('mi')) {
+          copy.setDate(1);
+          copy.setHours(0, 0, 0, 0);
+        } else if (u.startsWith('d')) {
+          copy.setHours(0, 0, 0, 0);
+        }
+        return moment(copy);
+      },
+      endOf(unit: string): MomentInstance {
+        const copy = new Date(d.getTime());
+        const u = unit.toLowerCase();
+        if (u.startsWith('y')) {
+          copy.setMonth(11, 31);
+          copy.setHours(23, 59, 59, 999);
+        } else if (u.startsWith('m') && !u.startsWith('mi')) {
+          copy.setMonth(copy.getMonth() + 1, 0);
+          copy.setHours(23, 59, 59, 999);
+        } else if (u.startsWith('d')) {
+          copy.setHours(23, 59, 59, 999);
+        }
+        return moment(copy);
+      },
+    };
+
+    return instance;
+  },
+  {
+    locale(loc?: string): string {
+      if (loc) {
+        currentGlobalLocale = loc.toLowerCase();
+      }
+      return currentGlobalLocale;
+    },
+    localeData(loc?: string): any {
+      const targetLocale = (loc || currentGlobalLocale).toLowerCase();
+      const spec = localeWeekSpecs[targetLocale] || defaultLocaleWeekSpec;
+      return {
+        _week: { dow: spec.dow, doy: spec.doy },
+        firstDayOfWeek: () => spec.dow,
+        weekdays: () => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        weekdaysShort: () => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        weekdaysMin: () => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+        months: () => [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December',
+        ],
+        monthsShort: () => [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        ],
+      };
+    },
+    updateLocale(loc: string, config: any): any {
+      const targetLocale = loc.toLowerCase();
+      if (config?.week) {
+        localeWeekSpecs[targetLocale] = {
+          dow: typeof config.week.dow === 'number' ? config.week.dow : (localeWeekSpecs[targetLocale]?.dow ?? 1),
+          doy: typeof config.week.doy === 'number' ? config.week.doy : (localeWeekSpecs[targetLocale]?.doy ?? 4),
+        };
+      }
+      return moment.localeData(targetLocale);
+    },
+    locales(): string[] {
+      return Object.keys(localeWeekSpecs);
+    },
+    weekdays(localeSorted = false): string[] {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      if (!localeSorted) return days;
+      const dow = (localeWeekSpecs[currentGlobalLocale] || defaultLocaleWeekSpec).dow;
+      return [...days.slice(dow), ...days.slice(0, dow)];
+    },
+    weekdaysShort(localeSorted = false): string[] {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      if (!localeSorted) return days;
+      const dow = (localeWeekSpecs[currentGlobalLocale] || defaultLocaleWeekSpec).dow;
+      return [...days.slice(dow), ...days.slice(0, dow)];
+    },
+    weekdaysMin(localeSorted = false): string[] {
+      const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+      if (!localeSorted) return days;
+      const dow = (localeWeekSpecs[currentGlobalLocale] || defaultLocaleWeekSpec).dow;
+      return [...days.slice(dow), ...days.slice(0, dow)];
+    },
+  }
+);
 
 /**
  * Convierte un ArrayBuffer o Uint8Array a una cadena Base64.

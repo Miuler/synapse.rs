@@ -1780,5 +1780,85 @@ img456: "[[diagrama.svg]]"
       expect(typeof d.cancel).toBe('function');
       expect(typeof d.finish).toBe('function');
     });
+
+    it('46. app.internalPlugins soporta daily-notes y previene errores con Calendar y obsidian-daily-notes-interface', async () => {
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+
+      expect(app.internalPlugins).toBeDefined();
+      expect(typeof app.internalPlugins.getPluginById).toBe('function');
+
+      const dailyNotesEntry = app.internalPlugins.getPluginById('daily-notes');
+      expect(dailyNotesEntry).toBeDefined();
+      expect(dailyNotesEntry?.enabled).toBe(true);
+      expect(dailyNotesEntry?.instance).toBeDefined();
+      expect(dailyNotesEntry?.instance.options).toBeDefined();
+      expect(dailyNotesEntry?.instance.options.format).toBe('YYYY-MM-DD');
+      expect(dailyNotesEntry?.instance.options.folder).toBe('');
+      expect(dailyNotesEntry?.instance.options.template).toBe('');
+
+      // Simular comportamiento de obsidian-daily-notes-interface getDailyNoteSettings
+      const retrieved = app.internalPlugins.getPluginById('daily-notes')?.instance?.options;
+      expect(retrieved?.format).toBe('YYYY-MM-DD');
+
+      // Probar lectura de .obsidian/daily-notes.json si existe
+      await app.vault.adapter.write(
+        '.obsidian/daily-notes.json',
+        JSON.stringify({ format: 'YYYY/MM/DD', folder: 'Diario', template: 'Plantillas/Dia' })
+      );
+      // Re-instanciar SynapseApp para probar hidratación de configuración
+      const app2 = createSynapseApp(repo);
+      // Esperar brevemente a que cargue la promesa de configuración asíncrona
+      await new Promise((r) => setTimeout(r, 10));
+      const entry2 = app2.internalPlugins.getPluginById('daily-notes');
+      expect(entry2?.instance.options.format).toBe('YYYY/MM/DD');
+      expect(entry2?.instance.options.folder).toBe('Diario');
+      expect(entry2?.instance.options.template).toBe('Plantillas/Dia');
+    });
+
+    it('47. moment soporta API completa requerida por Calendar (locale, localeData, isSame, weekday, week, weekdaysShort)', () => {
+      const m = moment('2026-10-28', 'YYYY-MM-DD', true);
+      expect(m.isValid()).toBe(true);
+      expect(m.format('YYYY-MM-DD')).toBe('2026-10-28');
+
+      // isSame con granularidades día, mes, año
+      const mSame = moment('2026-10-28');
+      expect(m.isSame(mSame, 'day')).toBe(true);
+      expect(m.isSame(mSame, 'month')).toBe(true);
+      expect(m.isSame(mSame, 'year')).toBe(true);
+
+      const mDifferentDay = moment('2026-10-29');
+      expect(m.isSame(mDifferentDay, 'day')).toBe(false);
+      expect(m.isSame(mDifferentDay, 'month')).toBe(true);
+
+      // localeData y week
+      const locData = m.localeData();
+      expect(locData).toBeDefined();
+      expect(locData._week).toBeDefined();
+      expect(typeof locData._week.dow).toBe('number');
+      expect(typeof locData.firstDayOfWeek).toBe('function');
+
+      // Static weekdaysShort
+      const shortDays = moment.weekdaysShort(true);
+      expect(Array.isArray(shortDays)).toBe(true);
+      expect(shortDays.length).toBe(7);
+
+      // clone, add, subtract
+      const nextMonth = m.clone().add(1, 'month');
+      expect(nextMonth.isSame(m, 'month')).toBe(false);
+      expect(nextMonth.format('YYYY-MM')).toBe('2026-11');
+
+      // global _bundledLocaleWeekSpec
+      expect((globalThis as any)._bundledLocaleWeekSpec).toBeDefined();
+      expect(typeof (globalThis as any)._bundledLocaleWeekSpec.dow).toBe('number');
+
+      // app.foldManager y isMobile
+      const repo = new MockVaultRepository() as unknown as VaultRepository;
+      const app = createSynapseApp(repo);
+      expect(app.foldManager).toBeDefined();
+      expect(typeof app.foldManager.load).toBe('function');
+      expect(typeof app.foldManager.save).toBe('function');
+      expect(app.isMobile).toBe(false);
+    });
   });
 });

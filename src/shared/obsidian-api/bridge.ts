@@ -14,6 +14,7 @@ import {
   editorLivePreviewField,
 } from './view';
 import { WorkspaceLeaf } from './leaf';
+import { SynapseWorkspace } from './workspace';
 import { Plugin } from './plugin';
 import {
   Setting,
@@ -109,6 +110,7 @@ export function getObsidianBundle(app: SynapseApp): Record<string, any> {
     MarkdownView,
     MarkdownRenderChild,
     MarkdownRenderer,
+    Workspace: SynapseWorkspace,
     WorkspaceSplit,
     editorLivePreviewField,
     WorkspaceLeaf,
@@ -213,6 +215,9 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
 
   target.app = app;
   target.moment = moment;
+  if (!target._bundledLocaleWeekSpec) {
+    target._bundledLocaleWeekSpec = (moment.localeData() as any)?._week || { dow: 1, doy: 4 };
+  }
   target.sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   if (typeof (globalThis as any).sleep === 'undefined') {
     (globalThis as any).sleep = target.sleep;
