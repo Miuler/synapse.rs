@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Preservación y reapertura de pestañas cerradas en la navegación del historial**:
+  - Al cerrar una pestaña activa o en segundo plano, su registro se mantiene en `tabHistory` de forma desacoplada y con bajo consumo de memoria.
+  - Al utilizar la navegación hacia atrás o adelante (incluyendo los botones laterales del ratón o <kbd>Alt+Left</kbd>/<kbd>Alt+Right</kbd>), si la pestaña destino había sido cerrada, se reabre automáticamente restituyendo su posición física original en la barra de pestañas y conservando el estado de selección del cursor.
+
 ### Corregido
 
 - **Optimización de rendimiento y fluidez en la edición de Excalidraw**:

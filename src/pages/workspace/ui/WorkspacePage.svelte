@@ -1007,10 +1007,7 @@
           activeTabPath = null;
         }
 
-        // Si la pestaña cerrada era la activa, sincronizar tabHistoryIndex con la nueva pestaña activa
-        if (activeTabPath && !isSyntheticTab(path)) {
-          tabHistory.syncActiveTab(activeTabPath);
-        }
+        // Si la pestaña cerrada era la activa, mantener tabHistory intacto para permitir reabrirla al navegar atrás
       }
     }
     // Si es un archivo PDF con visor activo y no está bloqueado, forzar guardado síncrono/inmediato antes de destruir
