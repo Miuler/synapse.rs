@@ -40,6 +40,7 @@
   let nucleoQuery = $state('');
   let folderResults = $state<FolderMeta[]>([]);
   let isFoldersExpanded = $state(false);
+  let selectedCommandValue = $state<string>('');
   let visibleCount = $state(PAGE_SIZE);
   let listContainerEl = $state<HTMLElement | null>(null);
   let isSearching = $state(false);
@@ -529,37 +530,53 @@
       if (highlighted && highlighted.nextElementSibling === null) {
         visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
       }
-    } else if (e.key === 'PageDown') {
+    } else if (e.key === 'PageDown' || e.key === 'PageUp') {
       e.preventDefault();
       e.stopPropagation();
-      const jumpCount = 8;
-      for (let i = 0; i < jumpCount; i++) {
-        if (visibleCount < allCandidates.length) {
-          const highlighted = listContainerEl?.querySelector('[data-highlighted], [data-selected]');
-          if (highlighted && highlighted.nextElementSibling === null) {
-            visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
-          }
+
+      if (!listContainerEl) return;
+      const allItems = Array.from(
+        listContainerEl.querySelectorAll<HTMLElement>('.palette-item')
+      );
+      if (allItems.length === 0) return;
+
+      // 1. Obtener altura visible real y altura promedio de un item para calcular salto exacto de 1 ventana
+      const firstItem = allItems[0];
+      const itemHeight = firstItem.getBoundingClientRect().height || 40;
+      const visibleHeight = listContainerEl.clientHeight || 360;
+      const pageJump = Math.max(1, Math.floor(visibleHeight / itemHeight) - 1);
+
+      // 2. Localizar el índice actualmente seleccionado en la lista
+      const currentIndex = allItems.findIndex((el) =>
+        el.hasAttribute('data-highlighted') || el.hasAttribute('data-selected')
+      );
+      const baseIndex = currentIndex === -1 ? 0 : currentIndex;
+
+      // 3. Calcular el índice objetivo respetando límites
+      let targetIndex: number;
+      if (e.key === 'PageDown') {
+        targetIndex = Math.min(baseIndex + pageJump, allItems.length - 1);
+        // Si al saltar nos acercamos al final de los elementos renderizados, paginamos más
+        if (targetIndex >= allItems.length - 5 && visibleCount < allCandidates.length) {
+          visibleCount = Math.min(visibleCount + PAGE_SIZE, allCandidates.length);
         }
-        const downEvent = new KeyboardEvent('keydown', {
-          key: 'ArrowDown',
-          code: 'ArrowDown',
-          bubbles: true,
-          cancelable: true,
-        });
-        e.currentTarget?.dispatchEvent(downEvent);
+      } else {
+        targetIndex = Math.max(baseIndex - pageJump, 0);
       }
-    } else if (e.key === 'PageUp') {
-      e.preventDefault();
-      e.stopPropagation();
-      const jumpCount = 8;
-      for (let i = 0; i < jumpCount; i++) {
-        const upEvent = new KeyboardEvent('keydown', {
-          key: 'ArrowUp',
-          code: 'ArrowUp',
-          bubbles: true,
-          cancelable: true,
+
+      // 4. Actualizar selección y alinear visualmente sin ejecutar clic
+      const targetItem = allItems[targetIndex];
+      if (targetItem) {
+        const val = targetItem.getAttribute('data-value');
+        if (val) {
+          selectedCommandValue = val;
+        }
+        // Desplazar la ventana completa alineando el elemento al borde correspondiente
+        targetItem.scrollIntoView({
+          block: e.key === 'PageDown' ? 'end' : 'start',
+          behavior: 'auto',
         });
-        e.currentTarget?.dispatchEvent(upEvent);
+        targetItem.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
       }
     }
   }
@@ -616,6 +633,7 @@
 
       <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
       <Command.Root
+        bind:value={selectedCommandValue}
         class="quick-open-command-root"
         loop
         shouldFilter={false}
