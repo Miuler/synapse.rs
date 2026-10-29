@@ -22,7 +22,7 @@
   import { ThemeToggle } from '@features/theme-toggle';
   import { type MarkdownViewMode } from '@entities/vault-item';
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
-  import type { McpRuntimeStatus } from '@shared/api';
+  import { systemApi, type McpRuntimeStatus } from '@shared/api';
   import { listen } from '@tauri-apps/api/event';
 
   interface Props {
@@ -80,6 +80,13 @@
 
   // Estados para el selector de vistas Markdown
   let isViewMenuOpen = $state(false);
+  let appVersion = $state('');
+
+  $effect(() => {
+    systemApi.getAppVersion().then((v) => {
+      if (v) appVersion = v;
+    }).catch(() => {});
+  });
 
   const MARKDOWN_VIEW_MODES: {
     id: MarkdownViewMode;
@@ -708,6 +715,13 @@
     <!-- Botón de Alternar Tema (Claro / Oscuro / Sistema) -->
     <ThemeToggle />
 
+    <!-- Versión de la aplicación (solo visible cuando hay espacio suficiente) -->
+    {#if appVersion}
+      <div class="status-version-item" title="Synapse v{appVersion}">
+        v{appVersion}
+      </div>
+    {/if}
+
     <!-- Contenedor dinámico de elementos de barra de estado para plugins de Obsidian / Synapse -->
     <div
       class="plugin-status-container"
@@ -737,6 +751,32 @@
     user-select: none;
     z-index: 20;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .status-version-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    user-select: none;
+    flex-shrink: 1;
+  }
+
+  @container (max-width: 650px) {
+    .status-version-item {
+      display: none;
+    }
+  }
+
+  @media (max-width: 750px) {
+    .status-version-item {
+      display: none;
+    }
   }
 
   .left-group, .right-group {

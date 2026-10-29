@@ -29,6 +29,14 @@ export interface McpPortRegistry {
 }
 
 export const systemApi = {
+  async getAppVersion(): Promise<string> {
+    try {
+      return await invokeTauri<string>('get_app_version');
+    } catch {
+      return '1.0.0-alpha.1';
+    }
+  },
+
   async openFileWithDefaultApp(relativePath: string): Promise<void> {
     if (!relativePath) return;
     try {

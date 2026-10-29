@@ -9,4 +9,5 @@ export * from './lib/table-parser';
 export * from './lib/table-extension';
 export * from './lib/link-resolver';
 export * from './lib/wikilink-extension';
+export * from './lib/image-paste';
 export { MarkdownViewer, NoteProperties };

@@ -7,6 +7,7 @@
     type RecentWorkspaceEntry,
     type SelectVaultFolderResult,
   } from '@shared/repositories';
+  import { systemApi } from '@shared/api';
   import { appSettings, shortcutsConfig, matchesShortcut } from '@entities/settings';
   import { t } from '@shared/lib/i18n';
   import { ThemeToggle } from '@features/theme-toggle';
@@ -54,6 +55,7 @@
   type SortOrder = 'recent' | 'name' | 'notes';
 
   let workspaces = $state<RecentWorkspaceEntry[]>([]);
+  let appVersion = $state('1.0.0-alpha.1');
   let isLoading = $state(true);
   let activeFilter = $state<FilterTab>('all');
   let sortOrder = $state<SortOrder>('recent');
@@ -329,6 +331,9 @@
 
   onMount(() => {
     shortcutsConfig.loadFromBackend();
+    systemApi.getAppVersion().then((v) => {
+      if (v) appVersion = v;
+    }).catch(() => {});
     loadWorkspaces();
     window.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -345,7 +350,7 @@
         <img src="/icon.svg" alt="Synapse" class="brand-pill-logo" />
         <span class="brand-title">Synapse Desktop</span>
         <span class="brand-sep">—</span>
-        <span class="brand-version">v0.4.2-beta</span>
+        <span class="brand-version">v{appVersion}</span>
       </div>
     </div>
 

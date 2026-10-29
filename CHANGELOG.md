@@ -7,6 +7,22 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Pegado inteligente de imágenes en notas Markdown**:
+  - Intercepción de eventos de pegado (`paste`) en CodeMirror cuando el portapapeles contiene una imagen (archivo o datos binarios).
+  - Detección automática del formato de imagen correspondiente (`webp`, `png`, `jpg`, `svg`, `gif`, etc., con fallback por defecto a `webp`).
+  - Guardado físico de la imagen en la subcarpeta `attachments/` relativa a la carpeta de la nota actual (o en la raíz si la nota reside en ella), con timestamp `image_YYYYMMDD_HHmmss.[ext]` y resolución de colisiones.
+  - Inserción automática del enlace transcluido `![[image_...]]` en la posición del cursor de la nota, renderizándose visualmente de forma inmediata gracias al soporte de imágenes del editor.
+
+- **Versión dinámica de la aplicación y visualización adaptativa**:
+  - Exposición del comando IPC Tauri `get_app_version` en el backend para obtener la versión de forma fidedigna desde `package_info().version`.
+  - Conexión de la versión dinámica en la pantalla de bienvenida (`WelcomeScreen`) reemplazando valores codificados en duro.
+  - Indicador de versión integrado en la barra de estado inferior (`StatusBar`), con visibilidad adaptativa mediante estilos CSS que la ocultan automáticamente si no hay espacio horizontal suficiente.
+
+- **Reorganización de herramientas en la barra lateral Ribbon**:
+  - Reordenamiento de las herramientas situando directamente debajo de las carpetas el acceso a la búsqueda de archivos por nombre (`quick-open`) y la búsqueda full-text en el contenido de las notas (`search`).
+
 ## [1.0.0-alpha.1] - 2026-10-28
 ### Añadido
 

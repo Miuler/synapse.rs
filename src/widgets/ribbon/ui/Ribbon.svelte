@@ -34,16 +34,6 @@
       icon: 'folder',
     },
     {
-      id: 'tags',
-      label: t('ribbon.tags'),
-      icon: 'tag',
-    },
-    {
-      id: 'relations',
-      label: t('ribbon.relations'),
-      icon: 'link',
-    },
-    {
       id: 'quick-open',
       label: t('ribbon.quickOpen', { shortcut: shortcutsConfig.workspace.quick_open }),
       icon: 'search',
@@ -52,6 +42,16 @@
       id: 'search',
       label: t('ribbon.searchContent', { shortcut: shortcutsConfig.workspace.search_fulltext }),
       icon: 'text-search',
+    },
+    {
+      id: 'tags',
+      label: t('ribbon.tags'),
+      icon: 'tag',
+    },
+    {
+      id: 'relations',
+      label: t('ribbon.relations'),
+      icon: 'link',
     },
     {
       id: 'new-note',

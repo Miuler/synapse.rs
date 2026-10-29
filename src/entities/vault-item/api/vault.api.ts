@@ -183,6 +183,14 @@ export const vaultApi = {
     });
   },
 
+  async checkVaultPathExists(relativePath: string): Promise<boolean> {
+    try {
+      return await invokeTauri<boolean>('check_vault_path_exists', { relativePath });
+    } catch {
+      return false;
+    }
+  },
+
   async getActiveVaultPath(): Promise<string | null> {
     return await invokeTauri<string | null>('get_active_vault_path');
   },

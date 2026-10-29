@@ -15,6 +15,7 @@
   import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
+  import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
 
   export interface SelectionInfo {
@@ -712,6 +713,7 @@
           basicSetup,
           markdown({ codeLanguages: [mermaidLanguageDescription] }),
           wikilinkAutocomplete,
+          imagePasteExtension,
           EditorView.lineWrapping,
           keymap.of(searchKeymap as any),
           updateListener,
