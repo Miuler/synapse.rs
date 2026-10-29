@@ -44,6 +44,20 @@
   --error-text: #cf222e;
   --error-border: rgba(207, 34, 46, 0.3);
 
+  /* Estados Git */
+  --git-modified: #d90d06;
+  --git-modified-bg: rgb(245 95 95 / 0.19);
+  --git-modified-border: rgb(217 31 6 / 0.3);
+  --git-staged: #16a34a;
+  --git-staged-bg: rgba(22, 163, 74, 0.15);
+  --git-staged-border: rgba(22, 163, 74, 0.3);
+  --git-untracked: #ca8a04;
+  --git-untracked-bg: rgba(202, 138, 4, 0.15);
+  --git-untracked-border: rgba(202, 138, 4, 0.3);
+  --git-stashed: #7c3aed;
+  --git-stashed-bg: rgba(124, 58, 237, 0.15);
+  --git-stashed-border: rgba(124, 58, 237, 0.3);
+
   --cyan: #0969da;
   --orange: #ff9933;
   --main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -101,6 +115,20 @@ html[data-theme="dark"] {
   --error-bg: rgba(248, 81, 73, 0.15);
   --error-text: #f85149;
   --error-border: rgba(248, 81, 73, 0.4);
+
+  /* Estados Git en Modo Oscuro */
+  --git-modified: #d9715f;
+  --git-modified-bg: rgb(255 62 62 / 0.6);
+  --git-modified-border: rgb(245 46 11 / 0.35);
+  --git-staged: #22c55e;
+  --git-staged-bg: rgba(34, 197, 94, 0.15);
+  --git-staged-border: rgba(34, 197, 94, 0.35);
+  --git-untracked: #eab308;
+  --git-untracked-bg: rgba(234, 179, 8, 0.15);
+  --git-untracked-border: rgba(234, 179, 8, 0.35);
+  --git-stashed: #a78bfa;
+  --git-stashed-bg: rgba(167, 139, 250, 0.15);
+  --git-stashed-border: rgba(167, 139, 250, 0.35);
 }
 
 * {

@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Componente reutilizable `GitStatusBadge` y soporte de tokens CSS para Git**:
+  - Creación del componente `GitStatusBadge.svelte` en la entidad `@entities/git` para centralizar la presentación visual de insignias de estado Git (`M` modificado/staged, `A` añadido, `?` untracked, `S` stashed).
+  - Integración del componente `GitStatusBadge` tanto en `VaultExplorer` como en `BreadCrumb`, unificando su diseño e interacción en toda la interfaz.
+  - Adición de variables semánticas CSS para estados Git en el tema claro y oscuro (`--git-modified`, `--git-staged`, `--git-untracked`, `--git-stashed` y sus respectivas variantes `-bg` y `-border`).
+
 - **Pegado inteligente de imágenes en notas Markdown**:
   - Intercepción de eventos de pegado (`paste`) en CodeMirror cuando el portapapeles contiene una imagen (archivo o datos binarios).
   - Detección automática del formato de imagen correspondiente (`webp`, `png`, `jpg`, `svg`, `gif`, etc., con fallback por defecto a `webp`).

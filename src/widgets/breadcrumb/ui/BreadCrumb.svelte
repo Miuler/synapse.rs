@@ -19,7 +19,7 @@
   import { ContextMenu } from 'bits-ui';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
-  import { parseGitStatusInfo, gitDialogState, gitApi, type GitFileStatusKind } from '@entities/git';
+  import { parseGitStatusInfo, gitDialogState, gitApi, GitStatusBadge, type GitFileStatusKind } from '@entities/git';
   import { GitRestoreDialog } from '@shared/ui/git-restore-dialog';
 
   interface Props {
@@ -362,23 +362,7 @@
                       </button>
 
                       {#if fileGitStatus}
-                        <div class="git-badges-group" title="Estado Git de este archivo">
-                          {#if fileGitStatus.index === 'M'}
-                            <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
-                          {:else if fileGitStatus.index === 'A'}
-                            <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
-                          {/if}
-
-                          {#if fileGitStatus.worktree === 'M'}
-                            <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
-                          {:else if fileGitStatus.worktree === '?'}
-                            <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
-                          {/if}
-
-                          {#if fileGitStatus.is_stashed}
-                            <span class="git-badge stashed" title="En Stash de Git">S</span>
-                          {/if}
-                        </div>
+                        <GitStatusBadge status={fileGitStatus} class="breadcrumb-git-badges" />
                       {/if}
                     </div>
                   {/snippet}
@@ -664,50 +648,8 @@
     user-select: none;
   }
 
-  /* Badges de estado Git */
-  .git-badges-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+  :global(.breadcrumb-git-badges) {
     margin-left: 4px;
-  }
-
-  .git-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    min-width: 15px;
-    height: 15px;
-    padding: 0 3px;
-    border-radius: 3px;
-    line-height: 1;
-    cursor: help;
-  }
-
-  .git-badge.modified {
-    background: rgba(217, 119, 6, 0.15);
-    color: #d97706;
-    border: 1px solid rgba(217, 119, 6, 0.3);
-  }
-
-  .git-badge.staged {
-    background: rgba(22, 163, 74, 0.15);
-    color: #16a34a;
-    border: 1px solid rgba(22, 163, 74, 0.3);
-  }
-
-  .git-badge.untracked {
-    background: rgba(147, 51, 234, 0.15);
-    color: #9333ea;
-    border: 1px solid rgba(147, 51, 234, 0.3);
-  }
-
-  .git-badge.stashed {
-    background: rgba(59, 130, 246, 0.15);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.3);
   }
 
   /* Menú Contextual Bits-UI */

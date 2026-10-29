@@ -6,7 +6,7 @@
   import { systemApi } from '@shared/api';
   import type { GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu, Collapsible } from 'bits-ui';
-  import { gitDialogState, gitApi, parseGitStatusInfo, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
+  import { gitDialogState, gitApi, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
@@ -2394,23 +2394,7 @@
       {/if}
 
       {#if fileGitStatus}
-        <div class="git-badges-group">
-          {#if fileGitStatus.index === 'M'}
-            <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
-          {:else if fileGitStatus.index === 'A'}
-            <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
-          {/if}
-
-          {#if fileGitStatus.worktree === 'M'}
-            <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
-          {:else if fileGitStatus.worktree === '?'}
-            <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
-          {/if}
-
-          {#if fileGitStatus.is_stashed}
-            <span class="git-badge stashed" title="En Stash de Git">S</span>
-          {/if}
-        </div>
+        <GitStatusBadge status={fileGitStatus} class="vault-explorer-git-badges" />
       {/if}
     </div>
   {/if}
@@ -2720,19 +2704,19 @@
   }
 
   .file-icon-modified {
-    color: #dc2626;
+    color: var(--git-modified, #d97706);
   }
 
   .file-icon-staged {
-    color: #16a34a;
+    color: var(--git-staged, #16a34a);
   }
 
   .file-icon-untracked {
-    color: #ca8a04;
+    color: var(--git-untracked, #ca8a04);
   }
 
   .file-icon-stashed {
-    color: #7c3aed;
+    color: var(--git-stashed, #7c3aed);
   }
 
   .file-tree-item.active .file-icon {
@@ -2740,15 +2724,15 @@
   }
 
   .file-tree-item.git-modified:not(.active) .file-name {
-    color: #dc2626;
+    color: var(--git-modified, #d97706);
   }
 
   .file-tree-item.git-staged:not(.active) .file-name {
-    color: #16a34a;
+    color: var(--git-staged, #16a34a);
   }
 
   .file-tree-item.git-untracked:not(.active) .file-name {
-    color: #ca8a04;
+    color: var(--git-untracked, #ca8a04);
   }
 
   .lock-file-badge {
@@ -2784,46 +2768,9 @@
     text-overflow: ellipsis;
   }
 
-  .git-badges-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+  :global(.vault-explorer-git-badges) {
     margin-left: auto;
     flex-shrink: 0;
-  }
-
-  .git-badges-group .git-badge {
-    margin-left: 0;
-  }
-
-  .git-badge {
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 3px;
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-
-  .git-badge.staged {
-    color: #16a34a;
-    background: rgba(22, 163, 74, 0.16);
-  }
-
-  .git-badge.modified {
-    color: #dc2626;
-    background: rgba(220, 38, 38, 0.16);
-  }
-
-  .git-badge.untracked {
-    color: #ca8a04;
-    background: rgba(202, 138, 4, 0.16);
-  }
-
-  .git-badge.stashed {
-    color: #7c3aed;
-    background: rgba(124, 58, 237, 0.16);
   }
 
   .sidebar-resizer {
