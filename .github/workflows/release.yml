@@ -1,6 +1,7 @@
 name: Rust Release
 
 on:
+  workflow_dispatch: # <- Esto habilita el botón manual
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
