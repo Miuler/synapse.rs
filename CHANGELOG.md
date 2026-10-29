@@ -20,91 +20,40 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Al cerrar una pestaña activa o en segundo plano, su registro se mantiene en `tabHistory` de forma desacoplada y con bajo consumo de memoria.
   - Al utilizar la navegación hacia atrás o adelante (incluyendo los botones laterales del ratón o <kbd>Alt+Left</kbd>/<kbd>Alt+Right</kbd>), si la pestaña destino había sido cerrada, se reabre automáticamente restituyendo su posición física original en la barra de pestañas y conservando el estado de selección del cursor.
 
-### Corregido
-
-- **Optimización de rendimiento y fluidez en la edición de Excalidraw**:
-  - **Eliminación del retardo al escribir texto**: Se suspendió la serialización de escena y compresión LZ en el hilo principal mientras el usuario edita activamente texto (`appState.editingTextElement`), evitando que los caracteres se retengan en búfer y se dibujen con desfase.
-  - **Desacoplamiento del Proxy reactivo de Svelte 5**: Sustitución de `$state<any>(null)` por variable plana no reactiva para `excalidrawAPI` en `ExcalidrawViewer`, eliminando sobrecostos de intercepción por Proxy sobre métodos y estructuras internas complejas de Excalidraw.
-  - **Protección contra sobreescritura destructiva de escena**: En el `$effect` sincronizador, se evita llamar a `excalidrawAPI.updateScene()` durante la edición de texto activa para impedir el bloqueo y congelamiento momentáneo del textarea WYSIWYG.
-  - **Eliminación de doble compresión y serialización en `isTabDirty`**: `WorkspacePage` ahora verifica el estado sucio mediante comparación directa en memoria (`note.content !== note.savedContent`), prescindiendo de llamadas síncronas a `getCurrentSerializedScene()` en cada re-renderizado reactivo de la barra de pestañas.
-  - **Omisión de conteo de palabras en dibujos**: `docWordCount` y `docCharCount` se omiten cuando la pestaña activa es de tipo dibujo (`isDrawingTab`), ahorrando costosas ejecuciones de expresiones regulares sobre JSON y base64.
-  - **Generación perezosa de SVG en Obsidian Excalidraw**: En `ObsidianExcalidrawViewer`, la generación vectorial con `ExcalidrawAutomate.toSVG` ahora se ejecuta exclusivamente en modo visual (`viewMode === 'visual'`), evitando cálculos pesados en cada pulsación del modo código.
-  - **Supresión de recargas redundantes del backend en `vault:files-changed`**: Si todos los archivos notificados por el watcher del sistema provienen de guardados propios recientes dentro de la ventana de gracia y no hay archivos eliminados, se omite `fetchNotesFromBackend()` y `refreshTree()`, refrescando únicamente el estado de Git de manera desacoplada.
-
-### Añadido
-
 - **Parámetros de temporización de editor y Excalidraw configurables en `config.jsonc`**:
   - Nuevas propiedades bajo el bloque `"editor"` tipadas y validadas tanto en el modelo de dominio Rust (`EditorConfig`) como en la entidad frontend (`file-types.svelte.ts`):
     - `drawing_auto_save_delay_ms`: Tiempo de inactividad antes de persistir dibujos a disco (3000 ms por defecto).
     - `drawing_change_debounce_ms`: Tiempo de espera para propagar cambios de escena hacia la pestaña (400 ms por defecto).
     - `fs_watcher_recent_save_grace_ms`: Ventana de gracia para ignorar eventos del watcher originados por guardados propios (3000 ms por defecto).
 
-## [2026.10.28.04-alpha] - 2026-10-28
-
-### Corregido
-
-- **Eliminación de la doble ejecución de `onload()` en el ciclo de vida de plugins**:
-  - En `PluginLoader`, corrección de la invocación redundante de `instance.onload()` tras `instance.load()`, asegurando que `onload()` se ejecute una única vez por plugin activo.
-  - Soporte para métodos de ciclo de vida asíncronos en `Component.prototype.load()` y `Component.prototype.unload()`, aguardando adecuadamente promesas devueltas por `onload()` y `onunload()`.
-
-- **Protección defensiva contra desbordamiento de pila (`Maximum call stack size exceeded`) por monkey-patching**:
-  - **`SynapseDataAdapter` (`adapter.read`, `readBinary`, `write`)**: Detección y corte automático de ciclos recursivos en lecturas y escrituras simultáneas sobre la misma ruta activa provocados por plugins comunitarios (ej. `gpg-crypt`), delegando de manera segura en el repositorio base sin agotar la pila de llamadas.
-  - **Plugin interno `file-recovery`**: Guardianes de reingreso por archivo (`activeFileRecoveryPaths`) en `onFileChanged` y `forceAdd`, garantizando que intercepciones circulares sobre eventos de modificación se resuelvan sin recursión infinita.
-
-- **Aislamiento de plugins comunitarios en `.synapse/plugins`**:
-  - Restricción del descubrimiento, escaneo, carga y desinstalación de plugins para operar de manera autónoma en el directorio `.synapse/plugins/` de la bóveda, evitando colisiones o interferencias con la configuración nativa de `.obsidian/plugins/`.
-
-## [2026.10.28.03-alpha] - 2026-10-28
-
-### Añadido
-
 - **Capa de compatibilidad Obsidian API: Entorno global, emulación Node.js y stubs CodeMirror**:
   - **Emulación de módulos en `require()`**: Soporte para paquetes `@codemirror/search` y `@codemirror/autocomplete`, así como módulos esenciales de Node.js requeridos por plugins comunitarios (`path`, `events`, `constants`, `url`, `punycode`, `crypto` con `createHash` y `randomBytes`, `stream`, `process`, `util` y `querystring`), junto a stubs seguros para dependencias de escritorio (`electron`, `child_process`, `fs`, `http`, `https`, `os`).
   - **Polyfill nativo de `Buffer`**: Implementación basada en `Uint8Array` con codificación y decodificación binaria UTF-8 y Base64 (`Buffer.from`, `isBuffer`, `toString`).
   - **Entorno global y objetos canónicos**: Exposición de `activeWindow`, `global`, `process` y `CodeMirror.defineMode` / `defineSimpleMode` en el contexto global de ejecución.
-  - **Nuevas exportaciones en bundle Obsidian**: Incorporación de la clase `Vault` (`SynapseVault`), `SuggestModal`, `loadMermaid` (con import dinámico seguro), `loadMathJax` y función `getIconIds`.
+  - **Nuevas exportaciones en bundle Obsidian**: Incorporación de la clase `Vault` (`SynapseVault`), `Workspace` (`SynapseWorkspace`), `SuggestModal`, `loadMermaid` (con import dinámico seguro), `loadMathJax` y función `getIconIds`.
 
-- **Capa de compatibilidad Obsidian API: Soporte ampliado para Vault, Workspace y Plugins**:
+- **Capa de compatibilidad Obsidian API: Soporte para Vault, Workspace y App**:
   - **Opciones y recorrido en `SynapseVault`**: Métodos `vault.getConfig` (`vimMode`, `theme`, `legacyEditor`, `livePreview`), `vault.getName` y `recurseChildren(folder, callback)` para iteración recursiva de jerarquías de archivos.
-  - **Extensiones en `SynapseWorkspace`**: Propiedad `containerEl`, método `getMostRecentLeaf()`, disparo de eventos con `updateOptions()` y registro de fuentes de vista previa flotante (`registerHoverLinkSource` / `unregisterHoverLinkSource`).
-  - **Persistencia local en `SynapseApp`**: Métodos `loadLocalStorage` y `saveLocalStorage` para plugins que almacenan ajustes o estados temporales de sesión.
+  - **Extensiones en `SynapseWorkspace`**: Propiedad `containerEl`, métodos `getMostRecentLeaf()` e `iterateAllLeaves(callback)`, disparo de eventos con `updateOptions()` y registro de fuentes de vista previa flotante (`registerHoverLinkSource` / `unregisterHoverLinkSource`).
+  - **Persistencia local y propiedades en `SynapseApp`**: Métodos `loadLocalStorage` y `saveLocalStorage` para plugins que almacenan ajustes temporales, objeto `app.foldManager` (`load`, `save`) para soporte de plegado de código/secciones y bandera `app.isMobile = false` para compatibilidad con plugins de calendario y vistas de notas diarias.
   - **Caché de metadatos**: Método `metadataCache.getCachedFiles()` para consultar todas las rutas registradas en la caché.
+
+- **Capa de compatibilidad Obsidian API: Ecosistema de Plugins, UI y Barra de Estado**:
   - **Ciclo de vida en `Plugin`**: Métodos `registerObsidianProtocolHandler`, `registerEditorSuggest` y `registerHoverLinkSource` con limpieza automática en `onunload`.
-  - **Componentes de UI y modales**: Clase base `SuggestModal<T>` con contenedor de resultados y `FuzzySuggestModal<T>` conectada; métodos fluidos `setPlaceholder` y `setInstructions` en `Modal`.
-  - **Plugins internos nativos adicionales**: Registro de `workspaces`, `file-recovery` (con manejadores asíncronos seguros) y stubs para `backlink`, `outgoing-link`, `tag-pane`, `page-preview` y `graph`.
-  - **Extensiones DOM en `HTMLElement`**: Métodos `addClasses` y `removeClasses` para manipulación de múltiples clases CSS en lote.
-  - **Extensiones de fecha en `moment()`**: Método `calendar()` para formateo relativo de fechas ("Today at...", "Tomorrow at...", etc.).
-
-- **Estabilidad y robustez en el editor Markdown (CodeMirror 6)**:
-  - **Recuperación transparente ante reconfiguración de extensiones**: Detección del error `Field is not present in this state` al inyectar dinámicamente StateFields de plugins, recreando el `EditorState` completo sin interrumpir al usuario y preservando la posición de selección y el documento activo.
-  - **Debounce en actualización de extensiones de plugins**: Debounce de 150 ms en `WorkspacePage` para el evento `editor-extensions-change`, agrupando la inicialización concurrente de múltiples plugins comunitarios.
-
-## [2026.10.28.02-alpha] - 2026-10-28
-
-### Añadido
-
-- **Capa de compatibilidad Obsidian API: Soporte para InternalPlugins y Daily Notes**:
-  - **Gestor `SynapseInternalPluginsManager` (`app.internalPlugins`)**: Soporte para plugins nativos e internos del ecosistema Obsidian (`app.internalPlugins.getPluginById` y `getEnabledPluginById`), requerido por plugins comunitarios como `Calendar`, `Periodic Notes` y la biblioteca `obsidian-daily-notes-interface`.
+  - **Registro centralizado en `PluginLoader`**: Exposición del mapa `app.plugins.plugins[pluginId]` asignado antes de la inicialización de cada plugin y limpieza al descargarse.
+  - **Gestor `SynapseInternalPluginsManager` (`app.internalPlugins`)**: Soporte para plugins nativos (`app.internalPlugins.getPluginById` y `getEnabledPluginById`), requerido por plugins comunitarios como `Calendar`, `Periodic Notes` y la biblioteca `obsidian-daily-notes-interface`.
   - **Soporte nativo de `daily-notes`**: Registro del plugin interno `daily-notes` con configuración predeterminada (`YYYY-MM-DD`, carpeta y plantilla), cargando asíncronamente las opciones de `.obsidian/daily-notes.json` o `.synapse/daily-notes.json`.
-  - **Propiedades globales en `SynapseApp`**: Exposición de `app.foldManager` (`load`, `save`) para soporte de plegado de código/secciones y bandera `app.isMobile = false` para compatibilidad con plugins de calendario y vistas de notas diarias.
+  - **Plugins internos y stubs**: Registro de `workspaces`, `file-recovery` (con manejadores asíncronos seguros) y stubs para `backlink`, `outgoing-link`, `tag-pane`, `page-preview` y `graph`.
+  - **Integración con la barra de estado**: `SynapseStatusBarManager` conecta directamente los elementos `.status-bar-item.plugin-status-item` creados por plugins con el componente visual `StatusBar.svelte` en la parte inferior del espacio de trabajo.
+  - **Componentes de UI y modales**: Clase base `SuggestModal<T>` con contenedor de resultados y `FuzzySuggestModal<T>` conectada; métodos fluidos `setPlaceholder` y `setInstructions` en `Modal`.
 
-- **Capa de compatibilidad Obsidian API: Soporte ampliado de Moment.js y Workspace**:
-  - **Funciones de calendario y locales en `moment()`**: Métodos de instancia `weekday`, `isoWeekday`, `week`, `day(d)`, `set`, `get`, `locale`, `localeData` y métodos estáticos `moment.locale`, `moment.localeData`, `moment.updateLocale`, `moment.locales`, `moment.weekdays`, `moment.weekdaysShort`, `moment.weekdaysMin`, junto con el spec global `_bundledLocaleWeekSpec`.
-  - **Iteración de hojas en el espacio de trabajo**: Incorporación de `iterateAllLeaves(callback)` en `SynapseWorkspace` y exportación canónica de `Workspace` en el bundle virtual de Obsidian (`getObsidianBundle`).
-  - **Registro centralizado de instancias en `PluginLoader`**: Exposición del mapa `app.plugins.plugins[pluginId]` asignado antes de la inicialización de cada plugin y limpieza al descargarse.
-
-## [2026.10.28.01-alpha] - 2026-10-28
-
-### Añadido
-
-- **Capa de compatibilidad Obsidian API: Soporte para StatusBar y helpers DOM**:
-  - **Extensiones DOM nativas en `HTMLElement.prototype`**: Añadidos métodos canónicos de Obsidian (`setText`, `getText`, `addClass`, `removeClass`, `toggleClass`, `hasClass`, `setAttr`, `getAttr`) al prototipo global del DOM, permitiendo que plugins comunitarios manipulen elementos sin lanzar excepciones en tiempo de ejecución.
-  - **Soporte extendido para fechas en `moment()`**: Implementados métodos `isSame`, `isBefore`, `isAfter`, `year`, `month`, `date`, `day`, `startOf` y `endOf` requeridos por plugins de calendario y vistas mensuales.
-  - **Integración visual de plugins en la barra de estado**: `SynapseStatusBarManager` ahora conecta directamente los elementos `.status-bar-item.plugin-status-item` creados por plugins con el componente visual `StatusBar.svelte` en la parte inferior del espacio de trabajo.
+- **Capa de compatibilidad Obsidian API: Extensiones DOM nativas y biblioteca `moment()`**:
+  - **Extensiones DOM nativas en `HTMLElement.prototype`**: Métodos canónicos de Obsidian (`setText`, `getText`, `addClass`, `removeClass`, `addClasses`, `removeClasses`, `toggleClass`, `hasClass`, `setAttr`, `getAttr`) en el prototipo global del DOM para manipulación segura sin excepciones en tiempo de ejecución.
+  - **Soporte ampliado de fechas y locales en `moment()`**: Métodos de comparación y límites (`isSame`, `isBefore`, `isAfter`, `startOf`, `endOf`), manipulación de unidades (`year`, `month`, `date`, `day`, `weekday`, `isoWeekday`, `week`, `set`, `get`), formateo relativo (`calendar()`), métodos de internacionalización (`locale`, `localeData`, `moment.locale`, `moment.localeData`, `moment.updateLocale`, `moment.locales`, `moment.weekdays`, `moment.weekdaysShort`, `moment.weekdaysMin`) y spec global `_bundledLocaleWeekSpec`.
 
 - **Indexación en memoria de carpetas (`DashSet`) y navegación rápida**:
   - **`NavigationEngine` (Backend Rust)**: Nueva colección concurrente `folders: Arc<DashSet<CompactString>>` para registrar directorios de la bóveda (incluidas carpetas vacías).
-  - **Hidratación en frío (<1ms)**: Pre-poblado instantáneo de carpetas ancestros al arrancar desde las rutas en RAM de las notas sin romper la compatibilidad binaria del caché `bincode`.
+  - **Hidratación en frío (< 1 ms)**: Pre-poblado instantáneo de carpetas ancestros al arrancar desde las rutas en RAM de las notas sin romper la compatibilidad binaria del caché `bincode`.
   - **Watcher reactivo de filesystem**: Sincronización en vivo de carpetas ante eventos de creación, eliminación y renombrado en disco.
   - **Servicio de dominio puro (`domain/services/folder_service.rs`)**: Métodos `extract_ancestor_folders` y `summarize_folder` para cálculo de huella semántica (`notes_count`, `subfolders_count`, `dominant_tags` y `sample_notes`) en memoria sin I/O directo.
   - **Comando Tauri `search_folders_command`**: Búsqueda difusa y paginada de carpetas con retorno de huella semántica.
@@ -126,6 +75,32 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - **QuickOpen (`Ctrl+O`)**: Navegación adaptativa a 60 FPS fijos que preserva la posición vertical del elemento seleccionado o hace clamping seguro en los extremos.
   - **Búsqueda Full-Text (`Ctrl+Shift+F`)**: Soporte completo de `PageDown` y `PageUp` en `FullTextSearch` con retención de posición relativa y sincronización de foco.
   - **VaultExplorer (Explorador lateral)**: Soporte de `PageDown` y `PageUp` con navegación relativa tanto para selección simple como por bloques de rango con `Shift`.
+
+### Corregido
+
+- **Optimización de rendimiento y fluidez en la edición de Excalidraw**:
+  - **Eliminación del retardo al escribir texto**: Se suspendió la serialización de escena y compresión LZ en el hilo principal mientras el usuario edita activamente texto (`appState.editingTextElement`), evitando que los caracteres se retengan en búfer y se dibujen con desfase.
+  - **Desacoplamiento del Proxy reactivo de Svelte 5**: Sustitución de `$state<any>(null)` por variable plana no reactiva para `excalidrawAPI` en `ExcalidrawViewer`, eliminando sobrecostos de intercepción por Proxy sobre métodos y estructuras internas complejas de Excalidraw.
+  - **Protección contra sobreescritura destructiva de escena**: En el `$effect` sincronizador, se evita llamar a `excalidrawAPI.updateScene()` durante la edición de texto activa para impedir el bloqueo y congelamiento momentáneo del textarea WYSIWYG.
+  - **Eliminación de doble compresión y serialización en `isTabDirty`**: `WorkspacePage` ahora verifica el estado sucio mediante comparación directa en memoria (`note.content !== note.savedContent`), prescindiendo de llamadas síncronas a `getCurrentSerializedScene()` en cada re-renderizado reactivo de la barra de pestañas.
+  - **Omisión de conteo de palabras en dibujos**: `docWordCount` y `docCharCount` se omiten cuando la pestaña activa es de tipo dibujo (`isDrawingTab`), ahorrando costosas ejecuciones de expresiones regulares sobre JSON y base64.
+  - **Generación perezosa de SVG en Obsidian Excalidraw**: En `ObsidianExcalidrawViewer`, la generación vectorial con `ExcalidrawAutomate.toSVG` ahora se ejecuta exclusivamente en modo visual (`viewMode === 'visual'`), evitando cálculos pesados en cada pulsación del modo código.
+  - **Supresión de recargas redundantes del backend en `vault:files-changed`**: Si todos los archivos notificados por el watcher del sistema provienen de guardados propios recientes dentro de la ventana de gracia y no hay archivos eliminados, se omite `fetchNotesFromBackend()` y `refreshTree()`, refrescando únicamente el estado de Git de manera desacoplada.
+
+- **Eliminación de la doble ejecución de `onload()` en el ciclo de vida de plugins**:
+  - En `PluginLoader`, corrección de la invocación redundante de `instance.onload()` tras `instance.load()`, asegurando que `onload()` se ejecute una única vez por plugin activo.
+  - Soporte para métodos de ciclo de vida asíncronos en `Component.prototype.load()` y `Component.prototype.unload()`, aguardando adecuadamente promesas devueltas por `onload()` y `onunload()`.
+
+- **Protección defensiva contra desbordamiento de pila (`Maximum call stack size exceeded`) por monkey-patching**:
+  - **`SynapseDataAdapter` (`adapter.read`, `readBinary`, `write`)**: Detección y corte automático de ciclos recursivos en lecturas y escrituras simultáneas sobre la misma ruta activa provocados por plugins comunitarios (ej. `gpg-crypt`), delegando de manera segura en el repositorio base sin agotar la pila de llamadas.
+  - **Plugin interno `file-recovery`**: Guardianes de reingreso por archivo (`activeFileRecoveryPaths`) en `onFileChanged` y `forceAdd`, garantizando que intercepciones circulares sobre eventos de modificación se resuelvan sin recursión infinita.
+
+- **Aislamiento de plugins comunitarios en `.synapse/plugins`**:
+  - Restricción del descubrimiento, escaneo, carga y desinstalación de plugins para operar de manera autónoma en el directorio `.synapse/plugins/` de la bóveda, evitando colisiones o interferencias con la configuración nativa de `.obsidian/plugins/`.
+
+- **Estabilidad y robustez en el editor Markdown (CodeMirror 6)**:
+  - **Recuperación transparente ante reconfiguración de extensiones**: Detección del error `Field is not present in this state` al inyectar dinámicamente StateFields de plugins, recreando el `EditorState` completo sin interrumpir al usuario y preservando la posición de selección y el documento activo.
+  - **Debounce en actualización de extensiones de plugins**: Debounce de 150 ms en `WorkspacePage` para el evento `editor-extensions-change`, agrupando la inicialización concurrente de múltiples plugins comunitarios.
 
 ## [2026.10.27.04-alpha] - 2026-10-27
 
