@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [2026.10.28.01-alpha] - 2026-10-28
+
 ### Añadido
 
 - **Integración del plugin CLI de Tauri (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:
@@ -596,8 +598,6 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
-[2026.10.28.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.03-alpha
-[2026.10.28.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.02-alpha
 [2026.10.28.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.01-alpha
 [2026.10.27.04-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.04-alpha
 [2026.10.27.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.03-alpha

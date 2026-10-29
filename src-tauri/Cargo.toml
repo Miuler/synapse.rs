@@ -1,6 +1,6 @@
 [package]
 name = "synapsers"
-version = "0.1.0"
+version = "2026.10.28.01-alpha"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
