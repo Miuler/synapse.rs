@@ -46,20 +46,22 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache APT Packages
+        id: apt-cache
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/*.deb
+          # La clave cambia si modificas la lista de paquetes o semanalmente para evitar derivas
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
+
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install --no-install-recommends -y \
             libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
             libxdo-dev \
-            libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            clang \
             lld
 
       - name: Install frontend dependencies
