@@ -62,7 +62,15 @@ jobs:
             libxdo-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            lld
+            clang \
+            lld \
+            llvm \
+            nasm
+          
+          # Garantizar que llvm-lib exista en el PATH si la distro solo provee llvm-ar
+          if ! command -v llvm-lib &> /dev/null; then
+            sudo ln -sf "$(command -v llvm-ar)" /usr/local/bin/llvm-lib
+          fi
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
