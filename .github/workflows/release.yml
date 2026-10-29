@@ -27,6 +27,18 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install cargo-xwin
+        uses: taiki-e/install-action@cargo-xwin
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> src-tauri/target"
+          cache-directories: |
+            ~/.xwin-cache
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -45,7 +57,9 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+            clang \
+            lld
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
@@ -60,8 +74,11 @@ jobs:
           set -euo pipefail
           python3 ci/release.py "$TAG" --generate-notes release-notes.md
 
-      - name: Build release (Tauri no-bundle)
+      - name: Build release (Linux)
         run: bun tauri build --no-bundle
+
+      - name: Build release (Windows)
+        run: bun tauri build --no-bundle --target x86_64-pc-windows-msvc --runner cargo-xwin
 
       - name: Create GitHub Release draft
         env:
@@ -74,4 +91,5 @@ jobs:
             --title "$TAG" \
             --notes-file release-notes.md \
             --draft \
-            src-tauri/target/release/synapsers
+            src-tauri/target/release/synapsers \
+            src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe
