@@ -7,7 +7,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
-## [2026.10.28.01-alpha] - 2026-10-28
+## [1.0.0-alpha.001] - 2026-10-28
 
 ### Añadido
 
@@ -573,7 +573,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
-[2026.10.28.01-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.28.01-alpha
+[1.0.0-alpha.001]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.001
 [2026.10.27.04-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.04-alpha
 [2026.10.27.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.03-alpha
 [2026.10.27.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.02-alpha
