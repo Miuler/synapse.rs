@@ -89,6 +89,15 @@ function configureVimLineUndo(): void {
 export function undoRedoExtension(): Extension {
   configureVimLineUndo();
   return [
+    // Ctrl+R (rehacer en vim) no debe recargar la ventana si el editor no lo consume; corre después de vim
+    Prec.lowest(
+      EditorView.domEventHandlers({
+        keydown(e) {
+          if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r') e.preventDefault();
+          return false;
+        },
+      })
+    ),
     lineUndoField,
     Prec.highest(
       keymap.of([
