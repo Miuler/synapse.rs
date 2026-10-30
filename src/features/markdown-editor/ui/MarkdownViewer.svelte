@@ -11,6 +11,7 @@
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
+  import { youtubeLivePreviewField } from '../lib/youtube-extension';
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
@@ -229,6 +230,7 @@
     syntaxHighlighting(livePreviewHighlightStyle),
     mermaidLivePreviewField,
     imageLivePreviewField,
+    youtubeLivePreviewField,
     tableRawField,
     tableLivePreviewField,
     wikilinkLivePreviewField,
@@ -343,6 +345,36 @@
     },
     '&.cm-focused': {
       outline: 'none',
+    },
+    /* Miniatura de YouTube bajo la línea con el link */
+    '.cm-youtube-widget-wrapper': {
+      display: 'block',
+      margin: '4px 0 12px 0',
+    },
+    '.cm-youtube-card': {
+      display: 'inline-block',
+      position: 'relative',
+      maxWidth: '360px',
+      borderRadius: '8px',
+      overflow: 'hidden',
+      border: '1px solid var(--border-primary, #d0d7de)',
+      lineHeight: '0',
+    },
+    '.cm-youtube-thumb': {
+      display: 'block',
+      width: '100%',
+    },
+    '.cm-youtube-play': {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      padding: '8px 14px',
+      borderRadius: '10px',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      color: '#fff',
+      fontSize: '18px',
+      lineHeight: '1',
     },
     /* Estilos del widget de imagen interactivo en CodeMirror */
     '.cm-image-widget-wrapper': {

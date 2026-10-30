@@ -8,6 +8,7 @@
   import { vaultRepository } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
+  import { extractYouTubeId, getYouTubeThumbnailUrl } from '../lib/youtube';
   import { extractFrontmatterAndBody } from '../lib/frontmatter-extractor';
   import NoteProperties from './NoteProperties.svelte';
 
@@ -384,7 +385,11 @@
       link({ href, title, text }: { href: string; title?: string | null; text: string }) {
         const safeHref = href || '';
         const isExternal = /^(?:https?:\/\/|mailto:|tel:)/i.test(safeHref);
-        return `<a href="${escapeHtml(safeHref)}" class="${isExternal ? 'external-link' : 'internal-link'}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} ${title ? `title="${escapeHtml(title)}"` : ''} data-internal-path="${escapeHtml(safeHref)}">${text}</a>`;
+        const anchor = `<a href="${escapeHtml(safeHref)}" class="${isExternal ? 'external-link' : 'internal-link'}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} ${title ? `title="${escapeHtml(title)}"` : ''} data-internal-path="${escapeHtml(safeHref)}">${text}</a>`;
+        const youtubeId = isExternal ? extractYouTubeId(safeHref) : null;
+        if (!youtubeId) return anchor;
+        const thumb = `<a href="${escapeHtml(safeHref)}" class="external-link youtube-thumb-link" target="_blank" rel="noopener noreferrer" data-internal-path="${escapeHtml(safeHref)}"><img src="${getYouTubeThumbnailUrl(youtubeId)}" alt="Miniatura de YouTube" loading="lazy" /></a>`;
+        return `${anchor}<br />${thumb}`;
       },
       image({ href, title, text }: { href: string; title?: string | null; text: string }) {
         const { cleanAlt, width, height } = parseImageDimensions(text || '');
@@ -800,6 +805,21 @@
 </div>
 
 <style>
+  :global(.youtube-thumb-link) {
+    display: inline-block;
+    max-width: 360px;
+    margin: 4px 0 12px;
+    border-radius: 8px;
+    overflow: hidden;
+    line-height: 0;
+  }
+
+  :global(.youtube-thumb-link img) {
+    display: block;
+    width: 100%;
+    margin: 0;
+  }
+
   .markdown-reading-wrapper {
     width: 100%;
     height: 100%;

@@ -107,6 +107,21 @@
     return folderChildren[node.relativePath] || node.children || [];
   }
 
+  // Orden: carpetas con emoji al inicio, luego el resto de carpetas y archivos.
+  // Dentro de cada grupo, alfabético sin distinguir mayúsculas/minúsculas.
+  const LEADING_EMOJI = /^\p{Extended_Pictographic}/u;
+  function sortSiblings(nodes: VaultTreeNode[]): VaultTreeNode[] {
+    const rank = (node: VaultTreeNode) => {
+      if (node.isFolder && LEADING_EMOJI.test(node.name)) return 0;
+      return node.isFolder ? 1 : 2;
+    };
+    return nodes.sort((a, b) => {
+      const byRank = rank(a) - rank(b);
+      if (byRank !== 0) return byRank;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+    });
+  }
+
   async function loadDirectory(parentPath: string = '') {
     if (!isConnectedToRust) return;
     try {
@@ -125,7 +140,7 @@
             },
         children: [],
       }));
-      folderChildren[parentPath] = nodes;
+      folderChildren[parentPath] = sortSiblings(nodes);
     } catch (err) {
       console.error(`Error al cargar directorio '${parentPath}':`, err);
     }
@@ -231,13 +246,8 @@
       });
     });
 
-    // Ordenar carpetas primero y luego archivos en orden alfabético
     function sortNodes(nodes: VaultTreeNode[]) {
-      nodes.sort((a, b) => {
-        if (a.isFolder && !b.isFolder) return -1;
-        if (!a.isFolder && b.isFolder) return 1;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-      });
+      sortSiblings(nodes);
       nodes.forEach((node) => {
         if (node.isFolder) sortNodes(node.children);
       });

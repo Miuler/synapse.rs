@@ -33,6 +33,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Bonus de recencia acotado (último día, última semana o alguna vez abierta) y bonus por coincidencia exacta del nombre, de modo que una coincidencia dispersa reciente no supera a una coincidencia limpia.
   - Pruebas de integración en `navigation_tests.rs` para el nuevo orden de resultados.
 
+- **Miniaturas de videos de YouTube en notas Markdown**:
+  - Los links a YouTube (`youtube.com`, `youtu.be`, `youtube-nocookie.com`, incluidos `shorts`, `embed` y `live`) muestran una miniatura clicable en el modo de lectura y en el editor en vivo.
+  - Nuevo módulo `youtube.ts` con extracción del ID de video y pruebas unitarias en `youtube.test.ts`.
+  - La miniatura se oculta automáticamente si no se puede cargar.
+
 - **Sincronización del título en el frontmatter**:
   - Nueva función `sync_frontmatter_title` que actualiza o crea el campo `title` en el frontmatter YAML de una nota Markdown, conservando el resto de campos y el cuerpo.
 
@@ -40,6 +45,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Los archivos `.txt` se añaden a la lista de extensiones de código en `config.jsonc` y se muestran con el icono de código en lugar del de Markdown.
 
 ### Cambiado
+
+- **Orden del explorador de la bóveda**: las carpetas con emoji al inicio van primero, seguidas del resto de carpetas y luego archivos, todo en orden alfabético sin distinguir mayúsculas (`sortSiblings` en `VaultExplorer.svelte`).
 
 - **Motor D2 migrado a `@d2lang/d2`**:
   - Se reemplaza el paquete `@terrastruct/d2` por `@d2lang/d2` (v0.1.34) en `package.json` y en el servicio `d2-service.ts`.
