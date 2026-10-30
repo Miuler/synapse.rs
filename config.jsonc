@@ -64,6 +64,7 @@
 
     // Código fuente y texto estructurado
     "code": [
+      "txt",
       "rs",
       "ts",
       "js",

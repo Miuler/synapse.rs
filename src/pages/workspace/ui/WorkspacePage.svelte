@@ -20,6 +20,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
+  import {CodeEditor} from "@shared/ui/code-editor";
   import {GraphViewer} from "@features/graph-viewer";
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
@@ -29,6 +30,7 @@
   import {
     isImageFile,
     isMarkdownFile,
+    isCodeFile,
     isDiagramFile,
     isD2File,
     isDrawingFile,
@@ -2141,6 +2143,39 @@
     return renamedPath;
   }
 
+  async function handleTitleInputChange(vaultItem: VaultItem, newTitle: string) {
+    const tabPath = vaultItem.relative_path;
+    const cleanTitle = newTitle.trim();
+    if (!cleanTitle) return;
+
+    if (openedNotes[tabPath]) {
+      openedNotes[tabPath].title = cleanTitle;
+    }
+    vaultItem.title = cleanTitle;
+
+    // Si es un archivo Markdown en modo bóveda, sincronizar renombrado de archivo y frontmatter
+    if (isMarkdownFile(tabPath) && !isStandaloneMode) {
+      const fileName = tabPath.split(/[\\/]/).pop() || tabPath;
+      const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
+      const ext = extMatch ? extMatch[1] : 'md';
+      const currentStem = fileName.replace(/\.[a-zA-Z0-9]+$/, '');
+
+      if (cleanTitle !== currentStem) {
+        try {
+          const newFileName = `${cleanTitle}.${ext}`;
+          await handleRenameItem(tabPath, newFileName);
+          showWorkspaceToast(`Archivo renombrado a ${cleanTitle}`);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          showWorkspaceToast(`No se pudo renombrar: ${msg}`);
+        }
+        return;
+      }
+    }
+
+    debouncedPersistVaultItemToRust(vaultItem);
+  }
+
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
   onMount(() => {
     window.scrollTo(0, 0);
@@ -3819,11 +3854,14 @@
                     class="editor-title-input"
                     readonly={!paneEditing}
                     bind:value={vaultItem.title}
-                    oninput={() => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].title = vaultItem.title;
+                    onchange={(e) => {
+                      const target = e.currentTarget as HTMLInputElement;
+                      handleTitleInputChange(vaultItem, target.value);
+                    }}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
                       }
-                      debouncedPersistVaultItemToRust(vaultItem);
                     }}
                     placeholder="Título del archivo..."
                   />
@@ -3876,6 +3914,22 @@
                       syncState = "synced";
                     }}
                   />
+                {:else if isCodeFile(tabPath)}
+                  <div class="editor-main-content">
+                    <CodeEditor
+                      {content}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
+                      mode="markdown"
+                      onChange={(updatedCode) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedCode;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                    />
+                  </div>
                 {:else}
                   <div class="editor-main-content">
                     <pre
@@ -3914,6 +3968,7 @@
           !isSyntheticTab(activeTabPath) &&
           (!currentVaultItem.relative_path ||
             isMarkdownFile(currentVaultItem.relative_path) ||
+            isCodeFile(currentVaultItem.relative_path) ||
             isDrawingTab(currentVaultItem.relative_path, activeContent) ||
             isPdfFile(currentVaultItem.relative_path))}
         showWindowControls={true}
@@ -3972,6 +4027,7 @@
             !isSyntheticTab(activeTabPath) &&
             (!currentVaultItem.relative_path ||
               isMarkdownFile(currentVaultItem.relative_path) ||
+              isCodeFile(currentVaultItem.relative_path) ||
               isDrawingTab(currentVaultItem.relative_path, activeContent) ||
               isPdfFile(currentVaultItem.relative_path))}
           showWindowControls={false}
@@ -4034,6 +4090,7 @@
             !isSyntheticTab(activeSplitTabPath) &&
             (!currentSplitVaultItem.relative_path ||
               isMarkdownFile(currentSplitVaultItem.relative_path) ||
+              isCodeFile(currentSplitVaultItem.relative_path) ||
               isDrawingTab(currentSplitVaultItem.relative_path, openedNotes[activeSplitTabPath]?.content) ||
               isPdfFile(currentSplitVaultItem.relative_path))}
           showWindowControls={true}

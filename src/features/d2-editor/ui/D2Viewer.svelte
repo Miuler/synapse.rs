@@ -81,7 +81,7 @@
 <DiagramSplitViewer
   {content}
   engineName="D2"
-  engineTooltip="Visualizador D2 basado en WebAssembly (@terrastruct/d2)"
+  engineTooltip="Visualizador D2 basado en WebAssembly (D2 v0.9 + TALA)"
   mode="d2"
   {svgContent}
   {isReady}

@@ -28,6 +28,30 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Reorganización de herramientas en la barra lateral Ribbon**:
   - Reordenamiento de las herramientas situando directamente debajo de las carpetas el acceso a la búsqueda de archivos por nombre (`quick-open`) y la búsqueda full-text en el contenido de las notas (`search`).
 
+- **Puntaje compuesto en Quick Open (`Ctrl+O`)**:
+  - Nuevo módulo `ranking.rs` (`QuickOpenScorer`) construido sobre `nucleo_matcher`, que puntúa por campo (nombre de archivo, título, tags y ruta) con pesos: nombre > título > tags > ruta.
+  - Bonus de recencia acotado (último día, última semana o alguna vez abierta) y bonus por coincidencia exacta del nombre, de modo que una coincidencia dispersa reciente no supera a una coincidencia limpia.
+  - Pruebas de integración en `navigation_tests.rs` para el nuevo orden de resultados.
+
+- **Sincronización del título en el frontmatter**:
+  - Nueva función `sync_frontmatter_title` que actualiza o crea el campo `title` en el frontmatter YAML de una nota Markdown, conservando el resto de campos y el cuerpo.
+
+- **Extensión `.txt` tratada como código**:
+  - Los archivos `.txt` se añaden a la lista de extensiones de código en `config.jsonc` y se muestran con el icono de código en lugar del de Markdown.
+
+### Cambiado
+
+- **Motor D2 migrado a `@d2lang/d2`**:
+  - Se reemplaza el paquete `@terrastruct/d2` por `@d2lang/d2` (v0.1.34) en `package.json` y en el servicio `d2-service.ts`.
+  - Nuevo motor de layout `tala` disponible en el selector de D2 junto a `dagre` y `elk`.
+
+- **Ordenamiento de Quick Open reescrito**: se sustituye el sistema de niveles (tiers) y el ordenamiento manual por el puntaje compuesto de `QuickOpenScorer`, y el escaneo lineal de respaldo solo se ejecuta cuando nucleo no termina a tiempo o no ha inyectado todas las notas.
+
+### Corregido
+
+- **Filtrado de Quick Open por palabras**: cada palabra de la consulta debe aparecer en el campo, en cualquier orden (por ejemplo, `bcp ttib` encuentra `BCP - TTIB ...`).
+- **Bucle de `nucleo.tick` en búsqueda**: el bucle ya no ejecuta un `tick` de más tras terminar el trabajo de nucleo.
+
 ## [1.0.0-alpha.1] - 2026-10-28
 ### Añadido
 

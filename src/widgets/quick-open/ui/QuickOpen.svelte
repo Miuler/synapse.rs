@@ -212,6 +212,12 @@
 
       // Fallback instantáneo en cliente (0ms): mientras nucleo responde o si no hubo resultados de nucleo
       const qLower = trimmed.toLowerCase();
+      // Cada palabra de la consulta debe aparecer en el campo, en cualquier orden ("bcp ttib" ~ "BCP - TTIB ...")
+      const qTokens = qLower.split(/\s+/).filter(Boolean);
+      const matchesQuery = (text: string) => {
+        const lower = text.toLowerCase();
+        return qTokens.every((token) => lower.includes(token));
+      };
       const filtered: FileItemDisplay[] = [];
       const added = new Set<string>();
 
@@ -221,7 +227,7 @@
         const fileName = path.split('/').pop() || path;
         const item = vaultItemMap.get(path);
         const title = item ? item.title : fileName.replace(/\.[^/.]+$/, '');
-        if (fileName.toLowerCase().includes(qLower) || title.toLowerCase().includes(qLower) || path.toLowerCase().includes(qLower)) {
+        if (matchesQuery(fileName) || matchesQuery(title) || matchesQuery(path)) {
           filtered.push({
             id: path,
             title,
@@ -237,7 +243,7 @@
       for (const item of vaultItems) {
         if (!item.relative_path || item.relative_path.startsWith('empty:') || added.has(item.relative_path)) continue;
         const fileName = item.relative_path.split('/').pop() || item.relative_path;
-        if (fileName.toLowerCase().includes(qLower) || item.title.toLowerCase().includes(qLower) || item.relative_path.toLowerCase().includes(qLower)) {
+        if (matchesQuery(fileName) || matchesQuery(item.title) || matchesQuery(item.relative_path)) {
           filtered.push({
             id: item.relative_path,
             title: item.title,

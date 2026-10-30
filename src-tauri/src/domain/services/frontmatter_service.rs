@@ -93,6 +93,16 @@ pub fn serialize_frontmatter_and_content(
     }
 }
 
+/// Sincroniza el título en el frontmatter YAML de un contenido Markdown.
+/// Si el contenido ya posee un bloque frontmatter, actualiza o añade el campo `title`.
+/// Si no posee frontmatter, lo crea en la cabecera con el campo `title`.
+pub fn sync_frontmatter_title(content: &str, title: &str) -> String {
+    let (mut fm_opt, body) = parse_frontmatter_and_content(content);
+    let mut fm = fm_opt.take().unwrap_or_default();
+    fm.title = Some(title.to_string());
+    serialize_frontmatter_and_content(Some(&fm), &body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,5 +156,22 @@ Este es el cuerpo principal."#;
         let (deserialized_fm, deserialized_body) = parse_frontmatter_and_content(&serialized);
         assert_eq!(deserialized_fm, Some(fm));
         assert_eq!(deserialized_body, body);
+    }
+
+    #[test]
+    fn test_sync_frontmatter_title() {
+        let no_fm = "# Título Original\nTexto";
+        let with_title = sync_frontmatter_title(no_fm, "Mi Archivo");
+        let (fm, body) = parse_frontmatter_and_content(&with_title);
+        assert_eq!(fm.unwrap().title.as_deref(), Some("Mi Archivo"));
+        assert_eq!(body, no_fm);
+
+        let existing_fm = "---\ntags:\n  - test\n---\n# Cuerpo";
+        let updated = sync_frontmatter_title(existing_fm, "Nuevo Nombre");
+        let (fm2, body2) = parse_frontmatter_and_content(&updated);
+        let fm_data = fm2.unwrap();
+        assert_eq!(fm_data.title.as_deref(), Some("Nuevo Nombre"));
+        assert_eq!(fm_data.tags, vec!["test".to_string()]);
+        assert_eq!(body2, "# Cuerpo");
     }
 }

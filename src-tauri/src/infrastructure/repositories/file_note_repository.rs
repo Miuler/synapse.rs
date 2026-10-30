@@ -308,7 +308,14 @@ impl NoteRepository for FileNoteRepository {
             return Ok(());
         }
 
-        let bytes = encode_content(&note.content, &note.encoding);
+        let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
+        let final_content = if is_markdown {
+            crate::domain::services::frontmatter_service::sync_frontmatter_title(&note.content, &note.title)
+        } else {
+            note.content.clone()
+        };
+
+        let bytes = encode_content(&final_content, &note.encoding);
         fs::write(&abs_path, bytes)
             .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
     }
@@ -406,7 +413,14 @@ impl NoteRepository for FileNoteRepository {
             return Ok(());
         }
 
-        let bytes = encode_content(&note.content, &note.encoding);
+        let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
+        let final_content = if is_markdown {
+            crate::domain::services::frontmatter_service::sync_frontmatter_title(&note.content, &note.title)
+        } else {
+            note.content.clone()
+        };
+
+        let bytes = encode_content(&final_content, &note.encoding);
         fs::write(path, bytes)
             .map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
     }
@@ -514,9 +528,9 @@ mod tests {
         let mut f_svg = File::create(&svg_path).unwrap();
         writeln!(f_svg, "<svg></svg>").unwrap();
 
-        let ignored_path = temp_dir.join("ignored.txt");
+        let ignored_path = temp_dir.join("ignored.unknown");
         let mut f3 = File::create(&ignored_path).unwrap();
-        writeln!(f3, "texto plano").unwrap();
+        writeln!(f3, "formato desconocido").unwrap();
 
         let hidden_dir = temp_dir.join(".hidden_dir");
         fs::create_dir_all(&hidden_dir).unwrap();

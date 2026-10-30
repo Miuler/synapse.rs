@@ -1,4 +1,4 @@
-import type { RenderOptions } from '@terrastruct/d2';
+import type { RenderOptions } from '@d2lang/d2';
 
 export interface D2SyntaxError {
   line: number; // 1-indexed
@@ -33,6 +33,7 @@ export interface D2AutocompleteItem {
 export const D2_ENGINES = [
   { label: 'dagre', detail: 'Layout jerárquico por defecto (rápido)', apply: 'dagre' },
   { label: 'elk', detail: 'Eclipse Layout Kernel (avanzado, soporta puertos)', apply: 'elk' },
+  { label: 'tala', detail: 'TALA (diseñado para diagramas de arquitectura)', apply: 'tala' },
 ];
 
 // Catálogo de temas oficiales de D2 con sus IDs
@@ -118,7 +119,7 @@ let d2InstancePromise: Promise<any> | null = null;
 export async function ensureD2(): Promise<any> {
   if (!d2InstancePromise) {
     d2InstancePromise = (async () => {
-      const module = await import('@terrastruct/d2');
+      const module = await import('@d2lang/d2');
       const D2Class = module.D2;
       return new D2Class();
     })().catch((err) => {

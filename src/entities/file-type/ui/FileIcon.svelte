@@ -60,7 +60,8 @@
     if (fileTypesManager.isPdfFile(fileName) || fileExt === 'pdf') return 'pdf';
     if (fileTypesManager.isWordFile(fileName) || ['docx', 'doc', 'docm', 'dot', 'dotx'].includes(fileExt)) return 'word';
     if (fileTypesManager.isExcelFile(fileName) || ['xlsx', 'xls', 'xlsm', 'xlt', 'xltx'].includes(fileExt)) return 'excel';
-    if (fileTypesManager.isMarkdownFile(fileName) || fileExt === 'txt') return 'markdown';
+    if (fileExt === 'txt') return 'code';
+    if (fileTypesManager.isMarkdownFile(fileName)) return 'markdown';
     if (fileTypesManager.isImageFile(fileName)) return 'image';
     if (fileTypesManager.isDiagramFile(fileName) || fileExt === 'canvas') return 'diagram';
     if (fileTypesManager.isCodeFile(fileName)) return 'code';
@@ -71,7 +72,7 @@
         if (fileTypesManager.isDrawingFile(fileName)) return 'diagram';
         return 'markdown';
       case 'txt':
-        return 'markdown';
+        return 'code';
       case 'rs':
         return 'rust';
       case 'ts':

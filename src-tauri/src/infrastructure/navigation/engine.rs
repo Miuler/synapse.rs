@@ -929,10 +929,10 @@ impl NavigationEngine {
         }
     }
 
-    /// Interactive fuzzy search with strict prioritization:
-    /// 1. Files where the file name matches or contains the query come first.
-    /// 2. Within each group, files opened recently (last_opened_nanos) come first.
-    /// 3. Alphabetical order by file name (case-insensitive) for non-recent / equal recency.
+    /// Interactive fuzzy search ranked by a composite nucleo score (see `ranking::QuickOpenScorer`):
+    /// 1. Fuzzy match quality per field, weighted: file name > title > tags > path.
+    /// 2. Bounded recency bonus, so a recent scattered match never beats a clean unopened one.
+    /// 3. Ties: alphabetical order by file name (case-insensitive), then nucleo rank.
     ///
     /// Returns (matches, total_files_count, matched_files_count)
     pub fn search_with_stats(&self, query: &str, limit: usize) -> (Vec<NoteMeta>, usize, usize) {
@@ -998,14 +998,23 @@ impl NavigationEngine {
         );
 
         let tick_deadline = std::time::Instant::now();
-        while nucleo.tick(15).running {
-            if tick_deadline.elapsed() >= std::time::Duration::from_millis(300) {
+        let mut nucleo_running = true;
+        while nucleo_running {
+            nucleo_running = nucleo.tick(15).running;
+            if nucleo_running && tick_deadline.elapsed() >= std::time::Duration::from_millis(300) {
                 break;
             }
         }
         let snapshot = nucleo.snapshot();
         let mut matched_count = snapshot.matched_item_count() as usize;
-        let query_lower = effective_search_query.to_lowercase();
+        // Si nucleo no terminó a tiempo o aún no tiene todas las notas inyectadas, se completa con un escaneo lineal
+        let nucleo_incomplete = nucleo_running || (snapshot.item_count() as usize) < total_files;
+        let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
+        let passes_tag_filters = |meta: &NoteMeta| {
+            tag_filters.iter().all(|tf| {
+                meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
+            })
+        };
 
         let mut candidates = Vec::new();
         let mut seen_candidate_ids = HashSet::new();
@@ -1013,13 +1022,8 @@ impl NavigationEngine {
         for (nucleo_rank, item) in snapshot.matched_items(..).take(5000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
-                if !tag_filters.is_empty() {
-                    let matches_tags = tag_filters.iter().all(|tf| {
-                        meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
-                    });
-                    if !matches_tags {
-                        continue;
-                    }
+                if !passes_tag_filters(&meta) {
+                    continue;
                 }
                 seen_candidate_ids.insert(id);
                 candidates.push((meta.clone(), nucleo_rank));
@@ -1027,143 +1031,46 @@ impl NavigationEngine {
         }
         drop(nucleo);
 
-        // Garantizar siempre que cualquier coincidencia exacta o de subcadena en nombre de archivo, título o tags
-        // esté presente en `candidates`
-        if !self.notes.is_empty() {
-            let had_nucleo_matches = !candidates.is_empty();
+        let mut scorer = super::ranking::QuickOpenScorer::new(&effective_search_query);
+
+        if nucleo_incomplete || tag_only {
             for item in self.notes.iter() {
                 let id = *item.key();
                 if seen_candidate_ids.contains(&id) {
                     continue;
                 }
                 let meta = item.value();
-
-                if !tag_filters.is_empty() {
-                    let matches_tags = tag_filters.iter().all(|tf| {
-                        meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
-                    });
-                    if !matches_tags {
-                        continue;
-                    }
+                if !passes_tag_filters(meta) {
+                    continue;
                 }
-
-                let name = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str());
-                let is_name_or_title_match = name.to_lowercase().contains(&query_lower)
-                    || meta.title.to_lowercase().contains(&query_lower);
-                let is_tag_match = meta.tags.iter().any(|t| {
-                    crate::domain::services::tag_service::matches_tag(t.as_str(), &query_lower)
-                });
-                let is_path_match =
-                    !had_nucleo_matches && meta.path.to_lowercase().contains(&query_lower);
-
-                if is_name_or_title_match || is_tag_match || is_path_match || (!tag_filters.is_empty() && non_tag_tokens.is_empty()) {
+                if tag_only || scorer.score(meta).is_some() {
                     seen_candidate_ids.insert(id);
                     candidates.push((meta.clone(), candidates.len()));
                 }
             }
-            if !had_nucleo_matches || candidates.len() > matched_count {
-                matched_count = candidates.len();
-            }
+            matched_count = matched_count.max(candidates.len());
         }
 
-        candidates.sort_by(|(a, rank_a), (b, rank_b)| {
-            let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
-            let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
-            let name_a_lower = name_a.to_lowercase();
-            let name_b_lower = name_b.to_lowercase();
-
-            let stem_a_lower = match name_a_lower.rsplit_once('.') {
-                Some((stem, _)) => stem,
-                None => name_a_lower.as_str(),
-            };
-            let stem_b_lower = match name_b_lower.rsplit_once('.') {
-                Some((stem, _)) => stem,
-                None => name_b_lower.as_str(),
-            };
-
-            let title_a_lower = a.title.to_lowercase();
-            let title_b_lower = b.title.to_lowercase();
-            let path_a_lower = a.path.to_lowercase();
-            let path_b_lower = b.path.to_lowercase();
-
-            // Compute match tier:
-            // 0: Exact filename/stem match
-            // 1: Filename contains query
-            // 2: Exact title match
-            // 3: Title contains query
-            // 4: Tag exact or hierarchical match
-            // 5: Path/folder contains query as substring
-            // 6: Scattered fuzzy match only (e.g. t...o...d...o)
-            let tier =
-                |meta: &NoteMeta, name_lower: &str, stem_lower: &str, title_lower: &str, path_lower: &str| -> u8 {
-                    if stem_lower == query_lower || name_lower == query_lower {
-                        0
-                    } else if name_lower.contains(&query_lower) {
-                        1
-                    } else if title_lower == query_lower {
-                        2
-                    } else if title_lower.contains(&query_lower) {
-                        3
-                    } else if meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), &query_lower)) {
-                        4
-                    } else if path_lower.contains(&query_lower) {
-                        5
-                    } else {
-                        6
-                    }
-                };
-
-            let tier_a = tier(a, &name_a_lower, stem_a_lower, &title_a_lower, &path_a_lower);
-            let tier_b = tier(b, &name_b_lower, stem_b_lower, &title_b_lower, &path_b_lower);
-
-            let is_filename_a = tier_a <= 1;
-            let is_filename_b = tier_b <= 1;
-
-            // Rule 1: Prioritize matches by file name first (Tier 0 & Tier 1)
-            if is_filename_a != is_filename_b {
-                return if is_filename_a {
-                    std::cmp::Ordering::Less
-                } else {
-                    std::cmp::Ordering::Greater
-                };
-            }
-
-            // Rule 2: If they are NOT both filename matches, strictly compare by tier BEFORE recency!
-            // That way a Title match (tier 2/3) or Folder match (tier 4) ALWAYS beats a scattered fuzzy match (tier 5),
-            // even if the fuzzy match was opened recently.
-            if !is_filename_a && tier_a != tier_b {
-                return tier_a.cmp(&tier_b);
-            }
-
-            // Rule 3: Within the same group (both filename matches, or both in the same tier),
-            // recently opened files come first
-            match (a.last_opened_nanos, b.last_opened_nanos) {
-                (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
-                (Some(_), None) => return std::cmp::Ordering::Less,
-                (None, Some(_)) => return std::cmp::Ordering::Greater,
-                _ => {}
-            }
-
-            // If neither was opened (or opened at the exact same time), exact filename match beats partial filename match
-            if tier_a != tier_b {
-                return tier_a.cmp(&tier_b);
-            }
-
-            // Rule 4: For filename or title matches, alphabetical order by file name
-            if tier_a <= 3 {
-                let cmp_name = name_a_lower.cmp(&name_b_lower);
-                if cmp_name != std::cmp::Ordering::Equal {
-                    return cmp_name;
-                }
-            }
-
-            // For other tiers, respect nucleo score ranking
-            rank_a.cmp(rank_b)
+        // Puntaje compuesto (ver `ranking.rs`): calidad difusa por campo ponderada + bonus de recencia.
+        // Empates: orden alfabético por nombre de archivo y luego el rank original de nucleo.
+        let mut candidates: Vec<(u32, String, NoteMeta, usize)> = candidates
+            .into_iter()
+            .map(|(meta, rank)| {
+                let score = scorer.score(&meta).unwrap_or(0);
+                let name_lower = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str()).to_lowercase();
+                (score, name_lower, meta, rank)
+            })
+            .collect();
+        candidates.sort_by(|(score_a, name_a, _, rank_a), (score_b, name_b, _, rank_b)| {
+            score_b
+                .cmp(score_a)
+                .then_with(|| name_a.cmp(name_b))
+                .then_with(|| rank_a.cmp(rank_b))
         });
 
         let matches = candidates
             .into_iter()
-            .map(|(meta, _)| meta)
+            .map(|(_, _, meta, _)| meta)
             .take(limit)
             .collect();
         (matches, total_files, matched_count)

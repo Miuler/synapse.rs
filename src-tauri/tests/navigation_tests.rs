@@ -1397,3 +1397,61 @@ fn test_vault_tags_extraction_and_search() {
 
 
 
+
+#[test]
+fn test_search_multi_word_query_matches_separated_filename() {
+    let test_dir = std::env::temp_dir().join("synapse_multi_word_search_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(test_dir.join("proyectos").join("banco"));
+    let cache_file = test_dir.join("cache.bin");
+
+    File::create(test_dir.join("BCP - TTIB Arquitectura.md")).unwrap();
+    File::create(test_dir.join("BCP - TTIB Reunión semanal.md")).unwrap();
+    // Notas abiertas recientemente con coincidencias dispersas de b..c..p..t..t..i..b
+    for i in 0..60 {
+        let name = format!("bitacora_cpu_tutorial_tiempo_libre_{}.md", i);
+        File::create(test_dir.join("proyectos").join("banco").join(&name)).unwrap();
+    }
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file);
+    engine.reconcile_sync();
+    for i in 0..60 {
+        engine.record_opened(&format!("proyectos/banco/bitacora_cpu_tutorial_tiempo_libre_{}.md", i));
+    }
+
+    for query in ["BCP TTIB", "bcp ttib", "BCP - TTIB", "ttib bcp"] {
+        let (results, _, _) = engine.search_with_stats(query, 50);
+        let top: Vec<&str> = results.iter().take(2).map(|m| m.path.as_str()).collect();
+        assert!(
+            top.contains(&"BCP - TTIB Arquitectura.md") && top.contains(&"BCP - TTIB Reunión semanal.md"),
+            "query {:?} must rank 'BCP - TTIB ...' notes first, got {:?}",
+            query,
+            top
+        );
+    }
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
+fn test_search_filename_match_beats_path_only_match() {
+    let test_dir = std::env::temp_dir().join("synapse_filename_vs_path_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(test_dir.join("deploy").join("kubernetes"));
+    let cache_file = test_dir.join("cache.bin");
+
+    File::create(test_dir.join("deploy").join("kubernetes").join("notas.md")).unwrap();
+    File::create(test_dir.join("kubernetes.md")).unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file);
+    engine.reconcile_sync();
+    // Aunque la coincidencia por ruta se abrió recientemente, el nombre de archivo gana
+    engine.record_opened("deploy/kubernetes/notas.md");
+
+    let results = engine.search("kubernetes", 10);
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].path.as_str(), "kubernetes.md");
+    assert_eq!(results[1].path.as_str(), "deploy/kubernetes/notas.md");
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
