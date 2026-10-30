@@ -22,6 +22,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Nuevo módulo `shared/lib/editor-history` que replica el `U` de vim: revierte los cambios de la última línea editada, y vuelve a aplicarlos si se repite.
   - Disponible en el editor de Markdown y en el editor de código de diagramas.
 
+- **Versión de compilación derivada de Git**:
+  - Nuevo módulo `version.rs` que compone la versión SemVer a partir de `git describe` (por ejemplo `1.0.0-alpha.2+4.g09ab330`), y añade la marca de tiempo si el árbol está sucio.
+  - `build.rs` emite la información con `vergen`. El comando `get_app_version` y la opción `--version` usan esta versión en lugar de `package_info()`.
+
+- **Guardado de cambios pendientes antes de operaciones sobre archivos**:
+  - Nuevo puente `shared/lib/pending-writes`: el explorador, el breadcrumb y el menú de Git persisten el buffer del editor antes de renombrar o hacer `git add`.
+  - Con esto, renombrar o añadir al stage un archivo abierto ya no opera sobre una versión desactualizada en disco.
+
 - **Panel de código redimensionable en diagramas D2 y Mermaid**:
   - Nueva barra `SplitResizer` entre el código y el visor del diagrama.
   - La proporción elegida se recuerda por archivo durante la sesión, en memoria del backend (comandos `get_diagram_split_ratio` y `set_diagram_split_ratio`). No se persiste a disco.
@@ -29,6 +37,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Cambiado
 
 - **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
+
+- **Metadatos y edición de Rust**: `Cargo.toml` pasa a `edition = "2024"` y `rust-version = "1.93.0"`, con autor, descripción y repositorio del proyecto. La línea `version` queda comentada, así que la versión ya no sale de `Cargo.toml`.
 
 - **Rendimiento del editor de notas**:
   - Autoguardado a los 4 s de dejar de escribir. También se guarda al perder el foco, al cambiar de pestaña o al pasar a solo lectura, respetando los archivos bloqueados.
@@ -48,6 +58,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **`Ctrl+R` ya no recarga la ventana** de la aplicación.
 - **Tamaño del SVG de D2**: el SVG recibe `width` y `height` a partir de su `viewBox`, evitando que colapse en las tarjetas de lectura.
+- **Renombrar o hacer `git add` con cambios sin guardar**: el buffer del editor se persiste antes de la operación, para no trabajar con el archivo desactualizado en disco.
 
 ## [1.0.0-alpha.2] - 2026-10-30
 

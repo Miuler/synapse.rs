@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { flushPendingWrites } from '@shared/lib/pending-writes';
   import {
     ChevronRight,
     Edit2,
@@ -164,6 +165,7 @@
   async function handleGitAdd() {
     if (!cleanPath) return;
     try {
+      await flushPendingWrites([cleanPath]);
       await gitApi.add([cleanPath]);
       showToast('Elemento añadido al stage (git add)');
       if (onRefreshGit) onRefreshGit();

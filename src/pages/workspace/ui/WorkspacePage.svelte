@@ -27,6 +27,7 @@
   import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
   import { t } from "@shared/lib/i18n";
+  import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
   import {
     isImageFile,
     isMarkdownFile,
@@ -2120,6 +2121,8 @@
   }
 
   async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
+    // El buffer en memoria (p. ej. un Excalidraw abierto) debe estar en disco antes de mover el archivo
+    await flushAllModifiedTabs([relativePath]);
     const renamedPath = await vaultRepository.renameItem(relativePath, newName);
 
     // Conservar abierta la pestaña y su contenido bajo la nueva ruta.
@@ -2447,12 +2450,16 @@
   });
 
   // Persiste inmediatamente todas las notas y lienzos con modificaciones pendientes
-  async function flushAllModifiedTabs() {
-    for (const path of Object.keys(pendingSaves)) cancelPendingSave(path);
+  async function flushAllModifiedTabs(onlyPaths?: string[]) {
+    // Con `onlyPaths` se limita a esos archivos y a lo que cuelga de ellos (carpetas)
+    const inScope = (p: string) =>
+      !onlyPaths || onlyPaths.some((o) => p === o || p.startsWith(`${o.replace(/\/+$/, '')}/`));
+
+    for (const path of Object.keys(pendingSaves)) if (inScope(path)) cancelPendingSave(path);
 
     const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
     for (const p of allTabs) {
-      if (!p || isSyntheticTab(p) || lockedFiles.has(p)) continue;
+      if (!p || isSyntheticTab(p) || lockedFiles.has(p) || !inScope(p)) continue;
 
       if (isDrawingTab(p, openedNotes[p]?.content) && excalidrawViewers[p]?.getCurrentSerializedScene) {
         try {
@@ -2533,7 +2540,10 @@
   onMount(() => {
     window.addEventListener('blur', handleWindowBlurOrHidden);
     document.addEventListener('visibilitychange', handleWindowBlurOrHidden);
+    // Otras features (explorador, breadcrumb) piden guardar el buffer antes de renombrar o hacer git add
+    const unregisterFlusher = registerPendingWritesFlusher((paths) => flushAllModifiedTabs(paths));
     return () => {
+      unregisterFlusher();
       window.removeEventListener('blur', handleWindowBlurOrHidden);
       document.removeEventListener('visibilitychange', handleWindowBlurOrHidden);
     };
@@ -3033,6 +3043,7 @@
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
+            await flushAllModifiedTabs([activeTabPath]);
             await gitApi.add([activeTabPath]);
             await refreshGitStatus();
           } catch (e) {

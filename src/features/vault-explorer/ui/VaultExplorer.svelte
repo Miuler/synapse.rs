@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { flushPendingWrites } from '@shared/lib/pending-writes';
   import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { vaultApi } from '@entities/vault-item';
@@ -1408,6 +1409,7 @@
     if (!newName || newName === oldName) return;
 
     try {
+      await flushPendingWrites([contextMenuNode.relativePath]);
       const renamedPath = onRenameItem
         ? await onRenameItem(contextMenuNode.relativePath, newName)
         : await vaultApi.renameItem(contextMenuNode.relativePath, newName);
@@ -1662,6 +1664,7 @@
     const paths = gitAddPaths.length > 0 ? gitAddPaths : getSelectedRelativePaths();
     if (paths.length === 0) return;
     try {
+      await flushPendingWrites(paths);
       await gitApi.add(paths);
       showToast(
         paths.length > 1

@@ -1,3 +1,4 @@
+pub mod version;
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
@@ -47,7 +48,10 @@ pub fn run() {
 
     #[cfg(target_os = "linux")]
     {
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // SAFETY: se ejecuta al inicio de `run`, antes de crear hilos propios ni inicializar WebKit
+        unsafe {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
         let options = ApplyWorkaroundOptions::default().force_disable_nv_explicit_sync(true);
         apply_workaround_with_options(options);
     }
@@ -169,8 +173,7 @@ pub fn run() {
                         std::process::exit(0);
                     } else {
                         // Cuando se invoca con -V o --version, clap pasa version con val Null
-                        let version = app.package_info().version.to_string();
-                        println!("synapsers {}", version);
+                        println!("synapsers {}", *version::VERSION);
                         std::process::exit(0);
                     }
                 }

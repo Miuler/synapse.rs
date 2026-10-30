@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tauri::State;
 
 #[tauri::command]
-pub fn get_app_version(app: tauri::AppHandle) -> String {
-    app.package_info().version.to_string()
+pub fn get_app_version() -> String {
+    crate::version::VERSION.clone()
 }
 
 #[tauri::command]
