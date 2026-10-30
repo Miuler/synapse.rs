@@ -3817,6 +3817,7 @@
                   {#if isD2File(tabPath)}
                     <D2Viewer
                       {content}
+                      filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
@@ -3830,6 +3831,7 @@
                   {:else if appSettings.mermaidRenderer === 'mermaidjs'}
                     <MermaidViewer
                       {content}
+                      filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
@@ -3843,6 +3845,7 @@
                   {:else}
                     <MermanViewer
                       {content}
+                      filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {

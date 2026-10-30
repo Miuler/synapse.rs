@@ -6,6 +6,7 @@
 
   interface Props {
     content: string;
+    filePath?: string;
     readOnly?: boolean;
     showEditor?: boolean;
     vimMode?: boolean;
@@ -15,6 +16,7 @@
 
   let {
     content = '',
+    filePath,
     readOnly = false,
     showEditor = false,
     vimMode = false,
@@ -80,6 +82,7 @@
 
 <DiagramSplitViewer
   {content}
+  {filePath}
   engineName="D2"
   engineTooltip="Visualizador D2 basado en WebAssembly (D2 v0.9 + TALA)"
   mode="d2"

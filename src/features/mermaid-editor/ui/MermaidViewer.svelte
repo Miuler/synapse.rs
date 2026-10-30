@@ -11,6 +11,7 @@
 
   interface Props {
     content: string;
+    filePath?: string;
     readOnly?: boolean;
     showEditor?: boolean;
     vimMode?: boolean;
@@ -20,6 +21,7 @@
 
   let {
     content = '',
+    filePath,
     readOnly = false,
     showEditor = false,
     vimMode = false,
@@ -101,6 +103,7 @@
 
 <DiagramSplitViewer
   {content}
+  {filePath}
   engineName="Mermaid.js"
   engineTooltip="Visualizador oficial de Mermaid.js"
   mode="mermaid"

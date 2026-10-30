@@ -6,6 +6,7 @@
 
   interface Props {
     content: string;
+    filePath?: string;
     readOnly?: boolean;
     showEditor?: boolean;
     vimMode?: boolean;
@@ -15,6 +16,7 @@
 
   let {
     content = '',
+    filePath,
     readOnly = false,
     showEditor = false,
     vimMode = false,
@@ -79,6 +81,7 @@
 
 <DiagramSplitViewer
   {content}
+  {filePath}
   engineName="Merman"
   engineTooltip="Visualizador Merman basado en Rust y WebAssembly"
   mode="mermaid"

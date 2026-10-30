@@ -100,3 +100,23 @@ pub fn get_vault_ui_state(
     };
     Ok(engine.get_vault_ui_state())
 }
+
+/// Límites (porcentaje del ancho) permitidos para el panel de código de un diagrama.
+const DIAGRAM_SPLIT_MIN_PCT: f32 = 15.0;
+const DIAGRAM_SPLIT_MAX_PCT: f32 = 85.0;
+
+/// Devuelve la proporción recordada del panel de código de un diagrama, si el usuario la modificó.
+#[tauri::command]
+pub fn get_diagram_split_ratio(state: State<'_, AppState>, path: String) -> Option<f32> {
+    state.diagram_split_ratios.get(&path).map(|r| *r.value())
+}
+
+/// Recuerda en memoria (sin persistir a disco) la proporción del panel de código de un diagrama.
+#[tauri::command]
+pub fn set_diagram_split_ratio(state: State<'_, AppState>, path: String, ratio: f32) {
+    if ratio.is_finite() {
+        state
+            .diagram_split_ratios
+            .insert(path, ratio.clamp(DIAGRAM_SPLIT_MIN_PCT, DIAGRAM_SPLIT_MAX_PCT));
+    }
+}

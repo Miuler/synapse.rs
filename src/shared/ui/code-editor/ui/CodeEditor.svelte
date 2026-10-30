@@ -10,6 +10,8 @@
   import { autocompletion } from '@codemirror/autocomplete';
   import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
   import { vim } from '@replit/codemirror-vim';
+  import { undoRedoExtension } from '@shared/lib/editor-history';
+  import { commentExtension, withCommentTokens } from '@shared/lib/editor-comment';
   import { d2Language } from '../lib/d2-language';
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
 
@@ -287,7 +289,11 @@
     });
 
     const langExtension =
-      mode === 'd2' ? d2Language : mode === 'mermaid' ? mermaidLanguage : markdown();
+      mode === 'd2'
+        ? withCommentTokens(d2Language, { line: '#' })
+        : mode === 'mermaid'
+          ? withCommentTokens(mermaidLanguage, { line: '%%' })
+          : markdown();
 
     const autocompleteExtension =
       mode === 'd2'
@@ -305,6 +311,8 @@
         vimCompartment.of(vimMode ? vim() : []),
         lintCompartment.of([linterExtension, lintGutter()]),
         basicSetup,
+        undoRedoExtension(),
+        commentExtension(),
         langExtension,
         autocompleteExtension,
         syntaxHighlighting(customHighlightStyle),

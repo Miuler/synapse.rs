@@ -8,6 +8,8 @@
   import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
   import { vim } from '@replit/codemirror-vim';
+  import { undoRedoExtension } from '@shared/lib/editor-history';
+  import { commentExtension } from '@shared/lib/editor-comment';
   import { openSearchPanel, searchKeymap } from '@codemirror/search';
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
@@ -743,6 +745,8 @@
           viewModeCompartment.of(getActiveExtensions(viewMode)),
           pluginExtensionsCompartment.of(editorExtensions || []),
           basicSetup,
+          undoRedoExtension(),
+          commentExtension(),
           markdown({ codeLanguages: [mermaidLanguageDescription] }),
           wikilinkAutocomplete,
           imagePasteExtension,
@@ -878,6 +882,8 @@
                 viewModeCompartment.of(getActiveExtensions(viewMode)),
                 pluginExtensionsCompartment.of(exts || []),
                 basicSetup,
+                undoRedoExtension(),
+          commentExtension(),
                 markdown({ codeLanguages: [mermaidLanguageDescription] }),
                 wikilinkAutocomplete,
                 EditorView.lineWrapping,

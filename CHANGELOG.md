@@ -7,6 +7,24 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Comentar/descomentar líneas con `Ctrl+/`** (`Cmd+/` en macOS):
+  - Nuevo módulo `shared/lib/editor-comment`, disponible en el editor de Markdown y en el editor de código de diagramas.
+  - Usa los tokens de comentario del lenguaje: `#` para D2, `%%` para Mermaid y `<!-- -->` para Markdown.
+
+- **Deshacer de línea (`U`) en el editor**:
+  - Nuevo módulo `shared/lib/editor-history` que replica el `U` de vim: revierte los cambios de la última línea editada, y vuelve a aplicarlos si se repite.
+  - Disponible en el editor de Markdown y en el editor de código de diagramas.
+
+- **Panel de código redimensionable en diagramas D2 y Mermaid**:
+  - Nueva barra `SplitResizer` entre el código y el visor del diagrama.
+  - La proporción elegida se recuerda por archivo durante la sesión, en memoria del backend (comandos `get_diagram_split_ratio` y `set_diagram_split_ratio`). No se persiste a disco.
+
+### Cambiado
+
+- **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
+
 ## [1.0.0-alpha.2] - 2026-10-30
 
 ### Añadido

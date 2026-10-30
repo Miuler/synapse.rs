@@ -20,6 +20,7 @@ use crate::infrastructure::services::git_service::GitService;
 use crate::infrastructure::services::http_community_plugin_downloader::HttpCommunityPluginDownloader;
 use crate::infrastructure::tauri::dto::SelectVaultFolderResult;
 
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -58,6 +59,8 @@ pub struct AppState {
     pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
     pub startup_target: Arc<Mutex<Option<StartupTarget>>>,
     pub mcp_runtime: Arc<McpBackgroundRuntime>,
+    /// Proporción (porcentaje) del panel de código en los visores de diagramas, por archivo. Solo en memoria.
+    pub diagram_split_ratios: Arc<DashMap<String, f32>>,
 }
 
 pub fn open_vault_components(
@@ -166,6 +169,7 @@ impl AppState {
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
             startup_target: Arc::new(Mutex::new(None)),
             mcp_runtime,
+            diagram_split_ratios: Arc::new(DashMap::new()),
         }
     }
 
@@ -221,6 +225,7 @@ impl AppState {
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
             startup_target: Arc::new(Mutex::new(None)),
             mcp_runtime,
+            diagram_split_ratios: Arc::new(DashMap::new()),
         }
     }
 

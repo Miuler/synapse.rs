@@ -3,12 +3,16 @@
   import { Toolbar, Toggle, Separator } from 'bits-ui';
   import { Search, Save, AlertCircle } from 'lucide-svelte';
   import { CodeEditor, type EditorDiagnostic } from '@shared/ui/code-editor';
+  import { diagramLayoutApi } from '@shared/api';
+  import { SplitResizer } from '@shared/ui/split-resizer';
 
   interface Props {
     content: string;
     engineName: string;
     engineTooltip?: string;
     mode: 'd2' | 'mermaid';
+    /** Identifica el diagrama para recordar la proporción del panel de código */
+    filePath?: string;
     svgContent: string;
     isReady: boolean;
     error?: string;
@@ -26,6 +30,7 @@
     engineName,
     engineTooltip = '',
     mode,
+    filePath,
     svgContent = '',
     isReady = true,
     error = '',
@@ -39,6 +44,24 @@
   }: Props = $props();
 
   const isEditorVisible = $derived(!readOnly || showEditor);
+
+  // Ancho del panel de código (%). null = valor por defecto de CSS; solo se fija si el usuario lo manipula
+  let editorWidthPct = $state<number | null>(null);
+  let isResizing = $state(false);
+  let viewerContainerRef = $state<HTMLDivElement | null>(null);
+
+  $effect(() => {
+    const path = filePath;
+    editorWidthPct = null;
+    if (!path) return;
+    let isCurrent = true;
+    diagramLayoutApi.getSplitRatio(path).then((ratio) => {
+      if (isCurrent && ratio !== null) editorWidthPct = ratio;
+    });
+    return () => {
+      isCurrent = false;
+    };
+  });
 
   let codeEditorRef = $state<any>(null);
 
@@ -296,9 +319,14 @@
   }
 </script>
 
-<div class="diagram-viewer-container" class:split-mode={isEditorVisible}>
+<div
+  class="diagram-viewer-container"
+  class:split-mode={isEditorVisible}
+  class:is-resizing={isResizing}
+  bind:this={viewerContainerRef}
+>
   {#if isEditorVisible}
-    <div class="editor-pane">
+    <div class="editor-pane" style:width={editorWidthPct !== null ? `${editorWidthPct}%` : undefined}>
       <div class="editor-header-bar">
         <div class="editor-title-group">
           <span>Código {engineName}</span>
@@ -363,6 +391,15 @@
         </div>
       {/if}
     </div>
+    <SplitResizer
+      container={viewerContainerRef}
+      label="Redimensionar panel de código"
+      bind:active={isResizing}
+      onResize={(pct) => (editorWidthPct = pct)}
+      onResizeEnd={(pct) => {
+        if (filePath) diagramLayoutApi.setSplitRatio(filePath, pct);
+      }}
+    />
   {/if}
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -436,13 +473,18 @@
 
   .editor-pane {
     width: 40%;
-    min-width: 280px;
+    min-width: 160px;
     height: 100%;
     border-right: 1px solid var(--border-primary, #d0d7de);
     background: var(--bg-secondary, #f6f8fa);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+  }
+
+  .is-resizing {
+    user-select: none;
+    cursor: col-resize;
   }
 
   .editor-header-bar {
