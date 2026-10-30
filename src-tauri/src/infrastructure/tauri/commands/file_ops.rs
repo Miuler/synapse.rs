@@ -33,7 +33,19 @@ pub fn rename_vault_item(
         }
     };
 
+    // Si estaba versionado, el renombrado se deja preparado en el índice (git detecta el rename)
+    let was_tracked = crate::infrastructure::services::git_service::GitService::new()
+        .is_tracked(&vault_path, &relative_path);
+
     let renamed_path = state.file_system_use_cases.rename_item(&vault_path, &relative_path, &new_name)?;
+    if was_tracked && renamed_path != relative_path {
+        if let Err(err) = state
+            .git_use_cases
+            .add_paths(&vault_path, &[relative_path.clone(), renamed_path.clone()])
+        {
+            log::warn!("[rename_vault_item] No se pudo preparar el renombrado en git: {}", err);
+        }
+    }
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.spawn_reconciliation();

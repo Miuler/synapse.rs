@@ -29,7 +29,10 @@
   // Instancia imperativa de ExcalidrawAPI no envuelta en $state reactivo profundo para evitar sobrecostos de proxy
   let excalidrawAPI: any = null;
 
-  const drawingChangeDebounceMs = DEFAULT_APP_CONFIG.editor?.drawing_change_debounce_ms ?? 400;
+  const drawingChangeDebounceMs = DEFAULT_APP_CONFIG.editor?.drawing_change_debounce_ms ?? 2500;
+  // Tope de edición continua: si no hay pausas, se propaga igualmente pasado este tiempo
+  const drawingMaxWaitMs = DEFAULT_APP_CONFIG.editor?.drawing_max_wait_ms ?? 15000;
+  let firstPendingChangeAt = 0;
 
   // Mapeo en memoria de archivos/imágenes resueltas (fileId -> { id, dataURL, mimeType })
   let resolvedFilesMap: Record<string, any> = {};
@@ -309,7 +312,10 @@
     }
 
     if (onChangeDebounceTimer) clearTimeout(onChangeDebounceTimer);
+    if (!firstPendingChangeAt) firstPendingChangeAt = Date.now();
+    const remainingToMaxWait = Math.max(0, drawingMaxWaitMs - (Date.now() - firstPendingChangeAt));
     onChangeDebounceTimer = setTimeout(() => {
+      firstPendingChangeAt = 0;
       if (readOnly || suppressOnChange) return;
       const currentAppState = excalidrawAPI?.getAppState?.() || appState;
       if (currentAppState?.editingTextElement) return;
@@ -321,7 +327,7 @@
         isLocalChange = true;
         if (onChange) onChange(serialized);
       }
-    }, drawingChangeDebounceMs);
+    }, Math.min(drawingChangeDebounceMs, remainingToMaxWait));
   }
 
   function renderReactApp(data: string, isReadOnly: boolean, recomputeInitialData = false) {
@@ -351,6 +357,7 @@
     if (!onChangeDebounceTimer || readOnly || !excalidrawAPI) return;
     clearTimeout(onChangeDebounceTimer);
     onChangeDebounceTimer = null;
+    firstPendingChangeAt = 0;
     const serialized = getCurrentSerializedScene();
     if (serialized !== lastKnownScene) {
       lastKnownScene = serialized;

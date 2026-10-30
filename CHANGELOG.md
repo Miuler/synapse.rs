@@ -34,6 +34,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Nueva barra `SplitResizer` entre el código y el visor del diagrama.
   - La proporción elegida se recuerda por archivo durante la sesión, en memoria del backend (comandos `get_diagram_split_ratio` y `set_diagram_split_ratio`). No se persiste a disco.
 
+- **Renombrado de archivos versionados en Git**:
+  - Si el archivo está en el índice, el renombrado se prepara en el índice (`git add` de la ruta antigua y la nueva), de modo que Git lo detecta como renombrado.
+  - Nuevo método `GitService::is_tracked` para comprobar si una ruta tiene archivos versionados.
+
 ### Cambiado
 
 - **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
@@ -50,6 +54,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Excalidraw**:
   - Detección de cambios por firma de elementos, de modo que el scroll, el zoom y la selección no serializan la escena.
   - Debounce de 2500 ms y propagación inmediata de los cambios pendientes al perder el foco.
+  - Nueva clave `drawing_max_wait_ms` (15000 ms): tope de edición continua sin pausas, pasado el cual el dibujo se propaga y se guarda igualmente.
   - El indexador omite el reindexado si el texto del dibujo no ha cambiado.
 
 - **Diagramas D2 y Mermaid**: los bloques ```` ```d2 ```` y ```` ```mermaid ```` ya no se re-renderizan al editar texto cercano.
@@ -59,6 +64,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **`Ctrl+R` ya no recarga la ventana** de la aplicación.
 - **Tamaño del SVG de D2**: el SVG recibe `width` y `height` a partir de su `viewBox`, evitando que colapse en las tarjetas de lectura.
 - **Renombrar o hacer `git add` con cambios sin guardar**: el buffer del editor se persiste antes de la operación, para no trabajar con el archivo desactualizado en disco.
+- **Pestañas tras renombrar una carpeta o un archivo**: se reasignan todas las referencias abiertas (pestañas principales y divididas, selección, historial, cierre, bloqueos y rutas recientes), incluidas las notas dentro de una carpeta renombrada.
+- **Guardado tardío recreaba el archivo antiguo**: un guardado pendiente o un visor que cerraba después de un renombrado volvía a crear la ruta anterior. Ya no ocurre.
+- **Dibujos sin guardar al perder el foco**: al ocultarse la ventana o perder el foco, se guardan también los dibujos con cambios aún sin propagar.
 
 ## [1.0.0-alpha.2] - 2026-10-30
 

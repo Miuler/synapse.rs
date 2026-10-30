@@ -2120,33 +2120,64 @@
     }
   }
 
+  // Rutas que ya no existen tras un renombrado: evita que un guardado tardío las recree en disco
+  const renamedAwayPaths = new Set<string>();
+
   async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
     // El buffer en memoria (p. ej. un Excalidraw abierto) debe estar en disco antes de mover el archivo
     await flushAllModifiedTabs([relativePath]);
     const renamedPath = await vaultRepository.renameItem(relativePath, newName);
+    if (renamedPath === relativePath) return renamedPath;
 
-    // Conservar abierta la pestaña y su contenido bajo la nueva ruta.
-    if (openedNotes[relativePath]) {
-      openedNotes[renamedPath] = openedNotes[relativePath];
-      delete openedNotes[relativePath];
+    // Traduce una ruta antigua a la nueva; cubre también lo que cuelga de una carpeta renombrada
+    const remap = (path: string): string => {
+      if (path === relativePath) return renamedPath;
+      if (path.startsWith(`${relativePath}/`)) return renamedPath + path.slice(relativePath.length);
+      return path;
+    };
+    const oldName = relativePath.split('/').pop() || relativePath;
+    const newBase = renamedPath.split('/').pop() || renamedPath;
+    const stem = (n: string) => n.replace(/\.[^./]+$/, '');
+
+    // Un guardado diferido hacia la ruta antigua ya no tiene sentido
+    for (const path of Object.keys(pendingSaves)) if (remap(path) !== path) cancelPendingSave(path);
+
+    // Conservar abierta la pestaña y su contenido bajo la nueva ruta (todas las referencias)
+    for (const oldPath of Object.keys(openedNotes)) {
+      const newPath = remap(oldPath);
+      if (newPath === oldPath) continue;
+      const note = openedNotes[oldPath];
+      note.relative_path = newPath;
+      if (note.abs_path && note.abs_path.endsWith(oldPath)) {
+        note.abs_path = note.abs_path.slice(0, note.abs_path.length - oldPath.length) + newPath;
+      }
+      if (newPath === renamedPath && (note.title === oldName || note.title === stem(oldName))) {
+        note.title = note.title === oldName ? newBase : stem(newBase);
+      }
+      openedNotes[newPath] = note;
+      delete openedNotes[oldPath];
+      renamedAwayPaths.add(oldPath);
     }
-    openTabPaths = openTabPaths.map((path) => path === relativePath ? renamedPath : path);
-    if (activeTabPath === relativePath) activeTabPath = renamedPath;
-    if (tabSelections[relativePath]) {
-      tabSelections[renamedPath] = tabSelections[relativePath];
-      delete tabSelections[relativePath];
+    renamedAwayPaths.add(relativePath);
+
+    openTabPaths = openTabPaths.map(remap);
+    splitTabPaths = splitTabPaths.map(remap);
+    if (activeTabPath) activeTabPath = remap(activeTabPath);
+    if (activeSplitTabPath) activeSplitTabPath = remap(activeSplitTabPath);
+
+    for (const rec of [tabSelections, lastClosedTabIndex] as Record<string, any>[]) {
+      for (const oldPath of Object.keys(rec)) {
+        const newPath = remap(oldPath);
+        if (newPath === oldPath) continue;
+        rec[newPath] = rec[oldPath];
+        delete rec[oldPath];
+      }
     }
     tabHistory.replaceTab(relativePath, renamedPath);
-    recentFiles = recentFiles.map((path) => path === relativePath ? renamedPath : path);
-    if (lastClosedTabIndex[relativePath] !== undefined) {
-      lastClosedTabIndex[renamedPath] = lastClosedTabIndex[relativePath];
-      delete lastClosedTabIndex[relativePath];
-    }
+    recentFiles = recentFiles.map(remap);
 
-    if (lockedFiles.has(relativePath)) {
-      const next = new Set(lockedFiles);
-      next.delete(relativePath);
-      next.add(renamedPath);
+    if (Array.from(lockedFiles).some((l) => remap(l) !== l)) {
+      const next = new Set(Array.from(lockedFiles).map(remap));
       unsavedChanges.setLockedFiles(Array.from(next));
       if (!isStandaloneMode) {
         vaultRepository.saveVaultUiState(undefined, undefined, undefined, undefined, Array.from(next));
@@ -2155,6 +2186,7 @@
 
     await fetchNotesFromBackend();
     persistTabsState();
+    scheduleGitStatusRefresh();
     return renamedPath;
   }
 
@@ -2525,7 +2557,10 @@
   }
 
   function handleWindowBlurOrHidden() {
-    if (document.visibilityState === 'hidden' || !document.hasFocus()) flushPendingSaves();
+    if (document.visibilityState === 'hidden' || !document.hasFocus()) {
+      // Guarda también los dibujos con cambios aún sin propagar (toma la escena directa del visor)
+      void flushAllModifiedTabs();
+    }
   }
 
   $effect(() => {
@@ -2578,6 +2613,8 @@
   async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string, force = false) {
     const path = vaultItem.relative_path;
     cancelPendingSave(path);
+    // Cierre tardío de un visor que apuntaba a la ruta anterior a un renombrado: no recrear el archivo viejo
+    if (renamedAwayPaths.has(path) && !openedNotes[path]) return;
     const title = vaultItem.title || path?.split('/').pop() || path;
     if ((!isConnectedToRust && !vaultRepository.isConnected()) || !path) return;
 

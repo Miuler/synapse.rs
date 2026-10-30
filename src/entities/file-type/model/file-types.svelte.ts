@@ -23,6 +23,7 @@ export interface EditorConfig {
   auto_save_delay_ms: number;
   drawing_auto_save_delay_ms?: number;
   drawing_change_debounce_ms?: number;
+  drawing_max_wait_ms?: number;
   fs_watcher_recent_save_grace_ms?: number;
   git_status_refresh_debounce_ms?: number;
 }

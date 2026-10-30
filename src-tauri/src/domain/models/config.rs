@@ -258,6 +258,8 @@ pub struct EditorConfig {
     pub drawing_auto_save_delay_ms: u64,
     #[serde(default = "default_drawing_change_debounce_ms")]
     pub drawing_change_debounce_ms: u64,
+    #[serde(default = "default_drawing_max_wait_ms")]
+    pub drawing_max_wait_ms: u64,
     #[serde(default = "default_fs_watcher_recent_save_grace_ms")]
     pub fs_watcher_recent_save_grace_ms: u64,
     #[serde(default = "default_git_status_refresh_debounce_ms")]
@@ -280,6 +282,10 @@ fn default_drawing_change_debounce_ms() -> u64 {
     2500
 }
 
+fn default_drawing_max_wait_ms() -> u64 {
+    15000
+}
+
 fn default_fs_watcher_recent_save_grace_ms() -> u64 {
     8000
 }
@@ -295,6 +301,7 @@ impl Default for EditorConfig {
             auto_save_delay_ms: default_auto_save_delay_ms(),
             drawing_auto_save_delay_ms: default_drawing_auto_save_delay_ms(),
             drawing_change_debounce_ms: default_drawing_change_debounce_ms(),
+            drawing_max_wait_ms: default_drawing_max_wait_ms(),
             fs_watcher_recent_save_grace_ms: default_fs_watcher_recent_save_grace_ms(),
             git_status_refresh_debounce_ms: default_git_status_refresh_debounce_ms(),
         }

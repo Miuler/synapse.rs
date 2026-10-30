@@ -92,6 +92,8 @@
     "drawing_auto_save_delay_ms": 3000,
     // Tiempo de espera (en milisegundos) para propagar cambios de escena en Excalidraw hacia la pestaña
     "drawing_change_debounce_ms": 2500,
+    // Tope (en milisegundos) de edición continua sin pausas antes de forzar la propagación del dibujo (y su guardado)
+    "drawing_max_wait_ms": 15000,
     // Ventana de gracia (en milisegundos) para ignorar eventos del watcher originados por guardados propios
     "fs_watcher_recent_save_grace_ms": 8000,
     // Tiempo de espera (en milisegundos) para agrupar refrescos de estado Git tras guardar (evita un `git status` por guardado)

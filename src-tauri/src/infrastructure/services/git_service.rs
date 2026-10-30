@@ -386,6 +386,32 @@ impl GitService {
         Ok(())
     }
 
+    /// Indica si la ruta (archivo o carpeta) tiene archivos versionados en el índice de Git.
+    /// Devuelve `false` fuera de un repositorio o ante cualquier error.
+    pub fn is_tracked(&self, vault_path: &Path, rel_path: &str) -> bool {
+        let Ok(repo) = gix::discover(vault_path) else {
+            return false;
+        };
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+        let prefix = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_matches('/').to_string())
+            .filter(|s| !s.is_empty());
+        let clean = rel_path.replace('\\', "/");
+        let clean = clean.trim_start_matches("./");
+        let target = match prefix {
+            Some(pre) => format!("{}/{}", pre, clean),
+            None => clean.to_string(),
+        };
+        std::process::Command::new("git")
+            .current_dir(work_dir)
+            .args(["ls-files", "--", &target])
+            .output()
+            .map(|o| o.status.success() && !o.stdout.is_empty())
+            .unwrap_or(false)
+    }
+
     pub fn git_restore(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
         if paths.is_empty() {
             return Ok(());
