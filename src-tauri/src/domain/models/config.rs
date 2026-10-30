@@ -260,6 +260,8 @@ pub struct EditorConfig {
     pub drawing_change_debounce_ms: u64,
     #[serde(default = "default_fs_watcher_recent_save_grace_ms")]
     pub fs_watcher_recent_save_grace_ms: u64,
+    #[serde(default = "default_git_status_refresh_debounce_ms")]
+    pub git_status_refresh_debounce_ms: u64,
 }
 
 fn default_auto_save() -> bool {
@@ -267,7 +269,7 @@ fn default_auto_save() -> bool {
 }
 
 fn default_auto_save_delay_ms() -> u64 {
-    600
+    4000
 }
 
 fn default_drawing_auto_save_delay_ms() -> u64 {
@@ -279,7 +281,11 @@ fn default_drawing_change_debounce_ms() -> u64 {
 }
 
 fn default_fs_watcher_recent_save_grace_ms() -> u64 {
-    3000
+    8000
+}
+
+fn default_git_status_refresh_debounce_ms() -> u64 {
+    5000
 }
 
 impl Default for EditorConfig {
@@ -290,6 +296,7 @@ impl Default for EditorConfig {
             drawing_auto_save_delay_ms: default_drawing_auto_save_delay_ms(),
             drawing_change_debounce_ms: default_drawing_change_debounce_ms(),
             fs_watcher_recent_save_grace_ms: default_fs_watcher_recent_save_grace_ms(),
+            git_status_refresh_debounce_ms: default_git_status_refresh_debounce_ms(),
         }
     }
 }
@@ -306,6 +313,12 @@ pub struct IndexingConfig {
     pub max_extracted_chars: usize,
     #[serde(default = "default_max_word_length")]
     pub max_word_length: usize,
+    #[serde(default = "default_indexing_debounce_ms")]
+    pub debounce_ms: u64,
+}
+
+fn default_indexing_debounce_ms() -> u64 {
+    5000
 }
 
 fn default_max_pdf_file_size() -> usize {
@@ -336,6 +349,7 @@ impl Default for IndexingConfig {
             max_docx_file_size: default_max_docx_file_size(),
             max_extracted_chars: default_max_extracted_chars(),
             max_word_length: default_max_word_length(),
+            debounce_ms: default_indexing_debounce_ms(),
         }
     }
 }

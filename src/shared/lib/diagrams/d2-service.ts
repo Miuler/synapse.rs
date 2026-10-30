@@ -239,6 +239,22 @@ export async function validateD2(code: string): Promise<D2ValidationResult> {
 }
 
 /**
+ * D2 emite el SVG solo con `viewBox` (sin width/height) y, si el código define `vars.d2-config`,
+ * con la declaración XML. Sin tamaño intrínseco, WebKit colapsa el SVG a altura 0 dentro de
+ * contenedores flex (tarjetas de lectura), por lo que se añade el tamaño derivado del viewBox.
+ */
+function normalizeD2Svg(raw: string): string {
+  let svg = raw.replace(/^\s*<\?xml[^>]*\?>\s*/, '');
+  svg = svg.replace(/<svg\b([^>]*)>/, (tag, attrs: string) => {
+    if (/\swidth\s*=/.test(attrs) || /\sheight\s*=/.test(attrs)) return tag;
+    const vb = attrs.match(/\sviewBox\s*=\s*"\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/);
+    if (!vb) return tag;
+    return `<svg${attrs} width="${vb[1]}" height="${vb[2]}">`;
+  });
+  return svg;
+}
+
+/**
  * Renderiza código D2 a formato SVG string.
  */
 export async function renderD2Svg(
@@ -264,7 +280,7 @@ export async function renderD2Svg(
       ...options,
     };
 
-    const svg = await d2.render(compileRes.diagram, renderOpts);
+    const svg = normalizeD2Svg(await d2.render(compileRes.diagram, renderOpts));
     return { svg, error: null, errors: [] };
   } catch (err: any) {
     const errors = parseD2Errors(err);

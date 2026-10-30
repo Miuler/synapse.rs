@@ -85,12 +85,19 @@ class MermaidWidget extends WidgetType {
     super();
   }
 
+  /** Distancia entre el inicio del bloque y el inicio de su código (línea de apertura del fence) */
+  private get codeOffset(): number {
+    return this.codeFrom - this.from;
+  }
+
+  // Las posiciones absolutas (from/to) se excluyen a propósito: al escribir antes del diagrama
+  // se desplazan y forzarían a destruir y volver a renderizar cada diagrama en cada pulsación.
+  // Los manejadores resuelven la posición actual con posAtDOM.
   eq(other: MermaidWidget): boolean {
     return (
       other.code === this.code &&
       other.isPreviewOnly === this.isPreviewOnly &&
-      other.from === this.from &&
-      other.to === this.to &&
+      other.codeOffset === this.codeOffset &&
       other.basePath === this.basePath &&
       other.engine === this.engine
     );
@@ -142,7 +149,7 @@ class MermaidWidget extends WidgetType {
       editBtn.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const targetPos = Math.min(this.codeFrom, view.state.doc.length);
+        const targetPos = Math.min(view.posAtDOM(container) + this.codeOffset, view.state.doc.length);
         view.dispatch({
           selection: { anchor: targetPos },
           scrollIntoView: true,
@@ -168,7 +175,7 @@ class MermaidWidget extends WidgetType {
       body.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         if (target && target.closest('.cm-mermaid-edit-btn')) return;
-        const targetPos = Math.min(this.codeFrom, view.state.doc.length);
+        const targetPos = Math.min(view.posAtDOM(container) + this.codeOffset, view.state.doc.length);
         view.dispatch({
           selection: { anchor: targetPos },
           scrollIntoView: true,

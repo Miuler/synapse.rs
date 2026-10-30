@@ -46,6 +46,15 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- **Guardado automático con temporizador por archivo**:
+  - Cada nota tiene su propio temporizador de guardado, por lo que editar una nota ya no cancela el guardado pendiente de otra.
+  - Se guarda de inmediato al perder el foco de la ventana, al ocultarse, al cambiar de pestaña o al pasar a solo lectura, respetando siempre el bloqueo de archivo.
+  - `auto_save_delay_ms` pasa de 600 a 4000 ms y `fs_watcher_recent_save_grace_ms` de 3000 a 8000 ms.
+
+- **Refresco de Git agrupado**: nueva clave `git_status_refresh_debounce_ms` (5000 ms) en `config.jsonc`. Los guardados agrupan el `git status` en lugar de lanzar uno por guardado.
+
+- **Reindexación Full-Text configurable**: nueva clave `indexing.debounce_ms` (5000 ms por defecto, antes fijo en 350 ms). Ya no se reconstruye toda la bóveda en cada guardado: el watcher detecta el cambio.
+
 - **Orden del explorador de la bóveda**: las carpetas con emoji al inicio van primero, seguidas del resto de carpetas y luego archivos, todo en orden alfabético sin distinguir mayúsculas (`sortSiblings` en `VaultExplorer.svelte`).
 
 - **Motor D2 migrado a `@d2lang/d2`**:
@@ -58,8 +67,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **Filtrado de Quick Open por palabras**: cada palabra de la consulta debe aparecer en el campo, en cualquier orden (por ejemplo, `bcp ttib` encuentra `BCP - TTIB ...`).
 - **Bucle de `nucleo.tick` en búsqueda**: el bucle ya no ejecuta un `tick` de más tras terminar el trabajo de nucleo.
+- **Diagramas Mermaid que se re-renderizaban al escribir**: el widget ya no compara posiciones absolutas, así que escribir antes de un diagrama no lo destruye y vuelve a renderizar en cada pulsación.
+- **Diagramas D2 con altura cero en WebKit**: el SVG generado recibe `width` y `height` derivados de su `viewBox`, evitando que colapse dentro de las tarjetas de lectura.
 
 ## [1.0.0-alpha.1] - 2026-10-28
+
 ### Añadido
 
 - **Integración del plugin CLI de Tauri (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:

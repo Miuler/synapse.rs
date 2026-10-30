@@ -267,16 +267,10 @@ pub fn save_note_content(
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
+    // El watcher del sistema de archivos detecta el cambio; no hace falta recorrer toda la bóveda en cada guardado
     state
         .note_use_cases
-        .save_note(vault_path, &relative_path, &title, &content, &enc)?;
-
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
-            engine.spawn_reconciliation();
-        }
-    }
-    Ok(())
+        .save_note(vault_path, &relative_path, &title, &content, &enc)
 }
 
 #[tauri::command]

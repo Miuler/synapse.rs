@@ -43,7 +43,9 @@ fn test_full_text_indexer_workflow_and_persistence() {
 
     // 2. Abrir índice Tantivy en disco e iniciar FtsIndexer
     let index = Arc::new(TantivyFullTextIndex::open_or_create(&fts_dir).unwrap());
-    let indexer = FtsIndexer::start(vault_path.clone(), file_types.clone(), Arc::clone(&index));
+    let mut indexing = app_lib::domain::models::config::IndexingConfig::default();
+    indexing.debounce_ms = 350; // el test espera 600 ms; el valor por defecto es mayor
+    let indexer = FtsIndexer::start_with_config(vault_path.clone(), file_types.clone(), indexing, Arc::clone(&index));
 
     // Esperar sincronización inicial
     for _ in 0..30 {

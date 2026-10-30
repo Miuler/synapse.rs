@@ -84,14 +84,18 @@
   "editor": {
     // Guardado automático tras modificar notas, diagramas o lienzos Excalidraw (true | false)
     "auto_save": true,
-    // Tiempo de espera (en milisegundos) antes de persistir cambios automáticos
-    "auto_save_delay_ms": 600,
+    // Tiempo de inactividad (en milisegundos) sin eventos de escritura antes de persistir cambios automáticos.
+    // Además se guarda de inmediato al perder el foco la ventana, cambiar de pestaña o pasar a solo lectura
+    // (siempre respetando la regla de archivo bloqueado)
+    "auto_save_delay_ms": 4000,
     // Tiempo de espera (en milisegundos) de inactividad antes de persistir dibujos Excalidraw a disco
     "drawing_auto_save_delay_ms": 3000,
     // Tiempo de espera (en milisegundos) para propagar cambios de escena en Excalidraw hacia la pestaña
     "drawing_change_debounce_ms": 400,
     // Ventana de gracia (en milisegundos) para ignorar eventos del watcher originados por guardados propios
-    "fs_watcher_recent_save_grace_ms": 3000
+    "fs_watcher_recent_save_grace_ms": 8000,
+    // Tiempo de espera (en milisegundos) para agrupar refrescos de estado Git tras guardar (evita un `git status` por guardado)
+    "git_status_refresh_debounce_ms": 5000
   },
 
   // Configuración de visualización y límites de diferencias Git (Diff Viewer)
@@ -112,7 +116,9 @@
     // Límite de caracteres de texto extraído a indexar en Tantivy (evita inflar el índice y protege memoria)
     "max_extracted_chars": 200000,
     // Longitud máxima permitida para una palabra individual antes de descartarla como basura o hash
-    "max_word_length": 80
+    "max_word_length": 80,
+    // Tiempo de inactividad (en milisegundos) del vault antes de lanzar un lote de reindexación Full-Text
+    "debounce_ms": 5000
   },
 
   // Reglas de exclusión para ignorar dependencias, temporales y carpetas del sistema

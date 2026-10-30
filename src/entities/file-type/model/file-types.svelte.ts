@@ -24,6 +24,7 @@ export interface EditorConfig {
   drawing_auto_save_delay_ms?: number;
   drawing_change_debounce_ms?: number;
   fs_watcher_recent_save_grace_ms?: number;
+  git_status_refresh_debounce_ms?: number;
 }
 
 export interface DiffConfig {

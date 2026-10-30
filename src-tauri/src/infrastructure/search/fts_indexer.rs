@@ -83,7 +83,7 @@ impl FtsIndexer {
                 let mut pending_upserts = HashSet::new();
                 let mut pending_removes = HashSet::new();
                 let mut last_activity = Instant::now();
-                let debounce_dur = Duration::from_millis(350);
+                let debounce_dur = Duration::from_millis(worker_indexing.debounce_ms);
 
                 let notify = {
                     let idx = Arc::clone(&worker_index);

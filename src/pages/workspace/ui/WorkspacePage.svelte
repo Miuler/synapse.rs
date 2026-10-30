@@ -174,6 +174,18 @@
     }
   }
 
+  let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const gitStatusRefreshDebounceMs = DEFAULT_APP_CONFIG.editor?.git_status_refresh_debounce_ms ?? 5000;
+
+  // Evita lanzar un proceso `git status` por cada guardado: agrupa las solicitudes
+  function scheduleGitStatusRefresh() {
+    if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
+    gitRefreshTimer = setTimeout(() => {
+      gitRefreshTimer = null;
+      refreshGitStatus();
+    }, gitStatusRefreshDebounceMs);
+  }
+
   async function handleGitRestoreFiles(paths: string[]) {
     for (const p of paths) {
       if (openedNotes[p]) {
@@ -2436,10 +2448,7 @@
 
   // Persiste inmediatamente todas las notas y lienzos con modificaciones pendientes
   async function flushAllModifiedTabs() {
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-      saveTimeout = null;
-    }
+    for (const path of Object.keys(pendingSaves)) cancelPendingSave(path);
 
     const allTabs = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
     for (const p of allTabs) {
@@ -2473,18 +2482,62 @@
   let autoSave = $state(DEFAULT_APP_CONFIG.editor?.auto_save ?? true);
   let autoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.auto_save_delay_ms ?? 600;
   let drawingAutoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.drawing_auto_save_delay_ms ?? 3000;
-  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Un temporizador por archivo: el guardado se dispara solo cuando cesan los eventos de escritura
+  let pendingSaves: Record<string, { timer: ReturnType<typeof setTimeout>; item: VaultItem }> = {};
+
+  function cancelPendingSave(path: string) {
+    const pending = pendingSaves[path];
+    if (pending) {
+      clearTimeout(pending.timer);
+      delete pendingSaves[path];
+    }
+  }
 
   function debouncedPersistVaultItemToRust(vaultItem: VaultItem, delay?: number) {
     if (!autoSave) return;
-    if (unsavedChanges.isLocked(vaultItem.relative_path)) return;
-    const isDrawing = isDrawingTab(vaultItem.relative_path, openedNotes[vaultItem.relative_path]?.content);
+    const path = vaultItem.relative_path;
+    if (unsavedChanges.isLocked(path)) return;
+    const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
     const computedDelay = delay !== undefined ? delay : (isDrawing ? drawingAutoSaveDelayMs : autoSaveDelayMs);
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => {
-      persistVaultItemToRust(vaultItem);
-    }, computedDelay);
+    cancelPendingSave(path);
+    pendingSaves[path] = {
+      item: vaultItem,
+      timer: setTimeout(() => {
+        persistVaultItemToRust(vaultItem);
+      }, computedDelay),
+    };
   }
+
+  /** Persiste de inmediato los guardados pendientes (pérdida de foco, cambio de pestaña, paso a solo lectura). */
+  function flushPendingSaves() {
+    for (const [path, pending] of Object.entries(pendingSaves)) {
+      cancelPendingSave(path);
+      // persistVaultItemToRust respeta la regla de archivo bloqueado (no fuerza el guardado)
+      persistVaultItemToRust(pending.item);
+    }
+  }
+
+  function handleWindowBlurOrHidden() {
+    if (document.visibilityState === 'hidden' || !document.hasFocus()) flushPendingSaves();
+  }
+
+  $effect(() => {
+    // Cambio de pestaña activa (principal o dividida) o paso a modo solo lectura
+    void activeTabPath;
+    void activeSplitTabPath;
+    void isEditing;
+    void isSplitEditing;
+    untrack(flushPendingSaves);
+  });
+
+  onMount(() => {
+    window.addEventListener('blur', handleWindowBlurOrHidden);
+    document.addEventListener('visibilitychange', handleWindowBlurOrHidden);
+    return () => {
+      window.removeEventListener('blur', handleWindowBlurOrHidden);
+      document.removeEventListener('visibilitychange', handleWindowBlurOrHidden);
+    };
+  });
 
   function requestManualSave(vaultItem: VaultItem) {
     const path = vaultItem.relative_path;
@@ -2513,11 +2566,8 @@
   }
 
   async function persistVaultItemToRust(vaultItem: VaultItem, targetEncoding?: string, force = false) {
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-      saveTimeout = null;
-    }
     const path = vaultItem.relative_path;
+    cancelPendingSave(path);
     const title = vaultItem.title || path?.split('/').pop() || path;
     if ((!isConnectedToRust && !vaultRepository.isConnected()) || !path) return;
 
@@ -2592,7 +2642,7 @@
         }
       }
       syncState = "synced";
-      refreshGitStatus();
+      scheduleGitStatusRefresh();
     } catch (e) {
       console.error("Error al guardar el archivo en la bóveda:", e);
       syncState = "error";
