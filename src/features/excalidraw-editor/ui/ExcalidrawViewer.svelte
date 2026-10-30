@@ -287,8 +287,20 @@
     }
   }
 
+  // Firma barata de la escena (id + versión de cada elemento): evita serializar/comprimir cuando solo
+  // cambian scroll, zoom, selección o puntero, que Excalidraw notifica en cada movimiento
+  let lastSceneSignature = '';
+  function sceneSignature(elements: readonly any[], files: any): string {
+    let sig = `${elements?.length ?? 0}|${Object.keys(files || {}).length}`;
+    for (const el of elements || []) sig += `|${el.id}:${el.version}:${el.versionNonce}`;
+    return sig;
+  }
+
   function handleExcalidrawOnChange(elements: readonly any[], appState: any, files: any) {
     if (readOnly || suppressOnChange) return;
+
+    const signature = sceneSignature(elements, files);
+    if (signature === lastSceneSignature) return;
 
     // Si el usuario está redactando activamente dentro de un elemento de texto, no ejecutar
     // serializaciones ni compresión LZ pesadas en el hilo principal durante el tecleo
@@ -302,6 +314,7 @@
       const currentAppState = excalidrawAPI?.getAppState?.() || appState;
       if (currentAppState?.editingTextElement) return;
 
+      lastSceneSignature = signature;
       const serialized = serializeSceneData(elements, currentAppState, files);
       if (serialized !== lastKnownScene) {
         lastKnownScene = serialized;
@@ -333,13 +346,28 @@
     root.render(reactElement);
   }
 
+  // Al perder el foco la ventana se propaga ya el cambio pendiente, sin esperar al debounce
+  function flushPendingChange() {
+    if (!onChangeDebounceTimer || readOnly || !excalidrawAPI) return;
+    clearTimeout(onChangeDebounceTimer);
+    onChangeDebounceTimer = null;
+    const serialized = getCurrentSerializedScene();
+    if (serialized !== lastKnownScene) {
+      lastKnownScene = serialized;
+      isLocalChange = true;
+      if (onChange) onChange(serialized);
+    }
+  }
+
   onMount(() => {
+    window.addEventListener('blur', flushPendingChange);
     lastKnownScene = content;
     lastReadOnly = readOnly;
     renderReactApp(content, readOnly, true);
   });
 
   onDestroy(() => {
+    window.removeEventListener('blur', flushPendingChange);
     if (onChangeDebounceTimer) {
       clearTimeout(onChangeDebounceTimer);
       onChangeDebounceTimer = null;

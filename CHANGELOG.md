@@ -9,6 +9,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Deshacer y rehacer en el editor**:
+  - `Ctrl+Z` para deshacer y `Ctrl+Shift+Z` o `Ctrl+Y` para rehacer.
+  - Atajos de vim: `u` para deshacer, `Ctrl+R` para rehacer y `U` para revertir la última línea editada.
+  - Módulo reutilizable `shared/lib/editor-history`.
+
 - **Comentar/descomentar líneas con `Ctrl+/`** (`Cmd+/` en macOS):
   - Nuevo módulo `shared/lib/editor-comment`, disponible en el editor de Markdown y en el editor de código de diagramas.
   - Usa los tokens de comentario del lenguaje: `#` para D2, `%%` para Mermaid y `<!-- -->` para Markdown.
@@ -24,6 +29,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Cambiado
 
 - **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
+
+- **Rendimiento del editor de notas**:
+  - Autoguardado a los 4 s de dejar de escribir. También se guarda al perder el foco, al cambiar de pestaña o al pasar a solo lectura, respetando los archivos bloqueados.
+  - Ya no se reconcilia toda la bóveda en cada guardado.
+  - Refresco de `git status` agrupado con un debounce de 5 s.
+  - Debounce del indexador de texto completo (FTS) de 5 s.
+  - Nuevas claves en `config.jsonc`: `editor.git_status_refresh_debounce_ms`, `indexing.debounce_ms` y `drawing_change_debounce_ms` (2500 ms por defecto).
+
+- **Excalidraw**:
+  - Detección de cambios por firma de elementos, de modo que el scroll, el zoom y la selección no serializan la escena.
+  - Debounce de 2500 ms y propagación inmediata de los cambios pendientes al perder el foco.
+  - El indexador omite el reindexado si el texto del dibujo no ha cambiado.
+
+- **Diagramas D2 y Mermaid**: los bloques ```` ```d2 ```` y ```` ```mermaid ```` ya no se re-renderizan al editar texto cercano.
+
+### Corregido
+
+- **`Ctrl+R` ya no recarga la ventana** de la aplicación.
+- **Tamaño del SVG de D2**: el SVG recibe `width` y `height` a partir de su `viewBox`, evitando que colapse en las tarjetas de lectura.
 
 ## [1.0.0-alpha.2] - 2026-10-30
 

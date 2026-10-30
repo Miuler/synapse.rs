@@ -277,7 +277,7 @@ fn default_drawing_auto_save_delay_ms() -> u64 {
 }
 
 fn default_drawing_change_debounce_ms() -> u64 {
-    400
+    2500
 }
 
 fn default_fs_watcher_recent_save_grace_ms() -> u64 {

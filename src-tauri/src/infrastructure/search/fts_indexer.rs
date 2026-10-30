@@ -115,6 +115,9 @@ impl FtsIndexer {
                     }
                 };
 
+                // Hash del texto indexado de dibujos (Excalidraw): si solo cambian trazos/colores el texto no varía
+                let drawing_text_hashes: dashmap::DashMap<String, u64> = dashmap::DashMap::new();
+
                 let process_batch = |upserts: &mut HashSet<String>,
                                      removes: &mut HashSet<String>,
                                      vault: &Path,
@@ -208,6 +211,17 @@ impl FtsIndexer {
                                     .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
                                     .map(|d| d.as_nanos() as u64)
                                     .unwrap_or(0);
+
+                                if kind == crate::domain::models::full_text::DocumentKind::Excalidraw {
+                                    use std::hash::{Hash, Hasher};
+                                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                                    title.hash(&mut h);
+                                    body.hash(&mut h);
+                                    let digest = h.finish();
+                                    if drawing_text_hashes.insert(rel_str.clone(), digest) == Some(digest) {
+                                        return None;
+                                    }
+                                }
 
                                 Some(FullTextDocument {
                                     path: rel_str,
