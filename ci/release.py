@@ -11,7 +11,7 @@ Tareas que realiza:
   5. Opcionalmente (--replace-latest / -r), reemplaza la última versión registrada en CHANGELOG.md por la nueva versión,
      actualizando la cabecera, los enlaces y fusionando notas de 'Sin publicar' si las hubiera.
   6. Valida que CHANGELOG.md resultante cumpla las condiciones de integridad.
-  7. Actualiza la versión en src-tauri/Cargo.toml, package.json y tauri.conf.json.
+  7. Actualiza la versión en package.json y tauri.conf.json (no modifica src-tauri/Cargo.toml).
   8. Realiza `git add`, `git commit` (o `--amend`) y crea el `git tag`.
 
 - En modo CI (--generate-notes FILE):
@@ -373,34 +373,6 @@ def replace_latest_changelog(changelog_path: Path, new_version: str) -> tuple[st
     return old_version, new_version
 
 
-def update_cargo_toml(cargo_path: Path, version: str) -> None:
-    if not cargo_path.exists():
-        raise FileNotFoundError(f"{cargo_path} no encontrado")
-
-    content = cargo_path.read_text(encoding="utf-8")
-
-    lines = content.splitlines(keepends=True)
-    in_package = False
-    updated = False
-
-    for i, line in enumerate(lines):
-        trimmed = line.strip()
-        if trimmed.startswith("[") and trimmed.endswith("]"):
-            in_package = trimmed == "[package]"
-            continue
-
-        if in_package and re.match(r'^version\s*=\s*"[^"]*"', trimmed):
-            lines[i] = re.sub(r'version\s*=\s*"[^"]*"', f'version = "{version}"', line)
-            updated = True
-            break
-
-    if not updated:
-        raise ValueError(f"No se encontró la clave version en [package] de {cargo_path}")
-
-    cargo_path.write_text("".join(lines), encoding="utf-8")
-    print(f"✓ {cargo_path} actualizado a versión {version}")
-
-
 def update_package_json(package_path: Path, version: str) -> None:
     if not package_path.exists():
         raise FileNotFoundError(f"{package_path} no encontrado")
@@ -438,7 +410,7 @@ def update_tauri_conf_json(tauri_conf_path: Path, version: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Automatiza y valida el versionado: actualiza o reemplaza versiones en CHANGELOG.md, Cargo.toml, package.json y genera release notes para CI."
+        description="Automatiza y valida el versionado: actualiza o reemplaza versiones en CHANGELOG.md, package.json y genera release notes para CI."
     )
     parser.add_argument(
         "version",
@@ -507,7 +479,6 @@ def main():
 
     root_dir = Path(__file__).resolve().parent.parent
     changelog_path = root_dir / "CHANGELOG.md"
-    cargo_path = root_dir / "src-tauri" / "Cargo.toml"
     package_path = root_dir / "package.json"
     tauri_conf_path = root_dir / "src-tauri" / "tauri.conf.json"
 
@@ -562,7 +533,7 @@ def main():
         res = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
         lines = [l for l in res.stdout.splitlines() if not l.endswith("ci/release.py")]
         for l in lines:
-            if "Cargo.toml" in l or "package.json" in l:
+            if "package.json" in l:
                 sys.exit(f"Error: Hay cambios pendientes en archivos de configuración del repositorio:\n{res.stdout}")
 
     if args.replace_latest:
@@ -577,9 +548,8 @@ def main():
         action_msg = f"Reemplazaría última versión [{old_latest_version}] por [{version}] en CHANGELOG.md" if args.replace_latest else "Modificaría CHANGELOG.md"
         print(f"[DRY-RUN] {action_msg}")
         print("[DRY-RUN] Validaría CHANGELOG.md post-edición")
-        print(f"[DRY-RUN] Modificaría src-tauri/Cargo.toml -> {version}")
         print(f"[DRY-RUN] Modificaría package.json -> {version}")
-        print("[DRY-RUN] Ejecutaría: git add CHANGELOG.md src-tauri/Cargo.toml package.json")
+        print("[DRY-RUN] Ejecutaría: git add CHANGELOG.md package.json")
         print(f"[DRY-RUN] Ejecutaría: {' '.join(commit_cmd)}")
         if not args.no_tag:
             if args.replace_latest and old_latest_version and old_latest_version != clean_version:
@@ -596,7 +566,6 @@ def main():
     validate_changelog_after_release(changelog_path, clean_version)
 
     # 5. Modificar versiones en archivos de proyecto
-    update_cargo_toml(cargo_path, version)
     update_package_json(package_path, version)
     update_tauri_conf_json(tauri_conf_path, version)
 
@@ -605,7 +574,7 @@ def main():
         return
 
     # 6. Git add
-    files_to_add = ["CHANGELOG.md", "src-tauri/Cargo.toml", "package.json"]
+    files_to_add = ["CHANGELOG.md", "package.json"]
     if tauri_conf_path.exists():
         files_to_add.append("src-tauri/tauri.conf.json")
 
