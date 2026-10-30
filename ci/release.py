@@ -337,13 +337,15 @@ def replace_latest_changelog(changelog_path: Path, new_version: str) -> tuple[st
     if merge_unreleased:
         next_target_pos = matches[target_idx + 1].start() if target_idx + 1 < len(matches) else len(content)
         current_target_body = content[target_match.end():next_target_pos].strip()
-        combined_body = f"{unreleased_body_str}\n\n{current_target_body}" if current_target_body else unreleased_body_str
-
+        # Las notas pendientes van a la nueva versión; la versión anterior conserva su encabezado y notas
+        old_heading = target_match.group(0).rstrip()
         unr_match = matches[unreleased_idx]
         new_block = (
             f"## [Sin publicar] (Unreleased)\n\n"
             f"## [{new_version}] - {today}\n\n"
-            f"{combined_body}\n\n"
+            f"{unreleased_body_str}\n\n"
+            f"{old_heading}\n\n"
+            f"{current_target_body}\n\n"
         )
         content = content[:unr_match.start()] + new_block + content[next_target_pos:].lstrip("\r\n")
     else:
@@ -355,7 +357,8 @@ def replace_latest_changelog(changelog_path: Path, new_version: str) -> tuple[st
         rf"^\[{re.escape(old_version)}\]:\s*https?://\S+", re.MULTILINE
     )
     new_link_line = f"[{new_version}]: https://github.com/Miuler/synapse.rs/releases/tag/{new_version}"
-    if old_link_pattern.search(content):
+    # Si la versión anterior se conserva (fusión), su enlace no se reemplaza: se añade el nuevo
+    if not merge_unreleased and old_link_pattern.search(content):
         content = old_link_pattern.sub(new_link_line, content, count=1)
     else:
         link_pattern = re.compile(r"^\[([0-9a-zA-Z._-]+)\]:\s*https?://\S+", re.MULTILINE)

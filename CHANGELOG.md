@@ -72,6 +72,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Diagramas Mermaid que se re-renderizaban al escribir**: el widget ya no compara posiciones absolutas, así que escribir antes de un diagrama no lo destruye y vuelve a renderizar en cada pulsación.
 - **Diagramas D2 con altura cero en WebKit**: el SVG generado recibe `width` y `height` derivados de su `viewBox`, evitando que colapse dentro de las tarjetas de lectura.
 
+## [1.0.0-alpha.1] - 2026-10-28
+
 ### Añadido
 
 - **Integración del plugin CLI de Tauri (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:
@@ -637,6 +639,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
 [1.0.0-alpha.2]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.2
+[1.0.0-alpha.1]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.1
 [2026.10.27.04-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.04-alpha
 [2026.10.27.03-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.03-alpha
 [2026.10.27.02-alpha]: https://github.com/Miuler/synapse.rs/releases/tag/2026.10.27.02-alpha
