@@ -5,6 +5,7 @@
   import WorkspacePane from "./WorkspacePane.svelte";
   import {StatusBar} from "@widgets/status-bar";
   import {CommandPalette} from "@widgets/command-palette";
+  import {ShortcutsPanel} from "@widgets/shortcuts-panel";
   import {QuickOpen} from "@widgets/quick-open";
   import {FullTextSearch} from "@widgets/full-text-search";
   import {EmptyWorkspace} from "@widgets/empty-workspace";
@@ -73,6 +74,7 @@
   let activeRibbonTab = $state("files");
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
+  let isShortcutsPanelOpen = $state(false);
   let isQuickOpenOpen = $state(false);
   let isFullTextSearchOpen = $state(false);
   let quickOpenSearchQuery = $state("");
@@ -388,8 +390,10 @@
   }
   let isForceSavingUnsaved = $state(false);
   let pendingCloseAction = $state<{
-    type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close' | 'manual-save';
+    type: 'single-tab' | 'single-split-tab' | 'multiple-tabs' | 'window-close' | 'manual-save' | 'rename';
     paths: string[];
+    /** Solo 'rename': resuelve la espera de handleRenameItem (true = continuar con el renombrado) */
+    resolve?: (proceed: boolean) => void;
   } | null>(null);
 
   async function handleToggleLockFile(path: string) {
@@ -1171,6 +1175,7 @@
 
   function handleUnsavedDialogAbort() {
     unsavedDialogOpen = false;
+    pendingCloseAction?.resolve?.(false);
     pendingCloseAction = null;
   }
 
@@ -1191,7 +1196,10 @@
       }
     }
 
-    if (action.type === 'manual-save') {
+    if (action.type === 'rename') {
+      action.resolve?.(true);
+      return;
+    } else if (action.type === 'manual-save') {
       return;
     } else if (action.type === 'single-tab') {
       closeTab(action.paths[0]);
@@ -1249,7 +1257,10 @@
       unsavedDialogOpen = false;
       pendingCloseAction = null;
 
-      if (action.type === 'manual-save') {
+      if (action.type === 'rename') {
+        action.resolve?.(true);
+        return;
+      } else if (action.type === 'manual-save') {
         return;
       } else if (action.type === 'single-tab') {
         closeTab(action.paths[0]);
@@ -2123,12 +2134,27 @@
   // Rutas que ya no existen tras un renombrado: evita que un guardado tardío las recree en disco
   const renamedAwayPaths = new Set<string>();
 
-  async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
-    // El buffer en memoria (p. ej. un Excalidraw abierto) debe estar en disco antes de mover el archivo
-    await flushAllModifiedTabs([relativePath]);
-    const renamedPath = await vaultRepository.renameItem(relativePath, newName);
-    if (renamedPath === relativePath) return renamedPath;
+  /** Pide confirmación para tocar archivos protegidos (bloqueados): con cambios pendientes solo permite guardar y continuar, o cancelar. */
+  async function confirmProtectedRelocation(paths: string[], verb: string): Promise<boolean> {
+    const lockedInScope = Array.from(lockedFiles).filter((l) =>
+      paths.some((p) => l === p || l.startsWith(`${p}/`))
+    );
+    if (lockedInScope.length === 0) return true;
+    const dirtyLocked = lockedInScope.filter(isTabDirty);
+    if (dirtyLocked.length === 0) {
+      const name = paths.length === 1 ? `"${paths[0].split('/').pop()}"` : `${paths.length} elementos`;
+      return window.confirm(`${name} incluye archivos protegidos (bloqueados). ¿${verb} de todos modos?`);
+    }
+    return new Promise<boolean>((resolve) => {
+      pendingCloseAction = { type: 'rename', paths: dirtyLocked, resolve };
+      unsavedDialogFiles = dirtyLocked;
+      unsavedDialogIsWindowClose = false;
+      unsavedDialogOpen = true;
+    });
+  }
 
+  /** Traslada todas las referencias abiertas (pestañas, notas, historial, bloqueos) de una ruta a su nueva ubicación. */
+  async function relocateOpenPaths(relativePath: string, renamedPath: string): Promise<void> {
     // Traduce una ruta antigua a la nueva; cubre también lo que cuelga de una carpeta renombrada
     const remap = (path: string): string => {
       if (path === relativePath) return renamedPath;
@@ -2187,7 +2213,32 @@
     await fetchNotesFromBackend();
     persistTabsState();
     scheduleGitStatusRefresh();
+  }
+
+  async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
+    if (!(await confirmProtectedRelocation([relativePath], 'Renombrarlo'))) return relativePath;
+
+    // El buffer en memoria (p. ej. un Excalidraw abierto) debe estar en disco antes de mover el archivo
+    await flushAllModifiedTabs([relativePath]);
+    const renamedPath = await vaultRepository.renameItem(relativePath, newName);
+    if (renamedPath === relativePath) return renamedPath;
+
+    await relocateOpenPaths(relativePath, renamedPath);
     return renamedPath;
+  }
+
+  /** Mueve elementos a otra carpeta conservando abiertas las pestañas afectadas. Devuelve los pares movidos. */
+  async function handleMoveItems(paths: string[], destDir: string): Promise<{ from: string; to: string }[]> {
+    if (paths.length === 0) return [];
+    if (!(await confirmProtectedRelocation(paths, 'Moverlos'))) return [];
+
+    await flushAllModifiedTabs(paths);
+    const moved = await vaultApi.moveItems(paths, destDir);
+    // Mover una carpeta y un hijo suyo a la vez: la ruta del hijo ya se trasladó con la carpeta
+    for (const { from, to } of moved) {
+      await relocateOpenPaths(from, to);
+    }
+    return moved;
   }
 
   async function handleTitleInputChange(vaultItem: VaultItem, newTitle: string) {
@@ -2570,6 +2621,29 @@
     void isEditing;
     void isSplitEditing;
     untrack(flushPendingSaves);
+  });
+
+  // Al quitar el candado a un archivo con cambios pendientes, el autoguardado debe retomarlos:
+  // mientras estuvo bloqueado no se programó ningún guardado y no habría otro disparador hasta la siguiente edición
+  let previouslyLocked = new Set<string>();
+  $effect(() => {
+    const current = new Set(lockedFiles);
+    const released = [...previouslyLocked].filter((p) => !current.has(p));
+    previouslyLocked = current;
+    if (released.length === 0) return;
+    untrack(() => {
+      for (const path of released) {
+        const note = openedNotes[path];
+        if (!note || !note.isLoaded || note.content === note.savedContent) continue;
+        const vItem = vaultItems.find((v) => v.relative_path === path) || {
+          id: "0",
+          title: note.title || path,
+          relative_path: path,
+          abs_path: note.abs_path,
+        };
+        debouncedPersistVaultItemToRust(vItem);
+      }
+    });
   });
 
   onMount(() => {
@@ -3054,6 +3128,13 @@
         },
       },
       {
+        id: "cmd-show-shortcuts",
+        name: "Mostrar atajos de teclado",
+        category: "Ayuda",
+        shortcut: "F1",
+        action: () => (isShortcutsPanelOpen = true),
+      },
+      {
         id: "cmd-toggle-devtools",
         name: "Alternar herramientas de desarrollo (DevTools)",
         category: "Desarrollo",
@@ -3260,6 +3341,11 @@
       }
 
       // Fast-reject para teclas comunes sin modificadores (evita recorrer 19 matchesShortcut en O(1))
+      if (e.key === 'F1' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        isShortcutsPanelOpen = !isShortcutsPanelOpen;
+        return;
+      }
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'F12') {
         return;
       }
@@ -3716,6 +3802,7 @@
       onDeleteItem={handleDeleteItem}
       onDeleteItems={handleDeleteItems}
       onRenameItem={handleRenameItem}
+      onMoveItems={handleMoveItems}
       onResizeStart={handleSidebarResizeStart}
       onCollapse={toggleSidebar}
       onRefreshGit={refreshGitStatus}
@@ -4250,6 +4337,7 @@
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
+  <ShortcutsPanel bind:isOpen={isShortcutsPanelOpen}/>
 
   <!-- 5. BUSCADOR RÁPIDO DE ARCHIVOS (OVERLAY CTRL+O) -->
   <QuickOpen
@@ -4281,6 +4369,7 @@
     files={unsavedDialogFiles}
     isWindowClose={unsavedDialogIsWindowClose}
     isManualSave={pendingCloseAction?.type === 'manual-save'}
+    isRename={pendingCloseAction?.type === 'rename'}
     loading={isForceSavingUnsaved}
     onAbort={handleUnsavedDialogAbort}
     onDiscard={handleUnsavedDialogDiscard}

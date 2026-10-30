@@ -2,6 +2,7 @@
   import { commandRegistry, type AppCommand } from '@entities/command';
   import { Command, Dialog } from 'bits-ui';
   import { SearchBox } from '@shared/ui/search-box';
+  import { Kbd } from '@shared/ui/kbd';
 
   interface Props {
     isOpen?: boolean;
@@ -59,7 +60,7 @@
               <span class="category-tag">{cmd.category}</span>
               <span class="command-name">{cmd.name}</span>
               {#if cmd.shortcut}
-                <kbd class="shortcut-badge">{cmd.shortcut}</kbd>
+                <Kbd shortcut={cmd.shortcut} />
               {/if}
             </Command.Item>
           {/each}

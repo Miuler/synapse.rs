@@ -19,6 +19,7 @@
   } from 'lucide-svelte';
   import { appSettings, shortcutsConfig } from '@entities/settings';
   import { t } from '@shared/lib/i18n';
+  import { primaryShortcutText } from '@shared/lib/shortcuts';
 
   interface Props {
     activeTab?: string;
@@ -30,17 +31,17 @@
   const topTools = $derived([
     {
       id: 'files',
-      label: t('ribbon.files', { shortcut: shortcutsConfig.workspace.toggle_sidebar }),
+      label: t('ribbon.files', { shortcut: primaryShortcutText(shortcutsConfig.workspace.toggle_sidebar) }),
       icon: 'folder',
     },
     {
       id: 'quick-open',
-      label: t('ribbon.quickOpen', { shortcut: shortcutsConfig.workspace.quick_open }),
+      label: t('ribbon.quickOpen', { shortcut: primaryShortcutText(shortcutsConfig.workspace.quick_open) }),
       icon: 'search',
     },
     {
       id: 'search',
-      label: t('ribbon.searchContent', { shortcut: shortcutsConfig.workspace.search_fulltext }),
+      label: t('ribbon.searchContent', { shortcut: primaryShortcutText(shortcutsConfig.workspace.search_fulltext) }),
       icon: 'text-search',
     },
     {
@@ -65,7 +66,7 @@
     },
     {
       id: 'command-palette',
-      label: t('ribbon.commandPalette', { shortcut: shortcutsConfig.workspace.command_palette }),
+      label: t('ribbon.commandPalette', { shortcut: primaryShortcutText(shortcutsConfig.workspace.command_palette) }),
       icon: 'command',
     },
     {

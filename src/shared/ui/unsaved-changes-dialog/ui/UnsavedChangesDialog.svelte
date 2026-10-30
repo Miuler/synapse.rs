@@ -8,6 +8,7 @@
     files: string[];
     isWindowClose?: boolean;
     isManualSave?: boolean;
+    isRename?: boolean;
     loading?: boolean;
     onAbort: () => void;
     onDiscard: () => void;
@@ -20,6 +21,7 @@
     files = [],
     isWindowClose = false,
     isManualSave = false,
+    isRename = false,
     loading = false,
     onAbort,
     onDiscard,
@@ -90,6 +92,8 @@
     title ||
       (isWindowClose
         ? "Cambios sin guardar al cerrar la aplicación"
+        : isRename
+          ? "Renombrar o mover archivo bloqueado con cambios sin guardar"
         : isManualSave
           ? "Confirmar guardado en archivo bloqueado"
           : "Cambios sin persistir en archivo bloqueado"),
@@ -134,6 +138,12 @@
                 ? "archivo bloqueado con cambios sin persistir"
                 : "archivos bloqueados con cambios sin persistir"}. Si cierras
               la aplicación sin guardar, se perderán las modificaciones.
+            {:else if isRename}
+              {files.length === 1 ? "El archivo" : "Los archivos"}
+              {#if files.length === 1}<strong>{singleFileName}</strong>{/if}
+              {files.length === 1 ? "está" : "están"} <strong>bloqueado{files.length === 1 ? "" : "s"}</strong>
+              y {files.length === 1 ? "tiene" : "tienen"} cambios sin guardar. Para renombrar o mover primero se deben
+              guardar (forzando el guardado). Si quieres descartarlos, cancela y hazlo fuera de esta operación.
             {:else if isManualSave}
               El archivo <strong>{singleFileName}</strong> está
               <strong>bloqueado</strong> (protegido con candado). ¿Deseas autorizar
@@ -165,8 +175,9 @@
           disabled={loading}
           onclick={handleAbort}
         >
-          Seguir Editando
+          {isRename ? "Cancelar" : "Seguir Editando"}
         </button>
+        {#if !isRename}
         <button
           type="button"
           bind:this={discardButtonEl}
@@ -176,6 +187,7 @@
         >
           Descartar cambios
         </button>
+        {/if}
         <button
           type="button"
           bind:this={forceSaveButtonEl}
@@ -183,7 +195,7 @@
           disabled={loading}
           onclick={handleForceSave}
         >
-          {loading ? "Guardando..." : "Forzar el guardado"}
+          {loading ? "Guardando..." : isRename ? "Guardar y continuar" : "Forzar el guardado"}
         </button>
       </div>
     </AlertDialog.Content>

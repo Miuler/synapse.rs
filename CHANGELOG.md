@@ -38,9 +38,24 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Si el archivo está en el índice, el renombrado se prepara en el índice (`git add` de la ruta antigua y la nueva), de modo que Git lo detecta como renombrado.
   - Nuevo método `GitService::is_tracked` para comprobar si una ruta tiene archivos versionados.
 
+- **Mover archivos y carpetas en el explorador con `Ctrl+X` y `Ctrl+V`**:
+  - Nuevo comando `move_vault_items`: mueve elementos a la carpeta destino, sin sobrescribir ni mover una carpeta dentro de sí misma.
+  - Las pestañas abiertas siguen a sus archivos tras el movimiento, y los archivos versionados quedan preparados en el índice de Git.
+  - Si un elemento está bloqueado y tiene cambios sin guardar, se pide confirmación antes de moverlo.
+
+- **Panel de atajos de teclado** (`F1` o el comando "Mostrar atajos de teclado"):
+  - Lista los atajos configurables de `shortcuts.jsonc` y los fijos del editor, con búsqueda.
+  - Nuevo componente `Kbd` para mostrar combinaciones, usado también en la paleta de comandos.
+
+- **Confirmación al renombrar archivos bloqueados**: si el archivo bloqueado tiene cambios sin guardar, el diálogo de cambios pendientes ofrece guardar y continuar, o cancelar.
+
 ### Cambiado
 
 - **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
+
+- **Atajos en la barra lateral**: los rótulos del Ribbon muestran solo la combinación principal, mediante `primaryShortcutText`.
+
+- **Autoguardado al quitar el bloqueo**: un archivo con cambios pendientes al desbloquearse se vuelve a guardar automáticamente.
 
 - **Metadatos y edición de Rust**: `Cargo.toml` pasa a `edition = "2024"` y `rust-version = "1.93.0"`, con autor, descripción y repositorio del proyecto. La línea `version` queda comentada, así que la versión ya no sale de `Cargo.toml`.
 
@@ -67,6 +82,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Pestañas tras renombrar una carpeta o un archivo**: se reasignan todas las referencias abiertas (pestañas principales y divididas, selección, historial, cierre, bloqueos y rutas recientes), incluidas las notas dentro de una carpeta renombrada.
 - **Guardado tardío recreaba el archivo antiguo**: un guardado pendiente o un visor que cerraba después de un renombrado volvía a crear la ruta anterior. Ya no ocurre.
 - **Dibujos sin guardar al perder el foco**: al ocultarse la ventana o perder el foco, se guardan también los dibujos con cambios aún sin propagar.
+- **Renombrar o mover un archivo bloqueado sin confirmación**: ahora se pide confirmación si el archivo está protegido.
 
 ## [1.0.0-alpha.2] - 2026-10-30
 

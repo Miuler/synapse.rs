@@ -107,6 +107,50 @@ impl FileSystemService {
         Ok(Self::to_relative(vault_path, &target))
     }
 
+    /// Mueve un archivo o carpeta (`source_rel`) dentro de la carpeta destino (`dest_dir_rel`).
+    ///
+    /// No sobrescribe: si ya existe un elemento con ese nombre en el destino devuelve error.
+    /// Mover al mismo lugar es un no-op. Retorna la nueva ruta relativa.
+    pub fn move_item(vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+        let source = Self::resolve(vault_path, source_rel)?;
+        let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
+
+        if source == vault_path {
+            return Err("No se puede mover la raíz de la bóveda".to_string());
+        }
+        if !source.exists() {
+            return Err(format!("El elemento '{}' no existe", source_rel));
+        }
+        if !dest_dir.is_dir() {
+            return Err(format!("La carpeta destino '{}' no existe", dest_dir_rel));
+        }
+
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_source = source.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_dest = dest_dir.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical_source.starts_with(&canonical_vault) || !canonical_dest.starts_with(&canonical_vault) {
+            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+        }
+        if canonical_source.is_dir() && canonical_dest.starts_with(&canonical_source) {
+            return Err("No se puede mover una carpeta dentro de sí misma".to_string());
+        }
+
+        let name = source
+            .file_name()
+            .map(|n| n.to_os_string())
+            .ok_or_else(|| "Nombre de elemento inválido".to_string())?;
+        if canonical_source.parent() == Some(canonical_dest.as_path()) {
+            return Ok(Self::to_relative(vault_path, &source));
+        }
+        let target = dest_dir.join(&name);
+        if target.exists() {
+            return Err(format!("Ya existe un elemento llamado '{}' en el destino", name.to_string_lossy()));
+        }
+
+        fs::rename(&source, &target).map_err(|e| format!("Error al mover elemento: {}", e))?;
+        Ok(Self::to_relative(vault_path, &target))
+    }
+
     /// Renombra un elemento sin moverlo fuera de su carpeta actual.
     pub fn rename_item(vault_path: &Path, source_rel: &str, new_name: &str) -> Result<String, String> {
         let new_name = new_name.trim();
@@ -409,6 +453,10 @@ impl FileSystemPort for FileSystemService {
         Self::rename_item(vault_path, relative_path, new_name)
     }
 
+    fn move_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+        Self::move_item(vault_path, source_rel, dest_dir_rel)
+    }
+
     fn copy_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
         Self::copy_item(vault_path, source_rel, dest_dir_rel)
     }
@@ -493,5 +541,31 @@ mod tests {
         assert!(vault.join("archivos/adjuntos/excalidraw").is_dir());
 
         let _ = fs::remove_dir_all(&vault);
+    }
+}
+
+#[cfg(test)]
+mod move_tests {
+    use super::FileSystemService;
+    use std::fs;
+
+    #[test]
+    fn moves_files_and_rejects_conflicts() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path();
+        fs::create_dir_all(vault.join("sub/inner")).unwrap();
+        fs::write(vault.join("nota.md"), "x").unwrap();
+        assert_eq!(FileSystemService::move_item(vault, "nota.md", "sub").unwrap(), "sub/nota.md");
+        assert!(!vault.join("nota.md").exists());
+        // mismo lugar: no-op
+        assert_eq!(FileSystemService::move_item(vault, "sub/nota.md", "sub").unwrap(), "sub/nota.md");
+        // conflicto de nombre: no sobrescribe
+        fs::write(vault.join("nota.md"), "y").unwrap();
+        assert!(FileSystemService::move_item(vault, "nota.md", "sub").is_err());
+        assert_eq!(fs::read_to_string(vault.join("sub/nota.md")).unwrap(), "x");
+        // carpeta dentro de sí misma
+        assert!(FileSystemService::move_item(vault, "sub", "sub/inner").is_err());
+        // carpeta a la raíz
+        assert_eq!(FileSystemService::move_item(vault, "sub/inner", "").unwrap(), "inner");
     }
 }

@@ -11,7 +11,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
 
@@ -32,6 +32,7 @@
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
     onDeleteItems?: (items: Array<{ relativePath: string; isFolder: boolean }>) => Promise<void> | void;
     onRenameItem?: (relativePath: string, newName: string) => Promise<string> | string | void;
+    onMoveItems?: (paths: string[], destDir: string) => Promise<{ from: string; to: string }[]>;
     onResizeStart: (e: MouseEvent | PointerEvent) => void;
     onResizeMove?: (e: PointerEvent) => void;
     onResizeEnd?: (e: PointerEvent) => void;
@@ -66,6 +67,7 @@
     onDeleteItem,
     onDeleteItems,
     onRenameItem,
+    onMoveItems,
     onResizeStart,
     onResizeMove,
     onResizeEnd,
@@ -903,6 +905,9 @@
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
       handleCopy();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X')) {
+      e.preventDefault();
+      handleCut();
     } else if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
       e.preventDefault();
       handlePaste(true);
@@ -984,6 +989,8 @@
 
   // Portapapeles interno de archivos/carpetas preparados para pegar
   let copiedPaths = $state<string[]>([]);
+  // 'cut' mueve al pegar; 'copy' duplica
+  let clipboardMode = $state<'copy' | 'cut'>('copy');
   let isPasting = $state(false);
 
 
@@ -1204,10 +1211,112 @@
     }
   }
 
+  function handleCut() {
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    copiedPaths = [...paths];
+    clipboardMode = 'cut';
+    showToast(paths.length > 1 ? `${paths.length} elementos listos para mover` : 'Elemento listo para mover');
+  }
+
+  // Mueve elementos a `destDir` y refresca el árbol (origen y destino)
+  async function moveToDirectory(paths: string[], destDir: string) {
+    // Descarta movimientos inútiles o imposibles: mismo lugar, o una carpeta dentro de sí misma
+    const valid = paths.filter(
+      (p) => parentDir(p) !== destDir && destDir !== p && !destDir.startsWith(`${p}/`)
+    );
+    if (valid.length === 0) return;
+    try {
+      const moved = onMoveItems ? await onMoveItems(valid, destDir) : await vaultApi.moveItems(valid, destDir);
+      if (moved.length === 0) return;
+      if (destDir && !expandedFolders[destDir]) {
+        expandedFolders[destDir] = true;
+        persistExpandedFolders();
+      }
+      // Carpetas expandidas que se movieron: conservar su estado bajo la nueva ruta
+      for (const { from, to } of moved) {
+        for (const key of Object.keys(expandedFolders)) {
+          if (key === from || key.startsWith(`${from}/`)) {
+            expandedFolders[to + key.slice(from.length)] = expandedFolders[key];
+            delete expandedFolders[key];
+          }
+        }
+      }
+      persistExpandedFolders();
+      for (const dir of new Set([destDir, ...moved.map((m) => parentDir(m.from))])) {
+        await reloadDirectoryAndSubdirectories(dir);
+      }
+      selectedPaths = moved.map((m) => m.to);
+      lastFocusedPath = moved[moved.length - 1].to;
+      anchorPath = moved[0].to;
+      showToast(
+        moved.length > 1 ? `${moved.length} elementos movidos` : `Movido a "${destDir || 'raíz'}"`
+      );
+      if (onRefreshGit) onRefreshGit();
+    } catch (err: unknown) {
+      console.error('Error al mover elemento(s):', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Error al mover: ${msg}`);
+    }
+  }
+
+  // Comando "Mover a…": pide la carpeta destino (ruta relativa, vacío = raíz)
+  async function handleMoveTo() {
+    const paths = getSelectedRelativePaths();
+    if (paths.length === 0) return;
+    const answer = window.prompt('Mover a la carpeta (ruta relativa, vacío = raíz):', getTargetDirectory(false));
+    if (answer === null) return;
+    await moveToDirectory(paths, answer.trim().replace(/^\/+|\/+$/g, ''));
+  }
+
+  // Arrastrar y soltar
+  const DRAG_MIME = 'application/x-synapse-vault-paths';
+  let dragOverPath = $state<string | null>(null);
+
+  function handleNodeDragStart(e: DragEvent, node: VaultTreeNode) {
+    if (!e.dataTransfer) return;
+    if (!isSelected(node.relativePath)) {
+      selectedPaths = [node.relativePath];
+      lastFocusedPath = node.relativePath;
+      anchorPath = node.relativePath;
+    }
+    e.dataTransfer.setData(DRAG_MIME, JSON.stringify(selectedPaths));
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function dropDirFor(node: VaultTreeNode | null): string {
+    if (!node) return '';
+    return node.isFolder ? node.relativePath : parentDir(node.relativePath);
+  }
+
+  function handleDragOverTarget(e: DragEvent, node: VaultTreeNode | null) {
+    if (!e.dataTransfer?.types.includes(DRAG_MIME)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    dragOverPath = node ? dropDirFor(node) : '';
+  }
+
+  async function handleDropOnTarget(e: DragEvent, node: VaultTreeNode | null) {
+    const raw = e.dataTransfer?.getData(DRAG_MIME);
+    dragOverPath = null;
+    if (!raw) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let paths: string[] = [];
+    try {
+      paths = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    await moveToDirectory(paths, dropDirFor(node));
+  }
+
   function handleCopy() {
     const paths = getSelectedRelativePaths();
     if (paths.length === 0) return;
     copiedPaths = [...paths];
+    clipboardMode = 'copy';
     showToast(
       paths.length > 1
         ? `${paths.length} elementos listos para pegar`
@@ -1219,6 +1328,16 @@
     if (copiedPaths.length === 0 || isPasting) return;
     const destDir = getPasteDestination(fromKeyboard);
     isPasting = true;
+    if (clipboardMode === 'cut') {
+      try {
+        await moveToDirectory(copiedPaths, destDir);
+        copiedPaths = [];
+        clipboardMode = 'copy';
+      } finally {
+        isPasting = false;
+      }
+      return;
+    }
     try {
       const created = await vaultApi.copyItems(copiedPaths, destDir);
       if (destDir && !expandedFolders[destDir]) {
@@ -1872,6 +1991,10 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <div
             bind:this={sidebarContentEl}
+            class:drop-target-root={dragOverPath === ''}
+            ondragover={(e) => handleDragOverTarget(e, null)}
+            ondragleave={() => { if (dragOverPath === '') dragOverPath = null; }}
+            ondrop={(e) => handleDropOnTarget(e, null)}
             class="sidebar-content"
             onscroll={(e) => {
               if (activeRibbonTab !== 'files' || isRestoringScroll) return;
@@ -2154,6 +2277,23 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          onSelect={handleCut}
+        >
+          <Scissors class="context-menu-item-icon" />
+          <span>{selectedPaths.length > 1 ? `Cortar (${selectedPaths.length} elementos)` : 'Cortar'}</span>
+          <span class="context-menu-shortcut">Ctrl+X</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={handleMoveTo}
+        >
+          <FolderInput class="context-menu-item-icon" />
+          <span>Mover a…</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
           disabled={copiedPaths.length === 0 || isPasting}
           onSelect={() => handlePaste(false)}
         >
@@ -2331,6 +2471,13 @@
             {...props}
             data-path={node.relativePath}
             class="file-tree-item folder"
+            class:drop-target={dragOverPath === node.relativePath}
+            draggable="true"
+            ondragstart={(e) => handleNodeDragStart(e, node)}
+            ondragover={(e) => handleDragOverTarget(e, node)}
+            ondragleave={() => { if (dragOverPath === node.relativePath) dragOverPath = null; }}
+            ondrop={(e) => handleDropOnTarget(e, node)}
+            ondragend={() => (dragOverPath = null)}
             class:selected={isSelected(node.relativePath)}
             class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
             style="padding-left: {12 + depth * 14}px;"
@@ -2374,6 +2521,11 @@
     <div
       data-path={node.relativePath}
       class="file-tree-item file"
+      draggable="true"
+      ondragstart={(e) => handleNodeDragStart(e, node)}
+      ondragover={(e) => handleDragOverTarget(e, node)}
+      ondrop={(e) => handleDropOnTarget(e, node)}
+      ondragend={() => (dragOverPath = null)}
       class:active={node.relativePath === activeTabPath}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
@@ -2678,6 +2830,16 @@
     background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
     color: var(--accent, #0969da);
     font-weight: 500;
+  }
+
+  .file-tree-item.drop-target {
+    outline: 1px dashed var(--accent, #0969da);
+    background-color: rgba(9, 105, 218, 0.12);
+  }
+
+  .sidebar-content.drop-target-root {
+    outline: 1px dashed var(--accent, #0969da);
+    outline-offset: -2px;
   }
 
   .file-tree-item.selected {

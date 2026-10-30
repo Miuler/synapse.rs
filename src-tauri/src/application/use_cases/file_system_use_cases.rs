@@ -19,6 +19,10 @@ impl<F: FileSystemPort> FileSystemUseCases<F> {
         self.port.rename_item(vault_path, relative_path, new_name)
     }
 
+    pub fn move_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+        self.port.move_item(vault_path, source_rel, dest_dir_rel)
+    }
+
     pub fn copy_items(&self, vault_path: &Path, paths: &[String], dest_dir: &str) -> Result<Vec<String>, String> {
         let mut created = Vec::with_capacity(paths.len());
         for source in paths {

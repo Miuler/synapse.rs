@@ -107,6 +107,10 @@ export const vaultApi = {
     return await invokeTauri<string[]>('copy_vault_items', { paths, destDir });
   },
 
+  async moveItems(paths: string[], destDir: string): Promise<{ from: string; to: string }[]> {
+    return await invokeTauri<{ from: string; to: string }[]>('move_vault_items', { paths, destDir });
+  },
+
   async reloadVaultItems(paths: string[]): Promise<string[]> {
     return await invokeTauri<string[]>('reload_vault_items', { paths });
   },
