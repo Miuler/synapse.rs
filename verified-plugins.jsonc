@@ -1,0 +1,9 @@
+{
+  // Plugins comunitarios que he comprobado que funcionan en Synapse.
+  // Se usa para el filtro "Compatibles" (activo por defecto) del menú de plugins.
+  // Cada entrada es el id del plugin en el catálogo comunitario.
+  // Importante: no uses "//" dentro de strings (el parser de jsonc los recortaría).
+  "verified_plugins": [
+    "obsidian-excalidraw-plugin"
+  ]
+}

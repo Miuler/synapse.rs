@@ -1,3 +1,4 @@
+import verifiedRaw from '../../../../verified-plugins.jsonc?raw';
 import type { VaultRepository } from '@shared/repositories';
 import type { SynapseApp, PluginManifest } from '@shared/obsidian-api';
 import type {
@@ -8,6 +9,21 @@ import type {
   PluginSortOrder,
 } from '@entities/community-plugin';
 
+function parseVerifiedPlugins(raw: string): Set<string> {
+  const cleaned = raw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n\r]*/g, '')
+    .replace(/,\s*([\]}])/g, '$1');
+  try {
+    return new Set<string>(JSON.parse(cleaned).verified_plugins ?? []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+/** Ids de plugins comprobados manualmente (verified-plugins.jsonc). */
+export const verifiedPluginIds = parseVerifiedPlugins(verifiedRaw);
+
 export class CommunityPluginsState {
   catalogue = $state<CommunityPluginItem[]>([]);
   installed = $state<InstalledPluginItem[]>([]);
@@ -17,6 +33,7 @@ export class CommunityPluginsState {
 
   searchQuery = $state<string>('');
   sortOrder = $state<PluginSortOrder>('downloads');
+  onlyCompatible = $state<boolean>(true);
   activeTab = $state<PluginModalTab>('community');
 
   installingMap = $state<Record<string, boolean>>({});
@@ -36,6 +53,7 @@ export class CommunityPluginsState {
   filteredCatalogue = $derived.by(() => {
     const query = this.searchQuery.trim().toLowerCase();
     let list = this.catalogue.filter((p) => {
+      if (this.onlyCompatible && !verifiedPluginIds.has(p.id)) return false;
       if (!query) return true;
       return (
         p.name.toLowerCase().includes(query) ||

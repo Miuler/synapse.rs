@@ -7,6 +7,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Filtro "Solo compatibles" en el catálogo de plugins comunitarios**:
+  - Activo por defecto: muestra solo los plugins comprobados manualmente, listados en `verified-plugins.jsonc` (`verified_plugins`).
+  - Nuevo archivo `verified-plugins.jsonc` en la raíz del proyecto, importado en build con `?raw` y parseado en `community-plugins.svelte.ts`.
+  - Se puede desactivar con la casilla junto al selector de orden.
+
 ## [1.0.0-alpha.3] - 2026-10-30
 
 ### Añadido

@@ -225,6 +225,14 @@
             </div>
 
             {#if communityPluginsState.activeTab === 'community'}
+              <label class="sort-selector" title="Mostrar solo los plugins comprobados (verified-plugins.jsonc)">
+                <input
+                  type="checkbox"
+                  bind:checked={communityPluginsState.onlyCompatible}
+                  onchange={() => communityPluginsState.resetPagination()}
+                />
+                <span class="sort-label">Solo compatibles</span>
+              </label>
               <div class="sort-selector">
                 <span class="sort-label">Ordenar:</span>
                 <select
