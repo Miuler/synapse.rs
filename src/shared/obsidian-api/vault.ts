@@ -32,6 +32,13 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   private _cachedFiles: TFile[] = [];
   private _filesLoaded = false;
 
+  // Índice síncrono de la bóveda (ruta → metadatos, sin contenido): espejo del DashMap de Rust
+  // para que las consultas por ruta respondan sin cruzar el IPC de Tauri, como en Obsidian.
+  private readonly index = new Map<string, RepositoryVaultFile>();
+  private readonly folderPaths = new Set<string>();
+  private indexLoaded = false;
+  private readonly indexLoading: Promise<void>;
+
   constructor(private readonly repository: VaultRepository) {
     super();
     this.rootFolder = new TFolder(this, '');
@@ -43,6 +50,93 @@ export class SynapseVault extends Events implements SynapseVaultLike {
 
     // Iniciar escucha del watcher de cambios en disco si el repositorio lo soporta
     this.setupWatcher();
+    this.indexLoading = this.loadIndex();
+  }
+
+  /**
+   * Carga el índice de rutas de la bóveda. Se espera antes de cargar plugins para que las
+   * consultas por ruta sean síncronas desde el primer momento.
+   */
+  private async loadIndex(): Promise<void> {
+    if (typeof this.repository.getVaultFiles !== 'function') return;
+    try {
+      const files = await this.repository.getVaultFiles();
+      this.index.clear();
+      this.folderPaths.clear();
+      for (const file of files) this.upsertIndex(file);
+      this._cachedFiles = files.map((file) => tFileFromMetadata(file, this));
+      this._filesLoaded = true;
+      this.indexLoaded = true;
+    } catch (e) {
+      console.warn('[SynapseVault] No se pudo cargar el índice de la bóveda:', e);
+    }
+  }
+
+  /** Resuelve cuando el índice síncrono está listo (o no se pudo cargar). */
+  whenIndexReady(): Promise<void> {
+    return this.indexLoading;
+  }
+
+  private upsertIndex(file: RepositoryVaultFile): void {
+    const path = pathOf(file.path);
+    this.index.set(path, file);
+    let dir = path;
+    while (dir.includes('/')) {
+      dir = dir.slice(0, dir.lastIndexOf('/'));
+      this.folderPaths.add(dir);
+    }
+  }
+
+  private removeFromIndex(path: string): void {
+    this.index.delete(path);
+    if (this.folderPaths.delete(path)) {
+      const prefix = `${path}/`;
+      for (const key of [...this.index.keys()]) if (key.startsWith(prefix)) this.index.delete(key);
+      for (const dir of [...this.folderPaths]) if (dir.startsWith(prefix)) this.folderPaths.delete(dir);
+    }
+  }
+
+  /** Registra en el índice un archivo creado localmente y luego toma los metadatos reales. */
+  private indexLocalFile(file: TFile): void {
+    if (!this.indexLoaded) return;
+    const name = file.path.split('/').pop() ?? file.path;
+    const dot = name.lastIndexOf('.');
+    this.upsertIndex({
+      path: file.path,
+      name,
+      basename: dot > 0 ? name.slice(0, dot) : name,
+      extension: dot > 0 ? name.slice(dot + 1) : '',
+      stat: file.stat,
+    } as RepositoryVaultFile);
+    this.refreshIndexEntry(file.path);
+  }
+
+  private refreshIndexEntry(path: string): void {
+    if (!this.indexLoaded || typeof this.repository.getNoteMeta !== 'function') return;
+    this.repository
+      .getNoteMeta(path)
+      .then((meta) => {
+        if (meta) this.upsertIndex(meta);
+      })
+      .catch(() => {});
+  }
+
+  private lookupIndex(path: string): TAbstractFile | null {
+    const meta = this.index.get(path);
+    if (meta) return tFileFromMetadata(meta, this);
+    if (!this.folderPaths.has(path)) return null;
+
+    const folder = new TFolder(this, path);
+    const prefix = `${path}/`;
+    const children: TAbstractFile[] = [];
+    for (const dir of this.folderPaths) {
+      if (dir.startsWith(prefix) && !dir.slice(prefix.length).includes('/')) children.push(new TFolder(this, dir));
+    }
+    for (const filePath of this.index.keys()) {
+      if (filePath.startsWith(prefix) && !filePath.slice(prefix.length).includes('/')) children.push(new TFile(this, filePath));
+    }
+    folder.children = children;
+    return folder;
   }
 
   /**
@@ -133,6 +227,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
           if (this.isRecentlyMutated(clean)) continue;
 
           const file = new TFile(this, clean);
+          this.removeFromIndex(clean);
           this.trigger('delete', file);
           this.metadataCache?.deleteCache(clean);
         }
@@ -142,6 +237,10 @@ export class SynapseVault extends Events implements SynapseVaultLike {
           const clean = pathOf(changedPath);
           if (this.isRecentlyMutated(clean)) continue;
 
+          if (this.indexLoaded && typeof this.repository.getNoteMeta === 'function') {
+            const meta = await this.repository.getNoteMeta(clean).catch(() => null);
+            if (meta) this.upsertIndex(meta);
+          }
           const file = await this.getAbstractFileByPath(clean);
           if (file) {
             this.trigger('modify', file);
@@ -186,13 +285,18 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   }
 
   /**
-   * Consulta puntual O(1) directamente al índice DashMap de Rust.
-   * Retorna una instancia de TFile o TFolder.
+   * Busca un archivo o carpeta por ruta. Con el índice cargado es síncrono, como en Obsidian;
+   * mientras se carga, consulta al índice DashMap de Rust y devuelve una promesa.
    */
-  async getAbstractFileByPath(path: string): Promise<TAbstractFile | null> {
+  getAbstractFileByPath(path: string): TAbstractFile | null | Promise<TAbstractFile | null> {
     if (!path) return null;
     const cleanPath = path.replace(/^\/+/, '');
     if (!cleanPath) return this.rootFolder;
+    if (this.indexLoaded) return this.lookupIndex(cleanPath);
+    return this.fetchAbstractFile(cleanPath);
+  }
+
+  private async fetchAbstractFile(cleanPath: string): Promise<TAbstractFile | null> {
 
     const meta = await this.repository.getNoteMeta(cleanPath);
     if (meta) {
@@ -218,7 +322,9 @@ export class SynapseVault extends Events implements SynapseVaultLike {
    * Soporta tanto uso síncrono directo (retorna Array con métodos como .some()) como invocación con `await`.
    */
   getFiles(): TFile[] {
-    const list: any = [...this._cachedFiles];
+    const list: any = this.indexLoaded
+      ? [...this.index.values()].map((file) => tFileFromMetadata(file, this))
+      : [...this._cachedFiles];
     list.then = (onFulfilled?: (value: TFile[]) => any, onRejected?: (reason: any) => any) => {
       return this.repository.getVaultFiles().then(
         (files) => {
@@ -356,6 +462,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
         ? abstractFile
         : new TFile(this, cleanPath, { ctime: Date.now(), mtime: Date.now(), size: data.length });
 
+    this.indexLocalFile(file);
     this.trigger('create', file);
 
     if (this.metadataCache && /\.(md|markdown)$/i.test(cleanPath)) {
@@ -382,6 +489,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
         ? abstractFile
         : new TFile(this, cleanPath, { ctime: Date.now(), mtime: Date.now(), size: byteLen });
 
+    this.indexLocalFile(file);
     this.trigger('create', file);
     return file;
   }
@@ -395,6 +503,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     await this.adapter.mkdir(cleanPath);
 
     const folder = new TFolder(this, cleanPath);
+    if (this.indexLoaded) this.folderPaths.add(cleanPath);
     this.trigger('create', folder);
     return folder;
   }
@@ -406,6 +515,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     const path = pathOf(file);
     this.recordMutation(path);
     await this.adapter.remove(path);
+    this.removeFromIndex(path);
 
     const target = file instanceof TAbstractFile ? file : new TFile(this, path);
     this.trigger('delete', target);
@@ -423,6 +533,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     } else {
       await this.adapter.trashLocal(path);
     }
+    this.removeFromIndex(path);
 
     const target = file instanceof TAbstractFile ? file : new TFile(this, path);
     this.trigger('delete', target);
@@ -438,6 +549,18 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     this.recordMutation(oldPath);
     this.recordMutation(cleanNewPath);
     await this.adapter.rename(oldPath, cleanNewPath);
+    if (this.indexLoaded) {
+      const wasFolder = this.folderPaths.has(oldPath);
+      const moved = this.index.get(oldPath);
+      this.removeFromIndex(oldPath);
+      if (moved) this.upsertIndex({ ...moved, path: cleanNewPath });
+      if (wasFolder) {
+        this.folderPaths.add(cleanNewPath);
+        // Los hijos de la carpeta se reconstruyen desde Rust
+        void this.loadIndex();
+      }
+      this.refreshIndexEntry(cleanNewPath);
+    }
 
     const target = (await this.getAbstractFileByPath(cleanNewPath)) || new TFile(this, cleanNewPath);
     this.trigger('rename', target, oldPath);
@@ -454,6 +577,7 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     await this.adapter.copy(sourcePath, cleanNewPath);
 
     const copied = (await this.getAbstractFileByPath(cleanNewPath)) || new TFile(this, cleanNewPath);
+    if (copied instanceof TFile) this.indexLocalFile(copied);
     this.trigger('create', copied);
 
     return copied instanceof TFile ? copied : new TFile(this, cleanNewPath);

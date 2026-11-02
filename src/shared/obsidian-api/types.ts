@@ -210,7 +210,7 @@ export interface DataAdapter {
 
 export interface SynapseVaultLike {
   adapter: DataAdapter;
-  getAbstractFileByPath(path: string): Promise<TAbstractFile | null>;
+  getAbstractFileByPath(path: string): TAbstractFile | null | Promise<TAbstractFile | null>;
   getRoot(): TFolder;
   getFiles(): TFile[] | Promise<TFile[]>;
   getMarkdownFiles(): TFile[] | Promise<TFile[]>;

@@ -486,6 +486,8 @@
           }, 150);
         });
         vaultRepository.getEnabledPlugins().then(async (enabledList) => {
+          // Los plugins esperan consultas síncronas por ruta (como en Obsidian): cargar antes el índice
+          await synapseApp?.vault.whenIndexReady();
           for (const pluginId of enabledList) {
             try {
               const entry = await synapseApp?.plugins.loadPlugin(pluginId);

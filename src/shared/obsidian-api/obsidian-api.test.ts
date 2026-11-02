@@ -1987,3 +1987,34 @@ img456: "[[diagrama.svg]]"
     });
   });
 });
+
+describe('Índice síncrono de la bóveda', () => {
+  it('con el índice cargado, getAbstractFileByPath responde sin promesa, como en Obsidian', async () => {
+    const repo = new MockVaultRepository() as unknown as VaultRepository;
+    const app = createSynapseApp(repo);
+    await app.vault.whenIndexReady();
+
+    const file = app.vault.getAbstractFileByPath('notas/bienvenida.md');
+    expect(file).not.toBeInstanceOf(Promise);
+    expect(file).toBeInstanceOf(TFile);
+
+    const folder = app.vault.getAbstractFileByPath('notas');
+    expect(folder).toBeInstanceOf(TFolder);
+    expect((folder as TFolder).children.some((c) => c.path === 'notas/bienvenida.md')).toBe(true);
+
+    expect(app.vault.getAbstractFileByPath('no/existe.md')).toBeNull();
+  });
+
+  it('un archivo creado queda en el índice al instante', async () => {
+    const repo = new MockVaultRepository() as unknown as VaultRepository;
+    const app = createSynapseApp(repo);
+    await app.vault.whenIndexReady();
+
+    await app.vault.create('nuevas/recien-creada.md', '# Hola');
+    expect(app.vault.getAbstractFileByPath('nuevas/recien-creada.md')).toBeInstanceOf(TFile);
+    expect(app.vault.getAbstractFileByPath('nuevas')).toBeInstanceOf(TFolder);
+
+    await app.vault.delete('nuevas/recien-creada.md');
+    expect(app.vault.getAbstractFileByPath('nuevas/recien-creada.md')).toBeNull();
+  });
+});

@@ -116,3 +116,9 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   casos de uso, y reemplazar `VaultChangeObserver` por llamadas directas a casos de uso.
 - **Prueba inestable:** `test_cold_start_hydration_timing_sub_10ms` (límite de 25 ms en debug)
   falla con frecuencia también en `main`; no la causa el refactor.
+- **Fachada de Obsidian (etapa 6):** `SynapseVault` ya tiene el índice síncrono (ruta →
+  metadatos) y `getAbstractFileByPath` responde sin promesa una vez cargado; los plugins se
+  cargan después de `whenIndexReady()`. Falta: compartir ese índice con el explorador (hoy
+  `vaultItems` sigue aparte), volver síncronos `workspace.getActiveFile` y
+  `metadataCache.getFileCache`, verificar firmas contra los tipos oficiales del paquete
+  `obsidian`, sacar Excalidraw del núcleo de la fachada y medir la memoria en el webview.
