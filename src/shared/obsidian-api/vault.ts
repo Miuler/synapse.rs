@@ -72,6 +72,11 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     }
   }
 
+  /** Si el índice síncrono ya está cargado. */
+  isIndexReady(): boolean {
+    return this.indexLoaded;
+  }
+
   /** Resuelve cuando el índice síncrono está listo (o no se pudo cargar). */
   whenIndexReady(): Promise<void> {
     return this.indexLoading;

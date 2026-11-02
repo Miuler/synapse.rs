@@ -7,7 +7,7 @@ import {
 } from './types';
 import { WorkspaceLeaf } from './leaf';
 import { DefaultMarkdownView, View } from './view';
-import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
+import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './integrations/excalidraw/excalidraw-view';
 import type { SynapseApp } from './app';
 
 export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
@@ -19,6 +19,7 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   private readonly leftLeaves: Set<WorkspaceLeaf> = new Set();
   private readonly editorExtensions: any[] = [];
   activeLeaf: WorkspaceLeaf | null = null;
+  private lastActivePath: string | null = null;
   layoutReady = true;
   private readonly hoverLinkSources: Map<string, any> = new Map();
 
@@ -78,6 +79,7 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
     private readonly vault: SynapseVaultLike
   ) {
     super();
+    void this.loadActivePath();
 
     // Registrar vista por defecto de Markdown
     this.registerView('markdown', (leaf) => new DefaultMarkdownView(leaf));
@@ -313,19 +315,37 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
   /**
    * Obtiene el archivo actualmente activo en las pestañas del espacio de trabajo.
    */
-  async getActiveFile(): Promise<TFile | null> {
+  /**
+   * Archivo activo, de forma síncrona como en Obsidian: el de la hoja activa o, si no, la pestaña
+   * activa de Synapse (ruta cacheada; la página la actualiza con `setActivePath`).
+   */
+  getActiveFile(): TFile | null {
     if (this.activeLeaf?.view && (this.activeLeaf.view as any).file instanceof TFile) {
       return (this.activeLeaf.view as any).file;
     }
 
-    const state = await this.repository.getOpenTabsState();
-    const activePath = state?.active_tab;
+    const activePath = this.lastActivePath;
     if (!activePath || activePath.startsWith('empty://')) return null;
 
-    const file = await this.vault.getAbstractFileByPath(activePath);
+    const file = this.vault.getAbstractFileByPath(activePath);
     if (file instanceof TFile) return file;
 
     return new TFile(this.vault, activePath);
+  }
+
+  /** Ruta de la pestaña activa de Synapse (la informa la página al cambiar de pestaña). */
+  setActivePath(path: string | null): void {
+    this.lastActivePath = path;
+  }
+
+  /** Toma la pestaña activa guardada mientras la página aún no informó ninguna. */
+  private async loadActivePath(): Promise<void> {
+    try {
+      const state = await this.repository.getOpenTabsState();
+      if (this.lastActivePath === null) this.lastActivePath = state?.active_tab ?? null;
+    } catch {
+      // Sin estado de pestañas: no hay archivo activo
+    }
   }
 
   /**

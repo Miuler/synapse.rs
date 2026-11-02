@@ -1,5 +1,5 @@
-import type { SynapseApp } from './app';
-import { TFile } from './types';
+import type { SynapseApp } from '../../app';
+import { TFile } from '../../types';
 import {
   extractWikilinksFromElements,
   serializeExcalidrawMarkdown,

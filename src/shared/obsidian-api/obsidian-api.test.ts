@@ -368,7 +368,19 @@ describe('Synapse Obsidian API Facade (Etapa 1 & Etapa 2)', () => {
   });
 
   it('8. app.metadataCache.getFileCache parsea frontmatter, encabezados, links, embeds y tags', async () => {
-    const cache = await app.metadataCache.getFileCache('notas/bienvenida.md');
+    // Como en Obsidian: con el índice cargado, la primera consulta devuelve null y emite 'changed'
+    // cuando termina de calcular la caché; las siguientes son síncronas.
+    await app.vault.whenIndexReady();
+    const changed = new Promise<void>((resolve) => {
+      const ref = app.metadataCache.on('changed', (file: TFile) => {
+        if (file.path === 'notas/bienvenida.md') {
+          app.metadataCache.offref(ref);
+          resolve();
+        }
+      });
+    });
+    if (app.metadataCache.getFileCache('notas/bienvenida.md') === null) await changed;
+    const cache = app.metadataCache.getFileCache('notas/bienvenida.md') as ReturnType<typeof app.metadataCache.getFileCacheSync>;
     expect(cache).not.toBeNull();
     expect(cache?.frontmatter?.autor).toBe('Miuler');
     expect(cache?.frontmatter?.version).toBe(1);
@@ -2003,6 +2015,7 @@ describe('Índice síncrono de la bóveda', () => {
     expect((folder as TFolder).children.some((c) => c.path === 'notas/bienvenida.md')).toBe(true);
 
     expect(app.vault.getAbstractFileByPath('no/existe.md')).toBeNull();
+    expect(app.workspace.getActiveFile()).not.toBeInstanceOf(Promise);
   });
 
   it('un archivo creado queda en el índice al instante', async () => {

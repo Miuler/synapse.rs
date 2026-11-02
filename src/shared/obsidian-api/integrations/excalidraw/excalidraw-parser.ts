@@ -1,5 +1,5 @@
-import type { TFile, CachedMetadataLike as CachedMetadata } from './types';
-import { parseYaml, stringifyYaml, extractFrontmatter } from './utils';
+import type { TFile, CachedMetadataLike as CachedMetadata } from '../../types';
+import { parseYaml, stringifyYaml, extractFrontmatter } from '../../utils';
 import lzString from 'lz-string';
 
 export interface ExcalidrawScene {

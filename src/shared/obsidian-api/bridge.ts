@@ -66,15 +66,15 @@ import {
   debounce,
 } from './utils';
 import { createDiv, createEl, createSpan, empty } from './dom';
-import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './excalidraw-view';
-import { ExcalidrawAutomate } from './excalidraw-automate';
+import { ExcalidrawView, VIEW_TYPE_EXCALIDRAW } from './integrations/excalidraw/excalidraw-view';
+import { ExcalidrawAutomate } from './integrations/excalidraw/excalidraw-automate';
 import {
   isExcalidrawFile,
   isExcalidrawMarkdown,
   parseExcalidrawContent,
   serializeExcalidrawMarkdown,
   extractWikilinksFromElements,
-} from './excalidraw-parser';
+} from './integrations/excalidraw/excalidraw-parser';
 import * as cmCommands from '@codemirror/commands';
 import * as cmLanguage from '@codemirror/language';
 import * as cmState from '@codemirror/state';

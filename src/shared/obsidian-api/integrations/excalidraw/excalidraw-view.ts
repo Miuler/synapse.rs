@@ -1,6 +1,6 @@
-import { TextFileView } from './view';
-import type { WorkspaceLeaf } from './leaf';
-import { createDiv, createEl, empty } from './dom';
+import { TextFileView } from '../../view';
+import type { WorkspaceLeaf } from '../../leaf';
+import { createDiv, createEl, empty } from '../../dom';
 import {
   parseExcalidrawContent,
   serializeExcalidrawMarkdown,

@@ -8,7 +8,7 @@ import { SynapseSettingManager } from './setting';
 import { SynapseRibbonManager, SynapseStatusBarManager } from './ribbon';
 import { PluginLoader } from './loader';
 import { SynapseInternalPluginsManager } from './internal-plugins';
-import { ExcalidrawAutomate } from './excalidraw-automate';
+import { ExcalidrawAutomate } from './integrations/excalidraw/excalidraw-automate';
 import { setupObsidianGlobalEnvironment } from './bridge';
 
 export class SynapseApp {

@@ -146,11 +146,28 @@ export class SynapseMetadataCache extends Events implements SynapseMetadataCache
     }
 
     // Si aún no está en caché en memoria, leemos bajo demanda y la poblamos
-    return this.repository.readNote(path).then((note) => {
+    const load = this.repository.readNote(path).then((note) => {
       if (!note) return null;
       const content = note.content ?? '';
-      return this.computeAndStoreCache(path, content);
+      return { content, cache: this.computeAndStoreCache(path, content) };
     });
+
+    // Con el índice cargado (uso normal de los plugins) se responde como Obsidian: `null` mientras
+    // se calcula, y al terminar se emiten 'changed' y 'resolve' para ese archivo.
+    if (this.vault.isIndexReady?.()) {
+      load
+        .then((loaded) => {
+          if (!loaded) return;
+          const target = this.vault.getAbstractFileByPath(path);
+          if (target instanceof TFile) {
+            this.trigger('changed', target, loaded.content, loaded.cache);
+            this.trigger('resolve', target);
+          }
+        })
+        .catch(() => {});
+      return null;
+    }
+    return load.then((loaded) => loaded?.cache ?? null);
   }
 
   /**

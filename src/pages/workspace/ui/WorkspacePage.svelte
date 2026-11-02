@@ -401,7 +401,18 @@
   }
 
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
-  let vaultItems = $state<VaultItem[]>([]);
+  // Lista plana (sin proxies por elemento): con miles de notas, el $state profundo cuesta ~6 veces
+  // más memoria. Para cambiar un elemento se reemplaza el arreglo (ver patchVaultItem).
+  let vaultItems = $state.raw<VaultItem[]>([]);
+
+  /** Actualiza campos de un elemento de la bóveda reemplazando el arreglo para notificar el cambio. */
+  function patchVaultItem(path: string, patch: Partial<VaultItem>) {
+    const idx = vaultItems.findIndex((v) => v.relative_path === path);
+    if (idx < 0) return;
+    const next = vaultItems.slice();
+    next[idx] = { ...next[idx], ...patch };
+    vaultItems = next;
+  }
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
   let lastActiveDocumentPath = $state<string | null>(null);
@@ -461,6 +472,11 @@
 
   // Instancia de la fachada Obsidian API para soporte de plugins
   let synapseApp = $state<SynapseApp | null>(null);
+
+  // La fachada de Obsidian responde getActiveFile() de forma síncrona con la pestaña activa
+  $effect(() => {
+    synapseApp?.workspace.setActivePath(activeTabPath);
+  });
   let pluginEditorExtensions = $state<any[]>([]);
   let editorExtensionsTimeout: ReturnType<typeof setTimeout> | null = null;
   let pluginStatusBarContainer = $state<HTMLElement | null>(null);
@@ -629,8 +645,7 @@
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = newMode;
       }
-      const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
-      if (vItem) vItem.view_mode = newMode;
+      patchVaultItem(activeTabPath, { view_mode: newMode });
       vaultRepository.setNoteViewMode(activeTabPath, newMode);
       persistTabsState();
     }
@@ -669,8 +684,7 @@
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = nextMode;
       }
-      const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
-      if (vItem) vItem.view_mode = nextMode;
+      patchVaultItem(activeTabPath, { view_mode: nextMode });
       vaultRepository.setNoteViewMode(activeTabPath, nextMode);
       persistTabsState();
     }
@@ -846,8 +860,7 @@
             : 'reading';
           if (note.viewMode !== targetMode) {
             note.viewMode = targetMode;
-            const vItem = vaultItems.find((v) => v.relative_path === path);
-            if (vItem) vItem.view_mode = targetMode;
+            patchVaultItem(path, { view_mode: targetMode });
             vaultRepository.setNoteViewMode(path, targetMode);
             persistTabsState();
           }
@@ -870,8 +883,7 @@
             : 'reading';
           if (note.viewMode !== targetMode) {
             note.viewMode = targetMode;
-            const vItem = vaultItems.find((v) => v.relative_path === path);
-            if (vItem) vItem.view_mode = targetMode;
+            patchVaultItem(path, { view_mode: targetMode });
             vaultRepository.setNoteViewMode(path, targetMode);
             persistTabsState();
           }
@@ -1638,8 +1650,7 @@
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = newMode;
       }
-      const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
-      if (vItem) vItem.view_mode = newMode;
+      patchVaultItem(activeSplitTabPath, { view_mode: newMode });
       vaultRepository.setNoteViewMode(activeSplitTabPath, newMode);
       persistTabsState();
     }
@@ -1667,8 +1678,7 @@
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = nextMode;
       }
-      const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
-      if (vItem) vItem.view_mode = nextMode;
+      patchVaultItem(activeSplitTabPath, { view_mode: nextMode });
       vaultRepository.setNoteViewMode(activeSplitTabPath, nextMode);
       persistTabsState();
     }
@@ -2252,6 +2262,7 @@
       openedNotes[tabPath].title = cleanTitle;
     }
     vaultItem.title = cleanTitle;
+    patchVaultItem(tabPath, { title: cleanTitle });
 
     // Si es un archivo Markdown en modo bóveda, sincronizar renombrado de archivo y frontmatter
     if (isMarkdownFile(tabPath) && !isStandaloneMode) {
@@ -2851,7 +2862,7 @@
       relative_path: newRelPath,
       abs_path: undefined,
     };
-    vaultItems.push(newVaultItem);
+    vaultItems = [...vaultItems, newVaultItem];
     openedNotes[newRelPath] = {
       relative_path: newRelPath,
       abs_path: undefined,

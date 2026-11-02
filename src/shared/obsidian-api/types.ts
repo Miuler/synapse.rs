@@ -209,6 +209,7 @@ export interface DataAdapter {
 }
 
 export interface SynapseVaultLike {
+  isIndexReady?(): boolean;
   adapter: DataAdapter;
   getAbstractFileByPath(path: string): TAbstractFile | null | Promise<TAbstractFile | null>;
   getRoot(): TFolder;
@@ -245,7 +246,7 @@ export interface SynapseVaultLike {
 
 export interface SynapseWorkspaceLike {
   activeLeaf: WorkspaceLeaf | null;
-  getActiveFile(): Promise<TFile | null>;
+  getActiveFile(): TFile | null;
   openLinkText(linktext: string, sourcePath: string, newLeaf?: boolean): Promise<TFile | null>;
   registerView(type: string, viewCreator: (leaf: WorkspaceLeaf) => View): void;
   registerExtensions(extensions: string[], viewType: string): void;

@@ -20,3 +20,16 @@ Hallazgo de la etapa 0: en el Quick Open, los empates entre archivos con el mism
 mismo puntaje (p. ej. `a/notas.md` y `b/notas.md`) se ordenan por el orden de iteración del
 `DashMap`, que cambia entre ejecuciones. No se corrige en el refactor (cambiaría el
 comportamiento); queda fuera de las pruebas de caracterización.
+
+## Front: memoria de la lista de la bóveda
+
+Medido en Bun (JavaScriptCore, el mismo motor que el webview de Tauri en Linux) con 6 500
+elementos y rutas de ~150 caracteres, leyendo cada propiedad como hace la interfaz:
+
+| `vaultItems` | Memoria |
+|---|---|
+| `$state` profundo (antes) | 11,9 MB |
+| `$state.raw` (después) | 2,0 MB |
+
+El índice síncrono de la fachada de Obsidian suma ~1,6 a 2 MB aparte (estimado). Queda pendiente
+medir el heap real del webview con la app abierta.
