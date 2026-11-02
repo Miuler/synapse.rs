@@ -4054,7 +4054,11 @@
                     type="text"
                     class="editor-title-input"
                     readonly={!paneEditing}
-                    bind:value={vaultItem.title}
+                    value={vaultItem.title}
+                    oninput={(e) => {
+                      // vaultItems es $state.raw: se actualiza reemplazando el elemento
+                      patchVaultItem(vaultItem.relative_path, { title: (e.currentTarget as HTMLInputElement).value });
+                    }}
                     onchange={(e) => {
                       const target = e.currentTarget as HTMLInputElement;
                       handleTitleInputChange(vaultItem, target.value);
