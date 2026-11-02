@@ -1,5 +1,6 @@
 pub mod community_plugin;
 pub mod config;
+pub mod file_name;
 pub mod file_types;
 pub mod folder;
 pub mod frontmatter;
@@ -10,5 +11,7 @@ pub mod note;
 pub mod note_path;
 pub mod pdf_document;
 pub mod startup;
+pub mod tag;
 pub mod version;
+pub mod wikilink;
 pub mod workspace_registry;

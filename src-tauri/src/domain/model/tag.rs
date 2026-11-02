@@ -10,7 +10,7 @@ pub fn extract_all_tags(content: &str) -> Vec<String> {
     let mut tags_set = HashSet::new();
 
     // 1. Extraer tags del frontmatter YAML si existe
-    let (fm, body) = crate::domain::service::frontmatter_service::parse_frontmatter_and_content(content);
+    let (fm, body) = crate::domain::model::frontmatter::parse_frontmatter_and_content(content);
     if let Some(fm) = fm {
         for tag in fm.tags {
             let normalized = normalize_tag(&tag);

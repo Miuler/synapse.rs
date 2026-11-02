@@ -2,11 +2,11 @@ use crate::domain::model::full_text::FullTextQuery;
 use crate::infrastructure::entrypoint::mcp::dto::*;
 use crate::domain::model::note::Note;
 use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::service::frontmatter_service;
+use crate::domain::model::frontmatter;
 use crate::domain::repository::full_text_index::FullTextIndex;
 use crate::domain::repository::version_control::VersionControl;
-use crate::domain::service::link_resolution::{extract_wikilinks, normalize_link_target};
-use crate::domain::service::tag_service::{self, matches_tag};
+use crate::domain::model::wikilink::{extract_wikilinks, normalize_link_target};
+use crate::domain::model::tag::{self, matches_tag};
 use crate::domain::model::note_path::NoteRelativePath;
 use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
 use crate::domain::repository::vault_item_repository::VaultItemRepository;
@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 /// Extrae un fragmento de texto limpio (sin frontmatter YAML, sin encabezados Markdown vacíos) para resumen o snippet.
 pub fn extract_clean_snippet(content: &str, max_chars: usize) -> String {
-    let (_, body) = frontmatter_service::parse_frontmatter_and_content(content);
+    let (_, body) = frontmatter::parse_frontmatter_and_content(content);
     let mut snippet_parts = Vec::new();
     let mut char_count = 0;
 
@@ -945,7 +945,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     .into_iter()
                     .filter(|n| {
                         // Extraer todas las etiquetas (YAML + inline hashtags)
-                        let all_tags = tag_service::extract_all_tags(&n.content);
+                        let all_tags = tag::extract_all_tags(&n.content);
 
                         let matches_query = query.is_empty()
                             || n.title.to_lowercase().contains(&query)
@@ -961,7 +961,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         if !tags_filter.is_empty() {
                             // Todas las tags especificadas en tags_filter deben coincidir jerárquicamente
                             let matches_all_tag_filters = tags_filter.iter().all(|tf| {
-                                tag_service::any_tag_matches(&all_tags, tf)
+                                tag::any_tag_matches(&all_tags, tf)
                             });
                             if !matches_all_tag_filters {
                                 return false;
@@ -1016,7 +1016,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
         // Recolectar todas las carpetas a partir de las notas y del filesystem
         let file_paths: Vec<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
-        let mut folder_set: HashSet<String> = crate::domain::service::folder_service::extract_ancestor_folders(&file_paths)
+        let mut folder_set: HashSet<String> = crate::domain::model::folder::extract_ancestor_folders(&file_paths)
             .into_iter()
             .collect();
 
@@ -1057,7 +1057,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let all_files_vec: Vec<(String, String, Vec<String>)> = all_notes
             .iter()
             .map(|n| {
-                let tags = tag_service::extract_all_tags(&n.content);
+                let tags = tag::extract_all_tags(&n.content);
                 (n.relative_path.as_str().to_string(), n.title.clone(), tags)
             })
             .collect();
@@ -1102,7 +1102,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .into_iter()
             .skip(offset)
             .take(limit)
-            .map(|f| crate::domain::service::folder_service::summarize_folder(&f, &all_folders, &files_ref))
+            .map(|f| crate::domain::service::folder_summarizer::summarize_folder(&f, &all_folders, &files_ref))
             .collect();
 
         let has_more = offset + limit < total_matched;
@@ -1323,8 +1323,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                                 let ok_tags = if tags_filter.is_empty() {
                                     true
                                 } else {
-                                    let all_tags = tag_service::extract_all_tags(&note.content);
-                                    tags_filter.iter().all(|tf| tag_service::any_tag_matches(&all_tags, tf))
+                                    let all_tags = tag::extract_all_tags(&note.content);
+                                    tags_filter.iter().all(|tf| tag::any_tag_matches(&all_tags, tf))
                                 };
                                 (lines, tokens, ok_tags)
                             } else {
@@ -1720,7 +1720,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     .filter_map(|a| a.as_str().map(|s| s.to_string()))
                     .collect();
             }
-            frontmatter_service::serialize_frontmatter_and_content(Some(&fm), content)
+            frontmatter::serialize_frontmatter_and_content(Some(&fm), content)
         };
 
         if dry_run {
@@ -1952,7 +1952,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
         };
 
-        let (fm_opt, body) = frontmatter_service::parse_frontmatter_and_content(&note.content);
+        let (fm_opt, body) = frontmatter::parse_frontmatter_and_content(&note.content);
         let mut fm = fm_opt.unwrap_or_default();
 
         if let Some(new_title) = args.get("title").and_then(|v| v.as_str()) {
@@ -1977,7 +1977,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             fm.aliases = aliases_val.iter().filter_map(|a| a.as_str().map(|s| s.to_string())).collect();
         }
 
-        let new_full_content = frontmatter_service::serialize_frontmatter_and_content(Some(&fm), &body);
+        let new_full_content = frontmatter::serialize_frontmatter_and_content(Some(&fm), &body);
         let new_hash = calculate_content_hash(&new_full_content);
 
         let final_title = fm.title.clone().unwrap_or(note.title);

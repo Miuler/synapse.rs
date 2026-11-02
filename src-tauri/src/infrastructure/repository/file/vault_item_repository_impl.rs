@@ -1,4 +1,4 @@
-use crate::domain::service::copy_naming::next_available_copy_name;
+use crate::domain::model::file_name::next_available_copy_name;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -191,7 +191,7 @@ impl VaultItemRepositoryImpl {
             if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name) {
                 if let Ok(raw_content) = fs::read_to_string(&target) {
                     if let Some(new_stem) = target.file_stem().and_then(|s| s.to_str()) {
-                        let updated = crate::domain::service::frontmatter_service::sync_frontmatter_title(&raw_content, new_stem);
+                        let updated = crate::domain::model::frontmatter::sync_frontmatter_title(&raw_content, new_stem);
                         let _ = fs::write(&target, updated);
                     }
                 }

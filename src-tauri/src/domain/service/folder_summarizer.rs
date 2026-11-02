@@ -102,28 +102,11 @@ pub fn summarize_folder(
     }
 }
 
-/// Extrae todos los directorios ancestros a partir de una lista de rutas de archivos relativas.
-pub fn extract_ancestor_folders(file_paths: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<String> {
-    let mut folder_set = std::collections::HashSet::new();
-    for path in file_paths {
-        let p_str = path.as_ref().replace('\\', "/");
-        let mut current = p_str.as_str();
-        while let Some((parent, _)) = current.rsplit_once('/') {
-            let parent_clean = parent.trim_matches('/');
-            if !parent_clean.is_empty() {
-                folder_set.insert(parent_clean.to_string());
-            }
-            current = parent;
-        }
-    }
-    let mut list: Vec<String> = folder_set.into_iter().collect();
-    list.sort();
-    list
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::model::folder::extract_ancestor_folders;
 
     #[test]
     fn test_extract_ancestor_folders() {

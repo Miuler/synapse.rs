@@ -27,7 +27,7 @@ impl Note {
     /// el nombre del archivo sin extensión.
     pub fn title_from_content(content: &str, file_stem: &str) -> String {
         // Si contiene frontmatter YAML con propiedad title, priorizarla
-        let (fm, body) = crate::domain::service::frontmatter_service::parse_frontmatter_and_content(content);
+        let (fm, body) = crate::domain::model::frontmatter::parse_frontmatter_and_content(content);
         if let Some(fm) = fm {
             if let Some(explicit_title) = fm.title {
                 let trimmed = explicit_title.trim();

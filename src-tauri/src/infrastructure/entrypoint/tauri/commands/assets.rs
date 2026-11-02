@@ -1,4 +1,4 @@
-use crate::domain::service::link_resolution::{clean_asset_source, normalize_link_target};
+use crate::domain::model::wikilink::{clean_asset_source, normalize_link_target};
 use crate::infrastructure::config::state::AppState;
 use std::path::{Path, PathBuf};
 use tauri::State;

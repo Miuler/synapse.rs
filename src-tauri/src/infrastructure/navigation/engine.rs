@@ -427,7 +427,7 @@ impl NavigationEngine {
                     let (title, tags) = if is_markdown {
                         let content = std::fs::read_to_string(&path).unwrap_or_default();
                         let t = Note::title_from_content(&content, file_stem);
-                        let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
+                        let raw_tags = crate::domain::model::tag::extract_all_tags(&content);
                         let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                         (t, compact_tags)
                     } else {
@@ -482,7 +482,7 @@ impl NavigationEngine {
                 let (title, tags) = if is_markdown {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
                     let t = Note::title_from_content(&content, file_stem);
-                    let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
+                    let raw_tags = crate::domain::model::tag::extract_all_tags(&content);
                     let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                     (t, compact_tags)
                 } else {
@@ -924,7 +924,7 @@ impl NavigationEngine {
             let after_hash = part.trim_start_matches('#');
             let is_tag = part.starts_with('#') && part.len() > 1 && !after_hash.chars().all(|c| c.is_ascii_digit());
             if is_tag {
-                let clean = crate::domain::service::tag_service::normalize_tag(part);
+                let clean = crate::domain::model::tag::normalize_tag(part);
                 if !clean.is_empty() {
                     tag_filters.push(clean);
                 }
@@ -966,7 +966,7 @@ impl NavigationEngine {
         let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
         let passes_tag_filters = |meta: &NoteMeta| {
             tag_filters.iter().all(|tf| {
-                meta.tags.iter().any(|t| crate::domain::service::tag_service::matches_tag(t.as_str(), tf))
+                meta.tags.iter().any(|t| crate::domain::model::tag::matches_tag(t.as_str(), tf))
             })
         };
 
@@ -1224,7 +1224,7 @@ impl NavigationEngine {
         let (title, tags) = if is_markdown {
             let content = std::fs::read_to_string(path).unwrap_or_default();
             let t = Note::title_from_content(&content, file_stem);
-            let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
+            let raw_tags = crate::domain::model::tag::extract_all_tags(&content);
             let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
             (t, compact_tags)
         } else {
@@ -1381,7 +1381,7 @@ impl NavigationEngine {
             .skip(offset)
             .take(limit)
             .map(|folder_path| {
-                crate::domain::service::folder_service::summarize_folder(
+                crate::domain::service::folder_summarizer::summarize_folder(
                     &folder_path,
                     &all_folders,
                     &files_ref,
@@ -1462,7 +1462,7 @@ impl NavigationEngine {
         content: &str,
         base_file: Option<&str>,
     ) -> String {
-        crate::domain::service::link_resolution::transform_markdown_wikilinks(content, |target| {
+        crate::domain::model::wikilink::transform_markdown_wikilinks(content, |target| {
             self.resolve_link_path_with_base(target, base_file)
         })
     }
@@ -1474,7 +1474,7 @@ impl NavigationEngine {
         max_depth: Option<usize>,
     ) -> crate::domain::model::graph::VaultGraphData {
         use crate::domain::model::graph::{GraphEdge, GraphNode, VaultGraphData};
-        use crate::domain::service::link_resolution::extract_wikilinks;
+        use crate::domain::model::wikilink::extract_wikilinks;
         use std::collections::{HashMap, HashSet, VecDeque};
 
         // 1. Extraer outlinks de todas las notas Markdown de la bóveda en paralelo con Rayon
@@ -1668,12 +1668,12 @@ impl NavigationEngine {
     /// Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
     /// Resuelve directamente desde `self.notes` en memoria RAM con soporte jerárquico.
     pub fn get_notes_by_tag(&self, tag: &str) -> Vec<String> {
-        let clean_tag = crate::domain::service::tag_service::normalize_tag(tag);
+        let clean_tag = crate::domain::model::tag::normalize_tag(tag);
         let mut matching_paths = Vec::new();
 
         for item in self.notes.iter() {
             let meta = item.value();
-            if meta.tags.iter().any(|t| crate::domain::service::tag_service::matches_tag(t.as_str(), &clean_tag)) {
+            if meta.tags.iter().any(|t| crate::domain::model::tag::matches_tag(t.as_str(), &clean_tag)) {
                 matching_paths.push(meta.path.to_string());
             }
         }
@@ -1688,7 +1688,7 @@ impl NavigationEngine {
         target_path: &str,
     ) -> crate::domain::model::graph::NoteBacklinksReport {
         use crate::domain::model::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
-        use crate::domain::service::link_resolution::{extract_wikilinks, normalize_link_target};
+        use crate::domain::model::wikilink::{extract_wikilinks, normalize_link_target};
 
         let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
         let target_stem = clean_target
