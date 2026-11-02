@@ -99,21 +99,31 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   `application/service`; agente→Synapse (leer, escribir, permisos, avances) es un punto de
   entrada en `infrastructure/entrypoint` que llama a casos de uso.
 
-## Deuda registrada durante la migración
+## Deuda cerrada en la segunda ronda
 
-- **MCP (etapa 3c):** `McpUseCases` pasó a `infrastructure/entrypoint/mcp/tool_handler.rs`
-  como `McpToolHandler`, y los tipos del protocolo a `entrypoint/mcp/dto.rs`. Falta extraer la
-  orquestación de cada herramienta a su caso de uso (reutilizando los del front) y quitar los
-  `Path::exists`/`is_dir` directos. Marcado con `TODO:` en el archivo.
-- **Quick Open:** los empates con el mismo nombre de archivo y puntaje dependen del orden del
-  `DashMap` (ver `arquitectura_mediciones.md`).
-- **Navegación (etapa 4):** ya salieron `QuickOpenRanking`, `LinkResolver` y el título de la
-  nota (`Note::title_from_content`), y el vigilante está en `entrypoint/subscriber`. Falta:
-  repository de sesión (notas recientes, pestañas, modo de vista, estado de interfaz) con sus
-  casos de uso, y reemplazar `VaultChangeObserver` por llamadas directas a casos de uso.
-- **Fachada de Obsidian (etapa 6):** `SynapseVault` ya tiene el índice síncrono (ruta →
-  metadatos) y `getAbstractFileByPath` responde sin promesa una vez cargado; los plugins se
-  cargan después de `whenIndexReady()`. Falta: compartir ese índice con el explorador (hoy
-  `vaultItems` sigue aparte), volver síncronos `workspace.getActiveFile` y
-  `metadataCache.getFileCache`, verificar firmas contra los tipos oficiales del paquete
-  `obsidian`, sacar Excalidraw del núcleo de la fachada y medir la memoria en el webview.
+- `log` permitido en casos de uso; prueba de arranque en frío estable (mediana de 5).
+- Dominio sin funciones libres públicas (Tag, LinkTarget, AssetPath, WikilinkToken,
+  ProximityScore, NoteFrontmatter, FileName, FolderPath, FolderSummarizer).
+- `WorkspaceSessionRepository` con 8 casos de uso de sesión.
+- `VaultChangeObserver` y `domain/event` eliminados: el índice se mantiene con
+  `IndexVaultChangeUseCase` sobre `IndexedDocumentRepository`.
+- MCP: 18 herramientas sobre casos de uso; el manejador solo traduce JSON (instantánea idéntica).
+- Front: `vaultItems` como `$state.raw` (~11,9 → ~2,0 MB con 6 500 notas), `getActiveFile` y
+  `getFileCache` síncronos, Excalidraw en `integrations/excalidraw`, mapa de compatibilidad con
+  los tipos oficiales de `obsidian`.
+
+## Deuda que queda
+
+- **Índice único front:** la fachada (`SynapseVault`) y el explorador (`vaultItems`) siguen con
+  listas separadas: tienen datos distintos (metadatos de archivo frente a título y modo de vista)
+  y unificarlas exige que el backend entregue ambos en una sola consulta.
+- **Memoria real del webview:** medir el heap con la app abierta (lo medido es sintético en
+  JavaScriptCore).
+- **Quick Open:** los empates con el mismo nombre y puntaje dependen del orden del `DashMap`.
+- **`sha2`** (huella de contenido en `NoteContent`) usada en el dominio: librería pura de un
+  estándar; falta anotarla en la lista de librerías permitidas.
+- **`read_pdf_document`:** si falta `search_query` y además el PDF no se puede leer, ahora
+  responde primero el error de argumento (antes, el de lectura).
+- **`serde` en el dominio:** sigue como excepción temporal (fuera de esta ronda).
+- **Exportaciones de Obsidian que faltan:** 59 de 123, listadas en la instantánea de
+  `obsidian-compat.test.ts`.
