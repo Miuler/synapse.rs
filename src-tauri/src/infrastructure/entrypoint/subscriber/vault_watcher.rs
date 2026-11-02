@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 use crate::domain::model::note::Note;
 use crate::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
 use crate::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
-use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use crate::infrastructure::navigation::engine::VaultChangeListener;
 use crate::domain::model::file_types::SupportedFileTypes;
 use std::sync::RwLock;
 
@@ -65,7 +65,7 @@ pub fn process_paths_batch(
     last_mutation: &Arc<Mutex<Instant>>,
     next_id: &Arc<AtomicU32>,
     on_change: &Arc<Mutex<Option<ChangeCallback>>>,
-    observers: &Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
+    observers: &Arc<RwLock<Vec<VaultChangeListener>>>,
     paths: Vec<PathBuf>,
 ) {
     if paths.is_empty() {
@@ -410,13 +410,10 @@ pub fn process_paths_batch(
             }
         }
 
-        if let Ok(lock) = observers.read() {
-            for obs in lock.iter() {
-                if !modified_paths.is_empty() {
-                    obs.on_vault_change(VaultChange::Upserted(modified_paths.clone()));
-                }
-                if !deleted_paths_list.is_empty() {
-                    obs.on_vault_change(VaultChange::Removed(deleted_paths_list.clone()));
+        if !modified_paths.is_empty() || !deleted_paths_list.is_empty() {
+            if let Ok(lock) = observers.read() {
+                for listener in lock.iter() {
+                    listener(modified_paths.clone(), deleted_paths_list.clone());
                 }
             }
         }
@@ -445,7 +442,7 @@ impl VaultFsWatcher {
         file_types: SupportedFileTypes,
         shutdown_flag: Arc<AtomicBool>,
         on_change: Arc<Mutex<Option<ChangeCallback>>>,
-        observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
+        observers: Arc<RwLock<Vec<VaultChangeListener>>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let (tx, rx) = mpsc::channel::<PathBuf>();
         let filter_vault_path = vault_path.clone();

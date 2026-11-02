@@ -1,3 +1,5 @@
+use crate::application::dto::search::index_vault_change_command::IndexVaultChangeCommand;
+use crate::application::use_cases::search::index_vault_change_use_case::IndexVaultChangeUseCase;
 use crate::application::use_cases::session::record_note_opened_use_case::RecordNoteOpenedUseCase;
 use crate::application::use_cases::session::get_recent_notes_use_case::GetRecentNotesUseCase;
 use crate::application::use_cases::session::save_open_tabs_use_case::SaveOpenTabsUseCase;
@@ -201,7 +203,10 @@ pub fn open_vault_components(
             }
         }
     }));
-    engine.register_observer(Arc::clone(&indexer) as Arc<dyn crate::domain::event::vault_events::VaultChangeObserver>);
+    let index_vault_change = IndexVaultChangeUseCase::new(Arc::clone(&indexer));
+    engine.register_change_listener(Arc::new(move |upserted, removed| {
+        let _ = index_vault_change.execute(IndexVaultChangeCommand { upserted, removed });
+    }));
 
     let search_use_case = SearchFullTextUseCase::new(Arc::clone(&tantivy_index));
     let full_text = Arc::new(FullTextComponents {

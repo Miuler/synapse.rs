@@ -1,4 +1,4 @@
-use app_lib::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use app_lib::domain::repository::indexed_document_repository::IndexedDocumentRepository;
 use app_lib::domain::model::file_types::SupportedFileTypes;
 use app_lib::domain::model::full_text::{DocumentKind, FullTextQuery};
 use app_lib::domain::repository::full_text_index::FullTextIndex;
@@ -97,7 +97,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
         "# Arquitectura Onion\n\nSe ha añadido microservicios y contenedores.",
     )
     .unwrap();
-    indexer.on_vault_change(VaultChange::Upserted(vec!["arquitectura.md".to_string()]));
+    indexer.schedule_upsert(vec!["arquitectura.md".to_string()]);
 
     // Esperar debounce
     thread::sleep(Duration::from_millis(600));
@@ -118,7 +118,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
 
     // 4. Probar eliminación de un archivo a través del observer
     fs::remove_file(&note2_path).unwrap();
-    indexer.on_vault_change(VaultChange::Removed(vec!["musica.md".to_string()]));
+    indexer.schedule_removal(vec!["musica.md".to_string()]);
     thread::sleep(Duration::from_millis(600));
 
     assert_eq!(index.num_docs(), 2);

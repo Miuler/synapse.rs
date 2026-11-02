@@ -1,4 +1,5 @@
 pub mod full_text_index;
+pub mod indexed_document_repository;
 pub mod installed_plugin_repository;
 pub mod mcp_repository;
 pub mod note_repository;

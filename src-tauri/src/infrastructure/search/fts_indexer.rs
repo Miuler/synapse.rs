@@ -1,4 +1,4 @@
-use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use crate::domain::repository::indexed_document_repository::IndexedDocumentRepository;
 use crate::domain::model::config::IndexingConfig;
 use crate::domain::model::file_types::SupportedFileTypes;
 use crate::domain::model::full_text::{FullTextDocument, FullTextIndexStatus};
@@ -14,8 +14,14 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
+/// Cambio pendiente de indexar.
+enum IndexChange {
+    Upserted(Vec<String>),
+    Removed(Vec<String>),
+}
+
 enum IndexerCmd {
-    Change(VaultChange),
+    Change(IndexChange),
     FullSync,
     Rebuild,
     Shutdown,
@@ -262,12 +268,12 @@ impl FtsIndexer {
                         Ok(IndexerCmd::Change(change)) => {
                             worker_is_indexing.store(true, Ordering::SeqCst);
                             match change {
-                                VaultChange::Upserted(paths) => {
+                                IndexChange::Upserted(paths) => {
                                     for p in paths {
                                         pending_upserts.insert(p);
                                     }
                                 }
-                                VaultChange::Removed(paths) => {
+                                IndexChange::Removed(paths) => {
                                     for p in &paths {
                                         pending_upserts.remove(p);
                                     }
@@ -417,9 +423,13 @@ impl FtsIndexer {
     }
 }
 
-impl VaultChangeObserver for FtsIndexer {
-    fn on_vault_change(&self, change: VaultChange) {
-        let _ = self.tx.send(IndexerCmd::Change(change));
+impl IndexedDocumentRepository for FtsIndexer {
+    fn schedule_upsert(&self, paths: Vec<String>) {
+        let _ = self.tx.send(IndexerCmd::Change(IndexChange::Upserted(paths)));
+    }
+
+    fn schedule_removal(&self, paths: Vec<String>) {
+        let _ = self.tx.send(IndexerCmd::Change(IndexChange::Removed(paths)));
     }
 }
 

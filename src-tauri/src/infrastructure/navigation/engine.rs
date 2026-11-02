@@ -18,11 +18,13 @@ use super::model::{
 };
 use super::storage;
 use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher;
-use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::model::file_types::SupportedFileTypes;
 
 
 /// Statistics reported during reconciliation.
+/// Recibe las rutas añadidas/modificadas y las eliminadas de la bóveda.
+pub type VaultChangeListener = Arc<dyn Fn(Vec<String>, Vec<String>) + Send + Sync>;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ReconciliationStats {
     pub scanned: usize,
@@ -52,7 +54,7 @@ pub struct NavigationEngine {
     pub diff_text_mode: Arc<RwLock<Option<String>>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
     pub on_fs_change: Arc<Mutex<Option<crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback>>>,
-    pub observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
+    pub change_listeners: Arc<RwLock<Vec<VaultChangeListener>>>,
 }
 
 impl NavigationEngine {
@@ -161,22 +163,23 @@ impl NavigationEngine {
             diff_text_mode: Arc::new(RwLock::new(initial_diff_text_mode)),
             fs_watcher: Arc::new(Mutex::new(None)),
             on_fs_change: Arc::new(Mutex::new(None)),
-            observers: Arc::new(RwLock::new(Vec::new())),
+            change_listeners: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
-    /// Registers an observer to receive vault change events.
-    pub fn register_observer(&self, observer: Arc<dyn VaultChangeObserver>) {
-        if let Ok(mut lock) = self.observers.write() {
-            lock.push(observer);
+    /// Registra quién recibe los cambios de archivos detectados (p. ej. el caso de uso que
+    /// mantiene el índice de búsqueda). Se conecta en el arranque (`infrastructure/config`).
+    pub fn register_change_listener(&self, listener: VaultChangeListener) {
+        if let Ok(mut lock) = self.change_listeners.write() {
+            lock.push(listener);
         }
     }
 
-    /// Dispatches a change event to all registered observers.
-    pub fn notify_observers(&self, change: VaultChange) {
-        if let Ok(lock) = self.observers.read() {
-            for obs in lock.iter() {
-                obs.on_vault_change(change.clone());
+    /// Entrega a los oyentes las rutas añadidas/modificadas y las eliminadas.
+    pub fn notify_change(&self, upserted: Vec<String>, removed: Vec<String>) {
+        if let Ok(lock) = self.change_listeners.read() {
+            for listener in lock.iter() {
+                listener(upserted.clone(), removed.clone());
             }
         }
     }
@@ -240,7 +243,7 @@ impl NavigationEngine {
             self.file_types.clone(),
             Arc::clone(&self.shutdown_flag),
             Arc::clone(&self.on_fs_change),
-            Arc::clone(&self.observers),
+            Arc::clone(&self.change_listeners),
         ) {
             Ok(watcher) => {
                 if let Ok(mut lock) = self.fs_watcher.lock() {
@@ -542,11 +545,8 @@ impl NavigationEngine {
         // Notificar al frontend: el watcher ignorará estos cambios porque ya quedaron indexados
         self.emit_fs_change(upserted_paths.clone(), deleted_paths.clone());
 
-        if !upserted_paths.is_empty() {
-            self.notify_observers(VaultChange::Upserted(upserted_paths));
-        }
-        if !deleted_paths.is_empty() {
-            self.notify_observers(VaultChange::Removed(deleted_paths));
+        if !upserted_paths.is_empty() || !deleted_paths.is_empty() {
+            self.notify_change(upserted_paths, deleted_paths);
         }
 
         stats
@@ -1151,11 +1151,8 @@ impl NavigationEngine {
         let reloaded_list: Vec<String> = reloaded_files.iter().cloned().collect();
         // Notificar al frontend: el watcher ignorará estos cambios porque ya quedaron indexados
         self.emit_fs_change(reloaded_list.clone(), deleted_files.clone());
-        if !reloaded_list.is_empty() {
-            self.notify_observers(VaultChange::Upserted(reloaded_list.clone()));
-        }
-        if !deleted_files.is_empty() {
-            self.notify_observers(VaultChange::Removed(deleted_files));
+        if !reloaded_list.is_empty() || !deleted_files.is_empty() {
+            self.notify_change(reloaded_list.clone(), deleted_files);
         }
 
         self.mark_dirty();
