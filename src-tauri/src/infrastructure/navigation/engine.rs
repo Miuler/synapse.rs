@@ -1,7 +1,7 @@
+use crate::domain::model::note::Note;
 use compact_str::CompactString;
 use dashmap::{DashMap, DashSet};
 use nucleo::{Config, Nucleo, Utf32String};
-use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -16,7 +16,7 @@ use super::model::{
     NoteId, NoteMeta, NoteSyncState, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef,
 };
 use super::storage;
-use super::watcher::VaultFsWatcher;
+use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher;
 use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::model::file_types::SupportedFileTypes;
 
@@ -42,52 +42,6 @@ pub struct VaultUiState {
     pub diff_text_mode: Option<String>,
     #[serde(default)]
     pub locked_files: Vec<String>,
-}
-
-/// Extracts the title from markdown content (first H1) or falls back to file stem.
-pub fn extract_title_from_markdown(content: &str, file_stem: &str) -> String {
-    // Si contiene frontmatter YAML con propiedad title, priorizarla
-    let (fm, body) = crate::domain::service::frontmatter_service::parse_frontmatter_and_content(content);
-    if let Some(fm) = fm {
-        if let Some(explicit_title) = fm.title {
-            let trimmed = explicit_title.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
-        }
-    }
-
-    let parser = Parser::new(&body);
-    let mut in_h1 = false;
-    let mut title = String::new();
-
-    for event in parser {
-        match event {
-            Event::Start(Tag::Heading {
-                level: HeadingLevel::H1,
-                ..
-            }) => {
-                in_h1 = true;
-            }
-            Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
-                break;
-            }
-            Event::Text(text) if in_h1 => {
-                title.push_str(&text);
-            }
-            Event::Code(text) if in_h1 => {
-                title.push_str(&text);
-            }
-            _ => {}
-        }
-    }
-
-    let trimmed = title.trim();
-    if !trimmed.is_empty() {
-        trimmed.to_string()
-    } else {
-        file_stem.to_string()
-    }
 }
 
 /// Statistics reported during reconciliation.
@@ -119,7 +73,7 @@ pub struct NavigationEngine {
     pub diff_visual_mode: Arc<RwLock<Option<String>>>,
     pub diff_text_mode: Arc<RwLock<Option<String>>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
-    pub on_fs_change: Arc<Mutex<Option<super::watcher::ChangeCallback>>>,
+    pub on_fs_change: Arc<Mutex<Option<crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback>>>,
     pub observers: Arc<RwLock<Vec<Arc<dyn VaultChangeObserver>>>>,
 }
 
@@ -250,7 +204,7 @@ impl NavigationEngine {
     }
 
     /// Sets the callback for filesystem change events (e.g. for emitting Tauri events to frontend).
-    pub fn set_on_fs_change(&self, cb: super::watcher::ChangeCallback) {
+    pub fn set_on_fs_change(&self, cb: crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback) {
         if let Ok(mut lock) = self.on_fs_change.lock() {
             *lock = Some(cb);
         }
@@ -266,7 +220,7 @@ impl NavigationEngine {
         }
         if let Ok(guard) = self.on_fs_change.lock() {
             if let Some(ref cb) = *guard {
-                cb(super::watcher::VaultFsChangeEvent { paths, deleted });
+                cb(crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsChangeEvent { paths, deleted });
             }
         }
     }
@@ -356,7 +310,7 @@ impl NavigationEngine {
                 children.retain(|entry_res| {
                     if let Ok(entry) = entry_res {
                         let name = entry.file_name.to_string_lossy();
-                        !super::watcher::is_ignored_dir_or_file(&name)
+                        !crate::infrastructure::entrypoint::subscriber::vault_watcher::is_ignored_dir_or_file(&name)
                     } else {
                         true
                     }
@@ -472,7 +426,7 @@ impl NavigationEngine {
                 } else {
                     let (title, tags) = if is_markdown {
                         let content = std::fs::read_to_string(&path).unwrap_or_default();
-                        let t = extract_title_from_markdown(&content, file_stem);
+                        let t = Note::title_from_content(&content, file_stem);
                         let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                         let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                         (t, compact_tags)
@@ -527,7 +481,7 @@ impl NavigationEngine {
 
                 let (title, tags) = if is_markdown {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
-                    let t = extract_title_from_markdown(&content, file_stem);
+                    let t = Note::title_from_content(&content, file_stem);
                     let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                     let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                     (t, compact_tags)
@@ -1269,7 +1223,7 @@ impl NavigationEngine {
 
         let (title, tags) = if is_markdown {
             let content = std::fs::read_to_string(path).unwrap_or_default();
-            let t = extract_title_from_markdown(&content, file_stem);
+            let t = Note::title_from_content(&content, file_stem);
             let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
             let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
             (t, compact_tags)
@@ -1457,84 +1411,19 @@ impl NavigationEngine {
         raw_target: &str,
         base_file: Option<&str>,
     ) -> Option<String> {
-        let (target_with_ext, anchor) =
-            crate::domain::service::link_resolution::normalize_link_target(raw_target);
-        if target_with_ext.is_empty() {
-            return None;
-        }
-
-        let attach_anchor = |path: &str| -> String {
-            match &anchor {
-                Some(a) if !path.contains('#') => format!("{}#{}", path, a),
-                _ => path.to_string(),
-            }
-        };
-
-        // 1. Si hay archivo base, buscar primero coincidencia directa en la misma carpeta (O(1))
-        if let Some(base) = base_file {
-            let base_dir = crate::domain::service::link_resolution::get_parent_directory(base);
-            let sibling_path = if base_dir.is_empty() {
-                target_with_ext.clone()
-            } else {
-                format!("{}/{}", base_dir, target_with_ext)
-            };
-            let compact_sibling = CompactString::new(&sibling_path);
-            if let Some(id_ref) = self.path_index.get(&compact_sibling) {
-                let id = *id_ref.value();
-                drop(id_ref);
-                if let Some(meta) = self.notes.get(&id) {
-                    return Some(attach_anchor(meta.path.as_str()));
+        crate::domain::service::link_resolver::LinkResolver::resolve(
+            raw_target,
+            base_file,
+            |path| {
+                let id = *self.path_index.get(&CompactString::new(path))?.value();
+                self.notes.get(&id).map(|meta| meta.path.to_string())
+            },
+            |visit| {
+                for item in self.notes.iter() {
+                    visit(item.value().path.as_str());
                 }
-            }
-        }
-
-        // 2. Recolectar todos los candidatos del DashMap que coincidan con target_with_ext
-        let target_suffix = format!("/{}", target_with_ext);
-        let mut candidates = Vec::new();
-
-        for item in self.notes.iter() {
-            let note_path = item.value().path.as_str();
-            if note_path == target_with_ext || note_path.ends_with(&target_suffix) {
-                candidates.push(note_path.to_string());
-            }
-        }
-
-        // 3. Fallback tolerante: Búsqueda insensible a mayúsculas/minúsculas en DashMap si no hubo coincidencias
-        if candidates.is_empty() {
-            let target_lower = target_with_ext.to_lowercase();
-            let suffix_lower = format!("/{}", target_lower);
-            for item in self.notes.iter() {
-                let note_path = item.value().path.as_str();
-                let path_lower = note_path.to_lowercase();
-                if path_lower == target_lower || path_lower.ends_with(&suffix_lower) {
-                    candidates.push(note_path.to_string());
-                }
-            }
-        }
-
-        if candidates.is_empty() {
-            return None;
-        }
-
-        if candidates.len() == 1 {
-            return Some(attach_anchor(&candidates[0]));
-        }
-
-        // 4. Si hay múltiples archivos con el mismo nombre, ordenar por proximidad al archivo base:
-        // Prefiere:
-        // 1. Misma carpeta
-        // 2. Subcarpetas más cercanas
-        // 3. Carpetas padre más cercanas
-        // 4. Otras carpetas
-        candidates.sort_by(|a, b| {
-            let score_a =
-                crate::domain::service::link_resolution::calculate_proximity_score(a, base_file);
-            let score_b =
-                crate::domain::service::link_resolution::calculate_proximity_score(b, base_file);
-            score_a.cmp(&score_b).then_with(|| a.cmp(b))
-        });
-
-        Some(attach_anchor(&candidates[0]))
+            },
+        )
     }
 
     /// Resuelve múltiples enlaces simultáneamente utilizando el DashMap.

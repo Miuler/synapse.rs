@@ -14,6 +14,7 @@ Bóveda: MisNotas (6 053 notas indexadas). Valores = mediana.
 | 1 · renombrados y movimientos | 133,3 ms | 13,7 ms | 1,49 ms |
 | 2 · sin violaciones duras | 132,5 ms | 13,8 ms | 1,47 ms |
 | 3a · casos de uso de archivos, versionado y sistema | 138,6 ms | 13,6 ms | 1,19 ms |
+| 4 · motor de navegación (ranking, título, enlaces) | 139,5 ms | 14,4 ms | 1,27 ms |
 
 Hallazgo de la etapa 0: en el Quick Open, los empates entre archivos con el mismo nombre y el
 mismo puntaje (p. ej. `a/notas.md` y `b/notas.md`) se ordenan por el orden de iteración del

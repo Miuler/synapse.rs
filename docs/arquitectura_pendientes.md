@@ -110,3 +110,9 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   permitidas o sacarlo.
 - **Quick Open:** los empates con el mismo nombre de archivo y puntaje dependen del orden del
   `DashMap` (ver `arquitectura_mediciones.md`).
+- **Navegación (etapa 4):** ya salieron `QuickOpenRanking`, `LinkResolver` y el título de la
+  nota (`Note::title_from_content`), y el vigilante está en `entrypoint/subscriber`. Falta:
+  repository de sesión (notas recientes, pestañas, modo de vista, estado de interfaz) con sus
+  casos de uso, y reemplazar `VaultChangeObserver` por llamadas directas a casos de uso.
+- **Prueba inestable:** `test_cold_start_hydration_timing_sub_10ms` (límite de 25 ms en debug)
+  falla con frecuencia también en `main`; no la causa el refactor.

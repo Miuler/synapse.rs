@@ -132,7 +132,7 @@ pub fn get_vault_directory_children(
     if let Ok(entries) = std::fs::read_dir(&disk_dir) {
         for entry in entries.flatten() {
             let file_name = entry.file_name().to_string_lossy().to_string();
-            if crate::infrastructure::navigation::watcher::is_ignored_dir_or_file(&file_name) {
+            if crate::infrastructure::entrypoint::subscriber::vault_watcher::is_ignored_dir_or_file(&file_name) {
                 continue; // Skip hidden dirs and build/dependency folders
             }
             if let Ok(ft) = entry.file_type() {

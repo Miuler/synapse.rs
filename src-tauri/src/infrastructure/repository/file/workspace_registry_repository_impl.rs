@@ -2,7 +2,7 @@ use crate::domain::model::config::{AppConfig, ShortcutsConfig};
 use crate::domain::model::file_types::SupportedFileTypes;
 use crate::domain::model::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
 use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::infrastructure::navigation::watcher::{is_ignored_dir_or_file, should_ignore_path};
+use crate::infrastructure::entrypoint::subscriber::vault_watcher::{is_ignored_dir_or_file, should_ignore_path};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 

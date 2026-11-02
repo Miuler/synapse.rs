@@ -10,9 +10,9 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use super::engine::extract_title_from_markdown;
-use super::matcher::populate_nucleo_from_dashmap;
-use super::model::{NoteId, NoteMeta, NoteSyncState};
+use crate::domain::model::note::Note;
+use crate::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
+use crate::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
 use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::model::file_types::SupportedFileTypes;
 use std::sync::RwLock;
@@ -218,7 +218,7 @@ pub fn process_paths_batch(
 
             let (title, tags) = if is_markdown {
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
-                let t = extract_title_from_markdown(&content, file_stem);
+                let t = Note::title_from_content(&content, file_stem);
                 let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                 let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                 (t, compact_tags)

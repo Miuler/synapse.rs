@@ -1,5 +1,6 @@
 use crate::domain::model::frontmatter::NoteFrontmatter;
 use crate::domain::model::note_path::NoteRelativePath;
+use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 
 fn default_encoding() -> String {
@@ -22,6 +23,53 @@ pub struct Note {
 }
 
 impl Note {
+    /// Título de una nota: el `title` del frontmatter; si no, el primer encabezado H1; si no,
+    /// el nombre del archivo sin extensión.
+    pub fn title_from_content(content: &str, file_stem: &str) -> String {
+        // Si contiene frontmatter YAML con propiedad title, priorizarla
+        let (fm, body) = crate::domain::service::frontmatter_service::parse_frontmatter_and_content(content);
+        if let Some(fm) = fm {
+            if let Some(explicit_title) = fm.title {
+                let trimmed = explicit_title.trim();
+                if !trimmed.is_empty() {
+                    return trimmed.to_string();
+                }
+            }
+        }
+    
+        let parser = Parser::new(&body);
+        let mut in_h1 = false;
+        let mut title = String::new();
+    
+        for event in parser {
+            match event {
+                Event::Start(Tag::Heading {
+                    level: HeadingLevel::H1,
+                    ..
+                }) => {
+                    in_h1 = true;
+                }
+                Event::End(TagEnd::Heading(HeadingLevel::H1)) => {
+                    break;
+                }
+                Event::Text(text) if in_h1 => {
+                    title.push_str(&text);
+                }
+                Event::Code(text) if in_h1 => {
+                    title.push_str(&text);
+                }
+                _ => {}
+            }
+        }
+    
+        let trimmed = title.trim();
+        if !trimmed.is_empty() {
+            trimmed.to_string()
+        } else {
+            file_stem.to_string()
+        }
+    }
+
     pub fn new(
         relative_path: NoteRelativePath,
         abs_path: String,

@@ -1,7 +1,7 @@
 use crate::domain::model::config::IndexingConfig;
 use crate::domain::model::file_types::SupportedFileTypes;
 use crate::domain::model::full_text::DocumentKind;
-use crate::infrastructure::navigation::engine::extract_title_from_markdown;
+use crate::domain::model::note::Note;
 use crate::infrastructure::repository::file::note_repository_impl::detect_and_decode;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;
@@ -130,7 +130,7 @@ pub fn extract_with_config(
             ));
         }
 
-        let title = extract_title_from_markdown(&decoded, file_stem);
+        let title = Note::title_from_content(&decoded, file_stem);
         let mut plain_body = extract_markdown_plain_text(&decoded);
         truncate_safe(&mut plain_body, indexing.max_extracted_chars);
         return Some((DocumentKind::Markdown, title, plain_body));

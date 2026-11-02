@@ -1,4 +1,5 @@
-use app_lib::infrastructure::navigation::engine::{extract_title_from_markdown, NavigationEngine};
+use app_lib::domain::model::note::Note;
+use app_lib::infrastructure::navigation::engine::NavigationEngine;
 use app_lib::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
 use app_lib::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
 use app_lib::infrastructure::navigation::storage::{load_cache_from_disk, save_cache_to_disk};
@@ -75,26 +76,26 @@ fn test_note_meta_compact_str_and_bincode_roundtrip() {
 fn test_title_extraction_markdown_h1_and_fallback() {
     let markdown_with_h1 = "# Mi Título Principal\n\nEste es el contenido de la nota.";
     assert_eq!(
-        extract_title_from_markdown(markdown_with_h1, "archivo_fallback"),
+        Note::title_from_content(markdown_with_h1, "archivo_fallback"),
         "Mi Título Principal"
     );
 
     let markdown_with_frontmatter_and_h1 =
         "---\ntags: [rust, synapse]\n---\n# Título con Frontmatter\n\nCuerpo";
     assert_eq!(
-        extract_title_from_markdown(markdown_with_frontmatter_and_h1, "fallback"),
+        Note::title_from_content(markdown_with_frontmatter_and_h1, "fallback"),
         "Título con Frontmatter"
     );
 
     let markdown_without_h1 = "## Subtítulo solamente\n\nNo hay H1 aquí.";
     assert_eq!(
-        extract_title_from_markdown(markdown_without_h1, "nombre_archivo"),
+        Note::title_from_content(markdown_without_h1, "nombre_archivo"),
         "nombre_archivo"
     );
 
     let empty_markdown = "";
     assert_eq!(
-        extract_title_from_markdown(empty_markdown, "nota_vacia"),
+        Note::title_from_content(empty_markdown, "nota_vacia"),
         "nota_vacia"
     );
 }
@@ -967,17 +968,17 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
     );
 
     // Verify helper unit functions directly
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new(".")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
-    assert!(app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("sync.lock")));
-    assert!(!app_lib::infrastructure::navigation::watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new(".")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
+    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sync.lock")));
+    assert!(!app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
 
     engine.shutdown();
     let _ = fs::remove_dir_all(&test_dir);
