@@ -105,17 +105,12 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   como `McpToolHandler`, y los tipos del protocolo a `entrypoint/mcp/dto.rs`. Falta extraer la
   orquestación de cada herramienta a su caso de uso (reutilizando los del front) y quitar los
   `Path::exists`/`is_dir` directos. Marcado con `TODO:` en el archivo.
-- **`log` en casos de uso:** `RenameVaultItemUseCase`, `MoveVaultItemsUseCase` y
-  `ListNotesUseCase` usan `log::warn!`/`debug!`. Falta añadir `log` a la lista de librerías
-  permitidas o sacarlo.
 - **Quick Open:** los empates con el mismo nombre de archivo y puntaje dependen del orden del
   `DashMap` (ver `arquitectura_mediciones.md`).
 - **Navegación (etapa 4):** ya salieron `QuickOpenRanking`, `LinkResolver` y el título de la
   nota (`Note::title_from_content`), y el vigilante está en `entrypoint/subscriber`. Falta:
   repository de sesión (notas recientes, pestañas, modo de vista, estado de interfaz) con sus
   casos de uso, y reemplazar `VaultChangeObserver` por llamadas directas a casos de uso.
-- **Prueba inestable:** `test_cold_start_hydration_timing_sub_10ms` (límite de 25 ms en debug)
-  falla con frecuencia también en `main`; no la causa el refactor.
 - **Fachada de Obsidian (etapa 6):** `SynapseVault` ya tiene el índice síncrono (ruta →
   metadatos) y `getAbstractFileByPath` responde sin promesa una vez cargado; los plugins se
   cargan después de `whenIndexReady()`. Falta: compartir ese índice con el explorador (hoy

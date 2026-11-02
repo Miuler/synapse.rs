@@ -75,6 +75,9 @@ librería, y únicamente si figuran en la lista explícita del test de arquitect
    CommonMark, expresiones regulares, UUID), sin I/O y sin obligar a anotar el modelo. Su uso
    queda encerrado en un solo lugar, para que reemplazarlas toque un solo archivo.
 
+3. `log`, la fachada de logging: no hace I/O por sí misma (lo hace el backend que configura
+   `infrastructure`), así que un caso de uso puede registrar avisos.
+
 Entrar en la lista es una decisión, no un descuido. Siguen prohibidas las que obligan a
 anotar el modelo (`serde`, JPA, Jackson).
 
