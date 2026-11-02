@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Corregido
+
+- **Persistencia del estado de MCP al cerrar y abrir workspaces**:
+  - Se desacopló el ciclo de vida del runtime y socket TCP efímero (`running`) de la preferencia configurada por el usuario en la bóveda (`enabled`).
+  - Al cerrar la aplicación, ventana o alternar entre bóvedas, el servidor MCP detiene su proceso/socket sin sobrescribir ni apagar `enabled: false` en `.synapse/mcp.json`.
+  - Al abrir un workspace donde MCP estaba activo, el servidor se reactiva automáticamente.
+  - Se introdujo el trait de dominio `McpConfigRepository` y su implementación de infraestructura `FileMcpConfigRepository` siguiendo la Arquitectura Cebolla.
+
 ### Añadido
 
 - **Filtro "Solo compatibles" en el catálogo de plugins comunitarios**:

@@ -264,8 +264,9 @@ pub fn record_mcp_started(vault_path: &Path, port: u16) {
     write_global_registry(&registry);
 }
 
-/// Registra el apagado de MCP para una bóveda
-pub fn record_mcp_stopped(vault_path: &Path, port: u16) {
+/// Registra la desactivación explícita de MCP para una bóveda por decisión del usuario.
+/// Persiste `enabled: false` en `.synapse/mcp.json` y marca `enabled: false, running: false` en el registro global.
+pub fn record_mcp_disabled(vault_path: &Path, port: u16) {
     let canonical_key = canonical_vault_key(vault_path);
     let endpoint = format!("http://127.0.0.1:{}/mcp", port);
 
@@ -301,6 +302,25 @@ pub fn record_mcp_stopped(vault_path: &Path, port: u16) {
     write_global_registry(&registry);
 }
 
+/// Registra el apagado técnico del proceso/socket en ejecución (al cerrar la aplicación,
+/// cambiar de workspace o limpiar el runtime), manteniendo intacta la preferencia
+/// `enabled: true` del vault en `.synapse/mcp.json`.
+pub fn record_mcp_runtime_stopped(vault_path: &Path) {
+    let canonical_key = canonical_vault_key(vault_path);
+    let mut registry = read_global_registry();
+    if let Some(entry) = registry.vaults.get_mut(&canonical_key) {
+        entry.running = false;
+        entry.pid = None;
+        entry.updated_at = current_timestamp_ms();
+        write_global_registry(&registry);
+    }
+}
+
+/// Registra el apagado voluntario de MCP para una bóveda (alias de compatibilidad con `record_mcp_disabled`)
+pub fn record_mcp_stopped(vault_path: &Path, port: u16) {
+    record_mcp_disabled(vault_path, port);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,6 +346,32 @@ mod tests {
         assert!(loaded.enabled);
         assert!(is_vault_enabled(vault));
         assert_eq!(get_vault_port(vault), Some(27190));
+    }
+
+    #[test]
+    fn test_runtime_stopped_preserves_vault_enabled_state() {
+        let temp = tempdir().unwrap();
+        let vault = temp.path();
+
+        // 1. Iniciar MCP para la bóveda (debe marcar enabled: true en bóveda y registro global)
+        record_mcp_started(vault, 27195);
+        assert!(is_vault_enabled(vault), "Debe estar habilitado tras record_mcp_started");
+        let cfg = read_vault_config(vault).expect("Debe tener .synapse/mcp.json");
+        assert!(cfg.enabled);
+
+        // 2. Apagar técnicamente el runtime (ej. cierre de app o ventana)
+        record_mcp_runtime_stopped(vault);
+
+        // 3. La bóveda debe permanecer enabled: true para que al reabrir el workspace se active automáticamente
+        assert!(is_vault_enabled(vault), "Debe seguir habilitado tras apagado del runtime");
+        let cfg_after = read_vault_config(vault).expect("Debe preservar .synapse/mcp.json");
+        assert!(cfg_after.enabled, "La configuración en disco de la bóveda no debe sobreescribirse");
+
+        // 4. Si el usuario explícitamente lo desactiva, ahí sí debe pasar a false
+        record_mcp_disabled(vault, 27195);
+        assert!(!is_vault_enabled(vault), "Debe quedar deshabilitado tras desactivación voluntaria");
+        let cfg_disabled = read_vault_config(vault).expect("Debe leer config actualizada");
+        assert!(!cfg_disabled.enabled);
     }
 
     #[test]

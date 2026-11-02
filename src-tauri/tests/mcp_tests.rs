@@ -378,6 +378,55 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
 }
 
 #[test]
+fn test_mcp_workspace_reopen_auto_activation() {
+    use app_lib::domain::repositories::mcp_repository::McpConfigRepository;
+    use app_lib::infrastructure::mcp::server::McpBackgroundRuntime;
+    use app_lib::infrastructure::repositories::file_mcp_repository::FileMcpConfigRepository;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let vault_path = temp_dir.path().to_path_buf();
+    let provider = Arc::new(DummyMcpProvider { vault: vault_path.clone() });
+    let runtime = McpBackgroundRuntime::new(provider);
+    let mcp_repo = FileMcpConfigRepository::new();
+
+    // 1. Inicialmente no está activo ni habilitado
+    assert!(!runtime.get_status().running);
+    assert!(!mcp_repo.is_vault_enabled(&vault_path));
+
+    // 2. Usuario activa MCP en este workspace
+    let started = runtime.start().expect("Debe arrancar servidor");
+    assert!(started.running);
+    assert!(mcp_repo.is_vault_enabled(&vault_path));
+    let cfg = mcp_repo.read_vault_config(&vault_path).expect("Config debe existir");
+    assert!(cfg.enabled);
+
+    // 3. Usuario cierra la aplicación (simulando WindowEvent::Destroyed -> runtime.stop())
+    let stopped = runtime.stop().expect("Debe detener runtime");
+    assert!(!stopped.running);
+
+    // 4. VERIFICACIÓN CRÍTICA: La preferencia del vault DEBE seguir siendo enabled = true
+    let cfg_after_close = mcp_repo.read_vault_config(&vault_path).expect("Config debe preservarse");
+    assert!(cfg_after_close.enabled, "La configuración del vault debe mantener enabled: true");
+    assert!(mcp_repo.is_vault_enabled(&vault_path));
+
+    // 5. Usuario vuelve a abrir el workspace -> activate_vault invoca sync_for_vault
+    runtime.sync_for_vault(&vault_path);
+    assert!(runtime.get_status().running, "El servidor MCP debe reactivarse automáticamente al reabrir el workspace");
+
+    // 6. Si el usuario decide apagarlo voluntariamente (toggle o disable)
+    let toggled_off = runtime.toggle().expect("Debe desactivar voluntariamente");
+    assert!(!toggled_off.running);
+    assert!(!mcp_repo.is_vault_enabled(&vault_path));
+
+    // 7. Simular cierre y reapertura de nuevo
+    let _ = runtime.stop();
+    runtime.sync_for_vault(&vault_path);
+    assert!(!runtime.get_status().running, "No debe reactivarse si el usuario lo dejó apagado");
+}
+
+#[test]
 fn test_mcp_evolved_tools_suite() {
     use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
     use app_lib::domain::models::note::Note;

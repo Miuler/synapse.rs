@@ -25,5 +25,5 @@ pub fn start_mcp_server(state: State<'_, AppState>) -> Result<McpRuntimeStatus, 
 
 #[tauri::command]
 pub fn stop_mcp_server(state: State<'_, AppState>) -> Result<McpRuntimeStatus, String> {
-    state.mcp_runtime.stop()
+    state.mcp_runtime.disable()
 }

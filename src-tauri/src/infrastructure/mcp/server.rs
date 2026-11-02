@@ -309,6 +309,8 @@ impl McpBackgroundRuntime {
         Ok(self.get_status())
     }
 
+    /// Detiene el servidor MCP y libera el hilo/socket efímero sin deshabilitar
+    /// la preferencia del vault en disco (usado para shutdown de ventana o cambio de vault).
     pub fn stop(&self) -> Result<McpRuntimeStatus, String> {
         let (vault_opt, _) = self.provider.get_context();
         let port = self.port.load(Ordering::SeqCst) as u16;
@@ -321,7 +323,7 @@ impl McpBackgroundRuntime {
             .or_else(|| vault_opt.clone());
 
         if let Some(ref v) = target_vault {
-            port_registry::record_mcp_stopped(v, port);
+            port_registry::record_mcp_runtime_stopped(v);
         }
 
         if !self.is_running.load(Ordering::SeqCst) {
@@ -344,9 +346,29 @@ impl McpBackgroundRuntime {
         Ok(self.get_status())
     }
 
+    /// Desactiva explícitamente el servidor MCP para la bóveda (decisión voluntaria del usuario),
+    /// persistiendo `enabled: false` en `.synapse/mcp.json` y deteniendo el socket.
+    pub fn disable(&self) -> Result<McpRuntimeStatus, String> {
+        let (vault_opt, _) = self.provider.get_context();
+        let port = self.port.load(Ordering::SeqCst) as u16;
+
+        let target_vault = self
+            .current_vault
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .or_else(|| vault_opt.clone());
+
+        if let Some(ref v) = target_vault {
+            port_registry::record_mcp_disabled(v, port);
+        }
+
+        self.stop()
+    }
+
     pub fn toggle(&self) -> Result<McpRuntimeStatus, String> {
         if self.is_running.load(Ordering::SeqCst) {
-            self.stop()
+            self.disable()
         } else {
             self.start()
         }
