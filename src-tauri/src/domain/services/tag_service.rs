@@ -42,6 +42,14 @@ pub fn normalize_tag(raw: &str) -> String {
 
 /// Extrae hashtags inline del markdown (`#etiqueta`, `#categoria/subcategoria`).
 /// Ignora encabezados Markdown (# Heading), bloques de código `inline` y cercados ````.
+///
+/// TODO: decidir si `pulldown_cmark` puede seguir en el dominio. Hoy está permitida como
+/// librería pura (implementa CommonMark, sin I/O ni anotaciones) y su uso queda encerrado
+/// en esta función. Duda abierta: el dominio debería quedar sin librerías, y las opciones son
+/// (A) un contrato que entregue el texto plano de la nota, implementado en infraestructura,
+/// con la regla de etiquetas en el dominio; o (B) que el repository entregue la nota ya
+/// estructurada al cargarla. Si se elige A, falta definir dónde viven las capacidades
+/// técnicas intercambiables (no son repository ni servicio externo).
 pub fn extract_inline_hashtags(markdown: &str) -> Vec<String> {
     use pulldown_cmark::Tag;
     let mut tags = Vec::new();
