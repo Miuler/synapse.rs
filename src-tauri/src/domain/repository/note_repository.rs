@@ -68,3 +68,30 @@ pub trait NoteRepository: Send + Sync {
     /// Guarda un archivo individual fuera de una bóveda (Modo Archivo Puntual).
     fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String>;
 }
+
+/// Permite pasar el repositorio por referencia a un caso de uso sin moverlo ni clonarlo.
+impl<T: NoteRepository + ?Sized> NoteRepository for &T {
+    fn list_notes(&self, vault_path: &Path, extensions: &[String]) -> Result<Vec<Note>, String> {
+        (**self).list_notes(vault_path, extensions)
+    }
+
+    fn read_note(&self, vault_path: &Path, relative_path: &NoteRelativePath,) -> Result<Note, String> {
+        (**self).read_note(vault_path, relative_path)
+    }
+
+    fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String> {
+        (**self).save_note(vault_path, note)
+    }
+
+    fn delete_note(&self, vault_path: &Path, relative_path: &NoteRelativePath,) -> Result<(), String> {
+        (**self).delete_note(vault_path, relative_path)
+    }
+
+    fn read_standalone_file(&self, path: &Path) -> Result<Note, String> {
+        (**self).read_standalone_file(path)
+    }
+
+    fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String> {
+        (**self).save_standalone_file(path, note)
+    }
+}

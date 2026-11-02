@@ -1,19 +1,50 @@
-use crate::domain::model::full_text::FullTextQuery;
+use crate::application::dto::note::list_notes_query::ListNotesQuery;
+use crate::application::dto::note::read_note_query::ReadNoteQuery;
+use crate::application::use_cases::note::list_notes_use_case::ListNotesUseCase;
+use crate::application::use_cases::note::read_note_use_case::ReadNoteUseCase;
+use crate::application::dto::note::append_to_note_command::AppendToNoteCommand;
+use crate::application::dto::note::delete_note_command::DeleteNoteCommand;
+use crate::application::dto::note::extract_note_diagrams_query::{ExtractNoteDiagramsQuery, NoteDiagrams};
+use crate::application::dto::note::get_note_relations_query::GetNoteRelationsQuery;
+use crate::application::dto::note::patch_note_command::PatchNoteCommand;
+use crate::application::dto::note::read_note_details_query::ReadNoteDetailsQuery;
+use crate::application::dto::note::search_in_note_query::SearchInNoteQuery;
+use crate::application::dto::note::search_notes_query::SearchNotesQuery;
+use crate::application::dto::note::update_note_metadata_command::UpdateNoteMetadataCommand;
+use crate::application::dto::note::write_note_command::{WriteNoteCommand, WriteNoteOutcome};
+use crate::application::dto::pdf::read_pdf_document_query::{PdfReading, ReadPdfDocumentQuery};
+use crate::application::dto::search::search_notes_full_text_query::SearchNotesFullTextQuery;
+use crate::application::dto::vault_item::list_folder_contents_query::ListFolderContentsQuery;
+use crate::application::dto::vault_item::move_folder_contents_command::{MoveFolderContentsCommand, MoveFolderContentsResult};
+use crate::application::dto::vault_item::move_notes_command::MoveNotesCommand;
+use crate::application::dto::vault_item::search_folders_query::SearchFoldersQuery;
+use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
+use crate::application::use_cases::note::append_to_note_use_case::AppendToNoteUseCase;
+use crate::application::use_cases::note::delete_note_use_case::DeleteNoteUseCase;
+use crate::application::use_cases::note::extract_note_diagrams_use_case::ExtractNoteDiagramsUseCase;
+use crate::application::use_cases::note::get_note_relations_use_case::GetNoteRelationsUseCase;
+use crate::application::use_cases::note::patch_note_use_case::PatchNoteUseCase;
+use crate::application::use_cases::note::read_note_details_use_case::ReadNoteDetailsUseCase;
+use crate::application::use_cases::note::search_in_note_use_case::SearchInNoteUseCase;
+use crate::application::use_cases::note::search_notes_use_case::SearchNotesUseCase;
+use crate::application::use_cases::note::update_note_metadata_use_case::UpdateNoteMetadataUseCase;
+use crate::application::use_cases::note::write_note_use_case::WriteNoteUseCase;
+use crate::application::use_cases::pdf::read_pdf_document_use_case::ReadPdfDocumentUseCase;
+use crate::application::use_cases::search::search_notes_full_text_use_case::SearchNotesFullTextUseCase;
+use crate::application::use_cases::vault_item::list_folder_contents_use_case::ListFolderContentsUseCase;
+use crate::application::use_cases::vault_item::move_folder_contents_use_case::MoveFolderContentsUseCase;
+use crate::application::use_cases::vault_item::move_notes_use_case::MoveNotesUseCase;
+use crate::application::use_cases::vault_item::search_folders_use_case::SearchFoldersUseCase;
+use crate::application::use_cases::version::get_vault_version_state_use_case::GetVaultVersionStateUseCase;
 use crate::infrastructure::entrypoint::mcp::dto::*;
-use crate::domain::model::note::Note;
 use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::frontmatter;
 use crate::domain::repository::full_text_index::FullTextIndex;
 use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::wikilink::{WikilinkToken, LinkTarget};
-use crate::domain::model::tag::{self, Tag};
-use crate::domain::model::note_path::NoteRelativePath;
 use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
 use crate::domain::repository::vault_item_repository::VaultItemRepository;
 use serde_json::{json, Value};
 use crate::domain::model::note_content::NoteContent;
 use similar::{ChangeTag, TextDiff};
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -45,12 +76,23 @@ pub fn generate_unified_diff(old_text: &str, new_text: &str, file_name: &str) ->
     output
 }
 
-// TODO: este manejador mezcla el protocolo MCP (argumentos y respuestas JSON) con la
-// orquestación de cada herramienta. Pendiente: extraer la orquestación de cada herramienta a un
-// caso de uso en `application/use_cases` (reutilizando los que ya usa el front: leer y guardar
-// notas, búsqueda, versionado, mover elementos) y dejar aquí solo la traducción de JSON.
-// Tampoco debería consultar el disco con `Path::exists`/`is_dir`: van detrás de los repositorios.
-/// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks, Git y Multimodalidad.
+/// Lista de textos de un argumento JSON (`["a", "b"]`); vacía si falta.
+fn string_list(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|t| t.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default()
+}
+
+/// Respuesta de texto con el JSON formateado; si falla la serialización, error con el prefijo.
+fn to_text<T: serde::Serialize + ?Sized>(payload: &T, error_prefix: &str) -> McpCallToolResult {
+    match serde_json::to_string_pretty(payload) {
+        Ok(text) => McpCallToolResult::text(text),
+        Err(e) => McpCallToolResult::error(format!("{}{}", error_prefix, e)),
+    }
+}
+
+/// Traduce las herramientas MCP (JSON-RPC) a casos de uso. No contiene reglas de negocio.
 pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
     vault_path: PathBuf,
     note_repository: R,
@@ -79,12 +121,6 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
     }
 
-    /// Ruta relativa a la bóveda de una ruta absoluta construida a partir de ella.
-    fn vault_rel(&self, abs: &Path) -> String {
-        abs.strip_prefix(&self.vault_path)
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| abs.to_string_lossy().to_string())
-    }
 
     pub fn vault_path(&self) -> &Path {
         &self.vault_path
@@ -706,84 +742,38 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     }
 
     // ==========================================
-    // Implementaciones individuales de Tool calls
+    // Herramientas: traducen JSON ↔ Command/Query y delegan en casos de uso
     // ==========================================
+
+    fn vault(&self) -> PathBuf {
+        self.vault_path.clone()
+    }
 
     fn execute_search_notes(&self, args: &Value) -> McpCallToolResult {
         let query = args.get("query").and_then(|v| v.as_str()).map(|q| q.trim().to_lowercase()).unwrap_or_default();
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
-        let tags_filter: Vec<String> = args
-            .get("tags")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let tags = string_list(args.get("tags"));
 
-        let extensions = vec!["md".to_string(), "markdown".to_string()];
-        match self.note_repository.list_notes(&self.vault_path, &extensions) {
-            Ok(notes) => {
-                let filtered: Vec<_> = notes
+        match SearchNotesUseCase::new(&self.note_repository).execute(SearchNotesQuery { vault_path: self.vault(), query, limit, tags }) {
+            Ok(hits) => {
+                let filtered: Vec<_> = hits
                     .into_iter()
-                    .filter(|n| {
-                        // Extraer todas las etiquetas (YAML + inline hashtags)
-                        let all_tags = tag::Tag::extract_all(&n.content);
-
-                        let matches_query = query.is_empty()
-                            || n.title.to_lowercase().contains(&query)
-                            || n.relative_path.as_str().to_lowercase().contains(&query)
-                            || all_tags.iter().any(|t| Tag::matches(t, &query))
-                            || n.frontmatter.as_ref().is_some_and(|fm| {
-                                fm.aliases.iter().any(|a| a.to_lowercase().contains(&query))
-                            });
-                        if !matches_query {
-                            return false;
-                        }
-
-                        if !tags_filter.is_empty() {
-                            // Todas las tags especificadas en tags_filter deben coincidir jerárquicamente
-                            let matches_all_tag_filters = tags_filter.iter().all(|tf| {
-                                tag::Tag::any_matches(&all_tags, tf)
-                            });
-                            if !matches_all_tag_filters {
-                                return false;
-                            }
-                        }
-                        true
-                    })
-                    .take(limit)
-                    .map(|n| {
-                        let snippet = NoteContent::clean_snippet(&n.content, 200);
-                        let total_lines = n.content.lines().count();
-                        let est_tokens = NoteContent::estimate_tokens(&n.content);
-
-                        let description = n.frontmatter.as_ref().and_then(|fm| {
-                            fm.extra_properties.get("description")
-                                .or_else(|| fm.extra_properties.get("summary"))
-                                .and_then(|v| v.as_str().map(|s| s.to_string()))
-                        });
-
+                    .map(|h| {
                         json!({
-                            "title": n.title,
-                            "relative_path": n.relative_path.as_str(),
-                            "tags": n.frontmatter.as_ref().map(|f| &f.tags),
-                            "aliases": n.frontmatter.as_ref().map(|f| &f.aliases),
-                            "description": description,
-                            "snippet": snippet,
-                            "total_lines": total_lines,
-                            "estimated_tokens": est_tokens,
+                            "title": h.title,
+                            "relative_path": h.relative_path,
+                            "tags": h.tags,
+                            "aliases": h.aliases,
+                            "description": h.description,
+                            "snippet": h.snippet,
+                            "total_lines": h.total_lines,
+                            "estimated_tokens": h.estimated_tokens,
                         })
                     })
                     .collect();
-
-                match serde_json::to_string_pretty(&filtered) {
-                    Ok(text) => McpCallToolResult::text(text),
-                    Err(e) => McpCallToolResult::error(format!("Error al serializar notas: {}", e)),
-                }
+                to_text(&filtered, "Error al serializar notas: ")
             }
-            Err(err) => McpCallToolResult::error(format!("Error al buscar notas: {}", err)),
+            Err(err) => McpCallToolResult::error(err),
         }
     }
 
@@ -792,120 +782,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
         let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
-        let extensions = vec!["md".to_string(), "markdown".to_string(), "pdf".to_string(), "excalidraw".to_string()];
-        let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error leyendo notas para indexar carpetas: {}", e)),
-        };
-
-        // Recolectar todas las carpetas a partir de las notas y del filesystem
-        let file_paths: Vec<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
-        let mut folder_set: HashSet<String> = crate::domain::model::folder::FolderPath::ancestors_of(&file_paths)
-            .into_iter()
-            .collect();
-
-        // Incluir también carpetas vacías descubiertas en disco
-        if let Ok(entries) = jwalk::WalkDir::new(&self.vault_path)
-            .skip_hidden(true)
-            .process_read_dir(|depth, _path, _state, children| {
-                if depth.is_none() {
-                    return;
-                }
-                children.retain(|entry_res| {
-                    if let Ok(entry) = entry_res {
-                        let name = entry.file_name.to_string_lossy();
-                        !name.starts_with('.') && name != "target" && name != "node_modules"
-                    } else {
-                        true
-                    }
-                });
-            })
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
+        let result = match SearchFoldersUseCase::new(&self.note_repository, &*self.vault_items)
+            .execute(SearchFoldersQuery { vault_path: self.vault(), query, limit, offset })
         {
-            for entry in entries {
-                if entry.file_type.is_dir() {
-                    if let Ok(rel) = entry.path().strip_prefix(&self.vault_path) {
-                        let clean = rel.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
-                        if !clean.is_empty() {
-                            folder_set.insert(clean);
-                        }
-                    }
-                }
-            }
-        }
-
-        let all_folders: Vec<String> = folder_set.into_iter().collect();
-
-        // Preparar información de archivos para resumir huella semántica
-        let all_files_vec: Vec<(String, String, Vec<String>)> = all_notes
-            .iter()
-            .map(|n| {
-                let tags = tag::Tag::extract_all(&n.content);
-                (n.relative_path.as_str().to_string(), n.title.clone(), tags)
-            })
-            .collect();
-
-        let files_ref: Vec<(&str, &str, &[String])> = all_files_vec
-            .iter()
-            .map(|(p, t, tags)| (p.as_str(), t.as_str(), tags.as_slice()))
-            .collect();
-
-        let mut matched: Vec<String> = if query.is_empty() {
-            all_folders.clone()
-        } else {
-            all_folders
-                .iter()
-                .filter(|f| f.to_lowercase().contains(&query))
-                .cloned()
-                .collect()
+            Ok(r) => r,
+            Err(e) => return McpCallToolResult::error(e),
         };
-
-        if !query.is_empty() {
-            matched.sort_by(|a, b| {
-                let name_a = a.rsplit('/').next().unwrap_or(a).to_lowercase();
-                let name_b = b.rsplit('/').next().unwrap_or(b).to_lowercase();
-                let exact_a = name_a == query;
-                let exact_b = name_b == query;
-                if exact_a != exact_b {
-                    return if exact_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
-                }
-                let prefix_a = name_a.starts_with(&query);
-                let prefix_b = name_b.starts_with(&query);
-                if prefix_a != prefix_b {
-                    return if prefix_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
-                }
-                a.cmp(b)
-            });
-        } else {
-            matched.sort();
-        }
-
-        let total_matched = matched.len();
-        let paginated: Vec<_> = matched
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .map(|f| crate::domain::service::folder_summarizer::FolderSummarizer::summarize(&f, &all_folders, &files_ref))
-            .collect();
-
-        let has_more = offset + limit < total_matched;
+        let has_more = offset + limit < result.total;
         let next_offset = if has_more { Some(offset + limit) } else { None };
-
         let payload = json!({
-            "total_folders": total_matched,
-            "returned_folders": paginated.len(),
+            "total_folders": result.total,
+            "returned_folders": result.folders.len(),
             "offset": offset,
             "limit": limit,
             "has_more": has_more,
             "next_offset": next_offset,
-            "folders": paginated,
+            "folders": result.folders,
         });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error serializando carpetas: {}", e)),
-        }
+        to_text(&payload, "Error serializando carpetas: ")
     }
 
     fn execute_move_folder_contents_tool(&self, args: &Value) -> McpCallToolResult {
@@ -917,146 +811,39 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(tf) => tf.trim_matches('/').replace('\\', "/"),
             None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
         };
+        let command = MoveFolderContentsCommand {
+            vault_path: self.vault(),
+            source_folder: source_folder.clone(),
+            target_folder: target_folder.clone(),
+            extension: args.get("extension").and_then(|v| v.as_str()).map(|e| e.trim_start_matches('.').to_lowercase()),
+            conflict_strategy: args.get("conflict_strategy").and_then(|v| v.as_str()).unwrap_or("skip").to_string(),
+            dry_run: args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false),
+        };
 
-        if source_folder.split('/').any(|s| s == "..") || target_folder.split('/').any(|s| s == "..") {
-            return McpCallToolResult::error("Ruta no permitida ('..' detectado)");
-        }
-
-        if source_folder == target_folder {
-            return McpCallToolResult::error("La carpeta de origen y destino no pueden ser la misma");
-        }
-
-        // Prevenir bucle infinito: target no puede ser subcarpeta de source
-        if target_folder.starts_with(&format!("{}/", source_folder)) {
-            return McpCallToolResult::error("La carpeta destino no puede estar dentro de la carpeta origen");
-        }
-
-        let extension_filter = args.get("extension").and_then(|v| v.as_str()).map(|e| e.trim_start_matches('.').to_lowercase());
-        let conflict_strategy = args.get("conflict_strategy").and_then(|v| v.as_str()).unwrap_or("skip");
-        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
-
-        let source_dir = self.vault_path.join(&source_folder);
-        if !source_dir.exists() || !source_dir.is_dir() {
-            return McpCallToolResult::error(format!("La carpeta origen '{}' no existe", source_folder));
-        }
-
-        let target_dir = self.vault_path.join(&target_folder);
-
-        // Listar todos los archivos dentro de source_folder
-        let mut files_to_move = Vec::new();
-        if let Ok(entries) = jwalk::WalkDir::new(&source_dir).skip_hidden(true).into_iter().collect::<Result<Vec<_>, _>>() {
-            for entry in entries {
-                if entry.file_type.is_file() {
-                    let path = entry.path();
-                    if let Ok(rel) = path.strip_prefix(&source_dir) {
-                        let rel_str = rel.to_string_lossy().replace('\\', "/");
-                        if let Some(ref ext) = extension_filter {
-                            if !rel_str.to_lowercase().ends_with(&format!(".{}", ext)) {
-                                continue;
-                            }
-                        }
-                        files_to_move.push(rel_str);
-                    }
-                }
-            }
-        }
-
-        if dry_run {
-            let payload = json!({
+        let payload = match MoveFolderContentsUseCase::new(&*self.vault_items).execute(command) {
+            Err(e) => return McpCallToolResult::error(e),
+            Ok(MoveFolderContentsResult::Preview { files }) => json!({
                 "dry_run": true,
                 "source_folder": source_folder,
                 "target_folder": target_folder,
-                "total_files_to_move": files_to_move.len(),
-                "files": files_to_move,
-            });
-            return match serde_json::to_string_pretty(&payload) {
-                Ok(t) => McpCallToolResult::text(t),
-                Err(e) => McpCallToolResult::error(e.to_string()),
-            };
-        }
-
-        // Crear target_dir si no existe
-        if let Err(e) = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(&target_dir)) {
-            return McpCallToolResult::error(format!("No se pudo crear la carpeta destino: {}", e));
-        }
-
-        let mut moved = Vec::new();
-        let mut skipped = Vec::new();
-        let mut errors = Vec::new();
-
-        for rel_file in files_to_move {
-            let src_file_path = source_dir.join(&rel_file);
-            let mut dest_file_path = target_dir.join(&rel_file);
-
-            if let Some(parent) = dest_file_path.parent() {
-                let _ = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(parent));
+                "total_files_to_move": files.len(),
+                "files": files,
+            }),
+            Ok(MoveFolderContentsResult::Done { moved, skipped, errors }) => {
+                let moved: Vec<_> = moved.into_iter().map(|(original, new_path)| json!({ "original": original, "new_path": new_path })).collect();
+                json!({
+                    "source_folder": source_folder,
+                    "target_folder": target_folder,
+                    "moved_count": moved.len(),
+                    "skipped_count": skipped.len(),
+                    "errors_count": errors.len(),
+                    "moved_files": moved,
+                    "skipped_files": skipped,
+                    "errors": errors,
+                })
             }
-
-            if dest_file_path.exists() {
-                match conflict_strategy {
-                    "skip" => {
-                        skipped.push(rel_file);
-                        continue;
-                    }
-                    "overwrite" => {
-                        // Proceder con rename/sobrescritura
-                    }
-                    "rename" => {
-                        // Generar nombre no colisionante: archivo_1.ext
-                        let stem = dest_file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
-                        let ext = dest_file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                        let parent = dest_file_path.parent().unwrap();
-                        let mut counter = 1;
-                        loop {
-                            let candidate_name = if ext.is_empty() {
-                                format!("{}_{}", stem, counter)
-                            } else {
-                                format!("{}_{}.{}", stem, counter, ext)
-                            };
-                            let candidate_path = parent.join(&candidate_name);
-                            if !candidate_path.exists() {
-                                dest_file_path = candidate_path;
-                                break;
-                            }
-                            counter += 1;
-                        }
-                    }
-                    _ => {
-                        skipped.push(rel_file);
-                        continue;
-                    }
-                }
-            }
-
-            match self.vault_items.relocate(&self.vault_path, &self.vault_rel(&src_file_path), &self.vault_rel(&dest_file_path)) {
-                Ok(_) => {
-                    let new_rel = dest_file_path.strip_prefix(&self.vault_path).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default();
-                    moved.push(json!({
-                        "original": rel_file,
-                        "new_path": new_rel,
-                    }));
-                }
-                Err(e) => {
-                    errors.push(format!("Error moviendo '{}': {}", rel_file, e));
-                }
-            }
-        }
-
-        let payload = json!({
-            "source_folder": source_folder,
-            "target_folder": target_folder,
-            "moved_count": moved.len(),
-            "skipped_count": skipped.len(),
-            "errors_count": errors.len(),
-            "moved_files": moved,
-            "skipped_files": skipped,
-            "errors": errors,
-        });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(t) => McpCallToolResult::text(t),
-            Err(e) => McpCallToolResult::error(e.to_string()),
-        }
+        };
+        to_text(&payload, "")
     }
 
     fn execute_full_text_search(&self, args: &Value) -> McpCallToolResult {
@@ -1067,90 +854,41 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if query_str.is_empty() {
             return McpCallToolResult::text("[]");
         }
-        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
-        let folder_filter = args.get("folder_path").and_then(|v| v.as_str()).map(|f| f.trim_matches('/').to_lowercase());
-        let tags_filter: Vec<String> = args
-            .get("tags")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        if let Some(ref fts) = self.full_text_index {
-            let q = FullTextQuery {
-                text: query_str.to_string(),
-                limit: limit * 4,
-                prefix_last_term: true,
-            };
-            match fts.search(&q) {
-                Ok((hits, total)) => {
-                    let mut filtered_hits = Vec::new();
-                    for h in hits {
-                        if let Some(ref ff) = folder_filter {
-                            let lower_path = h.note_path.to_lowercase();
-                            let is_prefix = lower_path.starts_with(ff);
-                            let is_segment = lower_path.contains(&format!("/{}/", ff))
-                                || lower_path.starts_with(&format!("{}/", ff))
-                                || lower_path.contains(&format!("/{}", ff));
-                            if !is_prefix && !is_segment {
-                                continue;
-                            }
-                        }
-                        // Leer la nota para estimar líneas, tokens y verificar filtro de tags si aplica
-                        let (total_lines, est_tokens, matches_tags) = if let Ok(rel) = NoteRelativePath::new(&h.note_path) {
-                            if let Ok(note) = self.note_repository.read_note(&self.vault_path, &rel) {
-                                let lines = note.content.lines().count();
-                                let tokens = NoteContent::estimate_tokens(&note.content);
-                                let ok_tags = if tags_filter.is_empty() {
-                                    true
-                                } else {
-                                    let all_tags = tag::Tag::extract_all(&note.content);
-                                    tags_filter.iter().all(|tf| tag::Tag::any_matches(&all_tags, tf))
-                                };
-                                (lines, tokens, ok_tags)
-                            } else {
-                                (0, 0, tags_filter.is_empty())
-                            }
-                        } else {
-                            (0, 0, tags_filter.is_empty())
-                        };
-
-                        if !matches_tags {
-                            continue;
-                        }
-
-                        filtered_hits.push(json!({
-                            "path": h.note_path,
-                            "title": h.title,
-                            "score": h.score,
-                            "snippet": h.snippet,
-                            "total_lines": total_lines,
-                            "estimated_tokens": est_tokens,
-                            "matched_terms": h.matched_terms,
-                        }));
-
-                        if filtered_hits.len() >= limit {
-                            break;
-                        }
-                    }
-
-                    let results = json!({
-                        "total_matches": total,
-                        "returned_matches": filtered_hits.len(),
-                        "hits": filtered_hits,
-                    });
-                    match serde_json::to_string_pretty(&results) {
-                        Ok(text) => McpCallToolResult::text(text),
-                        Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-                    }
-                }
-                Err(err) => McpCallToolResult::error(format!("Error en full-text search: {}", err)),
+        let Some(ref fts) = self.full_text_index else {
+            return McpCallToolResult::error("El índice Tantivy de búsqueda de texto completo no está disponible.");
+        };
+        let query = SearchNotesFullTextQuery {
+            vault_path: self.vault(),
+            text: query_str.to_string(),
+            limit: args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize,
+            folder: args.get("folder_path").and_then(|v| v.as_str()).map(|f| f.trim_matches('/').to_lowercase()),
+            tags: string_list(args.get("tags")),
+        };
+        match SearchNotesFullTextUseCase::new(&**fts, &self.note_repository).execute(query) {
+            Ok(result) => {
+                let hits: Vec<_> = result
+                    .hits
+                    .into_iter()
+                    .map(|h| {
+                        json!({
+                            "path": h.hit.note_path,
+                            "title": h.hit.title,
+                            "score": h.hit.score,
+                            "snippet": h.hit.snippet,
+                            "total_lines": h.total_lines,
+                            "estimated_tokens": h.estimated_tokens,
+                            "matched_terms": h.hit.matched_terms,
+                        })
+                    })
+                    .collect();
+                let results = json!({
+                    "total_matches": result.total,
+                    "returned_matches": hits.len(),
+                    "hits": hits,
+                });
+                to_text(&results, "Error al serializar: ")
             }
-        } else {
-            McpCallToolResult::error("El índice Tantivy de búsqueda de texto completo no está disponible.")
+            Err(err) => McpCallToolResult::error(err),
         }
     }
 
@@ -1164,48 +902,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
         };
         let context_lines = args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(2) as usize;
-        let context_lines = context_lines.min(10);
 
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let matches = match SearchInNoteUseCase::new(&self.note_repository).execute(SearchInNoteQuery {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            query: query.to_string(),
+            context_lines,
+        }) {
+            Ok(m) => m,
+            Err(e) => return McpCallToolResult::error(e),
         };
-
-        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
-        };
-
-        let lines: Vec<&str> = note.content.lines().collect();
-        let query_lower = query.to_lowercase();
-        let mut matches = Vec::new();
-
-        for (i, line) in lines.iter().enumerate() {
-            if line.to_lowercase().contains(&query_lower) {
-                let start_idx = i.saturating_sub(context_lines);
-                let end_idx = (i + context_lines + 1).min(lines.len());
-                let context_snippet: Vec<String> = (start_idx..end_idx)
-                    .map(|idx| format!("{}: {}", idx + 1, lines[idx]))
-                    .collect();
-
-                matches.push(json!({
-                    "line_number": i + 1,
-                    "matched_line": line,
-                    "context": context_snippet,
-                }));
-            }
-        }
-
+        let matches: Vec<_> = matches
+            .into_iter()
+            .map(|m| json!({ "line_number": m.line_number, "matched_line": m.matched_line, "context": m.context }))
+            .collect();
         let payload = json!({
             "relative_path": rel_path_str,
             "total_matches": matches.len(),
             "matches": matches,
         });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-        }
+        to_text(&payload, "Error al serializar: ")
     }
 
     fn execute_read_note(&self, args: &Value) -> McpCallToolResult {
@@ -1215,12 +931,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         };
         let mut mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("full");
         let start_line = args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
-        let line_count = args.get("line_count").and_then(|v| v.as_u64()).unwrap_or(150) as usize;
-        let line_count = line_count.min(500);
-        let section_heading = args
-            .get("section")
-            .or_else(|| args.get("section_heading"))
-            .and_then(|v| v.as_str());
+        let line_count = (args.get("line_count").and_then(|v| v.as_u64()).unwrap_or(150) as usize).min(500);
+        let section_heading = args.get("section").or_else(|| args.get("section_heading")).and_then(|v| v.as_str());
         let outline_only = args.get("outline_only").and_then(|v| v.as_bool()).unwrap_or(false);
         let include_line_numbers = args.get("include_line_numbers").and_then(|v| v.as_bool()).unwrap_or(false);
 
@@ -1231,200 +943,100 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             mode = "section";
         }
 
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let details = match ReadNoteDetailsUseCase::new(&self.note_repository)
+            .execute(ReadNoteDetailsQuery { vault_path: self.vault(), relative_path: rel_path_str.to_string() })
+        {
+            Ok(d) => d,
+            Err(e) => return McpCallToolResult::error(e),
+        };
+        let note = &details.note;
+        let lines: Vec<&str> = note.content.lines().collect();
+        let total_lines = details.total_lines;
+        let toc: Vec<Value> = details
+            .toc
+            .iter()
+            .map(|h| json!({ "level": h.level, "text": h.text, "line": h.line }))
+            .collect();
+        let detected_blocks = json!({ "mermaid_count": details.mermaid_count, "d2_count": details.d2_count });
+        let render = |offset: usize, selected: &[&str]| -> String {
+            if include_line_numbers {
+                selected.iter().enumerate().map(|(i, l)| format!("{}: {}", offset + i + 1, l)).collect::<Vec<_>>().join("\n")
+            } else {
+                selected.join("\n")
+            }
         };
 
-        match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(note) => {
-                let lines: Vec<&str> = note.content.lines().collect();
-                let total_lines = lines.len();
-                let content_hash = NoteContent::hash(&note.content);
-                let est_tokens = NoteContent::estimate_tokens(&note.content);
-
-                // 1. Extraer TOC (Table of Contents)
-                let mut toc = Vec::new();
-                for (idx, line) in lines.iter().enumerate() {
-                    let trimmed = line.trim_start();
-                    if trimmed.starts_with('#') {
-                        let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                        if hashes >= 1 && hashes <= 6 && trimmed.chars().nth(hashes) == Some(' ') {
-                            let heading_text = trimmed[hashes..].trim().to_string();
-                            toc.push(json!({
-                                "level": hashes,
-                                "text": heading_text,
-                                "line": idx + 1,
-                            }));
-                        }
+        let payload = match mode {
+            "metadata_only" => json!({
+                "relative_path": note.relative_path.as_str(),
+                "title": note.title,
+                "content_hash": details.content_hash,
+                "total_lines": total_lines,
+                "estimated_tokens": details.estimated_tokens,
+                "okf_metadata": note.frontmatter,
+                "toc": toc,
+                "detected_blocks": detected_blocks,
+            }),
+            "section" => {
+                let target_heading = match section_heading {
+                    Some(h) => h.trim().trim_start_matches('#').trim().to_lowercase(),
+                    None => return McpCallToolResult::error("El argumento 'section' o 'section_heading' es requerido en mode='section'"),
+                };
+                let (start_idx, section_level) = match NoteContent::find_heading(&lines, &target_heading) {
+                    Some(found) => found,
+                    None => {
+                        let available_headings: Vec<String> = details.toc.iter().map(|h| h.text.clone()).collect();
+                        return McpCallToolResult::error(format!(
+                            "Sección '{}' no encontrada en la nota. Secciones disponibles: {:?}",
+                            target_heading, available_headings
+                        ));
                     }
-                }
-
-                // 2. Detectar bloques especiales
-                let mut mermaid_count = 0;
-                let mut d2_count = 0;
-                for line in &lines {
-                    let trimmed = line.trim();
-                    if trimmed.starts_with("```mermaid") { mermaid_count += 1; }
-                    if trimmed.starts_with("```d2") { d2_count += 1; }
-                }
-
-                let detected_blocks = json!({
-                    "mermaid_count": mermaid_count,
-                    "d2_count": d2_count,
-                });
-
-                match mode {
-                    "metadata_only" => {
-                        let payload = json!({
-                            "relative_path": note.relative_path.as_str(),
-                            "title": note.title,
-                            "content_hash": content_hash,
-                            "total_lines": total_lines,
-                            "estimated_tokens": est_tokens,
-                            "okf_metadata": note.frontmatter,
-                            "toc": toc,
-                            "detected_blocks": detected_blocks,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                    "section" => {
-                        let target_heading = match section_heading {
-                            Some(h) => h.trim().trim_start_matches('#').trim().to_lowercase(),
-                            None => return McpCallToolResult::error("El argumento 'section' o 'section_heading' es requerido en mode='section'"),
-                        };
-
-                        let mut section_start = None;
-                        let mut section_level = 1;
-                        for (idx, line) in lines.iter().enumerate() {
-                            let trimmed = line.trim_start();
-                            if trimmed.starts_with('#') {
-                                let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                                if hashes >= 1 && hashes <= 6 {
-                                    let h_text = trimmed[hashes..].trim().to_lowercase();
-                                    if h_text.contains(&target_heading) {
-                                        section_start = Some(idx);
-                                        section_level = hashes;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        let start_idx = match section_start {
-                            Some(s) => s,
-                            None => {
-                                let available_headings: Vec<String> = toc.iter().filter_map(|h| h.get("text").and_then(|t| t.as_str()).map(|s| s.to_string())).collect();
-                                return McpCallToolResult::error(format!(
-                                    "Sección '{}' no encontrada en la nota. Secciones disponibles: {:?}",
-                                    target_heading, available_headings
-                                ));
-                            }
-                        };
-
-                        let mut end_idx = lines.len();
-                        for (idx, line) in lines.iter().enumerate().skip(start_idx + 1) {
-                            let trimmed = line.trim_start();
-                            if trimmed.starts_with('#') {
-                                let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                                if hashes <= section_level {
-                                    end_idx = idx;
-                                    break;
-                                }
-                            }
-                        }
-
-                        let selected_lines = &lines[start_idx..end_idx];
-                        let rendered_content = if include_line_numbers {
-                            selected_lines
-                                .iter()
-                                .enumerate()
-                                .map(|(i, l)| format!("{}: {}", start_idx + i + 1, l))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        } else {
-                            selected_lines.join("\n")
-                        };
-
-                        let payload = json!({
-                            "relative_path": note.relative_path.as_str(),
-                            "title": note.title,
-                            "content_hash": content_hash,
-                            "total_lines": total_lines,
-                            "returned_lines": { "start": start_idx + 1, "end": end_idx },
-                            "okf_metadata": note.frontmatter,
-                            "toc": toc,
-                            "content": rendered_content,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                    "chunk" => {
-                        let start_idx = start_line.saturating_sub(1).min(total_lines);
-                        let end_idx = (start_idx + line_count).min(total_lines);
-                        let selected_lines = if start_idx < end_idx { &lines[start_idx..end_idx] } else { &[] };
-
-                        let rendered_content = if include_line_numbers {
-                            selected_lines
-                                .iter()
-                                .enumerate()
-                                .map(|(i, l)| format!("{}: {}", start_idx + i + 1, l))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        } else {
-                            selected_lines.join("\n")
-                        };
-
-                        let payload = json!({
-                            "relative_path": note.relative_path.as_str(),
-                            "title": note.title,
-                            "content_hash": content_hash,
-                            "total_lines": total_lines,
-                            "returned_lines": { "start": start_idx + 1, "end": end_idx },
-                            "has_more": end_idx < total_lines,
-                            "okf_metadata": note.frontmatter,
-                            "toc": toc,
-                            "content": rendered_content,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                    _ => {
-                        // mode = "full"
-                        let rendered_content = if include_line_numbers {
-                            lines
-                                .iter()
-                                .enumerate()
-                                .map(|(i, l)| format!("{}: {}", i + 1, l))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        } else {
-                            note.content.clone()
-                        };
-
-                        let payload = json!({
-                            "relative_path": note.relative_path.as_str(),
-                            "title": note.title,
-                            "content_hash": content_hash,
-                            "total_lines": total_lines,
-                            "estimated_tokens": est_tokens,
-                            "okf_metadata": note.frontmatter,
-                            "toc": toc,
-                            "detected_blocks": detected_blocks,
-                            "content": rendered_content,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                }
+                };
+                let end_idx = NoteContent::section_end(&lines, start_idx, section_level);
+                json!({
+                    "relative_path": note.relative_path.as_str(),
+                    "title": note.title,
+                    "content_hash": details.content_hash,
+                    "total_lines": total_lines,
+                    "returned_lines": { "start": start_idx + 1, "end": end_idx },
+                    "okf_metadata": note.frontmatter,
+                    "toc": toc,
+                    "content": render(start_idx, &lines[start_idx..end_idx]),
+                })
             }
-            Err(err) => McpCallToolResult::error(format!("Error al leer nota: {}", err)),
-        }
+            "chunk" => {
+                let start_idx = start_line.saturating_sub(1).min(total_lines);
+                let end_idx = (start_idx + line_count).min(total_lines);
+                let selected: &[&str] = if start_idx < end_idx { &lines[start_idx..end_idx] } else { &[] };
+                json!({
+                    "relative_path": note.relative_path.as_str(),
+                    "title": note.title,
+                    "content_hash": details.content_hash,
+                    "total_lines": total_lines,
+                    "returned_lines": { "start": start_idx + 1, "end": end_idx },
+                    "has_more": end_idx < total_lines,
+                    "okf_metadata": note.frontmatter,
+                    "toc": toc,
+                    "content": render(start_idx, selected),
+                })
+            }
+            _ => {
+                // mode = "full"
+                let content = if include_line_numbers { render(0, &lines) } else { note.content.clone() };
+                json!({
+                    "relative_path": note.relative_path.as_str(),
+                    "title": note.title,
+                    "content_hash": details.content_hash,
+                    "total_lines": total_lines,
+                    "estimated_tokens": details.estimated_tokens,
+                    "okf_metadata": note.frontmatter,
+                    "toc": toc,
+                    "detected_blocks": detected_blocks,
+                    "content": content,
+                })
+            }
+        };
+        to_text(&payload, "")
     }
 
     fn execute_write_note(&self, args: &Value) -> McpCallToolResult {
@@ -1436,113 +1048,32 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(c) => c,
             None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
         };
-        let expected_hash = args.get("expected_hash").and_then(|v| v.as_str());
-        let allow_large_overwrite = args.get("allow_large_overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
-        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
-
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let command = WriteNoteCommand {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            content: content.to_string(),
+            title: args.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            tags: args.get("tags").and_then(|v| v.as_array()).map(|_| string_list(args.get("tags"))),
+            aliases: args.get("aliases").and_then(|v| v.as_array()).map(|_| string_list(args.get("aliases"))),
+            expected_hash: args.get("expected_hash").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            allow_large_overwrite: args.get("allow_large_overwrite").and_then(|v| v.as_bool()).unwrap_or(false),
+            dry_run: args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false),
         };
-
-        // Leer nota existente si existe
-        let existing_note = self.note_repository.read_note(&self.vault_path, &relative_path).ok();
-
-        if let Some(ref note) = existing_note {
-            let current_hash = NoteContent::hash(&note.content);
-            if let Some(exp) = expected_hash {
-                if exp != current_hash {
-                    return McpCallToolResult::error(format!(
-                        "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento antes de escribir.",
-                        current_hash, exp
-                    ));
-                }
-            }
-
-            // Freno anti-truncamiento (>150 líneas y reduce más del 40%)
-            let old_line_count = note.content.lines().count();
-            let new_line_count = content.lines().count();
-            if old_line_count > 150 && !allow_large_overwrite {
-                if new_line_count < (old_line_count * 60) / 100 {
-                    return McpCallToolResult::error(format!(
-                        "Freno anti-truncamiento activado: la nota original tiene {} líneas y la nueva tiene {}. Usa patch_note para ediciones parciales o establece allow_large_overwrite: true.",
-                        old_line_count, new_line_count
-                    ));
-                }
-            }
-        }
-
-        let title = args
-            .get("title")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| {
-                existing_note
-                    .as_ref()
-                    .map(|n| n.title.clone())
-                    .unwrap_or_else(|| "Sin título".to_string())
-            });
-
-        let final_body = if content.trim_start().starts_with("---") {
-            content.to_string()
-        } else {
-            let mut fm = existing_note
-                .as_ref()
-                .and_then(|n| n.frontmatter.clone())
-                .unwrap_or_default();
-            fm.title = Some(title.clone());
-
-            if let Some(tags_val) = args.get("tags").and_then(|v| v.as_array()) {
-                fm.tags = tags_val
-                    .iter()
-                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                    .collect();
-            }
-            if let Some(aliases_val) = args.get("aliases").and_then(|v| v.as_array()) {
-                fm.aliases = aliases_val
-                    .iter()
-                    .filter_map(|a| a.as_str().map(|s| s.to_string()))
-                    .collect();
-            }
-            frontmatter::NoteFrontmatter::serialize_with_content(Some(&fm), content)
-        };
-
-        if dry_run {
-            let old_content = existing_note.as_ref().map(|n| n.content.as_str()).unwrap_or("");
-            let unified_diff = generate_unified_diff(old_content, &final_body, rel_path_str);
-            let payload = json!({
+        let payload = match WriteNoteUseCase::new(&self.note_repository).execute(command) {
+            Err(e) => return McpCallToolResult::error(e),
+            Ok(WriteNoteOutcome::Preview { old_content, new_content }) => json!({
                 "dry_run": true,
                 "relative_path": rel_path_str,
-                "unified_diff": unified_diff,
-            });
-            return serde_json::to_string_pretty(&payload)
-                .map(McpCallToolResult::text)
-                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
-        }
-
-        let note = Note::with_encoding(
-            relative_path,
-            "".to_string(),
-            title,
-            final_body.clone(),
-            "UTF-8".to_string(),
-        );
-
-        match self.note_repository.save_note(&self.vault_path, &note) {
-            Ok(_) => {
-                let new_hash = NoteContent::hash(&final_body);
-                let payload = json!({
-                    "status": "success",
-                    "relative_path": rel_path_str,
-                    "new_content_hash": new_hash,
-                    "message": format!("Nota '{}' guardada exitosamente.", rel_path_str),
-                });
-                serde_json::to_string_pretty(&payload)
-                    .map(McpCallToolResult::text)
-                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-            }
-            Err(err) => McpCallToolResult::error(format!("Error al guardar la nota: {}", err)),
-        }
+                "unified_diff": generate_unified_diff(&old_content, &new_content, rel_path_str),
+            }),
+            Ok(WriteNoteOutcome::Saved { new_hash }) => json!({
+                "status": "success",
+                "relative_path": rel_path_str,
+                "new_content_hash": new_hash,
+                "message": format!("Nota '{}' guardada exitosamente.", rel_path_str),
+            }),
+        };
+        to_text(&payload, "")
     }
 
     fn execute_patch_note(&self, args: &Value) -> McpCallToolResult {
@@ -1558,73 +1089,34 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(t) => t,
             None => return McpCallToolResult::error("El argumento 'new_text' es obligatorio"),
         };
-        let start_line_hint = args.get("start_line").and_then(|v| v.as_u64()).map(|n| n as usize);
-        let expected_hash = args.get("expected_hash").and_then(|v| v.as_str());
-        let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
-
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let command = PatchNoteCommand {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            old_text: old_text.to_string(),
+            new_text: new_text.to_string(),
+            start_line: args.get("start_line").and_then(|v| v.as_u64()).map(|n| n as usize),
+            expected_hash: args.get("expected_hash").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            dry_run: args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false),
         };
-
-        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
+        let outcome = match PatchNoteUseCase::new(&self.note_repository).execute(command) {
+            Ok(o) => o,
+            Err(e) => return McpCallToolResult::error(e),
         };
-
-        let current_hash = NoteContent::hash(&note.content);
-        if let Some(exp) = expected_hash {
-            if exp != current_hash {
-                return McpCallToolResult::error(format!(
-                    "Conflicto OCC en patch_note: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento.",
-                    current_hash, exp
-                ));
-            }
-        }
-
-        // Algoritmo de reemplazo quirúrgico con tolerancia progresiva:
-        let full_content = &note.content;
-        let patched_content = match NoteContent::apply_patch(full_content, old_text, new_text, start_line_hint) {
-            Ok(res) => res,
-            Err(err_msg) => return McpCallToolResult::error(format!("{} en '{}'", err_msg, rel_path_str)),
-        };
-
-        let unified_diff = generate_unified_diff(full_content, &patched_content, rel_path_str);
-
-        if dry_run {
-            let payload = json!({
+        let unified_diff = generate_unified_diff(&outcome.old_content, &outcome.new_content, rel_path_str);
+        let payload = match outcome.new_hash {
+            None => json!({
                 "dry_run": true,
                 "relative_path": rel_path_str,
                 "unified_diff": unified_diff,
-            });
-            return serde_json::to_string_pretty(&payload)
-                .map(McpCallToolResult::text)
-                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
-        }
-
-        let new_hash = NoteContent::hash(&patched_content);
-        let updated_note = Note::with_encoding(
-            relative_path,
-            "".to_string(),
-            note.title,
-            patched_content,
-            note.encoding,
-        );
-
-        match self.note_repository.save_note(&self.vault_path, &updated_note) {
-            Ok(_) => {
-                let payload = json!({
-                    "status": "success",
-                    "relative_path": rel_path_str,
-                    "new_content_hash": new_hash,
-                    "unified_diff": unified_diff,
-                });
-                serde_json::to_string_pretty(&payload)
-                    .map(McpCallToolResult::text)
-                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-            }
-            Err(err) => McpCallToolResult::error(format!("Error al guardar parche: {}", err)),
-        }
+            }),
+            Some(new_hash) => json!({
+                "status": "success",
+                "relative_path": rel_path_str,
+                "new_content_hash": new_hash,
+                "unified_diff": unified_diff,
+            }),
+        };
+        to_text(&payload, "")
     }
 
     fn execute_append_to_note(&self, args: &Value) -> McpCallToolResult {
@@ -1636,87 +1128,23 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(c) => c,
             None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
         };
-        let section_heading = args.get("section_heading").and_then(|v| v.as_str());
-        let position = args.get("position").and_then(|v| v.as_str()).unwrap_or("end_of_section");
-
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let command = AppendToNoteCommand {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            content: content_to_append.to_string(),
+            section_heading: args.get("section_heading").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            position: args.get("position").and_then(|v| v.as_str()).unwrap_or("end_of_section").to_string(),
         };
-
-        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
-        };
-
-        let mut lines: Vec<String> = note.content.lines().map(|s| s.to_string()).collect();
-
-        if let Some(heading) = section_heading {
-            let target_h = heading.trim().trim_start_matches('#').trim().to_lowercase();
-            let mut sec_idx = None;
-            let mut sec_level = 1;
-            for (idx, line) in lines.iter().enumerate() {
-                let trimmed = line.trim_start();
-                if trimmed.starts_with('#') {
-                    let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                    if hashes >= 1 && hashes <= 6 {
-                        if trimmed[hashes..].trim().to_lowercase().contains(&target_h) {
-                            sec_idx = Some(idx);
-                            sec_level = hashes;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            let start_h = match sec_idx {
-                Some(s) => s,
-                None => return McpCallToolResult::error(format!("Encabezado de sección '{}' no encontrado", heading)),
-            };
-
-            if position == "start_of_section" {
-                lines.insert(start_h + 1, content_to_append.to_string());
-            } else {
-                let mut insert_idx = lines.len();
-                for (idx, line) in lines.iter().enumerate().skip(start_h + 1) {
-                    let trimmed = line.trim_start();
-                    if trimmed.starts_with('#') {
-                        let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                        if hashes <= sec_level {
-                            insert_idx = idx;
-                            break;
-                        }
-                    }
-                }
-                lines.insert(insert_idx, content_to_append.to_string());
-            }
-        } else {
-            lines.push(content_to_append.to_string());
-        }
-
-        let new_content = lines.join("\n");
-        let new_hash = NoteContent::hash(&new_content);
-
-        let updated_note = Note::with_encoding(
-            relative_path,
-            "".to_string(),
-            note.title,
-            new_content,
-            note.encoding,
-        );
-
-        match self.note_repository.save_note(&self.vault_path, &updated_note) {
-            Ok(_) => {
-                let payload = json!({
+        match AppendToNoteUseCase::new(&self.note_repository).execute(command) {
+            Ok(new_hash) => to_text(
+                &json!({
                     "status": "success",
                     "relative_path": rel_path_str,
                     "new_content_hash": new_hash,
-                });
-                serde_json::to_string_pretty(&payload)
-                    .map(McpCallToolResult::text)
-                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-            }
-            Err(err) => McpCallToolResult::error(format!("Error al anexar contenido: {}", err)),
+                }),
+                "",
+            ),
+            Err(e) => McpCallToolResult::error(e),
         }
     }
 
@@ -1725,67 +1153,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let optional_list = |key: &str| args.get(key).and_then(|v| v.as_array()).map(|_| string_list(args.get(key)));
+        let command = UpdateNoteMetadataCommand {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            title: args.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            add_tags: optional_list("add_tags"),
+            remove_tags: optional_list("remove_tags"),
+            aliases: optional_list("aliases"),
         };
-
-        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
-        };
-
-        let (fm_opt, body) = frontmatter::NoteFrontmatter::parse(&note.content);
-        let mut fm = fm_opt.unwrap_or_default();
-
-        if let Some(new_title) = args.get("title").and_then(|v| v.as_str()) {
-            fm.title = Some(new_title.to_string());
-        }
-
-        if let Some(add_tags) = args.get("add_tags").and_then(|v| v.as_array()) {
-            let mut tag_set: HashSet<String> = fm.tags.into_iter().collect();
-            for t in add_tags.iter().filter_map(|t| t.as_str()) {
-                tag_set.insert(t.to_string());
-            }
-            fm.tags = tag_set.into_iter().collect();
-            fm.tags.sort();
-        }
-
-        if let Some(remove_tags) = args.get("remove_tags").and_then(|v| v.as_array()) {
-            let remove_set: HashSet<&str> = remove_tags.iter().filter_map(|t| t.as_str()).collect();
-            fm.tags.retain(|t| !remove_set.contains(t.as_str()));
-        }
-
-        if let Some(aliases_val) = args.get("aliases").and_then(|v| v.as_array()) {
-            fm.aliases = aliases_val.iter().filter_map(|a| a.as_str().map(|s| s.to_string())).collect();
-        }
-
-        let new_full_content = frontmatter::NoteFrontmatter::serialize_with_content(Some(&fm), &body);
-        let new_hash = NoteContent::hash(&new_full_content);
-
-        let final_title = fm.title.clone().unwrap_or(note.title);
-        let updated_note = Note::with_encoding(
-            relative_path,
-            "".to_string(),
-            final_title,
-            new_full_content,
-            note.encoding,
-        );
-
-        match self.note_repository.save_note(&self.vault_path, &updated_note) {
-            Ok(_) => {
-                let payload = json!({
+        match UpdateNoteMetadataUseCase::new(&self.note_repository).execute(command) {
+            Ok((fm, new_hash)) => to_text(
+                &json!({
                     "status": "success",
                     "relative_path": rel_path_str,
                     "updated_metadata": fm,
                     "new_content_hash": new_hash,
-                });
-                serde_json::to_string_pretty(&payload)
-                    .map(McpCallToolResult::text)
-                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-            }
-            Err(err) => McpCallToolResult::error(format!("Error al actualizar metadatos: {}", err)),
+                }),
+                "",
+            ),
+            Err(e) => McpCallToolResult::error(e),
         }
     }
 
@@ -1811,21 +1198,16 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
         let include_self = args.get("include_self").and_then(|v| v.as_bool()).unwrap_or(false);
         let include_folders = args.get("include_folders").and_then(|v| v.as_bool()).unwrap_or(false);
-
         let parent_folder = match rel_path_str.rsplit_once('/') {
             Some((dir, _)) => dir,
             None => "",
         };
-
-        let exclude_path = if include_self {
-            None
-        } else {
-            Some(rel_path_str.as_str())
-        };
+        let exclude_path = if include_self { None } else { Some(rel_path_str.as_str()) };
 
         self.execute_list_folder_contents(parent_folder, true, include_folders, false, exclude_path, None, None)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn execute_list_folder_contents(
         &self,
         folder: &str,
@@ -1837,101 +1219,46 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         offset_opt: Option<usize>,
     ) -> McpCallToolResult {
         let clean_folder = folder.trim_matches('/').replace('\\', "/");
-        if clean_folder.split('/').any(|seg| seg == "..") {
-            return McpCallToolResult::error("Ruta de carpeta no permitida ('..' detectado)");
-        }
-
-        let target_dir = if clean_folder.is_empty() {
-            self.vault_path.clone()
-        } else {
-            self.vault_path.join(&clean_folder)
+        let listing = match ListFolderContentsUseCase::new(&self.note_repository, &*self.vault_items).execute(ListFolderContentsQuery {
+            vault_path: self.vault(),
+            folder: clean_folder.clone(),
+            include_notes,
+            include_folders,
+            recursive,
+            exclude_note_path: exclude_note_path.map(|s| s.to_string()),
+        }) {
+            Ok(l) => l,
+            Err(e) => return McpCallToolResult::error(e),
         };
 
-        if !target_dir.exists() || !target_dir.is_dir() {
-            return McpCallToolResult::error(format!("La carpeta '{}' no existe o no es un directorio", clean_folder));
-        }
-
-        let mut folders_out = Vec::new();
-        let mut notes_out = Vec::new();
-
-        if !recursive {
-            if let Ok(entries) = self.vault_items.list_folder(&self.vault_path, &self.vault_rel(&target_dir)) {
-                for entry in entries {
-                    let name = entry.name.clone();
-                    if name.starts_with('.') || name == "target" || name == "node_modules" {
-                        continue;
-                    }
-                    let is_dir = entry.is_dir;
-                    let rel_path = if clean_folder.is_empty() {
-                        name.clone()
-                    } else {
-                        format!("{}/{}", clean_folder, name)
-                    };
-
-                    if is_dir {
-                        if include_folders {
-                            folders_out.push(json!({
-                                "name": name,
-                                "relative_path": rel_path,
-                            }));
-                        }
-                    } else if include_notes {
-                        if let Some(ex) = exclude_note_path {
-                            if rel_path == ex {
-                                continue;
-                            }
-                        }
-
-                        let line_count = if let Ok(rel) = NoteRelativePath::new(&rel_path) {
-                            self.note_repository.read_note(&self.vault_path, &rel).map(|n| n.content.lines().count()).unwrap_or(0)
-                        } else {
-                            0
-                        };
-
-                        let note_title = if let Ok(rel) = NoteRelativePath::new(&rel_path) {
-                            self.note_repository.read_note(&self.vault_path, &rel).map(|n| n.title).unwrap_or_else(|_| name.clone())
-                        } else {
-                            name.clone()
-                        };
-                        notes_out.push(json!({
-                            "name": name,
-                            "title": note_title,
-                            "relative_path": rel_path,
-                            "line_count": line_count,
-                        }));
-                    }
-                }
-            }
-        } else {
-            let extensions = vec!["md".to_string(), "markdown".to_string()];
-            if include_notes {
-                if let Ok(all_notes) = self.note_repository.list_notes(&self.vault_path, &extensions) {
-                    for n in all_notes {
-                        let path_str = n.relative_path.as_str();
-                        if clean_folder.is_empty() || path_str.starts_with(&format!("{}/", clean_folder)) {
-                            if let Some(ex) = exclude_note_path {
-                                if path_str == ex {
-                                    continue;
-                                }
-                            }
-                            let name = path_str.rsplit('/').next().unwrap_or(path_str).to_string();
-                            notes_out.push(json!({
-                                "name": name,
-                                "relative_path": path_str,
-                                "title": n.title,
-                            }));
-                        }
-                    }
-                }
-            }
-        }
+        let folders_out: Vec<_> = listing
+            .folders
+            .into_iter()
+            .map(|f| json!({ "name": f.name, "relative_path": f.relative_path }))
+            .collect();
+        let notes_out: Vec<_> = listing
+            .notes
+            .into_iter()
+            .map(|n| match n.line_count {
+                Some(line_count) => json!({
+                    "name": n.name,
+                    "title": n.title,
+                    "relative_path": n.relative_path,
+                    "line_count": line_count,
+                }),
+                None => json!({
+                    "name": n.name,
+                    "relative_path": n.relative_path,
+                    "title": n.title,
+                }),
+            })
+            .collect();
 
         let total_notes = notes_out.len();
         let offset = offset_opt.unwrap_or(0);
         let limit = limit_opt.unwrap_or(50);
         let has_more = offset + limit < total_notes;
         let next_offset = if has_more { Some(offset + limit) } else { None };
-
         let paged_notes: Vec<_> = notes_out.into_iter().skip(offset).take(limit).collect();
 
         let payload = json!({
@@ -1947,11 +1274,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "next_offset": next_offset,
             "notes": paged_notes,
         });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar contenidos: {}", e)),
-        }
+        to_text(&payload, "Error al serializar contenidos: ")
     }
 
     fn execute_move_notes_tool(&self, args: &Value) -> McpCallToolResult {
@@ -1963,123 +1286,36 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(tf) => tf,
             None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
         };
-        let create_target_folder = args.get("create_target_folder").and_then(|v| v.as_bool()).unwrap_or(true);
-        let overwrite = args.get("overwrite").and_then(|v| v.as_bool()).unwrap_or(false);
-        let update_wikilinks = args.get("update_wikilinks").and_then(|v| v.as_bool()).unwrap_or(false);
-
-        let note_paths: Vec<String> = notes_val
-            .iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-            .collect();
-
-        self.execute_move_notes(&note_paths, target_folder, create_target_folder, overwrite, update_wikilinks)
-    }
-
-    fn execute_move_notes(
-        &self,
-        notes: &[String],
-        target_folder: &str,
-        create_target_folder: bool,
-        overwrite: bool,
-        update_wikilinks: bool,
-    ) -> McpCallToolResult {
-        let clean_target = target_folder.trim_matches('/').replace('\\', "/");
-        if clean_target.split('/').any(|seg| seg == "..") {
-            return McpCallToolResult::error("Ruta de destino no permitida ('..' detectado)");
-        }
-
-        let dest_dir = if clean_target.is_empty() {
-            self.vault_path.clone()
-        } else {
-            self.vault_path.join(&clean_target)
+        let command = MoveNotesCommand {
+            vault_path: self.vault(),
+            notes: notes_val.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect(),
+            target_folder: target_folder.to_string(),
+            create_target_folder: args.get("create_target_folder").and_then(|v| v.as_bool()).unwrap_or(true),
+            overwrite: args.get("overwrite").and_then(|v| v.as_bool()).unwrap_or(false),
+            update_wikilinks: args.get("update_wikilinks").and_then(|v| v.as_bool()).unwrap_or(false),
         };
-
-        if !dest_dir.exists() {
-            if create_target_folder {
-                if let Err(e) = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(&dest_dir)) {
-                    return McpCallToolResult::error(format!("Error al crear carpeta de destino: {}", e));
-                }
-            } else {
-                return McpCallToolResult::error(format!("La carpeta destino '{}' no existe", clean_target));
-            }
-        }
-
-        let mut moved_success = Vec::new();
-        let mut errors = Vec::new();
-
-        for source_rel in notes {
-            let clean_src = source_rel.trim_matches('/').replace('\\', "/");
-            let file_name = match clean_src.rsplit('/').next() {
-                Some(f) => f,
-                None => {
-                    errors.push(json!({ "source": source_rel, "error": "Ruta inválida" }));
-                    continue;
-                }
-            };
-
-            let src_path = self.vault_path.join(&clean_src);
-            let target_rel = if clean_target.is_empty() {
-                file_name.to_string()
-            } else {
-                format!("{}/{}", clean_target, file_name)
-            };
-            let dst_path = self.vault_path.join(&target_rel);
-
-            if !src_path.exists() {
-                errors.push(json!({ "source": source_rel, "error": "Archivo origen no existe" }));
-                continue;
-            }
-
-            if dst_path.exists() && !overwrite {
-                errors.push(json!({ "source": source_rel, "error": "Ya existe un archivo en destino" }));
-                continue;
-            }
-
-            match self.vault_items.relocate(&self.vault_path, &self.vault_rel(&src_path), &self.vault_rel(&dst_path)) {
-                Ok(_) => {
-                    moved_success.push(json!({
-                        "source": clean_src,
-                        "destination": target_rel,
-                    }));
-
-                    if update_wikilinks {
-                        // Reescritura simple de wikilinks para este archivo
-                        let old_stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
-                        let extensions = vec!["md".to_string(), "markdown".to_string()];
-                        if let Ok(all_notes) = self.note_repository.list_notes(&self.vault_path, &extensions) {
-                            for other in all_notes {
-                                if other.relative_path.as_str() == target_rel { continue; }
-                                if let Ok(mut note_to_patch) = self.note_repository.read_note(&self.vault_path, &other.relative_path) {
-                                    if note_to_patch.content.contains(&format!("[[{}]]", old_stem)) || note_to_patch.content.contains(&format!("[[{}]]", clean_src)) {
-                                        let updated = note_to_patch.content
-                                            .replace(&format!("[[{}]]", clean_src), &format!("[[{}]]", target_rel))
-                                            .replace(&format!("[[{}]]", old_stem), &format!("[[{}]]", target_rel));
-                                        note_to_patch.content = updated;
-                                        let _ = self.note_repository.save_note(&self.vault_path, &note_to_patch);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    errors.push(json!({ "source": source_rel, "error": e.to_string() }));
-                }
-            }
-        }
-
+        let result = match MoveNotesUseCase::new(&self.note_repository, &*self.vault_items).execute(command) {
+            Ok(r) => r,
+            Err(e) => return McpCallToolResult::error(e),
+        };
+        let moved: Vec<_> = result
+            .moved
+            .into_iter()
+            .map(|(source, destination)| json!({ "source": source, "destination": destination }))
+            .collect();
+        let errors: Vec<_> = result
+            .errors
+            .into_iter()
+            .map(|(source, error)| json!({ "source": source, "error": error }))
+            .collect();
         let payload = json!({
-            "moved_count": moved_success.len(),
-            "moved": moved_success,
+            "moved_count": moved.len(),
+            "moved": moved,
             "error_count": errors.len(),
             "errors_count": errors.len(),
             "errors": errors,
         });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar move_notes: {}", e)),
-        }
+        to_text(&payload, "Error al serializar move_notes: ")
     }
 
     fn execute_delete_note(&self, args: &Value) -> McpCallToolResult {
@@ -2087,44 +1323,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p.trim_matches('/').replace('\\', "/"),
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-
         if rel_path_str.is_empty() {
             return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
         }
-
-        let note_path = match NoteRelativePath::new(&rel_path_str) {
-            Ok(np) => np,
-            Err(err) => return McpCallToolResult::error(err),
+        let command = DeleteNoteCommand {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.clone(),
+            expected_hash: args.get("expected_hash").and_then(|v| v.as_str()).map(|s| s.to_string()),
         };
-
-        // Si se especificó expected_hash, verificar OCC antes de borrar
-        if let Some(expected_hash) = args.get("expected_hash").and_then(|v| v.as_str()) {
-            let note = match self.note_repository.read_note(&self.vault_path, &note_path) {
-                Ok(n) => n,
-                Err(e) => return McpCallToolResult::error(format!("No se pudo leer la nota para validar el hash: {}", e)),
-            };
-
-            let current_hash = NoteContent::hash(&note.content);
-            if current_hash != expected_hash {
-                return McpCallToolResult::error(format!(
-                    "Conflicto de concurrencia optimista (OCC): el hash esperado '{}' no coincide con el hash actual de la nota '{}'",
-                    expected_hash, current_hash
-                ));
-            }
-        }
-
-        match self.note_repository.delete_note(&self.vault_path, &note_path) {
-            Ok(()) => {
-                let payload = json!({
+        match DeleteNoteUseCase::new(&self.note_repository).execute(command) {
+            Ok(()) => to_text(
+                &json!({
                     "status": "success",
                     "deleted_path": rel_path_str,
                     "message": "Nota eliminada correctamente"
-                });
-                serde_json::to_string_pretty(&payload)
-                    .map(McpCallToolResult::text)
-                    .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-            }
-            Err(err) => McpCallToolResult::error(format!("Error al eliminar nota: {}", err)),
+                }),
+                "",
+            ),
+            Err(e) => McpCallToolResult::error(e),
         }
     }
 
@@ -2133,133 +1349,45 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-
-        let extensions = vec!["md".to_string(), "markdown".to_string()];
-        let all_notes = match self.note_repository.list_notes(&self.vault_path, &extensions) {
-            Ok(notes) => notes,
-            Err(e) => return McpCallToolResult::error(format!("Error al listar notas: {}", e)),
+        let relations = match GetNoteRelationsUseCase::new(&self.note_repository)
+            .execute(GetNoteRelationsQuery { vault_path: self.vault(), relative_path: rel_path_str.to_string() })
+        {
+            Ok(r) => r,
+            Err(e) => return McpCallToolResult::error(e),
         };
-
-        let target_normalized = rel_path_str.trim_start_matches('/').replace('\\', "/");
-        let target_stem = target_normalized
-            .rsplit('/')
-            .next()
-            .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
-            .unwrap_or(&target_normalized);
-
-        let mut target_tags: HashSet<String> = HashSet::new();
-        let mut backlinks = Vec::new();
-        let mut outlinks = Vec::new();
-        let mut all_note_tags: HashMap<String, HashSet<String>> = HashMap::new();
-        let all_note_paths: HashSet<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
-
-        for note in &all_notes {
-            let n_path = note.relative_path.as_str();
-            let full_note = match self.note_repository.read_note(&self.vault_path, &note.relative_path) {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-
-            let note_tags_set: HashSet<String> = full_note
-                .frontmatter
-                .as_ref()
-                .map(|fm| fm.tags.iter().map(|t| t.to_lowercase()).collect())
-                .unwrap_or_default();
-
-            if n_path == target_normalized {
-                target_tags = note_tags_set.clone();
-            }
-            all_note_tags.insert(n_path.to_string(), note_tags_set);
-
-            let wikilinks = WikilinkToken::extract_all(&full_note.content);
-            let mut links_to_target = false;
-            let mut matching_snippet = String::new();
-
-            for wl in wikilinks {
-                let (norm_target, _) = LinkTarget::normalize(&wl.target);
-                if norm_target == target_normalized
-                    || norm_target == format!("{}.md", target_stem)
-                    || wl.target.eq_ignore_ascii_case(target_stem)
-                {
-                    links_to_target = true;
-                    // Extraer snippet de contexto de la línea
-                    for line in full_note.content.lines() {
-                        if line.contains(&format!("[[{}]]", wl.target)) || line.contains(&wl.target) {
-                            matching_snippet = line.trim().to_string();
-                            break;
-                        }
-                    }
-                }
-
-                if n_path == target_normalized {
-                    let is_resolved = all_note_paths.contains(&norm_target) || all_note_paths.contains(&format!("{}.md", norm_target));
-                    outlinks.push(json!({
-                        "target": wl.target,
-                        "alias": wl.alias,
-                        "is_embed": wl.is_embed,
-                        "is_resolved": is_resolved,
-                    }));
-                }
-            }
-
-            if links_to_target && n_path != target_normalized {
-                backlinks.push(json!({
-                    "source_path": n_path,
-                    "title": note.title,
-                    "context_snippet": matching_snippet,
-                }));
-            }
-        }
-
-        // Similitud Jaccard de etiquetas (Top 5 vecinos)
-        let mut jaccard_neighbors = Vec::new();
-        if !target_tags.is_empty() {
-            for (other_path, other_tags) in &all_note_tags {
-                if other_path == &target_normalized || other_tags.is_empty() {
-                    continue;
-                }
-                let intersection = target_tags.intersection(other_tags).count();
-                let union = target_tags.union(other_tags).count();
-                if union > 0 && intersection > 0 {
-                    let score = (intersection as f64) / (union as f64);
-                    jaccard_neighbors.push((other_path.clone(), score));
-                }
-            }
-            jaccard_neighbors.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-            jaccard_neighbors.truncate(5);
-        }
-
-        let neighbors_json: Vec<_> = jaccard_neighbors
+        let backlinks: Vec<_> = relations
+            .backlinks
+            .into_iter()
+            .map(|b| json!({ "source_path": b.source_path, "title": b.title, "context_snippet": b.context_snippet }))
+            .collect();
+        let outlinks: Vec<_> = relations
+            .outlinks
+            .into_iter()
+            .map(|o| json!({ "target": o.target, "alias": o.alias, "is_embed": o.is_embed, "is_resolved": o.is_resolved }))
+            .collect();
+        let neighbors_json: Vec<_> = relations
+            .neighbors
             .into_iter()
             .map(|(p, s)| json!({ "path": p, "jaccard_score": (s * 100.0).round() / 100.0 }))
             .collect();
-
         let payload = json!({
-            "target_note": target_normalized,
+            "target_note": relations.target,
             "backlinks_count": backlinks.len(),
             "backlinks": backlinks,
             "outlinks_count": outlinks.len(),
             "outlinks": outlinks,
             "shared_tags_neighbors": neighbors_json,
         });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-        }
+        to_text(&payload, "Error al serializar: ")
     }
 
     fn execute_get_vault_git_status(&self) -> McpCallToolResult {
-        if let Some(ref git) = self.git_service {
-            match git.get_vault_status(&self.vault_path) {
-                Ok(status) => match serde_json::to_string_pretty(&status) {
-                    Ok(text) => McpCallToolResult::text(text),
-                    Err(e) => McpCallToolResult::error(format!("Error al serializar: {}", e)),
-                },
-                Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
-            }
-        } else {
-            McpCallToolResult::error("El servicio Git no está disponible o la carpeta no es un repositorio.")
+        let Some(ref git) = self.git_service else {
+            return McpCallToolResult::error("El servicio Git no está disponible o la carpeta no es un repositorio.");
+        };
+        match GetVaultVersionStateUseCase::new(&**git).execute(GetVaultVersionStateQuery { vault_path: self.vault() }) {
+            Ok(status) => to_text(&status, "Error al serializar: "),
+            Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
         }
     }
 
@@ -2268,65 +1396,32 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-        let mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("outline_only");
         let start_page = args.get("start_page").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
         let end_page = args.get("end_page").and_then(|v| v.as_u64()).unwrap_or(start_page as u64 + 4) as usize;
-        let end_page = end_page.min(start_page + 4); // Límite estricto: máximo 5 páginas
-        let search_query = args.get("search_query").and_then(|v| v.as_str());
-
-        let pdf_path = self.vault_path.join(rel_path_str);
-        if !pdf_path.exists() {
-            return McpCallToolResult::error(format!("El archivo PDF '{}' no existe", rel_path_str));
-        }
-
-        let pdf_rel = self.vault_rel(&pdf_path);
-
-        match mode {
-            "pages" => {
-                match self.pdf_documents.read_pages(&self.vault_path, &pdf_rel, start_page, end_page, 20_000) {
-                    Ok(res) => serde_json::to_string_pretty(&res)
-                        .map(McpCallToolResult::text)
-                        .unwrap_or_else(|e| McpCallToolResult::error(e.to_string())),
-                    Err(err) => McpCallToolResult::error(err),
-                }
-            }
-            "search" => {
-                let query = match search_query {
-                    Some(q) => q,
-                    None => return McpCallToolResult::error("El argumento 'search_query' es obligatorio en mode='search'"),
-                };
-                match self.pdf_documents.search(&self.vault_path, &pdf_rel, query, 20) {
-                    Ok(matches) => {
-                        let payload = json!({
-                            "relative_path": rel_path_str,
-                            "query": query,
-                            "matches_count": matches.len(),
-                            "matches": matches,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                    Err(err) => McpCallToolResult::error(err),
-                }
-            }
-            _ => {
-                // "outline_only"
-                match self.pdf_documents.outline(&self.vault_path, &pdf_rel) {
-                    Ok(outline) => {
-                        let payload = json!({
-                            "relative_path": rel_path_str,
-                            "total_pages": outline.total_pages,
-                            "file_size_bytes": outline.file_size_bytes,
-                        });
-                        serde_json::to_string_pretty(&payload)
-                            .map(McpCallToolResult::text)
-                            .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()))
-                    }
-                    Err(err) => McpCallToolResult::error(err),
-                }
-            }
-        }
+        let query = ReadPdfDocumentQuery {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            mode: args.get("mode").and_then(|v| v.as_str()).unwrap_or("outline_only").to_string(),
+            start_page,
+            end_page: end_page.min(start_page + 4), // Límite estricto: máximo 5 páginas
+            search_query: args.get("search_query").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        };
+        let payload = match ReadPdfDocumentUseCase::new(&*self.pdf_documents, &*self.vault_items).execute(query) {
+            Err(err) => return McpCallToolResult::error(err),
+            Ok(PdfReading::Pages(res)) => return to_text(&res, ""),
+            Ok(PdfReading::Search { query, matches }) => json!({
+                "relative_path": rel_path_str,
+                "query": query,
+                "matches_count": matches.len(),
+                "matches": matches,
+            }),
+            Ok(PdfReading::Outline(outline)) => json!({
+                "relative_path": rel_path_str,
+                "total_pages": outline.total_pages,
+                "file_size_bytes": outline.file_size_bytes,
+            }),
+        };
+        to_text(&payload, "")
     }
 
     fn execute_extract_note_diagrams(&self, args: &Value) -> McpCallToolResult {
@@ -2334,96 +1429,48 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
-        let diagram_type = args.get("diagram_type").and_then(|v| v.as_str()).unwrap_or("all");
-
-        let relative_path = match NoteRelativePath::new(rel_path_str) {
-            Ok(p) => p,
-            Err(e) => return McpCallToolResult::error(format!("Ruta inválida: {}", e)),
+        let query = ExtractNoteDiagramsQuery {
+            vault_path: self.vault(),
+            relative_path: rel_path_str.to_string(),
+            diagram_type: args.get("diagram_type").and_then(|v| v.as_str()).unwrap_or("all").to_string(),
         };
-
-        // Si es archivo directo .d2 o .mmd
-        if rel_path_str.ends_with(".d2") || rel_path_str.ends_with(".mmd") {
-            let full_path = self.vault_path.join(rel_path_str);
-            let content = match self.vault_items.read_text(&self.vault_path, &self.vault_rel(&full_path)) {
-                Ok(c) => c,
-                Err(e) => return McpCallToolResult::error(format!("Error al leer archivo de diagrama: {}", e)),
-            };
-            let kind = if rel_path_str.ends_with(".d2") { "d2" } else { "mermaid" };
-            let payload = json!({
-                "relative_path": rel_path_str,
-                "is_dedicated_file": true,
-                "diagrams": [{
-                    "type": kind,
-                    "start_line": 1,
-                    "end_line": content.lines().count(),
-                    "code": content,
-                }],
-            });
-            return serde_json::to_string_pretty(&payload)
-                .map(McpCallToolResult::text)
-                .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
-        }
-
-        let note = match self.note_repository.read_note(&self.vault_path, &relative_path) {
-            Ok(n) => n,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
-        };
-
-        let lines: Vec<&str> = note.content.lines().collect();
-        let mut diagrams = Vec::new();
-        let mut in_block = false;
-        let mut current_type = "";
-        let mut start_l = 0;
-        let mut block_lines = Vec::new();
-
-        for (idx, line) in lines.iter().enumerate() {
-            let trimmed = line.trim();
-            if !in_block {
-                if trimmed.starts_with("```mermaid") {
-                    in_block = true;
-                    current_type = "mermaid";
-                    start_l = idx + 1;
-                    block_lines.clear();
-                } else if trimmed.starts_with("```d2") {
-                    in_block = true;
-                    current_type = "d2";
-                    start_l = idx + 1;
-                    block_lines.clear();
-                }
-            } else if trimmed.starts_with("```") {
-                in_block = false;
-                let matches_filter = diagram_type == "all" || diagram_type == current_type;
-                if matches_filter {
-                    diagrams.push(json!({
-                        "type": current_type,
-                        "start_line": start_l,
-                        "end_line": idx + 1,
-                        "code": block_lines.join("\n"),
-                    }));
-                }
-            } else {
-                block_lines.push(*line);
+        match ExtractNoteDiagramsUseCase::new(&self.note_repository, &*self.vault_items).execute(query) {
+            Err(e) => McpCallToolResult::error(e),
+            Ok(NoteDiagrams::DedicatedFile { kind, content }) => to_text(
+                &json!({
+                    "relative_path": rel_path_str,
+                    "is_dedicated_file": true,
+                    "diagrams": [{
+                        "type": kind,
+                        "start_line": 1,
+                        "end_line": content.lines().count(),
+                        "code": content,
+                    }],
+                }),
+                "",
+            ),
+            Ok(NoteDiagrams::Blocks(blocks)) => {
+                let diagrams: Vec<_> = blocks
+                    .into_iter()
+                    .map(|d| json!({ "type": d.kind, "start_line": d.start_line, "end_line": d.end_line, "code": d.code }))
+                    .collect();
+                to_text(
+                    &json!({
+                        "relative_path": rel_path_str,
+                        "total_diagrams": diagrams.len(),
+                        "diagrams": diagrams,
+                    }),
+                    "Error al serializar diagramas: ",
+                )
             }
-        }
-
-        let payload = json!({
-            "relative_path": rel_path_str,
-            "total_diagrams": diagrams.len(),
-            "diagrams": diagrams,
-        });
-
-        match serde_json::to_string_pretty(&payload) {
-            Ok(text) => McpCallToolResult::text(text),
-            Err(e) => McpCallToolResult::error(format!("Error al serializar diagramas: {}", e)),
         }
     }
 
     /// Retorna la lista de recursos MCP (notas accesibles como synapse://vault/...)
     pub fn list_resources(&self) -> McpResourcesListResult {
         let extensions = vec!["md".to_string(), "markdown".to_string()];
-        let notes = self
-            .note_repository
-            .list_notes(&self.vault_path, &extensions)
+        let notes = ListNotesUseCase::new(&self.note_repository)
+            .execute(ListNotesQuery { vault_path: self.vault(), extensions })
             .unwrap_or_default();
 
         let resources = notes
@@ -2447,8 +1494,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
 
         let rel_path_str = &uri[prefix.len()..];
-        let relative_path = NoteRelativePath::new(rel_path_str)?;
-        let note = self.note_repository.read_note(&self.vault_path, &relative_path)?;
+        let note = ReadNoteUseCase::new(&self.note_repository)
+            .execute(ReadNoteQuery { vault_path: self.vault(), relative_path: rel_path_str.to_string() })?;
 
         Ok(McpReadResourceResult {
             contents: vec![McpResourceContent {
@@ -2493,8 +1540,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .and_then(|v| v.as_str())
             .ok_or_else(|| "El argumento 'relative_path' es requerido".to_string())?;
 
-        let relative_path = NoteRelativePath::new(rel_path_str)?;
-        let note = self.note_repository.read_note(&self.vault_path, &relative_path)?;
+        let note = ReadNoteUseCase::new(&self.note_repository)
+            .execute(ReadNoteQuery { vault_path: self.vault(), relative_path: rel_path_str.to_string() })?;
 
         match name {
             "resumir_nota" => Ok(McpGetPromptResult {

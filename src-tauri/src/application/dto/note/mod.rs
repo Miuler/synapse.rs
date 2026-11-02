@@ -1,5 +1,15 @@
+pub mod append_to_note_command;
+pub mod delete_note_command;
+pub mod extract_note_diagrams_query;
+pub mod get_note_relations_query;
 pub mod list_notes_query;
+pub mod patch_note_command;
+pub mod read_note_details_query;
 pub mod read_note_query;
 pub mod read_standalone_note_query;
 pub mod save_note_command;
 pub mod save_standalone_note_command;
+pub mod search_in_note_query;
+pub mod search_notes_query;
+pub mod update_note_metadata_command;
+pub mod write_note_command;

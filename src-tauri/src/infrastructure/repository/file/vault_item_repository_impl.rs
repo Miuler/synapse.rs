@@ -330,6 +330,66 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
             .collect())
     }
 
+    fn exists(&self, vault_path: &Path, relative_path: &str) -> bool {
+        vault_path.join(relative_path).exists()
+    }
+
+    fn is_folder(&self, vault_path: &Path, relative_path: &str) -> bool {
+        let path = vault_path.join(relative_path);
+        path.exists() && path.is_dir()
+    }
+
+    fn list_files_recursive(&self, vault_path: &Path, folder: &str) -> Result<Vec<String>, String> {
+        let source_dir = vault_path.join(folder);
+        let entries = jwalk::WalkDir::new(&source_dir)
+            .skip_hidden(true)
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let mut files = Vec::new();
+        for entry in entries {
+            if entry.file_type.is_file() {
+                if let Ok(rel) = entry.path().strip_prefix(&source_dir) {
+                    files.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+        Ok(files)
+    }
+
+    fn list_all_folders(&self, vault_path: &Path) -> Result<Vec<String>, String> {
+        let entries = jwalk::WalkDir::new(vault_path)
+            .skip_hidden(true)
+            .process_read_dir(|depth, _path, _state, children| {
+                if depth.is_none() {
+                    return;
+                }
+                children.retain(|entry_res| {
+                    if let Ok(entry) = entry_res {
+                        let name = entry.file_name.to_string_lossy();
+                        !name.starts_with('.') && name != "target" && name != "node_modules"
+                    } else {
+                        true
+                    }
+                });
+            })
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let mut folders = Vec::new();
+        for entry in entries {
+            if entry.file_type.is_dir() {
+                if let Ok(rel) = entry.path().strip_prefix(vault_path) {
+                    let clean = rel.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                    if !clean.is_empty() {
+                        folders.push(clean);
+                    }
+                }
+            }
+        }
+        Ok(folders)
+    }
+
     fn read_text(&self, vault_path: &Path, relative_path: &str) -> Result<String, String> {
         fs::read_to_string(vault_path.join(relative_path)).map_err(|e| e.to_string())
     }

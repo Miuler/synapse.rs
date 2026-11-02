@@ -1,5 +1,15 @@
+pub mod append_to_note_use_case;
+pub mod delete_note_use_case;
+pub mod extract_note_diagrams_use_case;
+pub mod get_note_relations_use_case;
 pub mod list_notes_use_case;
+pub mod patch_note_use_case;
+pub mod read_note_details_use_case;
 pub mod read_note_use_case;
 pub mod read_standalone_note_use_case;
 pub mod save_note_use_case;
 pub mod save_standalone_note_use_case;
+pub mod search_in_note_use_case;
+pub mod search_notes_use_case;
+pub mod update_note_metadata_use_case;
+pub mod write_note_use_case;

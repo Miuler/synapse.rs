@@ -27,3 +27,34 @@ pub trait FullTextIndex: Send + Sync {
     /// Número de documentos visibles en el índice.
     fn num_docs(&self) -> u64;
 }
+
+/// Permite pasar el repositorio por referencia a un caso de uso sin moverlo ni clonarlo.
+impl<T: FullTextIndex + ?Sized> FullTextIndex for &T {
+    fn upsert(&self, docs: Vec<FullTextDocument>) -> Result<(), String> {
+        (**self).upsert(docs)
+    }
+
+    fn delete(&self, paths: &[String]) -> Result<(), String> {
+        (**self).delete(paths)
+    }
+
+    fn delete_all(&self) -> Result<(), String> {
+        (**self).delete_all()
+    }
+
+    fn commit(&self) -> Result<(), String> {
+        (**self).commit()
+    }
+
+    fn search(&self, query: &FullTextQuery) -> Result<(Vec<FullTextHit>, usize), String> {
+        (**self).search(query)
+    }
+
+    fn indexed_versions(&self) -> Result<HashMap<String, u64>, String> {
+        (**self).indexed_versions()
+    }
+
+    fn num_docs(&self) -> u64 {
+        (**self).num_docs()
+    }
+}

@@ -1,8 +1,12 @@
 pub mod copy_vault_items_command;
 pub mod create_folder_command;
 pub mod delete_vault_item_command;
-pub mod moved_vault_item;
+pub mod list_folder_contents_query;
+pub mod move_folder_contents_command;
+pub mod move_notes_command;
 pub mod move_vault_items_command;
+pub mod moved_vault_item;
 pub mod read_binary_vault_item_query;
 pub mod rename_vault_item_command;
+pub mod search_folders_query;
 pub mod write_binary_vault_item_command;

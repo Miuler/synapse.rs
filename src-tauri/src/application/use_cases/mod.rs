@@ -1,4 +1,5 @@
 pub mod note;
+pub mod pdf;
 pub mod plugin;
 pub mod search;
 pub mod session;
