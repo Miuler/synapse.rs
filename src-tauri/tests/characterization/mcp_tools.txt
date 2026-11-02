@@ -1,0 +1,440 @@
+### search_notes {"query":"arq"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "[\n  {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"estimated_tokens\": 81,\n    \"relative_path\": \"arquitectura.md\",\n    \"snippet\": \"Arquitectura Detalles del backend. Ver [[agentes]] y [[docs/fsd]]. Capas Dominio, aplicación e infraestructura. Dominio Entidades puras. Diagramas graph TD A-->B x -> y Fin.\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\",\n    \"total_lines\": 24\n  }\n]"
+    }
+  ],
+  "isError": false
+}
+### search_notes {"query":"","tags":["rust"]}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "[\n  {\n    \"aliases\": [],\n    \"description\": null,\n    \"estimated_tokens\": 26,\n    \"relative_path\": \"agentes.md\",\n    \"snippet\": \"Agentes Protocolo MCP implementado. #ia/agentes Enlace a [[arquitectura]].\",\n    \"tags\": [\n      \"rust\",\n      \"mcp\"\n    ],\n    \"title\": \"agentes\",\n    \"total_lines\": 6\n  },\n  {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"estimated_tokens\": 81,\n    \"relative_path\": \"arquitectura.md\",\n    \"snippet\": \"Arquitectura Detalles del backend. Ver [[agentes]] y [[docs/fsd]]. Capas Dominio, aplicación e infraestructura. Dominio Entidades puras. Diagramas graph TD A-->B x -> y Fin.\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\",\n    \"total_lines\": 24\n  },\n  {\n    \"aliases\": [],\n    \"description\": null,\n    \"estimated_tokens\": 19,\n    \"relative_path\": \"docs/fsd.md\",\n    \"snippet\": \"Feature Sliced Design Capas del front.\",\n    \"tags\": [\n      \"front\",\n      \"onion\",\n      \"rust\"\n    ],\n    \"title\": \"fsd\",\n    \"total_lines\": 5\n  },\n  {\n    \"aliases\": null,\n    \"description\": null,\n    \"estimated_tokens\": 9,\n    \"relative_path\": \"docs/notas/idea.md\",\n    \"snippet\": \"Idea Una idea suelta con #rust\",\n    \"tags\": null,\n    \"title\": \"idea\",\n    \"total_lines\": 2\n  }\n]"
+    }
+  ],
+  "isError": false
+}
+### search_folders {"query":"docs"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folders\": [\n    {\n      \"dominant_tags\": [\n        \"#rust\",\n        \"#front\",\n        \"#onion\"\n      ],\n      \"name\": \"docs\",\n      \"notes_count\": 2,\n      \"parent\": null,\n      \"relative_path\": \"docs\",\n      \"sample_notes\": [\n        \"fsd\",\n        \"idea\"\n      ],\n      \"subfolders_count\": 1\n    },\n    {\n      \"dominant_tags\": [\n        \"#rust\"\n      ],\n      \"name\": \"notas\",\n      \"notes_count\": 1,\n      \"parent\": \"docs\",\n      \"relative_path\": \"docs/notas\",\n      \"sample_notes\": [\n        \"idea\"\n      ],\n      \"subfolders_count\": 0\n    }\n  ],\n  \"has_more\": false,\n  \"limit\": 20,\n  \"next_offset\": null,\n  \"offset\": 0,\n  \"returned_folders\": 2,\n  \"total_folders\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### search_folders {"limit":2,"offset":1}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folders\": [\n    {\n      \"dominant_tags\": [\n        \"#rust\"\n      ],\n      \"name\": \"notas\",\n      \"notes_count\": 1,\n      \"parent\": \"docs\",\n      \"relative_path\": \"docs/notas\",\n      \"sample_notes\": [\n        \"idea\"\n      ],\n      \"subfolders_count\": 0\n    },\n    {\n      \"dominant_tags\": [],\n      \"name\": \"recetas\",\n      \"notes_count\": 1,\n      \"parent\": null,\n      \"relative_path\": \"recetas\",\n      \"sample_notes\": [\n        \"pan\"\n      ],\n      \"subfolders_count\": 0\n    }\n  ],\n  \"has_more\": true,\n  \"limit\": 2,\n  \"next_offset\": 3,\n  \"offset\": 1,\n  \"returned_folders\": 2,\n  \"total_folders\": 4\n}"
+    }
+  ],
+  "isError": false
+}
+### full_text_search {"query":"capas"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "El índice Tantivy de búsqueda de texto completo no está disponible."
+    }
+  ],
+  "isError": true
+}
+### search_in_note {"context_lines":1,"query":"capas","relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"matches\": [\n    {\n      \"context\": [\n        \"4: aliases: [arq]\",\n        \"5: description: Capas del backend\",\n        \"6: ---\"\n      ],\n      \"line_number\": 5,\n      \"matched_line\": \"description: Capas del backend\"\n    },\n    {\n      \"context\": [\n        \"9: \",\n        \"10: ## Capas\",\n        \"11: Dominio, aplicación e infraestructura.\"\n      ],\n      \"line_number\": 10,\n      \"matched_line\": \"## Capas\"\n    }\n  ],\n  \"relative_path\": \"arquitectura.md\",\n  \"total_matches\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### list_folder_contents {"folder_path":"docs"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folder_path\": \"docs\",\n  \"folders\": [\n    {\n      \"name\": \"notas\",\n      \"relative_path\": \"docs/notas\"\n    }\n  ],\n  \"folders_count\": 1,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"line_count\": 2,\n      \"name\": \"diagrama.mmd\",\n      \"relative_path\": \"docs/diagrama.mmd\",\n      \"title\": \"diagrama\"\n    },\n    {\n      \"line_count\": 5,\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"docs/fsd.md\",\n      \"title\": \"fsd\"\n    }\n  ],\n  \"notes_count\": 2,\n  \"offset\": 0,\n  \"total_folders\": 1,\n  \"total_notes\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### list_folder_contents {"folder_path":"","include_folders":false,"recursive":true}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folder_path\": \"\",\n  \"folders\": [],\n  \"folders_count\": 0,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"name\": \"agentes.md\",\n      \"relative_path\": \"agentes.md\",\n      \"title\": \"agentes\"\n    },\n    {\n      \"name\": \"arquitectura.md\",\n      \"relative_path\": \"arquitectura.md\",\n      \"title\": \"Arquitectura Synapse\"\n    },\n    {\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"docs/fsd.md\",\n      \"title\": \"fsd\"\n    },\n    {\n      \"name\": \"idea.md\",\n      \"relative_path\": \"docs/notas/idea.md\",\n      \"title\": \"idea\"\n    },\n    {\n      \"name\": \"pan.md\",\n      \"relative_path\": \"recetas/pan.md\",\n      \"title\": \"pan\"\n    }\n  ],\n  \"notes_count\": 5,\n  \"offset\": 0,\n  \"total_folders\": 0,\n  \"total_notes\": 5\n}"
+    }
+  ],
+  "isError": false
+}
+### list_folder_contents {"folder_path":"no-existe"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "La carpeta 'no-existe' no existe o no es un directorio"
+    }
+  ],
+  "isError": true
+}
+### list_vault_tree {"parent_path":"docs"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folder_path\": \"docs\",\n  \"folders\": [\n    {\n      \"name\": \"notas\",\n      \"relative_path\": \"docs/notas\"\n    }\n  ],\n  \"folders_count\": 1,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"line_count\": 2,\n      \"name\": \"diagrama.mmd\",\n      \"relative_path\": \"docs/diagrama.mmd\",\n      \"title\": \"diagrama\"\n    },\n    {\n      \"line_count\": 5,\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"docs/fsd.md\",\n      \"title\": \"fsd\"\n    }\n  ],\n  \"notes_count\": 2,\n  \"offset\": 0,\n  \"total_folders\": 1,\n  \"total_notes\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### list_sibling_notes {"relative_path":"docs/fsd.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folder_path\": \"docs\",\n  \"folders\": [],\n  \"folders_count\": 0,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"line_count\": 2,\n      \"name\": \"diagrama.mmd\",\n      \"relative_path\": \"docs/diagrama.mmd\",\n      \"title\": \"diagrama\"\n    }\n  ],\n  \"notes_count\": 1,\n  \"offset\": 0,\n  \"total_folders\": 0,\n  \"total_notes\": 1\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"content\": \"---\\ntitle: Arquitectura Synapse\\ntags: [rust, tauri, onion]\\naliases: [arq]\\ndescription: Capas del backend\\n---\\n# Arquitectura\\nDetalles del backend. Ver [[agentes]] y [[docs/fsd]].\\n\\n## Capas\\nDominio, aplicación e infraestructura.\\n\\n### Dominio\\nEntidades puras.\\n\\n## Diagramas\\n```mermaid\\ngraph TD\\nA-->B\\n```\\n```d2\\nx -> y\\n```\\nFin.\\n\",\n  \"content_hash\": \"sha256:92e804a1f6f5672b925577c44427700d028cd46d70e4810e874d8ae55ff838af\",\n  \"detected_blocks\": {\n    \"d2_count\": 1,\n    \"mermaid_count\": 1\n  },\n  \"estimated_tokens\": 81,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 7,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 10,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 13,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 16,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 24\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"mode":"metadata_only","relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"content_hash\": \"sha256:92e804a1f6f5672b925577c44427700d028cd46d70e4810e874d8ae55ff838af\",\n  \"detected_blocks\": {\n    \"d2_count\": 1,\n    \"mermaid_count\": 1\n  },\n  \"estimated_tokens\": 81,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 7,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 10,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 13,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 16,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 24\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"include_line_numbers":true,"relative_path":"arquitectura.md","section":"capas"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"content\": \"10: ## Capas\\n11: Dominio, aplicación e infraestructura.\\n12: \\n13: ### Dominio\\n14: Entidades puras.\\n15: \",\n  \"content_hash\": \"sha256:92e804a1f6f5672b925577c44427700d028cd46d70e4810e874d8ae55ff838af\",\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"returned_lines\": {\n    \"end\": 15,\n    \"start\": 10\n  },\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 7,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 10,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 13,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 16,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 24\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"relative_path":"arquitectura.md","section":"nada"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Sección 'nada' no encontrada en la nota. Secciones disponibles: [\"Arquitectura\", \"Capas\", \"Dominio\", \"Diagramas\"]"
+    }
+  ],
+  "isError": true
+}
+### read_note {"line_count":4,"mode":"chunk","relative_path":"arquitectura.md","start_line":3}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"content\": \"tags: [rust, tauri, onion]\\naliases: [arq]\\ndescription: Capas del backend\\n---\",\n  \"content_hash\": \"sha256:92e804a1f6f5672b925577c44427700d028cd46d70e4810e874d8ae55ff838af\",\n  \"has_more\": true,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"returned_lines\": {\n    \"end\": 6,\n    \"start\": 3\n  },\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 7,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 10,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 13,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 16,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 24\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"relative_path":"no-existe.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Error al leer nota: El archivo no existe en \"<VAULT>/no-existe.md\""
+    }
+  ],
+  "isError": true
+}
+### get_backlinks_and_relations {"relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"backlinks\": [\n    {\n      \"context_snippet\": \"Enlace a [[arquitectura]].\",\n      \"source_path\": \"agentes.md\",\n      \"title\": \"agentes\"\n    }\n  ],\n  \"backlinks_count\": 1,\n  \"outlinks\": [\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"target\": \"agentes\"\n    },\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"target\": \"docs/fsd\"\n    }\n  ],\n  \"outlinks_count\": 2,\n  \"shared_tags_neighbors\": [\n    {\n      \"jaccard_score\": 0.5,\n      \"path\": \"docs/fsd.md\"\n    },\n    {\n      \"jaccard_score\": 0.25,\n      \"path\": \"agentes.md\"\n    }\n  ],\n  \"target_note\": \"arquitectura.md\"\n}"
+    }
+  ],
+  "isError": false
+}
+### get_vault_git_status {}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "El servicio Git no está disponible o la carpeta no es un repositorio."
+    }
+  ],
+  "isError": true
+}
+### read_pdf_document {"relative_path":"no.pdf"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "El archivo PDF 'no.pdf' no existe"
+    }
+  ],
+  "isError": true
+}
+### extract_note_diagrams {"relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"diagrams\": [\n    {\n      \"code\": \"graph TD\\nA-->B\",\n      \"end_line\": 20,\n      \"start_line\": 17,\n      \"type\": \"mermaid\"\n    },\n    {\n      \"code\": \"x -> y\",\n      \"end_line\": 23,\n      \"start_line\": 21,\n      \"type\": \"d2\"\n    }\n  ],\n  \"relative_path\": \"arquitectura.md\",\n  \"total_diagrams\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### extract_note_diagrams {"diagram_type":"d2","relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"diagrams\": [\n    {\n      \"code\": \"x -> y\",\n      \"end_line\": 23,\n      \"start_line\": 21,\n      \"type\": \"d2\"\n    }\n  ],\n  \"relative_path\": \"arquitectura.md\",\n  \"total_diagrams\": 1\n}"
+    }
+  ],
+  "isError": false
+}
+### extract_note_diagrams {"relative_path":"docs/diagrama.mmd"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"diagrams\": [\n    {\n      \"code\": \"graph LR\\nX-->Y\\n\",\n      \"end_line\": 2,\n      \"start_line\": 1,\n      \"type\": \"mermaid\"\n    }\n  ],\n  \"is_dedicated_file\": true,\n  \"relative_path\": \"docs/diagrama.mmd\"\n}"
+    }
+  ],
+  "isError": false
+}
+### herramienta_inexistente {}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Herramienta desconocida: 'herramienta_inexistente'"
+    }
+  ],
+  "isError": true
+}
+### write_note {"content":"Hola","dry_run":true,"relative_path":"nueva.md","tags":["x"],"title":"Nueva"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"dry_run\": true,\n  \"relative_path\": \"nueva.md\",\n  \"unified_diff\": \"--- a/nueva.md\\n+++ b/nueva.md\\n+---\\n+title: Nueva\\n+tags:\\n+- x\\n+---\\n+Hola\"\n}"
+    }
+  ],
+  "isError": false
+}
+### write_note {"content":"Hola","relative_path":"nueva.md","tags":["x"],"title":"Nueva"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"message\": \"Nota 'nueva.md' guardada exitosamente.\",\n  \"new_content_hash\": \"sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03\",\n  \"relative_path\": \"nueva.md\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### write_note {"content":"Otra","expected_hash":"sha256:malo","relative_path":"nueva.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03', esperado: 'sha256:malo'. Relee el documento antes de escribir."
+    }
+  ],
+  "isError": true
+}
+### patch_note {"dry_run":true,"new_text":"leche","old_text":"agua","relative_path":"recetas/pan.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"dry_run\": true,\n  \"relative_path\": \"recetas/pan.md\",\n  \"unified_diff\": \"--- a/recetas/pan.md\\n+++ b/recetas/pan.md\\n # Pan\\n-Harina, agua y sal.\\n+Harina, leche y sal.\\n\"\n}"
+    }
+  ],
+  "isError": false
+}
+### patch_note {"new_text":"leche","old_text":"agua","relative_path":"recetas/pan.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"new_content_hash\": \"sha256:d68160e397538ffdc9160a0b60dfab28ab89fd81d8b4e19b1e7b03c40a5ed23e\",\n  \"relative_path\": \"recetas/pan.md\",\n  \"status\": \"success\",\n  \"unified_diff\": \"--- a/recetas/pan.md\\n+++ b/recetas/pan.md\\n # Pan\\n-Harina, agua y sal.\\n+Harina, leche y sal.\\n\"\n}"
+    }
+  ],
+  "isError": false
+}
+### patch_note {"new_text":"x","old_text":"no-esta","relative_path":"recetas/pan.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "No se pudo encontrar 'old_text' en el documento (se intentó coincidencia exacta, normalización CRLF y anclaje difuso por líneas). en 'recetas/pan.md'"
+    }
+  ],
+  "isError": true
+}
+### append_to_note {"content":"Nueva línea","relative_path":"arquitectura.md","section_heading":"Capas"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"new_content_hash\": \"sha256:807b7f57e87fa9cb4f8e4187e50b8cdcece24faa8e48f93e318d0a314f0e12b9\",\n  \"relative_path\": \"arquitectura.md\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### append_to_note {"content":"Al inicio","position":"start_of_section","relative_path":"arquitectura.md","section_heading":"Capas"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"new_content_hash\": \"sha256:e2b4a8d0d3cb13ff6222e2ac459fa8f68a24d45969dbd693f7301e6ba7786482\",\n  \"relative_path\": \"arquitectura.md\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### append_to_note {"content":"x","relative_path":"arquitectura.md","section_heading":"Nada"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Encabezado de sección 'Nada' no encontrado"
+    }
+  ],
+  "isError": true
+}
+### update_note_metadata {"add_tags":["ia"],"relative_path":"agentes.md","remove_tags":["mcp"],"title":"Agentes IA"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"new_content_hash\": \"sha256:b07109a26172c69bca5e1415d6563b3c59f146f024f346dc92cf74d075bb1090\",\n  \"relative_path\": \"agentes.md\",\n  \"status\": \"success\",\n  \"updated_metadata\": {\n    \"tags\": [\n      \"ia\",\n      \"rust\"\n    ],\n    \"title\": \"Agentes IA\"\n  }\n}"
+    }
+  ],
+  "isError": false
+}
+### read_note {"relative_path":"arquitectura.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"content\": \"---\\ntitle: Arquitectura Synapse\\ntags:\\n- rust\\n- tauri\\n- onion\\naliases:\\n- arq\\ndescription: Capas del backend\\n---\\n# Arquitectura\\nDetalles del backend. Ver [[agentes]] y [[docs/fsd]].\\n\\n## Capas\\nAl inicio\\nDominio, aplicación e infraestructura.\\n\\n### Dominio\\nEntidades puras.\\n\\nNueva línea\\n## Diagramas\\n```mermaid\\ngraph TD\\nA-->B\\n```\\n```d2\\nx -> y\\n```\\nFin.\",\n  \"content_hash\": \"sha256:e2b4a8d0d3cb13ff6222e2ac459fa8f68a24d45969dbd693f7301e6ba7786482\",\n  \"detected_blocks\": {\n    \"d2_count\": 1,\n    \"mermaid_count\": 1\n  },\n  \"estimated_tokens\": 87,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 11,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 14,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 18,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 22,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 30\n}"
+    }
+  ],
+  "isError": false
+}
+### move_notes {"notes":["docs/notas/idea.md"],"target_folder":"ideas","update_wikilinks":true}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"error_count\": 0,\n  \"errors\": [],\n  \"errors_count\": 0,\n  \"moved\": [\n    {\n      \"destination\": \"ideas/idea.md\",\n      \"source\": \"docs/notas/idea.md\"\n    }\n  ],\n  \"moved_count\": 1\n}"
+    }
+  ],
+  "isError": false
+}
+### move_notes {"notes":["no-existe.md"],"target_folder":"ideas"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"error_count\": 1,\n  \"errors\": [\n    {\n      \"error\": \"Archivo origen no existe\",\n      \"source\": \"no-existe.md\"\n    }\n  ],\n  \"errors_count\": 1,\n  \"moved\": [],\n  \"moved_count\": 0\n}"
+    }
+  ],
+  "isError": false
+}
+### move_folder_contents {"dry_run":true,"source_folder":"docs","target_folder":"documentos"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"dry_run\": true,\n  \"files\": [\n    \"diagrama.mmd\",\n    \"fsd.md\"\n  ],\n  \"source_folder\": \"docs\",\n  \"target_folder\": \"documentos\",\n  \"total_files_to_move\": 2\n}"
+    }
+  ],
+  "isError": false
+}
+### move_folder_contents {"source_folder":"docs","target_folder":"documentos"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"errors\": [],\n  \"errors_count\": 0,\n  \"moved_count\": 2,\n  \"moved_files\": [\n    {\n      \"new_path\": \"documentos/diagrama.mmd\",\n      \"original\": \"diagrama.mmd\"\n    },\n    {\n      \"new_path\": \"documentos/fsd.md\",\n      \"original\": \"fsd.md\"\n    }\n  ],\n  \"skipped_count\": 0,\n  \"skipped_files\": [],\n  \"source_folder\": \"docs\",\n  \"target_folder\": \"documentos\"\n}"
+    }
+  ],
+  "isError": false
+}
+### move_folder_contents {"source_folder":"a","target_folder":"a/b"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "La carpeta destino no puede estar dentro de la carpeta origen"
+    }
+  ],
+  "isError": true
+}
+### delete_note {"expected_hash":"sha256:malo","relative_path":"nueva.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Conflicto de concurrencia optimista (OCC): el hash esperado 'sha256:malo' no coincide con el hash actual de la nota 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03'"
+    }
+  ],
+  "isError": true
+}
+### delete_note {"relative_path":"nueva.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"deleted_path\": \"nueva.md\",\n  \"message\": \"Nota eliminada correctamente\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### delete_note {"relative_path":"  "}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Error al eliminar nota: El archivo no existe en \"<VAULT>/  \""
+    }
+  ],
+  "isError": true
+}
+### list_folder_contents {"folder_path":"","recursive":true}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"folder_path\": \"\",\n  \"folders\": [],\n  \"folders_count\": 0,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"name\": \"agentes.md\",\n      \"relative_path\": \"agentes.md\",\n      \"title\": \"Agentes IA\"\n    },\n    {\n      \"name\": \"arquitectura.md\",\n      \"relative_path\": \"arquitectura.md\",\n      \"title\": \"Arquitectura Synapse\"\n    },\n    {\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"documentos/fsd.md\",\n      \"title\": \"fsd\"\n    },\n    {\n      \"name\": \"idea.md\",\n      \"relative_path\": \"ideas/idea.md\",\n      \"title\": \"idea\"\n    },\n    {\n      \"name\": \"pan.md\",\n      \"relative_path\": \"recetas/pan.md\",\n      \"title\": \"pan\"\n    }\n  ],\n  \"notes_count\": 5,\n  \"offset\": 0,\n  \"total_folders\": 0,\n  \"total_notes\": 5\n}"
+    }
+  ],
+  "isError": false
+}

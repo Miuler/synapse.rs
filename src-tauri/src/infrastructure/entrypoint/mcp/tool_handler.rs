@@ -11,231 +11,15 @@ use crate::domain::model::note_path::NoteRelativePath;
 use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
 use crate::domain::repository::vault_item_repository::VaultItemRepository;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use crate::domain::model::note_content::NoteContent;
 use similar::{ChangeTag, TextDiff};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Extrae un fragmento de texto limpio (sin frontmatter YAML, sin encabezados Markdown vacíos) para resumen o snippet.
-pub fn extract_clean_snippet(content: &str, max_chars: usize) -> String {
-    let (_, body) = frontmatter::NoteFrontmatter::parse(content);
-    let mut snippet_parts = Vec::new();
-    let mut char_count = 0;
 
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("```") || trimmed == "---" {
-            continue;
-        }
-        // Limpiar '#' de encabezados
-        let clean_line = trimmed.trim_start_matches('#').trim();
-        if clean_line.is_empty() {
-            continue;
-        }
 
-        snippet_parts.push(clean_line);
-        char_count += clean_line.len() + 1;
-        if char_count >= max_chars {
-            break;
-        }
-    }
 
-    let joined = snippet_parts.join(" ");
-    if joined.chars().count() > max_chars {
-        let truncated: String = joined.chars().take(max_chars).collect();
-        format!("{}...", truncated.trim_end())
-    } else {
-        joined
-    }
-}
-
-/// Aplica reemplazo quirúrgico de texto con tolerancia progresiva:
-/// 1. Coincidencia exacta (usando start_line para desambiguar si hay múltiples ocurrencias).
-/// 2. Normalización de saltos de línea (\r\n vs \n).
-/// 3. Tolerancia de espacios en blanco al final de línea (.trim_end()).
-/// 4. Tolerancia de indentación (.trim()).
-pub fn apply_surgical_patch(
-    full_content: &str,
-    old_text: &str,
-    new_text: &str,
-    start_line_hint: Option<usize>,
-) -> Result<String, String> {
-    if old_text.is_empty() {
-        return Err("El argumento 'old_text' no puede estar vacío".to_string());
-    }
-
-    // 1. Nivel 1: Coincidencia exacta
-    let occurrences: Vec<_> = full_content.match_indices(old_text).collect();
-    if occurrences.len() == 1 {
-        let (idx, _) = occurrences[0];
-        return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
-    } else if occurrences.len() > 1 {
-        // Desambiguar usando start_line si fue provisto
-        if let Some(target_line) = start_line_hint {
-            let mut best_match = None;
-            let mut min_diff = usize::MAX;
-
-            for (byte_idx, _) in &occurrences {
-                let line_num = full_content[..*byte_idx].lines().count() + 1;
-                let diff = (line_num as isize - target_line as isize).unsigned_abs();
-                if diff < min_diff {
-                    min_diff = diff;
-                    best_match = Some(*byte_idx);
-                }
-            }
-
-            if let Some(idx) = best_match {
-                return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
-            }
-        }
-        return Err(format!(
-            "Ambigüedad: 'old_text' aparece {} veces en el archivo. Proporciona 'start_line' o un fragmento más extenso para unicidad.",
-            occurrences.len()
-        ));
-    }
-
-    // 2. Nivel 2: Normalización CRLF a LF
-    let norm_full = full_content.replace("\r\n", "\n");
-    let norm_old = old_text.replace("\r\n", "\n");
-    let norm_new = new_text.replace("\r\n", "\n");
-    let norm_occurrences: Vec<_> = norm_full.match_indices(&norm_old).collect();
-    if norm_occurrences.len() == 1 {
-        let (idx, _) = norm_occurrences[0];
-        let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
-        // Si el archivo original usaba predominantemente CRLF, restaurar \r\n
-        return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
-    } else if norm_occurrences.len() > 1 {
-        if let Some(target_line) = start_line_hint {
-            let mut best_match = None;
-            let mut min_diff = usize::MAX;
-
-            for (byte_idx, _) in &norm_occurrences {
-                let line_num = norm_full[..*byte_idx].lines().count() + 1;
-                let diff = (line_num as isize - target_line as isize).unsigned_abs();
-                if diff < min_diff {
-                    min_diff = diff;
-                    best_match = Some(*byte_idx);
-                }
-            }
-
-            if let Some(idx) = best_match {
-                let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
-                return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
-            }
-        }
-        return Err(format!(
-            "Ambigüedad: 'old_text' aparece {} veces en el documento tras normalizar saltos de línea. Especifica 'start_line'.",
-            norm_occurrences.len()
-        ));
-    }
-
-    // 3. Nivel 3: Anclaje difuso por líneas (tolerancia a trailing spaces y tabs)
-    let doc_lines: Vec<&str> = norm_full.lines().collect();
-    let old_lines: Vec<&str> = norm_old.lines().collect();
-    let n_old = old_lines.len();
-
-    if n_old > 0 && n_old <= doc_lines.len() {
-        // Intentar primero con .trim_end()
-        let mut matches_trim_end = Vec::new();
-        for i in 0..=(doc_lines.len() - n_old) {
-            let window = &doc_lines[i..i + n_old];
-            let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim_end() == o.trim_end());
-            if all_match {
-                matches_trim_end.push(i);
-            }
-        }
-
-        let chosen_start = if matches_trim_end.len() == 1 {
-            Some(matches_trim_end[0])
-        } else if matches_trim_end.len() > 1 {
-            if let Some(target_line) = start_line_hint {
-                matches_trim_end.into_iter().min_by_key(|&line_idx| {
-                    (line_idx + 1).abs_diff(target_line)
-                })
-            } else {
-                return Err(format!(
-                    "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando espacios finales. Proporciona 'start_line'.",
-                    matches_trim_end.len()
-                ));
-            }
-        } else {
-            // Intentar con .trim() por línea (tolerancia de indentación)
-            let mut matches_trim = Vec::new();
-            for i in 0..=(doc_lines.len() - n_old) {
-                let window = &doc_lines[i..i + n_old];
-                let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim() == o.trim());
-                if all_match {
-                    matches_trim.push(i);
-                }
-            }
-
-            if matches_trim.len() == 1 {
-                Some(matches_trim[0])
-            } else if matches_trim.len() > 1 {
-                if let Some(target_line) = start_line_hint {
-                    matches_trim.into_iter().min_by_key(|&line_idx| {
-                        (line_idx + 1).abs_diff(target_line)
-                    })
-                } else {
-                    return Err(format!(
-                        "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando indentación. Proporciona 'start_line'.",
-                        matches_trim.len()
-                    ));
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some(start_idx) = chosen_start {
-            let mut result_lines = Vec::new();
-            result_lines.extend_from_slice(&doc_lines[..start_idx]);
-            result_lines.push(&norm_new);
-            result_lines.extend_from_slice(&doc_lines[start_idx + n_old..]);
-            let patched = result_lines.join("\n");
-            return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
-        }
-    }
-
-    // 4. Diagnóstico detallado si falló: buscar las líneas más cercanas similares
-    let mut closest_preview = String::new();
-    if let Some(target_line) = start_line_hint {
-        let center = target_line.saturating_sub(1).min(doc_lines.len());
-        let start = center.saturating_sub(2);
-        let end = (center + 3).min(doc_lines.len());
-        if start < end {
-            closest_preview = format!(
-                "\nLíneas reales cercanas ({}-{}):\n{}",
-                start + 1,
-                end,
-                doc_lines[start..end]
-                    .iter()
-                    .enumerate()
-                    .map(|(i, l)| format!("{}: {}", start + i + 1, l))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-        }
-    }
-
-    Err(format!(
-        "No se pudo encontrar 'old_text' en el documento (se intentó coincidencia exacta, normalización CRLF y anclaje difuso por líneas).{}",
-        closest_preview
-    ))
-}
-
-/// Calcula el hash SHA-256 en formato hex con prefijo "sha256:" para control optimista de concurrencia.
-pub fn calculate_content_hash(text: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(text.as_bytes());
-    format!("sha256:{:x}", hasher.finalize())
-}
-
-/// Estima los tokens de texto usando la heurística ceil(bytes / 4).
-pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
-}
 
 /// Genera un Unified Diff entre texto anterior y nuevo texto.
 pub fn generate_unified_diff(old_text: &str, new_text: &str, file_name: &str) -> String {
@@ -971,9 +755,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     })
                     .take(limit)
                     .map(|n| {
-                        let snippet = extract_clean_snippet(&n.content, 200);
+                        let snippet = NoteContent::clean_snippet(&n.content, 200);
                         let total_lines = n.content.lines().count();
-                        let est_tokens = estimate_tokens(&n.content);
+                        let est_tokens = NoteContent::estimate_tokens(&n.content);
 
                         let description = n.frontmatter.as_ref().and_then(|fm| {
                             fm.extra_properties.get("description")
@@ -1319,7 +1103,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         let (total_lines, est_tokens, matches_tags) = if let Ok(rel) = NoteRelativePath::new(&h.note_path) {
                             if let Ok(note) = self.note_repository.read_note(&self.vault_path, &rel) {
                                 let lines = note.content.lines().count();
-                                let tokens = estimate_tokens(&note.content);
+                                let tokens = NoteContent::estimate_tokens(&note.content);
                                 let ok_tags = if tags_filter.is_empty() {
                                     true
                                 } else {
@@ -1456,8 +1240,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Ok(note) => {
                 let lines: Vec<&str> = note.content.lines().collect();
                 let total_lines = lines.len();
-                let content_hash = calculate_content_hash(&note.content);
-                let est_tokens = estimate_tokens(&note.content);
+                let content_hash = NoteContent::hash(&note.content);
+                let est_tokens = NoteContent::estimate_tokens(&note.content);
 
                 // 1. Extraer TOC (Table of Contents)
                 let mut toc = Vec::new();
@@ -1665,7 +1449,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let existing_note = self.note_repository.read_note(&self.vault_path, &relative_path).ok();
 
         if let Some(ref note) = existing_note {
-            let current_hash = calculate_content_hash(&note.content);
+            let current_hash = NoteContent::hash(&note.content);
             if let Some(exp) = expected_hash {
                 if exp != current_hash {
                     return McpCallToolResult::error(format!(
@@ -1746,7 +1530,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
         match self.note_repository.save_note(&self.vault_path, &note) {
             Ok(_) => {
-                let new_hash = calculate_content_hash(&final_body);
+                let new_hash = NoteContent::hash(&final_body);
                 let payload = json!({
                     "status": "success",
                     "relative_path": rel_path_str,
@@ -1788,7 +1572,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Err(e) => return McpCallToolResult::error(format!("Error al leer nota: {}", e)),
         };
 
-        let current_hash = calculate_content_hash(&note.content);
+        let current_hash = NoteContent::hash(&note.content);
         if let Some(exp) = expected_hash {
             if exp != current_hash {
                 return McpCallToolResult::error(format!(
@@ -1800,7 +1584,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
         // Algoritmo de reemplazo quirúrgico con tolerancia progresiva:
         let full_content = &note.content;
-        let patched_content = match apply_surgical_patch(full_content, old_text, new_text, start_line_hint) {
+        let patched_content = match NoteContent::apply_patch(full_content, old_text, new_text, start_line_hint) {
             Ok(res) => res,
             Err(err_msg) => return McpCallToolResult::error(format!("{} en '{}'", err_msg, rel_path_str)),
         };
@@ -1818,7 +1602,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .unwrap_or_else(|e| McpCallToolResult::error(e.to_string()));
         }
 
-        let new_hash = calculate_content_hash(&patched_content);
+        let new_hash = NoteContent::hash(&patched_content);
         let updated_note = Note::with_encoding(
             relative_path,
             "".to_string(),
@@ -1911,7 +1695,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
 
         let new_content = lines.join("\n");
-        let new_hash = calculate_content_hash(&new_content);
+        let new_hash = NoteContent::hash(&new_content);
 
         let updated_note = Note::with_encoding(
             relative_path,
@@ -1978,7 +1762,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
 
         let new_full_content = frontmatter::NoteFrontmatter::serialize_with_content(Some(&fm), &body);
-        let new_hash = calculate_content_hash(&new_full_content);
+        let new_hash = NoteContent::hash(&new_full_content);
 
         let final_title = fm.title.clone().unwrap_or(note.title);
         let updated_note = Note::with_encoding(
@@ -2320,7 +2104,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 Err(e) => return McpCallToolResult::error(format!("No se pudo leer la nota para validar el hash: {}", e)),
             };
 
-            let current_hash = calculate_content_hash(&note.content);
+            let current_hash = NoteContent::hash(&note.content);
             if current_hash != expected_hash {
                 return McpCallToolResult::error(format!(
                     "Conflicto de concurrencia optimista (OCC): el hash esperado '{}' no coincide con el hash actual de la nota '{}'",

@@ -8,6 +8,7 @@ pub mod full_text;
 pub mod graph;
 pub mod mcp;
 pub mod note;
+pub mod note_content;
 pub mod note_path;
 pub mod pdf_document;
 pub mod startup;
