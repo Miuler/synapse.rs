@@ -1,7 +1,7 @@
-use crate::domain::models::community_plugin::{
+use crate::domain::model::community_plugin::{
     CommunityPlugin, CommunityPluginInstallResult, InstalledPluginInfo, PluginUpdateInfo,
 };
-use crate::domain::services::community_plugin_downloader::CommunityPluginDownloader;
+use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;

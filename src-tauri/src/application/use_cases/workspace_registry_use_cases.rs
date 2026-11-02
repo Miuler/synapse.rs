@@ -1,6 +1,6 @@
-use crate::domain::models::config::ShortcutsConfig;
-use crate::domain::models::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
-use crate::domain::repositories::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::model::config::ShortcutsConfig;
+use crate::domain::model::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
+use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
 
 pub struct WorkspaceRegistryUseCases<R: WorkspaceRegistryRepository> {
     repository: R,

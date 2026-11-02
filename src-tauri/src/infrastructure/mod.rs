@@ -1,6 +1,6 @@
-pub mod mcp;
+pub mod config;
+pub mod entrypoint;
 pub mod navigation;
-pub mod repositories;
+pub mod repository;
 pub mod search;
-pub mod services;
-pub mod tauri;
+pub mod service;

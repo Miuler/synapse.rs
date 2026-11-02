@@ -1,9 +1,9 @@
-use app_lib::domain::events::vault_events::{VaultChange, VaultChangeObserver};
-use app_lib::domain::models::file_types::SupportedFileTypes;
-use app_lib::domain::models::full_text::{DocumentKind, FullTextQuery};
-use app_lib::domain::services::full_text_index::FullTextIndex;
+use app_lib::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use app_lib::domain::model::file_types::SupportedFileTypes;
+use app_lib::domain::model::full_text::{DocumentKind, FullTextQuery};
+use app_lib::domain::repository::full_text_index::FullTextIndex;
 use app_lib::infrastructure::search::fts_indexer::FtsIndexer;
-use app_lib::infrastructure::search::tantivy_index::TantivyFullTextIndex;
+use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use std::fs;
 use std::sync::Arc;
 use std::thread;
@@ -42,8 +42,8 @@ fn test_full_text_indexer_workflow_and_persistence() {
     .unwrap();
 
     // 2. Abrir índice Tantivy en disco e iniciar FtsIndexer
-    let index = Arc::new(TantivyFullTextIndex::open_or_create(&fts_dir).unwrap());
-    let mut indexing = app_lib::domain::models::config::IndexingConfig::default();
+    let index = Arc::new(FullTextIndexImpl::open_or_create(&fts_dir).unwrap());
+    let mut indexing = app_lib::domain::model::config::IndexingConfig::default();
     indexing.debounce_ms = 350; // el test espera 600 ms; el valor por defecto es mayor
     let indexer = FtsIndexer::start_with_config(vault_path.clone(), file_types.clone(), indexing, Arc::clone(&index));
 
@@ -130,7 +130,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
     drop(index);
 
     // Reabrir índice existente desde fts_dir
-    let reopened_index = TantivyFullTextIndex::open_or_create(&fts_dir).unwrap();
+    let reopened_index = FullTextIndexImpl::open_or_create(&fts_dir).unwrap();
     assert_eq!(reopened_index.num_docs(), 2);
     let versions = reopened_index.indexed_versions().unwrap();
     assert!(versions.contains_key("arquitectura.md"));
@@ -214,7 +214,7 @@ fn test_full_text_docx_and_pdf_indexing() {
     }
 
     // 3. Iniciar indexación con FtsIndexer
-    let index = Arc::new(TantivyFullTextIndex::open_or_create(&fts_dir).unwrap());
+    let index = Arc::new(FullTextIndexImpl::open_or_create(&fts_dir).unwrap());
     let indexer = FtsIndexer::start(vault_path.clone(), file_types, Arc::clone(&index));
 
     // Esperar sincronización de ambos archivos

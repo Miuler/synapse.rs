@@ -1,10 +1,10 @@
-use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
-use crate::domain::models::config::IndexingConfig;
-use crate::domain::models::file_types::SupportedFileTypes;
-use crate::domain::models::full_text::{FullTextDocument, FullTextIndexStatus};
-use crate::domain::services::full_text_index::FullTextIndex;
+use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use crate::domain::model::config::IndexingConfig;
+use crate::domain::model::file_types::SupportedFileTypes;
+use crate::domain::model::full_text::{FullTextDocument, FullTextIndexStatus};
+use crate::domain::repository::full_text_index::FullTextIndex;
 use crate::infrastructure::search::content_extractor;
-use crate::infrastructure::search::tantivy_index::TantivyFullTextIndex;
+use crate::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
@@ -26,7 +26,7 @@ pub type StatusCallback = Arc<dyn Fn(FullTextIndexStatus) + Send + Sync>;
 pub struct FtsIndexer {
     tx: mpsc::Sender<IndexerCmd>,
     worker_handle: Mutex<Option<thread::JoinHandle<()>>>,
-    index: Arc<TantivyFullTextIndex>,
+    index: Arc<FullTextIndexImpl>,
     pending_count: Arc<AtomicUsize>,
     is_indexing: Arc<AtomicBool>,
     last_error: Arc<Mutex<Option<String>>>,
@@ -41,9 +41,9 @@ impl FtsIndexer {
     pub fn start(
         vault_path: PathBuf,
         file_types: SupportedFileTypes,
-        index: Arc<TantivyFullTextIndex>,
+        index: Arc<FullTextIndexImpl>,
     ) -> Arc<Self> {
-        let indexing = crate::domain::models::config::AppConfig::default().indexing;
+        let indexing = crate::domain::model::config::AppConfig::default().indexing;
         Self::start_with_config(vault_path, file_types, indexing, index)
     }
 
@@ -51,7 +51,7 @@ impl FtsIndexer {
         vault_path: PathBuf,
         file_types: SupportedFileTypes,
         indexing: IndexingConfig,
-        index: Arc<TantivyFullTextIndex>,
+        index: Arc<FullTextIndexImpl>,
     ) -> Arc<Self> {
         let (tx, rx) = mpsc::channel::<IndexerCmd>();
 
@@ -123,7 +123,7 @@ impl FtsIndexer {
                                      vault: &Path,
                                      ft: &SupportedFileTypes,
                                      indexing: &IndexingConfig,
-                                     idx: &TantivyFullTextIndex,
+                                     idx: &FullTextIndexImpl,
                                      err_lock: &Arc<Mutex<Option<String>>>,
                                      cur_f: &Arc<Mutex<Option<String>>>,
                                      tot_i: &Arc<AtomicUsize>,
@@ -212,7 +212,7 @@ impl FtsIndexer {
                                     .map(|d| d.as_nanos() as u64)
                                     .unwrap_or(0);
 
-                                if kind == crate::domain::models::full_text::DocumentKind::Excalidraw {
+                                if kind == crate::domain::model::full_text::DocumentKind::Excalidraw {
                                     use std::hash::{Hash, Hasher};
                                     let mut h = std::collections::hash_map::DefaultHasher::new();
                                     title.hash(&mut h);
@@ -438,7 +438,7 @@ fn perform_full_sync(
     vault_path: &Path,
     file_types: &SupportedFileTypes,
     indexing: &IndexingConfig,
-    index: &TantivyFullTextIndex,
+    index: &FullTextIndexImpl,
     error_lock: &Arc<Mutex<Option<String>>>,
     cur_f: &Arc<Mutex<Option<String>>>,
     tot_i: &Arc<AtomicUsize>,

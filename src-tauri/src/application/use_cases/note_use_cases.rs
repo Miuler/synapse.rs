@@ -1,6 +1,6 @@
-use crate::domain::models::note::Note;
-use crate::domain::repositories::note_repository::NoteRepository;
-use crate::domain::value_objects::note_path::NoteRelativePath;
+use crate::domain::model::note::Note;
+use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::model::note_path::NoteRelativePath;
 use log::debug;
 use std::path::Path;
 

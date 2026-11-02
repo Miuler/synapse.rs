@@ -17,8 +17,8 @@ use super::model::{
 };
 use super::storage;
 use super::watcher::VaultFsWatcher;
-use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
-use crate::domain::models::file_types::SupportedFileTypes;
+use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use crate::domain::model::file_types::SupportedFileTypes;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct OpenTabDto {
@@ -47,7 +47,7 @@ pub struct VaultUiState {
 /// Extracts the title from markdown content (first H1) or falls back to file stem.
 pub fn extract_title_from_markdown(content: &str, file_stem: &str) -> String {
     // Si contiene frontmatter YAML con propiedad title, priorizarla
-    let (fm, body) = crate::domain::services::frontmatter_service::parse_frontmatter_and_content(content);
+    let (fm, body) = crate::domain::service::frontmatter_service::parse_frontmatter_and_content(content);
     if let Some(fm) = fm {
         if let Some(explicit_title) = fm.title {
             let trimmed = explicit_title.trim();
@@ -473,7 +473,7 @@ impl NavigationEngine {
                     let (title, tags) = if is_markdown {
                         let content = std::fs::read_to_string(&path).unwrap_or_default();
                         let t = extract_title_from_markdown(&content, file_stem);
-                        let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                        let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                         let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                         (t, compact_tags)
                     } else {
@@ -528,7 +528,7 @@ impl NavigationEngine {
                 let (title, tags) = if is_markdown {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
                     let t = extract_title_from_markdown(&content, file_stem);
-                    let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                    let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                     let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                     (t, compact_tags)
                 } else {
@@ -970,7 +970,7 @@ impl NavigationEngine {
             let after_hash = part.trim_start_matches('#');
             let is_tag = part.starts_with('#') && part.len() > 1 && !after_hash.chars().all(|c| c.is_ascii_digit());
             if is_tag {
-                let clean = crate::domain::services::tag_service::normalize_tag(part);
+                let clean = crate::domain::service::tag_service::normalize_tag(part);
                 if !clean.is_empty() {
                     tag_filters.push(clean);
                 }
@@ -1012,7 +1012,7 @@ impl NavigationEngine {
         let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
         let passes_tag_filters = |meta: &NoteMeta| {
             tag_filters.iter().all(|tf| {
-                meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), tf))
+                meta.tags.iter().any(|t| crate::domain::service::tag_service::matches_tag(t.as_str(), tf))
             })
         };
 
@@ -1270,7 +1270,7 @@ impl NavigationEngine {
         let (title, tags) = if is_markdown {
             let content = std::fs::read_to_string(path).unwrap_or_default();
             let t = extract_title_from_markdown(&content, file_stem);
-            let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+            let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
             let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
             (t, compact_tags)
         } else {
@@ -1362,7 +1362,7 @@ impl NavigationEngine {
         query: &str,
         limit: usize,
         offset: usize,
-    ) -> (Vec<crate::domain::models::folder::FolderMeta>, usize) {
+    ) -> (Vec<crate::domain::model::folder::FolderMeta>, usize) {
         let q_clean = query.trim().trim_start_matches('/').to_lowercase();
 
         // 1. Recolectar todas las carpetas conocidas en orden
@@ -1422,12 +1422,12 @@ impl NavigationEngine {
         }
 
         let total_matched = matched_folders.len();
-        let paginated: Vec<crate::domain::models::folder::FolderMeta> = matched_folders
+        let paginated: Vec<crate::domain::model::folder::FolderMeta> = matched_folders
             .into_iter()
             .skip(offset)
             .take(limit)
             .map(|folder_path| {
-                crate::domain::services::folder_service::summarize_folder(
+                crate::domain::service::folder_service::summarize_folder(
                     &folder_path,
                     &all_folders,
                     &files_ref,
@@ -1458,7 +1458,7 @@ impl NavigationEngine {
         base_file: Option<&str>,
     ) -> Option<String> {
         let (target_with_ext, anchor) =
-            crate::domain::services::link_resolution::normalize_link_target(raw_target);
+            crate::domain::service::link_resolution::normalize_link_target(raw_target);
         if target_with_ext.is_empty() {
             return None;
         }
@@ -1472,7 +1472,7 @@ impl NavigationEngine {
 
         // 1. Si hay archivo base, buscar primero coincidencia directa en la misma carpeta (O(1))
         if let Some(base) = base_file {
-            let base_dir = crate::domain::services::link_resolution::get_parent_directory(base);
+            let base_dir = crate::domain::service::link_resolution::get_parent_directory(base);
             let sibling_path = if base_dir.is_empty() {
                 target_with_ext.clone()
             } else {
@@ -1528,9 +1528,9 @@ impl NavigationEngine {
         // 4. Otras carpetas
         candidates.sort_by(|a, b| {
             let score_a =
-                crate::domain::services::link_resolution::calculate_proximity_score(a, base_file);
+                crate::domain::service::link_resolution::calculate_proximity_score(a, base_file);
             let score_b =
-                crate::domain::services::link_resolution::calculate_proximity_score(b, base_file);
+                crate::domain::service::link_resolution::calculate_proximity_score(b, base_file);
             score_a.cmp(&score_b).then_with(|| a.cmp(b))
         });
 
@@ -1573,7 +1573,7 @@ impl NavigationEngine {
         content: &str,
         base_file: Option<&str>,
     ) -> String {
-        crate::domain::services::link_resolution::transform_markdown_wikilinks(content, |target| {
+        crate::domain::service::link_resolution::transform_markdown_wikilinks(content, |target| {
             self.resolve_link_path_with_base(target, base_file)
         })
     }
@@ -1583,9 +1583,9 @@ impl NavigationEngine {
         &self,
         focus_path: Option<&str>,
         max_depth: Option<usize>,
-    ) -> crate::domain::models::graph::VaultGraphData {
-        use crate::domain::models::graph::{GraphEdge, GraphNode, VaultGraphData};
-        use crate::domain::services::link_resolution::extract_wikilinks;
+    ) -> crate::domain::model::graph::VaultGraphData {
+        use crate::domain::model::graph::{GraphEdge, GraphNode, VaultGraphData};
+        use crate::domain::service::link_resolution::extract_wikilinks;
         use std::collections::{HashMap, HashSet, VecDeque};
 
         // 1. Extraer outlinks de todas las notas Markdown de la bóveda en paralelo con Rayon
@@ -1779,12 +1779,12 @@ impl NavigationEngine {
     /// Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
     /// Resuelve directamente desde `self.notes` en memoria RAM con soporte jerárquico.
     pub fn get_notes_by_tag(&self, tag: &str) -> Vec<String> {
-        let clean_tag = crate::domain::services::tag_service::normalize_tag(tag);
+        let clean_tag = crate::domain::service::tag_service::normalize_tag(tag);
         let mut matching_paths = Vec::new();
 
         for item in self.notes.iter() {
             let meta = item.value();
-            if meta.tags.iter().any(|t| crate::domain::services::tag_service::matches_tag(t.as_str(), &clean_tag)) {
+            if meta.tags.iter().any(|t| crate::domain::service::tag_service::matches_tag(t.as_str(), &clean_tag)) {
                 matching_paths.push(meta.path.to_string());
             }
         }
@@ -1797,9 +1797,9 @@ impl NavigationEngine {
     pub fn get_note_backlinks_and_relations(
         &self,
         target_path: &str,
-    ) -> crate::domain::models::graph::NoteBacklinksReport {
-        use crate::domain::models::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
-        use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
+    ) -> crate::domain::model::graph::NoteBacklinksReport {
+        use crate::domain::model::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
+        use crate::domain::service::link_resolution::{extract_wikilinks, normalize_link_target};
 
         let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
         let target_stem = clean_target

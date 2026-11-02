@@ -1,8 +1,8 @@
-use crate::domain::models::config::IndexingConfig;
-use crate::domain::models::file_types::SupportedFileTypes;
-use crate::domain::models::full_text::DocumentKind;
+use crate::domain::model::config::IndexingConfig;
+use crate::domain::model::file_types::SupportedFileTypes;
+use crate::domain::model::full_text::DocumentKind;
 use crate::infrastructure::navigation::engine::extract_title_from_markdown;
-use crate::infrastructure::repositories::file_note_repository::detect_and_decode;
+use crate::infrastructure::repository::file::note_repository_impl::detect_and_decode;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;
 

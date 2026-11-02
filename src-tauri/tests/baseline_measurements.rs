@@ -9,11 +9,11 @@
 //! Miden tres operaciones: abrir la bóveda (escaneo y reconciliación en frío), búsqueda rápida
 //! y guardar una nota grande. La nota de prueba se escribe en un directorio temporal, nunca en
 //! la bóveda.
-use app_lib::domain::models::note::Note;
-use app_lib::domain::repositories::note_repository::NoteRepository;
-use app_lib::domain::value_objects::note_path::NoteRelativePath;
+use app_lib::domain::model::note::Note;
+use app_lib::domain::repository::note_repository::NoteRepository;
+use app_lib::domain::model::note_path::NoteRelativePath;
 use app_lib::infrastructure::navigation::engine::NavigationEngine;
-use app_lib::infrastructure::repositories::file_note_repository::FileNoteRepository;
+use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -55,7 +55,7 @@ fn baseline_measurements() {
     }
 
     // 3. Guardar una nota grande (~2 MB) fuera de la bóveda.
-    let repo = FileNoteRepository::new();
+    let repo = NoteRepositoryImpl::new();
     let content = "Línea de prueba con [[enlace]] y #etiqueta.\n".repeat(50_000);
     let mut save_times = Vec::new();
     for _ in 0..10 {

@@ -11,6 +11,7 @@ Bóveda: MisNotas (6 053 notas indexadas). Valores = mediana.
 | Etapa | Abrir bóveda (frío) | Búsqueda rápida | Guardar nota 2 MB |
 |---|---|---|---|
 | 0 · línea base (main 3ac005a) | 139,1 ms | 13,8 ms | 1,29 ms |
+| 1 · renombrados y movimientos | 133,3 ms | 13,7 ms | 1,49 ms |
 
 Hallazgo de la etapa 0: en el Quick Open, los empates entre archivos con el mismo nombre y el
 mismo puntaje (p. ej. `a/notas.md` y `b/notas.md`) se ordenan por el orden de iteración del

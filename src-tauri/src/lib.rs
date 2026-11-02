@@ -4,9 +4,9 @@ pub mod domain;
 pub mod infrastructure;
 
 use application::use_cases::note_use_cases::NoteUseCases;
-use domain::models::file_types::SupportedFileTypes;
-use infrastructure::repositories::file_note_repository::FileNoteRepository;
-use infrastructure::tauri::commands::{
+use domain::model::file_types::SupportedFileTypes;
+use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
+use infrastructure::entrypoint::tauri::commands::{
     copy_vault_items, move_vault_items, delete_vault_item, full_text_search, get_active_vault_path, get_full_text_index_status,
     get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
     get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
@@ -37,7 +37,7 @@ use webkit2gtk_nvidia_quirk::{apply_workaround_with_options, ApplyWorkaroundOpti
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let file_types = SupportedFileTypes::default();
-    let repo = FileNoteRepository::new();
+    let repo = NoteRepositoryImpl::new();
     let use_cases = NoteUseCases::new(repo);
     let app_state = AppState::empty(file_types, use_cases);
 
@@ -191,7 +191,7 @@ pub fn run() {
                 }
             }
             if let Ok(guard) = state.startup_target.lock() {
-                if let Some(domain::models::startup::StartupTarget::Standalone(ref path_str)) = *guard {
+                if let Some(domain::model::startup::StartupTarget::Standalone(ref path_str)) = *guard {
                     let p = std::path::Path::new(path_str);
                     if let Some(parent) = p.parent() {
                         let _ = handle.asset_protocol_scope().allow_directory(parent, true);

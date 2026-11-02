@@ -1,5 +1,5 @@
-use crate::domain::models::full_text::{FullTextHit, FullTextQuery};
-use crate::domain::services::full_text_index::FullTextIndex;
+use crate::domain::model::full_text::{FullTextHit, FullTextQuery};
+use crate::domain::repository::full_text_index::FullTextIndex;
 use std::sync::Arc;
 
 /// Casos de uso para búsqueda de texto completo.

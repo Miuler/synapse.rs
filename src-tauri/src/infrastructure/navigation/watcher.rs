@@ -13,8 +13,8 @@ use std::time::{Duration, Instant, SystemTime};
 use super::engine::extract_title_from_markdown;
 use super::matcher::populate_nucleo_from_dashmap;
 use super::model::{NoteId, NoteMeta, NoteSyncState};
-use crate::domain::events::vault_events::{VaultChange, VaultChangeObserver};
-use crate::domain::models::file_types::SupportedFileTypes;
+use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
+use crate::domain::model::file_types::SupportedFileTypes;
 use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -35,11 +35,11 @@ pub struct ParsedFileMeta {
     pub created_nanos: Option<u128>,
 }
 
-use crate::domain::models::config::IgnoredConfig;
+use crate::domain::model::config::IgnoredConfig;
 
 pub fn default_ignored_config() -> &'static IgnoredConfig {
     static CONFIG: std::sync::OnceLock<IgnoredConfig> = std::sync::OnceLock::new();
-    CONFIG.get_or_init(|| crate::domain::models::config::AppConfig::default().ignored)
+    CONFIG.get_or_init(|| crate::domain::model::config::AppConfig::default().ignored)
 }
 
 /// Determines if a directory or file name should be completely ignored (build artifacts, dependencies, etc.)
@@ -219,7 +219,7 @@ pub fn process_paths_batch(
             let (title, tags) = if is_markdown {
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
                 let t = extract_title_from_markdown(&content, file_stem);
-                let raw_tags = crate::domain::services::tag_service::extract_all_tags(&content);
+                let raw_tags = crate::domain::service::tag_service::extract_all_tags(&content);
                 let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                 (t, compact_tags)
             } else {

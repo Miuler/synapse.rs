@@ -1,8 +1,8 @@
 use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
-use app_lib::infrastructure::mcp::server::McpStdioServer;
-use app_lib::infrastructure::repositories::file_note_repository::FileNoteRepository;
-use app_lib::infrastructure::search::tantivy_index::TantivyFullTextIndex;
-use app_lib::infrastructure::services::git_service::GitService;
+use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
+use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
+use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
+use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
 use serde_json::json;
 use std::fs;
 use std::io::Cursor;
@@ -29,12 +29,12 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     )
     .unwrap();
 
-    let note_repo = FileNoteRepository::new();
+    let note_repo = NoteRepositoryImpl::new();
 
     // Índice Tantivy en memoria / carpeta de prueba
     let fts_dir = vault_path.join(".synapse").join("index");
-    let full_text_index = TantivyFullTextIndex::open_or_create(&fts_dir).ok().map(Arc::new);
-    let git_service = Some(Arc::new(GitService));
+    let full_text_index = FullTextIndexImpl::open_or_create(&fts_dir).ok().map(Arc::new);
+    let git_service = Some(Arc::new(VersionControlImpl));
 
     let use_cases = McpUseCases::new(vault_path.clone(), note_repo, full_text_index, git_service);
     let server = McpStdioServer::new(use_cases);
@@ -309,15 +309,15 @@ struct DummyMcpProvider {
     vault: std::path::PathBuf,
 }
 
-impl app_lib::infrastructure::mcp::server::McpContextProvider for DummyMcpProvider {
-    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::services::full_text_index::FullTextIndex>>) {
+impl app_lib::infrastructure::entrypoint::mcp::server::McpContextProvider for DummyMcpProvider {
+    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>) {
         (Some(self.vault.clone()), None)
     }
 }
 
 #[test]
 fn test_mcp_background_runtime_lifecycle_and_http() {
-    use app_lib::infrastructure::mcp::server::McpBackgroundRuntime;
+    use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
     use std::io::{Read, Write};
     use std::net::TcpStream;
     use std::sync::Arc;
@@ -379,9 +379,9 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
 
 #[test]
 fn test_mcp_workspace_reopen_auto_activation() {
-    use app_lib::domain::repositories::mcp_repository::McpConfigRepository;
-    use app_lib::infrastructure::mcp::server::McpBackgroundRuntime;
-    use app_lib::infrastructure::repositories::file_mcp_repository::FileMcpConfigRepository;
+    use app_lib::domain::repository::mcp_repository::McpConfigRepository;
+    use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
+    use app_lib::infrastructure::repository::file::mcp_repository_impl::McpConfigRepositoryImpl;
     use std::sync::Arc;
     use tempfile::tempdir;
 
@@ -389,7 +389,7 @@ fn test_mcp_workspace_reopen_auto_activation() {
     let vault_path = temp_dir.path().to_path_buf();
     let provider = Arc::new(DummyMcpProvider { vault: vault_path.clone() });
     let runtime = McpBackgroundRuntime::new(provider);
-    let mcp_repo = FileMcpConfigRepository::new();
+    let mcp_repo = McpConfigRepositoryImpl::new();
 
     // 1. Inicialmente no está activo ni habilitado
     assert!(!runtime.get_status().running);
@@ -429,20 +429,20 @@ fn test_mcp_workspace_reopen_auto_activation() {
 #[test]
 fn test_mcp_evolved_tools_suite() {
     use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
-    use app_lib::domain::models::note::Note;
-    use app_lib::domain::repositories::note_repository::NoteRepository;
-    use app_lib::domain::value_objects::note_path::NoteRelativePath;
-    use app_lib::infrastructure::mcp::server::McpStdioServer;
-    use app_lib::infrastructure::repositories::file_note_repository::FileNoteRepository;
-    use app_lib::infrastructure::services::git_service::GitService;
+    use app_lib::domain::model::note::Note;
+    use app_lib::domain::repository::note_repository::NoteRepository;
+    use app_lib::domain::model::note_path::NoteRelativePath;
+    use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
+    use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
+    use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
     use serde_json::json;
     use std::sync::Arc;
     use tempfile::tempdir;
 
     let temp_dir = tempdir().unwrap();
     let vault_path = temp_dir.path().to_path_buf();
-    let repo = FileNoteRepository::new();
-    let git = Arc::new(GitService::new());
+    let repo = NoteRepositoryImpl::new();
+    let git = Arc::new(VersionControlImpl::new());
 
     // Crear nota de prueba con múltiples secciones, frontmatter y bloques especiales
     let initial_content = r#"---
@@ -474,8 +474,8 @@ A[Cliente ACP] --> B[Servidor MCP]
 
     let use_cases = McpUseCases::new(
         vault_path.clone(),
-        FileNoteRepository::new(),
-        None::<Arc<dyn app_lib::domain::services::full_text_index::FullTextIndex>>,
+        NoteRepositoryImpl::new(),
+        None::<Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>,
         Some(git),
     );
     let server = McpStdioServer::new(use_cases);

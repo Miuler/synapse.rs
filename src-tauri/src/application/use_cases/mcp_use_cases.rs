@@ -1,13 +1,13 @@
-use crate::domain::models::full_text::FullTextQuery;
-use crate::domain::models::mcp::*;
-use crate::domain::models::note::Note;
-use crate::domain::repositories::note_repository::NoteRepository;
-use crate::domain::services::frontmatter_service;
-use crate::domain::services::full_text_index::FullTextIndex;
-use crate::domain::services::git_service::GitPort;
-use crate::domain::services::link_resolution::{extract_wikilinks, normalize_link_target};
-use crate::domain::services::tag_service::{self, matches_tag};
-use crate::domain::value_objects::note_path::NoteRelativePath;
+use crate::domain::model::full_text::FullTextQuery;
+use crate::domain::model::mcp::*;
+use crate::domain::model::note::Note;
+use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::service::frontmatter_service;
+use crate::domain::repository::full_text_index::FullTextIndex;
+use crate::domain::repository::version_control::VersionControl;
+use crate::domain::service::link_resolution::{extract_wikilinks, normalize_link_target};
+use crate::domain::service::tag_service::{self, matches_tag};
+use crate::domain::model::note_path::NoteRelativePath;
 use crate::infrastructure::search::pdf_extractor;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -261,14 +261,14 @@ pub fn generate_unified_diff(old_text: &str, new_text: &str, file_name: &str) ->
 }
 
 /// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks, Git y Multimodalidad.
-pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> {
+pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
     vault_path: PathBuf,
     note_repository: R,
     full_text_index: Option<Arc<I>>,
     git_service: Option<Arc<G>>,
 }
 
-impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I, G> {
+impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCases<R, I, G> {
     pub fn new(
         vault_path: PathBuf,
         note_repository: R,
@@ -997,7 +997,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
 
         // Recolectar todas las carpetas a partir de las notas y del filesystem
         let file_paths: Vec<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
-        let mut folder_set: HashSet<String> = crate::domain::services::folder_service::extract_ancestor_folders(&file_paths)
+        let mut folder_set: HashSet<String> = crate::domain::service::folder_service::extract_ancestor_folders(&file_paths)
             .into_iter()
             .collect();
 
@@ -1083,7 +1083,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: GitPort> McpUseCases<R, I,
             .into_iter()
             .skip(offset)
             .take(limit)
-            .map(|f| crate::domain::services::folder_service::summarize_folder(&f, &all_folders, &files_ref))
+            .map(|f| crate::domain::service::folder_service::summarize_folder(&f, &all_folders, &files_ref))
             .collect();
 
         let has_more = offset + limit < total_matched;

@@ -1,0 +1,2177 @@
+pub use crate::domain::model::version::{
+    Branch, BranchList, VersionEntry, FileDiff, FileVersionHistory,
+    FileRevision, FileVersionState, ImageDiff, VaultVersionState,
+};
+use crate::domain::repository::version_control::VersionControl;
+use std::collections::HashMap;
+use std::path::Path;
+
+#[derive(Clone, Copy, Default)]
+pub struct VersionControlImpl;
+
+impl VersionControl for VersionControlImpl {
+    fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
+        self.get_vault_status(vault_path)
+    }
+
+    fn track(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_add(vault_path, paths)
+    }
+
+    fn revert(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_restore(vault_path, paths)
+    }
+
+    fn untrack(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        self.git_restore_staged(vault_path, paths)
+    }
+
+    fn save_version(&self, vault_path: &Path, paths: &[String], message: &str) -> Result<String, String> {
+        self.git_commit(vault_path, paths, message)
+    }
+
+    fn diff(&self, vault_path: &Path, path: &str, staged: bool, revision: Option<&str>) -> Result<FileDiff, String> {
+        self.git_diff(vault_path, path, staged, revision)
+    }
+
+    fn get_file_revision(&self, vault_path: &Path, path: &str, revision: &str) -> Result<FileRevision, String> {
+        self.get_file_revision(vault_path, path, revision)
+    }
+
+    fn get_image_diff(&self, vault_path: &Path, path: &str, staged: bool, revision: Option<&str>) -> Result<ImageDiff, String> {
+        self.get_image_diff(vault_path, path, staged, revision)
+    }
+
+    fn get_file_log(&self, vault_path: &Path, path: &str, max_count: Option<usize>) -> Result<FileVersionHistory, String> {
+        self.get_file_log(vault_path, path, max_count)
+    }
+
+    fn get_branches(&self, vault_path: &Path) -> Result<BranchList, String> {
+        self.get_branches(vault_path)
+    }
+
+    fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
+        self.checkout_branch(vault_path, branch_name)
+    }
+
+    fn create_branch(
+        &self,
+        vault_path: &Path,
+        new_branch: &str,
+        base_branch: &str,
+        checkout: bool,
+    ) -> Result<String, String> {
+        self.create_branch(vault_path, new_branch, base_branch, checkout)
+    }
+
+    fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
+        self.clone_repository(repo_url, target_path)
+    }
+
+    fn push(&self, vault_path: &Path) -> Result<String, String> {
+        self.git_push(vault_path)
+    }
+}
+
+impl VersionControlImpl {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
+        let trimmed_url = repo_url.trim();
+        if trimmed_url.is_empty() {
+            return Err("La URL del repositorio Git no puede estar vacía".to_string());
+        }
+
+        let output = std::process::Command::new("git")
+            .arg("clone")
+            .arg(trimmed_url)
+            .arg(target_path)
+            .output()
+            .map_err(|e| format!("Error al ejecutar git clone: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git clone falló: {}", stderr.trim()));
+        }
+
+        Ok(())
+    }
+
+    fn collect_stashed_files(
+        &self,
+        repo: &gix::Repository,
+        vault_path: &Path,
+        work_dir: &Path,
+    ) -> std::collections::HashSet<String> {
+        let mut stashed = std::collections::HashSet::new();
+
+        let Ok(mut stash_ref) = repo.find_reference("refs/stash") else {
+            return stashed;
+        };
+
+        let mut commit_ids = Vec::new();
+        if let Ok(commit) = stash_ref.peel_to_commit() {
+            commit_ids.push(commit.id);
+        }
+
+        let mut platform = stash_ref.log_iter();
+        if let Ok(Some(iter)) = platform.all() {
+            for line_res in iter {
+                if let Ok(line) = line_res {
+                    let oid = line.new_oid();
+                    if !commit_ids.contains(&oid) {
+                        commit_ids.push(oid);
+                    }
+                }
+            }
+        }
+
+        for commit_id in commit_ids {
+            let commit = match repo
+                .find_object(commit_id)
+                .ok()
+                .and_then(|o| o.try_into_commit().ok())
+            {
+                Some(c) => c,
+                None => continue,
+            };
+
+            let parents: Vec<_> = commit.parent_ids().collect();
+            if parents.is_empty() {
+                continue;
+            }
+
+            // Parent 0 is the commit on top of which the stash was created
+            if let Some(parent0) = repo
+                .find_object(parents[0])
+                .ok()
+                .and_then(|o| o.try_into_commit().ok())
+            {
+                if let (Ok(p_tree), Ok(s_tree)) = (parent0.tree(), commit.tree()) {
+                    if let Ok(mut diff) = p_tree.changes() {
+                        let _ = diff.for_each_to_obtain_tree(&s_tree, |change| {
+                            let rel_str = change.location().to_string();
+                            let abs_path = work_dir.join(&rel_str);
+                            if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                                let key = v_rel.to_string_lossy().to_string();
+                                if !key.is_empty() && vault_path.join(&key).exists() {
+                                    stashed.insert(key);
+                                }
+                            }
+                            Ok(std::ops::ControlFlow::Continue(()))
+                        });
+                    }
+                }
+            }
+
+            // Parent 2 (if present) contains untracked files stashed with `git stash -u`
+            if parents.len() > 2 {
+                if let Some(parent2) = repo
+                    .find_object(parents[2])
+                    .ok()
+                    .and_then(|o| o.try_into_commit().ok())
+                {
+                    if let Ok(u_tree) = parent2.tree() {
+                        let empty_tree = repo.empty_tree();
+                        if let Ok(mut diff) = empty_tree.changes() {
+                            let _ = diff.for_each_to_obtain_tree(&u_tree, |change| {
+                                let rel_str = change.location().to_string();
+                                let abs_path = work_dir.join(&rel_str);
+                                if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                                    let key = v_rel.to_string_lossy().to_string();
+                                    if !key.is_empty() && vault_path.join(&key).exists() {
+                                        stashed.insert(key);
+                                    }
+                                }
+                                Ok(std::ops::ControlFlow::Continue(()))
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        stashed
+    }
+
+    pub fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
+        let repo = match gix::discover(vault_path) {
+            Ok(r) => r,
+            Err(_) => {
+                return Ok(VaultVersionState {
+                    is_repo: false,
+                    branch: None,
+                    statuses: HashMap::new(),
+                });
+            }
+        };
+
+        let work_dir = match repo.workdir() {
+            Some(w) => w.to_path_buf(),
+            None => {
+                return Ok(VaultVersionState {
+                    is_repo: false,
+                    branch: None,
+                    statuses: HashMap::new(),
+                });
+            }
+        };
+
+        let branch = repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map(|n| n.shorten().to_string());
+
+        let platform = match repo.status(gix::progress::Discard) {
+            Ok(p) => p,
+            Err(e) => return Err(format!("Failed to obtain git status platform: {e}")),
+        };
+
+        let status_iter = match platform
+            .untracked_files(gix::status::UntrackedFiles::Files)
+            .into_iter(None)
+        {
+            Ok(it) => it,
+            Err(e) => return Err(format!("Failed to create git status iterator: {e}")),
+        };
+
+        let mut statuses: HashMap<String, FileVersionState> = HashMap::new();
+
+        for item in status_iter {
+            match item {
+                Ok(gix::status::Item::IndexWorktree(worktree_item)) => match worktree_item {
+                    gix::status::index_worktree::Item::Modification { rela_path, .. } => {
+                        let rel_str = rela_path.to_string();
+                        let abs_path = work_dir.join(&rel_str);
+                        if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                            let key = v_rel.to_string_lossy().to_string();
+                            if !key.is_empty() {
+                                let entry = statuses.entry(key).or_default();
+                                let code = if abs_path.symlink_metadata().is_ok() {
+                                    "M"
+                                } else {
+                                    "D"
+                                };
+                                entry.worktree = Some(code.to_string());
+                            }
+                        }
+                    }
+                    gix::status::index_worktree::Item::DirectoryContents { entry, .. } => {
+                        if entry.status == gix::dir::entry::Status::Untracked {
+                            let rel_str = entry.rela_path.to_string();
+                            let abs_path = work_dir.join(&rel_str);
+                            if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                                let key = v_rel.to_string_lossy().to_string();
+                                if !key.is_empty() {
+                                    let entry = statuses.entry(key).or_default();
+                                    entry.worktree = Some("?".to_string());
+                                }
+                            }
+                        }
+                    }
+                    gix::status::index_worktree::Item::Rewrite { dirwalk_entry, .. } => {
+                        let rel_str = dirwalk_entry.rela_path.to_string();
+                        let abs_path = work_dir.join(&rel_str);
+                        if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                            let key = v_rel.to_string_lossy().to_string();
+                            if !key.is_empty() {
+                                let entry = statuses.entry(key).or_default();
+                                entry.worktree = Some("M".to_string());
+                            }
+                        }
+                    }
+                },
+                Ok(gix::status::Item::TreeIndex(change)) => {
+                    let idx_code = match &change {
+                        gix::diff::index::ChangeRef::Addition { .. } => "A",
+                        gix::diff::index::ChangeRef::Modification { .. } => "M",
+                        gix::diff::index::ChangeRef::Deletion { .. } => "D",
+                        gix::diff::index::ChangeRef::Rewrite { .. } => "M",
+                    };
+                    let rel_str = change.location().to_string();
+                    let abs_path = work_dir.join(&rel_str);
+                    if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
+                        let key = v_rel.to_string_lossy().to_string();
+                        if !key.is_empty() {
+                            let entry = statuses.entry(key).or_default();
+                            entry.index = Some(idx_code.to_string());
+                        }
+                    }
+                }
+                Err(_) => continue,
+            }
+        }
+
+        let stashed_files = self.collect_stashed_files(&repo, vault_path, &work_dir);
+        for key in stashed_files {
+            let entry = statuses.entry(key).or_default();
+            entry.is_stashed = true;
+        }
+
+        Ok(VaultVersionState {
+            is_repo: true,
+            branch,
+            statuses,
+        })
+    }
+
+    pub fn git_add(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("add");
+        cmd.arg("--");
+        let mut count = 0;
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
+            }
+        }
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git add: {}", e);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            err_msg
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git add falló: {}", detail);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            return Err(err_msg);
+        }
+
+        Ok(())
+    }
+
+    /// Indica si la ruta (archivo o carpeta) tiene archivos versionados en el índice de Git.
+    /// Devuelve `false` fuera de un repositorio o ante cualquier error.
+    pub fn is_tracked(&self, vault_path: &Path, rel_path: &str) -> bool {
+        let Ok(repo) = gix::discover(vault_path) else {
+            return false;
+        };
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+        let prefix = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/").trim_matches('/').to_string())
+            .filter(|s| !s.is_empty());
+        let clean = rel_path.replace('\\', "/");
+        let clean = clean.trim_start_matches("./");
+        let target = match prefix {
+            Some(pre) => format!("{}/{}", pre, clean),
+            None => clean.to_string(),
+        };
+        std::process::Command::new("git")
+            .current_dir(work_dir)
+            .args(["ls-files", "--", &target])
+            .output()
+            .map(|o| o.status.success() && !o.stdout.is_empty())
+            .unwrap_or(false)
+    }
+
+    pub fn git_restore(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        // Si la bóveda está en un subdirectorio del repositorio git, prefijar las rutas
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("restore");
+        cmd.arg("--");
+        let mut count = 0;
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
+            }
+        }
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git restore: {}", e);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            err_msg
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git restore falló: {}", detail);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            return Err(err_msg);
+        }
+
+        Ok(())
+    }
+
+    pub fn git_restore_staged(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("restore");
+        cmd.arg("--staged");
+        cmd.arg("--");
+        let mut count = 0;
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+                count += 1;
+            }
+        }
+
+        if count == 0 {
+            return Ok(());
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git restore --staged: {}", e);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            err_msg
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git restore --staged falló: {}", detail);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            return Err(err_msg);
+        }
+
+        Ok(())
+    }
+
+    pub fn git_commit(
+        &self,
+        vault_path: &Path,
+        paths: &[String],
+        message: &str,
+    ) -> Result<String, String> {
+        if paths.is_empty() {
+            return Err("No se especificaron archivos para commitear".to_string());
+        }
+        let trimmed_msg = message.trim();
+        if trimmed_msg.is_empty() {
+            return Err("El mensaje de commit no puede estar vacío".to_string());
+        }
+
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        // 1. Añadir/preparar los archivos seleccionados para el commit
+        self.git_add(vault_path, paths)?;
+
+        // 2. Ejecutar git commit con pathspec
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("commit");
+        cmd.arg("-m");
+        cmd.arg(trimmed_msg);
+        cmd.arg("--");
+        for p in paths {
+            let clean = p.replace('\\', "/");
+            let clean = clean.trim_start_matches("./");
+            if !clean.is_empty() {
+                let target_path = match &prefix_from_workdir {
+                    Some(prefix) => format!("{}/{}", prefix, clean),
+                    None => clean.to_string(),
+                };
+                cmd.arg(target_path);
+            }
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let err_msg = format!("Error al ejecutar git commit: {}", e);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            err_msg
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let err = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            let err_msg = format!("git commit falló: {}", err);
+            log::error!("[VersionControlImpl] {}", err_msg);
+            eprintln!("[VersionControlImpl] {}", err_msg);
+            return Err(err_msg);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout.trim().to_string())
+    }
+
+    pub fn git_diff(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        staged: bool,
+        revision: Option<&str>,
+    ) -> Result<FileDiff, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para diff".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let abs_path = work_dir.join(&repo_rel_path);
+
+        let mut old_content = String::new();
+        let mut new_content = String::new();
+        let mut diff = String::new();
+
+        if let Some(rev) = revision {
+            // Diff contra una revisión histórica específica: rev vs Worktree
+            let mut show_cmd = std::process::Command::new("git");
+            show_cmd.current_dir(work_dir);
+            show_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            if let Ok(out) = show_cmd.output() {
+                if out.status.success() {
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
+                }
+            }
+
+            if abs_path.is_file() {
+                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+                    new_content = c;
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", rev, "-u", "--", &repo_rel_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+
+            // Si diff está vacío pero el archivo local es nuevo o no existe en esa revisión
+            if diff.is_empty() && old_content.is_empty() && !new_content.is_empty() {
+                #[cfg(windows)]
+                let null_target = "NUL";
+                #[cfg(not(windows))]
+                let null_target = "/dev/null";
+
+                let mut no_idx_cmd = std::process::Command::new("git");
+                no_idx_cmd.current_dir(work_dir);
+                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, &repo_rel_path]);
+                if let Ok(out) = no_idx_cmd.output() {
+                    diff = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+        } else if staged {
+            // Diff de stage: HEAD vs Index (:path)
+            let mut show_head_cmd = std::process::Command::new("git");
+            show_head_cmd.current_dir(work_dir);
+            show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
+            if let Ok(out) = show_head_cmd.output() {
+                if out.status.success() {
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
+                }
+            }
+
+            let mut show_index_cmd = std::process::Command::new("git");
+            show_index_cmd.current_dir(work_dir);
+            show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
+            if let Ok(out) = show_index_cmd.output() {
+                if out.status.success() {
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    new_content = String::from_utf8_lossy(&resolved).to_string();
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", "--staged", "-u", "--", &repo_rel_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+        } else {
+            // Diff normal de trabajo: Index vs Worktree
+            let mut show_index_cmd = std::process::Command::new("git");
+            show_index_cmd.current_dir(work_dir);
+            show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
+            if let Ok(out) = show_index_cmd.output() {
+                if out.status.success() {
+                    let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &out.stdout);
+                    old_content = String::from_utf8_lossy(&resolved).to_string();
+                } else {
+                    let mut show_head_cmd = std::process::Command::new("git");
+                    show_head_cmd.current_dir(work_dir);
+                    show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
+                    if let Ok(head_out) = show_head_cmd.output() {
+                        if head_out.status.success() {
+                            let resolved = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &head_out.stdout);
+                            old_content = String::from_utf8_lossy(&resolved).to_string();
+                        }
+                    }
+                }
+            }
+
+            if abs_path.is_file() {
+                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+                    new_content = c;
+                }
+            }
+
+            let mut diff_cmd = std::process::Command::new("git");
+            diff_cmd.current_dir(work_dir);
+            diff_cmd.args(["diff", "-u", "--", &repo_rel_path]);
+            if let Ok(out) = diff_cmd.output() {
+                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            }
+
+            // Si diff está vacío contra el index, comprobar si hay diferencias contra HEAD
+            if diff.is_empty() {
+                let mut head_diff_cmd = std::process::Command::new("git");
+                head_diff_cmd.current_dir(work_dir);
+                head_diff_cmd.args(["diff", "HEAD", "-u", "--", &repo_rel_path]);
+                if let Ok(out) = head_diff_cmd.output() {
+                    let head_diff = String::from_utf8_lossy(&out.stdout).to_string();
+                    if !head_diff.is_empty() {
+                        diff = head_diff;
+                    }
+                }
+            }
+
+            // Si diff sigue vacío pero es un archivo nuevo sin seguimiento (untracked)
+            if diff.is_empty() && old_content.is_empty() && !new_content.is_empty() {
+                #[cfg(windows)]
+                let null_target = "NUL";
+                #[cfg(not(windows))]
+                let null_target = "/dev/null";
+
+                let mut no_idx_cmd = std::process::Command::new("git");
+                no_idx_cmd.current_dir(work_dir);
+                no_idx_cmd.args(["diff", "--no-index", "-u", "--", null_target, &repo_rel_path]);
+                if let Ok(out) = no_idx_cmd.output() {
+                    diff = String::from_utf8_lossy(&out.stdout).to_string();
+                }
+            }
+        }
+
+        Ok(FileDiff {
+            path: clean_path.to_string(),
+            is_staged: staged,
+            old_file_name: clean_path.to_string(),
+            new_file_name: clean_path.to_string(),
+            old_content,
+            new_content,
+            diff,
+        })
+    }
+
+fn resolve_git_lfs_bytes_if_needed(
+    work_dir: &Path,
+    git_dir: Option<&Path>,
+    raw_bytes: &[u8],
+) -> Vec<u8> {
+    if !raw_bytes.starts_with(b"version https://git-lfs.github.com/spec/v1") {
+        return raw_bytes.to_vec();
+    }
+
+    // 1. Intentar resolver usando `git lfs smudge`
+    let mut cmd = std::process::Command::new("git");
+    cmd.current_dir(work_dir);
+    cmd.args(["lfs", "smudge"]);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+
+    if let Ok(mut child) = cmd.spawn() {
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(raw_bytes);
+        }
+        if let Ok(output) = child.wait_with_output() {
+            if output.status.success()
+                && !output.stdout.is_empty()
+                && !output.stdout.starts_with(b"version https://git-lfs.github.com/spec/v1")
+            {
+                return output.stdout;
+            }
+        }
+    }
+
+    // 2. Fallback directo: buscar el blob en el almacenamiento local .git/lfs/objects/
+    if let Ok(text) = std::str::from_utf8(raw_bytes) {
+        for line in text.lines() {
+            let line = line.trim();
+            if let Some(oid) = line.strip_prefix("oid sha256:") {
+                let oid = oid.trim();
+                if oid.len() >= 4 {
+                    let subpath = format!("lfs/objects/{}/{}/{}", &oid[0..2], &oid[2..4], oid);
+
+                    if let Some(gd) = git_dir {
+                        let candidate = gd.join(&subpath);
+                        if candidate.is_file() {
+                            if let Ok(bytes) = std::fs::read(&candidate) {
+                                return bytes;
+                            }
+                        }
+                    }
+
+                    let candidate = work_dir.join(".git").join(&subpath);
+                    if candidate.is_file() {
+                        if let Ok(bytes) = std::fs::read(&candidate) {
+                            return bytes;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    raw_bytes.to_vec()
+}
+
+    pub fn get_file_revision(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        revision: &str,
+    ) -> Result<FileRevision, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para revisión".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        // Formato para git show: "HEAD:path" o ":path" (para stage/index)
+        let git_target = if revision == "staged" || revision == ":staged" || revision == ":" {
+            format!(":{}", repo_rel_path)
+        } else if revision.ends_with(':') {
+            format!("{}{}", revision, repo_rel_path)
+        } else if revision.is_empty() || revision.eq_ignore_ascii_case("head") {
+            format!("HEAD:{}", repo_rel_path)
+        } else {
+            format!("{}:{}", revision, repo_rel_path)
+        };
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.args(["show", &git_target]);
+
+        let output = match cmd.output() {
+            Ok(out) => out,
+            Err(e) => return Err(format!("Error ejecutando git show: {}", e)),
+        };
+
+        if !output.status.success() {
+            return Ok(FileRevision {
+                path: clean_path.to_string(),
+                revision: revision.to_string(),
+                content: None,
+                data_url: None,
+                is_binary: false,
+                exists: false,
+            });
+        }
+
+        let raw_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &output.stdout);
+        let ext = Path::new(&clean_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let is_known_binary = matches!(
+            ext.as_str(),
+            "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "ico" | "avif" | "tiff" | "tif" | "pdf"
+        );
+
+        // Intento de decodificación UTF-8
+        let utf8_res = std::str::from_utf8(&raw_bytes);
+        let is_binary = is_known_binary || utf8_res.is_err();
+
+        let mime = match ext.as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            "bmp" => "image/bmp",
+            "ico" => "image/x-icon",
+            "avif" => "image/avif",
+            "tiff" | "tif" => "image/tiff",
+            "pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
+
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let data_url = Some(format!("data:{};base64,{}", mime, BASE64_STANDARD.encode(&raw_bytes)));
+
+        let content = if let Ok(s) = utf8_res {
+            Some(s.to_string())
+        } else {
+            None
+        };
+
+        Ok(FileRevision {
+            path: clean_path.to_string(),
+            revision: revision.to_string(),
+            content,
+            data_url,
+            is_binary,
+            exists: true,
+        })
+    }
+
+    pub fn get_image_diff(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        staged: bool,
+        revision: Option<&str>,
+    ) -> Result<ImageDiff, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para diff de imagen".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let abs_path = work_dir.join(&repo_rel_path);
+
+        // 1. Obtener bytes de la imagen base / histórica (HEAD con fallback a index si no hay HEAD, o revisión explícita)
+        let mut old_bytes = Vec::new();
+        if let Some(rev) = revision {
+            let mut rev_cmd = std::process::Command::new("git");
+            rev_cmd.current_dir(work_dir);
+            rev_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            if let Ok(out) = rev_cmd.output() {
+                if out.status.success() {
+                    old_bytes = out.stdout;
+                }
+            }
+        } else {
+            let mut head_cmd = std::process::Command::new("git");
+            head_cmd.current_dir(work_dir);
+            head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
+            if let Ok(out) = head_cmd.output() {
+                if out.status.success() {
+                    old_bytes = out.stdout;
+                }
+            }
+
+            if old_bytes.is_empty() && !staged {
+                let mut index_cmd = std::process::Command::new("git");
+                index_cmd.current_dir(work_dir);
+                index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
+                if let Ok(out) = index_cmd.output() {
+                    if out.status.success() {
+                        old_bytes = out.stdout;
+                    }
+                }
+            }
+        }
+
+        // 2. Obtener bytes de la imagen actual (Working Tree o Staged Index)
+        let new_bytes = if revision.is_some() {
+            // Comparar revisión histórica contra disco duro local
+            if abs_path.is_file() {
+                std::fs::read(&abs_path).unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        } else if staged {
+            let mut show_index = std::process::Command::new("git");
+            show_index.current_dir(work_dir);
+            show_index.args(["show", &format!(":{}", repo_rel_path)]);
+            if let Ok(out) = show_index.output() {
+                if out.status.success() {
+                    out.stdout
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            }
+        } else if abs_path.is_file() {
+            std::fs::read(&abs_path).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        // Resolver Git LFS si los bytes corresponden a un apuntador LFS
+        let old_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &old_bytes);
+        let new_bytes = Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &new_bytes);
+
+        if old_bytes.is_empty() && new_bytes.is_empty() {
+            return Err("No se encontraron bytes de imagen para comparar".to_string());
+        }
+
+        if old_bytes.is_empty() || new_bytes.is_empty() {
+            // Archivo agregado o borrado por completo
+            return Ok(ImageDiff {
+                path: clean_path.to_string(),
+                is_staged: staged,
+                diff_data_url: None,
+                diff_count: 0,
+                width: 0,
+                height: 0,
+                total_pixels: 0,
+                diff_percentage: 100.0,
+                has_differences: true,
+            });
+        }
+
+        let ext = Path::new(&clean_path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if ext == "svg" {
+            return Err("El diff perceptual de píxeles no aplica a archivos SVG vectoriales (utiliza la vista dividida de 2 paneles o diff de texto)".to_string());
+        }
+
+        // 3. Decodificar ambas imágenes en memoria con la crate `image`
+        let decode_image = |bytes: &[u8]| -> Result<image::RgbaImage, String> {
+            let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes));
+            reader = match reader.with_guessed_format() {
+                Ok(r) => r,
+                Err(_) => {
+                    if let Some(fmt) = image::ImageFormat::from_extension(&ext) {
+                        let mut r2 = image::ImageReader::new(std::io::Cursor::new(bytes));
+                        r2.set_format(fmt);
+                        r2
+                    } else {
+                        return Err(format!("Formato de imagen '{}' no soportado o desconocido", ext));
+                    }
+                }
+            };
+            if reader.format().is_none() {
+                if let Some(fmt) = image::ImageFormat::from_extension(&ext) {
+                    reader.set_format(fmt);
+                }
+            }
+            reader
+                .decode()
+                .map(|img| img.to_rgba8())
+                .map_err(|e| format!("Error decodificando imagen: {}", e))
+        };
+
+        let img1 = decode_image(&old_bytes)
+            .map_err(|e| format!("Error decodificando imagen base de Git: {}", e))?;
+
+        let img2 = decode_image(&new_bytes)
+            .map_err(|e| format!("Error decodificando imagen modificada: {}", e))?;
+
+        // 4. Normalizar dimensiones si difieren
+        let max_w = img1.width().max(img2.width());
+        let max_h = img1.height().max(img2.height());
+
+        let mut canvas1 = image::RgbaImage::new(max_w, max_h);
+        image::imageops::overlay(&mut canvas1, &img1, 0, 0);
+
+        let mut canvas2 = image::RgbaImage::new(max_w, max_h);
+        image::imageops::overlay(&mut canvas2, &img2, 0, 0);
+
+        // Codificar canvas1 y canvas2 en PNG en memoria para alimentar pixelmatch
+        let mut png_buf1 = std::io::Cursor::new(Vec::new());
+        canvas1
+            .write_to(&mut png_buf1, image::ImageFormat::Png)
+            .map_err(|e| format!("Error preparando buffer PNG 1: {}", e))?;
+
+        let mut png_buf2 = std::io::Cursor::new(Vec::new());
+        canvas2
+            .write_to(&mut png_buf2, image::ImageFormat::Png)
+            .map_err(|e| format!("Error preparando buffer PNG 2: {}", e))?;
+
+        let mut out_png_buffer = std::io::Cursor::new(Vec::new());
+
+        // 5. Comparar píxeles con `pixelmatch` directamente en memoria
+        let diff_count = pixelmatch::pixelmatch(
+            std::io::Cursor::new(png_buf1.into_inner()),
+            std::io::Cursor::new(png_buf2.into_inner()),
+            Some(&mut out_png_buffer),
+            Some(max_w),
+            Some(max_h),
+            Some(pixelmatch::Options {
+                threshold: 0.1,
+                include_aa: true,
+                alpha: 0.2,                     // Atenuar fondo no modificado al 20%
+                aa_color: [255, 140, 0, 255],   // Naranja para diferencias de anti-aliasing
+                diff_color: [255, 0, 119, 255], // Magenta brillante para diferencias reales
+                diff_color_alt: None,
+                diff_mask: false,
+            }),
+        )
+        .map_err(|e| format!("Error ejecutando pixelmatch: {}", e))?;
+
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let diff_data_url = format!(
+            "data:image/png;base64,{}",
+            BASE64_STANDARD.encode(out_png_buffer.into_inner())
+        );
+
+        let total_pixels = (max_w * max_h) as usize;
+        let diff_percentage = if total_pixels > 0 {
+            (diff_count as f64 / total_pixels as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(ImageDiff {
+            path: clean_path.to_string(),
+            is_staged: staged,
+            diff_data_url: Some(diff_data_url),
+            diff_count,
+            width: max_w,
+            height: max_h,
+            total_pixels,
+            diff_percentage,
+            has_differences: diff_count > 0 || img1.dimensions() != img2.dimensions(),
+        })
+    }
+
+    pub fn get_file_log(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        max_count: Option<usize>,
+    ) -> Result<FileVersionHistory, String> {
+        let repo =
+            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+        let work_dir = repo.workdir().unwrap_or(vault_path);
+
+        let prefix_from_workdir = vault_path
+            .strip_prefix(work_dir)
+            .ok()
+            .and_then(|p| {
+                let s = p.to_string_lossy().replace('\\', "/");
+                let s = s.trim_matches('/').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+        let path_obj = Path::new(path);
+        let path_str = if let Ok(rel) = path_obj.strip_prefix(vault_path) {
+            rel.to_string_lossy().to_string()
+        } else if let Ok(rel) = path_obj.strip_prefix(work_dir) {
+            rel.to_string_lossy().to_string()
+        } else {
+            path.to_string()
+        };
+
+        let clean_path = path_str.replace('\\', "/");
+        let clean_path = clean_path.trim_start_matches("./");
+        let clean_path = clean_path.trim_start_matches('/');
+
+        if clean_path.is_empty() {
+            return Err("Ruta de archivo no especificada para historial".to_string());
+        }
+
+        let repo_rel_path = match &prefix_from_workdir {
+            Some(prefix) => format!("{}/{}", prefix, clean_path),
+            None => clean_path.to_string(),
+        };
+
+        let limit = max_count.unwrap_or(100).to_string();
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        // %H: commit hash completo
+        // %h: commit hash corto
+        // %an: autor
+        // %ae: email
+        // %aI: fecha estricta ISO-8601
+        // %at: timestamp UNIX
+        // %s: asunto / mensaje
+        cmd.args([
+            "log",
+            "--follow",
+            "--format=%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%s",
+            "-n",
+            &limit,
+            "--",
+            &repo_rel_path,
+        ]);
+
+        let output = cmd.output().map_err(|e| format!("Error ejecutando git log: {}", e))?;
+
+        let mut commits = Vec::new();
+        if output.status.success() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout);
+            for line in stdout_str.lines() {
+                let parts: Vec<&str> = line.split('\x1f').collect();
+                if parts.len() >= 7 {
+                    let commit_hash = parts[0].trim().to_string();
+                    let short_hash = parts[1].trim().to_string();
+                    let author_name = parts[2].trim().to_string();
+                    let author_email = parts[3].trim().to_string();
+                    let date = parts[4].trim().to_string();
+                    let timestamp = parts[5].trim().parse::<i64>().unwrap_or(0);
+                    let message = parts[6].trim().to_string();
+
+                    commits.push(VersionEntry {
+                        commit_hash,
+                        short_hash,
+                        author_name,
+                        author_email,
+                        date,
+                        timestamp,
+                        message,
+                    });
+                }
+            }
+        }
+
+        Ok(FileVersionHistory {
+            path: clean_path.to_string(),
+            commits,
+        })
+    }
+
+    pub fn get_branches(&self, vault_path: &Path) -> Result<BranchList, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let current_branch = repo
+            .head_name()
+            .ok()
+            .flatten()
+            .map(|n| n.shorten().to_string());
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args([
+                "for-each-ref",
+                "--format=%(refname)|%(refname:short)|%(HEAD)|%(upstream:short)|%(committerdate:relative)|%(subject)",
+                "refs/heads",
+                "refs/remotes",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to execute git for-each-ref: {e}"))?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git for-each-ref failed: {err}"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut local_branches = Vec::new();
+        let mut remote_branches = Vec::new();
+
+        for line in stdout.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let parts: Vec<&str> = line.splitn(6, '|').collect();
+            if parts.len() < 6 {
+                continue;
+            }
+
+            let ref_name = parts[0].trim();
+            let short_name = parts[1].trim();
+            let is_head_marker = parts[2].trim() == "*";
+            let upstream_raw = parts[3].trim();
+            let committerdate_rel = parts[4].trim();
+            let subject = parts[5].trim();
+
+            // Filtrar referencias simbólicas remotas como refs/remotes/origin/HEAD
+            if ref_name.starts_with("refs/remotes/") && ref_name.ends_with("/HEAD") {
+                continue;
+            }
+
+            let is_remote = ref_name.starts_with("refs/remotes/");
+            let is_current = is_head_marker
+                || current_branch
+                    .as_ref()
+                    .map(|b| b == short_name)
+                    .unwrap_or(false);
+
+            let branch_item = Branch {
+                name: short_name.to_string(),
+                ref_name: ref_name.to_string(),
+                is_current,
+                is_remote,
+                upstream: if upstream_raw.is_empty() {
+                    None
+                } else {
+                    Some(upstream_raw.to_string())
+                },
+                last_commit_date: if committerdate_rel.is_empty() {
+                    None
+                } else {
+                    Some(committerdate_rel.to_string())
+                },
+                last_commit_message: if subject.is_empty() {
+                    None
+                } else {
+                    Some(subject.to_string())
+                },
+            };
+
+            if is_remote {
+                remote_branches.push(branch_item);
+            } else {
+                local_branches.push(branch_item);
+            }
+        }
+
+        Ok(BranchList {
+            current_branch,
+            local_branches,
+            remote_branches,
+        })
+    }
+
+    pub fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let branch_name = branch_name.trim();
+        if branch_name.is_empty() {
+            return Err("Branch name cannot be empty".to_string());
+        }
+
+        // Si es una rama remota ("origin/foo" o "refs/remotes/origin/foo")
+        let target_branch = if branch_name.starts_with("refs/remotes/") {
+            branch_name.trim_start_matches("refs/remotes/")
+        } else {
+            branch_name
+        };
+
+        // Si empieza con un nombre de remoto (e.g., origin/foo), verificar si existe rama local con ese nombre corto
+        let candidate_local = if let Some((_remote, local_candidate)) = target_branch.split_once('/') {
+            // Verificar si la rama local existe
+            let check_local = std::process::Command::new("git")
+                .current_dir(&work_dir)
+                .args(["rev-parse", "--verify", local_candidate])
+                .output();
+
+            if let Ok(out) = check_local {
+                if out.status.success() {
+                    Some(local_candidate)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let checkout_target = candidate_local.unwrap_or(target_branch);
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .env("LC_ALL", "C")
+            .args(["checkout", checkout_target])
+            .output()
+            .map_err(|e| format!("Failed to execute git checkout: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("overwritten by checkout") || stderr.contains("would be overwritten") {
+                return Err(format!(
+                    "Conflicto: Tienes cambios locales sin guardar que serían sobreescritos al cambiar a '{checkout_target}'. Por favor haz commit o stash antes de cambiar de rama."
+                ));
+            }
+            return Err(format!("Error al cambiar de rama: {}", stderr.trim()));
+        }
+
+        let msg = format!("Cambiado con éxito a la rama '{checkout_target}'");
+        Ok(msg)
+    }
+
+    pub fn create_branch(
+        &self,
+        vault_path: &Path,
+        new_branch: &str,
+        base_branch: &str,
+        checkout: bool,
+    ) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let new_branch = new_branch.trim();
+        let base_branch = base_branch.trim();
+
+        if new_branch.is_empty() {
+            return Err("El nombre de la nueva rama no puede estar vacío".to_string());
+        }
+
+        // Validar formato de nombre con check-ref-format
+        let check_format = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args(["check-ref-format", "--branch", new_branch])
+            .output()
+            .map_err(|e| format!("Error al verificar formato de rama: {e}"))?;
+
+        if !check_format.status.success() {
+            return Err(format!("El nombre de rama '{new_branch}' no es válido según las reglas de Git."));
+        }
+
+        // Verificar si la rama ya existe localmente
+        let check_exists = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .args(["rev-parse", "--verify", &format!("refs/heads/{new_branch}")])
+            .output();
+
+        if let Ok(out) = check_exists {
+            if out.status.success() {
+                return Err(format!("La rama '{new_branch}' ya existe"));
+            }
+        }
+
+        let output = if checkout {
+            if base_branch.is_empty() {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["checkout", "-b", new_branch])
+                    .output()
+            } else {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["checkout", "-b", new_branch, base_branch])
+                    .output()
+            }
+        } else {
+            if base_branch.is_empty() {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["branch", new_branch])
+                    .output()
+            } else {
+                std::process::Command::new("git")
+                    .current_dir(&work_dir)
+                    .args(["branch", new_branch, base_branch])
+                    .output()
+            }
+        }.map_err(|e| format!("Failed to create branch: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Error al crear rama: {}", stderr.trim()));
+        }
+
+        let msg = if checkout {
+            format!("Rama '{new_branch}' creada y activada correctamente")
+        } else {
+            format!("Rama '{new_branch}' creada correctamente a partir de '{base_branch}'")
+        };
+
+        Ok(msg)
+    }
+
+    pub fn git_push(&self, vault_path: &Path) -> Result<String, String> {
+        let repo = gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {e}"))?;
+        let work_dir = repo
+            .workdir()
+            .ok_or_else(|| "Bare repository not supported".to_string())?
+            .to_path_buf();
+
+        let output = std::process::Command::new("git")
+            .current_dir(&work_dir)
+            .arg("push")
+            .output()
+            .map_err(|e| format!("Error al ejecutar git push: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim()
+            } else {
+                stdout.trim()
+            };
+            return Err(format!("git push falló: {detail}"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let out = if !stdout.trim().is_empty() {
+            stdout.trim().to_string()
+        } else if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            "Push completado exitosamente".to_string()
+        };
+
+        Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_git_stash_status() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        let file_b = temp_dir.join("file_b.txt");
+        let file_c = temp_dir.join("file_c.txt");
+
+        std::fs::write(&file_a, "initial a").unwrap();
+        std::fs::write(&file_b, "initial b").unwrap();
+        run_cmd(&["add", "file_a.txt", "file_b.txt"]);
+        run_cmd(&["commit", "-m", "Initial commit"]);
+
+        // 1. Modify file_a and stash it
+        std::fs::write(&file_a, "stash change a").unwrap();
+        run_cmd(&["stash", "push", "-m", "stash 1"]);
+
+        // Working copy:
+        // file_a is clean (reverted to "initial a"), but in stash
+        // file_b is modified (unstaged)
+        // file_c is untracked
+        std::fs::write(&file_b, "modified b").unwrap();
+        std::fs::write(&file_c, "untracked c").unwrap();
+
+        let git_service = VersionControlImpl::new();
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+
+        let stat_a = status.statuses.get("file_a.txt").unwrap();
+        assert!(stat_a.is_stashed);
+        assert_eq!(stat_a.index, None);
+        assert_eq!(stat_a.worktree, None);
+
+        let stat_b = status.statuses.get("file_b.txt").unwrap();
+        assert_eq!(stat_b.worktree.as_deref(), Some("M"));
+        assert_eq!(stat_b.index, None);
+
+        let stat_c = status.statuses.get("file_c.txt").unwrap();
+        assert_eq!(stat_c.worktree.as_deref(), Some("?"));
+
+        // 2. Stage file_b (now it is staged modified 'M')
+        run_cmd(&["add", "file_b.txt"]);
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_b = status.statuses.get("file_b.txt").unwrap();
+        assert_eq!(stat_b.index.as_deref(), Some("M"));
+        assert_eq!(stat_b.worktree, None);
+
+        // 3. Further modify file_b in worktree (now it has staged 'M' AND worktree 'M' -> 'MM'!)
+        std::fs::write(&file_b, "modified b again").unwrap();
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_b = status.statuses.get("file_b.txt").unwrap();
+        assert_eq!(stat_b.index.as_deref(), Some("M"));
+        assert_eq!(stat_b.worktree.as_deref(), Some("M"));
+
+        // 4. Stage a new file (staged added 'A') and then modify it ('AM')
+        let file_new = temp_dir.join("file_new.txt");
+        std::fs::write(&file_new, "new file content").unwrap();
+        run_cmd(&["add", "file_new.txt"]);
+
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_new = status.statuses.get("file_new.txt").unwrap();
+        assert_eq!(stat_new.index.as_deref(), Some("A"));
+        assert_eq!(stat_new.worktree, None);
+
+        std::fs::write(&file_new, "new file content modified").unwrap();
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_new = status.statuses.get("file_new.txt").unwrap();
+        assert_eq!(stat_new.index.as_deref(), Some("A"));
+        assert_eq!(stat_new.worktree.as_deref(), Some("M"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_commit() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_commit_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        let file_b = temp_dir.join("file_b.txt");
+        std::fs::write(&file_a, "initial a").unwrap();
+        std::fs::write(&file_b, "initial b").unwrap();
+
+        let git_service = VersionControlImpl::new();
+        let res = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "commit a");
+        assert!(res.is_ok());
+
+        // Verify status: file_a is committed, file_b is still untracked
+        let status = git_service.get_vault_status(&temp_dir).unwrap();
+        assert!(!status.statuses.contains_key("file_a.txt"));
+        let stat_b = status.statuses.get("file_b.txt").unwrap();
+        assert_eq!(stat_b.worktree.as_deref(), Some("?"));
+
+        // Now modify file_a and commit file_b
+        std::fs::write(&file_a, "modified a").unwrap();
+        let res_b = git_service.git_commit(&temp_dir, &["file_b.txt".to_string()], "commit b");
+        assert!(res_b.is_ok());
+
+        let status2 = git_service.get_vault_status(&temp_dir).unwrap();
+        assert_eq!(status2.statuses.get("file_a.txt").unwrap().worktree.as_deref(), Some("M"));
+        assert!(!status2.statuses.contains_key("file_b.txt"));
+
+        // Test empty message error
+        let err = git_service.git_commit(&temp_dir, &["file_a.txt".to_string()], "   ");
+        assert!(err.is_err());
+
+        // Test delete file_b from disk
+        std::fs::remove_file(&file_b).unwrap();
+        let status3 = git_service.get_vault_status(&temp_dir).unwrap();
+        let stat_b_deleted = status3.statuses.get("file_b.txt").cloned().unwrap();
+        assert_eq!(stat_b_deleted.worktree.as_deref(), Some("D"));
+
+        let res_del = git_service.git_commit(&temp_dir, &["file_b.txt".to_string()], "commit deleted b");
+        assert!(res_del.is_ok());
+        let status4 = git_service.get_vault_status(&temp_dir).unwrap();
+        assert!(!status4.statuses.contains_key("file_b.txt"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_diff() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_diff_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        std::fs::write(&file_a, "line 1\nline 2\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "init"]);
+
+        // 1. Modificar file_a en worktree (diff normal)
+        std::fs::write(&file_a, "line 1\nline 2 mod\nline 3\n").unwrap();
+        let git_service = VersionControlImpl::new();
+        let diff_worktree = git_service.git_diff(&temp_dir, "file_a.txt", false, None).unwrap();
+        assert!(!diff_worktree.is_staged);
+        assert_eq!(diff_worktree.old_content, "line 1\nline 2\n");
+        assert_eq!(diff_worktree.new_content, "line 1\nline 2 mod\nline 3\n");
+        assert!(diff_worktree.diff.contains("+line 2 mod"));
+
+        // 2. Diff de stage debe estar vacío antes de add
+        let diff_staged_empty = git_service.git_diff(&temp_dir, "file_a.txt", true, None).unwrap();
+        assert!(diff_staged_empty.diff.is_empty());
+
+        // 3. Stage del cambio y comprobar diff staged
+        run_cmd(&["add", "file_a.txt"]);
+        let diff_staged = git_service.git_diff(&temp_dir, "file_a.txt", true, None).unwrap();
+        assert!(diff_staged.is_staged);
+        assert_eq!(diff_staged.old_content, "line 1\nline 2\n");
+        assert_eq!(diff_staged.new_content, "line 1\nline 2 mod\nline 3\n");
+        assert!(diff_staged.diff.contains("+line 2 mod"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_branches_and_checkout() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_branches_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let file_a = temp_dir.join("file_a.txt");
+        std::fs::write(&file_a, "initial content\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "initial commit"]);
+
+        let git_service = VersionControlImpl::new();
+
+        // 1. List branches - initially master or main
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert!(!branches.local_branches.is_empty());
+        let current = branches.current_branch.unwrap();
+        assert!(branches.local_branches.iter().any(|b| b.name == current && b.is_current));
+
+        // 2. Create a new branch without checkout
+        let res = git_service.create_branch(&temp_dir, "feature-1", &current, false);
+        assert!(res.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert!(branches.local_branches.iter().any(|b| b.name == "feature-1" && !b.is_current));
+
+        // 3. Checkout branch
+        let checkout_res = git_service.checkout_branch(&temp_dir, "feature-1");
+        assert!(checkout_res.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert_eq!(branches.current_branch.as_deref(), Some("feature-1"));
+
+        // 4. Create another branch with checkout
+        let res2 = git_service.create_branch(&temp_dir, "feature-2", "", true);
+        assert!(res2.is_ok());
+
+        let branches = git_service.get_branches(&temp_dir).unwrap();
+        assert_eq!(branches.current_branch.as_deref(), Some("feature-2"));
+
+        // 5. Test conflict detection on checkout
+        // Modify file_a on feature-2 and commit
+        std::fs::write(&file_a, "feature-2 content\n").unwrap();
+        run_cmd(&["add", "file_a.txt"]);
+        run_cmd(&["commit", "-m", "feature-2 commit"]);
+
+        // Switch back to feature-1
+        git_service.checkout_branch(&temp_dir, "feature-1").unwrap();
+
+        // Make an uncommitted change to file_a that conflicts with feature-2
+        std::fs::write(&file_a, "uncommitted local change\n").unwrap();
+
+        // Try checking out feature-2
+        let conflict_res = git_service.checkout_branch(&temp_dir, "feature-2");
+        assert!(conflict_res.is_err());
+        assert!(conflict_res.unwrap_err().contains("Conflicto"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_restore_and_subdirectories() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_restore_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        // Create a subfolder representing a vault inside a git repository
+        let vault_dir = temp_dir.join("subvault");
+        std::fs::create_dir_all(&vault_dir).unwrap();
+
+        let file_path = vault_dir.join("doc.md");
+        std::fs::write(&file_path, "initial text\n").unwrap();
+
+        run_cmd(&["add", "subvault/doc.md"]);
+        run_cmd(&["commit", "-m", "initial commit"]);
+
+        let git_service = VersionControlImpl::new();
+
+        // 1. Test restore worktree modification in subvault
+        std::fs::write(&file_path, "changed text\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "changed text\n");
+
+        let restore_res = git_service.git_restore(&vault_dir, &["doc.md".to_string()]);
+        assert!(restore_res.is_ok(), "Restore failed: {:?}", restore_res.err());
+        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "initial text\n");
+
+        // 2. Test restore staged in subvault
+        std::fs::write(&file_path, "staged text\n").unwrap();
+        let add_res = git_service.git_add(&vault_dir, &["doc.md".to_string()]);
+        assert!(add_res.is_ok());
+
+        let status = git_service.get_vault_status(&vault_dir).unwrap();
+        let stat = status.statuses.get("doc.md").unwrap();
+        assert_eq!(stat.index.as_deref(), Some("M"));
+
+        let unstage_res = git_service.git_restore_staged(&vault_dir, &["doc.md".to_string()]);
+        assert!(unstage_res.is_ok(), "Restore staged failed: {:?}", unstage_res.err());
+
+        let status_after = git_service.get_vault_status(&vault_dir).unwrap();
+        let stat_after = status_after.statuses.get("doc.md").unwrap();
+        assert_eq!(stat_after.index, None);
+        assert_eq!(stat_after.worktree.as_deref(), Some("M"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_file_revision() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "synapse_git_revision_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let run_cmd = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(&temp_dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&["init"]);
+        run_cmd(&["config", "user.name", "Test User"]);
+        run_cmd(&["config", "user.email", "test@example.com"]);
+
+        let img_path = temp_dir.join("photo.png");
+        let png_bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG signature
+        std::fs::write(&img_path, &png_bytes).unwrap();
+
+        let diagram_path = temp_dir.join("flow.mermaid");
+        std::fs::write(&diagram_path, "graph TD\n  A --> B").unwrap();
+
+        run_cmd(&["add", "photo.png", "flow.mermaid"]);
+        run_cmd(&["commit", "-m", "init commit"]);
+
+        let git_service = VersionControlImpl::new();
+
+        // 1. Extraer imagen desde HEAD
+        let img_rev = git_service.get_file_revision(&temp_dir, "photo.png", "HEAD").unwrap();
+        assert!(img_rev.exists);
+        assert!(img_rev.is_binary);
+        assert!(img_rev.data_url.is_some());
+        assert!(img_rev.data_url.unwrap().starts_with("data:image/png;base64,"));
+
+        // 2. Extraer texto desde HEAD
+        let mmd_rev = git_service.get_file_revision(&temp_dir, "flow.mermaid", "HEAD").unwrap();
+        assert!(mmd_rev.exists);
+        assert!(!mmd_rev.is_binary);
+        assert_eq!(mmd_rev.content.as_deref(), Some("graph TD\n  A --> B"));
+
+        // 3. Modificar y comprobar revisión staged vs HEAD
+        std::fs::write(&diagram_path, "graph TD\n  A --> C").unwrap();
+        run_cmd(&["add", "flow.mermaid"]);
+        let mmd_staged = git_service.get_file_revision(&temp_dir, "flow.mermaid", "staged").unwrap();
+        assert_eq!(mmd_staged.content.as_deref(), Some("graph TD\n  A --> C"));
+
+        // 4. Test diff perceptual de imagen en memoria
+        let mut img_a = image::RgbaImage::new(10, 10);
+        let mut img_b = image::RgbaImage::new(10, 10);
+        for x in 0..10 {
+            for y in 0..10 {
+                img_a.put_pixel(x, y, image::Rgba([255, 255, 255, 255]));
+                img_b.put_pixel(x, y, image::Rgba([255, 255, 255, 255]));
+            }
+        }
+        // Modificar 2 píxeles en img_b
+        img_b.put_pixel(0, 0, image::Rgba([0, 0, 0, 255]));
+        img_b.put_pixel(1, 1, image::Rgba([0, 0, 0, 255]));
+
+        let mut buf_a = std::io::Cursor::new(Vec::new());
+        img_a.write_to(&mut buf_a, image::ImageFormat::Png).unwrap();
+        std::fs::write(&img_path, buf_a.into_inner()).unwrap();
+        run_cmd(&["add", "photo.png"]);
+        run_cmd(&["commit", "-m", "update photo"]);
+
+        let mut buf_b = std::io::Cursor::new(Vec::new());
+        img_b.write_to(&mut buf_b, image::ImageFormat::Png).unwrap();
+        let bytes_b = buf_b.into_inner();
+        std::fs::write(&img_path, &bytes_b).unwrap();
+
+        let image_diff_res = git_service.get_image_diff(&temp_dir, "photo.png", false, None).unwrap();
+        assert!(image_diff_res.has_differences);
+        assert_eq!(image_diff_res.diff_count, 2);
+        assert!(image_diff_res.diff_data_url.is_some());
+        assert!(image_diff_res.diff_data_url.unwrap().starts_with("data:image/png;base64,"));
+
+        // 5. Test resolución de apuntador Git LFS simulado
+        let lfs_oid = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let lfs_pointer = format!(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n",
+            lfs_oid,
+            bytes_b.len()
+        );
+        // Guardar el binario real en .git/lfs/objects/01/23/...
+        let lfs_obj_dir = temp_dir.join(".git").join("lfs").join("objects").join("01").join("23");
+        std::fs::create_dir_all(&lfs_obj_dir).unwrap();
+        std::fs::write(lfs_obj_dir.join(lfs_oid), &bytes_b).unwrap();
+
+        // Commitear el apuntador LFS como si fuera un commit de Git LFS
+        let lfs_img_path = temp_dir.join("lfs_photo.png");
+        std::fs::write(&lfs_img_path, lfs_pointer.as_bytes()).unwrap();
+        run_cmd(&["add", "lfs_photo.png"]);
+        run_cmd(&["commit", "-m", "add lfs photo pointer"]);
+
+        // Modificar localmente para generar diff
+        std::fs::write(&lfs_img_path, &bytes_b).unwrap();
+
+        let lfs_rev = git_service.get_file_revision(&temp_dir, "lfs_photo.png", "HEAD").unwrap();
+        assert!(lfs_rev.exists);
+        assert!(lfs_rev.is_binary);
+        let lfs_url = lfs_rev.data_url.unwrap();
+        assert!(lfs_url.starts_with("data:image/png;base64,"));
+        // El contenido resuelto no debe ser el texto del pointer
+        use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+        use base64::Engine;
+        let decoded_payload = BASE64_STANDARD.decode(&lfs_url["data:image/png;base64,".len()..]).unwrap();
+        assert_eq!(decoded_payload, bytes_b);
+
+        // 6. Test get_file_log y diff con revisión específica
+        let log_res = git_service.get_file_log(&temp_dir, "photo.png", None).unwrap();
+        assert_eq!(log_res.commits.len(), 2);
+        assert_eq!(log_res.commits[0].message, "update photo");
+        assert_eq!(log_res.commits[1].message, "init commit");
+
+        // Diff contra el commit "update photo" usando su hash
+        let update_commit_hash = &log_res.commits[0].commit_hash;
+        let diff_with_rev = git_service.get_image_diff(&temp_dir, "photo.png", false, Some(update_commit_hash)).unwrap();
+        assert!(diff_with_rev.has_differences);
+        assert_eq!(diff_with_rev.diff_count, 2);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_git_clone_repository() {
+        let origin_dir = std::env::temp_dir().join(format!(
+            "synapse_git_origin_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let clone_dir = std::env::temp_dir().join(format!(
+            "synapse_git_clone_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&origin_dir).unwrap();
+
+        let run_cmd = |dir: &Path, args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        };
+
+        run_cmd(&origin_dir, &["init"]);
+        run_cmd(&origin_dir, &["config", "user.name", "Test User"]);
+        run_cmd(&origin_dir, &["config", "user.email", "test@example.com"]);
+        std::fs::write(origin_dir.join("test.txt"), "hello world").unwrap();
+        run_cmd(&origin_dir, &["add", "test.txt"]);
+        run_cmd(&origin_dir, &["commit", "-m", "init clone repo"]);
+
+        let git_service = VersionControlImpl::new();
+        let clone_url = origin_dir.to_string_lossy().to_string();
+        let res = git_service.clone_repository(&clone_url, &clone_dir);
+        assert!(res.is_ok());
+        assert!(clone_dir.join("test.txt").exists());
+
+        // Test invalid url
+        let empty_res = git_service.clone_repository("", &clone_dir);
+        assert!(empty_res.is_err());
+
+        let _ = std::fs::remove_dir_all(&origin_dir);
+        let _ = std::fs::remove_dir_all(&clone_dir);
+    }
+}
