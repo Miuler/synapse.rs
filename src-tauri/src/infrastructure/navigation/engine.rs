@@ -1,9 +1,10 @@
 use crate::domain::model::note::Note;
+use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use compact_str::CompactString;
 use dashmap::{DashMap, DashSet};
 use nucleo::{Config, Nucleo, Utf32String};
 use serde::ser::{SerializeSeq, Serializer};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -20,29 +21,6 @@ use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher
 use crate::domain::event::vault_events::{VaultChange, VaultChangeObserver};
 use crate::domain::model::file_types::SupportedFileTypes;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct OpenTabDto {
-    pub path: String,
-    pub view_mode: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct WorkspaceOpenTabsState {
-    pub open_tabs: Vec<OpenTabDto>,
-    pub active_tab: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub struct VaultUiState {
-    pub sidebar_width: Option<u32>,
-    pub expanded_folders: Vec<String>,
-    #[serde(default)]
-    pub diff_visual_mode: Option<String>,
-    #[serde(default)]
-    pub diff_text_mode: Option<String>,
-    #[serde(default)]
-    pub locked_files: Vec<String>,
-}
 
 /// Statistics reported during reconciliation.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

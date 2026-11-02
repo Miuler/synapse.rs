@@ -7,3 +7,4 @@ pub mod pdf_document_repository;
 pub mod vault_item_repository;
 pub mod version_control;
 pub mod workspace_registry_repository;
+pub mod workspace_session_repository;

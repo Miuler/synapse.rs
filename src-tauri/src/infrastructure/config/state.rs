@@ -1,3 +1,12 @@
+use crate::application::use_cases::session::record_note_opened_use_case::RecordNoteOpenedUseCase;
+use crate::application::use_cases::session::get_recent_notes_use_case::GetRecentNotesUseCase;
+use crate::application::use_cases::session::save_open_tabs_use_case::SaveOpenTabsUseCase;
+use crate::application::use_cases::session::get_open_tabs_use_case::GetOpenTabsUseCase;
+use crate::application::use_cases::session::set_note_view_mode_use_case::SetNoteViewModeUseCase;
+use crate::application::use_cases::session::get_note_view_mode_use_case::GetNoteViewModeUseCase;
+use crate::application::use_cases::session::save_vault_ui_state_use_case::SaveVaultUiStateUseCase;
+use crate::application::use_cases::session::get_vault_ui_state_use_case::GetVaultUiStateUseCase;
+use crate::infrastructure::repository::navigation::workspace_session_repository_impl::WorkspaceSessionRepositoryImpl;
 use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery;
 use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
 use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
@@ -86,6 +95,14 @@ impl McpContextProvider for DynamicMcpContextProvider {
 }
 
 pub struct AppState {
+    pub record_note_opened_use_case: RecordNoteOpenedUseCase<WorkspaceSessionRepositoryImpl>,
+    pub get_recent_notes_use_case: GetRecentNotesUseCase<WorkspaceSessionRepositoryImpl>,
+    pub save_open_tabs_use_case: SaveOpenTabsUseCase<WorkspaceSessionRepositoryImpl>,
+    pub get_open_tabs_use_case: GetOpenTabsUseCase<WorkspaceSessionRepositoryImpl>,
+    pub set_note_view_mode_use_case: SetNoteViewModeUseCase<WorkspaceSessionRepositoryImpl>,
+    pub get_note_view_mode_use_case: GetNoteViewModeUseCase<WorkspaceSessionRepositoryImpl>,
+    pub save_vault_ui_state_use_case: SaveVaultUiStateUseCase<WorkspaceSessionRepositoryImpl>,
+    pub get_vault_ui_state_use_case: GetVaultUiStateUseCase<WorkspaceSessionRepositoryImpl>,
     pub delete_vault_item_use_case: DeleteVaultItemUseCase<VaultItemRepositoryImpl>,
     pub rename_vault_item_use_case: RenameVaultItemUseCase<VaultItemRepositoryImpl, VersionControlImpl>,
     pub move_vault_items_use_case: MoveVaultItemsUseCase<VaultItemRepositoryImpl, VersionControlImpl>,
@@ -127,7 +144,7 @@ pub struct AppState {
     pub check_plugin_updates_use_case: CheckPluginUpdatesUseCase<CommunityPluginDownloaderImpl>,
     pub install_plugin_use_case: InstallPluginUseCase<CommunityPluginDownloaderImpl>,
     pub uninstall_plugin_use_case: UninstallPluginUseCase<CommunityPluginDownloaderImpl>,
-    pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
+    pub navigation_engine: Arc<Mutex<Option<Arc<NavigationEngine>>>>,
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
     pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
@@ -230,6 +247,9 @@ impl AppState {
             });
         }));
 
+        let navigation_engine = Arc::new(Mutex::new(None));
+        let sessions = WorkspaceSessionRepositoryImpl::new(Arc::clone(&navigation_engine));
+
         Self {
             active_vault_path,
             file_types,
@@ -272,7 +292,15 @@ impl AppState {
             push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
-            navigation_engine: Mutex::new(None),
+            record_note_opened_use_case: RecordNoteOpenedUseCase::new(sessions.clone()),
+            get_recent_notes_use_case: GetRecentNotesUseCase::new(sessions.clone()),
+            save_open_tabs_use_case: SaveOpenTabsUseCase::new(sessions.clone()),
+            get_open_tabs_use_case: GetOpenTabsUseCase::new(sessions.clone()),
+            set_note_view_mode_use_case: SetNoteViewModeUseCase::new(sessions.clone()),
+            get_note_view_mode_use_case: GetNoteViewModeUseCase::new(sessions.clone()),
+            save_vault_ui_state_use_case: SaveVaultUiStateUseCase::new(sessions.clone()),
+            get_vault_ui_state_use_case: GetVaultUiStateUseCase::new(sessions.clone()),
+            navigation_engine,
             full_text,
             app_handle,
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
@@ -320,6 +348,9 @@ impl AppState {
 
         mcp_runtime.sync_for_vault(&initial_vault_path);
 
+        let navigation_engine = Arc::new(Mutex::new(Some(engine)));
+        let sessions = WorkspaceSessionRepositoryImpl::new(Arc::clone(&navigation_engine));
+
         Self {
             active_vault_path,
             file_types,
@@ -362,7 +393,15 @@ impl AppState {
             push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
-            navigation_engine: Mutex::new(Some(engine)),
+            record_note_opened_use_case: RecordNoteOpenedUseCase::new(sessions.clone()),
+            get_recent_notes_use_case: GetRecentNotesUseCase::new(sessions.clone()),
+            save_open_tabs_use_case: SaveOpenTabsUseCase::new(sessions.clone()),
+            get_open_tabs_use_case: GetOpenTabsUseCase::new(sessions.clone()),
+            set_note_view_mode_use_case: SetNoteViewModeUseCase::new(sessions.clone()),
+            get_note_view_mode_use_case: GetNoteViewModeUseCase::new(sessions.clone()),
+            save_vault_ui_state_use_case: SaveVaultUiStateUseCase::new(sessions.clone()),
+            get_vault_ui_state_use_case: GetVaultUiStateUseCase::new(sessions.clone()),
+            navigation_engine,
             full_text,
             app_handle,
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),

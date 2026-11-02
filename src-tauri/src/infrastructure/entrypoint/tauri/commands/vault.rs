@@ -243,11 +243,14 @@ pub fn read_note_content(
             }
         }
     };
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
-            engine.record_opened(&relative_path);
-            note.view_mode = engine.get_note_view_mode(&relative_path);
-        }
+    let _ = state
+        .record_note_opened_use_case
+        .execute(crate::application::dto::session::record_note_opened_command::RecordNoteOpenedCommand { relative_path: relative_path.clone() });
+    if let Ok(view_mode) = state
+        .get_note_view_mode_use_case
+        .execute(crate::application::dto::session::get_note_view_mode_query::GetNoteViewModeQuery { relative_path: relative_path.clone() })
+    {
+        note.view_mode = view_mode;
     }
     Ok(note)
 }

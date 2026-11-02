@@ -15,3 +15,4 @@ pub mod tag;
 pub mod version;
 pub mod wikilink;
 pub mod workspace_registry;
+pub mod workspace_session;

@@ -1,4 +1,4 @@
-use crate::infrastructure::navigation::engine::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use crate::infrastructure::config::state::AppState;
 use tauri::State;
 
@@ -7,11 +7,10 @@ pub fn record_note_opened(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<(), String> {
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
-            engine.record_opened(&relative_path);
-        }
-    }
+    // Registrar lo abierto es auxiliar: un fallo no debe impedir abrir la nota
+    let _ = state
+        .record_note_opened_use_case
+        .execute(crate::application::dto::session::record_note_opened_command::RecordNoteOpenedCommand { relative_path });
     Ok(())
 }
 
@@ -20,12 +19,9 @@ pub fn get_recent_notes_command(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<String>, String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    let Some(ref engine) = *guard else {
-        return Ok(Vec::new());
-    };
-    let recent = engine.get_recent_notes(limit.unwrap_or(15));
-    Ok(recent.into_iter().map(|n| n.path.to_string()).collect())
+    state
+        .get_recent_notes_use_case
+        .execute(crate::application::dto::session::get_recent_notes_query::GetRecentNotesQuery { limit: limit.unwrap_or(15) })
 }
 
 #[tauri::command]
@@ -34,25 +30,18 @@ pub fn save_open_tabs_state(
     tabs: Vec<OpenTabDto>,
     active_tab: Option<String>,
 ) -> Result<(), String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    if let Some(ref engine) = *guard {
-        engine.save_open_tabs_state(&tabs, active_tab.as_deref());
-    }
-    Ok(())
+    state
+        .save_open_tabs_use_case
+        .execute(crate::application::dto::session::save_open_tabs_command::SaveOpenTabsCommand { tabs, active_tab })
 }
 
 #[tauri::command]
 pub fn get_open_tabs_state(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceOpenTabsState, String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    let Some(ref engine) = *guard else {
-        return Ok(WorkspaceOpenTabsState {
-            open_tabs: Vec::new(),
-            active_tab: None,
-        });
-    };
-    Ok(engine.get_open_tabs_state())
+    state
+        .get_open_tabs_use_case
+        .execute(crate::application::dto::session::get_open_tabs_query::GetOpenTabsQuery {})
 }
 
 #[tauri::command]
@@ -61,11 +50,9 @@ pub fn set_note_view_mode(
     relative_path: String,
     view_mode: String,
 ) -> Result<(), String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    if let Some(ref engine) = *guard {
-        engine.set_note_view_mode(&relative_path, &view_mode);
-    }
-    Ok(())
+    state
+        .set_note_view_mode_use_case
+        .execute(crate::application::dto::session::set_note_view_mode_command::SetNoteViewModeCommand { relative_path, view_mode })
 }
 
 #[tauri::command]
@@ -77,28 +64,24 @@ pub fn save_vault_ui_state(
     diff_text_mode: Option<String>,
     locked_files: Option<Vec<String>>,
 ) -> Result<(), String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    if let Some(ref engine) = *guard {
-        engine.save_vault_ui_state(
+    state
+        .save_vault_ui_state_use_case
+        .execute(crate::application::dto::session::save_vault_ui_state_command::SaveVaultUiStateCommand {
             sidebar_width,
             expanded_folders,
             diff_visual_mode,
             diff_text_mode,
             locked_files,
-        );
-    }
-    Ok(())
+        })
 }
 
 #[tauri::command]
 pub fn get_vault_ui_state(
     state: State<'_, AppState>,
 ) -> Result<VaultUiState, String> {
-    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    let Some(ref engine) = *guard else {
-        return Ok(VaultUiState::default());
-    };
-    Ok(engine.get_vault_ui_state())
+    state
+        .get_vault_ui_state_use_case
+        .execute(crate::application::dto::session::get_vault_ui_state_query::GetVaultUiStateQuery {})
 }
 
 /// Límites (porcentaje del ancho) permitidos para el panel de código de un diagrama.
