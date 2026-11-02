@@ -1,4 +1,3 @@
-pub mod mcp_use_cases;
 pub mod note;
 pub mod plugin;
 pub mod search;

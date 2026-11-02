@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
+use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
@@ -54,7 +54,7 @@ fn main() {
         // Inicializar VersionControlImpl
         let git_service = Some(Arc::new(VersionControlImpl));
 
-        let mcp_use_cases = McpUseCases::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+        let mcp_use_cases = McpToolHandler::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
         let mcp_server = McpStdioServer::new(mcp_use_cases);
 
         let stdin = io::stdin();

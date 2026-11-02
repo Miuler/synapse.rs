@@ -1,5 +1,5 @@
 use crate::domain::model::full_text::FullTextQuery;
-use crate::domain::model::mcp::*;
+use crate::infrastructure::entrypoint::mcp::dto::*;
 use crate::domain::model::note::Note;
 use crate::domain::repository::note_repository::NoteRepository;
 use crate::domain::service::frontmatter_service;
@@ -261,8 +261,13 @@ pub fn generate_unified_diff(old_text: &str, new_text: &str, file_name: &str) ->
     output
 }
 
+// TODO: este manejador mezcla el protocolo MCP (argumentos y respuestas JSON) con la
+// orquestación de cada herramienta. Pendiente: extraer la orquestación de cada herramienta a un
+// caso de uso en `application/use_cases` (reutilizando los que ya usa el front: leer y guardar
+// notas, búsqueda, versionado, mover elementos) y dejar aquí solo la traducción de JSON.
+// Tampoco debería consultar el disco con `Path::exists`/`is_dir`: van detrás de los repositorios.
 /// Casos de uso de MCP enriquecidos con búsqueda Full-Text, Grafo/Backlinks, Git y Multimodalidad.
-pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
+pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
     vault_path: PathBuf,
     note_repository: R,
     full_text_index: Option<Arc<I>>,
@@ -271,7 +276,7 @@ pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionC
     pdf_documents: Arc<dyn PdfDocumentRepository>,
 }
 
-impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCases<R, I, G> {
+impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHandler<R, I, G> {
     pub fn new(
         vault_path: PathBuf,
         note_repository: R,

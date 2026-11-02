@@ -1,5 +1,5 @@
-use crate::application::use_cases::mcp_use_cases::McpUseCases;
-use crate::domain::model::mcp::*;
+use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
+use crate::infrastructure::entrypoint::mcp::dto::*;
 use crate::domain::repository::note_repository::NoteRepository;
 use crate::domain::repository::full_text_index::FullTextIndex;
 use crate::domain::repository::version_control::VersionControl;
@@ -17,11 +17,11 @@ use std::time::Duration;
 
 /// Servidor MCP local que se comunica a través de entrada/salida estándar (stdio) con JSON-RPC 2.0.
 pub struct McpStdioServer<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
-    use_cases: McpUseCases<R, I, G>,
+    use_cases: McpToolHandler<R, I, G>,
 }
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioServer<R, I, G> {
-    pub fn new(use_cases: McpUseCases<R, I, G>) -> Self {
+    pub fn new(use_cases: McpToolHandler<R, I, G>) -> Self {
         Self { use_cases }
     }
 
@@ -485,7 +485,7 @@ impl McpBackgroundRuntime {
             let note_repo = NoteRepositoryImpl::new();
             let git_service = Some(Arc::new(VersionControlImpl));
 
-            let use_cases = McpUseCases::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+            let use_cases = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
             let stdio_server = McpStdioServer::new(use_cases);
 
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {

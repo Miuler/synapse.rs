@@ -1,4 +1,4 @@
-use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
+use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
@@ -36,7 +36,7 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     let full_text_index = FullTextIndexImpl::open_or_create(&fts_dir).ok().map(Arc::new);
     let git_service = Some(Arc::new(VersionControlImpl));
 
-    let use_cases = McpUseCases::new(vault_path.clone(), note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+    let use_cases = McpToolHandler::new(vault_path.clone(), note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
     let server = McpStdioServer::new(use_cases);
 
     // 1. Test initialize
@@ -428,7 +428,7 @@ fn test_mcp_workspace_reopen_auto_activation() {
 
 #[test]
 fn test_mcp_evolved_tools_suite() {
-    use app_lib::application::use_cases::mcp_use_cases::McpUseCases;
+    use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
     use app_lib::domain::model::note::Note;
     use app_lib::domain::repository::note_repository::NoteRepository;
     use app_lib::domain::model::note_path::NoteRelativePath;
@@ -472,7 +472,7 @@ A[Cliente ACP] --> B[Servidor MCP]
     let note = Note::with_encoding(rel_path.clone(), "".to_string(), "Arquitectura Synapse".to_string(), initial_content.to_string(), "UTF-8".to_string());
     repo.save_note(&vault_path, &note).unwrap();
 
-    let use_cases = McpUseCases::new(
+    let use_cases = McpToolHandler::new(
         vault_path.clone(),
         NoteRepositoryImpl::new(),
         None::<Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>,

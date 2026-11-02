@@ -98,3 +98,15 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   perderlas: Synapse→agente (iniciar, enviar prompt, cancelar) es un servicio externo en
   `application/service`; agente→Synapse (leer, escribir, permisos, avances) es un punto de
   entrada en `infrastructure/entrypoint` que llama a casos de uso.
+
+## Deuda registrada durante la migración
+
+- **MCP (etapa 3c):** `McpUseCases` pasó a `infrastructure/entrypoint/mcp/tool_handler.rs`
+  como `McpToolHandler`, y los tipos del protocolo a `entrypoint/mcp/dto.rs`. Falta extraer la
+  orquestación de cada herramienta a su caso de uso (reutilizando los del front) y quitar los
+  `Path::exists`/`is_dir` directos. Marcado con `TODO:` en el archivo.
+- **`log` en casos de uso:** `RenameVaultItemUseCase`, `MoveVaultItemsUseCase` y
+  `ListNotesUseCase` usan `log::warn!`/`debug!`. Falta añadir `log` a la lista de librerías
+  permitidas o sacarlo.
+- **Quick Open:** los empates con el mismo nombre de archivo y puntaje dependen del orden del
+  `DashMap` (ver `arquitectura_mediciones.md`).
