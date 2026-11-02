@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Servicio de infraestructura para operaciones de sistema de archivos dentro de la bóveda.
+#[derive(Clone)]
 pub struct VaultItemRepositoryImpl;
 
 impl VaultItemRepositoryImpl {

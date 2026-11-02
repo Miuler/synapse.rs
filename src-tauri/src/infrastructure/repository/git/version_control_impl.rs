@@ -10,6 +10,10 @@ use std::path::Path;
 pub struct VersionControlImpl;
 
 impl VersionControl for VersionControlImpl {
+    fn is_tracked(&self, vault_path: &Path, relative_path: &str) -> bool {
+        VersionControlImpl::is_tracked(self, vault_path, relative_path)
+    }
+
     fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
         self.get_vault_status(vault_path)
     }

@@ -1,3 +1,10 @@
+use crate::application::dto::vault_item::copy_vault_items_command::CopyVaultItemsCommand;
+use crate::application::dto::vault_item::create_folder_command::CreateFolderCommand;
+use crate::application::dto::vault_item::delete_vault_item_command::DeleteVaultItemCommand;
+use crate::application::dto::vault_item::move_vault_items_command::MoveVaultItemsCommand;
+use crate::application::dto::vault_item::read_binary_vault_item_query::ReadBinaryVaultItemQuery;
+use crate::application::dto::vault_item::rename_vault_item_command::RenameVaultItemCommand;
+use crate::application::dto::vault_item::write_binary_vault_item_command::WriteBinaryVaultItemCommand;
 use crate::infrastructure::config::state::AppState;
 use tauri::State;
 
@@ -8,7 +15,10 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.file_system_use_cases.delete_item(vault_path, &relative_path)?;
+    state.delete_vault_item_use_case.execute(DeleteVaultItemCommand {
+        vault_path: vault_path.clone(),
+        relative_path,
+    })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -33,19 +43,11 @@ pub fn rename_vault_item(
         }
     };
 
-    // Si estaba versionado, el renombrado se deja preparado en el índice (git detecta el rename)
-    let was_tracked = crate::infrastructure::repository::git::version_control_impl::VersionControlImpl::new()
-        .is_tracked(&vault_path, &relative_path);
-
-    let renamed_path = state.file_system_use_cases.rename_item(&vault_path, &relative_path, &new_name)?;
-    if was_tracked && renamed_path != relative_path {
-        if let Err(err) = state
-            .git_use_cases
-            .add_paths(&vault_path, &[relative_path.clone(), renamed_path.clone()])
-        {
-            log::warn!("[rename_vault_item] No se pudo preparar el renombrado en git: {}", err);
-        }
-    }
+    let renamed_path = state.rename_vault_item_use_case.execute(RenameVaultItemCommand {
+        vault_path,
+        relative_path,
+        new_name,
+    })?;
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
@@ -77,26 +79,15 @@ pub fn move_vault_items(
         }
     };
 
-    let git = crate::infrastructure::repository::git::version_control_impl::VersionControlImpl::new();
-    let mut moved = Vec::with_capacity(paths.len());
-    let mut first_error: Option<String> = None;
-    for source in &paths {
-        let was_tracked = git.is_tracked(&vault_path, source);
-        match state.file_system_use_cases.move_item(&vault_path, source, &dest_dir) {
-            Ok(to) if &to != source => {
-                if was_tracked {
-                    if let Err(err) = state.git_use_cases.add_paths(&vault_path, &[source.clone(), to.clone()]) {
-                        log::warn!("[move_vault_items] No se pudo preparar el movimiento en git: {}", err);
-                    }
-                }
-                moved.push(MovedItem { from: source.clone(), to });
-            }
-            Ok(_) => {}
-            Err(err) => {
-                first_error.get_or_insert(err);
-            }
-        }
-    }
+    let result = state.move_vault_items_use_case.execute(MoveVaultItemsCommand {
+        vault_path,
+        paths,
+        dest_dir,
+    });
+    let moved: Vec<MovedItem> = match result {
+        Ok(items) => items.into_iter().map(|m| MovedItem { from: m.from, to: m.to }).collect(),
+        Err(err) => return Err(err),
+    };
 
     if !moved.is_empty() {
         if let Ok(guard) = state.navigation_engine.lock() {
@@ -105,11 +96,7 @@ pub fn move_vault_items(
             }
         }
     }
-    // Si algo se movió se devuelve lo hecho; el error solo se propaga cuando no se movió nada
-    match (moved.is_empty(), first_error) {
-        (true, Some(err)) => Err(err),
-        _ => Ok(moved),
-    }
+    Ok(moved)
 }
 
 /// Pega (copia) los elementos indicados dentro de `dest_dir`.
@@ -128,7 +115,11 @@ pub fn copy_vault_items(
         }
     };
 
-    let created = state.file_system_use_cases.copy_items(&vault_path, &paths, &dest_dir)?;
+    let created = state.copy_vault_items_use_case.execute(CopyVaultItemsCommand {
+        vault_path,
+        paths,
+        dest_dir,
+    })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -164,7 +155,10 @@ pub fn read_binary_file(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.file_system_use_cases.read_binary_item(vault_path, &relative_path)
+    state.read_binary_vault_item_use_case.execute(ReadBinaryVaultItemQuery {
+        vault_path: vault_path.clone(),
+        relative_path,
+    })
 }
 
 #[tauri::command]
@@ -178,9 +172,11 @@ pub fn write_binary_file(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state
-        .file_system_use_cases
-        .write_binary_item(vault_path, &relative_path, &data)?;
+    state.write_binary_vault_item_use_case.execute(WriteBinaryVaultItemCommand {
+        vault_path: vault_path.clone(),
+        relative_path,
+        bytes: data,
+    })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -201,9 +197,10 @@ pub fn create_vault_folder(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state
-        .file_system_use_cases
-        .create_folder(vault_path, &relative_path)?;
+    state.create_folder_use_case.execute(CreateFolderCommand {
+        vault_path: vault_path.clone(),
+        relative_path,
+    })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {

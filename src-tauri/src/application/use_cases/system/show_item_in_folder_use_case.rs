@@ -1,13 +1,14 @@
-use crate::application::dto::show_item_in_folder_command::ShowItemInFolderCommand;
+use crate::application::dto::system::show_item_in_folder_command::ShowItemInFolderCommand;
 use crate::application::service::system_shell::SystemShell;
 
 /// Muestra y resalta un archivo o carpeta de la bóveda en el explorador nativo del sistema.
-pub struct ShowItemInFolderUseCase<S: SystemShell> {
-    shell: S,
+#[derive(Clone)]
+pub struct ShowItemInFolderUseCase<A: SystemShell> {
+    shell: A,
 }
 
-impl<S: SystemShell> ShowItemInFolderUseCase<S> {
-    pub fn new(shell: S) -> Self {
+impl<A: SystemShell> ShowItemInFolderUseCase<A> {
+    pub fn new(shell: A) -> Self {
         Self { shell }
     }
 

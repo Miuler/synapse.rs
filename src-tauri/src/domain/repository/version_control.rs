@@ -6,6 +6,7 @@ use std::path::Path;
 
 pub trait VersionControl: Send + Sync {
     fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String>;
+    fn is_tracked(&self, vault_path: &Path, relative_path: &str) -> bool;
     fn track(&self, vault_path: &Path, paths: &[String]) -> Result<(), String>;
     fn revert(&self, vault_path: &Path, paths: &[String]) -> Result<(), String>;
     fn untrack(&self, vault_path: &Path, paths: &[String]) -> Result<(), String>;

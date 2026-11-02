@@ -1,11 +1,30 @@
+use crate::application::use_cases::vault_item::delete_vault_item_use_case::DeleteVaultItemUseCase;
+use crate::application::use_cases::vault_item::rename_vault_item_use_case::RenameVaultItemUseCase;
+use crate::application::use_cases::vault_item::move_vault_items_use_case::MoveVaultItemsUseCase;
+use crate::application::use_cases::vault_item::copy_vault_items_use_case::CopyVaultItemsUseCase;
+use crate::application::use_cases::vault_item::read_binary_vault_item_use_case::ReadBinaryVaultItemUseCase;
+use crate::application::use_cases::vault_item::write_binary_vault_item_use_case::WriteBinaryVaultItemUseCase;
+use crate::application::use_cases::vault_item::create_folder_use_case::CreateFolderUseCase;
+use crate::application::use_cases::version::get_vault_version_state_use_case::GetVaultVersionStateUseCase;
+use crate::application::use_cases::version::track_files_use_case::TrackFilesUseCase;
+use crate::application::use_cases::version::revert_files_use_case::RevertFilesUseCase;
+use crate::application::use_cases::version::untrack_files_use_case::UntrackFilesUseCase;
+use crate::application::use_cases::version::save_version_use_case::SaveVersionUseCase;
+use crate::application::use_cases::version::get_file_diff_use_case::GetFileDiffUseCase;
+use crate::application::use_cases::version::get_file_revision_use_case::GetFileRevisionUseCase;
+use crate::application::use_cases::version::get_image_diff_use_case::GetImageDiffUseCase;
+use crate::application::use_cases::version::get_file_version_history_use_case::GetFileVersionHistoryUseCase;
+use crate::application::use_cases::version::get_branches_use_case::GetBranchesUseCase;
+use crate::application::use_cases::version::checkout_branch_use_case::CheckoutBranchUseCase;
+use crate::application::use_cases::version::create_branch_use_case::CreateBranchUseCase;
+use crate::application::use_cases::version::clone_repository_use_case::CloneRepositoryUseCase;
+use crate::application::use_cases::version::push_versions_use_case::PushVersionsUseCase;
+use crate::application::use_cases::system::open_file_with_default_app_use_case::OpenFileWithDefaultAppUseCase;
+use crate::application::use_cases::system::show_item_in_folder_use_case::ShowItemInFolderUseCase;
 use crate::application::use_cases::community_plugin_use_cases::CommunityPluginUseCases;
-use crate::application::use_cases::file_system_use_cases::FileSystemUseCases;
-use crate::application::use_cases::open_file_with_default_app_use_case::OpenFileWithDefaultAppUseCase;
-use crate::application::use_cases::show_item_in_folder_use_case::ShowItemInFolderUseCase;
 use crate::infrastructure::repository::file::installed_plugin_repository_impl::InstalledPluginRepositoryImpl;
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
-use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
 use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
 use crate::domain::model::file_types::SupportedFileTypes;
@@ -50,13 +69,32 @@ impl McpContextProvider for DynamicMcpContextProvider {
 }
 
 pub struct AppState {
+    pub delete_vault_item_use_case: DeleteVaultItemUseCase<VaultItemRepositoryImpl>,
+    pub rename_vault_item_use_case: RenameVaultItemUseCase<VaultItemRepositoryImpl, VersionControlImpl>,
+    pub move_vault_items_use_case: MoveVaultItemsUseCase<VaultItemRepositoryImpl, VersionControlImpl>,
+    pub copy_vault_items_use_case: CopyVaultItemsUseCase<VaultItemRepositoryImpl>,
+    pub read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase<VaultItemRepositoryImpl>,
+    pub write_binary_vault_item_use_case: WriteBinaryVaultItemUseCase<VaultItemRepositoryImpl>,
+    pub create_folder_use_case: CreateFolderUseCase<VaultItemRepositoryImpl>,
+    pub get_vault_version_state_use_case: GetVaultVersionStateUseCase<VersionControlImpl>,
+    pub track_files_use_case: TrackFilesUseCase<VersionControlImpl>,
+    pub revert_files_use_case: RevertFilesUseCase<VersionControlImpl>,
+    pub untrack_files_use_case: UntrackFilesUseCase<VersionControlImpl>,
+    pub save_version_use_case: SaveVersionUseCase<VersionControlImpl>,
+    pub get_file_diff_use_case: GetFileDiffUseCase<VersionControlImpl>,
+    pub get_file_revision_use_case: GetFileRevisionUseCase<VersionControlImpl>,
+    pub get_image_diff_use_case: GetImageDiffUseCase<VersionControlImpl>,
+    pub get_file_version_history_use_case: GetFileVersionHistoryUseCase<VersionControlImpl>,
+    pub get_branches_use_case: GetBranchesUseCase<VersionControlImpl>,
+    pub checkout_branch_use_case: CheckoutBranchUseCase<VersionControlImpl>,
+    pub create_branch_use_case: CreateBranchUseCase<VersionControlImpl>,
+    pub clone_repository_use_case: CloneRepositoryUseCase<VersionControlImpl>,
+    pub push_versions_use_case: PushVersionsUseCase<VersionControlImpl>,
+    pub open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase<SystemShellImpl>,
+    pub show_item_in_folder_use_case: ShowItemInFolderUseCase<SystemShellImpl>,
     pub active_vault_path: Arc<Mutex<Option<PathBuf>>>,
     pub file_types: SupportedFileTypes,
     pub note_use_cases: NoteUseCases<NoteRepositoryImpl>,
-    pub git_use_cases: GitUseCases<VersionControlImpl>,
-    pub file_system_use_cases: FileSystemUseCases<VaultItemRepositoryImpl>,
-    pub open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase<SystemShellImpl>,
-    pub show_item_in_folder_use_case: ShowItemInFolderUseCase<SystemShellImpl>,
     pub workspace_registry_use_cases: WorkspaceRegistryUseCases<WorkspaceRegistryRepositoryImpl>,
     pub community_plugin_use_cases: CommunityPluginUseCases<CommunityPluginDownloaderImpl, InstalledPluginRepositoryImpl>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
@@ -165,8 +203,27 @@ impl AppState {
             active_vault_path,
             file_types,
             note_use_cases,
-            git_use_cases: GitUseCases::new(VersionControlImpl::new()),
-            file_system_use_cases: FileSystemUseCases::new(VaultItemRepositoryImpl),
+            delete_vault_item_use_case: DeleteVaultItemUseCase::new(VaultItemRepositoryImpl),
+            rename_vault_item_use_case: RenameVaultItemUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
+            move_vault_items_use_case: MoveVaultItemsUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
+            copy_vault_items_use_case: CopyVaultItemsUseCase::new(VaultItemRepositoryImpl),
+            read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase::new(VaultItemRepositoryImpl),
+            write_binary_vault_item_use_case: WriteBinaryVaultItemUseCase::new(VaultItemRepositoryImpl),
+            create_folder_use_case: CreateFolderUseCase::new(VaultItemRepositoryImpl),
+            get_vault_version_state_use_case: GetVaultVersionStateUseCase::new(VersionControlImpl),
+            track_files_use_case: TrackFilesUseCase::new(VersionControlImpl),
+            revert_files_use_case: RevertFilesUseCase::new(VersionControlImpl),
+            untrack_files_use_case: UntrackFilesUseCase::new(VersionControlImpl),
+            save_version_use_case: SaveVersionUseCase::new(VersionControlImpl),
+            get_file_diff_use_case: GetFileDiffUseCase::new(VersionControlImpl),
+            get_file_revision_use_case: GetFileRevisionUseCase::new(VersionControlImpl),
+            get_image_diff_use_case: GetImageDiffUseCase::new(VersionControlImpl),
+            get_file_version_history_use_case: GetFileVersionHistoryUseCase::new(VersionControlImpl),
+            get_branches_use_case: GetBranchesUseCase::new(VersionControlImpl),
+            checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
+            create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),
+            clone_repository_use_case: CloneRepositoryUseCase::new(VersionControlImpl),
+            push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
             workspace_registry_use_cases,
@@ -223,8 +280,27 @@ impl AppState {
             active_vault_path,
             file_types,
             note_use_cases,
-            git_use_cases: GitUseCases::new(VersionControlImpl::new()),
-            file_system_use_cases: FileSystemUseCases::new(VaultItemRepositoryImpl),
+            delete_vault_item_use_case: DeleteVaultItemUseCase::new(VaultItemRepositoryImpl),
+            rename_vault_item_use_case: RenameVaultItemUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
+            move_vault_items_use_case: MoveVaultItemsUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
+            copy_vault_items_use_case: CopyVaultItemsUseCase::new(VaultItemRepositoryImpl),
+            read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase::new(VaultItemRepositoryImpl),
+            write_binary_vault_item_use_case: WriteBinaryVaultItemUseCase::new(VaultItemRepositoryImpl),
+            create_folder_use_case: CreateFolderUseCase::new(VaultItemRepositoryImpl),
+            get_vault_version_state_use_case: GetVaultVersionStateUseCase::new(VersionControlImpl),
+            track_files_use_case: TrackFilesUseCase::new(VersionControlImpl),
+            revert_files_use_case: RevertFilesUseCase::new(VersionControlImpl),
+            untrack_files_use_case: UntrackFilesUseCase::new(VersionControlImpl),
+            save_version_use_case: SaveVersionUseCase::new(VersionControlImpl),
+            get_file_diff_use_case: GetFileDiffUseCase::new(VersionControlImpl),
+            get_file_revision_use_case: GetFileRevisionUseCase::new(VersionControlImpl),
+            get_image_diff_use_case: GetImageDiffUseCase::new(VersionControlImpl),
+            get_file_version_history_use_case: GetFileVersionHistoryUseCase::new(VersionControlImpl),
+            get_branches_use_case: GetBranchesUseCase::new(VersionControlImpl),
+            checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
+            create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),
+            clone_repository_use_case: CloneRepositoryUseCase::new(VersionControlImpl),
+            push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
             workspace_registry_use_cases,

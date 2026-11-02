@@ -1,2 +1,3 @@
-pub mod open_file_with_default_app_command;
-pub mod show_item_in_folder_command;
+pub mod system;
+pub mod vault_item;
+pub mod version;

@@ -1,13 +1,14 @@
-use crate::application::dto::open_file_with_default_app_command::OpenFileWithDefaultAppCommand;
+use crate::application::dto::system::open_file_with_default_app_command::OpenFileWithDefaultAppCommand;
 use crate::application::service::system_shell::SystemShell;
 
 /// Abre un archivo de la bóveda con la aplicación por defecto del sistema operativo.
-pub struct OpenFileWithDefaultAppUseCase<S: SystemShell> {
-    shell: S,
+#[derive(Clone)]
+pub struct OpenFileWithDefaultAppUseCase<A: SystemShell> {
+    shell: A,
 }
 
-impl<S: SystemShell> OpenFileWithDefaultAppUseCase<S> {
-    pub fn new(shell: S) -> Self {
+impl<A: SystemShell> OpenFileWithDefaultAppUseCase<A> {
+    pub fn new(shell: A) -> Self {
         Self { shell }
     }
 

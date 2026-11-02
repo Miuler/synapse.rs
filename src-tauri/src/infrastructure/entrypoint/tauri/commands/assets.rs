@@ -127,9 +127,13 @@ pub fn save_binary_asset(
         .decode(raw_b64.trim())
         .map_err(|e| format!("Error decodificando base64: {}", e))?;
 
-    state
-        .file_system_use_cases
-        .write_binary_item(vault_path, &relative_path, &bytes)?;
+    state.write_binary_vault_item_use_case.execute(
+        crate::application::dto::vault_item::write_binary_vault_item_command::WriteBinaryVaultItemCommand {
+            vault_path: vault_path.clone(),
+            relative_path: relative_path.clone(),
+            bytes,
+        },
+    )?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {

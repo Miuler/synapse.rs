@@ -178,9 +178,12 @@ pub async fn clone_git_workspace(
 
     let target_dir = parent_dir.join(repo_name);
 
-    state
-        .git_use_cases
-        .clone_repository(&trimmed_url, &target_dir)?;
+    state.clone_repository_use_case.execute(
+        crate::application::dto::version::clone_repository_command::CloneRepositoryCommand {
+            repo_url: trimmed_url.to_string(),
+            target_path: target_dir.clone(),
+        },
+    )?;
 
     let synapse_dir = target_dir.join(".synapse");
     let _ = std::fs::create_dir_all(&synapse_dir);

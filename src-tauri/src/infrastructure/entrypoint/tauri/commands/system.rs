@@ -1,5 +1,5 @@
-use crate::application::dto::open_file_with_default_app_command::OpenFileWithDefaultAppCommand;
-use crate::application::dto::show_item_in_folder_command::ShowItemInFolderCommand;
+use crate::application::dto::system::open_file_with_default_app_command::OpenFileWithDefaultAppCommand;
+use crate::application::dto::system::show_item_in_folder_command::ShowItemInFolderCommand;
 use crate::domain::model::startup::StartupTarget;
 use crate::infrastructure::config::state::AppState;
 use std::path::Path;

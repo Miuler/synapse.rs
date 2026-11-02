@@ -2,6 +2,7 @@ use crate::application::service::system_shell::SystemShell;
 use crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl;
 use std::path::{Path, PathBuf};
 
+#[derive(Clone)]
 pub struct SystemShellImpl;
 
 impl SystemShellImpl {
