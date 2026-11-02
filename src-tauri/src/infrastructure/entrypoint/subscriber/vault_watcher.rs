@@ -219,7 +219,7 @@ pub fn process_paths_batch(
             let (title, tags) = if is_markdown {
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
                 let t = Note::title_from_content(&content, file_stem);
-                let raw_tags = crate::domain::model::tag::extract_all_tags(&content);
+                let raw_tags = crate::domain::model::tag::Tag::extract_all(&content);
                 let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                 (t, compact_tags)
             } else {

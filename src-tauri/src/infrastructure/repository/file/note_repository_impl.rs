@@ -186,7 +186,7 @@ impl NoteRepositoryImpl {
                                 let file_types = SupportedFileTypes::default();
                                 if file_types.is_markdown_file(file_name) {
                                     if let Ok(file_prefix) = fs::read_to_string(&path) {
-                                        let (fm, _) = crate::domain::model::frontmatter::parse_frontmatter_and_content(&file_prefix);
+                                        let (fm, _) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&file_prefix);
                                         if let Some(ref parsed_fm) = fm {
                                             if let Some(ref explicit_title) = parsed_fm.title {
                                                 note_title = explicit_title.clone();
@@ -264,7 +264,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::model::frontmatter::parse_frontmatter_and_content(&raw_content);
+            let (fm, _body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -311,7 +311,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::model::frontmatter::sync_frontmatter_title(&note.content, &note.title)
+            crate::domain::model::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
         } else {
             note.content.clone()
         };
@@ -370,7 +370,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::model::frontmatter::parse_frontmatter_and_content(&raw_content);
+            let (fm, _body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -416,7 +416,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::model::frontmatter::sync_frontmatter_title(&note.content, &note.title)
+            crate::domain::model::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
         } else {
             note.content.clone()
         };

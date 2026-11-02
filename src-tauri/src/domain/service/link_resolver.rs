@@ -1,5 +1,5 @@
 //! Resolución de enlaces (`[[destino]]`) entre notas de la bóveda.
-use crate::domain::model::wikilink::{calculate_proximity_score, get_parent_directory, normalize_link_target};
+use crate::domain::model::wikilink::{ProximityScore, LinkTarget};
 
 /// Resuelve el destino de un enlace entre todas las notas, prefiriendo la más cercana al
 /// archivo de origen: misma carpeta, luego subcarpetas, luego carpetas padre y luego el resto.
@@ -13,7 +13,7 @@ impl LinkResolver {
         E: Fn(&str) -> Option<String>,
         V: Fn(&mut dyn FnMut(&str)),
     {
-        let (target_with_ext, anchor) = normalize_link_target(raw_target);
+        let (target_with_ext, anchor) = LinkTarget::normalize(raw_target);
         if target_with_ext.is_empty() {
             return None;
         }
@@ -27,7 +27,7 @@ impl LinkResolver {
 
         // 1. Si hay archivo base, buscar primero coincidencia directa en la misma carpeta (O(1))
         if let Some(base) = base_file {
-            let base_dir = get_parent_directory(base);
+            let base_dir = LinkTarget::parent_directory(base);
             let sibling_path = if base_dir.is_empty() {
                 target_with_ext.clone()
             } else {
@@ -69,8 +69,8 @@ impl LinkResolver {
 
         // 4. Varios archivos con el mismo nombre: ordenar por proximidad al archivo base
         candidates.sort_by(|a, b| {
-            let score_a = calculate_proximity_score(a, base_file);
-            let score_b = calculate_proximity_score(b, base_file);
+            let score_a = ProximityScore::between(a, base_file);
+            let score_b = ProximityScore::between(b, base_file);
             score_a.cmp(&score_b).then_with(|| a.cmp(b))
         });
 

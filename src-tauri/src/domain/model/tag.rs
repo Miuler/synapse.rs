@@ -4,160 +4,165 @@
 use pulldown_cmark::{Event, Parser};
 use std::collections::HashSet;
 
-/// Extrae todas las etiquetas únicas presentes en el contenido de una nota Markdown.
-/// Combina las etiquetas definidas en el frontmatter YAML con los hashtags inline del cuerpo.
-pub fn extract_all_tags(content: &str) -> Vec<String> {
-    let mut tags_set = HashSet::new();
+/// Etiqueta de una nota (`#etiqueta`, jerárquica con `/`).
+pub struct Tag;
 
-    // 1. Extraer tags del frontmatter YAML si existe
-    let (fm, body) = crate::domain::model::frontmatter::parse_frontmatter_and_content(content);
-    if let Some(fm) = fm {
-        for tag in fm.tags {
-            let normalized = normalize_tag(&tag);
-            if !normalized.is_empty() {
-                tags_set.insert(normalized);
-            }
-        }
-    }
+impl Tag {
+    /// Extrae todas las etiquetas únicas presentes en el contenido de una nota Markdown.
+    /// Combina las etiquetas definidas en el frontmatter YAML con los hashtags inline del cuerpo.
+    pub fn extract_all(content: &str) -> Vec<String> {
+        let mut tags_set = HashSet::new();
 
-    // 2. Extraer hashtags inline del cuerpo markdown (omitiendo bloques de código)
-    let inline_tags = extract_inline_hashtags(&body);
-    for tag in inline_tags {
-        tags_set.insert(tag);
-    }
-
-    let mut result: Vec<String> = tags_set.into_iter().collect();
-    result.sort();
-    result
-}
-
-/// Normaliza un tag: elimina '#' inicial, espacios y caracteres no deseados.
-pub fn normalize_tag(raw: &str) -> String {
-    let trimmed = raw.trim();
-    let without_hash = trimmed.strip_prefix('#').unwrap_or(trimmed);
-    without_hash
-        .trim_matches(|c: char| c.is_whitespace() || c == '/' || c == ',')
-        .to_string()
-}
-
-/// Extrae hashtags inline del markdown (`#etiqueta`, `#categoria/subcategoria`).
-/// Ignora encabezados Markdown (# Heading), bloques de código `inline` y cercados ````.
-///
-/// TODO: decidir si `pulldown_cmark` puede seguir en el dominio. Hoy está permitida como
-/// librería pura (implementa CommonMark, sin I/O ni anotaciones) y su uso queda encerrado
-/// en esta función. Duda abierta: el dominio debería quedar sin librerías, y las opciones son
-/// (A) un contrato que entregue el texto plano de la nota, implementado en infraestructura,
-/// con la regla de etiquetas en el dominio; o (B) que el repository entregue la nota ya
-/// estructurada al cargarla. Si se elige A, falta definir dónde viven las capacidades
-/// técnicas intercambiables (no son repository ni servicio externo).
-pub fn extract_inline_hashtags(markdown: &str) -> Vec<String> {
-    use pulldown_cmark::Tag;
-    let mut tags = Vec::new();
-    let parser = Parser::new(markdown);
-    let mut in_code_block = false;
-
-    for event in parser {
-        match event {
-            Event::Start(Tag::CodeBlock(_)) => {
-                in_code_block = true;
-            }
-            Event::End(pulldown_cmark::TagEnd::CodeBlock) => {
-                in_code_block = false;
-            }
-            Event::Text(text) if !in_code_block => {
-                let text_str = text.as_ref();
-                let chars: Vec<char> = text_str.chars().collect();
-                let len = chars.len();
-                let mut i = 0;
-
-                while i < len {
-                    if chars[i] == '#' {
-                        // Comprobar que no sea parte de una palabra previa (ej. abc#123 no es un tag)
-                        let preceded_by_whitespace_or_punct = if i == 0 {
-                            true
-                        } else {
-                            let prev = chars[i - 1];
-                            prev.is_whitespace() || prev == '(' || prev == '[' || prev == '{' || prev == '"' || prev == '\''
-                        };
-
-                        if preceded_by_whitespace_or_punct && i + 1 < len {
-                            let next = chars[i + 1];
-                            // Un hashtag válido debe comenzar con una letra, dígito o guión bajo (no espacio ni otro '#')
-                            if next.is_alphanumeric() || next == '_' {
-                                let mut j = i + 1;
-                                while j < len {
-                                    let c = chars[j];
-                                    if c.is_alphanumeric() || c == '_' || c == '-' || c == '/' {
-                                        j += 1;
-                                    } else {
-                                        break;
-                                    }
-                                }
-
-                                let tag_candidate: String = chars[i + 1..j].iter().collect();
-                                let normalized = normalize_tag(&tag_candidate);
-                                // Un hashtag no puede ser solamente números puros (ej. #123 suele ser número de issue)
-                                if !normalized.is_empty() && normalized.chars().any(|c| c.is_alphabetic()) {
-                                    tags.push(normalized);
-                                }
-                                i = j;
-                                continue;
-                            }
-                        }
-                    }
-                    i += 1;
+        // 1. Extraer tags del frontmatter YAML si existe
+        let (fm, body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(content);
+        if let Some(fm) = fm {
+            for tag in fm.tags {
+                let normalized = Tag::normalize(&tag);
+                if !normalized.is_empty() {
+                    tags_set.insert(normalized);
                 }
             }
-            _ => {}
         }
+
+        // 2. Extraer hashtags inline del cuerpo markdown (omitiendo bloques de código)
+        let inline_tags = Tag::extract_inline(&body);
+        for tag in inline_tags {
+            tags_set.insert(tag);
+        }
+
+        let mut result: Vec<String> = tags_set.into_iter().collect();
+        result.sort();
+        result
     }
 
-    tags
-}
-
-/// Comprueba si una etiqueta de una nota coincide con un filtro dado, soportando jerarquía.
-///
-/// Soporta:
-/// - Coincidencia exacta: `linux/cachyos` == `linux/cachyos`
-/// - Coincidencia de prefijo jerárquico: `linux/cachyos` coincide con filtro `linux`
-/// - Coincidencia de sufijo o subsegmento: `linux/cachyos` coincide con `cachyos`
-/// - Coincidencias insensibles a mayúsculas/minúsculas y símbolos `#` iniciales
-pub fn matches_tag(note_tag: &str, filter: &str) -> bool {
-    let norm_tag = normalize_tag(note_tag).to_lowercase();
-    let norm_filter = normalize_tag(filter).to_lowercase();
-
-    if norm_tag.is_empty() || norm_filter.is_empty() {
-        return false;
+    /// Normaliza un tag: elimina '#' inicial, espacios y caracteres no deseados.
+    pub fn normalize(raw: &str) -> String {
+        let trimmed = raw.trim();
+        let without_hash = trimmed.strip_prefix('#').unwrap_or(trimmed);
+        without_hash
+            .trim_matches(|c: char| c.is_whitespace() || c == '/' || c == ',')
+            .to_string()
     }
 
-    if norm_tag == norm_filter {
-        return true;
+    /// Extrae hashtags inline del markdown (`#etiqueta`, `#categoria/subcategoria`).
+    /// Ignora encabezados Markdown (# Heading), bloques de código `inline` y cercados ````.
+    ///
+    /// TODO: decidir si `pulldown_cmark` puede seguir en el dominio. Hoy está permitida como
+    /// librería pura (implementa CommonMark, sin I/O ni anotaciones) y su uso queda encerrado
+    /// en esta función. Duda abierta: el dominio debería quedar sin librerías, y las opciones son
+    /// (A) un contrato que entregue el texto plano de la nota, implementado en infraestructura,
+    /// con la regla de etiquetas en el dominio; o (B) que el repository entregue la nota ya
+    /// estructurada al cargarla. Si se elige A, falta definir dónde viven las capacidades
+    /// técnicas intercambiables (no son repository ni servicio externo).
+    pub fn extract_inline(markdown: &str) -> Vec<String> {
+        use pulldown_cmark::Tag as MdTag;
+        let mut tags = Vec::new();
+        let parser = Parser::new(markdown);
+        let mut in_code_block = false;
+
+        for event in parser {
+            match event {
+                Event::Start(MdTag::CodeBlock(_)) => {
+                    in_code_block = true;
+                }
+                Event::End(pulldown_cmark::TagEnd::CodeBlock) => {
+                    in_code_block = false;
+                }
+                Event::Text(text) if !in_code_block => {
+                    let text_str = text.as_ref();
+                    let chars: Vec<char> = text_str.chars().collect();
+                    let len = chars.len();
+                    let mut i = 0;
+
+                    while i < len {
+                        if chars[i] == '#' {
+                            // Comprobar que no sea parte de una palabra previa (ej. abc#123 no es un tag)
+                            let preceded_by_whitespace_or_punct = if i == 0 {
+                                true
+                            } else {
+                                let prev = chars[i - 1];
+                                prev.is_whitespace() || prev == '(' || prev == '[' || prev == '{' || prev == '"' || prev == '\''
+                            };
+
+                            if preceded_by_whitespace_or_punct && i + 1 < len {
+                                let next = chars[i + 1];
+                                // Un hashtag válido debe comenzar con una letra, dígito o guión bajo (no espacio ni otro '#')
+                                if next.is_alphanumeric() || next == '_' {
+                                    let mut j = i + 1;
+                                    while j < len {
+                                        let c = chars[j];
+                                        if c.is_alphanumeric() || c == '_' || c == '-' || c == '/' {
+                                            j += 1;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
+                                    let tag_candidate: String = chars[i + 1..j].iter().collect();
+                                    let normalized = Tag::normalize(&tag_candidate);
+                                    // Un hashtag no puede ser solamente números puros (ej. #123 suele ser número de issue)
+                                    if !normalized.is_empty() && normalized.chars().any(|c| c.is_alphabetic()) {
+                                        tags.push(normalized);
+                                    }
+                                    i = j;
+                                    continue;
+                                }
+                            }
+                        }
+                        i += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        tags
     }
 
-    // Prefijo jerárquico (ej. note_tag="linux/cachyos", filter="linux")
-    if norm_tag.starts_with(&format!("{}/", norm_filter)) {
-        return true;
+    /// Comprueba si una etiqueta de una nota coincide con un filtro dado, soportando jerarquía.
+    ///
+    /// Soporta:
+    /// - Coincidencia exacta: `linux/cachyos` == `linux/cachyos`
+    /// - Coincidencia de prefijo jerárquico: `linux/cachyos` coincide con filtro `linux`
+    /// - Coincidencia de sufijo o subsegmento: `linux/cachyos` coincide con `cachyos`
+    /// - Coincidencias insensibles a mayúsculas/minúsculas y símbolos `#` iniciales
+    pub fn matches(note_tag: &str, filter: &str) -> bool {
+        let norm_tag = Tag::normalize(note_tag).to_lowercase();
+        let norm_filter = Tag::normalize(filter).to_lowercase();
+
+        if norm_tag.is_empty() || norm_filter.is_empty() {
+            return false;
+        }
+
+        if norm_tag == norm_filter {
+            return true;
+        }
+
+        // Prefijo jerárquico (ej. note_tag="linux/cachyos", filter="linux")
+        if norm_tag.starts_with(&format!("{}/", norm_filter)) {
+            return true;
+        }
+
+        // Sufijo jerárquico (ej. note_tag="linux/cachyos", filter="cachyos")
+        if norm_tag.ends_with(&format!("/{}", norm_filter)) {
+            return true;
+        }
+
+        // Subsegmento intermedio (ej. note_tag="os/linux/cachyos", filter="linux")
+        if norm_tag.contains(&format!("/{}/", norm_filter)) {
+            return true;
+        }
+
+        false
     }
 
-    // Sufijo jerárquico (ej. note_tag="linux/cachyos", filter="cachyos")
-    if norm_tag.ends_with(&format!("/{}", norm_filter)) {
-        return true;
+    /// Evalúa si alguna etiqueta de la lista coincide jerárquicamente con el filtro dado.
+    pub fn any_matches<'a, I>(note_tags: I, filter: &str) -> bool
+    where
+        I: IntoIterator<Item = &'a String>,
+    {
+        note_tags.into_iter().any(|t| Tag::matches(t, filter))
     }
-
-    // Subsegmento intermedio (ej. note_tag="os/linux/cachyos", filter="linux")
-    if norm_tag.contains(&format!("/{}/", norm_filter)) {
-        return true;
-    }
-
-    false
-}
-
-/// Evalúa si alguna etiqueta de la lista coincide jerárquicamente con el filtro dado.
-pub fn any_tag_matches<'a, I>(note_tags: I, filter: &str) -> bool
-where
-    I: IntoIterator<Item = &'a String>,
-{
-    note_tags.into_iter().any(|t| matches_tag(t, filter))
 }
 
 #[cfg(test)]
@@ -166,31 +171,31 @@ mod tests {
 
     #[test]
     fn test_matches_tag_hierarchical() {
-        assert!(matches_tag("linux/cachyos", "cachyos"));
-        assert!(matches_tag("linux/cachyos", "linux"));
-        assert!(matches_tag("cachyos", "cachyos"));
-        assert!(matches_tag("#linux/cachyos", "cachyos"));
-        assert!(matches_tag("linux/cachyos", "#linux"));
-        assert!(matches_tag("os/linux/cachyos", "linux"));
-        assert!(matches_tag("os/linux/cachyos", "cachyos"));
-        assert!(matches_tag("os/linux/cachyos", "os"));
+        assert!(Tag::matches("linux/cachyos", "cachyos"));
+        assert!(Tag::matches("linux/cachyos", "linux"));
+        assert!(Tag::matches("cachyos", "cachyos"));
+        assert!(Tag::matches("#linux/cachyos", "cachyos"));
+        assert!(Tag::matches("linux/cachyos", "#linux"));
+        assert!(Tag::matches("os/linux/cachyos", "linux"));
+        assert!(Tag::matches("os/linux/cachyos", "cachyos"));
+        assert!(Tag::matches("os/linux/cachyos", "os"));
 
-        assert!(!matches_tag("linux/arch", "cachyos"));
-        assert!(!matches_tag("linux", "linux/cachyos"));
-        assert!(!matches_tag("linux-cachyos", "cachyos"));
+        assert!(!Tag::matches("linux/arch", "cachyos"));
+        assert!(!Tag::matches("linux", "linux/cachyos"));
+        assert!(!Tag::matches("linux-cachyos", "cachyos"));
     }
 
     #[test]
     fn test_extract_inline_hashtags_basic() {
         let md = "Este es un texto con #rust y #web/svelte5 como tags. También #arquitectura_limpia.";
-        let tags = extract_inline_hashtags(md);
+        let tags = Tag::extract_inline(md);
         assert_eq!(tags, vec!["rust", "web/svelte5", "arquitectura_limpia"]);
     }
 
     #[test]
     fn test_ignore_markdown_headings_and_code() {
         let md = "# Encabezado H1\n\nTexto con `código inline #no_tag` y un tag real #activo.\n\n```rust\n// #tampoco_aqui\nlet x = 1;\n```";
-        let tags = extract_inline_hashtags(md);
+        let tags = Tag::extract_inline(md);
         assert_eq!(tags, vec!["activo"]);
     }
 
@@ -205,7 +210,7 @@ tags:
 # Titulo Principal
 Contenido con #frontend y #rust repetido.
 "#;
-        let tags = extract_all_tags(note);
+        let tags = Tag::extract_all(note);
         assert_eq!(tags, vec!["backend", "frontend", "rust"]);
     }
 }

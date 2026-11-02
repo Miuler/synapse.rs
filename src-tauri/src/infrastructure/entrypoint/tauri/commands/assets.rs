@@ -1,4 +1,4 @@
-use crate::domain::model::wikilink::{clean_asset_source, normalize_link_target};
+use crate::domain::model::wikilink::{AssetPath, LinkTarget};
 use crate::infrastructure::config::state::AppState;
 use std::path::{Path, PathBuf};
 use tauri::State;
@@ -24,7 +24,7 @@ pub fn resolve_asset_file_path_internal(
     src: &str,
     base_file: Option<&str>,
 ) -> Result<Option<String>, String> {
-    let Some(decoded) = clean_asset_source(src) else {
+    let Some(decoded) = AssetPath::clean_source(src) else {
         return Ok(None);
     };
 
@@ -55,7 +55,7 @@ pub fn resolve_asset_file_path_internal(
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     if let Some(ref engine) = *engine_guard {
         if let Some(resolved_rel) = engine.resolve_link_path_with_base(check_str, base_file) {
-            let (rel_without_anchor, _) = normalize_link_target(&resolved_rel);
+            let (rel_without_anchor, _) = LinkTarget::normalize(&resolved_rel);
             let abs = vault_path.join(&rel_without_anchor);
             if abs.is_file() {
                 return Ok(Some(abs.to_string_lossy().to_string()));
