@@ -1,5 +1,9 @@
 use crate::application::use_cases::community_plugin_use_cases::CommunityPluginUseCases;
 use crate::application::use_cases::file_system_use_cases::FileSystemUseCases;
+use crate::application::use_cases::open_file_with_default_app_use_case::OpenFileWithDefaultAppUseCase;
+use crate::application::use_cases::show_item_in_folder_use_case::ShowItemInFolderUseCase;
+use crate::infrastructure::repository::file::installed_plugin_repository_impl::InstalledPluginRepositoryImpl;
+use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
 use crate::application::use_cases::git_use_cases::GitUseCases;
 use crate::application::use_cases::note_use_cases::NoteUseCases;
@@ -51,8 +55,10 @@ pub struct AppState {
     pub note_use_cases: NoteUseCases<NoteRepositoryImpl>,
     pub git_use_cases: GitUseCases<VersionControlImpl>,
     pub file_system_use_cases: FileSystemUseCases<VaultItemRepositoryImpl>,
+    pub open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase<SystemShellImpl>,
+    pub show_item_in_folder_use_case: ShowItemInFolderUseCase<SystemShellImpl>,
     pub workspace_registry_use_cases: WorkspaceRegistryUseCases<WorkspaceRegistryRepositoryImpl>,
-    pub community_plugin_use_cases: CommunityPluginUseCases<CommunityPluginDownloaderImpl>,
+    pub community_plugin_use_cases: CommunityPluginUseCases<CommunityPluginDownloaderImpl, InstalledPluginRepositoryImpl>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -161,8 +167,10 @@ impl AppState {
             note_use_cases,
             git_use_cases: GitUseCases::new(VersionControlImpl::new()),
             file_system_use_cases: FileSystemUseCases::new(VaultItemRepositoryImpl),
+            open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
+            show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
             workspace_registry_use_cases,
-            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new()),
+            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new(), InstalledPluginRepositoryImpl),
             navigation_engine: Mutex::new(None),
             full_text,
             app_handle,
@@ -217,8 +225,10 @@ impl AppState {
             note_use_cases,
             git_use_cases: GitUseCases::new(VersionControlImpl::new()),
             file_system_use_cases: FileSystemUseCases::new(VaultItemRepositoryImpl),
+            open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
+            show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
             workspace_registry_use_cases,
-            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new()),
+            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new(), InstalledPluginRepositoryImpl),
             navigation_engine: Mutex::new(Some(engine)),
             full_text,
             app_handle,

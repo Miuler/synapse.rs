@@ -8,7 +8,8 @@ use crate::domain::repository::version_control::VersionControl;
 use crate::domain::service::link_resolution::{extract_wikilinks, normalize_link_target};
 use crate::domain::service::tag_service::{self, matches_tag};
 use crate::domain::model::note_path::NoteRelativePath;
-use crate::infrastructure::search::pdf_extractor;
+use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
+use crate::domain::repository::vault_item_repository::VaultItemRepository;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use similar::{ChangeTag, TextDiff};
@@ -266,6 +267,8 @@ pub struct McpUseCases<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionC
     note_repository: R,
     full_text_index: Option<Arc<I>>,
     git_service: Option<Arc<G>>,
+    vault_items: Arc<dyn VaultItemRepository>,
+    pdf_documents: Arc<dyn PdfDocumentRepository>,
 }
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCases<R, I, G> {
@@ -274,13 +277,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
         note_repository: R,
         full_text_index: Option<Arc<I>>,
         git_service: Option<Arc<G>>,
+        vault_items: Arc<dyn VaultItemRepository>,
+        pdf_documents: Arc<dyn PdfDocumentRepository>,
     ) -> Self {
         Self {
             vault_path,
             note_repository,
             full_text_index,
             git_service,
+            vault_items,
+            pdf_documents,
         }
+    }
+
+    /// Ruta relativa a la bóveda de una ruta absoluta construida a partir de ella.
+    fn vault_rel(&self, abs: &Path) -> String {
+        abs.strip_prefix(&self.vault_path)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| abs.to_string_lossy().to_string())
     }
 
     pub fn vault_path(&self) -> &Path {
@@ -1173,7 +1187,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
         }
 
         // Crear target_dir si no existe
-        if let Err(e) = std::fs::create_dir_all(&target_dir) {
+        if let Err(e) = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(&target_dir)) {
             return McpCallToolResult::error(format!("No se pudo crear la carpeta destino: {}", e));
         }
 
@@ -1186,7 +1200,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
             let mut dest_file_path = target_dir.join(&rel_file);
 
             if let Some(parent) = dest_file_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
+                let _ = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(parent));
             }
 
             if dest_file_path.exists() {
@@ -1225,7 +1239,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
                 }
             }
 
-            match std::fs::rename(&src_file_path, &dest_file_path) {
+            match self.vault_items.relocate(&self.vault_path, &self.vault_rel(&src_file_path), &self.vault_rel(&dest_file_path)) {
                 Ok(_) => {
                     let new_rel = dest_file_path.strip_prefix(&self.vault_path).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default();
                     moved.push(json!({
@@ -2052,13 +2066,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
         let mut notes_out = Vec::new();
 
         if !recursive {
-            if let Ok(entries) = std::fs::read_dir(&target_dir) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name().to_string_lossy().to_string();
+            if let Ok(entries) = self.vault_items.list_folder(&self.vault_path, &self.vault_rel(&target_dir)) {
+                for entry in entries {
+                    let name = entry.name.clone();
                     if name.starts_with('.') || name == "target" || name == "node_modules" {
                         continue;
                     }
-                    let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    let is_dir = entry.is_dir;
                     let rel_path = if clean_folder.is_empty() {
                         name.clone()
                     } else {
@@ -2193,7 +2207,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
 
         if !dest_dir.exists() {
             if create_target_folder {
-                if let Err(e) = std::fs::create_dir_all(&dest_dir) {
+                if let Err(e) = self.vault_items.ensure_folder(&self.vault_path, &self.vault_rel(&dest_dir)) {
                     return McpCallToolResult::error(format!("Error al crear carpeta de destino: {}", e));
                 }
             } else {
@@ -2232,7 +2246,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
                 continue;
             }
 
-            match std::fs::rename(&src_path, &dst_path) {
+            match self.vault_items.relocate(&self.vault_path, &self.vault_rel(&src_path), &self.vault_rel(&dst_path)) {
                 Ok(_) => {
                     moved_success.push(json!({
                         "source": clean_src,
@@ -2476,14 +2490,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
             return McpCallToolResult::error(format!("El archivo PDF '{}' no existe", rel_path_str));
         }
 
-        let bytes = match std::fs::read(&pdf_path) {
-            Ok(b) => b,
-            Err(e) => return McpCallToolResult::error(format!("Error al leer PDF: {}", e)),
-        };
+        let pdf_rel = self.vault_rel(&pdf_path);
 
         match mode {
             "pages" => {
-                match pdf_extractor::extract_pdf_page_range(&bytes, start_page, end_page, 20_000) {
+                match self.pdf_documents.read_pages(&self.vault_path, &pdf_rel, start_page, end_page, 20_000) {
                     Ok(res) => serde_json::to_string_pretty(&res)
                         .map(McpCallToolResult::text)
                         .unwrap_or_else(|e| McpCallToolResult::error(e.to_string())),
@@ -2495,7 +2506,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
                     Some(q) => q,
                     None => return McpCallToolResult::error("El argumento 'search_query' es obligatorio en mode='search'"),
                 };
-                match pdf_extractor::search_pdf_content(&bytes, query, 20) {
+                match self.pdf_documents.search(&self.vault_path, &pdf_rel, query, 20) {
                     Ok(matches) => {
                         let payload = json!({
                             "relative_path": rel_path_str,
@@ -2512,12 +2523,12 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
             }
             _ => {
                 // "outline_only"
-                match pdf_extractor::extract_pdf_page_range(&bytes, 1, 1, 100) {
-                    Ok(res) => {
+                match self.pdf_documents.outline(&self.vault_path, &pdf_rel) {
+                    Ok(outline) => {
                         let payload = json!({
                             "relative_path": rel_path_str,
-                            "total_pages": res.total_pages,
-                            "file_size_bytes": bytes.len(),
+                            "total_pages": outline.total_pages,
+                            "file_size_bytes": outline.file_size_bytes,
                         });
                         serde_json::to_string_pretty(&payload)
                             .map(McpCallToolResult::text)
@@ -2544,7 +2555,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpUseCase
         // Si es archivo directo .d2 o .mmd
         if rel_path_str.ends_with(".d2") || rel_path_str.ends_with(".mmd") {
             let full_path = self.vault_path.join(rel_path_str);
-            let content = match std::fs::read_to_string(&full_path) {
+            let content = match self.vault_items.read_text(&self.vault_path, &self.vault_rel(&full_path)) {
                 Ok(c) => c,
                 Err(e) => return McpCallToolResult::error(format!("Error al leer archivo de diagrama: {}", e)),
             };

@@ -54,7 +54,7 @@ fn main() {
         // Inicializar VersionControlImpl
         let git_service = Some(Arc::new(VersionControlImpl));
 
-        let mcp_use_cases = McpUseCases::new(canonical_vault, note_repo, full_text_index, git_service);
+        let mcp_use_cases = McpUseCases::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
         let mcp_server = McpStdioServer::new(mcp_use_cases);
 
         let stdin = io::stdin();

@@ -50,11 +50,10 @@ fn domain_does_not_know_outer_layers() {
 
 #[test]
 fn application_does_not_know_infrastructure() {
-    // Deuda conocida, a eliminar: mcp_use_cases y community_plugin_use_cases aún hacen I/O directo.
     let bad = offenders(
         "application",
         &["crate::infrastructure", "tauri::", "std::fs", "std::process"],
-        &["use_cases/mcp_use_cases.rs", "use_cases/community_plugin_use_cases.rs"],
+        &[],
     );
     assert!(bad.is_empty(), "La aplicación rompe la regla centrípeta:\n{}", bad.join("\n"));
 }

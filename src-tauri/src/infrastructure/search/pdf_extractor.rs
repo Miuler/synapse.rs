@@ -46,17 +46,7 @@ pub fn extract_pdf_text(
 }
 
 /// Extrae información detallada de un PDF: páginas totales, metadatos y texto por páginas.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PdfPageSnippet {
-    pub page: u32,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PdfInspectionResult {
-    pub total_pages: usize,
-    pub pages: Vec<PdfPageSnippet>,
-}
+pub use crate::domain::model::pdf_document::{PdfInspectionResult, PdfPageSnippet};
 
 /// Extrae texto acotado entre `start_page` y `end_page` (base 1, inclusive).
 pub fn extract_pdf_page_range(

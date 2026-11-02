@@ -29,3 +29,10 @@ pub struct FolderSearchResult {
     pub score: u32,
     pub match_indices: Vec<u32>,
 }
+
+/// Entrada directa de una carpeta de la bóveda (archivo o subcarpeta), en el orden del sistema.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderEntry {
+    pub name: String,
+    pub is_dir: bool,
+}

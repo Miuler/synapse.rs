@@ -43,11 +43,4 @@ impl<F: VaultItemRepository> FileSystemUseCases<F> {
         self.repository.create_folder(vault_path, relative_path)
     }
 
-    pub fn open_file_with_default_app(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
-        self.repository.open_file_with_default_app(vault_path, relative_path)
-    }
-
-    pub fn show_item_in_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
-        self.repository.show_item_in_folder(vault_path, relative_path)
-    }
 }

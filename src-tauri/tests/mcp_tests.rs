@@ -36,7 +36,7 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     let full_text_index = FullTextIndexImpl::open_or_create(&fts_dir).ok().map(Arc::new);
     let git_service = Some(Arc::new(VersionControlImpl));
 
-    let use_cases = McpUseCases::new(vault_path.clone(), note_repo, full_text_index, git_service);
+    let use_cases = McpUseCases::new(vault_path.clone(), note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
     let server = McpStdioServer::new(use_cases);
 
     // 1. Test initialize
@@ -477,6 +477,8 @@ A[Cliente ACP] --> B[Servidor MCP]
         NoteRepositoryImpl::new(),
         None::<Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>,
         Some(git),
+        std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl),
+        std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl),
     );
     let server = McpStdioServer::new(use_cases);
 

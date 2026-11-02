@@ -1,3 +1,5 @@
+use crate::application::dto::open_file_with_default_app_command::OpenFileWithDefaultAppCommand;
+use crate::application::dto::show_item_in_folder_command::ShowItemInFolderCommand;
 use crate::domain::model::startup::StartupTarget;
 use crate::infrastructure::config::state::AppState;
 use std::path::Path;
@@ -28,7 +30,10 @@ pub fn open_file_with_default_app(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.file_system_use_cases.open_file_with_default_app(vault_path, &path)
+    state.open_file_with_default_app_use_case.execute(OpenFileWithDefaultAppCommand {
+        vault_path: vault_path.clone(),
+        relative_path: path,
+    })
 }
 
 #[tauri::command]
@@ -41,7 +46,10 @@ pub fn show_item_in_folder(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.file_system_use_cases.show_item_in_folder(vault_path, &path)
+    state.show_item_in_folder_use_case.execute(ShowItemInFolderCommand {
+        vault_path: vault_path.clone(),
+        relative_path: path,
+    })
 }
 
 #[tauri::command]

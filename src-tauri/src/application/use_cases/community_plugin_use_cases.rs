@@ -2,31 +2,21 @@ use crate::domain::model::community_plugin::{
     CommunityPlugin, CommunityPluginInstallResult, InstalledPluginInfo, PluginUpdateInfo,
 };
 use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
-use serde::Deserialize;
-use std::collections::HashSet;
-use std::fs;
+use crate::domain::repository::installed_plugin_repository::InstalledPluginRepository;
 use std::path::Path;
-
-#[derive(Debug, Deserialize)]
-struct ManifestExtract {
-    id: Option<String>,
-    name: Option<String>,
-    version: Option<String>,
-    description: Option<String>,
-    author: Option<String>,
-}
 
 /// Casos de uso de plugins comunitarios de Obsidian.
 ///
 /// Orquesta la descarga, instalación, desinstalación y consulta de plugins
 /// abstrayéndose del proveedor de red subyacente.
-pub struct CommunityPluginUseCases<D: CommunityPluginDownloader> {
+pub struct CommunityPluginUseCases<D: CommunityPluginDownloader, P: InstalledPluginRepository> {
     downloader: D,
+    installed: P,
 }
 
-impl<D: CommunityPluginDownloader> CommunityPluginUseCases<D> {
-    pub fn new(downloader: D) -> Self {
-        Self { downloader }
+impl<D: CommunityPluginDownloader, P: InstalledPluginRepository> CommunityPluginUseCases<D, P> {
+    pub fn new(downloader: D, installed: P) -> Self {
+        Self { downloader, installed }
     }
 
     pub async fn fetch_community_plugins(&self, force_refresh: bool) -> Result<Vec<CommunityPlugin>, String> {
@@ -34,63 +24,7 @@ impl<D: CommunityPluginDownloader> CommunityPluginUseCases<D> {
     }
 
     pub fn get_installed_plugins(&self, vault_path: &Path) -> Result<Vec<InstalledPluginInfo>, String> {
-        let mut results = Vec::new();
-        let mut seen_ids = HashSet::new();
-
-        let search_dirs = [
-            (".synapse/plugins", vault_path.join(".synapse").join("plugins")),
-        ];
-
-        for (rel_prefix, abs_dir) in &search_dirs {
-            if !abs_dir.exists() || !abs_dir.is_dir() {
-                continue;
-            }
-
-            let entries = match fs::read_dir(abs_dir) {
-                Ok(e) => e,
-                Err(_) => continue,
-            };
-
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-                if !entry_path.is_dir() {
-                    continue;
-                }
-
-                let folder_name = entry.file_name().to_string_lossy().to_string();
-                let manifest_path = entry_path.join("manifest.json");
-
-                if manifest_path.exists() {
-                    if let Ok(content) = fs::read_to_string(&manifest_path) {
-                        if let Ok(manifest) = serde_json::from_str::<ManifestExtract>(&content) {
-                            let id = manifest.id.unwrap_or_else(|| folder_name.clone());
-                            if seen_ids.contains(&id) {
-                                continue;
-                            }
-                            seen_ids.insert(id.clone());
-
-                            let name = manifest.name.unwrap_or_else(|| id.clone());
-                            let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
-                            let has_styles = entry_path.join("styles.css").exists();
-                            let dir = format!("{rel_prefix}/{folder_name}");
-
-                            results.push(InstalledPluginInfo {
-                                id,
-                                name,
-                                version,
-                                description: manifest.description,
-                                author: manifest.author,
-                                dir,
-                                has_styles,
-                                repo: None,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(results)
+        self.installed.list_installed(vault_path)
     }
 
     pub async fn check_plugin_updates(
@@ -130,12 +64,18 @@ impl<D: CommunityPluginDownloader> CommunityPluginUseCases<D> {
 
 #[cfg(test)]
 mod tests {
+    struct NoInstalledPlugins;
+    impl InstalledPluginRepository for NoInstalledPlugins {
+        fn list_installed(&self, _vault_path: &Path) -> Result<Vec<InstalledPluginInfo>, String> {
+            Ok(Vec::new())
+        }
+    }
+
     use super::*;
     use std::future::Future;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use tempfile::tempdir;
 
     struct MockPluginDownloader {
         installed: Arc<AtomicBool>,
@@ -218,28 +158,12 @@ mod tests {
             installed: Arc::clone(&installed),
             uninstalled: Arc::clone(&uninstalled),
         };
-        let use_cases = CommunityPluginUseCases::new(mock);
+        let use_cases = CommunityPluginUseCases::new(mock, NoInstalledPlugins);
 
         // Fetch
         let list = use_cases.fetch_community_plugins(false).await.unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, "test-plugin");
-
-        // Installed plugins scan with temp dir
-        let temp = tempdir().unwrap();
-        let plugin_dir = temp.path().join(".synapse").join("plugins").join("my-cool-plugin");
-        fs::create_dir_all(&plugin_dir).unwrap();
-        fs::write(
-            plugin_dir.join("manifest.json"),
-            r#"{"id":"my-cool-plugin","name":"My Cool Plugin","version":"1.2.3"}"#,
-        )
-        .unwrap();
-
-        let scanned = use_cases.get_installed_plugins(temp.path()).unwrap();
-        assert_eq!(scanned.len(), 1);
-        assert_eq!(scanned[0].id, "my-cool-plugin");
-        assert_eq!(scanned[0].name, "My Cool Plugin");
-        assert_eq!(scanned[0].version, "1.2.3");
 
         // Updates
         let updates = use_cases

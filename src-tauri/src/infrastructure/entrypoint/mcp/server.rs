@@ -485,7 +485,7 @@ impl McpBackgroundRuntime {
             let note_repo = NoteRepositoryImpl::new();
             let git_service = Some(Arc::new(VersionControlImpl));
 
-            let use_cases = McpUseCases::new(active_vault, note_repo, fts_opt, git_service);
+            let use_cases = McpUseCases::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
             let stdio_server = McpStdioServer::new(use_cases);
 
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {
