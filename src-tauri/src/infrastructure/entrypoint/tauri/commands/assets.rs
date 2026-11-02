@@ -206,8 +206,7 @@ mod tests {
 
         let file_types = SupportedFileTypes::default();
         let repo = crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new();
-        let use_cases = crate::application::use_cases::note_use_cases::NoteUseCases::new(repo);
-        let state = AppState::empty(file_types, use_cases);
+        let state = AppState::empty(file_types, repo);
 
         *state.active_vault_path.lock().unwrap() = Some(vault_path.clone());
         let engine = Arc::new(NavigationEngine::new(

@@ -6,6 +6,7 @@ use crate::infrastructure::navigation::watcher::{is_ignored_dir_or_file, should_
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[derive(Clone)]
 pub struct WorkspaceRegistryRepositoryImpl {
     config_file_path: PathBuf,
     file_types: SupportedFileTypes,

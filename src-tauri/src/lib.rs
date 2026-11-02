@@ -3,7 +3,6 @@ pub mod application;
 pub mod domain;
 pub mod infrastructure;
 
-use application::use_cases::note_use_cases::NoteUseCases;
 use domain::model::file_types::SupportedFileTypes;
 use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use infrastructure::entrypoint::tauri::commands::{
@@ -37,9 +36,7 @@ use webkit2gtk_nvidia_quirk::{apply_workaround_with_options, ApplyWorkaroundOpti
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let file_types = SupportedFileTypes::default();
-    let repo = NoteRepositoryImpl::new();
-    let use_cases = NoteUseCases::new(repo);
-    let app_state = AppState::empty(file_types, use_cases);
+    let app_state = AppState::empty(file_types, NoteRepositoryImpl::new());
 
     let startup_target = parse_startup_args(&std::env::args().collect::<Vec<_>>());
     if let Ok(mut st) = app_state.startup_target.lock() {

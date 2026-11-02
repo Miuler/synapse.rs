@@ -84,12 +84,12 @@ pub async fn select_vault_folder(
 
 #[tauri::command]
 pub async fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
-    state.workspace_registry_use_cases.list_workspaces()
+    state.list_workspaces_use_case.execute(crate::application::dto::workspace::list_workspaces_query::ListWorkspacesQuery {})
 }
 
 #[tauri::command]
 pub async fn get_shortcuts_config(state: State<'_, AppState>) -> Result<ShortcutsConfig, String> {
-    state.workspace_registry_use_cases.get_shortcuts_config()
+    state.get_shortcuts_config_use_case.execute(crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery {})
 }
 
 #[tauri::command]
@@ -97,7 +97,9 @@ pub async fn toggle_pin_workspace(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<Vec<RecentWorkspaceEntry>, String> {
-    state.workspace_registry_use_cases.toggle_pin(&path)
+    state
+        .toggle_workspace_pin_use_case
+        .execute(crate::application::dto::workspace::toggle_workspace_pin_command::ToggleWorkspacePinCommand { path })
 }
 
 #[tauri::command]
@@ -105,7 +107,9 @@ pub async fn remove_recent_workspace(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<Vec<RecentWorkspaceEntry>, String> {
-    state.workspace_registry_use_cases.remove_workspace(&path)
+    state
+        .remove_workspace_use_case
+        .execute(crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand { path })
 }
 
 #[tauri::command]

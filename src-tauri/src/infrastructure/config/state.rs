@@ -1,3 +1,22 @@
+use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery;
+use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
+use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
+use crate::application::use_cases::note::list_notes_use_case::ListNotesUseCase;
+use crate::application::use_cases::note::read_note_use_case::ReadNoteUseCase;
+use crate::application::use_cases::note::save_note_use_case::SaveNoteUseCase;
+use crate::application::use_cases::note::read_standalone_note_use_case::ReadStandaloneNoteUseCase;
+use crate::application::use_cases::note::save_standalone_note_use_case::SaveStandaloneNoteUseCase;
+use crate::application::use_cases::workspace::get_workspace_registry_use_case::GetWorkspaceRegistryUseCase;
+use crate::application::use_cases::workspace::list_workspaces_use_case::ListWorkspacesUseCase;
+use crate::application::use_cases::workspace::record_workspace_opened_use_case::RecordWorkspaceOpenedUseCase;
+use crate::application::use_cases::workspace::toggle_workspace_pin_use_case::ToggleWorkspacePinUseCase;
+use crate::application::use_cases::workspace::remove_workspace_use_case::RemoveWorkspaceUseCase;
+use crate::application::use_cases::workspace::get_shortcuts_config_use_case::GetShortcutsConfigUseCase;
+use crate::application::use_cases::plugin::fetch_community_plugins_use_case::FetchCommunityPluginsUseCase;
+use crate::application::use_cases::plugin::get_installed_plugins_use_case::GetInstalledPluginsUseCase;
+use crate::application::use_cases::plugin::check_plugin_updates_use_case::CheckPluginUpdatesUseCase;
+use crate::application::use_cases::plugin::install_plugin_use_case::InstallPluginUseCase;
+use crate::application::use_cases::plugin::uninstall_plugin_use_case::UninstallPluginUseCase;
 use crate::application::use_cases::vault_item::delete_vault_item_use_case::DeleteVaultItemUseCase;
 use crate::application::use_cases::vault_item::rename_vault_item_use_case::RenameVaultItemUseCase;
 use crate::application::use_cases::vault_item::move_vault_items_use_case::MoveVaultItemsUseCase;
@@ -21,12 +40,9 @@ use crate::application::use_cases::version::clone_repository_use_case::CloneRepo
 use crate::application::use_cases::version::push_versions_use_case::PushVersionsUseCase;
 use crate::application::use_cases::system::open_file_with_default_app_use_case::OpenFileWithDefaultAppUseCase;
 use crate::application::use_cases::system::show_item_in_folder_use_case::ShowItemInFolderUseCase;
-use crate::application::use_cases::community_plugin_use_cases::CommunityPluginUseCases;
 use crate::infrastructure::repository::file::installed_plugin_repository_impl::InstalledPluginRepositoryImpl;
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
-use crate::application::use_cases::full_text_search_use_cases::FullTextSearchUseCases;
-use crate::application::use_cases::note_use_cases::NoteUseCases;
-use crate::application::use_cases::workspace_registry_use_cases::WorkspaceRegistryUseCases;
+use crate::application::use_cases::search::search_full_text_use_case::SearchFullTextUseCase;
 use crate::domain::model::file_types::SupportedFileTypes;
 use crate::domain::model::note::Note;
 use crate::domain::model::startup::StartupTarget;
@@ -49,7 +65,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub struct FullTextComponents {
-    pub use_cases: FullTextSearchUseCases<FullTextIndexImpl>,
+    pub search_use_case: SearchFullTextUseCase<FullTextIndexImpl>,
+    pub index: Arc<FullTextIndexImpl>,
     pub indexer: Arc<FtsIndexer>,
 }
 
@@ -62,7 +79,7 @@ impl McpContextProvider for DynamicMcpContextProvider {
     fn get_context(&self) -> (Option<PathBuf>, Option<Arc<dyn FullTextIndex>>) {
         let vault = self.active_vault_path.lock().ok().and_then(|g| g.clone());
         let fts: Option<Arc<dyn FullTextIndex>> = self.full_text.lock().ok().and_then(|g| {
-            g.as_ref().map(|ft| ft.use_cases.index_arc() as Arc<dyn FullTextIndex>)
+            g.as_ref().map(|ft| Arc::clone(&ft.index) as Arc<dyn FullTextIndex>)
         });
         (vault, fts)
     }
@@ -94,9 +111,22 @@ pub struct AppState {
     pub show_item_in_folder_use_case: ShowItemInFolderUseCase<SystemShellImpl>,
     pub active_vault_path: Arc<Mutex<Option<PathBuf>>>,
     pub file_types: SupportedFileTypes,
-    pub note_use_cases: NoteUseCases<NoteRepositoryImpl>,
-    pub workspace_registry_use_cases: WorkspaceRegistryUseCases<WorkspaceRegistryRepositoryImpl>,
-    pub community_plugin_use_cases: CommunityPluginUseCases<CommunityPluginDownloaderImpl, InstalledPluginRepositoryImpl>,
+    pub list_notes_use_case: ListNotesUseCase<NoteRepositoryImpl>,
+    pub read_note_use_case: ReadNoteUseCase<NoteRepositoryImpl>,
+    pub save_note_use_case: SaveNoteUseCase<NoteRepositoryImpl>,
+    pub read_standalone_note_use_case: ReadStandaloneNoteUseCase<NoteRepositoryImpl>,
+    pub save_standalone_note_use_case: SaveStandaloneNoteUseCase<NoteRepositoryImpl>,
+    pub get_workspace_registry_use_case: GetWorkspaceRegistryUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub list_workspaces_use_case: ListWorkspacesUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub record_workspace_opened_use_case: RecordWorkspaceOpenedUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub remove_workspace_use_case: RemoveWorkspaceUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub get_shortcuts_config_use_case: GetShortcutsConfigUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub fetch_community_plugins_use_case: FetchCommunityPluginsUseCase<CommunityPluginDownloaderImpl>,
+    pub get_installed_plugins_use_case: GetInstalledPluginsUseCase<InstalledPluginRepositoryImpl>,
+    pub check_plugin_updates_use_case: CheckPluginUpdatesUseCase<CommunityPluginDownloaderImpl>,
+    pub install_plugin_use_case: InstallPluginUseCase<CommunityPluginDownloaderImpl>,
+    pub uninstall_plugin_use_case: UninstallPluginUseCase<CommunityPluginDownloaderImpl>,
     pub navigation_engine: Mutex<Option<Arc<NavigationEngine>>>,
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
@@ -156,9 +186,10 @@ pub fn open_vault_components(
     }));
     engine.register_observer(Arc::clone(&indexer) as Arc<dyn crate::domain::event::vault_events::VaultChangeObserver>);
 
-    let use_cases = FullTextSearchUseCases::new(tantivy_index);
+    let search_use_case = SearchFullTextUseCase::new(Arc::clone(&tantivy_index));
     let full_text = Arc::new(FullTextComponents {
-        use_cases,
+        search_use_case,
+        index: tantivy_index,
         indexer,
     });
 
@@ -168,13 +199,13 @@ pub fn open_vault_components(
 impl AppState {
     pub fn empty(
         file_types: SupportedFileTypes,
-        note_use_cases: NoteUseCases<NoteRepositoryImpl>,
+        note_repository: NoteRepositoryImpl,
     ) -> Self {
         let registry_repo = WorkspaceRegistryRepositoryImpl::new(file_types.clone());
-        let workspace_registry_use_cases = WorkspaceRegistryUseCases::new(registry_repo);
+        let plugin_downloader = CommunityPluginDownloaderImpl::new();
         // Ensure ~/.config/synapsers/workspaces.json and shortcuts.jsonc exist on startup
-        let _ = workspace_registry_use_cases.get_registry();
-        let _ = workspace_registry_use_cases.get_shortcuts_config();
+        let _ = GetWorkspaceRegistryUseCase::new(registry_repo.clone()).execute(GetWorkspaceRegistryQuery {});
+        let _ = GetShortcutsConfigUseCase::new(registry_repo.clone()).execute(GetShortcutsConfigQuery {});
 
         let active_vault_path = Arc::new(Mutex::new(None));
         let full_text = Arc::new(Mutex::new(None));
@@ -202,7 +233,22 @@ impl AppState {
         Self {
             active_vault_path,
             file_types,
-            note_use_cases,
+            list_notes_use_case: ListNotesUseCase::new(note_repository.clone()),
+            read_note_use_case: ReadNoteUseCase::new(note_repository.clone()),
+            save_note_use_case: SaveNoteUseCase::new(note_repository.clone()),
+            read_standalone_note_use_case: ReadStandaloneNoteUseCase::new(note_repository.clone()),
+            save_standalone_note_use_case: SaveStandaloneNoteUseCase::new(note_repository.clone()),
+            get_workspace_registry_use_case: GetWorkspaceRegistryUseCase::new(registry_repo.clone()),
+            list_workspaces_use_case: ListWorkspacesUseCase::new(registry_repo.clone()),
+            record_workspace_opened_use_case: RecordWorkspaceOpenedUseCase::new(registry_repo.clone()),
+            toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase::new(registry_repo.clone()),
+            remove_workspace_use_case: RemoveWorkspaceUseCase::new(registry_repo.clone()),
+            get_shortcuts_config_use_case: GetShortcutsConfigUseCase::new(registry_repo.clone()),
+            fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(plugin_downloader.clone()),
+            get_installed_plugins_use_case: GetInstalledPluginsUseCase::new(InstalledPluginRepositoryImpl),
+            check_plugin_updates_use_case: CheckPluginUpdatesUseCase::new(plugin_downloader.clone()),
+            install_plugin_use_case: InstallPluginUseCase::new(plugin_downloader.clone()),
+            uninstall_plugin_use_case: UninstallPluginUseCase::new(plugin_downloader.clone()),
             delete_vault_item_use_case: DeleteVaultItemUseCase::new(VaultItemRepositoryImpl),
             rename_vault_item_use_case: RenameVaultItemUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
             move_vault_items_use_case: MoveVaultItemsUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
@@ -226,8 +272,6 @@ impl AppState {
             push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
-            workspace_registry_use_cases,
-            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new(), InstalledPluginRepositoryImpl),
             navigation_engine: Mutex::new(None),
             full_text,
             app_handle,
@@ -241,11 +285,11 @@ impl AppState {
     pub fn new(
         initial_vault_path: PathBuf,
         file_types: SupportedFileTypes,
-        note_use_cases: NoteUseCases<NoteRepositoryImpl>,
+        note_repository: NoteRepositoryImpl,
     ) -> Self {
         let app_handle: Arc<Mutex<Option<tauri::AppHandle>>> = Arc::new(Mutex::new(None));
         let registry_repo = WorkspaceRegistryRepositoryImpl::new(file_types.clone());
-        let workspace_registry_use_cases = WorkspaceRegistryUseCases::new(registry_repo);
+        let plugin_downloader = CommunityPluginDownloaderImpl::new();
         let (engine, full_text_comps) = open_vault_components(
             initial_vault_path.clone(),
             file_types.clone(),
@@ -279,7 +323,22 @@ impl AppState {
         Self {
             active_vault_path,
             file_types,
-            note_use_cases,
+            list_notes_use_case: ListNotesUseCase::new(note_repository.clone()),
+            read_note_use_case: ReadNoteUseCase::new(note_repository.clone()),
+            save_note_use_case: SaveNoteUseCase::new(note_repository.clone()),
+            read_standalone_note_use_case: ReadStandaloneNoteUseCase::new(note_repository.clone()),
+            save_standalone_note_use_case: SaveStandaloneNoteUseCase::new(note_repository.clone()),
+            get_workspace_registry_use_case: GetWorkspaceRegistryUseCase::new(registry_repo.clone()),
+            list_workspaces_use_case: ListWorkspacesUseCase::new(registry_repo.clone()),
+            record_workspace_opened_use_case: RecordWorkspaceOpenedUseCase::new(registry_repo.clone()),
+            toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase::new(registry_repo.clone()),
+            remove_workspace_use_case: RemoveWorkspaceUseCase::new(registry_repo.clone()),
+            get_shortcuts_config_use_case: GetShortcutsConfigUseCase::new(registry_repo.clone()),
+            fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(plugin_downloader.clone()),
+            get_installed_plugins_use_case: GetInstalledPluginsUseCase::new(InstalledPluginRepositoryImpl),
+            check_plugin_updates_use_case: CheckPluginUpdatesUseCase::new(plugin_downloader.clone()),
+            install_plugin_use_case: InstallPluginUseCase::new(plugin_downloader.clone()),
+            uninstall_plugin_use_case: UninstallPluginUseCase::new(plugin_downloader.clone()),
             delete_vault_item_use_case: DeleteVaultItemUseCase::new(VaultItemRepositoryImpl),
             rename_vault_item_use_case: RenameVaultItemUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
             move_vault_items_use_case: MoveVaultItemsUseCase::new(VaultItemRepositoryImpl, VersionControlImpl),
@@ -303,8 +362,6 @@ impl AppState {
             push_versions_use_case: PushVersionsUseCase::new(VersionControlImpl),
             open_file_with_default_app_use_case: OpenFileWithDefaultAppUseCase::new(SystemShellImpl),
             show_item_in_folder_use_case: ShowItemInFolderUseCase::new(SystemShellImpl),
-            workspace_registry_use_cases,
-            community_plugin_use_cases: CommunityPluginUseCases::new(CommunityPluginDownloaderImpl::new(), InstalledPluginRepositoryImpl),
             navigation_engine: Mutex::new(Some(engine)),
             full_text,
             app_handle,
@@ -354,12 +411,12 @@ impl AppState {
         // Sincronizar servidor MCP con la configuración específica de esta bóveda
         self.mcp_runtime.sync_for_vault(&path);
 
-        let _ = self.workspace_registry_use_cases.record_workspace_opened(
-            &folder_path_str,
-            Some(notes.len()),
-            None,
-            is_git,
-        );
+        let _ = self.record_workspace_opened_use_case.execute(RecordWorkspaceOpenedCommand {
+            path: folder_path_str.clone(),
+            notes_count: Some(notes.len()),
+            git_branch: None,
+            is_git_repo: is_git,
+        });
 
         Ok(SelectVaultFolderResult {
             folder_path: folder_path_str,

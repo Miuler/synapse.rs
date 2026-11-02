@@ -196,13 +196,18 @@ pub fn read_note_content(
 
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
-        return state.note_use_cases.read_standalone_note(p);
+        return state
+            .read_standalone_note_use_case
+            .execute(crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery { path: p.to_path_buf() });
     }
 
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let note_res = state.note_use_cases.read_note(vault_path, &relative_path);
+    let note_res = state.read_note_use_case.execute(crate::application::dto::note::read_note_query::ReadNoteQuery {
+        vault_path: vault_path.clone(),
+        relative_path: relative_path.clone(),
+    });
     let mut note = match note_res {
         Ok(n) => n,
         Err(err) => {
@@ -261,16 +266,25 @@ pub fn save_note_content(
 
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
-        return state.note_use_cases.save_standalone_note(p, &title, &content, &enc);
+        return state.save_standalone_note_use_case.execute(crate::application::dto::note::save_standalone_note_command::SaveStandaloneNoteCommand {
+            path: p.to_path_buf(),
+            title,
+            content,
+            encoding: enc,
+        });
     }
 
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
     // El watcher del sistema de archivos detecta el cambio; no hace falta recorrer toda la bóveda en cada guardado
-    state
-        .note_use_cases
-        .save_note(vault_path, &relative_path, &title, &content, &enc)
+    state.save_note_use_case.execute(crate::application::dto::note::save_note_command::SaveNoteCommand {
+        vault_path: vault_path.clone(),
+        relative_path,
+        title,
+        content,
+        encoding: enc,
+    })
 }
 
 #[tauri::command]
@@ -285,7 +299,9 @@ pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String)
     };
 
     if !target_dir.exists() || !target_dir.is_dir() {
-        let _ = state.workspace_registry_use_cases.remove_workspace(&new_path);
+        let _ = state
+            .remove_workspace_use_case
+            .execute(crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand { path: new_path.clone() });
         return Err("Ruta de bóveda inválida o no existe".to_string());
     }
 

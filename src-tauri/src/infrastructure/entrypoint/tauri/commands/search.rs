@@ -95,7 +95,9 @@ pub async fn full_text_search(
 
     let start = std::time::Instant::now();
     let res = tauri::async_runtime::spawn_blocking(move || {
-        let (hits, total_hits) = ft_components.use_cases.search(&query, limit)?;
+        let (hits, total_hits) = ft_components
+            .search_use_case
+            .execute(crate::application::dto::search::search_full_text_query::SearchFullTextQuery { text: query, limit })?;
         let status = ft_components.indexer.status();
         let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
         Ok(FullTextSearchResponse {

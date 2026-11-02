@@ -11,8 +11,10 @@ pub async fn fetch_community_plugins(
     force_refresh: Option<bool>,
 ) -> Result<Vec<CommunityPlugin>, String> {
     state
-        .community_plugin_use_cases
-        .fetch_community_plugins(force_refresh.unwrap_or(false))
+        .fetch_community_plugins_use_case
+        .execute(crate::application::dto::plugin::fetch_community_plugins_query::FetchCommunityPluginsQuery {
+            force_refresh: force_refresh.unwrap_or(false),
+        })
         .await
 }
 
@@ -32,8 +34,8 @@ pub fn get_installed_community_plugins(
     };
 
     state
-        .community_plugin_use_cases
-        .get_installed_plugins(&resolved_path)
+        .get_installed_plugins_use_case
+        .execute(crate::application::dto::plugin::get_installed_plugins_query::GetInstalledPluginsQuery { vault_path: resolved_path })
 }
 
 #[tauri::command]
@@ -42,8 +44,8 @@ pub async fn check_community_plugin_updates(
     plugins: Vec<(String, String, String)>,
 ) -> Result<Vec<PluginUpdateInfo>, String> {
     state
-        .community_plugin_use_cases
-        .check_plugin_updates(&plugins)
+        .check_plugin_updates_use_case
+        .execute(crate::application::dto::plugin::check_plugin_updates_query::CheckPluginUpdatesQuery { plugins })
         .await
 }
 
@@ -65,8 +67,12 @@ pub async fn install_community_plugin(
     };
 
     state
-        .community_plugin_use_cases
-        .install_plugin(&resolved_path, &plugin_id, &repo)
+        .install_plugin_use_case
+        .execute(crate::application::dto::plugin::install_plugin_command::InstallPluginCommand {
+            vault_path: resolved_path,
+            plugin_id,
+            repo,
+        })
         .await
 }
 
@@ -87,7 +93,10 @@ pub async fn uninstall_community_plugin(
     };
 
     state
-        .community_plugin_use_cases
-        .uninstall_plugin(&resolved_path, &plugin_id)
+        .uninstall_plugin_use_case
+        .execute(crate::application::dto::plugin::uninstall_plugin_command::UninstallPluginCommand {
+            vault_path: resolved_path,
+            plugin_id,
+        })
         .await
 }

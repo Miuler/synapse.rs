@@ -15,6 +15,7 @@ struct ManifestExtract {
 }
 
 /// Plugins instalados en `.synapse/plugins`, leídos de su `manifest.json`.
+#[derive(Clone)]
 pub struct InstalledPluginRepositoryImpl;
 
 impl InstalledPluginRepository for InstalledPluginRepositoryImpl {

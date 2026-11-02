@@ -120,6 +120,7 @@ pub fn encode_content(content: &str, encoding: &str) -> Vec<u8> {
     }
 }
 
+#[derive(Clone)]
 pub struct NoteRepositoryImpl;
 
 impl NoteRepositoryImpl {

@@ -59,6 +59,8 @@ fn get_disk_cache_path() -> PathBuf {
     std::env::temp_dir().join("synapse_community_plugins_cache.json")
 }
 
+/// Los clones comparten cliente HTTP y caché del catálogo.
+#[derive(Clone)]
 pub struct CommunityPluginDownloaderImpl {
     client: reqwest::Client,
     cache: Arc<RwLock<Option<(Instant, Vec<CommunityPlugin>)>>>,
