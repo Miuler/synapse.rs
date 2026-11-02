@@ -1,4 +1,4 @@
-use crate::domain::model::wikilink::{AssetPath, LinkTarget};
+use crate::domain::graph::wikilink::{AssetPath, LinkTarget};
 use crate::infrastructure::config::state::AppState;
 use std::path::{Path, PathBuf};
 use tauri::State;
@@ -184,7 +184,7 @@ pub fn read_asset_data_url(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::model::file_types::SupportedFileTypes;
+    use crate::domain::vault::file_types::SupportedFileTypes;
     use crate::infrastructure::navigation::engine::NavigationEngine;
     use std::fs::File;
     use std::io::Write;

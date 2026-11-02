@@ -1,4 +1,4 @@
-use crate::domain::model::community_plugin::InstalledPluginInfo;
+use crate::domain::plugin::community_plugin::InstalledPluginInfo;
 use std::path::Path;
 
 /// Plugins comunitarios instalados en la bóveda.

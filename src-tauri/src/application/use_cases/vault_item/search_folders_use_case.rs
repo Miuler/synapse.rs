@@ -1,8 +1,8 @@
 use crate::application::dto::vault_item::search_folders_query::{FolderSearchResult, SearchFoldersQuery};
-use crate::domain::model::folder::FolderPath;
-use crate::domain::model::tag::Tag;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::folder::FolderPath;
+use crate::domain::graph::tag::Tag;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 use crate::domain::service::folder_summarizer::FolderSummarizer;
 use std::collections::HashSet;
 

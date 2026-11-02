@@ -1,6 +1,6 @@
 use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
-use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::domain::model::workspace_registry::WorkspaceRegistryConfig;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::workspace::workspace_registry::WorkspaceRegistryConfig;
 
 /// Registro de espacios de trabajo.
 #[derive(Clone)]

@@ -1,7 +1,7 @@
 use crate::application::dto::note::read_note_details_query::{NoteDetails, ReadNoteDetailsQuery};
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Lee una nota con los datos que necesita un agente para navegarla sin cargarla entera.
 pub struct ReadNoteDetailsUseCase<N: NoteRepository> {

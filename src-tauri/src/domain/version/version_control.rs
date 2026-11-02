@@ -1,4 +1,4 @@
-use crate::domain::model::version::{
+use crate::domain::version::version::{
     BranchList, FileDiff, FileVersionHistory, FileRevision, ImageDiff,
     VaultVersionState,
 };

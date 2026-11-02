@@ -17,7 +17,7 @@ pub struct SupportedFileTypes {
 
 impl Default for SupportedFileTypes {
     fn default() -> Self {
-        crate::domain::model::config::AppConfig::default().supported_files
+        crate::domain::config::config::AppConfig::default().supported_files
     }
 }
 

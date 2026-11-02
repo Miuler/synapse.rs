@@ -1,6 +1,6 @@
 use crate::application::dto::pdf::read_pdf_document_query::{PdfReading, ReadPdfDocumentQuery};
-use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::pdf::pdf_document_repository::PdfDocumentRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Lee un PDF de la bóveda por páginas, busca dentro de él o devuelve su resumen.
 pub struct ReadPdfDocumentUseCase<P: PdfDocumentRepository, V: VaultItemRepository> {

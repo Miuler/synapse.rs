@@ -1,5 +1,5 @@
 use crate::application::dto::version::untrack_files_command::UntrackFilesCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Quita archivos de la preparación de la próxima versión.
 #[derive(Clone)]

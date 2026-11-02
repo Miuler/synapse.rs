@@ -1,4 +1,4 @@
-use crate::domain::model::workspace_session::OpenTabDto;
+use crate::domain::workspace::workspace_session::OpenTabDto;
 
 pub struct SaveOpenTabsCommand {
     pub tabs: Vec<OpenTabDto>,

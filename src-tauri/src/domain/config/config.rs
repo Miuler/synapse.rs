@@ -1,4 +1,4 @@
-use super::file_types::SupportedFileTypes;
+use crate::domain::vault::file_types::SupportedFileTypes;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

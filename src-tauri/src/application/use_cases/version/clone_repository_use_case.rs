@@ -1,5 +1,5 @@
 use crate::application::dto::version::clone_repository_command::CloneRepositoryCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Clona un repositorio remoto en una carpeta local.
 #[derive(Clone)]

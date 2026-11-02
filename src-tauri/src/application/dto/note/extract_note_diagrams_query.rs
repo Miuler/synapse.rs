@@ -1,4 +1,4 @@
-use crate::domain::model::note_content::DiagramBlock;
+use crate::domain::note::note_content::DiagramBlock;
 use std::path::PathBuf;
 
 pub struct ExtractNoteDiagramsQuery {

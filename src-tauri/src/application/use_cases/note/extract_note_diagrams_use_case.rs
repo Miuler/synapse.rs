@@ -1,8 +1,8 @@
 use crate::application::dto::note::extract_note_diagrams_query::{ExtractNoteDiagramsQuery, NoteDiagrams};
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Extrae los diagramas Mermaid y D2 de una nota o de un archivo de diagrama.
 pub struct ExtractNoteDiagramsUseCase<N: NoteRepository, V: VaultItemRepository> {

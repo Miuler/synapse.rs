@@ -1,7 +1,7 @@
-use crate::domain::model::config::IndexingConfig;
-use crate::domain::model::file_types::SupportedFileTypes;
-use crate::domain::model::full_text::DocumentKind;
-use crate::domain::model::note::Note;
+use crate::domain::config::config::IndexingConfig;
+use crate::domain::vault::file_types::SupportedFileTypes;
+use crate::domain::search::full_text::DocumentKind;
+use crate::domain::note::note::Note;
 use crate::infrastructure::repository::file::note_repository_impl::detect_and_decode;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;

@@ -1,7 +1,7 @@
-use crate::domain::model::file_types::SupportedFileTypes;
-use crate::domain::model::note::Note;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::vault::file_types::SupportedFileTypes;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::note::note_path::NoteRelativePath;
 use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -186,7 +186,7 @@ impl NoteRepositoryImpl {
                                 let file_types = SupportedFileTypes::default();
                                 if file_types.is_markdown_file(file_name) {
                                     if let Ok(file_prefix) = fs::read_to_string(&path) {
-                                        let (fm, _) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&file_prefix);
+                                        let (fm, _) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&file_prefix);
                                         if let Some(ref parsed_fm) = fm {
                                             if let Some(ref explicit_title) = parsed_fm.title {
                                                 note_title = explicit_title.clone();
@@ -264,7 +264,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&raw_content);
+            let (fm, _body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -311,7 +311,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::model::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
+            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
         } else {
             note.content.clone()
         };
@@ -370,7 +370,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(&raw_content);
+            let (fm, _body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -416,7 +416,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::model::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
+            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
         } else {
             note.content.clone()
         };
@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_save_and_read_excalidraw_file() {
-        use crate::domain::repository::note_repository::NoteRepository;
+        use crate::domain::note::note_repository::NoteRepository;
         let temp_dir = std::env::temp_dir().join("synapse_excalidraw_test");
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();
@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn test_standalone_file_read_and_save() {
-        use crate::domain::repository::note_repository::NoteRepository;
+        use crate::domain::note::note_repository::NoteRepository;
         let temp_dir = std::env::temp_dir().join("synapse_standalone_test");
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).unwrap();

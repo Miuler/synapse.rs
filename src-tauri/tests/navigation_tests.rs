@@ -1,4 +1,4 @@
-use app_lib::domain::model::note::Note;
+use app_lib::domain::note::note::Note;
 use app_lib::infrastructure::navigation::engine::NavigationEngine;
 use app_lib::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
 use app_lib::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
@@ -643,7 +643,7 @@ fn test_record_opened_and_metadata_persistence() {
 
 #[test]
 fn test_open_tabs_state_and_reading_mode_persistence() {
-    use app_lib::domain::model::workspace_session::OpenTabDto;
+    use app_lib::domain::workspace::workspace_session::OpenTabDto;
 
     let test_dir = std::env::temp_dir().join("synapse_open_tabs_test");
     let _ = fs::remove_dir_all(&test_dir);

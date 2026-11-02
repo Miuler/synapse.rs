@@ -1,5 +1,5 @@
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Cambia a otra rama.
 #[derive(Clone)]

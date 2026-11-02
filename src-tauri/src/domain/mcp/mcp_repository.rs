@@ -1,4 +1,4 @@
-use crate::domain::model::mcp::{McpPortRegistry, McpVaultConfig};
+use crate::domain::mcp::mcp::{McpPortRegistry, McpVaultConfig};
 use std::path::Path;
 
 /// Puerto/Trait de dominio para la persistencia y lectura de la configuración MCP por bóveda y global.

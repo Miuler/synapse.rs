@@ -1,5 +1,5 @@
 use crate::application::dto::session::get_recent_notes_query::GetRecentNotesQuery;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 
 /// Rutas de las notas abiertas más recientemente.
 #[derive(Clone)]

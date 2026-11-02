@@ -1,5 +1,5 @@
 use crate::application::dto::version::push_versions_command::PushVersionsCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Publica las versiones locales en el remoto.
 #[derive(Clone)]

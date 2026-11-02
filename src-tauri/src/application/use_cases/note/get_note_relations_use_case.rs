@@ -1,6 +1,6 @@
 use crate::application::dto::note::get_note_relations_query::{Backlink, GetNoteRelationsQuery, NoteRelations, Outlink};
-use crate::domain::model::wikilink::{LinkTarget, WikilinkToken};
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::graph::wikilink::{LinkTarget, WikilinkToken};
+use crate::domain::note::note_repository::NoteRepository;
 use std::collections::{HashMap, HashSet};
 
 /// Relaciones de una nota: quién la enlaza, a quién enlaza y qué notas comparten etiquetas.

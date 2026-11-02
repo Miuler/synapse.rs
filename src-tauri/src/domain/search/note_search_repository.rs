@@ -1,4 +1,4 @@
-use crate::domain::model::note::Note;
+use crate::domain::note::note::Note;
 use serde::{Deserialize, Serialize};
 
 /// Estructura de valor que representa el resultado de una coincidencia de búsqueda difusa (Fuzzy Search).

@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_image_diff_query::GetImageDiffQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::ImageDiff;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::ImageDiff;
 
 /// Diferencias de una imagen entre versiones.
 #[derive(Clone)]

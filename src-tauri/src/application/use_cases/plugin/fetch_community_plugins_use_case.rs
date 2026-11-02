@@ -1,6 +1,6 @@
 use crate::application::dto::plugin::fetch_community_plugins_query::FetchCommunityPluginsQuery;
 use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
-use crate::domain::model::community_plugin::CommunityPlugin;
+use crate::domain::plugin::community_plugin::CommunityPlugin;
 
 /// Catálogo de plugins comunitarios.
 #[derive(Clone)]

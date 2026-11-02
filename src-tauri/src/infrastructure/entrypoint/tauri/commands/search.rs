@@ -1,5 +1,5 @@
-use crate::domain::model::full_text::{FullTextIndexStatus, FullTextSearchResponse};
-use crate::domain::repository::note_search_repository::{SearchResult, NoteSearchRepository};
+use crate::domain::search::full_text::{FullTextIndexStatus, FullTextSearchResponse};
+use crate::domain::search::note_search_repository::{SearchResult, NoteSearchRepository};
 use crate::infrastructure::repository::nucleo::note_search_repository_impl::NoteSearchRepositoryImpl;
 use crate::infrastructure::entrypoint::tauri::dto::QuickOpenSearchResult;
 use crate::infrastructure::config::state::AppState;
@@ -175,10 +175,10 @@ pub fn get_vault_graph(
     state: State<'_, AppState>,
     focus_path: Option<String>,
     depth: Option<usize>,
-) -> Result<crate::domain::model::graph::VaultGraphData, String> {
+) -> Result<crate::domain::graph::graph::VaultGraphData, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
-        return Ok(crate::domain::model::graph::VaultGraphData::default());
+        return Ok(crate::domain::graph::graph::VaultGraphData::default());
     };
     Ok(engine.get_vault_graph(focus_path.as_deref(), depth))
 }
@@ -222,7 +222,7 @@ pub async fn search_folders_command(
     query: String,
     limit: Option<usize>,
     offset: Option<usize>,
-) -> Result<Vec<crate::domain::model::folder::FolderMeta>, String> {
+) -> Result<Vec<crate::domain::vault::folder::FolderMeta>, String> {
     let engine = {
         let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
         guard.clone()
@@ -246,10 +246,10 @@ pub async fn search_folders_command(
 pub fn get_note_backlinks_and_relations(
     state: State<'_, AppState>,
     target_path: String,
-) -> Result<crate::domain::model::graph::NoteBacklinksReport, String> {
+) -> Result<crate::domain::graph::graph::NoteBacklinksReport, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
-        return Ok(crate::domain::model::graph::NoteBacklinksReport::default());
+        return Ok(crate::domain::graph::graph::NoteBacklinksReport::default());
     };
     Ok(engine.get_note_backlinks_and_relations(&target_path))
 }

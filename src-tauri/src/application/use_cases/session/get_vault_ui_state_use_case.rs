@@ -1,6 +1,6 @@
 use crate::application::dto::session::get_vault_ui_state_query::GetVaultUiStateQuery;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
-use crate::domain::model::workspace_session::VaultUiState;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session::VaultUiState;
 
 /// Estado de la interfaz de la bóveda.
 #[derive(Clone)]

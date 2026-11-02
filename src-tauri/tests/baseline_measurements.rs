@@ -9,9 +9,9 @@
 //! Miden tres operaciones: abrir la bóveda (escaneo y reconciliación en frío), búsqueda rápida
 //! y guardar una nota grande. La nota de prueba se escribe en un directorio temporal, nunca en
 //! la bóveda.
-use app_lib::domain::model::note::Note;
-use app_lib::domain::repository::note_repository::NoteRepository;
-use app_lib::domain::model::note_path::NoteRelativePath;
+use app_lib::domain::note::note::Note;
+use app_lib::domain::note::note_repository::NoteRepository;
+use app_lib::domain::note::note_path::NoteRelativePath;
 use app_lib::infrastructure::navigation::engine::NavigationEngine;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::path::PathBuf;

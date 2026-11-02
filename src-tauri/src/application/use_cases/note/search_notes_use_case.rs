@@ -1,7 +1,7 @@
 use crate::application::dto::note::search_notes_query::{NoteSearchHit, SearchNotesQuery};
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::tag::Tag;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::graph::tag::Tag;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Busca notas por título, ruta, etiquetas o alias, con filtro opcional de etiquetas.
 pub struct SearchNotesUseCase<N: NoteRepository> {

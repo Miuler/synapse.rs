@@ -1,5 +1,5 @@
 use crate::application::dto::vault_item::write_binary_vault_item_command::WriteBinaryVaultItemCommand;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Escribe contenido binario en un archivo de la bóveda.
 #[derive(Clone)]

@@ -14,7 +14,7 @@ impl Tag {
         let mut tags_set = HashSet::new();
 
         // 1. Extraer tags del frontmatter YAML si existe
-        let (fm, body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(content);
+        let (fm, body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(content);
         if let Some(fm) = fm {
             for tag in fm.tags {
                 let normalized = Tag::normalize(&tag);

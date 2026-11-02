@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_branches_query::GetBranchesQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::BranchList;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::BranchList;
 
 /// Ramas de la bóveda.
 #[derive(Clone)]

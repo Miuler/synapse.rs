@@ -1,5 +1,5 @@
 use crate::application::dto::vault_item::delete_vault_item_command::DeleteVaultItemCommand;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Elimina un archivo o carpeta de la bóveda.
 #[derive(Clone)]

@@ -1,8 +1,8 @@
-pub use crate::domain::model::version::{
+pub use crate::domain::version::version::{
     Branch, BranchList, VersionEntry, FileDiff, FileVersionHistory,
     FileRevision, FileVersionState, ImageDiff, VaultVersionState,
 };
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 use std::collections::HashMap;
 use std::path::Path;
 

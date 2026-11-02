@@ -1,5 +1,5 @@
 use crate::application::dto::session::set_note_view_mode_command::SetNoteViewModeCommand;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 
 /// Recuerda el modo de vista de una nota.
 #[derive(Clone)]

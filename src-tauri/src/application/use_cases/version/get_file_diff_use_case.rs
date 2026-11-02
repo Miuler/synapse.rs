@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_file_diff_query::GetFileDiffQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::FileDiff;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::FileDiff;
 
 /// Diferencias de texto de un archivo.
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 use crate::application::dto::session::get_open_tabs_query::GetOpenTabsQuery;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
-use crate::domain::model::workspace_session::WorkspaceOpenTabsState;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session::WorkspaceOpenTabsState;
 
 /// Pestañas abiertas guardadas.
 #[derive(Clone)]

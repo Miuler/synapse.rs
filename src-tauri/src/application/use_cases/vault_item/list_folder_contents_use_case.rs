@@ -1,9 +1,9 @@
 use crate::application::dto::vault_item::list_folder_contents_query::{
     FolderEntryInfo, FolderListing, FolderNoteInfo, ListFolderContentsQuery,
 };
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Contenido de una carpeta de la bóveda: subcarpetas y notas.
 pub struct ListFolderContentsUseCase<N: NoteRepository, V: VaultItemRepository> {

@@ -1,4 +1,4 @@
-use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use crate::infrastructure::config::state::AppState;
 use tauri::State;
 

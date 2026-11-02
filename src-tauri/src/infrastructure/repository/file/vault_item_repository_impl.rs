@@ -1,4 +1,4 @@
-use crate::domain::model::file_name::FileName;
+use crate::domain::vault::file_name::FileName;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -186,12 +186,12 @@ impl VaultItemRepositoryImpl {
 
         // Si el archivo renombrado es Markdown, sincronizar el title de su frontmatter con el nuevo file_stem
         if target.is_file() {
-            let file_types = crate::domain::model::file_types::SupportedFileTypes::default();
+            let file_types = crate::domain::vault::file_types::SupportedFileTypes::default();
             let target_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name) {
                 if let Ok(raw_content) = fs::read_to_string(&target) {
                     if let Some(new_stem) = target.file_stem().and_then(|s| s.to_str()) {
-                        let updated = crate::domain::model::frontmatter::NoteFrontmatter::sync_title(&raw_content, new_stem);
+                        let updated = crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&raw_content, new_stem);
                         let _ = fs::write(&target, updated);
                     }
                 }
@@ -279,8 +279,8 @@ impl VaultItemRepositoryImpl {
     }
 }
 
-use crate::domain::model::folder::FolderEntry;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::folder::FolderEntry;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 impl VaultItemRepository for VaultItemRepositoryImpl {
     fn delete_item(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {

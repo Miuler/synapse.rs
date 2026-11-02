@@ -1,5 +1,5 @@
 //! Resolución de enlaces (`[[destino]]`) entre notas de la bóveda.
-use crate::domain::model::wikilink::{ProximityScore, LinkTarget};
+use crate::domain::graph::wikilink::{ProximityScore, LinkTarget};
 
 /// Resuelve el destino de un enlace entre todas las notas, prefiriendo la más cercana al
 /// archivo de origen: misma carpeta, luego subcarpetas, luego carpetas padre y luego el resto.

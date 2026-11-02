@@ -1,5 +1,5 @@
 use crate::application::dto::session::save_open_tabs_command::SaveOpenTabsCommand;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 
 /// Guarda las pestañas abiertas y la activa.
 #[derive(Clone)]

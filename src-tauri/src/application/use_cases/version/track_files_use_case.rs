@@ -1,5 +1,5 @@
 use crate::application::dto::version::track_files_command::TrackFilesCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Prepara archivos para la próxima versión.
 #[derive(Clone)]

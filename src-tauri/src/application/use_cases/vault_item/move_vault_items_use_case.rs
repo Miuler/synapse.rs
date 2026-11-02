@@ -1,6 +1,6 @@
 use crate::application::dto::vault_item::move_vault_items_command::MoveVaultItemsCommand;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
+use crate::domain::version::version_control::VersionControl;
 use crate::application::dto::vault_item::moved_vault_item::MovedVaultItem;
 
 /// Mueve elementos a una carpeta. Si estaban versionados, deja el movimiento preparado en el versionado. Devuelve los pares origen/destino realmente movidos; el error solo se propaga cuando no se movió nada.

@@ -1,6 +1,6 @@
 use crate::application::dto::workspace::toggle_workspace_pin_command::ToggleWorkspacePinCommand;
-use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::domain::model::workspace_registry::RecentWorkspaceEntry;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
 
 /// Fija o desfija un espacio de trabajo.
 #[derive(Clone)]

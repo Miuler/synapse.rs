@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_file_version_history_query::GetFileVersionHistoryQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::FileVersionHistory;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::FileVersionHistory;
 
 /// Historial de versiones de un archivo.
 #[derive(Clone)]

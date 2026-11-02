@@ -1,5 +1,5 @@
 use crate::application::dto::vault_item::read_binary_vault_item_query::ReadBinaryVaultItemQuery;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Lee el contenido binario de un archivo de la bóveda.
 #[derive(Clone)]

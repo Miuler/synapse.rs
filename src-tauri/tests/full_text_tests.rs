@@ -1,7 +1,7 @@
-use app_lib::domain::repository::indexed_document_repository::IndexedDocumentRepository;
-use app_lib::domain::model::file_types::SupportedFileTypes;
-use app_lib::domain::model::full_text::{DocumentKind, FullTextQuery};
-use app_lib::domain::repository::full_text_index::FullTextIndex;
+use app_lib::domain::search::indexed_document_repository::IndexedDocumentRepository;
+use app_lib::domain::vault::file_types::SupportedFileTypes;
+use app_lib::domain::search::full_text::{DocumentKind, FullTextQuery};
+use app_lib::domain::search::full_text_index::FullTextIndex;
 use app_lib::infrastructure::search::fts_indexer::FtsIndexer;
 use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use std::fs;
@@ -43,7 +43,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
 
     // 2. Abrir índice Tantivy en disco e iniciar FtsIndexer
     let index = Arc::new(FullTextIndexImpl::open_or_create(&fts_dir).unwrap());
-    let mut indexing = app_lib::domain::model::config::IndexingConfig::default();
+    let mut indexing = app_lib::domain::config::config::IndexingConfig::default();
     indexing.debounce_ms = 350; // el test espera 600 ms; el valor por defecto es mayor
     let indexer = FtsIndexer::start_with_config(vault_path.clone(), file_types.clone(), indexing, Arc::clone(&index));
 

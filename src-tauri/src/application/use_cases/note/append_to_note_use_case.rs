@@ -1,8 +1,8 @@
 use crate::application::dto::note::append_to_note_command::AppendToNoteCommand;
-use crate::domain::model::note::Note;
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Anexa contenido al final de una nota o al inicio/final de una sección. Devuelve la nueva
 /// huella del contenido.

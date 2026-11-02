@@ -1,5 +1,5 @@
 use crate::application::dto::vault_item::copy_vault_items_command::CopyVaultItemsCommand;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Pega (copia) elementos dentro de una carpeta y devuelve las rutas creadas.
 #[derive(Clone)]

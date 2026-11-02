@@ -1,5 +1,5 @@
-use crate::domain::model::frontmatter::NoteFrontmatter;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::note::frontmatter::NoteFrontmatter;
+use crate::domain::note::note_path::NoteRelativePath;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ impl Note {
     /// el nombre del archivo sin extensión.
     pub fn title_from_content(content: &str, file_stem: &str) -> String {
         // Si contiene frontmatter YAML con propiedad title, priorizarla
-        let (fm, body) = crate::domain::model::frontmatter::NoteFrontmatter::parse(content);
+        let (fm, body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(content);
         if let Some(fm) = fm {
             if let Some(explicit_title) = fm.title {
                 let trimmed = explicit_title.trim();

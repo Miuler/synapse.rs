@@ -1,6 +1,6 @@
 use crate::application::dto::vault_item::rename_vault_item_command::RenameVaultItemCommand;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
+use crate::domain::version::version_control::VersionControl;
 
 /// Renombra un archivo o carpeta. Si estaba versionado, deja el renombrado preparado en el versionado.
 #[derive(Clone)]

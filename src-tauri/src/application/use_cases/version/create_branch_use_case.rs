@@ -1,5 +1,5 @@
 use crate::application::dto::version::create_branch_command::CreateBranchCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Crea una rama a partir de otra y opcionalmente cambia a ella.
 #[derive(Clone)]

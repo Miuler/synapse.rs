@@ -1,5 +1,5 @@
-use crate::domain::model::mcp::{McpPortRegistry, McpVaultConfig};
-use crate::domain::repository::mcp_repository::McpConfigRepository;
+use crate::domain::mcp::mcp::{McpPortRegistry, McpVaultConfig};
+use crate::domain::mcp::mcp_repository::McpConfigRepository;
 use crate::infrastructure::entrypoint::mcp::port_registry;
 use std::path::Path;
 

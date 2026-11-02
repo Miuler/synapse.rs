@@ -1,6 +1,6 @@
-use crate::domain::model::file_types::SupportedFileTypes;
-use crate::domain::model::note::Note;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::vault::file_types::SupportedFileTypes;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_path::NoteRelativePath;
 use crate::infrastructure::entrypoint::tauri::dto::{VaultEntryNode, VaultFileDto, VaultFilesResponse};
 use crate::infrastructure::config::state::AppState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -217,7 +217,7 @@ pub fn read_note_content(
                 if let Some(ref engine) = *guard {
                     if let Some(meta) = engine.get_note_meta(&relative_path) {
                         if meta.sync_state.as_deref() == Some("ghost") {
-                            let note_rel = crate::domain::model::note_path::NoteRelativePath::new(&relative_path)
+                            let note_rel = crate::domain::note::note_path::NoteRelativePath::new(&relative_path)
                                 .map_err(|e| e.to_string())?;
                             let abs = vault_path.join(&relative_path).to_string_lossy().to_string();
                             Note {

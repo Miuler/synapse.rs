@@ -1,7 +1,7 @@
 use crate::application::dto::note::delete_note_command::DeleteNoteCommand;
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Elimina una nota; si se indica `expected_hash`, solo si no cambió desde que se leyó.
 pub struct DeleteNoteUseCase<N: NoteRepository> {

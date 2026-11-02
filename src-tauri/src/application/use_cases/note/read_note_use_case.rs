@@ -1,7 +1,7 @@
 use crate::application::dto::note::read_note_query::ReadNoteQuery;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::note::Note;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_path::NoteRelativePath;
 
 /// Lee una nota de la bóveda.
 #[derive(Clone)]

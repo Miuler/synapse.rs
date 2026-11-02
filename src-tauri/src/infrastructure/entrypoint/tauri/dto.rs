@@ -1,5 +1,5 @@
-use crate::domain::model::note::Note;
-use crate::domain::repository::note_search_repository::SearchResult;
+use crate::domain::note::note::Note;
+use crate::domain::search::note_search_repository::SearchResult;
 pub use crate::infrastructure::navigation::model::{VaultFileDto, VaultFileStatDto};
 use crate::infrastructure::navigation::engine::{NavigationEngine, VaultFilesStream};
 use serde::{Deserialize, Serialize};
@@ -47,7 +47,7 @@ impl Serialize for VaultFilesResponse {
 pub struct QuickOpenSearchResult {
     pub results: Vec<SearchResult>,
     #[serde(default)]
-    pub folders: Vec<crate::domain::model::folder::FolderMeta>,
+    pub folders: Vec<crate::domain::vault::folder::FolderMeta>,
     pub total_files: usize,
     pub matched_files: usize,
 }

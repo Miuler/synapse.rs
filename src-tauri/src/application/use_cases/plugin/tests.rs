@@ -8,7 +8,7 @@ use crate::application::use_cases::plugin::check_plugin_updates_use_case::CheckP
 use crate::application::use_cases::plugin::fetch_community_plugins_use_case::FetchCommunityPluginsUseCase;
 use crate::application::use_cases::plugin::install_plugin_use_case::InstallPluginUseCase;
 use crate::application::use_cases::plugin::uninstall_plugin_use_case::UninstallPluginUseCase;
-use crate::domain::model::community_plugin::{CommunityPlugin, CommunityPluginInstallResult, PluginUpdateInfo};
+use crate::domain::plugin::community_plugin::{CommunityPlugin, CommunityPluginInstallResult, PluginUpdateInfo};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;

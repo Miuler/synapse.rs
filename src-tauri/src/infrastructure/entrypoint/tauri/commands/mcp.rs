@@ -1,4 +1,4 @@
-use crate::domain::model::mcp::{McpPortRegistry};
+use crate::domain::mcp::mcp::{McpPortRegistry};
 use crate::infrastructure::entrypoint::mcp::dto::{McpRuntimeStatus};
 use crate::infrastructure::entrypoint::mcp::port_registry;
 use crate::infrastructure::config::state::AppState;

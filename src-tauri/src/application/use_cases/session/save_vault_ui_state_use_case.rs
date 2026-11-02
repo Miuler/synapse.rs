@@ -1,5 +1,5 @@
 use crate::application::dto::session::save_vault_ui_state_command::SaveVaultUiStateCommand;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 
 /// Guarda el estado de la interfaz de la bóveda.
 #[derive(Clone)]

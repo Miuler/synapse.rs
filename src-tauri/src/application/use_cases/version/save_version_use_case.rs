@@ -1,5 +1,5 @@
 use crate::application::dto::version::save_version_command::SaveVersionCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Guarda una versión con los archivos indicados.
 #[derive(Clone)]

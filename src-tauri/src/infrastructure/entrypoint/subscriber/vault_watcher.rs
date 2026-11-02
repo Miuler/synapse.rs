@@ -10,11 +10,11 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::domain::model::note::Note;
+use crate::domain::note::note::Note;
 use crate::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
 use crate::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
 use crate::infrastructure::navigation::engine::VaultChangeListener;
-use crate::domain::model::file_types::SupportedFileTypes;
+use crate::domain::vault::file_types::SupportedFileTypes;
 use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -35,11 +35,11 @@ pub struct ParsedFileMeta {
     pub created_nanos: Option<u128>,
 }
 
-use crate::domain::model::config::IgnoredConfig;
+use crate::domain::config::config::IgnoredConfig;
 
 pub fn default_ignored_config() -> &'static IgnoredConfig {
     static CONFIG: std::sync::OnceLock<IgnoredConfig> = std::sync::OnceLock::new();
-    CONFIG.get_or_init(|| crate::domain::model::config::AppConfig::default().ignored)
+    CONFIG.get_or_init(|| crate::domain::config::config::AppConfig::default().ignored)
 }
 
 /// Determines if a directory or file name should be completely ignored (build artifacts, dependencies, etc.)
@@ -219,7 +219,7 @@ pub fn process_paths_batch(
             let (title, tags) = if is_markdown {
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
                 let t = Note::title_from_content(&content, file_stem);
-                let raw_tags = crate::domain::model::tag::Tag::extract_all(&content);
+                let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
                 let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                 (t, compact_tags)
             } else {

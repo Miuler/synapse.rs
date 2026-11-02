@@ -1,5 +1,5 @@
-use crate::domain::model::community_plugin::InstalledPluginInfo;
-use crate::domain::repository::installed_plugin_repository::InstalledPluginRepository;
+use crate::domain::plugin::community_plugin::InstalledPluginInfo;
+use crate::domain::plugin::installed_plugin_repository::InstalledPluginRepository;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;

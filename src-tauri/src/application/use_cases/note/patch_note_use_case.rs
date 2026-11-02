@@ -1,8 +1,8 @@
 use crate::application::dto::note::patch_note_command::{PatchNoteCommand, PatchNoteOutcome};
-use crate::domain::model::note::Note;
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Reemplaza un fragmento de una nota con tolerancia progresiva (saltos de línea, espacios,
 /// indentación), respetando el control de concurrencia optimista.

@@ -1,4 +1,4 @@
-use crate::domain::model::folder::FolderMeta;
+use crate::domain::vault::folder::FolderMeta;
 use std::collections::HashMap;
 
 /// Resume una carpeta a partir de sus notas (servicio de dominio: involucra varias notas).
@@ -110,7 +110,7 @@ impl FolderSummarizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::model::folder::FolderPath;
+    use crate::domain::vault::folder::FolderPath;
 
     #[test]
     fn test_extract_ancestor_folders() {

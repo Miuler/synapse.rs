@@ -1,8 +1,8 @@
-use crate::domain::repository::indexed_document_repository::IndexedDocumentRepository;
-use crate::domain::model::config::IndexingConfig;
-use crate::domain::model::file_types::SupportedFileTypes;
-use crate::domain::model::full_text::{FullTextDocument, FullTextIndexStatus};
-use crate::domain::repository::full_text_index::FullTextIndex;
+use crate::domain::search::indexed_document_repository::IndexedDocumentRepository;
+use crate::domain::config::config::IndexingConfig;
+use crate::domain::vault::file_types::SupportedFileTypes;
+use crate::domain::search::full_text::{FullTextDocument, FullTextIndexStatus};
+use crate::domain::search::full_text_index::FullTextIndex;
 use crate::infrastructure::search::content_extractor;
 use crate::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use rayon::prelude::*;
@@ -49,7 +49,7 @@ impl FtsIndexer {
         file_types: SupportedFileTypes,
         index: Arc<FullTextIndexImpl>,
     ) -> Arc<Self> {
-        let indexing = crate::domain::model::config::AppConfig::default().indexing;
+        let indexing = crate::domain::config::config::AppConfig::default().indexing;
         Self::start_with_config(vault_path, file_types, indexing, index)
     }
 
@@ -218,7 +218,7 @@ impl FtsIndexer {
                                     .map(|d| d.as_nanos() as u64)
                                     .unwrap_or(0);
 
-                                if kind == crate::domain::model::full_text::DocumentKind::Excalidraw {
+                                if kind == crate::domain::search::full_text::DocumentKind::Excalidraw {
                                     use std::hash::{Hash, Hasher};
                                     let mut h = std::collections::hash_map::DefaultHasher::new();
                                     title.hash(&mut h);

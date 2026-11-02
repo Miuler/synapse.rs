@@ -1,4 +1,4 @@
-use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 
 /// Sesión de trabajo de la bóveda activa: notas recientes, pestañas, modo de vista de cada nota
 /// y estado de la interfaz. Sin bóveda abierta, las lecturas devuelven valores vacíos, salvo

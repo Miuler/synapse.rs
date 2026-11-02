@@ -1,5 +1,5 @@
-use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 use crate::infrastructure::navigation::engine::NavigationEngine;
 use std::sync::{Arc, Mutex};
 

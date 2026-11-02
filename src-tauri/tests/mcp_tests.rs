@@ -310,7 +310,7 @@ struct DummyMcpProvider {
 }
 
 impl app_lib::infrastructure::entrypoint::mcp::server::McpContextProvider for DummyMcpProvider {
-    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>) {
+    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>) {
         (Some(self.vault.clone()), None)
     }
 }
@@ -379,7 +379,7 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
 
 #[test]
 fn test_mcp_workspace_reopen_auto_activation() {
-    use app_lib::domain::repository::mcp_repository::McpConfigRepository;
+    use app_lib::domain::mcp::mcp_repository::McpConfigRepository;
     use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
     use app_lib::infrastructure::repository::file::mcp_repository_impl::McpConfigRepositoryImpl;
     use std::sync::Arc;
@@ -429,9 +429,9 @@ fn test_mcp_workspace_reopen_auto_activation() {
 #[test]
 fn test_mcp_evolved_tools_suite() {
     use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
-    use app_lib::domain::model::note::Note;
-    use app_lib::domain::repository::note_repository::NoteRepository;
-    use app_lib::domain::model::note_path::NoteRelativePath;
+    use app_lib::domain::note::note::Note;
+    use app_lib::domain::note::note_repository::NoteRepository;
+    use app_lib::domain::note::note_path::NoteRelativePath;
     use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
     use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
     use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
@@ -475,7 +475,7 @@ A[Cliente ACP] --> B[Servidor MCP]
     let use_cases = McpToolHandler::new(
         vault_path.clone(),
         NoteRepositoryImpl::new(),
-        None::<Arc<dyn app_lib::domain::repository::full_text_index::FullTextIndex>>,
+        None::<Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>,
         Some(git),
         std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl),
         std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl),

@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_file_revision_query::GetFileRevisionQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::FileRevision;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::FileRevision;
 
 /// Contenido de un archivo en una versión. Sin versión explícita usa la preparada (staged) o la última (HEAD).
 #[derive(Clone)]

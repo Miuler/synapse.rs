@@ -1,4 +1,4 @@
-use crate::domain::model::full_text::FullTextHit;
+use crate::domain::search::full_text::FullTextHit;
 use std::path::PathBuf;
 
 pub struct SearchNotesFullTextQuery {

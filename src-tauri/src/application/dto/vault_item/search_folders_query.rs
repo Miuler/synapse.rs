@@ -1,4 +1,4 @@
-use crate::domain::model::folder::FolderMeta;
+use crate::domain::vault::folder::FolderMeta;
 use std::path::PathBuf;
 
 pub struct SearchFoldersQuery {

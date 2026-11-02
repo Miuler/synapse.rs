@@ -1,6 +1,6 @@
 use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery;
-use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::domain::model::config::ShortcutsConfig;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::config::config::ShortcutsConfig;
 
 /// Configuración de atajos de teclado.
 #[derive(Clone)]

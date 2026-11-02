@@ -1,6 +1,6 @@
 use crate::application::dto::search::search_full_text_query::SearchFullTextQuery;
-use crate::domain::model::full_text::{FullTextHit, FullTextQuery};
-use crate::domain::repository::full_text_index::FullTextIndex;
+use crate::domain::search::full_text::{FullTextHit, FullTextQuery};
+use crate::domain::search::full_text_index::FullTextIndex;
 use std::sync::Arc;
 
 /// Búsqueda de texto completo, sanitizando y acotando los parámetros de entrada.

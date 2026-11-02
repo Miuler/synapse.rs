@@ -1,5 +1,5 @@
 use crate::application::dto::search::index_vault_change_command::IndexVaultChangeCommand;
-use crate::domain::repository::indexed_document_repository::IndexedDocumentRepository;
+use crate::domain::search::indexed_document_repository::IndexedDocumentRepository;
 use std::sync::Arc;
 
 /// Mantiene el índice de búsqueda al día con los cambios de la bóveda. Solo encola: se invoca

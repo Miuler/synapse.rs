@@ -1,4 +1,4 @@
-use crate::domain::model::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
+use crate::domain::pdf::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
 use std::path::PathBuf;
 
 pub struct ReadPdfDocumentQuery {

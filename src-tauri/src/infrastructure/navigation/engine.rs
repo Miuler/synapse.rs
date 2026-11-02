@@ -1,5 +1,5 @@
-use crate::domain::model::note::Note;
-use crate::domain::model::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::note::note::Note;
+use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
 use compact_str::CompactString;
 use dashmap::{DashMap, DashSet};
 use nucleo::{Config, Nucleo, Utf32String};
@@ -18,7 +18,7 @@ use super::model::{
 };
 use super::storage;
 use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher;
-use crate::domain::model::file_types::SupportedFileTypes;
+use crate::domain::vault::file_types::SupportedFileTypes;
 
 
 /// Statistics reported during reconciliation.
@@ -408,7 +408,7 @@ impl NavigationEngine {
                     let (title, tags) = if is_markdown {
                         let content = std::fs::read_to_string(&path).unwrap_or_default();
                         let t = Note::title_from_content(&content, file_stem);
-                        let raw_tags = crate::domain::model::tag::Tag::extract_all(&content);
+                        let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
                         let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                         (t, compact_tags)
                     } else {
@@ -463,7 +463,7 @@ impl NavigationEngine {
                 let (title, tags) = if is_markdown {
                     let content = std::fs::read_to_string(&path).unwrap_or_default();
                     let t = Note::title_from_content(&content, file_stem);
-                    let raw_tags = crate::domain::model::tag::Tag::extract_all(&content);
+                    let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
                     let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
                     (t, compact_tags)
                 } else {
@@ -902,7 +902,7 @@ impl NavigationEngine {
             let after_hash = part.trim_start_matches('#');
             let is_tag = part.starts_with('#') && part.len() > 1 && !after_hash.chars().all(|c| c.is_ascii_digit());
             if is_tag {
-                let clean = crate::domain::model::tag::Tag::normalize(part);
+                let clean = crate::domain::graph::tag::Tag::normalize(part);
                 if !clean.is_empty() {
                     tag_filters.push(clean);
                 }
@@ -944,7 +944,7 @@ impl NavigationEngine {
         let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
         let passes_tag_filters = |meta: &NoteMeta| {
             tag_filters.iter().all(|tf| {
-                meta.tags.iter().any(|t| crate::domain::model::tag::Tag::matches(t.as_str(), tf))
+                meta.tags.iter().any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), tf))
             })
         };
 
@@ -1199,7 +1199,7 @@ impl NavigationEngine {
         let (title, tags) = if is_markdown {
             let content = std::fs::read_to_string(path).unwrap_or_default();
             let t = Note::title_from_content(&content, file_stem);
-            let raw_tags = crate::domain::model::tag::Tag::extract_all(&content);
+            let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
             let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
             (t, compact_tags)
         } else {
@@ -1291,7 +1291,7 @@ impl NavigationEngine {
         query: &str,
         limit: usize,
         offset: usize,
-    ) -> (Vec<crate::domain::model::folder::FolderMeta>, usize) {
+    ) -> (Vec<crate::domain::vault::folder::FolderMeta>, usize) {
         let q_clean = query.trim().trim_start_matches('/').to_lowercase();
 
         // 1. Recolectar todas las carpetas conocidas en orden
@@ -1351,7 +1351,7 @@ impl NavigationEngine {
         }
 
         let total_matched = matched_folders.len();
-        let paginated: Vec<crate::domain::model::folder::FolderMeta> = matched_folders
+        let paginated: Vec<crate::domain::vault::folder::FolderMeta> = matched_folders
             .into_iter()
             .skip(offset)
             .take(limit)
@@ -1437,7 +1437,7 @@ impl NavigationEngine {
         content: &str,
         base_file: Option<&str>,
     ) -> String {
-        crate::domain::model::wikilink::WikilinkToken::transform_markdown(content, |target| {
+        crate::domain::graph::wikilink::WikilinkToken::transform_markdown(content, |target| {
             self.resolve_link_path_with_base(target, base_file)
         })
     }
@@ -1447,9 +1447,9 @@ impl NavigationEngine {
         &self,
         focus_path: Option<&str>,
         max_depth: Option<usize>,
-    ) -> crate::domain::model::graph::VaultGraphData {
-        use crate::domain::model::graph::{GraphEdge, GraphNode, VaultGraphData};
-        use crate::domain::model::wikilink::WikilinkToken;
+    ) -> crate::domain::graph::graph::VaultGraphData {
+        use crate::domain::graph::graph::{GraphEdge, GraphNode, VaultGraphData};
+        use crate::domain::graph::wikilink::WikilinkToken;
         use std::collections::{HashMap, HashSet, VecDeque};
 
         // 1. Extraer outlinks de todas las notas Markdown de la bóveda en paralelo con Rayon
@@ -1643,12 +1643,12 @@ impl NavigationEngine {
     /// Obtiene las rutas relativas de todas las notas que contienen una etiqueta específica.
     /// Resuelve directamente desde `self.notes` en memoria RAM con soporte jerárquico.
     pub fn get_notes_by_tag(&self, tag: &str) -> Vec<String> {
-        let clean_tag = crate::domain::model::tag::Tag::normalize(tag);
+        let clean_tag = crate::domain::graph::tag::Tag::normalize(tag);
         let mut matching_paths = Vec::new();
 
         for item in self.notes.iter() {
             let meta = item.value();
-            if meta.tags.iter().any(|t| crate::domain::model::tag::Tag::matches(t.as_str(), &clean_tag)) {
+            if meta.tags.iter().any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), &clean_tag)) {
                 matching_paths.push(meta.path.to_string());
             }
         }
@@ -1661,9 +1661,9 @@ impl NavigationEngine {
     pub fn get_note_backlinks_and_relations(
         &self,
         target_path: &str,
-    ) -> crate::domain::model::graph::NoteBacklinksReport {
-        use crate::domain::model::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
-        use crate::domain::model::wikilink::{WikilinkToken, LinkTarget};
+    ) -> crate::domain::graph::graph::NoteBacklinksReport {
+        use crate::domain::graph::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
+        use crate::domain::graph::wikilink::{WikilinkToken, LinkTarget};
 
         let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
         let target_stem = clean_target

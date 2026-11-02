@@ -1,4 +1,4 @@
-use crate::domain::model::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
+use crate::domain::pdf::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
 use std::path::Path;
 
 /// Documentos PDF de la bóveda: lectura de su texto por páginas y búsqueda dentro de ellos.

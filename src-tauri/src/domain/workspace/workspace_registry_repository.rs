@@ -1,5 +1,5 @@
-use crate::domain::model::config::ShortcutsConfig;
-use crate::domain::model::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
+use crate::domain::config::config::ShortcutsConfig;
+use crate::domain::workspace::workspace_registry::{RecentWorkspaceEntry, WorkspaceRegistryConfig};
 
 pub trait WorkspaceRegistryRepository: Send + Sync {
     fn load_registry(&self) -> Result<WorkspaceRegistryConfig, String>;

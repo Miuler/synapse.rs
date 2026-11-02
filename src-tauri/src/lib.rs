@@ -3,7 +3,7 @@ pub mod application;
 pub mod domain;
 pub mod infrastructure;
 
-use domain::model::file_types::SupportedFileTypes;
+use domain::vault::file_types::SupportedFileTypes;
 use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use infrastructure::entrypoint::tauri::commands::{
     copy_vault_items, move_vault_items, delete_vault_item, full_text_search, get_active_vault_path, get_full_text_index_status,
@@ -188,7 +188,7 @@ pub fn run() {
                 }
             }
             if let Ok(guard) = state.startup_target.lock() {
-                if let Some(domain::model::startup::StartupTarget::Standalone(ref path_str)) = *guard {
+                if let Some(domain::config::startup::StartupTarget::Standalone(ref path_str)) = *guard {
                     let p = std::path::Path::new(path_str);
                     if let Some(parent) = p.parent() {
                         let _ = handle.asset_protocol_scope().allow_directory(parent, true);

@@ -11,7 +11,7 @@ use crate::application::dto::version::get_branches_query::GetBranchesQuery;
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
 use crate::application::dto::version::create_branch_command::CreateBranchCommand;
 use crate::application::dto::version::push_versions_command::PushVersionsCommand;
-use crate::domain::model::version::{
+use crate::domain::version::version::{
     BranchList, FileDiff, FileVersionHistory, FileRevision, ImageDiff,
     VaultVersionState,
 };

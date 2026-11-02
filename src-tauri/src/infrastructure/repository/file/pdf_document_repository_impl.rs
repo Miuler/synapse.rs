@@ -1,5 +1,5 @@
-use crate::domain::model::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
-use crate::domain::repository::pdf_document_repository::PdfDocumentRepository;
+use crate::domain::pdf::pdf_document::{PdfInspectionResult, PdfOutline, PdfPageSnippet};
+use crate::domain::pdf::pdf_document_repository::PdfDocumentRepository;
 use crate::infrastructure::search::pdf_extractor;
 use std::fs;
 use std::path::Path;

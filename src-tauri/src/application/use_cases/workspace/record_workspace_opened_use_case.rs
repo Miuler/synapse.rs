@@ -1,6 +1,6 @@
 use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
-use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::domain::model::workspace_registry::RecentWorkspaceEntry;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
 
 /// Registra que se abrió un espacio de trabajo.
 #[derive(Clone)]

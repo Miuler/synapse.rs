@@ -1,5 +1,5 @@
-use crate::domain::model::note::Note;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_path::NoteRelativePath;
 use std::path::Path;
 
 /// Puerto (Trait) del repositorio de notas dentro de la Capa de Dominio.

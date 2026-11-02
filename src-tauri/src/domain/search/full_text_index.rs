@@ -1,4 +1,4 @@
-use crate::domain::model::full_text::{FullTextDocument, FullTextHit, FullTextQuery};
+use crate::domain::search::full_text::{FullTextDocument, FullTextHit, FullTextQuery};
 use std::collections::HashMap;
 
 /// Puerto (Trait) del índice de búsqueda full-text dentro de la Capa de Dominio.

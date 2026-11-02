@@ -1,6 +1,6 @@
 use crate::application::dto::plugin::get_installed_plugins_query::GetInstalledPluginsQuery;
-use crate::domain::repository::installed_plugin_repository::InstalledPluginRepository;
-use crate::domain::model::community_plugin::InstalledPluginInfo;
+use crate::domain::plugin::installed_plugin_repository::InstalledPluginRepository;
+use crate::domain::plugin::community_plugin::InstalledPluginInfo;
 
 /// Plugins comunitarios instalados en una bóveda.
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
-use crate::domain::repository::version_control::VersionControl;
-use crate::domain::model::version::VaultVersionState;
+use crate::domain::version::version_control::VersionControl;
+use crate::domain::version::version::VaultVersionState;
 
 /// Estado de versionado de la bóveda.
 #[derive(Clone)]

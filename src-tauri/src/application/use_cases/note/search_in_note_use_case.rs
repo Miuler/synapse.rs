@@ -1,6 +1,6 @@
 use crate::application::dto::note::search_in_note_query::{LineMatch, SearchInNoteQuery};
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Busca un texto dentro de una nota (sin distinguir mayúsculas) y devuelve cada coincidencia
 /// con sus líneas de contexto.

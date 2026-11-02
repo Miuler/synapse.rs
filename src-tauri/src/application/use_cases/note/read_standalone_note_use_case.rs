@@ -1,6 +1,6 @@
 use crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::note::Note;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
 
 /// Lee un archivo suelto, fuera de una bóveda.
 #[derive(Clone)]

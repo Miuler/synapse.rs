@@ -1,7 +1,7 @@
 use crate::application::dto::note::save_standalone_note_command::SaveStandaloneNoteCommand;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::note::Note;
-use crate::domain::model::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_path::NoteRelativePath;
 
 /// Guarda un archivo suelto, fuera de una bóveda.
 #[derive(Clone)]

@@ -1,7 +1,7 @@
 //! Caracterización de las herramientas MCP: congela la respuesta de cada herramienta sobre una
 //! bóveda de ejemplo para que el refactor a casos de uso no cambie ningún resultado ni mensaje.
 //! Regenerar solo al crearla: `UPDATE_CHARACTERIZATION=1 cargo test --test mcp_characterization_tests -- --nocapture`.
-use app_lib::domain::repository::full_text_index::FullTextIndex;
+use app_lib::domain::search::full_text_index::FullTextIndex;
 use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl;

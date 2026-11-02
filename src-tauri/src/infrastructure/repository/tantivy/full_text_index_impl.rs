@@ -1,7 +1,7 @@
-use crate::domain::model::full_text::{
+use crate::domain::search::full_text::{
     DocumentKind, FullTextDocument, FullTextHit, FullTextQuery, HighlightSegment,
 };
-use crate::domain::repository::full_text_index::FullTextIndex;
+use crate::domain::search::full_text_index::FullTextIndex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;

@@ -1,9 +1,9 @@
 use crate::application::dto::note::update_note_metadata_command::UpdateNoteMetadataCommand;
-use crate::domain::model::frontmatter::NoteFrontmatter;
-use crate::domain::model::note::Note;
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::note::frontmatter::NoteFrontmatter;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 use std::collections::HashSet;
 
 /// Actualiza el frontmatter de una nota (título, etiquetas, alias) sin tocar el cuerpo.

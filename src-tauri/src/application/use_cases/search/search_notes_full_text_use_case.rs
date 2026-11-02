@@ -1,10 +1,10 @@
 use crate::application::dto::search::search_notes_full_text_query::{FullTextNoteHit, FullTextNoteSearch, SearchNotesFullTextQuery};
-use crate::domain::model::full_text::FullTextQuery;
-use crate::domain::model::note_content::NoteContent;
-use crate::domain::model::note_path::NoteRelativePath;
-use crate::domain::model::tag::Tag;
-use crate::domain::repository::full_text_index::FullTextIndex;
-use crate::domain::repository::note_repository::NoteRepository;
+use crate::domain::search::full_text::FullTextQuery;
+use crate::domain::note::note_content::NoteContent;
+use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::graph::tag::Tag;
+use crate::domain::search::full_text_index::FullTextIndex;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Búsqueda de texto completo con filtros de carpeta y etiquetas, enriquecida con el tamaño de
 /// cada nota.

@@ -46,7 +46,7 @@ pub fn extract_pdf_text(
 }
 
 /// Extrae información detallada de un PDF: páginas totales, metadatos y texto por páginas.
-pub use crate::domain::model::pdf_document::{PdfInspectionResult, PdfPageSnippet};
+pub use crate::domain::pdf::pdf_document::{PdfInspectionResult, PdfPageSnippet};
 
 /// Extrae texto acotado entre `start_page` y `end_page` (base 1, inclusive).
 pub fn extract_pdf_page_range(

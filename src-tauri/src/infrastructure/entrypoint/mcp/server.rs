@@ -1,8 +1,8 @@
 use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use crate::infrastructure::entrypoint::mcp::dto::*;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::repository::full_text_index::FullTextIndex;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::search::full_text_index::FullTextIndex;
+use crate::domain::version::version_control::VersionControl;
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::git::version_control_impl::VersionControlImpl;
 use super::port_registry;

@@ -1,5 +1,5 @@
-use crate::domain::model::note::Note;
-use crate::domain::model::note_content::Heading;
+use crate::domain::note::note::Note;
+use crate::domain::note::note_content::Heading;
 use std::path::PathBuf;
 
 pub struct ReadNoteDetailsQuery {

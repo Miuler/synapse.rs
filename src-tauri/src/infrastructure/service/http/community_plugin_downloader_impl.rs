@@ -1,4 +1,4 @@
-use crate::domain::model::community_plugin::{
+use crate::domain::plugin::community_plugin::{
     CommunityPlugin, CommunityPluginInstallResult, PluginUpdateInfo,
 };
 use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;

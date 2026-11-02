@@ -1,5 +1,5 @@
-use crate::domain::model::config::ShortcutsConfig;
-use crate::domain::model::workspace_registry::RecentWorkspaceEntry;
+use crate::domain::config::config::ShortcutsConfig;
+use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
 use crate::infrastructure::entrypoint::tauri::dto::SelectVaultFolderResult;
 use crate::infrastructure::config::state::AppState;
 use serde::{Deserialize, Serialize};

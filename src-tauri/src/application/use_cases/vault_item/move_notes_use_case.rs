@@ -1,6 +1,6 @@
 use crate::application::dto::vault_item::move_notes_command::{MoveNotesCommand, MoveNotesResult};
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Mueve notas a una carpeta y, si se pide, reescribe los enlaces que apuntaban a ellas.
 pub struct MoveNotesUseCase<N: NoteRepository, V: VaultItemRepository> {

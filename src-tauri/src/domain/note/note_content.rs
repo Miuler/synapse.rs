@@ -1,6 +1,6 @@
 //! Reglas sobre el texto de una nota: huella para control de concurrencia, tamaño estimado,
 //! fragmento de resumen, índice de encabezados, secciones, diagramas y parches de texto.
-use crate::domain::model::frontmatter::NoteFrontmatter;
+use crate::domain::note::frontmatter::NoteFrontmatter;
 use sha2::{Digest, Sha256};
 
 /// Encabezado Markdown de una nota.

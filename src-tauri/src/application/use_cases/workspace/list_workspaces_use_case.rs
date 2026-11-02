@@ -1,6 +1,6 @@
 use crate::application::dto::workspace::list_workspaces_query::ListWorkspacesQuery;
-use crate::domain::repository::workspace_registry_repository::WorkspaceRegistryRepository;
-use crate::domain::model::workspace_registry::RecentWorkspaceEntry;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
+use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
 
 /// Espacios de trabajo recientes.
 #[derive(Clone)]

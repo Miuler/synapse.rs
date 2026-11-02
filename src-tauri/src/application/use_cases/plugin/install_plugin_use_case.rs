@@ -1,6 +1,6 @@
 use crate::application::dto::plugin::install_plugin_command::InstallPluginCommand;
 use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
-use crate::domain::model::community_plugin::CommunityPluginInstallResult;
+use crate::domain::plugin::community_plugin::CommunityPluginInstallResult;
 
 /// Instala un plugin comunitario validando su id y su repositorio.
 #[derive(Clone)]

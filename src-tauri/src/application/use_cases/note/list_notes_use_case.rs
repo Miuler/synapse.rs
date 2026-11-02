@@ -1,6 +1,6 @@
 use crate::application::dto::note::list_notes_query::ListNotesQuery;
-use crate::domain::repository::note_repository::NoteRepository;
-use crate::domain::model::note::Note;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::note::note::Note;
 use log::debug;
 
 /// Lista las notas de la bóveda con las extensiones indicadas.

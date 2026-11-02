@@ -1,5 +1,5 @@
 use crate::application::dto::version::revert_files_command::RevertFilesCommand;
-use crate::domain::repository::version_control::VersionControl;
+use crate::domain::version::version_control::VersionControl;
 
 /// Descarta los cambios de archivos y vuelve a su última versión.
 #[derive(Clone)]

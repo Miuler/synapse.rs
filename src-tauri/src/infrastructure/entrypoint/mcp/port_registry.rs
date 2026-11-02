@@ -1,4 +1,4 @@
-use crate::domain::model::mcp::{McpPortRegistry, McpPortRegistryEntry, McpVaultConfig};
+use crate::domain::mcp::mcp::{McpPortRegistry, McpPortRegistryEntry, McpVaultConfig};
 use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};

@@ -1,5 +1,5 @@
 use crate::application::dto::session::record_note_opened_command::RecordNoteOpenedCommand;
-use crate::domain::repository::workspace_session_repository::WorkspaceSessionRepository;
+use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 
 /// Registra que se abrió una nota (para recientes y prioridad del Quick Open).
 #[derive(Clone)]

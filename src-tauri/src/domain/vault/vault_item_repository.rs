@@ -1,4 +1,4 @@
-use crate::domain::model::folder::FolderEntry;
+use crate::domain::vault::folder::FolderEntry;
 use std::path::Path;
 
 pub trait VaultItemRepository: Send + Sync {

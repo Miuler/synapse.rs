@@ -1,5 +1,5 @@
 use crate::application::dto::vault_item::move_folder_contents_command::{MoveFolderContentsCommand, MoveFolderContentsResult};
-use crate::domain::repository::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::VaultItemRepository;
 use std::path::Path;
 
 /// Mueve el contenido de una carpeta a otra, con estrategia ante conflictos de nombre.
