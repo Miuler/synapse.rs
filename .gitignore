@@ -36,3 +36,12 @@ dist-ssr
 # Archivos generados por herramientas, no del proyecto
 skills/
 __pycache__/
+
+
+# AI
+.agents
+.beads
+.claude
+.codex
+.cursor
+.gemini
