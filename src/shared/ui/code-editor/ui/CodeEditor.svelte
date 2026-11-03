@@ -261,6 +261,10 @@
         backgroundColor: 'rgba(9, 105, 218, 0.1)',
         color: 'var(--accent, #0969da)',
       },
+      // Sin esto el cursor es negro (valor por defecto de CodeMirror) y no se ve en tema oscuro.
+      '.cm-cursor, .cm-dropCursor': {
+        borderLeftColor: 'var(--text-primary, #1f2328)',
+      },
       '.cm-panels': {
         backgroundColor: 'var(--bg-secondary, #f6f8fa)',
         color: 'var(--text-primary, #1f2328)',
