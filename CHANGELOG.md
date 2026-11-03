@@ -9,14 +9,34 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Búsqueda de Vim (`/`) y cursor invisibles en el tema oscuro** del editor de código.
+- **Una segunda instancia de la app ya no reescribe el puerto MCP de la bóveda** ni la marca como detenida.
+- **Título editable** de la nota: se guardaba sobre una propiedad no reactiva.
+- **Quick Open**: separadores coherentes y orden estable en los empates.
 - **Persistencia del estado de MCP al cerrar y abrir workspaces**:
   - Se desacopló el ciclo de vida del runtime y socket TCP efímero (`running`) de la preferencia configurada por el usuario en la bóveda (`enabled`).
   - Al cerrar la aplicación, ventana o alternar entre bóvedas, el servidor MCP detiene su proceso/socket sin sobrescribir ni apagar `enabled: false` en `.synapse/mcp.json`.
   - Al abrir un workspace donde MCP estaba activo, el servidor se reactiva automáticamente.
   - Se introdujo el trait de dominio `McpConfigRepository` y su implementación de infraestructura `FileMcpConfigRepository` siguiendo la Arquitectura Cebolla.
 
+### Cambiado
+
+- **`F2` alterna entre edición y lectura** (antes `Ctrl+E`).
+- **En el editor, `Ctrl+E` y `Ctrl+Y` desplazan la pantalla una línea y `Ctrl+D` duplica la línea**, también con Vim (en Vim, `Ctrl+D` deja de ser media página).
+- **Rendimiento**:
+  - Arranque más rápido: las pestañas se montan al activarse, el explorador ya no usa un árbol de respaldo y los comandos de lectura salen del hilo principal (bloqueo de JS al arrancar de ~1250 a ~750 ms).
+  - El backend devuelve al sistema la memoria liberada tras abrir la bóveda (de ~800 a ~400 MB).
+  - Explorador virtualizado: solo se pintan las filas visibles.
+  - Imágenes servidas con el protocolo de assets de Tauri en vez de base64 por IPC.
+  - Una sola lista de la bóveda en el frontend, sin avalancha de IPC al abrir.
+
 ### Añadido
 
+- **Exportar diagramas a PNG y SVG** desde el menú contextual del explorador, para Excalidraw, Mermaid y D2. El archivo se guarda junto al diagrama con el tema actual.
+- **`Shift+F6` cambia todas las coincidencias de una palabra** (como renombrar en JetBrains, pero textual): selecciona las coincidencias exactas de palabra completa y lo que se escribe las cambia todas. Con Vim, se cambian con `c`.
+- **Plegado entre llaves en D2 y Mermaid**, desde el margen del editor de código.
+- **Atajos de plegado de Vim** con el comportamiento de Vim: `zc`, `zo`, `za`, `zC`, `zO`, `zM` y `zR`. `zc` pliega el bloque que contiene al cursor y `zM` pliega todos los niveles.
+- **Copiar la ruta de la bóveda** desde el menú contextual del explorador; copiar ruta se desactiva si no hay archivos seleccionados.
 - **Filtro "Solo compatibles" en el catálogo de plugins comunitarios**:
   - Activo por defecto: muestra solo los plugins comprobados manualmente, listados en `verified-plugins.jsonc` (`verified_plugins`).
   - Nuevo archivo `verified-plugins.jsonc` en la raíz del proyecto, importado en build con `?raw` y parseado en `community-plugins.svelte.ts`.
