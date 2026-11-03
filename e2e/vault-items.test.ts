@@ -40,6 +40,25 @@ it('abrir una nota crea su pestaña y muestra su título', async () => {
   await shot('01-nota-abierta');
 });
 
+it('las pestañas se montan al activarse y se conservan al volver', async () => {
+  // Título de la pestaña visible, consultado de nuevo cada vez (WebDriver guarda el elemento).
+  const visibleTitle = () =>
+    s.browser.execute(() => (document.querySelector('.tab-pane:not(.hidden) .editor-title-input') as HTMLInputElement | null)?.value);
+  await explorerFile('bienvenida.md').click();
+  await s.browser.$('.tab-title-container[data-path="bienvenida.md"]').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.file-tree-item.folder[data-path="docs"]').click();
+  await explorerFile('docs/arquitectura.md').waitForExist({ timeout: 10_000 });
+  await explorerFile('docs/arquitectura.md').click();
+  await s.browser.waitUntil(async () => (await visibleTitle()) === 'Arquitectura', { timeout: 10_000 });
+  // Volver a la primera: su contenido sigue ahí, y la segunda queda montada (oculta).
+  await s.browser.$('.tab-title-container[data-path="bienvenida.md"]').click();
+  await s.browser.waitUntil(async () => (await visibleTitle()) === 'Bienvenida', { timeout: 10_000 });
+  const hidden = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane.hidden .editor-title-input')].map((i) => (i as HTMLInputElement).value),
+  )) as string[];
+  expect(hidden).toContain('Arquitectura');
+});
+
 it('el Quick Open encuentra notas en subcarpetas', async () => {
   await s.browser.keys(['Control', 'o']);
   const input = s.browser.$('.quick-open-command-root input');
@@ -81,7 +100,10 @@ it('el Quick Open agrupa recientes solo sin búsqueda', async () => {
 it('cambiar el título renombra el archivo y el explorador se actualiza', async () => {
   await explorerFile('bienvenida.md').click();
   const title = s.browser.$('.editor-title-input');
-  await s.browser.waitUntil(async () => (await title.getValue()) === 'Bienvenida', { timeout: 10_000 });
+  await s.browser.waitUntil(async () => (await title.getValue()) === 'Bienvenida', { timeout: 10_000 }).catch(async (e) => {
+    console.log('DEBUG2', await s.browser.execute(() => [...document.querySelectorAll('.tab-pane')].map((p) => `${p.className}: ${(p.querySelector('.editor-title-input') as HTMLInputElement | null)?.value}`)), await s.browser.execute(() => [...document.querySelectorAll('.tab-title-container')].map((t) => t.outerHTML.slice(0, 200))));
+    throw e;
+  });
   // Pasar a edición si el título es de solo lectura
   if (await title.getAttribute('readonly') !== null) {
     await s.browser.keys(['Control', 'e']);

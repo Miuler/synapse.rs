@@ -14,6 +14,7 @@
   import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
+  import { measured } from '@shared/lib/perf-probe';
 
   interface Props {
     activeRibbonTab: string;
@@ -126,8 +127,17 @@
     });
   }
 
+  // Si la carga perezosa de la raíz falló, el explorador muestra el árbol armado con la lista plana.
+  let rootLoadFailed = $state(false);
+
   async function loadDirectory(parentPath: string = '') {
     if (!isConnectedToRust) return;
+    const nodes = await fetchDirectory(parentPath);
+    if (nodes) folderChildren[parentPath] = nodes;
+    if (parentPath === '') rootLoadFailed = !nodes;
+  }
+
+  async function fetchDirectory(parentPath: string): Promise<VaultTreeNode[] | null> {
     try {
       const entries = await vaultApi.getDirectoryChildren(parentPath);
       const nodes: VaultTreeNode[] = entries.map((entry) => ({
@@ -144,9 +154,10 @@
             },
         children: [],
       }));
-      folderChildren[parentPath] = sortSiblings(nodes);
+      return sortSiblings(nodes);
     } catch (err) {
       console.error(`Error al cargar directorio '${parentPath}':`, err);
+      return null;
     }
   }
 
@@ -167,10 +178,18 @@
     try {
       const uiState = await settingsApi.getVaultUiState();
       if (uiState?.expanded_folders && uiState.expanded_folders.length > 0) {
-        for (const folder of uiState.expanded_folders) {
-          expandedFolders[folder] = true;
-          await loadDirectory(folder);
-        }
+        // En paralelo y aplicadas de una vez: un solo repintado del árbol en vez de uno por carpeta.
+        const folders = uiState.expanded_folders;
+        const loaded = await Promise.all(folders.map((folder) => fetchDirectory(folder)));
+        const nextChildren = { ...folderChildren };
+        const nextExpanded = { ...expandedFolders };
+        folders.forEach((folder, i) => {
+          nextExpanded[folder] = true;
+          const nodes = loaded[i];
+          if (nodes) nextChildren[folder] = nodes;
+        });
+        folderChildren = nextChildren;
+        expandedFolders = nextExpanded;
       }
       if (sidebarContentEl && savedScrollTop > 0) {
         await tick();
@@ -201,7 +220,7 @@
   }
 
   // Construir el árbol jerárquico a partir de la lista plana de vaultItems (fallback)
-  let treeNodes = $derived.by(() => {
+  let treeNodes = $derived.by(() => measured('explorador: árbol completo', () => {
     if (isStandalone) {
       return vaultItems.map((vaultItem) => {
         const name = vaultItem.title || vaultItem.relative_path.split(/[\\/]/).pop() || vaultItem.relative_path;
@@ -259,7 +278,7 @@
 
     sortNodes(rootNodes);
     return rootNodes;
-  });
+  }));
 
   // Filtro de solo archivos con modificaciones Git
   let filterOnlyModifiedGitFiles = $state(false);
@@ -337,10 +356,15 @@
 
   // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback, y aplica el filtro si está activo
   let displayTreeNodes = $derived.by(() => {
+    // Con el backend conectado, el árbol sale de la carga perezosa: armar el árbol completo de la
+    // lista plana mientras llega la raíz costaba un pintado de miles de nodos que se tiraba enseguida.
+    const lazyRoot = folderChildren[''];
     const baseNodes =
-      folderChildren[''] && folderChildren[''].length > 0
-        ? folderChildren['']
-        : treeNodes;
+      !isStandalone && isConnectedToRust && !rootLoadFailed
+        ? (lazyRoot ?? [])
+        : lazyRoot && lazyRoot.length > 0
+          ? lazyRoot
+          : treeNodes;
 
     if (!isGitRepo || !filterOnlyModifiedGitFiles) {
       return baseNodes;

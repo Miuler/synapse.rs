@@ -42,6 +42,8 @@
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
   import {vaultApi, vaultItemStore, toVaultItem, toVaultFile, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
+  import { measured } from '@shared/lib/perf-probe';
+  import { SvelteSet } from 'svelte/reactivity';
   import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
@@ -76,6 +78,16 @@
   let isPaletteOpen = $state(false);
   let isShortcutsPanelOpen = $state(false);
   let isQuickOpenOpen = $state(false);
+
+  // Pestañas que ya se mostraron alguna vez (ver renderPaneContent).
+  const mountedTabs = new SvelteSet<string>();
+  $effect(() => {
+    if (activeTabPath) mountedTabs.add(activeTabPath);
+    if (activeSplitTabPath) mountedTabs.add(activeSplitTabPath);
+    for (const path of mountedTabs) {
+      if (!openTabPaths.includes(path) && !splitTabPaths.includes(path)) mountedTabs.delete(path);
+    }
+  });
   let isFullTextSearchOpen = $state(false);
   let quickOpenSearchQuery = $state("");
   let ftsSearchQuery = $state("");
@@ -466,7 +478,7 @@
               vaultItemStore.whenLoaded().then(() => true),
               new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
             ]);
-            return loaded ? vaultItemStore.items.map(toVaultFile) : vaultRepository.getVaultFiles();
+            return loaded ? measured('fachada: archivos', () => vaultItemStore.items.map(toVaultFile)) : vaultRepository.getVaultFiles();
           },
         });
         if (pluginStatusBarContainer) {
@@ -3585,7 +3597,7 @@
     tabHistory.clear();
 
     if (initialNotes && initialNotes.length > 0) {
-      vaultItemStore.set(initialNotes.map(toVaultItem));
+      measured('store: lista inicial', () => vaultItemStore.set(initialNotes.map(toVaultItem)));
       isConnectedToRust = vaultRepository.isConnected();
       await refreshGitStatus();
       refreshMcpStatus();
@@ -3787,6 +3799,9 @@
       />
     {:else}
       {#each paneTabs as tabPath (tabPath)}
+        <!-- Una pestaña se monta la primera vez que se activa y luego se conserva oculta: montar
+             todas al restaurar la sesión bloqueaba el arranque (~150 ms por pestaña). -->
+        {#if tabPath === activePath || mountedTabs.has(tabPath)}
         {#if tabPath.startsWith("empty:")}
           <div
             class="tab-pane"
@@ -4067,6 +4082,7 @@
               {/key}
             {/if}
           </div>
+        {/if}
         {/if}
       {/each}
     {/if}
