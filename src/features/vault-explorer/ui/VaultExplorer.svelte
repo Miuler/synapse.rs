@@ -11,10 +11,11 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
   import { measured } from '@shared/lib/perf-probe';
+  import { exportDiagram, isExportableDiagram, type DiagramExportFormat } from '../lib/export-diagram';
 
   interface Props {
     activeRibbonTab: string;
@@ -1014,6 +1015,16 @@
       toastMessage = null;
       toastTimeout = null;
     }, 2000);
+  }
+
+  async function handleExportDiagram(path: string, format: DiagramExportFormat) {
+    try {
+      const target = await exportDiagram(path, format);
+      showToast(`Exportado: "${target.split('/').pop()}"`);
+    } catch (err) {
+      console.error('Error exportando el diagrama:', err);
+      showToast(`No se pudo exportar: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   function getFullAbsolutePath(relativePath: string, itemAbsPath?: string): string {
@@ -2299,6 +2310,30 @@
           >
             <PenTool class="context-menu-item-icon" />
             <span>Abrir con Excalidraw (Obsidian)</span>
+          </ContextMenu.Item>
+        {/if}
+
+        {#if contextMenuNode && !contextMenuNode.isFolder && isExportableDiagram(contextMenuNode.relativePath)}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) handleExportDiagram(contextMenuNode.relativePath, 'png');
+            }}
+          >
+            <ImageDown class="context-menu-item-icon" />
+            <span>Exportar como PNG</span>
+          </ContextMenu.Item>
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) handleExportDiagram(contextMenuNode.relativePath, 'svg');
+            }}
+          >
+            <ImageDown class="context-menu-item-icon" />
+            <span>Exportar como SVG</span>
           </ContextMenu.Item>
         {/if}
 
