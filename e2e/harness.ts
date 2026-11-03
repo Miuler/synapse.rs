@@ -62,10 +62,24 @@ export function writeVault(vault: string, files: Record<string, string>): void {
 
 export async function startApp(files: Record<string, string>): Promise<Session> {
   const base = mkdtempSync(join(tmpdir(), 'synapse-e2e-'));
-  const home = join(base, 'home');
   const vault = join(base, 'vault');
-  mkdirSync(home, { recursive: true });
   writeVault(vault, files);
+  return launch(base, vault);
+}
+
+/**
+ * Abre una bóveda existente (p. ej. la real del usuario) con un HOME temporal. No escribe archivos
+ * de prueba ni borra nada de la bóveda al cerrar; la app sí actualiza su `.synapse/` como en uso
+ * normal.
+ */
+export async function startAppOnVault(vault: string): Promise<Session> {
+  const base = mkdtempSync(join(tmpdir(), 'synapse-e2e-'));
+  return launch(base, vault);
+}
+
+async function launch(base: string, vault: string): Promise<Session> {
+  const home = join(base, 'home');
+  mkdirSync(home, { recursive: true });
 
   const children: ChildProcess[] = [];
   // Vite reenvía al terminal los avisos de la consola del webview (p. ej. de Svelte): se guardan

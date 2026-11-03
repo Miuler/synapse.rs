@@ -118,14 +118,37 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   archivo); el store de `entities/vault-item` la guarda y la fachada de Obsidian construye su
   índice desde ahí (`indexSource`). La fachada todavía mantiene su propio `Map` (~2 MB) para
   responder síncrono a los plugins.
-- **Quick Open (previo):** al buscar, los separadores "Recientes"/"Archivos" asumen que los
-  recientes van primero, pero los resultados se ordenan por puntaje y se mezclan, y aparece
-  "Archivos" dos veces (`QuickOpen.svelte`, bloque de separadores de sección).
-- **Memoria real del webview:** medir el heap con la app abierta (lo medido es sintético en
-  JavaScriptCore).
-- **Quick Open:** los empates con el mismo nombre y puntaje dependen del orden del `DashMap`.
 - **`read_pdf_document`:** si falta `search_query` y además el PDF no se puede leer, ahora
   responde primero el error de argumento (antes, el de lectura).
 - **`serde` en el dominio:** sigue como excepción temporal (fuera de esta ronda).
 - **Exportaciones de Obsidian que faltan:** 59 de 123, listadas en la instantánea de
   `obsidian-compat.test.ts`.
+
+## Revisión con la bóveda real (MisNotas, ~6 000 notas, `e2e/real-vault.test.ts`)
+
+Memoria (RSS) de la app instalada (build de producción) con la misma bóveda:
+
+| Proceso | RSS |
+|---|---|
+| Backend (`synapsers`) | 640–730 MB |
+| Webview (`WebKitWebProcess`) | 460 MB – 1 GB por ventana |
+| Red de WebKit | 90–100 MB |
+
+Hallazgos, por prioridad:
+
+1. **Imágenes por IPC en base64:** al restaurar las pestañas, `read_asset_data_url` hizo 32 llamadas
+   que sumaron 5,3 s. Las imágenes viajan como data URL por el IPC (≈100 ms por 2,5 MB medido);
+   usar el protocolo de assets de Tauri (`convertFileSrc`) evitaría el IPC.
+2. **Memoria del backend:** 640–730 MB en producción para ~6 000 notas es alto. Perfilar el heap
+   (Tantivy, DashMap/nucleo, extracción de PDF) con `heaptrack` o `dhat`.
+3. **Lecturas de notas lentas:** `read_note_content` promedió ~550 ms (9 llamadas, 5 s) y
+   `render_markdown_wikilinks` ~750 ms por llamada al restaurar pestañas (build debug; medir en
+   release).
+4. **Segunda instancia sobre la misma bóveda:** reescribe `.synapse/mcp.json` con el puerto que le
+   tocó (27182 en vez de 27183) y deja a los clientes MCP apuntando a un puerto distinto al de la
+   instancia principal. No debería persistir el puerto si no es la instancia dueña.
+5. **Arranque en modo dev:** 34 s hasta ver el explorador, dominado por la compilación en frío de
+   Vite; medir el arranque con un build de producción antes de concluir.
+
+Quick Open con la bóveda real: 170–420 ms por búsqueda medidos desde WebDriver (incluye su ida y
+vuelta). Sin errores ni avisos de consola.
