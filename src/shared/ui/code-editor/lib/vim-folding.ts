@@ -1,12 +1,26 @@
 import { Vim } from '@replit/codemirror-vim';
-import { foldAll, foldCode, toggleFold, unfoldAll, unfoldCode } from '@codemirror/language';
+import { foldAll, foldEffect, unfoldAll, unfoldCode } from '@codemirror/language';
 import type { EditorView } from '@codemirror/view';
+import { enclosingFoldRange } from './fold-range';
+
+/** Pliega el bloque que contiene al cursor (no solo el que abre en su línea). */
+function foldEnclosing(view: EditorView): boolean {
+  const range = enclosingFoldRange(view.state, view.state.selection.main.head);
+  if (!range) return false;
+  view.dispatch({ effects: foldEffect.of(range) });
+  return true;
+}
+
+/** Despliega si la línea del cursor tiene un pliegue; si no, pliega el bloque que lo contiene. */
+function toggleEnclosing(view: EditorView): boolean {
+  return unfoldCode(view) || foldEnclosing(view);
+}
 
 /** Atajos de plegado de Vim que el plugin no trae, sobre los comandos de CodeMirror. */
 const FOLD_COMMANDS: [keys: string, action: string, command: (view: EditorView) => boolean][] = [
-  ['zc', 'synapseFoldCode', foldCode],
+  ['zc', 'synapseFoldCode', foldEnclosing],
   ['zo', 'synapseUnfoldCode', unfoldCode],
-  ['za', 'synapseToggleFold', toggleFold],
+  ['za', 'synapseToggleFold', toggleEnclosing],
   ['zM', 'synapseFoldAll', foldAll],
   ['zR', 'synapseUnfoldAll', unfoldAll],
 ];

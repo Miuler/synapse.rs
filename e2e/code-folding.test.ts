@@ -68,3 +68,22 @@ it('los atajos de Vim zc, zo, zR y zM pliegan y despliegan', async () => {
   await s.browser.keys(['z', 'R']);
   await s.browser.waitUntil(async () => (await placeholders()) === 0, { timeout: 5_000 });
 });
+
+it('zc con el cursor dentro de un bloque lo pliega, y repetido pliega el exterior', async () => {
+  const placeholders = () => s.browser.execute(() => document.querySelectorAll('.cm-foldPlaceholder').length) as Promise<number>;
+  // Cursor en "shape: cylinder", dentro de db { } que a su vez está dentro de server { }.
+  const inner = await s.browser.execute(
+    () => [...document.querySelectorAll('.cm-content .cm-line')].find((l) => l.textContent?.includes('cylinder')) as HTMLElement,
+  );
+  await s.browser.$(inner).click();
+  await s.browser.keys(['Escape', 'z', 'c']);
+  await s.browser.waitUntil(async () => (await placeholders()) === 1, { timeout: 5_000 });
+  let lines = await visibleLines();
+  expect(lines.join('\n')).not.toContain('cylinder');
+  expect(lines.join('\n')).toContain('shape: rectangle');
+  await s.browser.keys(['z', 'c']);
+  await s.browser.waitUntil(async () => !(await visibleLines()).join('\n').includes('rectangle'), { timeout: 5_000 });
+  lines = await visibleLines();
+  expect(lines).toContain('client -> server');
+  await s.browser.keys(['z', 'R']);
+});
