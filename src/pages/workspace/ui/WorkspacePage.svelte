@@ -3414,6 +3414,8 @@
         return;
       }
       if (matchesShortcut(e, ws.reload_active_file)) {
+        // En un editor con Vim, Ctrl+R es rehacer: se lo deja al editor.
+        if ((e.target as Element | null)?.closest?.('.cm-editor')?.querySelector('.cm-vimMode')) return;
         stopEvent();
         if (activeTabPath && !isSyntheticTab(activeTabPath)) {
           handleReloadItems([activeTabPath]);
