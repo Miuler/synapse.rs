@@ -18,7 +18,7 @@ beforeAll(async () => {
   await s.browser.$('.tab-title-container[data-path="diagrama.d2"]').waitForExist({ timeout: 10_000 });
   const content = s.browser.$('.cm-editor .cm-content');
   await s.browser.pause(500);
-  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
   await content.click();
 }, 120_000);

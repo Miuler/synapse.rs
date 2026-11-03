@@ -106,7 +106,7 @@ it('cambiar el título renombra el archivo y el explorador se actualiza', async 
   });
   // Pasar a edición si el título es de solo lectura
   if (await title.getAttribute('readonly') !== null) {
-    await s.browser.keys(['Control', 'e']);
+    await s.browser.keys(['F2']);
     await s.browser.waitUntil(async () => (await title.getAttribute('readonly')) === null, { timeout: 5_000 });
   }
   await title.click();

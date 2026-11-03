@@ -15,7 +15,7 @@ async function openEditor() {
   await item.click();
   const content = s.browser.$('.cm-editor .cm-content');
   await s.browser.pause(500);
-  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
 }
 

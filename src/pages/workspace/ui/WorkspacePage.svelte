@@ -3331,7 +3331,8 @@
         isShortcutsPanelOpen = !isShortcutsPanelOpen;
         return;
       }
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'F12') {
+      // Sin modificador solo cuentan las teclas de función (F2 edición/lectura, F12 devtools).
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !/^F\d+$/.test(e.key)) {
         return;
       }
 

@@ -16,6 +16,7 @@
   import { braceFolding } from '../lib/brace-folding';
   import { registerVimFolding } from '../lib/vim-folding';
   import { renameOccurrencesKeymap } from '../lib/rename-occurrences';
+  import { lineKeymap } from '../lib/line-keymap';
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
@@ -357,6 +358,7 @@
         search({ top: true }),
         keymap.of(searchKeymap as any),
         renameOccurrencesKeymap(),
+        lineKeymap(),
         EditorView.editable.of(!readOnly),
         updateListener,
         theme,

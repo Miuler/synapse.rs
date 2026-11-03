@@ -61,7 +61,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     nav_forward: 'Alt+ArrowRight',
     toggle_theme: 'Ctrl+Shift+T',
     toggle_devtools: 'F12, Ctrl+Shift+I',
-    toggle_edit_mode: 'Ctrl+E',
+    toggle_edit_mode: 'F2',
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
     git_push: 'Ctrl+Shift+K',

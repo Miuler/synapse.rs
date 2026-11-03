@@ -203,7 +203,7 @@ fn default_ws_toggle_devtools() -> String {
     "F12, Ctrl+Shift+I".to_string()
 }
 fn default_ws_toggle_edit_mode() -> String {
-    "Ctrl+E".to_string()
+    "F2".to_string()
 }
 fn default_ws_next_tab() -> String {
     "Ctrl+PageDown, Ctrl+Tab".to_string()
@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(config.shortcuts.welcome.open_folder, "Ctrl+Shift+O");
         assert_eq!(config.shortcuts.workspace.quick_open, "Ctrl+O");
         assert_eq!(config.shortcuts.workspace.command_palette, "Ctrl+P");
-        assert_eq!(config.shortcuts.workspace.toggle_edit_mode, "Ctrl+E");
+        assert_eq!(config.shortcuts.workspace.toggle_edit_mode, "F2");
 
         assert_eq!(config.indexing.max_pdf_file_size, 31_457_280);
         assert_eq!(config.indexing.max_pdf_pages, 80);

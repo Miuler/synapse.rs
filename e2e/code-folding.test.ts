@@ -13,9 +13,9 @@ beforeAll(async () => {
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
   await s.browser.$('.tab-title-container[data-path="arquitectura.d2"]').waitForExist({ timeout: 10_000 });
-  // Los diagramas se abren en vista previa: Ctrl+E muestra el editor de código.
+  // Los diagramas se abren en vista previa: F2 muestra el editor de código.
   const content = s.browser.$('.cm-editor .cm-content');
-  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
 }, 120_000);
 
@@ -51,7 +51,7 @@ it('los atajos de Vim zc, zo, zR y zM pliegan y despliegan', async () => {
   await item.click();
   const content = s.browser.$('.cm-editor .cm-content');
   await s.browser.pause(500);
-  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
   await content.click();
   const placeholders = () => s.browser.execute(() => document.querySelectorAll('.cm-foldPlaceholder').length) as Promise<number>;

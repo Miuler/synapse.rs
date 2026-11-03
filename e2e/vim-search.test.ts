@@ -22,10 +22,10 @@ async function vimSearchPanel(theme: 'light' | 'dark') {
   const item = s.browser.$('.file-tree-item[data-path="diagrama.mmd"]');
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
-  // Los diagramas se abren en vista previa: Ctrl+E muestra el editor de código.
+  // Los diagramas se abren en vista previa: F2 muestra el editor de código.
   await s.browser.$('.tab-title-container[data-path="diagrama.mmd"]').waitForExist({ timeout: 10_000 });
   const content = s.browser.$('.cm-editor .cm-content');
-  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
   await content.click();
   await s.browser.keys(['Escape', '/']);
