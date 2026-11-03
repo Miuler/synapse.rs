@@ -29,6 +29,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
   - Explorador virtualizado: solo se pintan las filas visibles.
   - Imágenes servidas con el protocolo de assets de Tauri en vez de base64 por IPC.
   - Una sola lista de la bóveda en el frontend, sin avalancha de IPC al abrir.
+  - Búsqueda de texto completo: consultar las versiones indexadas ya no carga cada documento (19 ms → 3 ms con 3 740 documentos).
 
 ### Añadido
 
@@ -37,6 +38,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Plegado entre llaves en D2 y Mermaid**, desde el margen del editor de código.
 - **Atajos de plegado de Vim** con el comportamiento de Vim: `zc`, `zo`, `za`, `zC`, `zO`, `zM` y `zR`. `zc` pliega el bloque que contiene al cursor y `zM` pliega todos los niveles.
 - **Copiar la ruta de la bóveda** desde el menú contextual del explorador; copiar ruta se desactiva si no hay archivos seleccionados.
+- **Compatibilidad con la API de Obsidian para plugins**:
+  - La fachada responde de forma síncrona como en Obsidian: `getAbstractFileByPath`, `getActiveFile` y `metadataCache.getFileCache`.
+  - `SynapseVault` mantiene un índice ruta → metadatos (sin contenido) que se actualiza con las mutaciones locales y los eventos del vigilante. Los plugins se cargan cuando el índice está listo.
+  - Lo específico de Excalidraw pasa a `integrations/excalidraw`.
+
 - **Filtro "Solo compatibles" en el catálogo de plugins comunitarios**:
   - Activo por defecto: muestra solo los plugins comprobados manualmente, listados en `verified-plugins.jsonc` (`verified_plugins`).
   - Nuevo archivo `verified-plugins.jsonc` en la raíz del proyecto, importado en build con `?raw` y parseado en `community-plugins.svelte.ts`.
