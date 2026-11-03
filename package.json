@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "bun test src/",
+    "test:e2e": "bun test ./e2e"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
@@ -25,7 +27,8 @@
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.7",
     "typescript": "~6.0.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "webdriverio": "9.19.0"
   },
   "dependencies": {
     "3d-force-graph": "^1.80.1",

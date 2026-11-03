@@ -45,6 +45,14 @@ JavaScriptCore (Bun), mediana de 20:
 | Explorador (`activate_vault`) | 2,30 MB | 1,5 ms | 2,7 ms |
 | Fachada de Obsidian (`get_vault_files`) | 2,26 MB | 2,2 ms | 3,5 ms |
 
-Unificar las listas ahorraría unos 6 ms de CPU, ~2,3 MB de transferencia por IPC (sin medir su
-tiempo) y ~2 MB de memoria. Con estos números no se prioriza; el store único de la entidad
-(`entities/vault-item`) ya da la fuente única del lado del explorador.
+**Medido en la app real** (WebDriver, `e2e/perf-ipc.test.ts`, bóveda sintética de 6 000 notas con
+rutas largas; mediana de 7 llamadas desde el webview):
+
+| Comando | JSON | Tiempo total por IPC |
+|---|---|---|
+| `get_vault_notes` (explorador) | 1 387 KB | 103 ms |
+| `get_vault_files` (fachada de Obsidian) | 2 936 KB | 98 ms |
+
+Casi todo el costo es el transporte del IPC de Tauri (serializar y parsear suman ~5 ms). Abrir la
+bóveda gasta unos 200 ms en las dos listas y la mitad es la duplicada: **unificarlas (o no pedir
+la segunda si no hay plugins habilitados) sí vale la pena.**

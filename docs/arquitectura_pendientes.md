@@ -116,8 +116,12 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
 
 - **Índice único front:** `vaultItems` ya vive en el store de la entidad
   (`entities/vault-item/model/vault-item-store.svelte.ts`) y lo leen la página, el explorador y
-  el Quick Open. La fachada de Obsidian sigue con su propia lista; unificarla ahorraría ~6 ms y
-  ~2 MB (ver `arquitectura_mediciones.md`), así que queda en espera.
+  el Quick Open. La fachada de Obsidian sigue con su propia lista: medida en la app real, cuesta
+  ~100 ms por IPC al abrir la bóveda (ver `arquitectura_mediciones.md`), así que **conviene
+  unificarla**, o al menos no pedirla si no hay plugins habilitados.
+- **Quick Open (previo):** al buscar, los separadores "Recientes"/"Archivos" asumen que los
+  recientes van primero, pero los resultados se ordenan por puntaje y se mezclan, y aparece
+  "Archivos" dos veces (`QuickOpen.svelte`, bloque de separadores de sección).
 - **Memoria real del webview:** medir el heap con la app abierta (lo medido es sintético en
   JavaScriptCore).
 - **Quick Open:** los empates con el mismo nombre y puntaje dependen del orden del `DashMap`.
