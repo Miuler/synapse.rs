@@ -234,10 +234,34 @@ pub fn allocate_and_bind_port(
     }
 }
 
-/// Registra el inicio de MCP para una bóveda tanto en su `.synapse/mcp.json` como en el registro global
+/// Indica si otra instancia viva de Synapse ya sirve MCP para esta bóveda según el registro global.
+fn owned_by_other_instance(registry: &McpPortRegistry, canonical_key: &str) -> bool {
+    registry.vaults.get(canonical_key).is_some_and(|e| {
+        e.running && e.pid.is_some_and(|pid| pid != std::process::id() && is_process_alive(pid))
+    })
+}
+
+/// Indica si el puerto configurado en `.synapse/mcp.json` sigue ocupado aunque esta instancia
+/// enlazó otro: lo normal es que lo tenga la instancia principal de la bóveda (p. ej. abierta con
+/// otro HOME, que no comparte el registro global).
+fn configured_port_held_elsewhere(vault_path: &Path, bound_port: u16) -> bool {
+    read_vault_config(vault_path).is_some_and(|cfg| {
+        cfg.enabled && cfg.port != bound_port && TcpListener::bind(format!("127.0.0.1:{}", cfg.port)).is_err()
+    })
+}
+
+/// Registra el inicio de MCP para una bóveda tanto en su `.synapse/mcp.json` como en el registro global.
+/// Una segunda instancia sobre la misma bóveda no persiste nada: los clientes MCP deben seguir
+/// apuntando al puerto de la instancia dueña.
 pub fn record_mcp_started(vault_path: &Path, port: u16) {
     let canonical_key = canonical_vault_key(vault_path);
     let endpoint = format!("http://127.0.0.1:{}/mcp", port);
+    let mut registry = read_global_registry();
+
+    if owned_by_other_instance(&registry, &canonical_key) || configured_port_held_elsewhere(vault_path, port) {
+        log::info!("MCP en el puerto {port}: otra instancia es dueña de la bóveda, no se persiste el puerto");
+        return;
+    }
 
     // 1. Guardar en .synapse/mcp.json de la bóveda
     let vault_config = McpVaultConfig {
@@ -248,7 +272,6 @@ pub fn record_mcp_started(vault_path: &Path, port: u16) {
     write_vault_config(vault_path, &vault_config);
 
     // 2. Guardar en ~/.config/synapse/mcp-ports.json
-    let mut registry = read_global_registry();
     registry.vaults.insert(
         canonical_key.clone(),
         McpPortRegistryEntry {
@@ -308,7 +331,11 @@ pub fn record_mcp_disabled(vault_path: &Path, port: u16) {
 pub fn record_mcp_runtime_stopped(vault_path: &Path) {
     let canonical_key = canonical_vault_key(vault_path);
     let mut registry = read_global_registry();
+    // Solo la instancia dueña marca la bóveda como detenida.
     if let Some(entry) = registry.vaults.get_mut(&canonical_key) {
+        if entry.pid.is_some_and(|pid| pid != std::process::id()) {
+            return;
+        }
         entry.running = false;
         entry.pid = None;
         entry.updated_at = current_timestamp_ms();
@@ -372,6 +399,32 @@ mod tests {
         assert!(!is_vault_enabled(vault), "Debe quedar deshabilitado tras desactivación voluntaria");
         let cfg_disabled = read_vault_config(vault).expect("Debe leer config actualizada");
         assert!(!cfg_disabled.enabled);
+    }
+
+    #[test]
+    fn test_second_instance_does_not_overwrite_vault_port() {
+        let temp = tempdir().unwrap();
+        let vault = temp.path();
+
+        // La instancia principal tiene su puerto configurado y ocupado.
+        let owner = TcpListener::bind("127.0.0.1:0").unwrap();
+        let owner_port = owner.local_addr().unwrap().port();
+        write_vault_config(
+            vault,
+            &McpVaultConfig { enabled: true, port: owner_port, last_endpoint: None },
+        );
+
+        // Una segunda instancia enlaza otro puerto y no debe reescribir mcp.json.
+        let (other, other_port) = allocate_and_bind_port(vault, None).unwrap();
+        assert_ne!(other_port, owner_port);
+        record_mcp_started(vault, other_port);
+        assert_eq!(read_vault_config(vault).unwrap().port, owner_port);
+
+        // Al cerrarse la principal, la siguiente instancia sí persiste su puerto.
+        drop(owner);
+        drop(other);
+        record_mcp_started(vault, other_port);
+        assert_eq!(read_vault_config(vault).unwrap().port, other_port);
     }
 
     #[test]
