@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tauri::State;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_app_version() -> String {
     crate::version::VERSION.clone()
 }
@@ -199,7 +199,7 @@ pub fn get_detached_window_tab(
     Ok(guard.get(window.label()).cloned())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_startup_target(state: State<'_, AppState>) -> Result<Option<StartupTarget>, String> {
     let mut guard = state.startup_target.lock().map_err(|e| e.to_string())?;
     Ok(guard.take())

@@ -6,7 +6,7 @@ use crate::infrastructure::config::state::AppState;
 use std::collections::HashMap;
 use tauri::State;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn search_items_command(query: String, items: Vec<String>) -> Vec<SearchResult> {
     let search_service = NoteSearchRepositoryImpl::new();
     search_service.search_items(&query, &items)
@@ -113,7 +113,7 @@ pub async fn full_text_search(
     res
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_full_text_index_status(state: State<'_, AppState>) -> Result<FullTextIndexStatus, String> {
     let guard = state.full_text.lock().map_err(|e| e.to_string())?;
     let Some(ref ft_components) = *guard else {
@@ -131,7 +131,7 @@ pub fn rebuild_full_text_index(state: State<'_, AppState>) -> Result<(), String>
     ft_components.indexer.rebuild()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resolve_vault_link(
     state: State<'_, AppState>,
     link: String,
@@ -144,7 +144,7 @@ pub fn resolve_vault_link(
     Ok(engine.resolve_link_path_with_base(&link, base_file.as_deref()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resolve_vault_links(
     state: State<'_, AppState>,
     links: Vec<String>,
@@ -157,7 +157,7 @@ pub fn resolve_vault_links(
     Ok(engine.resolve_link_paths_with_base(&links, base_file.as_deref()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn render_markdown_wikilinks(
     state: State<'_, AppState>,
     content: String,
@@ -170,7 +170,7 @@ pub fn render_markdown_wikilinks(
     Ok(engine.render_wikilinks_in_markdown_with_base(&content, base_file.as_deref()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_graph(
     state: State<'_, AppState>,
     focus_path: Option<String>,
@@ -189,7 +189,7 @@ pub struct TagCountItem {
     pub count: usize,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_tags(
     state: State<'_, AppState>,
 ) -> Result<Vec<TagCountItem>, String> {
@@ -204,7 +204,7 @@ pub fn get_vault_tags(
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_notes_by_tag(
     state: State<'_, AppState>,
     tag: String,
@@ -242,7 +242,7 @@ pub async fn search_folders_command(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_note_backlinks_and_relations(
     state: State<'_, AppState>,
     target_path: String,

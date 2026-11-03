@@ -4,12 +4,12 @@ use crate::infrastructure::entrypoint::mcp::port_registry;
 use crate::infrastructure::config::state::AppState;
 use tauri::State;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_mcp_server_status(state: State<'_, AppState>) -> Result<McpRuntimeStatus, String> {
     Ok(state.mcp_runtime.get_status())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_mcp_port_registry() -> Result<McpPortRegistry, String> {
     Ok(port_registry::read_global_registry())
 }

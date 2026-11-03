@@ -145,7 +145,7 @@ pub fn reload_vault_items(
     engine.reload_paths(&paths)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_binary_file(
     state: State<'_, AppState>,
     relative_path: String,

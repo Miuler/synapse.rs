@@ -84,7 +84,7 @@ pub fn resolve_asset_file_path_internal(
     Ok(None)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resolve_asset_file_path(
     state: State<'_, AppState>,
     src: String,
@@ -144,7 +144,7 @@ pub fn save_binary_asset(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_asset_data_url(
     state: State<'_, AppState>,
     src: String,

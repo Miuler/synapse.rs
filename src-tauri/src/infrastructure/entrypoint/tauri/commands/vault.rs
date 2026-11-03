@@ -7,12 +7,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_supported_file_types(state: State<'_, AppState>) -> SupportedFileTypes {
     state.file_types.clone()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<VaultEntryDto>, String> {
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
@@ -22,7 +22,7 @@ pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<VaultEntryDto>,
     Ok(VaultEntryDto::list(vault_path, engine, true))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_files(state: State<'_, AppState>) -> Result<VaultFilesResponse, String> {
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     Ok(VaultFilesResponse {
@@ -30,7 +30,7 @@ pub fn get_vault_files(state: State<'_, AppState>) -> Result<VaultFilesResponse,
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_note_meta(
     relative_path: String,
     state: State<'_, AppState>,
@@ -43,7 +43,7 @@ pub fn get_note_meta(
     Ok(engine.get_note_meta(&relative_path))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_directory_children(
     state: State<'_, AppState>,
     parent_path: Option<String>,
@@ -161,13 +161,13 @@ pub fn get_vault_directory_children(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_active_vault_path(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let vault_path = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     Ok(vault_path.as_ref().map(|p| p.to_string_lossy().to_string()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_note_content(
     state: State<'_, AppState>,
     relative_path: String,
@@ -314,7 +314,7 @@ pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String)
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_files_count(state: State<'_, AppState>) -> Result<usize, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {

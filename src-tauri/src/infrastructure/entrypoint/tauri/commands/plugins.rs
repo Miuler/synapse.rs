@@ -18,7 +18,7 @@ pub async fn fetch_community_plugins(
         .await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_installed_community_plugins(
     state: State<'_, AppState>,
     vault_path: Option<String>,

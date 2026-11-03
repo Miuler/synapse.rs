@@ -73,6 +73,35 @@ describe.skipIf(!VAULT)('bóveda real', () => {
     expect(items).toBeGreaterThan(0);
   });
 
+  it('latencia del IPC con la app en reposo', async () => {
+    // Las mismas llamadas que en la apertura, pero sin carga: separa el costo del backend y del
+    // transporte del tiempo que la respuesta espera a que el hilo de JS del webview se libere.
+    const res = (await s.browser.executeAsync((done: (r: unknown) => void) => {
+      const invoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (async () => {
+        const out: Record<string, number> = {};
+        for (const [cmd, args] of [
+          ['get_diagram_split_ratio', { path: 'x.md' }],
+          ['get_app_version', {}],
+          ['get_vault_directory_children', { parentPath: '' }],
+          ['get_vault_git_status', {}],
+        ] as [string, Record<string, unknown>][]) {
+          const times: number[] = [];
+          for (let i = 0; i < 5; i++) {
+            const t = performance.now();
+            await invoke(cmd, args).catch(() => null);
+            times.push(performance.now() - t);
+          }
+          times.sort((a, b) => a - b);
+          out[cmd] = times[2];
+        }
+        done(out);
+      })();
+    })) as Record<string, number>;
+    for (const [cmd, ms] of Object.entries(res)) console.log(`  en reposo ${cmd.padEnd(30)} ${ms.toFixed(1)} ms`);
+    expect(Object.keys(res).length).toBe(4);
+  });
+
   it('memoria real de los procesos de la app', async () => {
     const rss = processTreeRss(`--vault ${VAULT}`);
     for (const [name, mb] of Object.entries(rss).sort((a, b) => b[1] - a[1])) console.log(`  ${name.padEnd(20)} ${mb.toFixed(0)} MB`);

@@ -14,7 +14,7 @@ pub fn record_note_opened(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_recent_notes_command(
     state: State<'_, AppState>,
     limit: Option<usize>,
@@ -35,7 +35,7 @@ pub fn save_open_tabs_state(
         .execute(crate::application::dto::session::save_open_tabs_command::SaveOpenTabsCommand { tabs, active_tab })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_open_tabs_state(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceOpenTabsState, String> {
@@ -75,7 +75,7 @@ pub fn save_vault_ui_state(
         })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_vault_ui_state(
     state: State<'_, AppState>,
 ) -> Result<VaultUiState, String> {
@@ -89,7 +89,7 @@ const DIAGRAM_SPLIT_MIN_PCT: f32 = 15.0;
 const DIAGRAM_SPLIT_MAX_PCT: f32 = 85.0;
 
 /// Devuelve la proporción recordada del panel de código de un diagrama, si el usuario la modificó.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_diagram_split_ratio(state: State<'_, AppState>, path: String) -> Option<f32> {
     state.diagram_split_ratios.get(&path).map(|r| *r.value())
 }

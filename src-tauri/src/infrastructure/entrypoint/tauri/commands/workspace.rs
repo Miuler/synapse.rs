@@ -235,7 +235,7 @@ pub fn open_workspace_in_new_window(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn check_vault_path_exists(
     state: State<'_, AppState>,
     relative_path: String,
@@ -252,7 +252,7 @@ pub fn check_vault_path_exists(
     Ok(p.exists())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_vault_directory(
     state: State<'_, AppState>,
     relative_path: Option<String>,

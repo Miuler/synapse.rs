@@ -105,7 +105,7 @@ pub fn git_commit_paths(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_git_file_diff(
     state: State<'_, AppState>,
     path: String,
@@ -126,7 +126,7 @@ pub fn get_git_file_diff(
         })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_git_file_revision(
     state: State<'_, AppState>,
     path: String,
@@ -147,7 +147,7 @@ pub fn get_git_file_revision(
         })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_git_image_diff(
     state: State<'_, AppState>,
     path: String,
@@ -168,7 +168,7 @@ pub fn get_git_image_diff(
         })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_git_file_log(
     state: State<'_, AppState>,
     path: String,
@@ -188,7 +188,7 @@ pub fn get_git_file_log(
         })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_git_branches(state: State<'_, AppState>) -> Result<BranchList, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
