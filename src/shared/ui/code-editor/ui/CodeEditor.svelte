@@ -14,6 +14,9 @@
   import { commentExtension, withCommentTokens } from '@shared/lib/editor-comment';
   import { d2Language } from '../lib/d2-language';
   import { braceFolding } from '../lib/brace-folding';
+  import { registerVimFolding } from '../lib/vim-folding';
+
+  registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
 
   export interface SelectionInfo {

@@ -40,3 +40,31 @@ it('plegar el bloque exterior oculta sus líneas', async () => {
   expect(lines.join('\n')).not.toContain('shape: cylinder');
   expect(lines).toContain('client -> server');
 });
+
+it('los atajos de Vim zc, zo, zR y zM pliegan y despliegan', async () => {
+  await s.browser.execute(() => {
+    localStorage.setItem('synapse_settings', JSON.stringify({ vimMode: true }));
+  });
+  await s.browser.refresh();
+  const item = s.browser.$('.file-tree-item[data-path="arquitectura.d2"]');
+  await item.waitForExist({ timeout: 30_000 });
+  await item.click();
+  const content = s.browser.$('.cm-editor .cm-content');
+  await s.browser.pause(500);
+  if (!(await content.isExisting())) await s.browser.keys(['Control', 'e']);
+  await content.waitForExist({ timeout: 10_000 });
+  await content.click();
+  const placeholders = () => s.browser.execute(() => document.querySelectorAll('.cm-foldPlaceholder').length) as Promise<number>;
+  // Cursor en la primera línea: zc pliega el bloque exterior, zo lo despliega.
+  await s.browser.$('.cm-content .cm-line').click();
+  await s.browser.keys(['Escape']);
+  await s.browser.keys(['z', 'c']);
+  await s.browser.waitUntil(async () => (await placeholders()) === 1, { timeout: 5_000 });
+  await s.browser.keys(['z', 'o']);
+  await s.browser.waitUntil(async () => (await placeholders()) === 0, { timeout: 5_000 });
+  // zM pliega todo y zR lo despliega todo.
+  await s.browser.keys(['z', 'M']);
+  await s.browser.waitUntil(async () => (await placeholders()) > 0, { timeout: 5_000 });
+  await s.browser.keys(['z', 'R']);
+  await s.browser.waitUntil(async () => (await placeholders()) === 0, { timeout: 5_000 });
+});

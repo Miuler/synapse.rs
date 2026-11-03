@@ -21,6 +21,9 @@
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
+  import { registerVimFolding } from '@shared/ui/code-editor';
+
+  registerVimFolding();
 
   export interface SelectionInfo {
     hasSelection: boolean;
