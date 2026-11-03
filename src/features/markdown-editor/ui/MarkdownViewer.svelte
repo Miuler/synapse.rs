@@ -320,6 +320,28 @@
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
       backgroundColor: 'rgba(9, 105, 218, 0.25) !important',
     },
+    '.cm-panels': {
+      backgroundColor: 'var(--bg-secondary, #f6f8fa)',
+      color: 'var(--text-primary, #1f2328)',
+    },
+    '.cm-panels-bottom': {
+      borderTop: '1px solid var(--border-primary, #d0d7de)',
+    },
+    // Búsqueda de Vim (`/`): sin esto el campo hereda el fondo claro por defecto de CodeMirror y
+    // en tema oscuro el texto (blanco) no se ve.
+    '.cm-vim-panel': {
+      backgroundColor: 'var(--bg-secondary, #f6f8fa)',
+      color: 'var(--text-primary, #1f2328)',
+      fontFamily: 'var(--code-font, monospace)',
+      padding: '2px 10px',
+    },
+    '.cm-vim-panel input': {
+      color: 'inherit',
+      font: 'inherit',
+      caretColor: 'var(--accent, #0969da)',
+      flex: '1',
+      minWidth: '0',
+    },
     '.cm-panel.cm-search': {
       backgroundColor: 'var(--bg-secondary, #f6f8fa)',
       color: 'var(--text-primary, #1f2328)',
