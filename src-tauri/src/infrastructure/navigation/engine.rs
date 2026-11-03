@@ -984,7 +984,7 @@ impl NavigationEngine {
         }
 
         // Puntaje compuesto (ver `ranking.rs`): calidad difusa por campo ponderada + bonus de recencia.
-        // Empates: orden alfabético por nombre de archivo y luego el rank original de nucleo.
+        // Empates: orden alfabético por nombre de archivo, luego por ruta y por último el rank de nucleo.
         let mut candidates: Vec<(u32, String, NoteMeta, usize)> = candidates
             .into_iter()
             .map(|(meta, rank)| {
@@ -993,10 +993,12 @@ impl NavigationEngine {
                 (score, name_lower, meta, rank)
             })
             .collect();
-        candidates.sort_by(|(score_a, name_a, _, rank_a), (score_b, name_b, _, rank_b)| {
+        candidates.sort_by(|(score_a, name_a, meta_a, rank_a), (score_b, name_b, meta_b, rank_b)| {
             score_b
                 .cmp(score_a)
                 .then_with(|| name_a.cmp(name_b))
+                // Mismo nombre y puntaje (p. ej. a/notas.md y b/notas.md): orden estable por ruta
+                .then_with(|| meta_a.path.cmp(&meta_b.path))
                 .then_with(|| rank_a.cmp(rank_b))
         });
 

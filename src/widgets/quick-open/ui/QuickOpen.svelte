@@ -317,8 +317,11 @@
   // Lista visible en el DOM recortada al tamaño de página (apertura instantánea sin retrasos)
   let fileList = $derived(allCandidates.slice(0, visibleCount));
 
-  // Determinar si existen archivos recientes para condicionalmente renderizar líneas divisoras
-  let hasRecents = $derived(fileList.some((f) => f.isRecent));
+  // Separadores "Recientes"/"Archivos": solo sin búsqueda, que es cuando la lista va agrupada
+  // (recientes primero). Al buscar, el orden es por puntaje (que ya premia lo reciente) y los
+  // recientes quedan mezclados con el resto, así que los separadores no corresponden.
+  let hasQuery = $derived(searchQuery.trim().length > 0);
+  let hasRecents = $derived(!hasQuery && fileList.some((f) => f.isRecent));
 
   let prevQuery = '';
   let prevIsOpen = false;
@@ -807,7 +810,12 @@
 
             {#each fileList as file, i (file.id)}
               <!-- Líneas de sección solo si existen archivos recientes -->
-              {#if hasRecents && i === 0 && file.isRecent}
+              {#if hasQuery && i === 0 && folderResults.length > 0}
+                <!-- Al buscar: un único encabezado para separar los archivos de las carpetas -->
+                <div class="section-divider">
+                  <span class="section-divider-label">Archivos</span>
+                </div>
+              {:else if hasRecents && i === 0 && file.isRecent}
                 <div class="section-divider">
                   <span class="section-divider-label">Recientes</span>
                 </div>

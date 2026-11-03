@@ -5,11 +5,15 @@
 //
 // Requisitos (solo desarrollo): `cargo install tauri-driver --locked`, `WebKitWebDriver`
 // (paquete webkitgtk) y `cargo build` en src-tauri (binario en modo dev, que carga Vite).
-import { spawn, type ChildProcess } from 'child_process';
+import { setDefaultTimeout } from 'bun:test';
+import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join, resolve } from 'path';
 import { remote, type Browser } from 'webdriverio';
+
+// Las acciones sobre la app real tardan más que el límite por defecto de bun test (5 s)
+setDefaultTimeout(60_000);
 
 const ROOT = resolve(import.meta.dir, '..');
 const APP = join(ROOT, 'src-tauri/target/debug/synapsers');
@@ -105,6 +109,8 @@ export async function startApp(files: Record<string, string>): Promise<Session> 
     async close() {
       await browser.deleteSession().catch(() => {});
       for (const c of children.reverse()) c.kill();
+      // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
+      spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
       rmSync(base, { recursive: true, force: true });
     },
   };

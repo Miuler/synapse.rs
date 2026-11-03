@@ -1,6 +1,7 @@
 "bcp" => ["bcp.md", "diario/2026/bcp-semana.md", "proyectos/BCP/TTIB/reunion-bcp.md", "proyectos/BCP/TTIB/arquitectura.md"]
 "arquitectura" => ["proyectos/BCP/TTIB/arquitectura.md", "docs/arquitectura/cebolla.md", "docs/arquitectura/fsd.md"]
 "rust" => ["inbox/idea-rust.md", "docs/arquitectura/cebolla.md", "proyectos/BCP/TTIB/reunion-bcp.md", "proyectos/BCP/TTIB/arquitectura.md"]
+"notas" => ["a/notas.md", "a/sub/notas.md", "b/notas.md", "bcp.md", "recetas/pan.md", "docs/arquitectura/fsd.md"]
 "ttib" => ["proyectos/BCP/TTIB/arquitectura.md", "proyectos/BCP/TTIB/reunion-bcp.md", "docs/arquitectura/cebolla.md"]
 "pan" => ["recetas/pan.md", "diario/2026/bcp-semana.md", "imagenes/diagrama.png"]
 "cebolla" => ["docs/arquitectura/cebolla.md"]

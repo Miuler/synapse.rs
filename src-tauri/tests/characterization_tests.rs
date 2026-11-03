@@ -67,9 +67,7 @@ fn search_paths(engine: &NavigationEngine, query: &str) -> Vec<String> {
 fn quick_open_order_is_preserved() {
     let e = engine("qo");
     let mut report = String::new();
-    // "notas" no se incluye: hoy los empates entre archivos con el mismo nombre y puntaje
-    // dependen del orden de iteración del DashMap, que cambia entre ejecuciones.
-    for q in ["bcp", "arquitectura", "rust", "ttib", "pan", "cebolla", "diagrama", "arq ceb"] {
+    for q in ["bcp", "arquitectura", "rust", "notas", "ttib", "pan", "cebolla", "diagrama", "arq ceb"] {
         report.push_str(&format!("{q:?} => {:?}\n", search_paths(&e, q)));
     }
     insta_like(&report, include_str!("characterization/quick_open.txt"));

@@ -54,6 +54,30 @@ it('el Quick Open encuentra notas en subcarpetas', async () => {
   await s.browser.$('.tab-title-container[data-path="docs/notas/idea.md"]').waitForExist({ timeout: 10_000 });
 });
 
+it('el Quick Open agrupa recientes solo sin búsqueda', async () => {
+  const dividers = async () =>
+    (await s.browser.execute(() =>
+      [...document.querySelectorAll('.quick-open-results-container .section-divider-label')].map((d) => d.textContent?.trim() ?? '')
+    )) as string[];
+  await s.browser.keys(['Control', 'o']);
+  const input = s.browser.$('.quick-open-command-root input');
+  await input.waitForExist({ timeout: 10_000 });
+  await s.browser.waitUntil(async () => (await dividers()).length > 0, { timeout: 10_000, timeoutMsg: 'sin separadores en la lista sin búsqueda' });
+  const grouped = (await dividers()).map((t) => t.toLowerCase());
+  expect(grouped[0]).toBe('recientes');
+  expect(grouped.filter((t) => t === 'archivos').length).toBeLessThanOrEqual(1);
+  await input.setValue('a');
+  // Al buscar: sin "Recientes" y como mucho un "Archivos" (debajo de las carpetas, si las hay)
+  await s.browser.waitUntil(async () => !(await dividers()).some((t) => t.toLowerCase() === 'recientes'), {
+    timeout: 10_000,
+    timeoutMsg: 'quedó el separador Recientes al buscar',
+  });
+  const searching = (await dividers()).map((t) => t.toLowerCase());
+  expect(searching.filter((t) => t === 'archivos').length).toBeLessThanOrEqual(1);
+  await shot('02b-quick-open-busqueda');
+  await s.browser.keys(['Escape']);
+});
+
 it('cambiar el título renombra el archivo y el explorador se actualiza', async () => {
   await explorerFile('bienvenida.md').click();
   const title = s.browser.$('.editor-title-input');

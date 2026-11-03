@@ -3,6 +3,14 @@
   // Se usa para el filtro "Compatibles" (activo por defecto) del menú de plugins.
   // Cada entrada es el id del plugin en el catálogo comunitario.
   // Importante: no uses "//" dentro de strings (el parser de jsonc los recortaría).
+  //
+  // Antes de marcar un plugin como verificado, ten en cuenta el límite de Tauri: el webview no
+  // tiene Node ni Electron. No funcionan los plugins que usan require('fs'), 'path', 'child_process',
+  // 'electron' u otras APIs de Node, ni los que necesitan rutas del sistema de forma síncrona
+  // (FileSystemAdapter.getBasePath, etc.). El acceso a archivos debe pasar por app.vault o
+  // app.vault.adapter, que la fachada implementa sobre el backend de Synapse.
+  // Mapa de qué partes del API de Obsidian ofrece la fachada:
+  // src/shared/obsidian-api/__snapshots__/obsidian-compat.test.ts.snap
   "verified_plugins": [
     "obsidian-excalidraw-plugin"
   ]
