@@ -4,15 +4,18 @@ use crate::domain::vault::vault_item_repository::VaultItemRepository;
 /// Lee el contenido binario de un archivo de la bóveda.
 #[derive(Clone)]
 pub struct ReadBinaryVaultItemUseCase<A: VaultItemRepository> {
-    items: A,
+    vault_item_repository: A,
 }
 
 impl<A: VaultItemRepository> ReadBinaryVaultItemUseCase<A> {
-    pub fn new(items: A) -> Self {
-        Self { items }
+    pub fn new(vault_item_repository: A) -> Self {
+        Self {
+            vault_item_repository,
+        }
     }
 
     pub fn execute(&self, query: ReadBinaryVaultItemQuery) -> Result<Vec<u8>, String> {
-        self.items.read_binary_item(&query.vault_path, &query.relative_path)
+        self.vault_item_repository
+            .read_binary_item(&query.vault_path, &query.relative_path)
     }
 }

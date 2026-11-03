@@ -4,13 +4,16 @@ use crate::domain::vault::vault_item_repository::VaultItemRepository;
 
 /// Mueve notas a una carpeta y, si se pide, reescribe los enlaces que apuntaban a ellas.
 pub struct MoveNotesUseCase<N: NoteRepository, V: VaultItemRepository> {
-    notes: N,
-    items: V,
+    note_repository: N,
+    vault_item_repository: V,
 }
 
 impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
-    pub fn new(notes: N, items: V) -> Self {
-        Self { notes, items }
+    pub fn new(note_repository: N, vault_item_repository: V) -> Self {
+        Self {
+            note_repository,
+            vault_item_repository,
+        }
     }
 
     pub fn execute(&self, command: MoveNotesCommand) -> Result<MoveNotesResult, String> {
@@ -20,9 +23,9 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
             return Err("Ruta de destino no permitida ('..' detectado)".to_string());
         }
 
-        if !self.items.exists(vault, &clean_target) {
+        if !self.vault_item_repository.exists(vault, &clean_target) {
             if command.create_target_folder {
-                self.items
+                self.vault_item_repository
                     .ensure_folder(vault, &clean_target)
                     .map_err(|e| format!("Error al crear carpeta de destino: {}", e))?;
             } else {
@@ -48,16 +51,22 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
                 format!("{}/{}", clean_target, file_name)
             };
 
-            if !self.items.exists(vault, &clean_src) {
+            if !self.vault_item_repository.exists(vault, &clean_src) {
                 errors.push((source_rel.clone(), "Archivo origen no existe".to_string()));
                 continue;
             }
-            if self.items.exists(vault, &target_rel) && !command.overwrite {
-                errors.push((source_rel.clone(), "Ya existe un archivo en destino".to_string()));
+            if self.vault_item_repository.exists(vault, &target_rel) && !command.overwrite {
+                errors.push((
+                    source_rel.clone(),
+                    "Ya existe un archivo en destino".to_string(),
+                ));
                 continue;
             }
 
-            match self.items.relocate(vault, &clean_src, &target_rel) {
+            match self
+                .vault_item_repository
+                .relocate(vault, &clean_src, &target_rel)
+            {
                 Ok(_) => {
                     if command.update_wikilinks {
                         self.rewrite_wikilinks(vault, &clean_src, file_name, &target_rel);
@@ -72,23 +81,39 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
     }
 
     /// Reescritura simple de `[[enlaces]]` hacia la nota movida.
-    fn rewrite_wikilinks(&self, vault: &std::path::Path, clean_src: &str, file_name: &str, target_rel: &str) {
-        let old_stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
+    fn rewrite_wikilinks(
+        &self,
+        vault: &std::path::Path,
+        clean_src: &str,
+        file_name: &str,
+        target_rel: &str,
+    ) {
+        let old_stem = file_name
+            .rsplit_once('.')
+            .map(|(s, _)| s)
+            .unwrap_or(file_name);
         let extensions = vec!["md".to_string(), "markdown".to_string()];
-        if let Ok(all_notes) = self.notes.list_notes(vault, &extensions) {
+        if let Ok(all_notes) = self.note_repository.list_notes(vault, &extensions) {
             for other in all_notes {
                 if other.relative_path.as_str() == target_rel {
                     continue;
                 }
-                if let Ok(mut note_to_patch) = self.notes.read_note(vault, &other.relative_path) {
+                if let Ok(mut note_to_patch) =
+                    self.note_repository.read_note(vault, &other.relative_path)
+                {
                     if note_to_patch.content.contains(&format!("[[{}]]", old_stem))
-                        || note_to_patch.content.contains(&format!("[[{}]]", clean_src))
+                        || note_to_patch
+                            .content
+                            .contains(&format!("[[{}]]", clean_src))
                     {
                         note_to_patch.content = note_to_patch
                             .content
-                            .replace(&format!("[[{}]]", clean_src), &format!("[[{}]]", target_rel))
+                            .replace(
+                                &format!("[[{}]]", clean_src),
+                                &format!("[[{}]]", target_rel),
+                            )
                             .replace(&format!("[[{}]]", old_stem), &format!("[[{}]]", target_rel));
-                        let _ = self.notes.save_note(vault, &note_to_patch);
+                        let _ = self.note_repository.save_note(vault, &note_to_patch);
                     }
                 }
             }

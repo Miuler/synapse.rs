@@ -4,15 +4,15 @@ use crate::domain::version::version_control::VersionControl;
 /// Publica las versiones locales en el remoto.
 #[derive(Clone)]
 pub struct PushVersionsUseCase<A: VersionControl> {
-    versions: A,
+    version_control: A,
 }
 
 impl<A: VersionControl> PushVersionsUseCase<A> {
-    pub fn new(versions: A) -> Self {
-        Self { versions }
+    pub fn new(version_control: A) -> Self {
+        Self { version_control }
     }
 
     pub fn execute(&self, command: PushVersionsCommand) -> Result<String, String> {
-        self.versions.push(&command.vault_path)
+        self.version_control.push(&command.vault_path)
     }
 }

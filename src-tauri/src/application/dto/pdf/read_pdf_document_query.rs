@@ -14,6 +14,9 @@ pub struct ReadPdfDocumentQuery {
 
 pub enum PdfReading {
     Pages(PdfInspectionResult),
-    Search { query: String, matches: Vec<PdfPageSnippet> },
+    Search {
+        query: String,
+        matches: Vec<PdfPageSnippet>,
+    },
     Outline(PdfOutline),
 }

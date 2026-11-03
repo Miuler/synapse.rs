@@ -4,15 +4,16 @@ use crate::domain::version::version_control::VersionControl;
 /// Guarda una versión con los archivos indicados.
 #[derive(Clone)]
 pub struct SaveVersionUseCase<A: VersionControl> {
-    versions: A,
+    version_control: A,
 }
 
 impl<A: VersionControl> SaveVersionUseCase<A> {
-    pub fn new(versions: A) -> Self {
-        Self { versions }
+    pub fn new(version_control: A) -> Self {
+        Self { version_control }
     }
 
     pub fn execute(&self, command: SaveVersionCommand) -> Result<String, String> {
-        self.versions.save_version(&command.vault_path, &command.paths, &command.message)
+        self.version_control
+            .save_version(&command.vault_path, &command.paths, &command.message)
     }
 }

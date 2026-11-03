@@ -4,15 +4,18 @@ use crate::domain::vault::vault_item_repository::VaultItemRepository;
 /// Crea una carpeta dentro de la bóveda.
 #[derive(Clone)]
 pub struct CreateFolderUseCase<A: VaultItemRepository> {
-    items: A,
+    vault_item_repository: A,
 }
 
 impl<A: VaultItemRepository> CreateFolderUseCase<A> {
-    pub fn new(items: A) -> Self {
-        Self { items }
+    pub fn new(vault_item_repository: A) -> Self {
+        Self {
+            vault_item_repository,
+        }
     }
 
     pub fn execute(&self, command: CreateFolderCommand) -> Result<(), String> {
-        self.items.create_folder(&command.vault_path, &command.relative_path)
+        self.vault_item_repository
+            .create_folder(&command.vault_path, &command.relative_path)
     }
 }

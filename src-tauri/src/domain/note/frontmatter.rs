@@ -145,10 +145,7 @@ impl NoteFrontmatter {
     }
 
     /// Serializa el frontmatter (si existe) precediendo el contenido Markdown con `---`.
-    pub fn serialize_with_content(
-        frontmatter: Option<&NoteFrontmatter>,
-        body: &str,
-    ) -> String {
+    pub fn serialize_with_content(frontmatter: Option<&NoteFrontmatter>, body: &str) -> String {
         let Some(fm) = frontmatter else {
             return body.to_string();
         };

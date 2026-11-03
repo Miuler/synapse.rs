@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::domain::note::note::Note;
+use crate::domain::vault::file_types::SupportedFileTypes;
+use crate::infrastructure::navigation::engine::VaultChangeListener;
 use crate::infrastructure::navigation::matcher::populate_nucleo_from_dashmap;
 use crate::infrastructure::navigation::model::{NoteId, NoteMeta, NoteSyncState};
-use crate::infrastructure::navigation::engine::VaultChangeListener;
-use crate::domain::vault::file_types::SupportedFileTypes;
 use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -90,7 +90,11 @@ pub fn process_paths_batch(
 
         if abs_path.exists() {
             if abs_path.is_dir() {
-                let rel_str = rel_path.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                let rel_str = rel_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_matches('/')
+                    .to_string();
                 if !rel_str.is_empty() {
                     folders.insert(CompactString::new(&rel_str));
                 }
@@ -104,7 +108,9 @@ pub fn process_paths_batch(
                 };
 
                 let is_already_known = !dir_prefix.is_empty()
-                    && notes.iter().any(|item| item.value().path.starts_with(&dir_prefix));
+                    && notes
+                        .iter()
+                        .any(|item| item.value().path.starts_with(&dir_prefix));
 
                 if !is_already_known && !rel_str.is_empty() {
                     for entry_res in jwalk::WalkDir::new(abs_path)
@@ -162,7 +168,9 @@ pub fn process_paths_batch(
                 deleted_paths.insert(rel_str);
             } else {
                 let dir_prefix = format!("{}/", rel_str);
-                let is_tracked_dir = notes.iter().any(|item| item.value().path.starts_with(&dir_prefix));
+                let is_tracked_dir = notes
+                    .iter()
+                    .any(|item| item.value().path.starts_with(&dir_prefix));
                 if is_tracked_dir {
                     deleted_paths.insert(rel_str);
                 }
@@ -224,7 +232,8 @@ pub fn process_paths_batch(
                 let content = std::fs::read_to_string(&abs_path).unwrap_or_default();
                 let t = Note::title_from_content(&content, file_stem);
                 let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
-                let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+                let compact_tags: Vec<CompactString> =
+                    raw_tags.into_iter().map(CompactString::new).collect();
                 (t, compact_tags)
             } else {
                 (
@@ -301,7 +310,9 @@ pub fn process_paths_batch(
                 let tags = item.tags.clone();
                 inj.push(existing_id, move |_target, cols| {
                     let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
-                    let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                    let mut s = String::with_capacity(
+                        compact_title.len() + 1 + compact_path.len() + tags_len,
+                    );
                     s.push_str(compact_title.as_str());
                     if compact_title.as_str() != compact_path.as_str() {
                         s.push(' ');
@@ -345,7 +356,9 @@ pub fn process_paths_batch(
                 let tags = item.tags.clone();
                 inj.push(new_id, move |_target, cols| {
                     let tags_len: usize = tags.iter().map(|t| t.len() + 2).sum();
-                    let mut s = String::with_capacity(compact_title.len() + 1 + compact_path.len() + tags_len);
+                    let mut s = String::with_capacity(
+                        compact_title.len() + 1 + compact_path.len() + tags_len,
+                    );
                     s.push_str(compact_title.as_str());
                     if compact_title.as_str() != compact_path.as_str() {
                         s.push(' ');

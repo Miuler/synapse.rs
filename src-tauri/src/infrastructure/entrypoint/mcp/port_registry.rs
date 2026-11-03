@@ -119,7 +119,10 @@ pub fn is_vault_enabled(vault_path: &Path) -> bool {
     }
     let canonical = canonical_vault_key(vault_path);
     let reg = read_global_registry();
-    reg.vaults.get(&canonical).map(|e| e.enabled).unwrap_or(false)
+    reg.vaults
+        .get(&canonical)
+        .map(|e| e.enabled)
+        .unwrap_or(false)
 }
 
 /// Comprueba si un proceso sigue vivo dado su PID en el sistema
@@ -237,7 +240,9 @@ pub fn allocate_and_bind_port(
 /// Indica si otra instancia viva de Synapse ya sirve MCP para esta bóveda según el registro global.
 fn owned_by_other_instance(registry: &McpPortRegistry, canonical_key: &str) -> bool {
     registry.vaults.get(canonical_key).is_some_and(|e| {
-        e.running && e.pid.is_some_and(|pid| pid != std::process::id() && is_process_alive(pid))
+        e.running
+            && e.pid
+                .is_some_and(|pid| pid != std::process::id() && is_process_alive(pid))
     })
 }
 
@@ -246,7 +251,9 @@ fn owned_by_other_instance(registry: &McpPortRegistry, canonical_key: &str) -> b
 /// otro HOME, que no comparte el registro global).
 fn configured_port_held_elsewhere(vault_path: &Path, bound_port: u16) -> bool {
     read_vault_config(vault_path).is_some_and(|cfg| {
-        cfg.enabled && cfg.port != bound_port && TcpListener::bind(format!("127.0.0.1:{}", cfg.port)).is_err()
+        cfg.enabled
+            && cfg.port != bound_port
+            && TcpListener::bind(format!("127.0.0.1:{}", cfg.port)).is_err()
     })
 }
 
@@ -258,8 +265,12 @@ pub fn record_mcp_started(vault_path: &Path, port: u16) {
     let endpoint = format!("http://127.0.0.1:{}/mcp", port);
     let mut registry = read_global_registry();
 
-    if owned_by_other_instance(&registry, &canonical_key) || configured_port_held_elsewhere(vault_path, port) {
-        log::info!("MCP en el puerto {port}: otra instancia es dueña de la bóveda, no se persiste el puerto");
+    if owned_by_other_instance(&registry, &canonical_key)
+        || configured_port_held_elsewhere(vault_path, port)
+    {
+        log::info!(
+            "MCP en el puerto {port}: otra instancia es dueña de la bóveda, no se persiste el puerto"
+        );
         return;
     }
 
@@ -382,7 +393,10 @@ mod tests {
 
         // 1. Iniciar MCP para la bóveda (debe marcar enabled: true en bóveda y registro global)
         record_mcp_started(vault, 27195);
-        assert!(is_vault_enabled(vault), "Debe estar habilitado tras record_mcp_started");
+        assert!(
+            is_vault_enabled(vault),
+            "Debe estar habilitado tras record_mcp_started"
+        );
         let cfg = read_vault_config(vault).expect("Debe tener .synapse/mcp.json");
         assert!(cfg.enabled);
 
@@ -390,13 +404,22 @@ mod tests {
         record_mcp_runtime_stopped(vault);
 
         // 3. La bóveda debe permanecer enabled: true para que al reabrir el workspace se active automáticamente
-        assert!(is_vault_enabled(vault), "Debe seguir habilitado tras apagado del runtime");
+        assert!(
+            is_vault_enabled(vault),
+            "Debe seguir habilitado tras apagado del runtime"
+        );
         let cfg_after = read_vault_config(vault).expect("Debe preservar .synapse/mcp.json");
-        assert!(cfg_after.enabled, "La configuración en disco de la bóveda no debe sobreescribirse");
+        assert!(
+            cfg_after.enabled,
+            "La configuración en disco de la bóveda no debe sobreescribirse"
+        );
 
         // 4. Si el usuario explícitamente lo desactiva, ahí sí debe pasar a false
         record_mcp_disabled(vault, 27195);
-        assert!(!is_vault_enabled(vault), "Debe quedar deshabilitado tras desactivación voluntaria");
+        assert!(
+            !is_vault_enabled(vault),
+            "Debe quedar deshabilitado tras desactivación voluntaria"
+        );
         let cfg_disabled = read_vault_config(vault).expect("Debe leer config actualizada");
         assert!(!cfg_disabled.enabled);
     }
@@ -411,7 +434,11 @@ mod tests {
         let owner_port = owner.local_addr().unwrap().port();
         write_vault_config(
             vault,
-            &McpVaultConfig { enabled: true, port: owner_port, last_endpoint: None },
+            &McpVaultConfig {
+                enabled: true,
+                port: owner_port,
+                last_endpoint: None,
+            },
         );
 
         // Una segunda instancia enlaza otro puerto y no debe reescribir mcp.json.

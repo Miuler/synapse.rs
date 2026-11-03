@@ -52,16 +52,35 @@ impl QuickOpenScorer {
             tags: &meta.tags,
             last_opened_nanos: meta.last_opened_nanos,
         };
-        let Self { pattern, matcher, path_matcher, ideal, ranking, buf } = self;
+        let Self {
+            pattern,
+            matcher,
+            path_matcher,
+            ideal,
+            ranking,
+            buf,
+        } = self;
         ranking.score(&candidate, |haystack, is_path| {
-            field_quality(pattern, if is_path { path_matcher } else { matcher }, *ideal, buf, haystack)
+            field_quality(
+                pattern,
+                if is_path { path_matcher } else { matcher },
+                *ideal,
+                buf,
+                haystack,
+            )
         })
     }
 }
 
 /// Calidad de la coincidencia en el rango 0..=1000 (puede superar 1000 levemente si el campo
 /// obtiene más bonus de límites de palabra que la propia consulta).
-fn field_quality(pattern: &Pattern, matcher: &mut Matcher, ideal: u32, buf: &mut Vec<char>, haystack: &str) -> Option<u32> {
+fn field_quality(
+    pattern: &Pattern,
+    matcher: &mut Matcher,
+    ideal: u32,
+    buf: &mut Vec<char>,
+    haystack: &str,
+) -> Option<u32> {
     let raw = pattern.score(Utf32Str::new(haystack, buf), matcher)?;
     Some(raw.saturating_mul(1000) / ideal)
 }

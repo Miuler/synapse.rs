@@ -1,7 +1,7 @@
 use crate::domain::config::config::IndexingConfig;
-use crate::domain::vault::file_types::SupportedFileTypes;
-use crate::domain::search::full_text::DocumentKind;
 use crate::domain::note::note::Note;
+use crate::domain::search::full_text::DocumentKind;
+use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::infrastructure::repository::file::note_repository_impl::detect_and_decode;
 use pulldown_cmark::{Event, Options, Parser, TagEnd};
 use std::path::Path;
@@ -401,7 +401,7 @@ Base de Datos PostgreSQL ^db1
     #[test]
     fn test_extract_pdf_file() {
         use lopdf::content::Content;
-        use lopdf::{dictionary, Document, Object, Stream};
+        use lopdf::{Document, Object, Stream, dictionary};
 
         let mut doc = Document::with_version("1.5");
         let pages_id = doc.new_object_id();
@@ -418,7 +418,10 @@ Base de Datos PostgreSQL ^db1
             operations: vec![
                 lopdf::content::Operation::new("BT", vec![]),
                 lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
-                lopdf::content::Operation::new("Tj", vec![Object::string_literal("Texto indexable de PDF")]),
+                lopdf::content::Operation::new(
+                    "Tj",
+                    vec![Object::string_literal("Texto indexable de PDF")],
+                ),
                 lopdf::content::Operation::new("ET", vec![]),
             ],
         };

@@ -14,11 +14,6 @@ pub struct WikilinkToken {
     pub end: usize,
 }
 
-
-
-
-
-
 /// Puntuación de proximidad entre un archivo base y una ruta candidata.
 /// Menor valor representa mayor preferencia / mayor cercanía.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,9 +30,6 @@ pub struct ProximityScore {
     pub path_len: usize,
 }
 
-
-
-
 /// Ruta de un recurso enlazado (imagen u otro archivo).
 pub struct AssetPath;
 
@@ -47,7 +39,17 @@ impl AssetPath {
         let lower = ext.to_ascii_lowercase();
         matches!(
             lower.as_str(),
-            "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "svg" | "ico" | "avif" | "tiff" | "tif"
+            "png"
+                | "jpg"
+                | "jpeg"
+                | "webp"
+                | "gif"
+                | "bmp"
+                | "svg"
+                | "ico"
+                | "avif"
+                | "tiff"
+                | "tif"
         )
     }
 
@@ -217,7 +219,11 @@ impl ProximityScore {
         let cand_dir = LinkTarget::parent_directory(candidate_path);
 
         let Some(base) = base_file else {
-            let depth = if cand_dir.is_empty() { 0 } else { cand_dir.split('/').count() };
+            let depth = if cand_dir.is_empty() {
+                0
+            } else {
+                cand_dir.split('/').count()
+            };
             return ProximityScore {
                 tier: 4,
                 distance: depth,
@@ -260,7 +266,11 @@ impl ProximityScore {
 
         // 3. Carpeta padre / ancestro de la carpeta actual
         if cand_dir.is_empty() {
-            let depth = if base_dir.is_empty() { 0 } else { base_dir.split('/').count() };
+            let depth = if base_dir.is_empty() {
+                0
+            } else {
+                base_dir.split('/').count()
+            };
             return ProximityScore {
                 tier: 2,
                 distance: depth,
@@ -279,11 +289,22 @@ impl ProximityScore {
         }
 
         // 4. Otra rama: distancia calculada mediante el ancestro común más cercano
-        let base_parts: Vec<&str> = if base_dir.is_empty() { Vec::new() } else { base_dir.split('/').collect() };
-        let cand_parts: Vec<&str> = if cand_dir.is_empty() { Vec::new() } else { cand_dir.split('/').collect() };
+        let base_parts: Vec<&str> = if base_dir.is_empty() {
+            Vec::new()
+        } else {
+            base_dir.split('/').collect()
+        };
+        let cand_parts: Vec<&str> = if cand_dir.is_empty() {
+            Vec::new()
+        } else {
+            cand_dir.split('/').collect()
+        };
 
         let mut common = 0;
-        while common < base_parts.len() && common < cand_parts.len() && base_parts[common] == cand_parts[common] {
+        while common < base_parts.len()
+            && common < cand_parts.len()
+            && base_parts[common] == cand_parts[common]
+        {
             common += 1;
         }
 
@@ -316,7 +337,11 @@ impl WikilinkToken {
             // Manejo de bloques de código cercados (``` o ~~~)
             let is_line_start = i == 0 || bytes[i - 1] == b'\n';
             if is_line_start && !in_inline_code {
-                if (bytes[i] == b'`' || bytes[i] == b'~') && i + 2 < len && bytes[i + 1] == bytes[i] && bytes[i + 2] == bytes[i] {
+                if (bytes[i] == b'`' || bytes[i] == b'~')
+                    && i + 2 < len
+                    && bytes[i + 1] == bytes[i]
+                    && bytes[i + 2] == bytes[i]
+                {
                     let current_fence = bytes[i];
                     let mut flen = 0;
                     while i + flen < len && bytes[i + flen] == current_fence {
@@ -452,13 +477,16 @@ impl WikilinkToken {
 
             let resolved_path = if token.target.is_empty() {
                 // Enlace interno sólo con ancla (#sección)
-                token.anchor.as_ref().map(|a| format!("#{}", a)).unwrap_or_default()
+                token
+                    .anchor
+                    .as_ref()
+                    .map(|a| format!("#{}", a))
+                    .unwrap_or_default()
             } else {
                 let (target_with_ext, _) = LinkTarget::normalize(&token.target);
 
                 // Intentar resolver primero con el target original, luego con la extensión añadida
-                let path_found = resolver(&token.target)
-                    .or_else(|| resolver(&target_with_ext));
+                let path_found = resolver(&token.target).or_else(|| resolver(&target_with_ext));
 
                 match path_found {
                     Some(p) => match (&token.anchor, p.contains('#')) {
@@ -503,11 +531,17 @@ mod tests {
     #[test]
     fn test_percent_decode_str() {
         assert_eq!(AssetPath::percent_decode("hello%20world"), "hello world");
-        assert_eq!(AssetPath::percent_decode("test%40example.com"), "test@example.com");
+        assert_eq!(
+            AssetPath::percent_decode("test%40example.com"),
+            "test@example.com"
+        );
         assert_eq!(AssetPath::percent_decode("no_escapes"), "no_escapes");
         assert_eq!(AssetPath::percent_decode("malformed%2"), "malformed%2");
         assert_eq!(AssetPath::percent_decode("malformed%ZZ"), "malformed%ZZ");
-        assert_eq!(AssetPath::clean_source("![[foto%20vacaciones.png#header?t=123]]"), Some("foto vacaciones.png".to_string()));
+        assert_eq!(
+            AssetPath::clean_source("![[foto%20vacaciones.png#header?t=123]]"),
+            Some("foto vacaciones.png".to_string())
+        );
     }
 
     #[test]
@@ -618,7 +652,8 @@ Enlace real: [[Mi Nota]]
 
     #[test]
     fn test_transform_markdown_wikilinks_images_vs_links() {
-        let content = "Nota [[FILE.md]] junto a imagen [[FILE.png]] y otra [[sub/banner.webp|300]].";
+        let content =
+            "Nota [[FILE.md]] junto a imagen [[FILE.png]] y otra [[sub/banner.webp|300]].";
 
         let fake_dashmap = |query: &str| -> Option<String> {
             match query {

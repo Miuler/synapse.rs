@@ -1,2 +1,1 @@
-pub struct GetShortcutsConfigQuery {
-}
+pub struct GetShortcutsConfigQuery {}

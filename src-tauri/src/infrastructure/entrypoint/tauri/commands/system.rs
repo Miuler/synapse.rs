@@ -21,35 +21,33 @@ pub fn toggle_devtools(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
-pub fn open_file_with_default_app(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<(), String> {
+pub fn open_file_with_default_app(state: State<'_, AppState>, path: String) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.open_file_with_default_app_use_case.execute(OpenFileWithDefaultAppCommand {
-        vault_path: vault_path.clone(),
-        relative_path: path,
-    })
+    state
+        .open_file_with_default_app_use_case
+        .execute(OpenFileWithDefaultAppCommand {
+            vault_path: vault_path.clone(),
+            relative_path: path,
+        })
 }
 
 #[tauri::command]
-pub fn show_item_in_folder(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<(), String> {
+pub fn show_item_in_folder(state: State<'_, AppState>, path: String) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.show_item_in_folder_use_case.execute(ShowItemInFolderCommand {
-        vault_path: vault_path.clone(),
-        relative_path: path,
-    })
+    state
+        .show_item_in_folder_use_case
+        .execute(ShowItemInFolderCommand {
+            vault_path: vault_path.clone(),
+            relative_path: path,
+        })
 }
 
 #[tauri::command]
@@ -108,7 +106,8 @@ pub async fn get_system_theme(window: tauri::WebviewWindow) -> String {
                     let theme = String::from_utf8_lossy(&output.stdout)
                         .trim()
                         .to_lowercase();
-                    if theme.contains("dark") || theme.contains("black") || theme.contains("night") {
+                    if theme.contains("dark") || theme.contains("black") || theme.contains("night")
+                    {
                         return Some("dark".to_string());
                     } else if theme.contains("light") || theme.contains("white") {
                         return Some("light".to_string());
@@ -164,18 +163,14 @@ pub fn open_tab_in_new_window(
         map.insert(window_label.clone(), path);
     }
 
-    let win = tauri::WebviewWindowBuilder::new(
-        &app,
-        &window_label,
-        tauri::WebviewUrl::default(),
-    )
-    .title(format!("Synapse - {}", window_title))
-    .inner_size(900.0, 700.0)
-    .decorations(false)
-    .resizable(true)
-    .center()
-    .build()
-    .map_err(|e| format!("Error creando nueva ventana: {}", e))?;
+    let win = tauri::WebviewWindowBuilder::new(&app, &window_label, tauri::WebviewUrl::default())
+        .title(format!("Synapse - {}", window_title))
+        .inner_size(900.0, 700.0)
+        .decorations(false)
+        .resizable(true)
+        .center()
+        .build()
+        .map_err(|e| format!("Error creando nueva ventana: {}", e))?;
 
     let tabs_map = Arc::clone(&state.detached_tabs);
     let label_for_event = window_label.clone();
@@ -206,9 +201,7 @@ pub fn get_startup_target(state: State<'_, AppState>) -> Result<Option<StartupTa
 }
 
 #[tauri::command]
-pub async fn select_standalone_file(
-    state: State<'_, AppState>,
-) -> Result<Option<String>, String> {
+pub async fn select_standalone_file(state: State<'_, AppState>) -> Result<Option<String>, String> {
     let file = rfd::AsyncFileDialog::new()
         .set_title("Abrir archivo")
         .add_filter(
@@ -252,36 +245,50 @@ pub fn parse_startup_args(args: &[String]) -> Option<StartupTarget> {
             if let Some(target) = iter.next() {
                 let p = Path::new(target);
                 let resolved = if p.is_relative() {
-                    std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+                    std::env::current_dir()
+                        .map(|cwd| cwd.join(p))
+                        .unwrap_or_else(|_| p.to_path_buf())
                 } else {
                     p.to_path_buf()
                 };
                 let canonical = resolved.canonicalize().unwrap_or(resolved);
-                return Some(StartupTarget::Standalone(canonical.to_string_lossy().to_string()));
+                return Some(StartupTarget::Standalone(
+                    canonical.to_string_lossy().to_string(),
+                ));
             }
         } else if arg == "--vault" || arg == "-v" {
             if let Some(target) = iter.next() {
                 let p = Path::new(target);
                 let resolved = if p.is_relative() {
-                    std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+                    std::env::current_dir()
+                        .map(|cwd| cwd.join(p))
+                        .unwrap_or_else(|_| p.to_path_buf())
                 } else {
                     p.to_path_buf()
                 };
                 let canonical = resolved.canonicalize().unwrap_or(resolved);
-                return Some(StartupTarget::Vault(canonical.to_string_lossy().to_string()));
+                return Some(StartupTarget::Vault(
+                    canonical.to_string_lossy().to_string(),
+                ));
             }
         } else if !arg.starts_with('-') {
             let p = Path::new(arg);
             let resolved = if p.is_relative() {
-                std::env::current_dir().map(|cwd| cwd.join(p)).unwrap_or_else(|_| p.to_path_buf())
+                std::env::current_dir()
+                    .map(|cwd| cwd.join(p))
+                    .unwrap_or_else(|_| p.to_path_buf())
             } else {
                 p.to_path_buf()
             };
             let canonical = resolved.canonicalize().unwrap_or(resolved);
             if canonical.is_dir() {
-                return Some(StartupTarget::Vault(canonical.to_string_lossy().to_string()));
+                return Some(StartupTarget::Vault(
+                    canonical.to_string_lossy().to_string(),
+                ));
             } else {
-                return Some(StartupTarget::Standalone(canonical.to_string_lossy().to_string()));
+                return Some(StartupTarget::Standalone(
+                    canonical.to_string_lossy().to_string(),
+                ));
             }
         }
     }
@@ -307,7 +314,10 @@ mod tests {
         assert_eq!(parse_startup_args(&args_empty), None);
 
         // 2. Argumento posicional de archivo existente
-        let args_file = vec!["synapsers".to_string(), file_path.to_str().unwrap().to_string()];
+        let args_file = vec![
+            "synapsers".to_string(),
+            file_path.to_str().unwrap().to_string(),
+        ];
         let target_file = parse_startup_args(&args_file);
         assert!(matches!(target_file, Some(StartupTarget::Standalone(_))));
 
@@ -321,7 +331,10 @@ mod tests {
         assert!(matches!(target_flag, Some(StartupTarget::Standalone(_))));
 
         // 4. Argumento posicional de directorio existente
-        let args_dir = vec!["synapsers".to_string(), temp_dir.to_str().unwrap().to_string()];
+        let args_dir = vec![
+            "synapsers".to_string(),
+            temp_dir.to_str().unwrap().to_string(),
+        ];
         let target_dir = parse_startup_args(&args_dir);
         assert!(matches!(target_dir, Some(StartupTarget::Vault(_))));
 

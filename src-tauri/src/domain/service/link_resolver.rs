@@ -1,5 +1,5 @@
 //! Resolución de enlaces (`[[destino]]`) entre notas de la bóveda.
-use crate::domain::graph::wikilink::{ProximityScore, LinkTarget};
+use crate::domain::graph::wikilink::{LinkTarget, ProximityScore};
 
 /// Resuelve el destino de un enlace entre todas las notas, prefiriendo la más cercana al
 /// archivo de origen: misma carpeta, luego subcarpetas, luego carpetas padre y luego el resto.
@@ -8,7 +8,12 @@ pub struct LinkResolver;
 impl LinkResolver {
     /// - `find_exact(ruta)`: ruta de la nota con esa ruta exacta, si existe (consulta O(1)).
     /// - `visit_paths(f)`: llama a `f` con la ruta de cada nota de la bóveda.
-    pub fn resolve<E, V>(raw_target: &str, base_file: Option<&str>, find_exact: E, visit_paths: V) -> Option<String>
+    pub fn resolve<E, V>(
+        raw_target: &str,
+        base_file: Option<&str>,
+        find_exact: E,
+        visit_paths: V,
+    ) -> Option<String>
     where
         E: Fn(&str) -> Option<String>,
         V: Fn(&mut dyn FnMut(&str)),

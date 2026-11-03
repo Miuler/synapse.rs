@@ -7,18 +7,19 @@ use crate::domain::note::note_repository::NoteRepository;
 /// Anexa contenido al final de una nota o al inicio/final de una sección. Devuelve la nueva
 /// huella del contenido.
 pub struct AppendToNoteUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> AppendToNoteUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: AppendToNoteCommand) -> Result<String, String> {
-        let relative_path = NoteRelativePath::new(&command.relative_path).map_err(|e| format!("Ruta inválida: {}", e))?;
+        let relative_path = NoteRelativePath::new(&command.relative_path)
+            .map_err(|e| format!("Ruta inválida: {}", e))?;
         let note = self
-            .notes
+            .note_repository
             .read_note(&command.vault_path, &relative_path)
             .map_err(|e| format!("Error al leer nota: {}", e))?;
 
@@ -41,8 +42,14 @@ impl<N: NoteRepository> AppendToNoteUseCase<N> {
 
         let new_content = lines.join("\n");
         let new_hash = NoteContent::hash(&new_content);
-        let updated_note = Note::with_encoding(relative_path, "".to_string(), note.title, new_content, note.encoding);
-        self.notes
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            note.title,
+            new_content,
+            note.encoding,
+        );
+        self.note_repository
             .save_note(&command.vault_path, &updated_note)
             .map_err(|err| format!("Error al anexar contenido: {}", err))?;
         Ok(new_hash)

@@ -1,5 +1,3 @@
-
-
 /// Nombre de un archivo o carpeta de la bóveda.
 pub struct FileName;
 
@@ -22,7 +20,11 @@ impl FileName {
 
     /// Devuelve un nombre libre en el destino aplicando `.copy` repetidamente
     /// mientras `exists` indique que el nombre ya está ocupado.
-    pub fn next_available_copy_name(name: &str, is_folder: bool, exists: impl Fn(&str) -> bool) -> String {
+    pub fn next_available_copy_name(
+        name: &str,
+        is_folder: bool,
+        exists: impl Fn(&str) -> bool,
+    ) -> String {
         let mut candidate = FileName::copy_name(name, is_folder);
         while exists(&candidate) {
             candidate = FileName::copy_name(&candidate, is_folder);

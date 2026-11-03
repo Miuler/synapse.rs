@@ -1,7 +1,9 @@
-use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::domain::note::note::Note;
-use crate::infrastructure::entrypoint::tauri::dto::{VaultEntryDto, VaultEntryNode, VaultFileDto, VaultFilesResponse};
+use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::infrastructure::config::state::AppState;
+use crate::infrastructure::entrypoint::tauri::dto::{
+    VaultEntryDto, VaultEntryNode, VaultFileDto, VaultFilesResponse,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -113,7 +115,9 @@ pub fn get_vault_directory_children(
     if let Ok(entries) = std::fs::read_dir(&disk_dir) {
         for entry in entries.flatten() {
             let file_name = entry.file_name().to_string_lossy().to_string();
-            if crate::infrastructure::entrypoint::subscriber::vault_watcher::is_ignored_dir_or_file(&file_name) {
+            if crate::infrastructure::entrypoint::subscriber::vault_watcher::is_ignored_dir_or_file(
+                &file_name,
+            ) {
                 continue; // Skip hidden dirs and build/dependency folders
             }
             if let Ok(ft) = entry.file_type() {
@@ -130,13 +134,15 @@ pub fn get_vault_directory_children(
                     } else {
                         format!("{}/{}", clean_parent, file_name)
                     };
-                    files.entry(full_rel.clone()).or_insert_with(|| VaultEntryNode {
-                        name: file_name,
-                        relative_path: full_rel,
-                        is_folder: false,
-                        title: None,
-                        sync_state: Some("local".to_string()),
-                    });
+                    files
+                        .entry(full_rel.clone())
+                        .or_insert_with(|| VaultEntryNode {
+                            name: file_name,
+                            relative_path: full_rel,
+                            is_folder: false,
+                            title: None,
+                            sync_state: Some("local".to_string()),
+                        });
                 }
             }
         }
@@ -144,7 +150,11 @@ pub fn get_vault_directory_children(
 
     let mut result = Vec::new();
     for folder_rel in folders {
-        let name = folder_rel.split('/').next_back().unwrap_or(&folder_rel).to_string();
+        let name = folder_rel
+            .split('/')
+            .next_back()
+            .unwrap_or(&folder_rel)
+            .to_string();
         result.push(VaultEntryNode {
             name,
             relative_path: folder_rel,
@@ -177,18 +187,22 @@ pub fn read_note_content(
 
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
-        return state
-            .read_standalone_note_use_case
-            .execute(crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery { path: p.to_path_buf() });
+        return state.read_standalone_note_use_case.execute(
+            crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery {
+                path: p.to_path_buf(),
+            },
+        );
     }
 
     let Some(ref vault_path) = *vault_guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    let note_res = state.read_note_use_case.execute(crate::application::dto::note::read_note_query::ReadNoteQuery {
-        vault_path: vault_path.clone(),
-        relative_path: relative_path.clone(),
-    });
+    let note_res = state.read_note_use_case.execute(
+        crate::application::dto::note::read_note_query::ReadNoteQuery {
+            vault_path: vault_path.clone(),
+            relative_path: relative_path.clone(),
+        },
+    );
     let mut note = match note_res {
         Ok(n) => n,
         Err(err) => {
@@ -198,9 +212,14 @@ pub fn read_note_content(
                 if let Some(ref engine) = *guard {
                     if let Some(meta) = engine.get_note_meta(&relative_path) {
                         if meta.sync_state.as_deref() == Some("ghost") {
-                            let note_rel = crate::domain::note::note_path::NoteRelativePath::new(&relative_path)
-                                .map_err(|e| e.to_string())?;
-                            let abs = vault_path.join(&relative_path).to_string_lossy().to_string();
+                            let note_rel = crate::domain::note::note_path::NoteRelativePath::new(
+                                &relative_path,
+                            )
+                            .map_err(|e| e.to_string())?;
+                            let abs = vault_path
+                                .join(&relative_path)
+                                .to_string_lossy()
+                                .to_string();
                             Note {
                                 relative_path: note_rel,
                                 abs_path: abs,
@@ -224,13 +243,16 @@ pub fn read_note_content(
             }
         }
     };
-    let _ = state
-        .record_note_opened_use_case
-        .execute(crate::application::dto::session::record_note_opened_command::RecordNoteOpenedCommand { relative_path: relative_path.clone() });
-    if let Ok(view_mode) = state
-        .get_note_view_mode_use_case
-        .execute(crate::application::dto::session::get_note_view_mode_query::GetNoteViewModeQuery { relative_path: relative_path.clone() })
-    {
+    let _ = state.record_note_opened_use_case.execute(
+        crate::application::dto::session::record_note_opened_command::RecordNoteOpenedCommand {
+            relative_path: relative_path.clone(),
+        },
+    );
+    if let Ok(view_mode) = state.get_note_view_mode_use_case.execute(
+        crate::application::dto::session::get_note_view_mode_query::GetNoteViewModeQuery {
+            relative_path: relative_path.clone(),
+        },
+    ) {
         note.view_mode = view_mode;
     }
     Ok(note)
@@ -262,17 +284,22 @@ pub fn save_note_content(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
     // El watcher del sistema de archivos detecta el cambio; no hace falta recorrer toda la bóveda en cada guardado
-    state.save_note_use_case.execute(crate::application::dto::note::save_note_command::SaveNoteCommand {
-        vault_path: vault_path.clone(),
-        relative_path,
-        title,
-        content,
-        encoding: enc,
-    })
+    state.save_note_use_case.execute(
+        crate::application::dto::note::save_note_command::SaveNoteCommand {
+            vault_path: vault_path.clone(),
+            relative_path,
+            title,
+            content,
+            encoding: enc,
+        },
+    )
 }
 
 #[tauri::command]
-pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String) -> Result<(), String> {
+pub async fn set_active_vault_path(
+    state: State<'_, AppState>,
+    new_path: String,
+) -> Result<(), String> {
     let path = PathBuf::from(&new_path);
     let target_dir = if path.is_dir() {
         path
@@ -283,9 +310,11 @@ pub async fn set_active_vault_path(state: State<'_, AppState>, new_path: String)
     };
 
     if !target_dir.exists() || !target_dir.is_dir() {
-        let _ = state
-            .remove_workspace_use_case
-            .execute(crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand { path: new_path.clone() });
+        let _ = state.remove_workspace_use_case.execute(
+            crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand {
+                path: new_path.clone(),
+            },
+        );
         return Err("Ruta de bóveda inválida o no existe".to_string());
     }
 

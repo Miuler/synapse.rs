@@ -7,7 +7,10 @@ pub struct SystemShellImpl;
 
 impl SystemShellImpl {
     /// Abre un archivo con la aplicación por defecto del sistema operativo (Word, Excel, etc.).
-    pub fn open_file_with_default_app(vault_path: &Path, relative_path: &str) -> Result<(), String> {
+    pub fn open_file_with_default_app(
+        vault_path: &Path,
+        relative_path: &str,
+    ) -> Result<(), String> {
         let abs_path = if Path::new(relative_path).is_absolute() {
             let p = PathBuf::from(relative_path);
             if !p.exists() {
@@ -137,9 +140,27 @@ impl SystemShellImpl {
             // 2. Fallbacks directos por CLI si D-Bus no respondió o no está presente el servicio
             if !opened {
                 let fallback_commands = [
-                    ("dolphin", vec!["--select".to_string(), abs_path.to_string_lossy().to_string()]),
-                    ("nautilus", vec!["--select".to_string(), abs_path.to_string_lossy().to_string()]),
-                    ("nemo", vec!["--no-desktop".to_string(), abs_path.to_string_lossy().to_string()]),
+                    (
+                        "dolphin",
+                        vec![
+                            "--select".to_string(),
+                            abs_path.to_string_lossy().to_string(),
+                        ],
+                    ),
+                    (
+                        "nautilus",
+                        vec![
+                            "--select".to_string(),
+                            abs_path.to_string_lossy().to_string(),
+                        ],
+                    ),
+                    (
+                        "nemo",
+                        vec![
+                            "--no-desktop".to_string(),
+                            abs_path.to_string_lossy().to_string(),
+                        ],
+                    ),
                     ("thunar", vec![abs_path.to_string_lossy().to_string()]),
                     ("pcmanfm", vec![abs_path.to_string_lossy().to_string()]),
                     ("pcmanfm-qt", vec![abs_path.to_string_lossy().to_string()]),
@@ -163,7 +184,9 @@ impl SystemShellImpl {
                 std::process::Command::new("xdg-open")
                     .arg(&target_dir)
                     .spawn()
-                    .map_err(|e| format!("Error al abrir carpeta contenedora con xdg-open: {}", e))?;
+                    .map_err(|e| {
+                        format!("Error al abrir carpeta contenedora con xdg-open: {}", e)
+                    })?;
             }
         }
 

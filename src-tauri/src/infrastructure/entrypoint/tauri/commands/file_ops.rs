@@ -15,10 +15,12 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.delete_vault_item_use_case.execute(DeleteVaultItemCommand {
-        vault_path: vault_path.clone(),
-        relative_path,
-    })?;
+    state
+        .delete_vault_item_use_case
+        .execute(DeleteVaultItemCommand {
+            vault_path: vault_path.clone(),
+            relative_path,
+        })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -43,11 +45,13 @@ pub fn rename_vault_item(
         }
     };
 
-    let renamed_path = state.rename_vault_item_use_case.execute(RenameVaultItemCommand {
-        vault_path,
-        relative_path,
-        new_name,
-    })?;
+    let renamed_path = state
+        .rename_vault_item_use_case
+        .execute(RenameVaultItemCommand {
+            vault_path,
+            relative_path,
+            new_name,
+        })?;
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
@@ -79,13 +83,21 @@ pub fn move_vault_items(
         }
     };
 
-    let result = state.move_vault_items_use_case.execute(MoveVaultItemsCommand {
-        vault_path,
-        paths,
-        dest_dir,
-    });
+    let result = state
+        .move_vault_items_use_case
+        .execute(MoveVaultItemsCommand {
+            vault_path,
+            paths,
+            dest_dir,
+        });
     let moved: Vec<MovedItem> = match result {
-        Ok(items) => items.into_iter().map(|m| MovedItem { from: m.from, to: m.to }).collect(),
+        Ok(items) => items
+            .into_iter()
+            .map(|m| MovedItem {
+                from: m.from,
+                to: m.to,
+            })
+            .collect(),
         Err(err) => return Err(err),
     };
 
@@ -115,11 +127,13 @@ pub fn copy_vault_items(
         }
     };
 
-    let created = state.copy_vault_items_use_case.execute(CopyVaultItemsCommand {
-        vault_path,
-        paths,
-        dest_dir,
-    })?;
+    let created = state
+        .copy_vault_items_use_case
+        .execute(CopyVaultItemsCommand {
+            vault_path,
+            paths,
+            dest_dir,
+        })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {
@@ -135,10 +149,7 @@ pub fn reload_vault_items(
     state: State<'_, AppState>,
     paths: Vec<String>,
 ) -> Result<Vec<String>, String> {
-    let guard = state
-        .navigation_engine
-        .lock()
-        .map_err(|e| e.to_string())?;
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(Vec::new());
     };
@@ -155,10 +166,12 @@ pub fn read_binary_file(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.read_binary_vault_item_use_case.execute(ReadBinaryVaultItemQuery {
-        vault_path: vault_path.clone(),
-        relative_path,
-    })
+    state
+        .read_binary_vault_item_use_case
+        .execute(ReadBinaryVaultItemQuery {
+            vault_path: vault_path.clone(),
+            relative_path,
+        })
 }
 
 #[tauri::command]
@@ -172,11 +185,13 @@ pub fn write_binary_file(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    state.write_binary_vault_item_use_case.execute(WriteBinaryVaultItemCommand {
-        vault_path: vault_path.clone(),
-        relative_path,
-        bytes: data,
-    })?;
+    state
+        .write_binary_vault_item_use_case
+        .execute(WriteBinaryVaultItemCommand {
+            vault_path: vault_path.clone(),
+            relative_path,
+            bytes: data,
+        })?;
 
     if let Ok(guard) = state.navigation_engine.lock() {
         if let Some(ref engine) = *guard {

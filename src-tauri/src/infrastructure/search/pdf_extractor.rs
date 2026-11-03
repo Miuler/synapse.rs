@@ -10,8 +10,7 @@ pub fn extract_pdf_text(
     max_extracted_chars: usize,
     max_word_length: usize,
 ) -> Result<String, String> {
-    let doc = Document::load_mem(bytes)
-        .map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
 
     let pages = doc.get_pages();
     let page_numbers: Vec<u32> = pages.keys().copied().take(max_pages).collect();
@@ -55,8 +54,7 @@ pub fn extract_pdf_page_range(
     end_page: usize,
     max_chars_per_page: usize,
 ) -> Result<PdfInspectionResult, String> {
-    let doc = Document::load_mem(bytes)
-        .map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
 
     let pages_map = doc.get_pages();
     let total_pages = pages_map.len();
@@ -74,8 +72,12 @@ pub fn extract_pdf_page_range(
             let page_text = doc.extract_text(&[page_num]).unwrap_or_default();
             let mut cleaned = String::with_capacity(page_text.len().min(max_chars_per_page));
             for word in page_text.split_whitespace() {
-                if word.len() > 80 { continue; }
-                if !cleaned.is_empty() { cleaned.push(' '); }
+                if word.len() > 80 {
+                    continue;
+                }
+                if !cleaned.is_empty() {
+                    cleaned.push(' ');
+                }
                 cleaned.push_str(word);
                 if cleaned.len() >= max_chars_per_page {
                     cleaned.truncate(max_chars_per_page);
@@ -101,8 +103,7 @@ pub fn search_pdf_content(
     query: &str,
     max_results: usize,
 ) -> Result<Vec<PdfPageSnippet>, String> {
-    let doc = Document::load_mem(bytes)
-        .map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
 
     let query_lower = query.to_lowercase();
     let pages_map = doc.get_pages();
@@ -115,10 +116,7 @@ pub fn search_pdf_content(
         let page_text = doc.extract_text(&[page_num]).unwrap_or_default();
         if page_text.to_lowercase().contains(&query_lower) {
             // Generar un snippet contextual
-            let snippet = page_text
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
+            let snippet = page_text.split_whitespace().collect::<Vec<_>>().join(" ");
             let truncated = if snippet.len() > 300 {
                 format!("{}...", &snippet[..300])
             } else {
@@ -141,7 +139,7 @@ pub fn search_pdf_content(
 mod tests {
     use super::*;
     use lopdf::content::Content;
-    use lopdf::{dictionary, Object, Stream};
+    use lopdf::{Object, Stream, dictionary};
 
     #[test]
     fn test_extract_pdf_basic() {
@@ -163,7 +161,10 @@ mod tests {
             operations: vec![
                 lopdf::content::Operation::new("BT", vec![]),
                 lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
-                lopdf::content::Operation::new("Tj", vec![Object::string_literal("Documento PDF de Prueba")]),
+                lopdf::content::Operation::new(
+                    "Tj",
+                    vec![Object::string_literal("Documento PDF de Prueba")],
+                ),
                 lopdf::content::Operation::new("ET", vec![]),
             ],
         };

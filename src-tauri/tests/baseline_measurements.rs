@@ -10,8 +10,8 @@
 //! y guardar una nota grande. La nota de prueba se escribe en un directorio temporal, nunca en
 //! la bóveda.
 use app_lib::domain::note::note::Note;
-use app_lib::domain::note::note_repository::NoteRepository;
 use app_lib::domain::note::note_path::NoteRelativePath;
+use app_lib::domain::note::note_repository::NoteRepository;
 use app_lib::infrastructure::navigation::engine::NavigationEngine;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::path::PathBuf;
@@ -25,7 +25,8 @@ fn median(mut v: Vec<Duration>) -> Duration {
 #[test]
 #[ignore]
 fn baseline_measurements() {
-    let vault = PathBuf::from(std::env::var("SYNAPSE_BENCH_VAULT").expect("definir SYNAPSE_BENCH_VAULT"));
+    let vault =
+        PathBuf::from(std::env::var("SYNAPSE_BENCH_VAULT").expect("definir SYNAPSE_BENCH_VAULT"));
     let tmp = std::env::temp_dir().join(format!("synapse_bench_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).unwrap();
@@ -44,7 +45,9 @@ fn baseline_measurements() {
     let notes = engine.notes.len();
 
     // 2. Búsqueda rápida (Quick Open).
-    let queries = ["a", "no", "nota", "proy", "arq ceb", "2026", "readme", "xyz123"];
+    let queries = [
+        "a", "no", "nota", "proy", "arq ceb", "2026", "readme", "xyz123",
+    ];
     let mut search_times = Vec::new();
     for _ in 0..20 {
         for q in queries {
@@ -87,7 +90,8 @@ fn vault_open_payloads() {
     use app_lib::infrastructure::entrypoint::tauri::dto::VaultFilesResponse;
     use std::sync::Arc;
 
-    let vault = PathBuf::from(std::env::var("SYNAPSE_BENCH_VAULT").expect("definir SYNAPSE_BENCH_VAULT"));
+    let vault =
+        PathBuf::from(std::env::var("SYNAPSE_BENCH_VAULT").expect("definir SYNAPSE_BENCH_VAULT"));
     let tmp = std::env::temp_dir().join(format!("synapse_payload_{}", std::process::id()));
     std::fs::create_dir_all(&tmp).unwrap();
     let engine = Arc::new(NavigationEngine::new(vault.clone(), tmp.join("cache.bin")));
@@ -99,10 +103,17 @@ fn vault_open_payloads() {
         let meta = item.value();
         let rel = meta.path.to_string();
         if let Ok(rel_path) = NoteRelativePath::new(&rel) {
-            notes.push(Note::new(rel_path, vault.join(&rel).to_string_lossy().to_string(), meta.title.to_string(), String::new()));
+            notes.push(Note::new(
+                rel_path,
+                vault.join(&rel).to_string_lossy().to_string(),
+                meta.title.to_string(),
+                String::new(),
+            ));
         }
     }
-    let files = VaultFilesResponse { engine: Some(Arc::clone(&engine)) };
+    let files = VaultFilesResponse {
+        engine: Some(Arc::clone(&engine)),
+    };
 
     let mut t_notes = Vec::new();
     let mut t_files = Vec::new();
@@ -116,11 +127,27 @@ fn vault_open_payloads() {
         t_files.push(t.elapsed());
     }
     if let Ok(dir) = std::env::var("SYNAPSE_DUMP_DIR") {
-        std::fs::write(format!("{dir}/notes.json"), serde_json::to_string(&notes).unwrap()).unwrap();
-        std::fs::write(format!("{dir}/files.json"), serde_json::to_string(&files).unwrap()).unwrap();
+        std::fs::write(
+            format!("{dir}/notes.json"),
+            serde_json::to_string(&notes).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            format!("{dir}/files.json"),
+            serde_json::to_string(&files).unwrap(),
+        )
+        .unwrap();
     }
     println!("elementos:                 {}", notes.len());
-    println!("lista explorador:          {:.2} MB, serializar {:?}", b_notes as f64 / 1048576.0, median(t_notes));
-    println!("lista fachada Obsidian:    {:.2} MB, serializar {:?}", b_files as f64 / 1048576.0, median(t_files));
+    println!(
+        "lista explorador:          {:.2} MB, serializar {:?}",
+        b_notes as f64 / 1048576.0,
+        median(t_notes)
+    );
+    println!(
+        "lista fachada Obsidian:    {:.2} MB, serializar {:?}",
+        b_files as f64 / 1048576.0,
+        median(t_files)
+    );
     let _ = std::fs::remove_dir_all(&tmp);
 }

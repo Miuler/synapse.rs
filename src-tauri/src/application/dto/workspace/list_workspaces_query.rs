@@ -1,2 +1,1 @@
-pub struct ListWorkspacesQuery {
-}
+pub struct ListWorkspacesQuery {}

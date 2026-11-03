@@ -35,7 +35,12 @@ pub fn resolve_asset_file_path_internal(
     #[cfg(unix)]
     let linux_abs_buf: String;
     #[cfg(unix)]
-    if !check_str.starts_with('/') && (check_str.starts_with("home/") || check_str.starts_with("tmp/") || check_str.starts_with("var/") || check_str.starts_with("usr/")) {
+    if !check_str.starts_with('/')
+        && (check_str.starts_with("home/")
+            || check_str.starts_with("tmp/")
+            || check_str.starts_with("var/")
+            || check_str.starts_with("usr/"))
+    {
         linux_abs_buf = format!("/{}", check_str);
         check_str = &linux_abs_buf;
     }
@@ -93,11 +98,20 @@ pub fn resolve_asset_file_path(
     match resolve_asset_file_path_internal(&state, &src, base_file.as_deref()) {
         Ok(Some(path)) => Ok(Some(path)),
         Ok(None) => {
-            log::warn!("No se pudo resolver el asset: src={:?}, base_file={:?}", src, base_file);
+            log::warn!(
+                "No se pudo resolver el asset: src={:?}, base_file={:?}",
+                src,
+                base_file
+            );
             Ok(None)
         }
         Err(error) => {
-            log::error!("Error resolviendo asset: src={:?}, base_file={:?}, error={}", src, base_file, error);
+            log::error!(
+                "Error resolviendo asset: src={:?}, base_file={:?}, error={}",
+                src,
+                base_file,
+                error
+            );
             Err(error)
         }
     }
@@ -114,8 +128,8 @@ pub fn save_binary_asset(
         return Err("No hay ninguna bóveda abierta".to_string());
     };
 
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 
     let raw_b64 = if let Some(idx) = base64_data.find(";base64,") {
         &base64_data[idx + 8..]
@@ -153,12 +167,21 @@ pub fn read_asset_data_url(
     let resolved = match resolve_asset_file_path_internal(&state, &src, base_file.as_deref()) {
         Ok(resolved) => resolved,
         Err(error) => {
-            log::error!("Error resolviendo asset para Data URL: src={:?}, base_file={:?}, error={}", src, base_file, error);
+            log::error!(
+                "Error resolviendo asset para Data URL: src={:?}, base_file={:?}, error={}",
+                src,
+                base_file,
+                error
+            );
             return Err(error);
         }
     };
     let Some(abs_path) = resolved else {
-        log::warn!("No se pudo leer asset como Data URL: src={:?}, base_file={:?}", src, base_file);
+        log::warn!(
+            "No se pudo leer asset como Data URL: src={:?}, base_file={:?}",
+            src,
+            base_file
+        );
         return Ok(None);
     };
 
@@ -169,14 +192,18 @@ pub fn read_asset_data_url(
     }
 
     let bytes = std::fs::read(path).map_err(|e| {
-        log::error!("Error leyendo asset para Data URL: path={:?}, error={}", abs_path, e);
+        log::error!(
+            "Error leyendo asset para Data URL: path={:?}, error={}",
+            abs_path,
+            e
+        );
         format!("Error leyendo {}: {}", abs_path, e)
     })?;
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let mime = get_image_mime_type(ext);
 
-    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     let b64 = BASE64_STANDARD.encode(&bytes);
     Ok(Some(format!("data:{};base64,{}", mime, b64)))
 }
@@ -205,7 +232,9 @@ mod tests {
         }
 
         let file_types = SupportedFileTypes::default();
-        let repo = crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new();
+        let repo =
+            crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new(
+            );
         let state = AppState::empty(file_types, repo);
 
         *state.active_vault_path.lock().unwrap() = Some(vault_path.clone());
@@ -217,7 +246,8 @@ mod tests {
         *state.navigation_engine.lock().unwrap() = Some(engine);
 
         // 1. Direct absolute path
-        let abs_res = resolve_asset_file_path_internal(&state, img_path.to_str().unwrap(), None).unwrap();
+        let abs_res =
+            resolve_asset_file_path_internal(&state, img_path.to_str().unwrap(), None).unwrap();
         assert_eq!(abs_res, Some(img_path.to_string_lossy().to_string()));
 
         // 2. Asset URL with encoded spaces, emoji and query param ?t=123
@@ -228,23 +258,25 @@ mod tests {
         assert_eq!(asset_res, Some(img_path.to_string_lossy().to_string()));
 
         // 3. Vault relative path
-        let rel_res = resolve_asset_file_path_internal(
-            &state,
-            "👷 Trabajo/adjuntos/photo test.png",
-            None,
-        ).unwrap();
+        let rel_res =
+            resolve_asset_file_path_internal(&state, "👷 Trabajo/adjuntos/photo test.png", None)
+                .unwrap();
         assert_eq!(rel_res, Some(img_path.to_string_lossy().to_string()));
 
         // 4. WikiLink lookup via DashMap: "photo test.png"
-        let wiki_res = resolve_asset_file_path_internal(&state, "[[photo test.png]]", None).unwrap();
+        let wiki_res =
+            resolve_asset_file_path_internal(&state, "[[photo test.png]]", None).unwrap();
         assert_eq!(wiki_res, Some(img_path.to_string_lossy().to_string()));
 
         // 5. Embed WikiLink: "![[photo test.png]]"
-        let embed_res = resolve_asset_file_path_internal(&state, "![[photo test.png]]", None).unwrap();
+        let embed_res =
+            resolve_asset_file_path_internal(&state, "![[photo test.png]]", None).unwrap();
         assert_eq!(embed_res, Some(img_path.to_string_lossy().to_string()));
 
         // 6. Test reading Data URL directly from WikiLink
-        let resolved = resolve_asset_file_path_internal(&state, "[[photo test.png]]", None).unwrap().unwrap();
+        let resolved = resolve_asset_file_path_internal(&state, "[[photo test.png]]", None)
+            .unwrap()
+            .unwrap();
         let bytes = std::fs::read(&resolved).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(get_image_mime_type("png"), "image/png");

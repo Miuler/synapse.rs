@@ -4,12 +4,14 @@ use crate::application::service::community_plugin_downloader::CommunityPluginDow
 /// Desinstala un plugin comunitario.
 #[derive(Clone)]
 pub struct UninstallPluginUseCase<A: CommunityPluginDownloader> {
-    downloader: A,
+    community_plugin_downloader: A,
 }
 
 impl<A: CommunityPluginDownloader> UninstallPluginUseCase<A> {
-    pub fn new(downloader: A) -> Self {
-        Self { downloader }
+    pub fn new(community_plugin_downloader: A) -> Self {
+        Self {
+            community_plugin_downloader,
+        }
     }
 
     pub async fn execute(&self, command: UninstallPluginCommand) -> Result<(), String> {
@@ -17,6 +19,8 @@ impl<A: CommunityPluginDownloader> UninstallPluginUseCase<A> {
         if clean_id.is_empty() {
             return Err("El ID del plugin no puede estar vacío".to_string());
         }
-        self.downloader.uninstall_plugin(&command.vault_path, clean_id).await
+        self.community_plugin_downloader
+            .uninstall_plugin(&command.vault_path, clean_id)
+            .await
     }
 }

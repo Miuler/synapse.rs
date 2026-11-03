@@ -70,7 +70,9 @@ impl QuickOpenRanking {
         let mut score = best?;
 
         let name_lower = name.to_lowercase();
-        let stem_lower = name_lower.rsplit_once('.').map_or(name_lower.as_str(), |(stem, _)| stem);
+        let stem_lower = name_lower
+            .rsplit_once('.')
+            .map_or(name_lower.as_str(), |(stem, _)| stem);
         if stem_lower == self.query_lower || name_lower == self.query_lower {
             score += BONUS_EXACT_STEM;
         }
@@ -101,7 +103,12 @@ mod tests {
     const NOW: u128 = 1_000 * DAY_NANOS;
 
     fn candidate<'a>(path: &'a str, opened: Option<u128>) -> QuickOpenCandidate<'a, &'a str> {
-        QuickOpenCandidate { path, title: "", tags: &[], last_opened_nanos: opened }
+        QuickOpenCandidate {
+            path,
+            title: "",
+            tags: &[],
+            last_opened_nanos: opened,
+        }
     }
 
     #[test]
@@ -109,16 +116,31 @@ mod tests {
         let ranking = QuickOpenRanking::new("pan", NOW);
         // Calidad fija de 1000 en cualquier campo que contenga "pan"
         let q = |h: &str, _: bool| h.contains("pan").then_some(1000);
-        assert_eq!(ranking.score(&candidate("recetas/pan.md", None), q), Some(1000 + BONUS_EXACT_STEM));
-        assert_eq!(ranking.score(&candidate("pan/receta.md", None), q), Some(WEIGHT_PATH));
+        assert_eq!(
+            ranking.score(&candidate("recetas/pan.md", None), q),
+            Some(1000 + BONUS_EXACT_STEM)
+        );
+        assert_eq!(
+            ranking.score(&candidate("pan/receta.md", None), q),
+            Some(WEIGHT_PATH)
+        );
     }
 
     #[test]
     fn recency_bonus_by_age() {
         let ranking = QuickOpenRanking::new("x", NOW);
         let q = |_: &str, _: bool| Some(0);
-        assert_eq!(ranking.score(&candidate("a.md", Some(NOW - DAY_NANOS / 2)), q), Some(BONUS_OPENED_LAST_DAY));
-        assert_eq!(ranking.score(&candidate("a.md", Some(NOW - 3 * DAY_NANOS)), q), Some(BONUS_OPENED_LAST_WEEK));
-        assert_eq!(ranking.score(&candidate("a.md", Some(NOW - 30 * DAY_NANOS)), q), Some(BONUS_OPENED_EVER));
+        assert_eq!(
+            ranking.score(&candidate("a.md", Some(NOW - DAY_NANOS / 2)), q),
+            Some(BONUS_OPENED_LAST_DAY)
+        );
+        assert_eq!(
+            ranking.score(&candidate("a.md", Some(NOW - 3 * DAY_NANOS)), q),
+            Some(BONUS_OPENED_LAST_WEEK)
+        );
+        assert_eq!(
+            ranking.score(&candidate("a.md", Some(NOW - 30 * DAY_NANOS)), q),
+            Some(BONUS_OPENED_EVER)
+        );
     }
 }

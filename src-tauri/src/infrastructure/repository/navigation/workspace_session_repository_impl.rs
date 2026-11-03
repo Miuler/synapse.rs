@@ -1,4 +1,6 @@
-use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::workspace::workspace_session::{
+    OpenTabDto, VaultUiState, WorkspaceOpenTabsState,
+};
 use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepository;
 use crate::infrastructure::navigation::engine::NavigationEngine;
 use std::sync::{Arc, Mutex};
@@ -15,7 +17,11 @@ impl WorkspaceSessionRepositoryImpl {
         Self { engine }
     }
 
-    fn with_engine<T>(&self, default: T, f: impl FnOnce(&NavigationEngine) -> T) -> Result<T, String> {
+    fn with_engine<T>(
+        &self,
+        default: T,
+        f: impl FnOnce(&NavigationEngine) -> T,
+    ) -> Result<T, String> {
         let guard = self.engine.lock().map_err(|e| e.to_string())?;
         Ok(match *guard {
             Some(ref engine) => f(engine),
@@ -31,7 +37,10 @@ impl WorkspaceSessionRepository for WorkspaceSessionRepositoryImpl {
 
     fn recent_note_paths(&self, limit: usize) -> Result<Vec<String>, String> {
         self.with_engine(Vec::new(), |e| {
-            e.get_recent_notes(limit).into_iter().map(|n| n.path.to_string()).collect()
+            e.get_recent_notes(limit)
+                .into_iter()
+                .map(|n| n.path.to_string())
+                .collect()
         })
     }
 
@@ -54,7 +63,9 @@ impl WorkspaceSessionRepository for WorkspaceSessionRepositoryImpl {
     }
 
     fn view_mode(&self, relative_path: &str) -> Result<Option<String>, String> {
-        self.with_engine(Err("No hay ninguna bóveda abierta".to_string()), |e| Ok(e.get_note_view_mode(relative_path)))?
+        self.with_engine(Err("No hay ninguna bóveda abierta".to_string()), |e| {
+            Ok(e.get_note_view_mode(relative_path))
+        })?
     }
 
     fn save_ui_state(
@@ -66,7 +77,13 @@ impl WorkspaceSessionRepository for WorkspaceSessionRepositoryImpl {
         locked_files: Option<Vec<String>>,
     ) -> Result<(), String> {
         self.with_engine((), |e| {
-            e.save_vault_ui_state(sidebar_width, expanded_folders, diff_visual_mode, diff_text_mode, locked_files)
+            e.save_vault_ui_state(
+                sidebar_width,
+                expanded_folders,
+                diff_visual_mode,
+                diff_text_mode,
+                locked_files,
+            )
         })
     }
 

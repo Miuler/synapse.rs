@@ -1,7 +1,7 @@
-use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::domain::note::note::Note;
-use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
+use crate::domain::vault::file_types::SupportedFileTypes;
 use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -100,11 +100,7 @@ pub fn encode_content(content: &str, encoding: &str) -> Vec<u8> {
             .chars()
             .map(|c| {
                 let cp = c as u32;
-                if cp <= 0xFF {
-                    cp as u8
-                } else {
-                    b'?'
-                }
+                if cp <= 0xFF { cp as u8 } else { b'?' }
             })
             .collect(),
         "---" | "" | "UTF-8" => content.as_bytes().to_vec(),
@@ -244,7 +240,8 @@ impl NoteRepository for NoteRepositoryImpl {
             .unwrap_or("");
         let file_types = SupportedFileTypes::default();
         let file_name = abs_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
+        let is_image =
+            file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
         let is_binary = is_image || file_types.is_pdf_extension(ext_str);
 
         info!("Reading note at {:?}, is_binary: {}", abs_path, is_binary);
@@ -264,7 +261,8 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
+            let (fm, _body) =
+                crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -285,7 +283,8 @@ impl NoteRepository for NoteRepositoryImpl {
             title,
             content,
             encoding,
-        ).with_frontmatter(frontmatter))
+        )
+        .with_frontmatter(frontmatter))
     }
 
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String> {
@@ -309,9 +308,13 @@ impl NoteRepository for NoteRepositoryImpl {
             return Ok(());
         }
 
-        let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
+        let is_markdown =
+            file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
+            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
+                &note.content,
+                &note.title,
+            )
         } else {
             note.content.clone()
         };
@@ -350,13 +353,11 @@ impl NoteRepository for NoteRepositoryImpl {
             return Err(format!("El archivo no existe en {:?}", path));
         }
 
-        let ext_str = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
+        let ext_str = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
         let file_types = SupportedFileTypes::default();
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let is_image = file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
+        let is_image =
+            file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name);
         let is_binary = is_image || file_types.is_pdf_extension(ext_str);
 
         let (encoding, raw_content) = if is_binary {
@@ -370,7 +371,8 @@ impl NoteRepository for NoteRepositoryImpl {
 
         let is_markdown = file_types.is_markdown_file(file_name);
         let (frontmatter, content, resolved_title) = if is_markdown && !is_binary {
-            let (fm, _body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
+            let (fm, _body) =
+                crate::domain::note::frontmatter::NoteFrontmatter::parse(&raw_content);
             let explicit_title = fm.as_ref().and_then(|f| f.title.clone());
             (fm, raw_content, explicit_title)
         } else {
@@ -378,8 +380,7 @@ impl NoteRepository for NoteRepositoryImpl {
         };
 
         let title = resolved_title.unwrap_or_else(|| {
-            path
-                .file_stem()
+            path.file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or(file_name)
                 .to_string()
@@ -388,13 +389,10 @@ impl NoteRepository for NoteRepositoryImpl {
         let abs_path_str = path.to_string_lossy().to_string();
         let relative_path = NoteRelativePath::from_absolute_path(&abs_path_str)?;
 
-        Ok(Note::with_encoding(
-            relative_path,
-            abs_path_str,
-            title,
-            content,
-            encoding,
-        ).with_frontmatter(frontmatter))
+        Ok(
+            Note::with_encoding(relative_path, abs_path_str, title, content, encoding)
+                .with_frontmatter(frontmatter),
+        )
     }
 
     fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String> {
@@ -402,10 +400,7 @@ impl NoteRepository for NoteRepositoryImpl {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
 
-        let ext_str = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
+        let ext_str = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
         let file_types = SupportedFileTypes::default();
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         if (file_types.is_image_extension(ext_str) && !file_types.is_drawing_file(file_name))
@@ -414,16 +409,19 @@ impl NoteRepository for NoteRepositoryImpl {
             return Ok(());
         }
 
-        let is_markdown = file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
+        let is_markdown =
+            file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
         let final_content = if is_markdown {
-            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&note.content, &note.title)
+            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
+                &note.content,
+                &note.title,
+            )
         } else {
             note.content.clone()
         };
 
         let bytes = encode_content(&final_content, &note.encoding);
-        fs::write(path, bytes)
-            .map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
+        fs::write(path, bytes).map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
     }
 }
 
@@ -436,9 +434,9 @@ mod tests {
     use std::sync::Once;
     use std::time::{SystemTime, UNIX_EPOCH};
     use tracing_indicatif::IndicatifLayer;
+    use tracing_subscriber::EnvFilter;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::EnvFilter;
 
     static INIT: Once = Once::new();
 
@@ -572,7 +570,8 @@ mod tests {
         let repo = NoteRepositoryImpl::new();
         let rel_path_str = "diagrams/flow.excalidraw";
         let rel_path = NoteRelativePath::new(rel_path_str).unwrap();
-        let json_content = r#"{"type":"excalidraw","version":2,"elements":[{"id":"1","type":"rectangle"}]}"#;
+        let json_content =
+            r#"{"type":"excalidraw","version":2,"elements":[{"id":"1","type":"rectangle"}]}"#;
 
         let note_to_save = Note::with_encoding(
             rel_path.clone(),
@@ -583,10 +582,18 @@ mod tests {
         );
 
         let save_res = repo.save_note(&temp_dir, &note_to_save);
-        assert!(save_res.is_ok(), "Guardar note excalidraw falló: {:?}", save_res);
+        assert!(
+            save_res.is_ok(),
+            "Guardar note excalidraw falló: {:?}",
+            save_res
+        );
 
         let read_res = repo.read_note(&temp_dir, &rel_path);
-        assert!(read_res.is_ok(), "Leer note excalidraw falló: {:?}", read_res);
+        assert!(
+            read_res.is_ok(),
+            "Leer note excalidraw falló: {:?}",
+            read_res
+        );
 
         let loaded = read_res.unwrap();
         assert_eq!(loaded.content, json_content);
@@ -617,10 +624,18 @@ mod tests {
         );
 
         let save_res = repo.save_standalone_file(&standalone_file, &note_to_save);
-        assert!(save_res.is_ok(), "Guardar standalone file falló: {:?}", save_res);
+        assert!(
+            save_res.is_ok(),
+            "Guardar standalone file falló: {:?}",
+            save_res
+        );
 
         let read_res = repo.read_standalone_file(&standalone_file);
-        assert!(read_res.is_ok(), "Leer standalone file falló: {:?}", read_res);
+        assert!(
+            read_res.is_ok(),
+            "Leer standalone file falló: {:?}",
+            read_res
+        );
 
         let loaded = read_res.unwrap();
         assert_eq!(loaded.content, mermaid_content);

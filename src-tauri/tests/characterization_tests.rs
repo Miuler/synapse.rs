@@ -16,7 +16,13 @@ fn now_nanos() -> u128 {
         .as_nanos()
 }
 
-fn note(id: u32, path: &str, title: &str, tags: &[&str], opened_hours_ago: Option<u128>) -> NoteMeta {
+fn note(
+    id: u32,
+    path: &str,
+    title: &str,
+    tags: &[&str],
+    opened_hours_ago: Option<u128>,
+) -> NoteMeta {
     NoteMeta {
         id,
         path: CompactString::new(path),
@@ -40,13 +46,43 @@ fn engine(tag: &str) -> NavigationEngine {
     std::fs::create_dir_all(&dir).unwrap();
     let engine = NavigationEngine::new(dir.clone(), dir.join("cache.bin"));
     let notes = [
-        note(1, "proyectos/BCP/TTIB/reunion-bcp.md", "Reunión BCP", &["trabajo/bcp"], Some(1)),
-        note(2, "proyectos/BCP/TTIB/arquitectura.md", "Arquitectura TTIB", &["arquitectura"], None),
+        note(
+            1,
+            "proyectos/BCP/TTIB/reunion-bcp.md",
+            "Reunión BCP",
+            &["trabajo/bcp"],
+            Some(1),
+        ),
+        note(
+            2,
+            "proyectos/BCP/TTIB/arquitectura.md",
+            "Arquitectura TTIB",
+            &["arquitectura"],
+            None,
+        ),
         note(3, "bcp.md", "Notas generales", &[], None),
-        note(4, "diario/2026/bcp-semana.md", "Semana", &["diario"], Some(72)),
+        note(
+            4,
+            "diario/2026/bcp-semana.md",
+            "Semana",
+            &["diario"],
+            Some(72),
+        ),
         note(5, "recetas/pan.md", "Pan casero", &["cocina"], Some(720)),
-        note(6, "docs/arquitectura/cebolla.md", "Arquitectura cebolla", &["arquitectura", "rust"], None),
-        note(7, "docs/arquitectura/fsd.md", "Feature Sliced Design", &["arquitectura", "front"], Some(48)),
+        note(
+            6,
+            "docs/arquitectura/cebolla.md",
+            "Arquitectura cebolla",
+            &["arquitectura", "rust"],
+            None,
+        ),
+        note(
+            7,
+            "docs/arquitectura/fsd.md",
+            "Feature Sliced Design",
+            &["arquitectura", "front"],
+            Some(48),
+        ),
         note(8, "inbox/idea-rust.md", "Idea", &["rust"], None),
         note(9, "a/notas.md", "Notas A", &[], None),
         note(10, "b/notas.md", "Notas B", &[], None),
@@ -60,14 +96,28 @@ fn engine(tag: &str) -> NavigationEngine {
 }
 
 fn search_paths(engine: &NavigationEngine, query: &str) -> Vec<String> {
-    engine.search(query, 20).into_iter().map(|m| m.path.to_string()).collect()
+    engine
+        .search(query, 20)
+        .into_iter()
+        .map(|m| m.path.to_string())
+        .collect()
 }
 
 #[test]
 fn quick_open_order_is_preserved() {
     let e = engine("qo");
     let mut report = String::new();
-    for q in ["bcp", "arquitectura", "rust", "notas", "ttib", "pan", "cebolla", "diagrama", "arq ceb"] {
+    for q in [
+        "bcp",
+        "arquitectura",
+        "rust",
+        "notas",
+        "ttib",
+        "pan",
+        "cebolla",
+        "diagrama",
+        "arq ceb",
+    ] {
         report.push_str(&format!("{q:?} => {:?}\n", search_paths(&e, q)));
     }
     insta_like(&report, include_str!("characterization/quick_open.txt"));
@@ -89,7 +139,10 @@ fn link_resolution_is_preserved() {
         ("no-existe", None),
         ("docs/arquitectura/fsd", None),
     ] {
-        report.push_str(&format!("{target:?} desde {base:?} => {:?}\n", e.resolve_link_path_with_base(target, base)));
+        report.push_str(&format!(
+            "{target:?} desde {base:?} => {:?}\n",
+            e.resolve_link_path_with_base(target, base)
+        ));
     }
     insta_like(&report, include_str!("characterization/links.txt"));
 }
@@ -101,5 +154,8 @@ fn insta_like(actual: &str, expected: &str) {
         println!("-----\n{actual}-----");
         return;
     }
-    assert_eq!(actual, expected, "el comportamiento cambió respecto a la instantánea");
+    assert_eq!(
+        actual, expected,
+        "el comportamiento cambió respecto a la instantánea"
+    );
 }

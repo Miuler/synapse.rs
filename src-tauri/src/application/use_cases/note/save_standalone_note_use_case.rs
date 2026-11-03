@@ -1,17 +1,17 @@
 use crate::application::dto::note::save_standalone_note_command::SaveStandaloneNoteCommand;
-use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::note::note::Note;
 use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Guarda un archivo suelto, fuera de una bóveda.
 #[derive(Clone)]
 pub struct SaveStandaloneNoteUseCase<A: NoteRepository> {
-    notes: A,
+    note_repository: A,
 }
 
 impl<A: NoteRepository> SaveStandaloneNoteUseCase<A> {
-    pub fn new(notes: A) -> Self {
-        Self { notes }
+    pub fn new(note_repository: A) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: SaveStandaloneNoteCommand) -> Result<(), String> {
@@ -24,6 +24,7 @@ impl<A: NoteRepository> SaveStandaloneNoteUseCase<A> {
             command.content,
             command.encoding,
         );
-        self.notes.save_standalone_file(&command.path, &note)
+        self.note_repository
+            .save_standalone_file(&command.path, &note)
     }
 }

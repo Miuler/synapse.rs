@@ -1,20 +1,29 @@
 use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
-use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
 use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
+use crate::domain::workspace::workspace_registry_repository::WorkspaceRegistryRepository;
 
 /// Registra que se abrió un espacio de trabajo.
 #[derive(Clone)]
 pub struct RecordWorkspaceOpenedUseCase<A: WorkspaceRegistryRepository> {
-    workspaces: A,
+    workspace_registry_repository: A,
 }
 
 impl<A: WorkspaceRegistryRepository> RecordWorkspaceOpenedUseCase<A> {
-    pub fn new(workspaces: A) -> Self {
-        Self { workspaces }
+    pub fn new(workspace_registry_repository: A) -> Self {
+        Self {
+            workspace_registry_repository,
+        }
     }
 
-    pub fn execute(&self, command: RecordWorkspaceOpenedCommand) -> Result<RecentWorkspaceEntry, String> {
-        self.workspaces
-            .record_workspace_opened(&command.path, command.notes_count, command.git_branch, command.is_git_repo)
+    pub fn execute(
+        &self,
+        command: RecordWorkspaceOpenedCommand,
+    ) -> Result<RecentWorkspaceEntry, String> {
+        self.workspace_registry_repository.record_workspace_opened(
+            &command.path,
+            command.notes_count,
+            command.git_branch,
+            command.is_git_repo,
+        )
     }
 }

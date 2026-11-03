@@ -28,4 +28,4 @@ export class TauriFileTypeRepository implements FileTypeRepository {
   }
 }
 
-export const tauriFileTypeRepository = new TauriFileTypeRepository();
+export const fileTypeRepository: FileTypeRepository = new TauriFileTypeRepository();

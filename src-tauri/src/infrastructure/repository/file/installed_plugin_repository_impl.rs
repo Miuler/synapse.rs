@@ -23,9 +23,10 @@ impl InstalledPluginRepository for InstalledPluginRepositoryImpl {
         let mut results = Vec::new();
         let mut seen_ids = HashSet::new();
 
-        let search_dirs = [
-            (".synapse/plugins", vault_path.join(".synapse").join("plugins")),
-        ];
+        let search_dirs = [(
+            ".synapse/plugins",
+            vault_path.join(".synapse").join("plugins"),
+        )];
 
         for (rel_prefix, abs_dir) in &search_dirs {
             if !abs_dir.exists() || !abs_dir.is_dir() {
@@ -90,7 +91,11 @@ mod tests {
         let repo = InstalledPluginRepositoryImpl;
         // Installed plugins scan with temp dir
         let temp = tempdir().unwrap();
-        let plugin_dir = temp.path().join(".synapse").join("plugins").join("my-cool-plugin");
+        let plugin_dir = temp
+            .path()
+            .join(".synapse")
+            .join("plugins")
+            .join("my-cool-plugin");
         fs::create_dir_all(&plugin_dir).unwrap();
         fs::write(
             plugin_dir.join("manifest.json"),
@@ -103,6 +108,5 @@ mod tests {
         assert_eq!(scanned[0].id, "my-cool-plugin");
         assert_eq!(scanned[0].name, "My Cool Plugin");
         assert_eq!(scanned[0].version, "1.2.3");
-
     }
 }

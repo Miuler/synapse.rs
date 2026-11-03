@@ -1,10 +1,12 @@
 use crate::domain::note::note::Note;
-use crate::domain::workspace::workspace_session::{OpenTabDto, VaultUiState, WorkspaceOpenTabsState};
+use crate::domain::workspace::workspace_session::{
+    OpenTabDto, VaultUiState, WorkspaceOpenTabsState,
+};
 use compact_str::CompactString;
 use dashmap::{DashMap, DashSet};
 use nucleo::{Config, Nucleo, Utf32String};
-use serde::ser::{SerializeSeq, Serializer};
 use serde::Serialize;
+use serde::ser::{SerializeSeq, Serializer};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -17,9 +19,8 @@ use super::model::{
     NoteId, NoteMeta, NoteSyncState, VaultFileDto, VaultFileRef, VaultFileStatDto, VaultFileStatRef,
 };
 use super::storage;
-use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher;
 use crate::domain::vault::file_types::SupportedFileTypes;
-
+use crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsWatcher;
 
 /// Statistics reported during reconciliation.
 /// Recibe las rutas añadidas/modificadas y las eliminadas de la bóveda.
@@ -53,7 +54,9 @@ pub struct NavigationEngine {
     pub diff_visual_mode: Arc<RwLock<Option<String>>>,
     pub diff_text_mode: Arc<RwLock<Option<String>>>,
     pub fs_watcher: Arc<Mutex<Option<VaultFsWatcher>>>,
-    pub on_fs_change: Arc<Mutex<Option<crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback>>>,
+    pub on_fs_change: Arc<
+        Mutex<Option<crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback>>,
+    >,
     pub change_listeners: Arc<RwLock<Vec<VaultChangeListener>>>,
 }
 
@@ -72,9 +75,7 @@ impl NavigationEngine {
         file_types: SupportedFileTypes,
     ) -> Self {
         // Use all available CPU threads for nucleo fuzzy searching in large vaults
-        let nucleo_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .ok();
+        let nucleo_threads = std::thread::available_parallelism().map(|n| n.get()).ok();
         let mut nucleo_inst = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), nucleo_threads, 1);
 
         let notes_map = if cache_path.exists() {
@@ -185,7 +186,10 @@ impl NavigationEngine {
     }
 
     /// Sets the callback for filesystem change events (e.g. for emitting Tauri events to frontend).
-    pub fn set_on_fs_change(&self, cb: crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback) {
+    pub fn set_on_fs_change(
+        &self,
+        cb: crate::infrastructure::entrypoint::subscriber::vault_watcher::ChangeCallback,
+    ) {
         if let Ok(mut lock) = self.on_fs_change.lock() {
             *lock = Some(cb);
         }
@@ -819,8 +823,7 @@ impl NavigationEngine {
         if let Some(files) = locked_files {
             self.locked_files.clear();
             for file in files {
-                self.locked_files
-                    .insert(CompactString::new(file), true);
+                self.locked_files.insert(CompactString::new(file), true);
             }
         }
         if let Some(dvm) = diff_visual_mode {
@@ -904,7 +907,9 @@ impl NavigationEngine {
 
         for part in trimmed_query.split_whitespace() {
             let after_hash = part.trim_start_matches('#');
-            let is_tag = part.starts_with('#') && part.len() > 1 && !after_hash.chars().all(|c| c.is_ascii_digit());
+            let is_tag = part.starts_with('#')
+                && part.len() > 1
+                && !after_hash.chars().all(|c| c.is_ascii_digit());
             if is_tag {
                 let clean = crate::domain::graph::tag::Tag::normalize(part);
                 if !clean.is_empty() {
@@ -948,7 +953,9 @@ impl NavigationEngine {
         let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
         let passes_tag_filters = |meta: &NoteMeta| {
             tag_filters.iter().all(|tf| {
-                meta.tags.iter().any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), tf))
+                meta.tags
+                    .iter()
+                    .any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), tf))
             })
         };
 
@@ -993,18 +1000,25 @@ impl NavigationEngine {
             .into_iter()
             .map(|(meta, rank)| {
                 let score = scorer.score(&meta).unwrap_or(0);
-                let name_lower = meta.path.rsplit('/').next().unwrap_or(meta.path.as_str()).to_lowercase();
+                let name_lower = meta
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(meta.path.as_str())
+                    .to_lowercase();
                 (score, name_lower, meta, rank)
             })
             .collect();
-        candidates.sort_by(|(score_a, name_a, meta_a, rank_a), (score_b, name_b, meta_b, rank_b)| {
-            score_b
-                .cmp(score_a)
-                .then_with(|| name_a.cmp(name_b))
-                // Mismo nombre y puntaje (p. ej. a/notas.md y b/notas.md): orden estable por ruta
-                .then_with(|| meta_a.path.cmp(&meta_b.path))
-                .then_with(|| rank_a.cmp(rank_b))
-        });
+        candidates.sort_by(
+            |(score_a, name_a, meta_a, rank_a), (score_b, name_b, meta_b, rank_b)| {
+                score_b
+                    .cmp(score_a)
+                    .then_with(|| name_a.cmp(name_b))
+                    // Mismo nombre y puntaje (p. ej. a/notas.md y b/notas.md): orden estable por ruta
+                    .then_with(|| meta_a.path.cmp(&meta_b.path))
+                    .then_with(|| rank_a.cmp(rank_b))
+            },
+        );
 
         let matches = candidates
             .into_iter()
@@ -1091,10 +1105,10 @@ impl NavigationEngine {
                 collect_supported_files_recursive(&full_path, &self.file_types, &mut files_in_dir);
 
                 let mut seen_in_dir = HashSet::new();
-            // Asegurar que esta carpeta esté registrada en self.folders
-            if !clean_rel.is_empty() {
-                self.folders.insert(CompactString::new(&clean_rel));
-            }
+                // Asegurar que esta carpeta esté registrada en self.folders
+                if !clean_rel.is_empty() {
+                    self.folders.insert(CompactString::new(&clean_rel));
+                }
                 for p in files_in_dir {
                     let rel_path_str = match p.strip_prefix(&self.vault_path) {
                         Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
@@ -1206,7 +1220,8 @@ impl NavigationEngine {
             let content = std::fs::read_to_string(path).unwrap_or_default();
             let t = Note::title_from_content(&content, file_stem);
             let raw_tags = crate::domain::graph::tag::Tag::extract_all(&content);
-            let compact_tags: Vec<CompactString> = raw_tags.into_iter().map(CompactString::new).collect();
+            let compact_tags: Vec<CompactString> =
+                raw_tags.into_iter().map(CompactString::new).collect();
             (t, compact_tags)
         } else {
             (file_name.to_string(), Vec::new())
@@ -1229,7 +1244,14 @@ impl NavigationEngine {
             let existing_id = *id_ref.value();
             drop(id_ref);
 
-            let (prev_last_opened, prev_is_open, prev_tab_order, prev_is_active, prev_view_mode, prev_sync_state) = {
+            let (
+                prev_last_opened,
+                prev_is_open,
+                prev_tab_order,
+                prev_is_active,
+                prev_view_mode,
+                prev_sync_state,
+            ) = {
                 let meta_opt = self.notes.get(&existing_id);
                 let vals = if let Some(ref existing_meta) = meta_opt {
                     (
@@ -1343,12 +1365,20 @@ impl NavigationEngine {
                 let exact_a = name_a == q_clean;
                 let exact_b = name_b == q_clean;
                 if exact_a != exact_b {
-                    return if exact_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                    return if exact_a {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Greater
+                    };
                 }
                 let prefix_a = name_a.starts_with(&q_clean);
                 let prefix_b = name_b.starts_with(&q_clean);
                 if prefix_a != prefix_b {
-                    return if prefix_a { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater };
+                    return if prefix_a {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Greater
+                    };
                 }
                 a.cmp(b)
             });
@@ -1461,13 +1491,17 @@ impl NavigationEngine {
         // 1. Extraer outlinks de todas las notas Markdown de la bóveda en paralelo con Rayon
         use rayon::prelude::*;
 
-        let md_items: Vec<(String, String, PathBuf)> = self.notes.iter().map(|item| {
-            let meta = item.value();
-            let p_str = meta.path.as_str().to_string();
-            let title = meta.title.to_string();
-            let full = self.vault_path.join(&p_str);
-            (p_str, title, full)
-        }).collect();
+        let md_items: Vec<(String, String, PathBuf)> = self
+            .notes
+            .iter()
+            .map(|item| {
+                let meta = item.value();
+                let p_str = meta.path.as_str().to_string();
+                let title = meta.title.to_string();
+                let full = self.vault_path.join(&p_str);
+                (p_str, title, full)
+            })
+            .collect();
 
         let extracted_results: Vec<(String, String, Vec<String>, Vec<(String, String)>)> = md_items
             .into_par_iter()
@@ -1480,12 +1514,15 @@ impl NavigationEngine {
                     if let Ok(content) = std::fs::read_to_string(&full) {
                         let wlinks = WikilinkToken::extract_all(&content);
                         for wl in wlinks {
-                            if let Some(target) = self.resolve_link_path_with_base(&wl.target, Some(&p_str)) {
+                            if let Some(target) =
+                                self.resolve_link_path_with_base(&wl.target, Some(&p_str))
+                            {
                                 if target != p_str {
                                     resolved_links.push(target);
                                 }
                             } else {
-                                let clean_target = wl.target.trim().trim_start_matches('/').to_string();
+                                let clean_target =
+                                    wl.target.trim().trim_start_matches('/').to_string();
                                 if !clean_target.is_empty() && !clean_target.contains("://") {
                                     let ghost_id = if clean_target.ends_with(".md") {
                                         clean_target.clone()
@@ -1493,7 +1530,11 @@ impl NavigationEngine {
                                         format!("{}.md", clean_target)
                                     };
                                     let ghost_label = wl.alias.clone().unwrap_or_else(|| {
-                                        clean_target.rsplit('/').next().unwrap_or(&clean_target).to_string()
+                                        clean_target
+                                            .rsplit('/')
+                                            .next()
+                                            .unwrap_or(&clean_target)
+                                            .to_string()
                                     });
                                     ghosts.push((ghost_id.clone(), ghost_label));
                                     resolved_links.push(ghost_id);
@@ -1506,8 +1547,10 @@ impl NavigationEngine {
             })
             .collect();
 
-        let mut outlinks_map: HashMap<String, Vec<String>> = HashMap::with_capacity(extracted_results.len());
-        let mut node_labels: HashMap<String, String> = HashMap::with_capacity(extracted_results.len());
+        let mut outlinks_map: HashMap<String, Vec<String>> =
+            HashMap::with_capacity(extracted_results.len());
+        let mut node_labels: HashMap<String, String> =
+            HashMap::with_capacity(extracted_results.len());
         let mut in_degree: HashMap<String, usize> = HashMap::with_capacity(extracted_results.len());
         let mut ghost_nodes_set: HashSet<String> = HashSet::new();
 
@@ -1526,13 +1569,18 @@ impl NavigationEngine {
         let mut backlinks_map: HashMap<String, Vec<String>> = HashMap::new();
         for (src, targets) in &outlinks_map {
             for tgt in targets {
-                backlinks_map.entry(tgt.clone()).or_default().push(src.clone());
+                backlinks_map
+                    .entry(tgt.clone())
+                    .or_default()
+                    .push(src.clone());
                 *in_degree.entry(tgt.clone()).or_insert(0) += 1;
             }
         }
 
         // Determinar el conjunto de nodos incluidos
-        let included_nodes: HashSet<String> = if let Some(focus) = focus_path.filter(|f| !f.trim().is_empty()) {
+        let included_nodes: HashSet<String> = if let Some(focus) =
+            focus_path.filter(|f| !f.trim().is_empty())
+        {
             let mut clean_focus = focus.trim_start_matches('/').replace('\\', "/");
             // Si la ruta no termina en .md ni otra extensión pero existe como .md, normalizar
             if !self.path_index.contains_key(clean_focus.as_str()) && !clean_focus.contains('.') {
@@ -1572,7 +1620,11 @@ impl NavigationEngine {
             visited
         } else {
             // Modo Global: incluir todas las notas registradas en DashMap + nodos fantasma descubiertos
-            let mut all: HashSet<String> = self.notes.iter().map(|item| item.value().path.to_string()).collect();
+            let mut all: HashSet<String> = self
+                .notes
+                .iter()
+                .map(|item| item.value().path.to_string())
+                .collect();
             for ghost in &ghost_nodes_set {
                 all.insert(ghost.clone());
             }
@@ -1602,9 +1654,10 @@ impl NavigationEngine {
         // Construir lista de nodos
         let mut nodes = Vec::new();
         for id in included_nodes {
-            let label = node_labels.get(&id).cloned().unwrap_or_else(|| {
-                id.rsplit('/').next().unwrap_or(&id).to_string()
-            });
+            let label = node_labels
+                .get(&id)
+                .cloned()
+                .unwrap_or_else(|| id.rsplit('/').next().unwrap_or(&id).to_string());
 
             let group = match id.rfind('/') {
                 Some(idx) => id[..idx].to_string(),
@@ -1623,7 +1676,10 @@ impl NavigationEngine {
             });
         }
 
-        VaultGraphData { nodes, links: edges }
+        VaultGraphData {
+            nodes,
+            links: edges,
+        }
     }
 
     /// Obtiene todas las etiquetas (#tags) únicas del vault con su conteo de ocurrencias.
@@ -1654,7 +1710,11 @@ impl NavigationEngine {
 
         for item in self.notes.iter() {
             let meta = item.value();
-            if meta.tags.iter().any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), &clean_tag)) {
+            if meta
+                .tags
+                .iter()
+                .any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), &clean_tag))
+            {
                 matching_paths.push(meta.path.to_string());
             }
         }
@@ -1668,8 +1728,10 @@ impl NavigationEngine {
         &self,
         target_path: &str,
     ) -> crate::domain::graph::graph::NoteBacklinksReport {
-        use crate::domain::graph::graph::{BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem};
-        use crate::domain::graph::wikilink::{WikilinkToken, LinkTarget};
+        use crate::domain::graph::graph::{
+            BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem,
+        };
+        use crate::domain::graph::wikilink::{LinkTarget, WikilinkToken};
 
         let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
         let target_stem = clean_target
@@ -1701,13 +1763,12 @@ impl NavigationEngine {
 
             for wl in &wikilinks {
                 let resolved = self.resolve_link_path_with_base(&wl.target, Some(&p_str));
-                let matches_target = resolved.as_deref() == Some(&clean_target)
-                    || {
-                        let (norm, _) = LinkTarget::normalize(&wl.target);
-                        norm == clean_target
-                            || norm == format!("{}.md", target_stem)
-                            || wl.target.eq_ignore_ascii_case(target_stem)
-                    };
+                let matches_target = resolved.as_deref() == Some(&clean_target) || {
+                    let (norm, _) = LinkTarget::normalize(&wl.target);
+                    norm == clean_target
+                        || norm == format!("{}.md", target_stem)
+                        || wl.target.eq_ignore_ascii_case(target_stem)
+                };
 
                 if matches_target && p_str != clean_target {
                     linked_in_this_file = true;

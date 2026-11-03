@@ -1,2 +1,1 @@
-pub struct GetOpenTabsQuery {
-}
+pub struct GetOpenTabsQuery {}

@@ -265,7 +265,6 @@ pub struct McpGetPromptResult {
     pub messages: Vec<McpPromptMessage>,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpRuntimeStatus {
     pub running: bool,
@@ -275,4 +274,3 @@ pub struct McpRuntimeStatus {
     pub requests_handled: usize,
     pub last_error: Option<String>,
 }
-

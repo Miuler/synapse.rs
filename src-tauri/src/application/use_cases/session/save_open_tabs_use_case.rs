@@ -4,15 +4,18 @@ use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepo
 /// Guarda las pestañas abiertas y la activa.
 #[derive(Clone)]
 pub struct SaveOpenTabsUseCase<A: WorkspaceSessionRepository> {
-    sessions: A,
+    workspace_session_repository: A,
 }
 
 impl<A: WorkspaceSessionRepository> SaveOpenTabsUseCase<A> {
-    pub fn new(sessions: A) -> Self {
-        Self { sessions }
+    pub fn new(workspace_session_repository: A) -> Self {
+        Self {
+            workspace_session_repository,
+        }
     }
 
     pub fn execute(&self, command: SaveOpenTabsCommand) -> Result<(), String> {
-        self.sessions.save_open_tabs(&command.tabs, command.active_tab.as_deref())
+        self.workspace_session_repository
+            .save_open_tabs(&command.tabs, command.active_tab.as_deref())
     }
 }

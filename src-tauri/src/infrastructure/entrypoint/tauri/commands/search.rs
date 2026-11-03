@@ -1,8 +1,8 @@
 use crate::domain::search::full_text::{FullTextIndexStatus, FullTextSearchResponse};
-use crate::domain::search::note_search_repository::{SearchResult, NoteSearchRepository};
-use crate::infrastructure::repository::nucleo::note_search_repository_impl::NoteSearchRepositoryImpl;
-use crate::infrastructure::entrypoint::tauri::dto::QuickOpenSearchResult;
+use crate::domain::search::note_search_repository::{NoteSearchRepository, SearchResult};
 use crate::infrastructure::config::state::AppState;
+use crate::infrastructure::entrypoint::tauri::dto::QuickOpenSearchResult;
+use crate::infrastructure::repository::nucleo::note_search_repository_impl::NoteSearchRepositoryImpl;
 use std::collections::HashMap;
 use tauri::State;
 
@@ -95,9 +95,12 @@ pub async fn full_text_search(
 
     let start = std::time::Instant::now();
     let res = tauri::async_runtime::spawn_blocking(move || {
-        let (hits, total_hits) = ft_components
-            .search_use_case
-            .execute(crate::application::dto::search::search_full_text_query::SearchFullTextQuery { text: query, limit })?;
+        let (hits, total_hits) = ft_components.search_use_case.execute(
+            crate::application::dto::search::search_full_text_query::SearchFullTextQuery {
+                text: query,
+                limit,
+            },
+        )?;
         let status = ft_components.indexer.status();
         let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
         Ok(FullTextSearchResponse {
@@ -114,7 +117,9 @@ pub async fn full_text_search(
 }
 
 #[tauri::command(async)]
-pub fn get_full_text_index_status(state: State<'_, AppState>) -> Result<FullTextIndexStatus, String> {
+pub fn get_full_text_index_status(
+    state: State<'_, AppState>,
+) -> Result<FullTextIndexStatus, String> {
     let guard = state.full_text.lock().map_err(|e| e.to_string())?;
     let Some(ref ft_components) = *guard else {
         return Ok(FullTextIndexStatus::default());
@@ -190,9 +195,7 @@ pub struct TagCountItem {
 }
 
 #[tauri::command(async)]
-pub fn get_vault_tags(
-    state: State<'_, AppState>,
-) -> Result<Vec<TagCountItem>, String> {
+pub fn get_vault_tags(state: State<'_, AppState>) -> Result<Vec<TagCountItem>, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(Vec::new());
@@ -205,10 +208,7 @@ pub fn get_vault_tags(
 }
 
 #[tauri::command(async)]
-pub fn get_notes_by_tag(
-    state: State<'_, AppState>,
-    tag: String,
-) -> Result<Vec<String>, String> {
+pub fn get_notes_by_tag(state: State<'_, AppState>, tag: String) -> Result<Vec<String>, String> {
     let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let Some(ref engine) = *guard else {
         return Ok(Vec::new());

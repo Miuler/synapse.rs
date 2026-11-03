@@ -4,15 +4,16 @@ use crate::domain::version::version_control::VersionControl;
 /// Descarta los cambios de archivos y vuelve a su última versión.
 #[derive(Clone)]
 pub struct RevertFilesUseCase<A: VersionControl> {
-    versions: A,
+    version_control: A,
 }
 
 impl<A: VersionControl> RevertFilesUseCase<A> {
-    pub fn new(versions: A) -> Self {
-        Self { versions }
+    pub fn new(version_control: A) -> Self {
+        Self { version_control }
     }
 
     pub fn execute(&self, command: RevertFilesCommand) -> Result<(), String> {
-        self.versions.revert(&command.vault_path, &command.paths)
+        self.version_control
+            .revert(&command.vault_path, &command.paths)
     }
 }

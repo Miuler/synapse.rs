@@ -20,7 +20,10 @@ impl IgnoredConfig {
             return false;
         }
         name.starts_with('.')
-            || self.directories.iter().any(|d| d.eq_ignore_ascii_case(name))
+            || self
+                .directories
+                .iter()
+                .any(|d| d.eq_ignore_ascii_case(name))
             || self.files.iter().any(|f| f.eq_ignore_ascii_case(name))
     }
 
@@ -410,7 +413,12 @@ mod tests {
     fn test_app_config_load_and_ignore_rules() {
         let config = AppConfig::default();
         assert!(config.supported_files.markdown.contains(&"md".to_string()));
-        assert!(config.ignored.directories.contains(&"node_modules".to_string()));
+        assert!(
+            config
+                .ignored
+                .directories
+                .contains(&"node_modules".to_string())
+        );
         assert!(config.ignored.suffixes.contains(&".tmp".to_string()));
 
         assert!(config.ignored.is_ignored_dir_or_file("node_modules"));
@@ -420,19 +428,51 @@ mod tests {
 
         assert!(config.ignored.should_ignore_path(Path::new("")));
         assert!(config.ignored.should_ignore_path(Path::new(".")));
-        assert!(config.ignored.should_ignore_path(Path::new("node_modules/pkg/index.js")));
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new("node_modules/pkg/index.js"))
+        );
         assert!(config.ignored.should_ignore_path(Path::new(".git/config")));
-        assert!(config.ignored.should_ignore_path(Path::new("docs/.git/config")));
-        assert!(config.ignored.should_ignore_path(Path::new(".obsidian/workspace.json")));
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new("docs/.git/config"))
+        );
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new(".obsidian/workspace.json"))
+        );
         assert!(config.ignored.should_ignore_path(Path::new(".cache/foo")));
-        assert!(config.ignored.should_ignore_path(Path::new(".anything_hidden/note.md")));
-        assert!(config.ignored.should_ignore_path(Path::new("sub/.hidden/note.md")));
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new(".anything_hidden/note.md"))
+        );
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new("sub/.hidden/note.md"))
+        );
         assert!(config.ignored.should_ignore_path(Path::new("draft.tmp")));
         assert!(config.ignored.should_ignore_path(Path::new("backup.md~")));
-        assert!(config.ignored.should_ignore_path(Path::new("#autosave.md#")));
+        assert!(
+            config
+                .ignored
+                .should_ignore_path(Path::new("#autosave.md#"))
+        );
         assert!(config.ignored.should_ignore_path(Path::new("sync.lock")));
-        assert!(!config.ignored.should_ignore_path(Path::new("docs/intro.md")));
-        assert!(!config.ignored.should_ignore_path(Path::new("./docs/intro.md")));
+        assert!(
+            !config
+                .ignored
+                .should_ignore_path(Path::new("docs/intro.md"))
+        );
+        assert!(
+            !config
+                .ignored
+                .should_ignore_path(Path::new("./docs/intro.md"))
+        );
 
         assert_eq!(config.shortcuts.welcome.new_workspace, "Ctrl+Shift+N");
         assert_eq!(config.shortcuts.welcome.open_folder, "Ctrl+Shift+O");

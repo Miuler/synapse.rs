@@ -14,7 +14,10 @@ impl VaultItemRepositoryImpl {
             if let Ok(rel) = path_obj.strip_prefix(vault_path) {
                 rel.to_string_lossy().to_string()
             } else {
-                return Err("Operación no permitida: la ruta está fuera de los límites de la bóveda".to_string());
+                return Err(
+                    "Operación no permitida: la ruta está fuera de los límites de la bóveda"
+                        .to_string(),
+                );
             }
         } else {
             relative_path.to_string()
@@ -59,7 +62,11 @@ impl VaultItemRepositoryImpl {
     ///
     /// Si el destino es la misma carpeta de origen, o ya existe un elemento con ese nombre,
     /// se agrega `.copy` al nombre. Retorna la ruta relativa del nuevo elemento.
-    pub fn copy_item(vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+    pub fn copy_item(
+        vault_path: &Path,
+        source_rel: &str,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
         let source = Self::resolve(vault_path, source_rel)?;
         let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
 
@@ -76,7 +83,9 @@ impl VaultItemRepositoryImpl {
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_source = source.canonicalize().map_err(|e| e.to_string())?;
         let canonical_dest = dest_dir.canonicalize().map_err(|e| e.to_string())?;
-        if !canonical_source.starts_with(&canonical_vault) || !canonical_dest.starts_with(&canonical_vault) {
+        if !canonical_source.starts_with(&canonical_vault)
+            || !canonical_dest.starts_with(&canonical_vault)
+        {
             return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
         }
 
@@ -102,7 +111,8 @@ impl VaultItemRepositoryImpl {
             Self::copy_dir_recursive(&canonical_source, &target)
                 .map_err(|e| format!("Error al copiar carpeta: {}", e))?;
         } else {
-            fs::copy(&canonical_source, &target).map_err(|e| format!("Error al copiar archivo: {}", e))?;
+            fs::copy(&canonical_source, &target)
+                .map_err(|e| format!("Error al copiar archivo: {}", e))?;
         }
 
         Ok(Self::to_relative(vault_path, &target))
@@ -112,7 +122,11 @@ impl VaultItemRepositoryImpl {
     ///
     /// No sobrescribe: si ya existe un elemento con ese nombre en el destino devuelve error.
     /// Mover al mismo lugar es un no-op. Retorna la nueva ruta relativa.
-    pub fn move_item(vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+    pub fn move_item(
+        vault_path: &Path,
+        source_rel: &str,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
         let source = Self::resolve(vault_path, source_rel)?;
         let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
 
@@ -129,7 +143,9 @@ impl VaultItemRepositoryImpl {
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_source = source.canonicalize().map_err(|e| e.to_string())?;
         let canonical_dest = dest_dir.canonicalize().map_err(|e| e.to_string())?;
-        if !canonical_source.starts_with(&canonical_vault) || !canonical_dest.starts_with(&canonical_vault) {
+        if !canonical_source.starts_with(&canonical_vault)
+            || !canonical_dest.starts_with(&canonical_vault)
+        {
             return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
         }
         if canonical_source.is_dir() && canonical_dest.starts_with(&canonical_source) {
@@ -145,7 +161,10 @@ impl VaultItemRepositoryImpl {
         }
         let target = dest_dir.join(&name);
         if target.exists() {
-            return Err(format!("Ya existe un elemento llamado '{}' en el destino", name.to_string_lossy()));
+            return Err(format!(
+                "Ya existe un elemento llamado '{}' en el destino",
+                name.to_string_lossy()
+            ));
         }
 
         fs::rename(&source, &target).map_err(|e| format!("Error al mover elemento: {}", e))?;
@@ -153,7 +172,11 @@ impl VaultItemRepositoryImpl {
     }
 
     /// Renombra un elemento sin moverlo fuera de su carpeta actual.
-    pub fn rename_item(vault_path: &Path, source_rel: &str, new_name: &str) -> Result<String, String> {
+    pub fn rename_item(
+        vault_path: &Path,
+        source_rel: &str,
+        new_name: &str,
+    ) -> Result<String, String> {
         let new_name = new_name.trim();
         if new_name.is_empty() || new_name == "." || new_name == ".." {
             return Err("El nombre no puede estar vacío".to_string());
@@ -173,7 +196,9 @@ impl VaultItemRepositoryImpl {
             return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
         }
 
-        let parent = source.parent().ok_or_else(|| "Elemento sin carpeta padre".to_string())?;
+        let parent = source
+            .parent()
+            .ok_or_else(|| "Elemento sin carpeta padre".to_string())?;
         let target = parent.join(new_name);
         if target == source {
             return Ok(Self::to_relative(vault_path, &source));
@@ -188,10 +213,14 @@ impl VaultItemRepositoryImpl {
         if target.is_file() {
             let file_types = crate::domain::vault::file_types::SupportedFileTypes::default();
             let target_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name) {
+            if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name)
+            {
                 if let Ok(raw_content) = fs::read_to_string(&target) {
                     if let Some(new_stem) = target.file_stem().and_then(|s| s.to_str()) {
-                        let updated = crate::domain::note::frontmatter::NoteFrontmatter::sync_title(&raw_content, new_stem);
+                        let updated = crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
+                            &raw_content,
+                            new_stem,
+                        );
                         let _ = fs::write(&target, updated);
                     }
                 }
@@ -243,7 +272,11 @@ impl VaultItemRepositoryImpl {
     }
 
     /// Escribe contenido binario en un archivo dentro de la bóveda garantizando los límites de seguridad.
-    pub fn write_binary_item(vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+    pub fn write_binary_item(
+        vault_path: &Path,
+        relative_path: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
         let target = Self::resolve(vault_path, relative_path)?;
         if target == vault_path {
             return Err("No se puede escribir directamente en la raíz de la bóveda".to_string());
@@ -258,7 +291,8 @@ impl VaultItemRepositoryImpl {
             }
         }
 
-        fs::write(&target, bytes).map_err(|e| format!("Error al escribir archivo binario: {}", e))?;
+        fs::write(&target, bytes)
+            .map_err(|e| format!("Error al escribir archivo binario: {}", e))?;
         Ok(())
     }
 
@@ -266,7 +300,10 @@ impl VaultItemRepositoryImpl {
     pub fn read_binary_item(vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String> {
         let target = Self::resolve(vault_path, relative_path)?;
         if !target.is_file() {
-            return Err(format!("El archivo no existe o no es un archivo: {}", relative_path));
+            return Err(format!(
+                "El archivo no existe o no es un archivo: {}",
+                relative_path
+            ));
         }
 
         fs::read(&target).map_err(|e| format!("Error al leer archivo binario: {}", e))
@@ -287,19 +324,39 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
         Self::delete_item(vault_path, relative_path)
     }
 
-    fn rename_item(&self, vault_path: &Path, relative_path: &str, new_name: &str) -> Result<String, String> {
+    fn rename_item(
+        &self,
+        vault_path: &Path,
+        relative_path: &str,
+        new_name: &str,
+    ) -> Result<String, String> {
         Self::rename_item(vault_path, relative_path, new_name)
     }
 
-    fn move_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+    fn move_item(
+        &self,
+        vault_path: &Path,
+        source_rel: &str,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
         Self::move_item(vault_path, source_rel, dest_dir_rel)
     }
 
-    fn copy_item(&self, vault_path: &Path, source_rel: &str, dest_dir_rel: &str) -> Result<String, String> {
+    fn copy_item(
+        &self,
+        vault_path: &Path,
+        source_rel: &str,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
         Self::copy_item(vault_path, source_rel, dest_dir_rel)
     }
 
-    fn write_binary_item(&self, vault_path: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
+    fn write_binary_item(
+        &self,
+        vault_path: &Path,
+        relative_path: &str,
+        bytes: &[u8],
+    ) -> Result<(), String> {
         Self::write_binary_item(vault_path, relative_path, bytes)
     }
 
@@ -316,10 +373,15 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
     }
 
     fn relocate(&self, vault_path: &Path, source_rel: &str, dest_rel: &str) -> Result<(), String> {
-        fs::rename(vault_path.join(source_rel), vault_path.join(dest_rel)).map_err(|e| e.to_string())
+        fs::rename(vault_path.join(source_rel), vault_path.join(dest_rel))
+            .map_err(|e| e.to_string())
     }
 
-    fn list_folder(&self, vault_path: &Path, relative_path: &str) -> Result<Vec<FolderEntry>, String> {
+    fn list_folder(
+        &self,
+        vault_path: &Path,
+        relative_path: &str,
+    ) -> Result<Vec<FolderEntry>, String> {
         let entries = fs::read_dir(vault_path.join(relative_path)).map_err(|e| e.to_string())?;
         Ok(entries
             .flatten()
@@ -380,7 +442,11 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
         for entry in entries {
             if entry.file_type.is_dir() {
                 if let Ok(rel) = entry.path().strip_prefix(vault_path) {
-                    let clean = rel.to_string_lossy().replace('\\', "/").trim_matches('/').to_string();
+                    let clean = rel
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .trim_matches('/')
+                        .to_string();
                     if !clean.is_empty() {
                         folders.push(clean);
                     }
@@ -400,7 +466,8 @@ mod tests {
     use super::*;
 
     fn temp_vault(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("synapse_fs_test_{}_{}", tag, std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("synapse_fs_test_{}_{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("sub")).unwrap();
         fs::write(dir.join("nota.md"), "hola").unwrap();
@@ -445,11 +512,13 @@ mod tests {
         assert_eq!(read_bytes, pdf_bytes);
 
         // Test read_binary_item directly
-        let direct_read = VaultItemRepositoryImpl::read_binary_item(&vault, "docs/sample.pdf").unwrap();
+        let direct_read =
+            VaultItemRepositoryImpl::read_binary_item(&vault, "docs/sample.pdf").unwrap();
         assert_eq!(direct_read, pdf_bytes);
 
         // Test create_folder
-        let folder_res = VaultItemRepositoryImpl::create_folder(&vault, "archivos/adjuntos/excalidraw");
+        let folder_res =
+            VaultItemRepositoryImpl::create_folder(&vault, "archivos/adjuntos/excalidraw");
         assert!(folder_res.is_ok());
         assert!(vault.join("archivos/adjuntos/excalidraw").is_dir());
 
@@ -468,10 +537,16 @@ mod move_tests {
         let vault = dir.path();
         fs::create_dir_all(vault.join("sub/inner")).unwrap();
         fs::write(vault.join("nota.md"), "x").unwrap();
-        assert_eq!(VaultItemRepositoryImpl::move_item(vault, "nota.md", "sub").unwrap(), "sub/nota.md");
+        assert_eq!(
+            VaultItemRepositoryImpl::move_item(vault, "nota.md", "sub").unwrap(),
+            "sub/nota.md"
+        );
         assert!(!vault.join("nota.md").exists());
         // mismo lugar: no-op
-        assert_eq!(VaultItemRepositoryImpl::move_item(vault, "sub/nota.md", "sub").unwrap(), "sub/nota.md");
+        assert_eq!(
+            VaultItemRepositoryImpl::move_item(vault, "sub/nota.md", "sub").unwrap(),
+            "sub/nota.md"
+        );
         // conflicto de nombre: no sobrescribe
         fs::write(vault.join("nota.md"), "y").unwrap();
         assert!(VaultItemRepositoryImpl::move_item(vault, "nota.md", "sub").is_err());
@@ -479,6 +554,9 @@ mod move_tests {
         // carpeta dentro de sí misma
         assert!(VaultItemRepositoryImpl::move_item(vault, "sub", "sub/inner").is_err());
         // carpeta a la raíz
-        assert_eq!(VaultItemRepositoryImpl::move_item(vault, "sub/inner", "").unwrap(), "inner");
+        assert_eq!(
+            VaultItemRepositoryImpl::move_item(vault, "sub/inner", "").unwrap(),
+            "inner"
+        );
     }
 }

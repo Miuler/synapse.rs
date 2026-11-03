@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 /// Búsqueda de texto completo, sanitizando y acotando los parámetros de entrada.
 pub struct SearchFullTextUseCase<I: FullTextIndex + ?Sized> {
-    index: Arc<I>,
+    full_text_index: Arc<I>,
 }
 
 impl<I: FullTextIndex + ?Sized> SearchFullTextUseCase<I> {
@@ -13,8 +13,8 @@ impl<I: FullTextIndex + ?Sized> SearchFullTextUseCase<I> {
     pub const DEFAULT_LIMIT: usize = 30;
     pub const MAX_LIMIT: usize = 200;
 
-    pub fn new(index: Arc<I>) -> Self {
-        Self { index }
+    pub fn new(full_text_index: Arc<I>) -> Self {
+        Self { full_text_index }
     }
 
     pub fn execute(&self, query: SearchFullTextQuery) -> Result<(Vec<FullTextHit>, usize), String> {
@@ -29,7 +29,10 @@ impl<I: FullTextIndex + ?Sized> SearchFullTextUseCase<I> {
             trimmed
         };
 
-        let effective_limit = query.limit.unwrap_or(Self::DEFAULT_LIMIT).clamp(1, Self::MAX_LIMIT);
+        let effective_limit = query
+            .limit
+            .unwrap_or(Self::DEFAULT_LIMIT)
+            .clamp(1, Self::MAX_LIMIT);
 
         let full_text_query = FullTextQuery {
             text: bounded_query.to_string(),
@@ -37,6 +40,6 @@ impl<I: FullTextIndex + ?Sized> SearchFullTextUseCase<I> {
             prefix_last_term: true,
         };
 
-        self.index.search(&full_text_query)
+        self.full_text_index.search(&full_text_query)
     }
 }

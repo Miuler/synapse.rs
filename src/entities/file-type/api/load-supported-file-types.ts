@@ -1,4 +1,4 @@
-import { tauriFileTypeRepository, type FileTypeRepository } from './file-type.repository';
+import { fileTypeRepository, type FileTypeRepository } from './file-type.repository';
 import { fileTypesManager } from '../model/file-types.svelte';
 
 /**
@@ -6,7 +6,7 @@ import { fileTypesManager } from '../model/file-types.svelte';
  * y actualizar el estado de la entidad FileTypesManager.
  */
 export async function loadSupportedFileTypes(
-  repository: FileTypeRepository = tauriFileTypeRepository
+  repository: FileTypeRepository = fileTypeRepository
 ): Promise<void> {
   const types = await repository.getSupportedFileTypes();
   if (types && Array.isArray(types.images)) {

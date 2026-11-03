@@ -1,2 +1,1 @@
-pub struct GetVaultUiStateQuery {
-}
+pub struct GetVaultUiStateQuery {}

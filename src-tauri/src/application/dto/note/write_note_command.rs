@@ -15,6 +15,11 @@ pub struct WriteNoteCommand {
 
 pub enum WriteNoteOutcome {
     /// Ensayo: contenido anterior (vacío si la nota no existía) y el que se escribiría.
-    Preview { old_content: String, new_content: String },
-    Saved { new_hash: String },
+    Preview {
+        old_content: String,
+        new_content: String,
+    },
+    Saved {
+        new_hash: String,
+    },
 }

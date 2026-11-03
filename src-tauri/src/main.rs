@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
+use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
-use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
+use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use std::env;
 use std::io;
 use std::path::PathBuf;
@@ -32,9 +32,8 @@ fn main() {
             }
         }
 
-        let resolved_vault = vault_path.unwrap_or_else(|| {
-            env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-        });
+        let resolved_vault =
+            vault_path.unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
         let canonical_vault = resolved_vault.canonicalize().unwrap_or(resolved_vault);
         eprintln!("[Synapse MCP] Bóveda activa: {:?}", canonical_vault);
@@ -46,7 +45,10 @@ fn main() {
         let full_text_index = match FullTextIndexImpl::open_or_create(&fts_dir) {
             Ok(idx) => Some(Arc::new(idx)),
             Err(e) => {
-                eprintln!("[Synapse MCP] Advertencia: No se pudo abrir índice Tantivy: {}", e);
+                eprintln!(
+                    "[Synapse MCP] Advertencia: No se pudo abrir índice Tantivy: {}",
+                    e
+                );
                 None
             }
         };
@@ -54,8 +56,8 @@ fn main() {
         // Inicializar VersionControlImpl
         let git_service = Some(Arc::new(VersionControlImpl));
 
-        let mcp_use_cases = McpToolHandler::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
-        let mcp_server = McpStdioServer::new(mcp_use_cases);
+        let mcp_tool_handler = McpToolHandler::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+        let mcp_server = McpStdioServer::new(mcp_tool_handler);
 
         let stdin = io::stdin();
         let stdout = io::stdout();

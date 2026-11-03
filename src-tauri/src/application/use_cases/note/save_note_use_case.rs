@@ -1,17 +1,17 @@
 use crate::application::dto::note::save_note_command::SaveNoteCommand;
-use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::note::note::Note;
 use crate::domain::note::note_path::NoteRelativePath;
+use crate::domain::note::note_repository::NoteRepository;
 
 /// Guarda una nota de la bóveda con su codificación.
 #[derive(Clone)]
 pub struct SaveNoteUseCase<A: NoteRepository> {
-    notes: A,
+    note_repository: A,
 }
 
 impl<A: NoteRepository> SaveNoteUseCase<A> {
-    pub fn new(notes: A) -> Self {
-        Self { notes }
+    pub fn new(note_repository: A) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: SaveNoteCommand) -> Result<(), String> {
@@ -23,6 +23,6 @@ impl<A: NoteRepository> SaveNoteUseCase<A> {
             command.content,
             command.encoding,
         );
-        self.notes.save_note(&command.vault_path, &note)
+        self.note_repository.save_note(&command.vault_path, &note)
     }
 }

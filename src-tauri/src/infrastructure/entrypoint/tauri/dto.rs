@@ -1,10 +1,10 @@
 use crate::domain::note::note_path::NoteRelativePath;
-use std::path::Path;
 use crate::domain::search::note_search_repository::SearchResult;
-pub use crate::infrastructure::navigation::model::{VaultFileDto, VaultFileStatDto};
 use crate::infrastructure::navigation::engine::{NavigationEngine, VaultFilesStream};
-use serde::{Deserialize, Serialize};
+pub use crate::infrastructure::navigation::model::{VaultFileDto, VaultFileStatDto};
 use serde::ser::{SerializeSeq, Serializer};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +43,11 @@ impl VaultEntryDto {
                 abs_path: vault_path.join(&rel_str).to_string_lossy().to_string(),
                 relative_path: rel_str,
                 title: meta.title.to_string(),
-                view_mode: if with_view_mode { meta.view_mode.as_ref().map(|s| s.to_string()) } else { None },
+                view_mode: if with_view_mode {
+                    meta.view_mode.as_ref().map(|s| s.to_string())
+                } else {
+                    None
+                },
                 ctime: meta.created_nanos.map(|value| value / 1_000_000),
                 mtime: meta.mtime_nanos / 1_000_000,
                 size: meta.size_bytes,

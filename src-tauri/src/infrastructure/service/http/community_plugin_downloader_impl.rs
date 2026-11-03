@@ -1,7 +1,7 @@
+use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
 use crate::domain::plugin::community_plugin::{
     CommunityPlugin, CommunityPluginInstallResult, PluginUpdateInfo,
 };
-use crate::application::service::community_plugin_downloader::CommunityPluginDownloader;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -13,8 +13,7 @@ use std::time::{Duration, Instant};
 
 const COMMUNITY_PLUGINS_URL: &str =
     "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/community-plugins.json";
-const COMMUNITY_PLUGIN_STATS_URL: &str =
-    "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/community-plugin-stats.json";
+const COMMUNITY_PLUGIN_STATS_URL: &str = "https://raw.githubusercontent.com/obsidianmd/obsidian-releases/master/community-plugin-stats.json";
 
 #[derive(Debug, Deserialize)]
 struct PluginStatItem {
@@ -112,7 +111,9 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                 // Fallback a caché en disco persistente
                 if cache_file.exists() {
                     if let Ok(bytes) = fs::read(&cache_file) {
-                        if let Ok(cached_plugins) = serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes) {
+                        if let Ok(cached_plugins) =
+                            serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
+                        {
                             if !cached_plugins.is_empty() {
                                 if let Ok(mut guard) = cache_arc.write() {
                                     *guard = Some((Instant::now(), cached_plugins.clone()));
@@ -135,7 +136,9 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                 // Si falla la red pero tenemos caché en disco previa, devolverla como salvaguarda
                 if cache_file.exists() {
                     if let Ok(bytes) = fs::read(&cache_file) {
-                        if let Ok(cached_plugins) = serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes) {
+                        if let Ok(cached_plugins) =
+                            serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
+                        {
                             if !cached_plugins.is_empty() {
                                 return Ok(cached_plugins);
                             }
@@ -188,7 +191,8 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
         vault_path: &'a Path,
         plugin_id: &'a str,
         repo: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<CommunityPluginInstallResult, String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<CommunityPluginInstallResult, String>> + Send + 'a>>
+    {
         Box::pin(async move {
             let target_dir = vault_path.join(".synapse").join("plugins").join(plugin_id);
             fs::create_dir_all(&target_dir).map_err(|e| {
@@ -221,7 +225,9 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             }
 
             let manifest_bytes = manifest_bytes.ok_or_else(|| {
-                format!("No se pudo descargar 'manifest.json' para el plugin '{plugin_id}' desde {repo}")
+                format!(
+                    "No se pudo descargar 'manifest.json' para el plugin '{plugin_id}' desde {repo}"
+                )
             })?;
 
             // Extraer versión de manifest.json
@@ -234,9 +240,8 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             // Guardar manifest.json
             let manifest_path = target_dir.join("manifest.json");
-            fs::write(&manifest_path, &manifest_bytes).map_err(|e| {
-                format!("Error al escribir 'manifest.json' en disco: {e}")
-            })?;
+            fs::write(&manifest_path, &manifest_bytes)
+                .map_err(|e| format!("Error al escribir 'manifest.json' en disco: {e}"))?;
 
             // 2. Descargar main.js
             let main_urls = [
@@ -266,15 +271,18 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             })?;
 
             let main_path = target_dir.join("main.js");
-            fs::write(&main_path, &main_bytes).map_err(|e| {
-                format!("Error al escribir 'main.js' en disco: {e}")
-            })?;
+            fs::write(&main_path, &main_bytes)
+                .map_err(|e| format!("Error al escribir 'main.js' en disco: {e}"))?;
 
             // 3. Descargar styles.css (opcional)
             let styles_urls = [
                 format!("https://github.com/{repo}/releases/latest/download/styles.css"),
-                format!("https://github.com/{repo}/releases/download/{detected_version}/styles.css"),
-                format!("https://github.com/{repo}/releases/download/v{detected_version}/styles.css"),
+                format!(
+                    "https://github.com/{repo}/releases/download/{detected_version}/styles.css"
+                ),
+                format!(
+                    "https://github.com/{repo}/releases/download/v{detected_version}/styles.css"
+                ),
                 format!("https://raw.githubusercontent.com/{repo}/HEAD/styles.css"),
                 format!("https://raw.githubusercontent.com/{repo}/master/styles.css"),
             ];

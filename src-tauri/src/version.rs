@@ -26,7 +26,11 @@ fn compose_version(raw_describe: &str, is_dirty: bool, iso_time: &str) -> String
         return base_semver;
     }
     // "2026-10-30T19:36:00..." -> "20261030193600"
-    let compact_ts: String = iso_time.chars().take(19).filter(char::is_ascii_digit).collect();
+    let compact_ts: String = iso_time
+        .chars()
+        .take(19)
+        .filter(char::is_ascii_digit)
+        .collect();
     let sep = if base_semver.contains('+') { "." } else { "+" };
     format!("{base_semver}{sep}{compact_ts}")
 }
@@ -39,8 +43,14 @@ mod tests {
     fn composes_semver() {
         let ts = "2026-10-30T19:36:00.000000000Z";
         assert_eq!(compose_version("1.2.0", false, ts), "1.2.0");
-        assert_eq!(compose_version("1.2.0-3-g4f8a9b", false, ts), "1.2.0+3.g4f8a9b");
-        assert_eq!(compose_version("1.2.0-dirty", true, ts), "1.2.0+20261030193600");
+        assert_eq!(
+            compose_version("1.2.0-3-g4f8a9b", false, ts),
+            "1.2.0+3.g4f8a9b"
+        );
+        assert_eq!(
+            compose_version("1.2.0-dirty", true, ts),
+            "1.2.0+20261030193600"
+        );
         assert_eq!(
             compose_version("1.0.0-alpha.2-4-g09ab330-dirty", true, ts),
             "1.0.0-alpha.2+4.g09ab330.20261030193600"

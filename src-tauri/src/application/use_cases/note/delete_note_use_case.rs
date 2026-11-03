@@ -5,12 +5,12 @@ use crate::domain::note::note_repository::NoteRepository;
 
 /// Elimina una nota; si se indica `expected_hash`, solo si no cambió desde que se leyó.
 pub struct DeleteNoteUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> DeleteNoteUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: DeleteNoteCommand) -> Result<(), String> {
@@ -18,7 +18,7 @@ impl<N: NoteRepository> DeleteNoteUseCase<N> {
 
         if let Some(expected_hash) = command.expected_hash.as_deref() {
             let note = self
-                .notes
+                .note_repository
                 .read_note(&command.vault_path, &note_path)
                 .map_err(|e| format!("No se pudo leer la nota para validar el hash: {}", e))?;
             let current_hash = NoteContent::hash(&note.content);
@@ -30,7 +30,7 @@ impl<N: NoteRepository> DeleteNoteUseCase<N> {
             }
         }
 
-        self.notes
+        self.note_repository
             .delete_note(&command.vault_path, &note_path)
             .map_err(|err| format!("Error al eliminar nota: {}", err))
     }

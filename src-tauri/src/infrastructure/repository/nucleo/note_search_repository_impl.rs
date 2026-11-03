@@ -1,5 +1,5 @@
 use crate::domain::note::note::Note;
-use crate::domain::search::note_search_repository::{SearchResult, NoteSearchRepository};
+use crate::domain::search::note_search_repository::{NoteSearchRepository, SearchResult};
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 

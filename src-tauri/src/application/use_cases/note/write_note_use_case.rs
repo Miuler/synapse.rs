@@ -8,20 +8,24 @@ use crate::domain::note::note_repository::NoteRepository;
 /// Escribe una nota completa. Rechaza la escritura si la nota cambió desde que se leyó
 /// (`expected_hash`) o si recortaría drásticamente una nota grande sin permiso explícito.
 pub struct WriteNoteUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> WriteNoteUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: WriteNoteCommand) -> Result<WriteNoteOutcome, String> {
-        let relative_path = NoteRelativePath::new(&command.relative_path).map_err(|e| format!("Ruta inválida: {}", e))?;
+        let relative_path = NoteRelativePath::new(&command.relative_path)
+            .map_err(|e| format!("Ruta inválida: {}", e))?;
         let content = command.content.as_str();
 
         // Leer nota existente si existe
-        let existing_note = self.notes.read_note(&command.vault_path, &relative_path).ok();
+        let existing_note = self
+            .note_repository
+            .read_note(&command.vault_path, &relative_path)
+            .ok();
 
         if let Some(ref note) = existing_note {
             let current_hash = NoteContent::hash(&note.content);
@@ -37,7 +41,10 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             // Freno anti-truncamiento (>150 líneas y reduce más del 40%)
             let old_line_count = note.content.lines().count();
             let new_line_count = content.lines().count();
-            if old_line_count > 150 && !command.allow_large_overwrite && new_line_count < (old_line_count * 60) / 100 {
+            if old_line_count > 150
+                && !command.allow_large_overwrite
+                && new_line_count < (old_line_count * 60) / 100
+            {
                 return Err(format!(
                     "Freno anti-truncamiento activado: la nota original tiene {} líneas y la nueva tiene {}. Usa patch_note para ediciones parciales o establece allow_large_overwrite: true.",
                     old_line_count, new_line_count
@@ -77,8 +84,14 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             });
         }
 
-        let note = Note::with_encoding(relative_path, "".to_string(), title, final_body.clone(), "UTF-8".to_string());
-        self.notes
+        let note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            title,
+            final_body.clone(),
+            "UTF-8".to_string(),
+        );
+        self.note_repository
             .save_note(&command.vault_path, &note)
             .map_err(|err| format!("Error al guardar la nota: {}", err))?;
         Ok(WriteNoteOutcome::Saved {

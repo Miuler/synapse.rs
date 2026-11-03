@@ -33,9 +33,11 @@ pub fn get_installed_community_plugins(
             .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
     };
 
-    state
-        .get_installed_plugins_use_case
-        .execute(crate::application::dto::plugin::get_installed_plugins_query::GetInstalledPluginsQuery { vault_path: resolved_path })
+    state.get_installed_plugins_use_case.execute(
+        crate::application::dto::plugin::get_installed_plugins_query::GetInstalledPluginsQuery {
+            vault_path: resolved_path,
+        },
+    )
 }
 
 #[tauri::command]
@@ -45,7 +47,11 @@ pub async fn check_community_plugin_updates(
 ) -> Result<Vec<PluginUpdateInfo>, String> {
     state
         .check_plugin_updates_use_case
-        .execute(crate::application::dto::plugin::check_plugin_updates_query::CheckPluginUpdatesQuery { plugins })
+        .execute(
+            crate::application::dto::plugin::check_plugin_updates_query::CheckPluginUpdatesQuery {
+                plugins,
+            },
+        )
         .await
 }
 
@@ -68,11 +74,13 @@ pub async fn install_community_plugin(
 
     state
         .install_plugin_use_case
-        .execute(crate::application::dto::plugin::install_plugin_command::InstallPluginCommand {
-            vault_path: resolved_path,
-            plugin_id,
-            repo,
-        })
+        .execute(
+            crate::application::dto::plugin::install_plugin_command::InstallPluginCommand {
+                vault_path: resolved_path,
+                plugin_id,
+                repo,
+            },
+        )
         .await
 }
 
@@ -94,9 +102,11 @@ pub async fn uninstall_community_plugin(
 
     state
         .uninstall_plugin_use_case
-        .execute(crate::application::dto::plugin::uninstall_plugin_command::UninstallPluginCommand {
-            vault_path: resolved_path,
-            plugin_id,
-        })
+        .execute(
+            crate::application::dto::plugin::uninstall_plugin_command::UninstallPluginCommand {
+                vault_path: resolved_path,
+                plugin_id,
+            },
+        )
         .await
 }

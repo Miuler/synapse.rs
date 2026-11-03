@@ -4,15 +4,18 @@ use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepo
 /// Registra que se abrió una nota (para recientes y prioridad del Quick Open).
 #[derive(Clone)]
 pub struct RecordNoteOpenedUseCase<A: WorkspaceSessionRepository> {
-    sessions: A,
+    workspace_session_repository: A,
 }
 
 impl<A: WorkspaceSessionRepository> RecordNoteOpenedUseCase<A> {
-    pub fn new(sessions: A) -> Self {
-        Self { sessions }
+    pub fn new(workspace_session_repository: A) -> Self {
+        Self {
+            workspace_session_repository,
+        }
     }
 
     pub fn execute(&self, command: RecordNoteOpenedCommand) -> Result<(), String> {
-        self.sessions.record_opened(&command.relative_path)
+        self.workspace_session_repository
+            .record_opened(&command.relative_path)
     }
 }

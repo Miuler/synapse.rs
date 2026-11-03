@@ -1,26 +1,31 @@
-use crate::application::dto::note::get_note_relations_query::{Backlink, GetNoteRelationsQuery, NoteRelations, Outlink};
+use crate::application::dto::note::get_note_relations_query::{
+    Backlink, GetNoteRelationsQuery, NoteRelations, Outlink,
+};
 use crate::domain::graph::wikilink::{LinkTarget, WikilinkToken};
 use crate::domain::note::note_repository::NoteRepository;
 use std::collections::{HashMap, HashSet};
 
 /// Relaciones de una nota: quién la enlaza, a quién enlaza y qué notas comparten etiquetas.
 pub struct GetNoteRelationsUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, query: GetNoteRelationsQuery) -> Result<NoteRelations, String> {
         let extensions = vec!["md".to_string(), "markdown".to_string()];
         let all_notes = self
-            .notes
+            .note_repository
             .list_notes(&query.vault_path, &extensions)
             .map_err(|e| format!("Error al listar notas: {}", e))?;
 
-        let target_normalized = query.relative_path.trim_start_matches('/').replace('\\', "/");
+        let target_normalized = query
+            .relative_path
+            .trim_start_matches('/')
+            .replace('\\', "/");
         let target_stem = target_normalized
             .rsplit('/')
             .next()
@@ -32,11 +37,17 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
         let mut backlinks = Vec::new();
         let mut outlinks = Vec::new();
         let mut all_note_tags: HashMap<String, HashSet<String>> = HashMap::new();
-        let all_note_paths: HashSet<String> = all_notes.iter().map(|n| n.relative_path.as_str().to_string()).collect();
+        let all_note_paths: HashSet<String> = all_notes
+            .iter()
+            .map(|n| n.relative_path.as_str().to_string())
+            .collect();
 
         for note in &all_notes {
             let n_path = note.relative_path.as_str();
-            let full_note = match self.notes.read_note(&query.vault_path, &note.relative_path) {
+            let full_note = match self
+                .note_repository
+                .read_note(&query.vault_path, &note.relative_path)
+            {
                 Ok(n) => n,
                 Err(_) => continue,
             };
@@ -65,7 +76,8 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
                     links_to_target = true;
                     // Extraer snippet de contexto de la línea
                     for line in full_note.content.lines() {
-                        if line.contains(&format!("[[{}]]", wl.target)) || line.contains(&wl.target) {
+                        if line.contains(&format!("[[{}]]", wl.target)) || line.contains(&wl.target)
+                        {
                             matching_snippet = line.trim().to_string();
                             break;
                         }
@@ -73,7 +85,8 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
                 }
 
                 if n_path == target_normalized {
-                    let is_resolved = all_note_paths.contains(&norm_target) || all_note_paths.contains(&format!("{}.md", norm_target));
+                    let is_resolved = all_note_paths.contains(&norm_target)
+                        || all_note_paths.contains(&format!("{}.md", norm_target));
                     outlinks.push(Outlink {
                         target: wl.target,
                         alias: wl.alias,

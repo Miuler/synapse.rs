@@ -1,16 +1,16 @@
-use crate::domain::search::indexed_document_repository::IndexedDocumentRepository;
 use crate::domain::config::config::IndexingConfig;
-use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::domain::search::full_text::{FullTextDocument, FullTextIndexStatus};
 use crate::domain::search::full_text_index::FullTextIndex;
-use crate::infrastructure::search::content_extractor;
+use crate::domain::search::indexed_document_repository::IndexedDocumentRepository;
+use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
+use crate::infrastructure::search::content_extractor;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -412,7 +412,12 @@ impl FtsIndexer {
             current_file: self.current_file.lock().ok().and_then(|l| l.clone()),
             total_to_index: self.total_to_index.load(Ordering::SeqCst),
             indexed_in_batch: self.indexed_in_batch.load(Ordering::SeqCst),
-            recent_files: self.recent_files.lock().ok().map(|l| l.clone()).unwrap_or_default(),
+            recent_files: self
+                .recent_files
+                .lock()
+                .ok()
+                .map(|l| l.clone())
+                .unwrap_or_default(),
         }
     }
 
@@ -425,11 +430,15 @@ impl FtsIndexer {
 
 impl IndexedDocumentRepository for FtsIndexer {
     fn schedule_upsert(&self, paths: Vec<String>) {
-        let _ = self.tx.send(IndexerCmd::Change(IndexChange::Upserted(paths)));
+        let _ = self
+            .tx
+            .send(IndexerCmd::Change(IndexChange::Upserted(paths)));
     }
 
     fn schedule_removal(&self, paths: Vec<String>) {
-        let _ = self.tx.send(IndexerCmd::Change(IndexChange::Removed(paths)));
+        let _ = self
+            .tx
+            .send(IndexerCmd::Change(IndexChange::Removed(paths)));
     }
 }
 

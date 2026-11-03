@@ -1,19 +1,18 @@
-use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
-use crate::application::dto::version::track_files_command::TrackFilesCommand;
-use crate::application::dto::version::revert_files_command::RevertFilesCommand;
-use crate::application::dto::version::untrack_files_command::UntrackFilesCommand;
-use crate::application::dto::version::save_version_command::SaveVersionCommand;
-use crate::application::dto::version::get_file_diff_query::GetFileDiffQuery;
-use crate::application::dto::version::get_file_revision_query::GetFileRevisionQuery;
-use crate::application::dto::version::get_image_diff_query::GetImageDiffQuery;
-use crate::application::dto::version::get_file_version_history_query::GetFileVersionHistoryQuery;
-use crate::application::dto::version::get_branches_query::GetBranchesQuery;
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
 use crate::application::dto::version::create_branch_command::CreateBranchCommand;
+use crate::application::dto::version::get_branches_query::GetBranchesQuery;
+use crate::application::dto::version::get_file_diff_query::GetFileDiffQuery;
+use crate::application::dto::version::get_file_revision_query::GetFileRevisionQuery;
+use crate::application::dto::version::get_file_version_history_query::GetFileVersionHistoryQuery;
+use crate::application::dto::version::get_image_diff_query::GetImageDiffQuery;
+use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
 use crate::application::dto::version::push_versions_command::PushVersionsCommand;
+use crate::application::dto::version::revert_files_command::RevertFilesCommand;
+use crate::application::dto::version::save_version_command::SaveVersionCommand;
+use crate::application::dto::version::track_files_command::TrackFilesCommand;
+use crate::application::dto::version::untrack_files_command::UntrackFilesCommand;
 use crate::domain::version::version::{
-    BranchList, FileDiff, FileVersionHistory, FileRevision, ImageDiff,
-    VaultVersionState,
+    BranchList, FileDiff, FileRevision, FileVersionHistory, ImageDiff, VaultVersionState,
 };
 use crate::infrastructure::config::state::AppState;
 use std::path::PathBuf;
@@ -41,9 +40,11 @@ pub async fn get_vault_git_status(
         }
     };
     let use_case = state.get_vault_version_state_use_case.clone();
-    tauri::async_runtime::spawn_blocking(move || use_case.execute(GetVaultVersionStateQuery { vault_path }))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        use_case.execute(GetVaultVersionStateQuery { vault_path })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -52,11 +53,17 @@ pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.track_files_use_case.execute(TrackFilesCommand { vault_path: vault_path.clone(), paths }).map_err(|err| {
-        log::error!("[commands::git_add_paths] {}", err);
-        eprintln!("[commands::git_add_paths] {}", err);
-        err
-    })
+    state
+        .track_files_use_case
+        .execute(TrackFilesCommand {
+            vault_path: vault_path.clone(),
+            paths,
+        })
+        .map_err(|err| {
+            log::error!("[commands::git_add_paths] {}", err);
+            eprintln!("[commands::git_add_paths] {}", err);
+            err
+        })
 }
 
 #[tauri::command]
@@ -65,11 +72,17 @@ pub fn git_restore_paths(state: State<'_, AppState>, paths: Vec<String>) -> Resu
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.revert_files_use_case.execute(RevertFilesCommand { vault_path: vault_path.clone(), paths }).map_err(|err| {
-        log::error!("[commands::git_restore_paths] {}", err);
-        eprintln!("[commands::git_restore_paths] {}", err);
-        err
-    })
+    state
+        .revert_files_use_case
+        .execute(RevertFilesCommand {
+            vault_path: vault_path.clone(),
+            paths,
+        })
+        .map_err(|err| {
+            log::error!("[commands::git_restore_paths] {}", err);
+            eprintln!("[commands::git_restore_paths] {}", err);
+            err
+        })
 }
 
 #[tauri::command]
@@ -81,11 +94,17 @@ pub fn git_restore_staged_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.untrack_files_use_case.execute(UntrackFilesCommand { vault_path: vault_path.clone(), paths }).map_err(|err| {
-        log::error!("[commands::git_restore_staged_paths] {}", err);
-        eprintln!("[commands::git_restore_staged_paths] {}", err);
-        err
-    })
+    state
+        .untrack_files_use_case
+        .execute(UntrackFilesCommand {
+            vault_path: vault_path.clone(),
+            paths,
+        })
+        .map_err(|err| {
+            log::error!("[commands::git_restore_staged_paths] {}", err);
+            eprintln!("[commands::git_restore_staged_paths] {}", err);
+            err
+        })
 }
 
 #[tauri::command]
@@ -98,11 +117,18 @@ pub fn git_commit_paths(
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.save_version_use_case.execute(SaveVersionCommand { vault_path: vault_path.clone(), paths, message }).map_err(|err| {
-        log::error!("[commands::git_commit_paths] {}", err);
-        eprintln!("[commands::git_commit_paths] {}", err);
-        err
-    })
+    state
+        .save_version_use_case
+        .execute(SaveVersionCommand {
+            vault_path: vault_path.clone(),
+            paths,
+            message,
+        })
+        .map_err(|err| {
+            log::error!("[commands::git_commit_paths] {}", err);
+            eprintln!("[commands::git_commit_paths] {}", err);
+            err
+        })
 }
 
 #[tauri::command(async)]
@@ -118,7 +144,12 @@ pub fn get_git_file_diff(
     };
     state
         .get_file_diff_use_case
-        .execute(GetFileDiffQuery { vault_path: vault_path.clone(), path, staged, revision })
+        .execute(GetFileDiffQuery {
+            vault_path: vault_path.clone(),
+            path,
+            staged,
+            revision,
+        })
         .map_err(|err| {
             log::error!("[commands::get_git_file_diff] {}", err);
             eprintln!("[commands::get_git_file_diff] {}", err);
@@ -139,7 +170,12 @@ pub fn get_git_file_revision(
     };
     state
         .get_file_revision_use_case
-        .execute(GetFileRevisionQuery { vault_path: vault_path.clone(), path, staged, revision })
+        .execute(GetFileRevisionQuery {
+            vault_path: vault_path.clone(),
+            path,
+            staged,
+            revision,
+        })
         .map_err(|err| {
             log::error!("[commands::get_git_file_revision] {}", err);
             eprintln!("[commands::get_git_file_revision] {}", err);
@@ -160,7 +196,12 @@ pub fn get_git_image_diff(
     };
     state
         .get_image_diff_use_case
-        .execute(GetImageDiffQuery { vault_path: vault_path.clone(), path, staged, revision })
+        .execute(GetImageDiffQuery {
+            vault_path: vault_path.clone(),
+            path,
+            staged,
+            revision,
+        })
         .map_err(|err| {
             log::error!("[commands::get_git_image_diff] {}", err);
             eprintln!("[commands::get_git_image_diff] {}", err);
@@ -180,7 +221,11 @@ pub fn get_git_file_log(
     };
     state
         .get_file_version_history_use_case
-        .execute(GetFileVersionHistoryQuery { vault_path: vault_path.clone(), path, max_count })
+        .execute(GetFileVersionHistoryQuery {
+            vault_path: vault_path.clone(),
+            path,
+            max_count,
+        })
         .map_err(|err| {
             log::error!("[commands::get_git_file_log] {}", err);
             eprintln!("[commands::get_git_file_log] {}", err);
@@ -194,7 +239,9 @@ pub fn get_git_branches(state: State<'_, AppState>) -> Result<BranchList, String
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.get_branches_use_case.execute(GetBranchesQuery { vault_path: vault_path.clone() })
+    state.get_branches_use_case.execute(GetBranchesQuery {
+        vault_path: vault_path.clone(),
+    })
 }
 
 #[tauri::command]
@@ -208,7 +255,10 @@ pub fn git_checkout_branch(
     };
     let result = state
         .checkout_branch_use_case
-        .execute(CheckoutBranchCommand { vault_path: vault_path.clone(), branch_name })?;
+        .execute(CheckoutBranchCommand {
+            vault_path: vault_path.clone(),
+            branch_name,
+        })?;
 
     // Sincronizar el árbol de navegación ya que los archivos cambiaron en disco
     if let Ok(guard) = state.navigation_engine.lock() {
@@ -259,7 +309,9 @@ pub async fn git_push_vault(state: State<'_, AppState>) -> Result<String, String
         }
     };
     let use_case = state.push_versions_use_case.clone();
-    tauri::async_runtime::spawn_blocking(move || use_case.execute(PushVersionsCommand { vault_path }))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        use_case.execute(PushVersionsCommand { vault_path })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

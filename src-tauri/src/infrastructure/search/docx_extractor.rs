@@ -80,8 +80,8 @@ mod tests {
         let mut buffer = Vec::new();
         {
             let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
-            let options = SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             zip.start_file("word/document.xml", options).unwrap();
 
             let xml_content = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

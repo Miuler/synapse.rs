@@ -8,8 +8,8 @@ use dashmap::DashMap;
 use nucleo::{Config, Nucleo};
 use std::fs::{self, File};
 use std::io::Write;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 #[test]
@@ -164,7 +164,8 @@ fn test_populate_nucleo_and_matching() {
 
 #[test]
 fn test_cold_start_hydration_timing_sub_10ms() {
-    let test_dir = std::env::temp_dir().join(format!("synapse_cold_start_test_{}", std::process::id()));
+    let test_dir =
+        std::env::temp_dir().join(format!("synapse_cold_start_test_{}", std::process::id()));
     let _ = fs::create_dir_all(&test_dir);
     let cache_file = test_dir.join("cache.bin");
 
@@ -207,7 +208,10 @@ fn test_cold_start_hydration_timing_sub_10ms() {
     let elapsed = samples[samples.len() / 2];
     let limit_ms = if cfg!(debug_assertions) { 100 } else { 25 };
 
-    println!("Cold start hydration median: {:?} (límite {} ms)", elapsed, limit_ms);
+    println!(
+        "Cold start hydration median: {:?} (límite {} ms)",
+        elapsed, limit_ms
+    );
     assert!(
         elapsed.as_millis() <= limit_ms,
         "Cold start must be fast (median {:?}, limit {} ms)",
@@ -446,7 +450,10 @@ fn test_dashmap_directory_children_resolution() {
             }
         }
     }
-    assert_eq!(docs_folders.into_iter().collect::<Vec<_>>(), vec!["advanced"]);
+    assert_eq!(
+        docs_folders.into_iter().collect::<Vec<_>>(),
+        vec!["advanced"]
+    );
     assert_eq!(docs_files, vec!["intro.md"]);
 
     let _ = fs::remove_dir_all(&test_dir);
@@ -513,7 +520,13 @@ fn test_search_prioritization_filename_recency_and_alphabetical() {
     File::create(test_dir.join("b_arquitectura.md")).unwrap();
     File::create(test_dir.join("c_arquitectura.md")).unwrap();
     File::create(test_dir.join("a_arquitectura.md")).unwrap();
-    File::create(test_dir.join("sub").join("arquitectura").join("otras_notas.md")).unwrap();
+    File::create(
+        test_dir
+            .join("sub")
+            .join("arquitectura")
+            .join("otras_notas.md"),
+    )
+    .unwrap();
 
     let engine = NavigationEngine::new(test_dir.clone(), cache_file);
     engine.reconcile_sync();
@@ -603,8 +616,14 @@ fn test_search_large_vault_over_5000_notes() {
     // Search for the target in the 6,000 files vault
     let (matches, total_files, matched_count) = engine.search_with_stats("special_target", 50);
     assert_eq!(total_files, 6000);
-    assert!(!matches.is_empty(), "Should find matches even when 6000 notes are in engine");
-    assert_eq!(matches[0].path.as_str(), "deep/nested/special_target_note.md");
+    assert!(
+        !matches.is_empty(),
+        "Should find matches even when 6000 notes are in engine"
+    );
+    assert_eq!(
+        matches[0].path.as_str(),
+        "deep/nested/special_target_note.md"
+    );
     assert!(matched_count >= 1);
 
     let _ = fs::remove_dir_all(&test_dir);
@@ -678,7 +697,10 @@ fn test_open_tabs_state_and_reading_mode_persistence() {
     let open_state = engine.get_open_tabs_state();
     assert_eq!(open_state.open_tabs.len(), 2);
     assert_eq!(open_state.open_tabs[0].path, "doc1.md");
-    assert_eq!(open_state.open_tabs[0].view_mode.as_deref(), Some("reading"));
+    assert_eq!(
+        open_state.open_tabs[0].view_mode.as_deref(),
+        Some("reading")
+    );
     assert_eq!(open_state.open_tabs[1].path, "doc2.md");
     assert_eq!(open_state.open_tabs[1].view_mode.as_deref(), Some("live"));
     assert_eq!(open_state.active_tab.as_deref(), Some("doc2.md"));
@@ -691,9 +713,15 @@ fn test_open_tabs_state_and_reading_mode_persistence() {
 
     assert_eq!(restored_state.open_tabs.len(), 2);
     assert_eq!(restored_state.open_tabs[0].path, "doc1.md");
-    assert_eq!(restored_state.open_tabs[0].view_mode.as_deref(), Some("reading"));
+    assert_eq!(
+        restored_state.open_tabs[0].view_mode.as_deref(),
+        Some("reading")
+    );
     assert_eq!(restored_state.open_tabs[1].path, "doc2.md");
-    assert_eq!(restored_state.open_tabs[1].view_mode.as_deref(), Some("live"));
+    assert_eq!(
+        restored_state.open_tabs[1].view_mode.as_deref(),
+        Some("live")
+    );
     assert_eq!(restored_state.active_tab.as_deref(), Some("doc2.md"));
 
     let _ = fs::remove_dir_all(&test_dir);
@@ -955,13 +983,20 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
         let mut f5 = File::create(test_dir.join("backup.md~")).unwrap();
         writeln!(f5, "# Backup Note").unwrap();
 
-        let mut f6 = File::create(test_dir.join("node_modules").join("package").join("readme.md")).unwrap();
+        let mut f6 = File::create(
+            test_dir
+                .join("node_modules")
+                .join("package")
+                .join("readme.md"),
+        )
+        .unwrap();
         writeln!(f6, "# Node Modules Readme").unwrap();
 
         let mut f7 = File::create(test_dir.join("target").join("debug").join("info.md")).unwrap();
         writeln!(f7, "# Target Info").unwrap();
 
-        let mut f8 = File::create(test_dir.join(".obsidian").join("plugins").join("data.json")).unwrap();
+        let mut f8 =
+            File::create(test_dir.join(".obsidian").join("plugins").join("data.json")).unwrap();
         writeln!(f8, "{{}}").unwrap();
 
         let mut f9 = File::create(test_dir.join("sync.lock")).unwrap();
@@ -979,17 +1014,61 @@ fn test_fs_watcher_ignores_hidden_and_temp_files() {
     );
 
     // Verify helper unit functions directly
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new(".")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("node_modules/foo/bar.md")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sub/node_modules/bar.md")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sub/.git/HEAD")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("target/debug/test.md")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/backup.md~")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/.obsidian/plugins/state.json")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("draft.tmp")));
-    assert!(app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("sync.lock")));
-    assert!(!app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(std::path::Path::new("notes/real_note.md")));
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new(".")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("node_modules/foo/bar.md")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("sub/node_modules/bar.md")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("sub/.git/HEAD")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("target/debug/test.md")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("notes/backup.md~")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("notes/.obsidian/plugins/state.json")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("draft.tmp")
+        )
+    );
+    assert!(
+        app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("sync.lock")
+        )
+    );
+    assert!(
+        !app_lib::infrastructure::entrypoint::subscriber::vault_watcher::should_ignore_path(
+            std::path::Path::new("notes/real_note.md")
+        )
+    );
 
     engine.shutdown();
     let _ = fs::remove_dir_all(&test_dir);
@@ -1049,11 +1128,19 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
 
     // Create files physically on disk
     fs::create_dir_all(test_dir.join("documentos/manuales")).unwrap();
-    fs::write(test_dir.join("documentos/manuales/NOMBRE ARCHIVO.txt"), "texto").unwrap();
+    fs::write(
+        test_dir.join("documentos/manuales/NOMBRE ARCHIVO.txt"),
+        "texto",
+    )
+    .unwrap();
     fs::create_dir_all(test_dir.join("guias")).unwrap();
     fs::write(test_dir.join("guias/Mi Nota.md"), "# Mi Nota\ncontenido").unwrap();
     fs::create_dir_all(test_dir.join("assets/img")).unwrap();
-    fs::write(test_dir.join("assets/img/FILE.png"), [0x89, 0x50, 0x4E, 0x47]).unwrap();
+    fs::write(
+        test_dir.join("assets/img/FILE.png"),
+        [0x89, 0x50, 0x4E, 0x47],
+    )
+    .unwrap();
 
     // Manually insert notes into DashMap with various nested paths
     engine.notes.insert(
@@ -1074,7 +1161,10 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             sync_state: NoteSyncState::Local,
         },
     );
-    engine.path_index.insert(CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"), 1);
+    engine.path_index.insert(
+        CompactString::new("documentos/manuales/NOMBRE ARCHIVO.txt"),
+        1,
+    );
 
     engine.notes.insert(
         2,
@@ -1112,11 +1202,16 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             sync_state: NoteSyncState::Local,
         },
     );
-    engine.path_index.insert(CompactString::new("assets/img/FILE.png"), 3);
+    engine
+        .path_index
+        .insert(CompactString::new("assets/img/FILE.png"), 3);
 
     // 1. Resolve with extension: [[NOMBRE ARCHIVO.txt]]
     let resolved_txt = engine.resolve_link_path("NOMBRE ARCHIVO.txt");
-    assert_eq!(resolved_txt, Some("documentos/manuales/NOMBRE ARCHIVO.txt".to_string()));
+    assert_eq!(
+        resolved_txt,
+        Some("documentos/manuales/NOMBRE ARCHIVO.txt".to_string())
+    );
 
     // 2. Resolve image path from DashMap: [[FILE.png]]
     let resolved_img = engine.resolve_link_path("FILE.png");
@@ -1128,7 +1223,10 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
 
     // 4. Resolve with anchor: [[Mi Nota#Seccion]]
     let resolved_anchor = engine.resolve_link_path("Mi Nota#Seccion");
-    assert_eq!(resolved_anchor, Some("guias/Mi Nota.md#Seccion".to_string()));
+    assert_eq!(
+        resolved_anchor,
+        Some("guias/Mi Nota.md#Seccion".to_string())
+    );
 
     // 5. Render markdown content: links as [..] and images as ![..]
     let md = "# Inicio\nVer [[NOMBRE ARCHIVO.txt]] y la imagen [[FILE.png]] junto a [[Mi Nota]].";
@@ -1153,12 +1251,12 @@ fn test_duplicate_filenames_proximity_resolution() {
 
     // Register multiple files with the SAME filename "foto.png" in different folders
     let paths = vec![
-        "foto.png",                          // id 1: raíz
-        "docs/foto.png",                     // id 2: docs
-        "docs/sub/foto.png",                 // id 3: docs/sub (misma carpeta que la nota)
-        "docs/sub/adjuntos/foto.png",        // id 4: docs/sub/adjuntos (subcarpeta)
-        "docs/sub/adjuntos/deep/foto.png",   // id 5: subcarpeta más profunda
-        "otro/foto.png",                     // id 6: otra rama
+        "foto.png",                        // id 1: raíz
+        "docs/foto.png",                   // id 2: docs
+        "docs/sub/foto.png",               // id 3: docs/sub (misma carpeta que la nota)
+        "docs/sub/adjuntos/foto.png",      // id 4: docs/sub/adjuntos (subcarpeta)
+        "docs/sub/adjuntos/deep/foto.png", // id 5: subcarpeta más profunda
+        "otro/foto.png",                   // id 6: otra rama
     ];
 
     for (idx, p) in paths.iter().enumerate() {
@@ -1196,33 +1294,59 @@ fn test_duplicate_filenames_proximity_resolution() {
     // Desde "docs/sub/nested_folder/nota.md":
     // Entre "docs/sub/adjuntos/foto.png", "docs/sub/foto.png", "docs/foto.png", "foto.png", "otro/foto.png":
     // "docs/sub/foto.png" es el ancestro más cercano (1 nivel arriba) vs "docs/foto.png" (2 niveles arriba)
-    let res3 = engine.resolve_link_path_with_base("foto.png", Some("docs/sub/nested_folder/nota.md"));
+    let res3 =
+        engine.resolve_link_path_with_base("foto.png", Some("docs/sub/nested_folder/nota.md"));
     assert_eq!(res3, Some("docs/sub/foto.png".to_string()));
 
     // Caso 4: Preferencia de subcarpetas sobre carpetas padre:
     // Creamos un escenario donde sólo hay una subcarpeta y una carpeta padre
-    let engine_sub = Arc::new(NavigationEngine::new(test_dir.clone(), test_dir.join("cache2.bin")));
-    engine_sub.notes.insert(1, NoteMeta {
-        path: CompactString::new("docs/foto.png"), // padre
-        title: CompactString::new("foto"),
-        tags: Vec::new(),
-        mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
-        is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
-        sync_state: NoteSyncState::Local,
-        id: 1,
-    });
-    engine_sub.path_index.insert(CompactString::new("docs/foto.png"), 1);
+    let engine_sub = Arc::new(NavigationEngine::new(
+        test_dir.clone(),
+        test_dir.join("cache2.bin"),
+    ));
+    engine_sub.notes.insert(
+        1,
+        NoteMeta {
+            path: CompactString::new("docs/foto.png"), // padre
+            title: CompactString::new("foto"),
+            tags: Vec::new(),
+            mtime_nanos: 100,
+            size_bytes: 50,
+            created_nanos: None,
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
+            sync_state: NoteSyncState::Local,
+            id: 1,
+        },
+    );
+    engine_sub
+        .path_index
+        .insert(CompactString::new("docs/foto.png"), 1);
 
-    engine_sub.notes.insert(2, NoteMeta {
-        path: CompactString::new("docs/sub/adjuntos/foto.png"), // subcarpeta
-        title: CompactString::new("foto"),
-        tags: Vec::new(),
-        mtime_nanos: 100, size_bytes: 50, created_nanos: None, last_opened_nanos: None,
-        is_open: false, tab_order: None, is_active_tab: false, view_mode: None,
-        sync_state: NoteSyncState::Local,
-        id: 2,
-    });
-    engine_sub.path_index.insert(CompactString::new("docs/sub/adjuntos/foto.png"), 2);
+    engine_sub.notes.insert(
+        2,
+        NoteMeta {
+            path: CompactString::new("docs/sub/adjuntos/foto.png"), // subcarpeta
+            title: CompactString::new("foto"),
+            tags: Vec::new(),
+            mtime_nanos: 100,
+            size_bytes: 50,
+            created_nanos: None,
+            last_opened_nanos: None,
+            is_open: false,
+            tab_order: None,
+            is_active_tab: false,
+            view_mode: None,
+            sync_state: NoteSyncState::Local,
+            id: 2,
+        },
+    );
+    engine_sub
+        .path_index
+        .insert(CompactString::new("docs/sub/adjuntos/foto.png"), 2);
 
     // Desde "docs/sub/nota.md":
     // Debe preferir "docs/sub/adjuntos/foto.png" (subcarpeta) sobre "docs/foto.png" (padre)
@@ -1259,10 +1383,14 @@ fn test_get_note_meta_o1_and_streaming_files() {
             sync_state: NoteSyncState::Local,
         },
     );
-    engine.path_index.insert(CompactString::new("diagramas/esquema.excalidraw"), 42);
+    engine
+        .path_index
+        .insert(CompactString::new("diagramas/esquema.excalidraw"), 42);
 
     // 1. O(1) lookup via get_note_meta
-    let meta = engine.get_note_meta("diagramas/esquema.excalidraw").expect("Note should be found");
+    let meta = engine
+        .get_note_meta("diagramas/esquema.excalidraw")
+        .expect("Note should be found");
     assert_eq!(meta.path, "diagramas/esquema.excalidraw");
     assert_eq!(meta.name, "esquema.excalidraw");
     assert_eq!(meta.basename, "esquema");
@@ -1317,8 +1445,18 @@ fn test_vault_graph_local_and_global() {
     assert!(node_ids.contains(&"NoteD.md".to_string()));
 
     // Verificar aristas globales
-    assert!(global_graph.links.iter().any(|e| e.source == "NoteA.md" && e.target == "NoteB.md"));
-    assert!(global_graph.links.iter().any(|e| e.source == "NoteB.md" && e.target == "NoteC.md"));
+    assert!(
+        global_graph
+            .links
+            .iter()
+            .any(|e| e.source == "NoteA.md" && e.target == "NoteB.md")
+    );
+    assert!(
+        global_graph
+            .links
+            .iter()
+            .any(|e| e.source == "NoteB.md" && e.target == "NoteC.md")
+    );
 
     // 2. Grafo Local para NoteA con max_depth = 1 (vecindario directo: A y B)
     let local_graph_a1 = engine.get_vault_graph(Some("NoteA.md"), Some(1));
@@ -1407,9 +1545,6 @@ fn test_vault_tags_extraction_and_search() {
     let _ = fs::remove_dir_all(&test_dir);
 }
 
-
-
-
 #[test]
 fn test_search_multi_word_query_matches_separated_filename() {
     let test_dir = std::env::temp_dir().join("synapse_multi_word_search_test");
@@ -1428,14 +1563,18 @@ fn test_search_multi_word_query_matches_separated_filename() {
     let engine = NavigationEngine::new(test_dir.clone(), cache_file);
     engine.reconcile_sync();
     for i in 0..60 {
-        engine.record_opened(&format!("proyectos/banco/bitacora_cpu_tutorial_tiempo_libre_{}.md", i));
+        engine.record_opened(&format!(
+            "proyectos/banco/bitacora_cpu_tutorial_tiempo_libre_{}.md",
+            i
+        ));
     }
 
     for query in ["BCP TTIB", "bcp ttib", "BCP - TTIB", "ttib bcp"] {
         let (results, _, _) = engine.search_with_stats(query, 50);
         let top: Vec<&str> = results.iter().take(2).map(|m| m.path.as_str()).collect();
         assert!(
-            top.contains(&"BCP - TTIB Arquitectura.md") && top.contains(&"BCP - TTIB Reunión semanal.md"),
+            top.contains(&"BCP - TTIB Arquitectura.md")
+                && top.contains(&"BCP - TTIB Reunión semanal.md"),
             "query {:?} must rank 'BCP - TTIB ...' notes first, got {:?}",
             query,
             top

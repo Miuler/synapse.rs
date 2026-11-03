@@ -75,7 +75,11 @@ impl<T: NoteRepository + ?Sized> NoteRepository for &T {
         (**self).list_notes(vault_path, extensions)
     }
 
-    fn read_note(&self, vault_path: &Path, relative_path: &NoteRelativePath,) -> Result<Note, String> {
+    fn read_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<Note, String> {
         (**self).read_note(vault_path, relative_path)
     }
 
@@ -83,7 +87,11 @@ impl<T: NoteRepository + ?Sized> NoteRepository for &T {
         (**self).save_note(vault_path, note)
     }
 
-    fn delete_note(&self, vault_path: &Path, relative_path: &NoteRelativePath,) -> Result<(), String> {
+    fn delete_note(
+        &self,
+        vault_path: &Path,
+        relative_path: &NoteRelativePath,
+    ) -> Result<(), String> {
         (**self).delete_note(vault_path, relative_path)
     }
 

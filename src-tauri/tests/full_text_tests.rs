@@ -1,9 +1,9 @@
-use app_lib::domain::search::indexed_document_repository::IndexedDocumentRepository;
-use app_lib::domain::vault::file_types::SupportedFileTypes;
 use app_lib::domain::search::full_text::{DocumentKind, FullTextQuery};
 use app_lib::domain::search::full_text_index::FullTextIndex;
-use app_lib::infrastructure::search::fts_indexer::FtsIndexer;
+use app_lib::domain::search::indexed_document_repository::IndexedDocumentRepository;
+use app_lib::domain::vault::file_types::SupportedFileTypes;
 use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
+use app_lib::infrastructure::search::fts_indexer::FtsIndexer;
 use std::fs;
 use std::sync::Arc;
 use std::thread;
@@ -45,7 +45,12 @@ fn test_full_text_indexer_workflow_and_persistence() {
     let index = Arc::new(FullTextIndexImpl::open_or_create(&fts_dir).unwrap());
     let mut indexing = app_lib::domain::config::config::IndexingConfig::default();
     indexing.debounce_ms = 350; // el test espera 600 ms; el valor por defecto es mayor
-    let indexer = FtsIndexer::start_with_config(vault_path.clone(), file_types.clone(), indexing, Arc::clone(&index));
+    let indexer = FtsIndexer::start_with_config(
+        vault_path.clone(),
+        file_types.clone(),
+        indexing,
+        Arc::clone(&index),
+    );
 
     // Esperar sincronización inicial
     for _ in 0..30 {
@@ -141,7 +146,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
 #[test]
 fn test_full_text_docx_and_pdf_indexing() {
     use lopdf::content::Content;
-    use lopdf::{dictionary, Document, Object, Stream};
+    use lopdf::{Document, Object, Stream, dictionary};
     use std::io::{Cursor, Write};
     use zip::write::{SimpleFileOptions, ZipWriter};
 
@@ -183,7 +188,12 @@ fn test_full_text_docx_and_pdf_indexing() {
             operations: vec![
                 lopdf::content::Operation::new("BT", vec![]),
                 lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
-                lopdf::content::Operation::new("Tj", vec![Object::string_literal("Plan estrategico de expansion multinacional")]),
+                lopdf::content::Operation::new(
+                    "Tj",
+                    vec![Object::string_literal(
+                        "Plan estrategico de expansion multinacional",
+                    )],
+                ),
                 lopdf::content::Operation::new("ET", vec![]),
             ],
         };
@@ -237,7 +247,12 @@ fn test_full_text_docx_and_pdf_indexing() {
     assert_eq!(count_docx, 1);
     assert_eq!(hits_docx[0].note_path, "balance_financiero.docx");
     assert_eq!(hits_docx[0].kind, DocumentKind::Word);
-    assert!(hits_docx[0].snippet.iter().any(|s| s.text.to_lowercase().contains("trimestral")));
+    assert!(
+        hits_docx[0]
+            .snippet
+            .iter()
+            .any(|s| s.text.to_lowercase().contains("trimestral"))
+    );
 
     // 5. Buscar en documento PDF
     let q_pdf = FullTextQuery {
@@ -249,7 +264,12 @@ fn test_full_text_docx_and_pdf_indexing() {
     assert_eq!(count_pdf, 1);
     assert_eq!(hits_pdf[0].note_path, "estrategia.pdf");
     assert_eq!(hits_pdf[0].kind, DocumentKind::Pdf);
-    assert!(hits_pdf[0].snippet.iter().any(|s| s.text.to_lowercase().contains("estrategico")));
+    assert!(
+        hits_pdf[0]
+            .snippet
+            .iter()
+            .any(|s| s.text.to_lowercase().contains("estrategico"))
+    );
 
     drop(indexer);
 }

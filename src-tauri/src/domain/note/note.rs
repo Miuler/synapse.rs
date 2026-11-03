@@ -36,11 +36,11 @@ impl Note {
                 }
             }
         }
-    
+
         let parser = Parser::new(&body);
         let mut in_h1 = false;
         let mut title = String::new();
-    
+
         for event in parser {
             match event {
                 Event::Start(Tag::Heading {
@@ -61,7 +61,7 @@ impl Note {
                 _ => {}
             }
         }
-    
+
         let trimmed = title.trim();
         if !trimmed.is_empty() {
             trimmed.to_string()

@@ -1,8 +1,8 @@
-use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
+use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
-use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
+use app_lib::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl;
 use serde_json::json;
 use std::fs;
 use std::io::Cursor;
@@ -23,21 +23,19 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     .unwrap();
 
     let note2_path = vault_path.join("agentes.md");
-    fs::write(
-        &note2_path,
-        "# Agentes\nProtocolo MCP implementado.",
-    )
-    .unwrap();
+    fs::write(&note2_path, "# Agentes\nProtocolo MCP implementado.").unwrap();
 
     let note_repo = NoteRepositoryImpl::new();
 
     // Índice Tantivy en memoria / carpeta de prueba
     let fts_dir = vault_path.join(".synapse").join("index");
-    let full_text_index = FullTextIndexImpl::open_or_create(&fts_dir).ok().map(Arc::new);
+    let full_text_index = FullTextIndexImpl::open_or_create(&fts_dir)
+        .ok()
+        .map(Arc::new);
     let git_service = Some(Arc::new(VersionControlImpl));
 
-    let use_cases = McpToolHandler::new(vault_path.clone(), note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
-    let server = McpStdioServer::new(use_cases);
+    let tool_handler = McpToolHandler::new(vault_path.clone(), note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+    let server = McpStdioServer::new(tool_handler);
 
     // 1. Test initialize
     let init_req = json!({
@@ -48,9 +46,14 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     })
     .to_string();
 
-    let resp_init = server.handle_line(&init_req).expect("Debe responder a initialize");
+    let resp_init = server
+        .handle_line(&init_req)
+        .expect("Debe responder a initialize");
     let init_val: serde_json::Value = serde_json::from_str(&resp_init).unwrap();
-    assert_eq!(init_val["result"]["serverInfo"]["name"], "synapse-mcp-server");
+    assert_eq!(
+        init_val["result"]["serverInfo"]["name"],
+        "synapse-mcp-server"
+    );
 
     // 2. Test tools/list con todas las herramientas enriquecidas
     let list_req = json!({
@@ -61,14 +64,20 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     })
     .to_string();
 
-    let resp_tools = server.handle_line(&list_req).expect("Debe responder a tools/list");
+    let resp_tools = server
+        .handle_line(&list_req)
+        .expect("Debe responder a tools/list");
     let tools_val: serde_json::Value = serde_json::from_str(&resp_tools).unwrap();
     let tools = tools_val["result"]["tools"].as_array().unwrap();
     assert!(tools.iter().any(|t| t["name"] == "search_notes"));
     assert!(tools.iter().any(|t| t["name"] == "full_text_search"));
     assert!(tools.iter().any(|t| t["name"] == "read_note"));
     assert!(tools.iter().any(|t| t["name"] == "write_note"));
-    assert!(tools.iter().any(|t| t["name"] == "get_backlinks_and_relations"));
+    assert!(
+        tools
+            .iter()
+            .any(|t| t["name"] == "get_backlinks_and_relations")
+    );
     assert!(tools.iter().any(|t| t["name"] == "get_vault_git_status"));
     assert!(tools.iter().any(|t| t["name"] == "list_vault_tree"));
 
@@ -85,7 +94,10 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     assert_eq!(patch_tool["annotations"]["idempotentHint"], false);
     assert_eq!(patch_tool["annotations"]["openWorldHint"], false);
 
-    let append_tool = tools.iter().find(|t| t["name"] == "append_to_note").unwrap();
+    let append_tool = tools
+        .iter()
+        .find(|t| t["name"] == "append_to_note")
+        .unwrap();
     assert_eq!(append_tool["annotations"]["readOnlyHint"], false);
     assert_eq!(append_tool["annotations"]["destructiveHint"], false);
     assert_eq!(append_tool["annotations"]["idempotentHint"], false);
@@ -123,7 +135,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     })
     .to_string();
 
-    let resp_search = server.handle_line(&search_req).expect("Debe responder a search_notes");
+    let resp_search = server
+        .handle_line(&search_req)
+        .expect("Debe responder a search_notes");
     let search_val: serde_json::Value = serde_json::from_str(&resp_search).unwrap();
     let text = search_val["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("arquitectura.md"));
@@ -143,7 +157,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     })
     .to_string();
 
-    let resp_bl = server.handle_line(&backlinks_req).expect("Debe responder a get_backlinks_and_relations");
+    let resp_bl = server
+        .handle_line(&backlinks_req)
+        .expect("Debe responder a get_backlinks_and_relations");
     let bl_val: serde_json::Value = serde_json::from_str(&resp_bl).unwrap();
     let bl_text = bl_val["result"]["content"][0]["text"].as_str().unwrap();
     assert!(bl_text.contains("arquitectura.md")); // arquitectura.md tiene un enlace hacia [[agentes]]
@@ -165,7 +181,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
     })
     .to_string();
 
-    let resp_write = server.handle_line(&write_req).expect("Debe responder a write_note");
+    let resp_write = server
+        .handle_line(&write_req)
+        .expect("Debe responder a write_note");
     let write_val: serde_json::Value = serde_json::from_str(&resp_write).unwrap();
     assert!(!write_val["result"]["isError"].as_bool().unwrap_or(false));
 
@@ -185,7 +203,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
         }
     })
     .to_string();
-    let _ = server.handle_line(&write_req_2).expect("Debe guardar hermana.md");
+    let _ = server
+        .handle_line(&write_req_2)
+        .expect("Debe guardar hermana.md");
     std::fs::create_dir_all(vault_path.join("notas/subcarpeta")).unwrap();
 
     // 6. Test list_folder_contents sobre 'notas'
@@ -203,7 +223,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
         }
     })
     .to_string();
-    let resp_folder = server.handle_line(&folder_req).expect("Debe responder a list_folder_contents");
+    let resp_folder = server
+        .handle_line(&folder_req)
+        .expect("Debe responder a list_folder_contents");
     let folder_val: serde_json::Value = serde_json::from_str(&resp_folder).unwrap();
     let folder_text = folder_val["result"]["content"][0]["text"].as_str().unwrap();
     assert!(folder_text.contains("notas/nuevo.md"));
@@ -225,12 +247,19 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
         }
     })
     .to_string();
-    let resp_siblings = server.handle_line(&siblings_req).expect("Debe responder a list_sibling_notes");
+    let resp_siblings = server
+        .handle_line(&siblings_req)
+        .expect("Debe responder a list_sibling_notes");
     let siblings_val: serde_json::Value = serde_json::from_str(&resp_siblings).unwrap();
-    let siblings_text = siblings_val["result"]["content"][0]["text"].as_str().unwrap();
+    let siblings_text = siblings_val["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
     let parsed_siblings: serde_json::Value = serde_json::from_str(siblings_text).unwrap();
     assert_eq!(parsed_siblings["notes_count"], 1);
-    assert_eq!(parsed_siblings["notes"][0]["relative_path"], "notas/hermana.md");
+    assert_eq!(
+        parsed_siblings["notes"][0]["relative_path"],
+        "notas/hermana.md"
+    );
     assert_eq!(parsed_siblings["notes"][0]["title"], "Nota Hermana");
 
     // 8. Test move_notes moviendo lista de notas a una subcarpeta destino
@@ -248,7 +277,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
         }
     })
     .to_string();
-    let resp_move = server.handle_line(&move_req).expect("Debe responder a move_notes");
+    let resp_move = server
+        .handle_line(&move_req)
+        .expect("Debe responder a move_notes");
     let move_val: serde_json::Value = serde_json::from_str(&resp_move).unwrap();
     let move_text = move_val["result"]["content"][0]["text"].as_str().unwrap();
     let parsed_move: serde_json::Value = serde_json::from_str(move_text).unwrap();
@@ -272,7 +303,9 @@ fn test_mcp_server_initialize_tools_and_read_write_cycle() {
         }
     })
     .to_string();
-    let resp_del_fail = server.handle_line(&del_occ_mismatch_req).expect("Debe responder a delete_note");
+    let resp_del_fail = server
+        .handle_line(&del_occ_mismatch_req)
+        .expect("Debe responder a delete_note");
     let del_fail_val: serde_json::Value = serde_json::from_str(&resp_del_fail).unwrap();
     assert!(del_fail_val["result"]["isError"].as_bool().unwrap_or(false));
     assert!(vault_path.join("archivo/2026/nuevo.md").exists());
@@ -310,7 +343,12 @@ struct DummyMcpProvider {
 }
 
 impl app_lib::infrastructure::entrypoint::mcp::server::McpContextProvider for DummyMcpProvider {
-    fn get_context(&self) -> (Option<std::path::PathBuf>, Option<std::sync::Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>) {
+    fn get_context(
+        &self,
+    ) -> (
+        Option<std::path::PathBuf>,
+        Option<std::sync::Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>,
+    ) {
         (Some(self.vault.clone()), None)
     }
 }
@@ -339,8 +377,11 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
 
     // 3. Probar GET /health
     {
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).expect("Debe conectar a servidor HTTP");
-        stream.write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n").unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port))
+            .expect("Debe conectar a servidor HTTP");
+        stream
+            .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            .unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).unwrap();
         assert!(response.contains("200 OK"));
@@ -354,7 +395,8 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
             "id": 42,
             "method": "initialize",
             "params": {}
-        }).to_string();
+        })
+        .to_string();
 
         let req = format!(
             "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\nContent-Type: application/json\r\n\r\n{}",
@@ -362,7 +404,8 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
             body
         );
 
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).expect("Debe conectar a servidor HTTP");
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port))
+            .expect("Debe conectar a servidor HTTP");
         stream.write_all(req.as_bytes()).unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).unwrap();
@@ -387,7 +430,9 @@ fn test_mcp_workspace_reopen_auto_activation() {
 
     let temp_dir = tempdir().unwrap();
     let vault_path = temp_dir.path().to_path_buf();
-    let provider = Arc::new(DummyMcpProvider { vault: vault_path.clone() });
+    let provider = Arc::new(DummyMcpProvider {
+        vault: vault_path.clone(),
+    });
     let runtime = McpBackgroundRuntime::new(provider);
     let mcp_repo = McpConfigRepositoryImpl::new();
 
@@ -399,7 +444,9 @@ fn test_mcp_workspace_reopen_auto_activation() {
     let started = runtime.start().expect("Debe arrancar servidor");
     assert!(started.running);
     assert!(mcp_repo.is_vault_enabled(&vault_path));
-    let cfg = mcp_repo.read_vault_config(&vault_path).expect("Config debe existir");
+    let cfg = mcp_repo
+        .read_vault_config(&vault_path)
+        .expect("Config debe existir");
     assert!(cfg.enabled);
 
     // 3. Usuario cierra la aplicación (simulando WindowEvent::Destroyed -> runtime.stop())
@@ -407,13 +454,21 @@ fn test_mcp_workspace_reopen_auto_activation() {
     assert!(!stopped.running);
 
     // 4. VERIFICACIÓN CRÍTICA: La preferencia del vault DEBE seguir siendo enabled = true
-    let cfg_after_close = mcp_repo.read_vault_config(&vault_path).expect("Config debe preservarse");
-    assert!(cfg_after_close.enabled, "La configuración del vault debe mantener enabled: true");
+    let cfg_after_close = mcp_repo
+        .read_vault_config(&vault_path)
+        .expect("Config debe preservarse");
+    assert!(
+        cfg_after_close.enabled,
+        "La configuración del vault debe mantener enabled: true"
+    );
     assert!(mcp_repo.is_vault_enabled(&vault_path));
 
     // 5. Usuario vuelve a abrir el workspace -> activate_vault invoca sync_for_vault
     runtime.sync_for_vault(&vault_path);
-    assert!(runtime.get_status().running, "El servidor MCP debe reactivarse automáticamente al reabrir el workspace");
+    assert!(
+        runtime.get_status().running,
+        "El servidor MCP debe reactivarse automáticamente al reabrir el workspace"
+    );
 
     // 6. Si el usuario decide apagarlo voluntariamente (toggle o disable)
     let toggled_off = runtime.toggle().expect("Debe desactivar voluntariamente");
@@ -423,16 +478,19 @@ fn test_mcp_workspace_reopen_auto_activation() {
     // 7. Simular cierre y reapertura de nuevo
     let _ = runtime.stop();
     runtime.sync_for_vault(&vault_path);
-    assert!(!runtime.get_status().running, "No debe reactivarse si el usuario lo dejó apagado");
+    assert!(
+        !runtime.get_status().running,
+        "No debe reactivarse si el usuario lo dejó apagado"
+    );
 }
 
 #[test]
 fn test_mcp_evolved_tools_suite() {
-    use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
     use app_lib::domain::note::note::Note;
-    use app_lib::domain::note::note_repository::NoteRepository;
     use app_lib::domain::note::note_path::NoteRelativePath;
+    use app_lib::domain::note::note_repository::NoteRepository;
     use app_lib::infrastructure::entrypoint::mcp::server::McpStdioServer;
+    use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
     use app_lib::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
     use app_lib::infrastructure::repository::git::version_control_impl::VersionControlImpl;
     use serde_json::json;
@@ -469,10 +527,16 @@ A[Cliente ACP] --> B[Servidor MCP]
 "#;
 
     let rel_path = NoteRelativePath::new("arquitectura.md").unwrap();
-    let note = Note::with_encoding(rel_path.clone(), "".to_string(), "Arquitectura Synapse".to_string(), initial_content.to_string(), "UTF-8".to_string());
+    let note = Note::with_encoding(
+        rel_path.clone(),
+        "".to_string(),
+        "Arquitectura Synapse".to_string(),
+        initial_content.to_string(),
+        "UTF-8".to_string(),
+    );
     repo.save_note(&vault_path, &note).unwrap();
 
-    let use_cases = McpToolHandler::new(
+    let tool_handler = McpToolHandler::new(
         vault_path.clone(),
         NoteRepositoryImpl::new(),
         None::<Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>,
@@ -480,7 +544,7 @@ A[Cliente ACP] --> B[Servidor MCP]
         std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl),
         std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl),
     );
-    let server = McpStdioServer::new(use_cases);
+    let server = McpStdioServer::new(tool_handler);
 
     // 1. Probar read_note en mode='metadata_only'
     let req_meta = json!({
@@ -494,11 +558,18 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "mode": "metadata_only"
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_meta = server.handle_line(&req_meta).unwrap();
     let val_meta: serde_json::Value = serde_json::from_str(&resp_meta).unwrap();
-    let meta_obj: serde_json::Value = serde_json::from_str(val_meta["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-    assert!(meta_obj["content_hash"].as_str().unwrap().starts_with("sha256:"));
+    let meta_obj: serde_json::Value =
+        serde_json::from_str(val_meta["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert!(
+        meta_obj["content_hash"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:")
+    );
     assert_eq!(meta_obj["detected_blocks"]["mermaid_count"], 1);
     assert_eq!(meta_obj["toc"].as_array().unwrap().len(), 3);
     let expected_hash = meta_obj["content_hash"].as_str().unwrap().to_string();
@@ -515,12 +586,24 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "query": "Svelte 5"
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_search_in = server.handle_line(&req_search_in).unwrap();
     let val_search_in: serde_json::Value = serde_json::from_str(&resp_search_in).unwrap();
-    let search_in_obj: serde_json::Value = serde_json::from_str(val_search_in["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let search_in_obj: serde_json::Value = serde_json::from_str(
+        val_search_in["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(search_in_obj["total_matches"], 1);
-    assert!(search_in_obj["matches"][0]["context"].as_array().unwrap().len() >= 1);
+    assert!(
+        search_in_obj["matches"][0]["context"]
+            .as_array()
+            .unwrap()
+            .len()
+            >= 1
+    );
 
     // 3. Probar patch_note con dry_run y luego aplicación real con expected_hash
     let req_patch_dry = json!({
@@ -537,11 +620,22 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "dry_run": true
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_patch_dry = server.handle_line(&req_patch_dry).unwrap();
     let val_patch_dry: serde_json::Value = serde_json::from_str(&resp_patch_dry).unwrap();
-    let patch_dry_obj: serde_json::Value = serde_json::from_str(val_patch_dry["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-    assert!(patch_dry_obj["unified_diff"].as_str().unwrap().contains("+- Backend: Rust Tauri v2 con Onion Architecture"));
+    let patch_dry_obj: serde_json::Value = serde_json::from_str(
+        val_patch_dry["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        patch_dry_obj["unified_diff"]
+            .as_str()
+            .unwrap()
+            .contains("+- Backend: Rust Tauri v2 con Onion Architecture")
+    );
 
     // Aplicar patch real
     let req_patch_real = json!({
@@ -557,15 +651,25 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "expected_hash": expected_hash
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_patch_real = server.handle_line(&req_patch_real).unwrap();
     let val_patch_real: serde_json::Value = serde_json::from_str(&resp_patch_real).unwrap();
-    let patch_real_obj: serde_json::Value = serde_json::from_str(val_patch_real["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let patch_real_obj: serde_json::Value = serde_json::from_str(
+        val_patch_real["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(patch_real_obj["status"], "success");
 
     // Verificar en disco
     let updated_read = repo.read_note(&vault_path, &rel_path).unwrap();
-    assert!(updated_read.content.contains("Backend: Rust Tauri v2 con Onion Architecture"));
+    assert!(
+        updated_read
+            .content
+            .contains("Backend: Rust Tauri v2 con Onion Architecture")
+    );
 
     // 4. Probar OCC failure en patch_note (hash anterior ya no es válido)
     let req_patch_occ_fail = json!({
@@ -581,9 +685,12 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "expected_hash": expected_hash
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_patch_occ_fail = server.handle_line(&req_patch_occ_fail).unwrap();
-    assert!(resp_patch_occ_fail.contains("Conflicto OCC") || resp_patch_occ_fail.contains("isError"));
+    assert!(
+        resp_patch_occ_fail.contains("Conflicto OCC") || resp_patch_occ_fail.contains("isError")
+    );
 
     // 5. Probar append_to_note dentro de sección Tareas
     let req_append = json!({
@@ -598,11 +705,16 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "section_heading": "## Tareas"
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_append = server.handle_line(&req_append).unwrap();
     assert!(!resp_append.contains(r#""isError":true"#));
     let after_append = repo.read_note(&vault_path, &rel_path).unwrap();
-    assert!(after_append.content.contains("- [ ] Tarea agregada automáticamente por agente MCP"));
+    assert!(
+        after_append
+            .content
+            .contains("- [ ] Tarea agregada automáticamente por agente MCP")
+    );
 
     // 6. Probar update_note_metadata atómico
     let req_meta_up = json!({
@@ -617,7 +729,8 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "remove_tags": ["acp"]
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_meta_up = server.handle_line(&req_meta_up).unwrap();
     assert!(!resp_meta_up.contains(r#""isError":true"#));
     let after_meta = repo.read_note(&vault_path, &rel_path).unwrap();
@@ -637,13 +750,20 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "relative_path": "arquitectura.md"
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_diagrams = server.handle_line(&req_diagrams).unwrap();
     let val_diag: serde_json::Value = serde_json::from_str(&resp_diagrams).unwrap();
-    let diag_obj: serde_json::Value = serde_json::from_str(val_diag["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let diag_obj: serde_json::Value =
+        serde_json::from_str(val_diag["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(diag_obj["total_diagrams"], 1);
     assert_eq!(diag_obj["diagrams"][0]["type"], "mermaid");
-    assert!(diag_obj["diagrams"][0]["code"].as_str().unwrap().contains("graph TD"));
+    assert!(
+        diag_obj["diagrams"][0]["code"]
+            .as_str()
+            .unwrap()
+            .contains("graph TD")
+    );
 
     // 8. Probar búsqueda con sub-tag jerárquico ('cachyos' coincide con 'linux/cachyos') y snippet
     let req_tag_hier = json!({
@@ -656,13 +776,24 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "tags": ["cachyos"]
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_tag_hier = server.handle_line(&req_tag_hier).unwrap();
     let val_tag_hier: serde_json::Value = serde_json::from_str(&resp_tag_hier).unwrap();
-    let notes_tag_hier: serde_json::Value = serde_json::from_str(val_tag_hier["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let notes_tag_hier: serde_json::Value = serde_json::from_str(
+        val_tag_hier["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(notes_tag_hier.as_array().unwrap().len(), 1);
     assert_eq!(notes_tag_hier[0]["title"], "Arquitectura Synapse");
-    assert!(notes_tag_hier[0]["snippet"].as_str().unwrap().contains("Este es el párrafo inicial de arquitectura"));
+    assert!(
+        notes_tag_hier[0]["snippet"]
+            .as_str()
+            .unwrap()
+            .contains("Este es el párrafo inicial de arquitectura")
+    );
     assert!(notes_tag_hier[0]["total_lines"].as_u64().unwrap() > 0);
 
     // 9. Probar patch_note con tolerancia de saltos de línea CRLF/LF y trailing whitespace
@@ -679,11 +810,16 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "start_line": 8
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_fuzzy_patch = server.handle_line(&req_fuzzy_patch).unwrap();
     assert!(!resp_fuzzy_patch.contains(r#""isError":true"#));
     let after_fuzzy = repo.read_note(&vault_path, &rel_path).unwrap();
-    assert!(after_fuzzy.content.contains("Este es el párrafo inicial de arquitectura cebolla optimizada."));
+    assert!(
+        after_fuzzy
+            .content
+            .contains("Este es el párrafo inicial de arquitectura cebolla optimizada.")
+    );
 
     // 10. Probar read_note con outline_only: true
     let req_outline = json!({
@@ -697,10 +833,16 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "outline_only": true
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_outline = server.handle_line(&req_outline).unwrap();
     let val_outline: serde_json::Value = serde_json::from_str(&resp_outline).unwrap();
-    let obj_outline: serde_json::Value = serde_json::from_str(val_outline["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let obj_outline: serde_json::Value = serde_json::from_str(
+        val_outline["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert!(obj_outline.get("content").is_none());
     assert!(obj_outline["toc"].as_array().unwrap().len() >= 2);
 
@@ -716,9 +858,20 @@ A[Cliente ACP] --> B[Servidor MCP]
                 "section": "Tareas"
             }
         }
-    }).to_string();
+    })
+    .to_string();
     let resp_section = server.handle_line(&req_section).unwrap();
     let val_section: serde_json::Value = serde_json::from_str(&resp_section).unwrap();
-    let obj_section: serde_json::Value = serde_json::from_str(val_section["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-    assert!(obj_section["content"].as_str().unwrap().contains("- [ ] Tarea agregada automáticamente"));
+    let obj_section: serde_json::Value = serde_json::from_str(
+        val_section["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        obj_section["content"]
+            .as_str()
+            .unwrap()
+            .contains("- [ ] Tarea agregada automáticamente")
+    );
 }

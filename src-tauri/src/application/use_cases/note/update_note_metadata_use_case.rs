@@ -9,18 +9,22 @@ use std::collections::HashSet;
 /// Actualiza el frontmatter de una nota (título, etiquetas, alias) sin tocar el cuerpo.
 /// Devuelve el frontmatter resultante y la nueva huella del contenido.
 pub struct UpdateNoteMetadataUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> UpdateNoteMetadataUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
-    pub fn execute(&self, command: UpdateNoteMetadataCommand) -> Result<(NoteFrontmatter, String), String> {
-        let relative_path = NoteRelativePath::new(&command.relative_path).map_err(|e| format!("Ruta inválida: {}", e))?;
+    pub fn execute(
+        &self,
+        command: UpdateNoteMetadataCommand,
+    ) -> Result<(NoteFrontmatter, String), String> {
+        let relative_path = NoteRelativePath::new(&command.relative_path)
+            .map_err(|e| format!("Ruta inválida: {}", e))?;
         let note = self
-            .notes
+            .note_repository
             .read_note(&command.vault_path, &relative_path)
             .map_err(|e| format!("Error al leer nota: {}", e))?;
 
@@ -49,8 +53,14 @@ impl<N: NoteRepository> UpdateNoteMetadataUseCase<N> {
         let new_full_content = NoteFrontmatter::serialize_with_content(Some(&fm), &body);
         let new_hash = NoteContent::hash(&new_full_content);
         let final_title = fm.title.clone().unwrap_or(note.title);
-        let updated_note = Note::with_encoding(relative_path, "".to_string(), final_title, new_full_content, note.encoding);
-        self.notes
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            final_title,
+            new_full_content,
+            note.encoding,
+        );
+        self.note_repository
             .save_note(&command.vault_path, &updated_note)
             .map_err(|err| format!("Error al actualizar metadatos: {}", err))?;
         Ok((fm, new_hash))

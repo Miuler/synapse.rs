@@ -1,12 +1,12 @@
-use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
-use crate::infrastructure::entrypoint::mcp::dto::*;
+use super::port_registry;
 use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::search::full_text_index::FullTextIndex;
 use crate::domain::version::version_control::VersionControl;
+use crate::infrastructure::entrypoint::mcp::dto::*;
+use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::git::version_control_impl::VersionControlImpl;
-use super::port_registry;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -17,16 +17,20 @@ use std::time::Duration;
 
 /// Servidor MCP local que se comunica a través de entrada/salida estándar (stdio) con JSON-RPC 2.0.
 pub struct McpStdioServer<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
-    use_cases: McpToolHandler<R, I, G>,
+    tool_handler: McpToolHandler<R, I, G>,
 }
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioServer<R, I, G> {
-    pub fn new(use_cases: McpToolHandler<R, I, G>) -> Self {
-        Self { use_cases }
+    pub fn new(tool_handler: McpToolHandler<R, I, G>) -> Self {
+        Self { tool_handler }
     }
 
     /// Ejecuta el bucle de eventos stdio hasta EOF
-    pub fn run_loop<Rdr: BufRead, Wtr: Write>(&self, mut reader: Rdr, mut writer: Wtr) -> io::Result<()> {
+    pub fn run_loop<Rdr: BufRead, Wtr: Write>(
+        &self,
+        mut reader: Rdr,
+        mut writer: Wtr,
+    ) -> io::Result<()> {
         let mut line = String::new();
         while reader.read_line(&mut line)? > 0 {
             let trimmed = line.trim();
@@ -47,7 +51,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
         let request: JsonRpcRequest = match serde_json::from_str(line) {
             Ok(req) => req,
             Err(err) => {
-                let err_resp = JsonRpcErrorResponse::new(None, -32700, format!("Parse error: {}", err));
+                let err_resp =
+                    JsonRpcErrorResponse::new(None, -32700, format!("Parse error: {}", err));
                 return serde_json::to_string(&err_resp).ok();
             }
         };
@@ -58,7 +63,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
 
         let response = match request.method.as_str() {
             "initialize" => {
-                let result = self.use_cases.initialize();
+                let result = self.tool_handler.initialize();
                 Some(JsonRpcResponse::new(id_val, json!(result)))
             }
             "notifications/initialized" => {
@@ -66,24 +71,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
                 None
             }
             "tools/list" => {
-                let result = self.use_cases.list_tools();
+                let result = self.tool_handler.list_tools();
                 Some(JsonRpcResponse::new(id_val, json!(result)))
             }
             "tools/call" => {
                 let params = request.params.unwrap_or(Value::Null);
                 let tool_name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args = params.get("arguments").cloned();
-                let result = self.use_cases.call_tool(tool_name, args);
+                let result = self.tool_handler.call_tool(tool_name, args);
                 Some(JsonRpcResponse::new(id_val, json!(result)))
             }
             "resources/list" => {
-                let result = self.use_cases.list_resources();
+                let result = self.tool_handler.list_resources();
                 Some(JsonRpcResponse::new(id_val, json!(result)))
             }
             "resources/read" => {
                 let params = request.params.unwrap_or(Value::Null);
                 let uri = params.get("uri").and_then(|v| v.as_str()).unwrap_or("");
-                match self.use_cases.read_resource(uri) {
+                match self.tool_handler.read_resource(uri) {
                     Ok(result) => Some(JsonRpcResponse::new(id_val, json!(result))),
                     Err(err) => {
                         let err_resp = JsonRpcErrorResponse::new(Some(id_val), -32602, err);
@@ -92,14 +97,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
                 }
             }
             "prompts/list" => {
-                let result = self.use_cases.list_prompts();
+                let result = self.tool_handler.list_prompts();
                 Some(JsonRpcResponse::new(id_val, json!(result)))
             }
             "prompts/get" => {
                 let params = request.params.unwrap_or(Value::Null);
                 let prompt_name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 let args = params.get("arguments").cloned();
-                match self.use_cases.get_prompt(prompt_name, args) {
+                match self.tool_handler.get_prompt(prompt_name, args) {
                     Ok(result) => Some(JsonRpcResponse::new(id_val, json!(result))),
                     Err(err) => {
                         let err_resp = JsonRpcErrorResponse::new(Some(id_val), -32602, err);
@@ -229,7 +234,10 @@ impl McpBackgroundRuntime {
 
         // Configurar timeout no bloqueante en listener para poder evaluar is_running regularmente
         if let Err(e) = listener.set_nonblocking(true) {
-            log::warn!("No se pudo configurar modo no bloqueante en TcpListener MCP: {}", e);
+            log::warn!(
+                "No se pudo configurar modo no bloqueante en TcpListener MCP: {}",
+                e
+            );
         }
 
         self.is_running.store(true, Ordering::SeqCst);
@@ -279,15 +287,22 @@ impl McpBackgroundRuntime {
                                             running: is_run.load(Ordering::SeqCst),
                                             port: port_num,
                                             endpoint: format!("http://127.0.0.1:{}/mcp", port_num),
-                                            active_vault: vault_opt.map(|p| p.to_string_lossy().to_string()),
+                                            active_vault: vault_opt
+                                                .map(|p| p.to_string_lossy().to_string()),
                                             requests_handled: reqs.load(Ordering::SeqCst),
-                                            last_error: err_lock.lock().ok().and_then(|g| g.clone()),
+                                            last_error: err_lock
+                                                .lock()
+                                                .ok()
+                                                .and_then(|g| g.clone()),
                                         });
                                     }
                                 }
                             });
                         }
-                        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {
+                        Err(ref e)
+                            if e.kind() == io::ErrorKind::WouldBlock
+                                || e.kind() == io::ErrorKind::TimedOut =>
+                        {
                             thread::sleep(Duration::from_millis(50));
                         }
                         Err(_) => {
@@ -406,7 +421,10 @@ impl McpBackgroundRuntime {
         }
     }
 
-    fn handle_http_client(mut stream: TcpStream, provider: Arc<dyn McpContextProvider>) -> io::Result<()> {
+    fn handle_http_client(
+        mut stream: TcpStream,
+        provider: Arc<dyn McpContextProvider>,
+    ) -> io::Result<()> {
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
 
@@ -451,7 +469,9 @@ impl McpBackgroundRuntime {
         // Endpoint GET /health o info
         if method == "GET" {
             let (vault, _) = provider.get_context();
-            let vault_str = vault.map(|v| v.to_string_lossy().to_string()).unwrap_or_else(|| "none".to_string());
+            let vault_str = vault
+                .map(|v| v.to_string_lossy().to_string())
+                .unwrap_or_else(|| "none".to_string());
             let body = json!({
                 "service": "synapse-mcp-server",
                 "status": "healthy",
@@ -485,8 +505,8 @@ impl McpBackgroundRuntime {
             let note_repo = NoteRepositoryImpl::new();
             let git_service = Some(Arc::new(VersionControlImpl));
 
-            let use_cases = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
-            let stdio_server = McpStdioServer::new(use_cases);
+            let tool_handler = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+            let stdio_server = McpStdioServer::new(tool_handler);
 
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {
                 resp

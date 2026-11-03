@@ -76,7 +76,12 @@ impl NoteContent {
         let occurrences: Vec<_> = full_content.match_indices(old_text).collect();
         if occurrences.len() == 1 {
             let (idx, _) = occurrences[0];
-            return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
+            return Ok(format!(
+                "{}{}{}",
+                &full_content[..idx],
+                new_text,
+                &full_content[idx + old_text.len()..]
+            ));
         } else if occurrences.len() > 1 {
             // Desambiguar usando start_line si fue provisto
             if let Some(target_line) = start_line_hint {
@@ -93,7 +98,12 @@ impl NoteContent {
                 }
 
                 if let Some(idx) = best_match {
-                    return Ok(format!("{}{}{}", &full_content[..idx], new_text, &full_content[idx + old_text.len()..]));
+                    return Ok(format!(
+                        "{}{}{}",
+                        &full_content[..idx],
+                        new_text,
+                        &full_content[idx + old_text.len()..]
+                    ));
                 }
             }
             return Err(format!(
@@ -109,9 +119,18 @@ impl NoteContent {
         let norm_occurrences: Vec<_> = norm_full.match_indices(&norm_old).collect();
         if norm_occurrences.len() == 1 {
             let (idx, _) = norm_occurrences[0];
-            let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
+            let patched = format!(
+                "{}{}{}",
+                &norm_full[..idx],
+                norm_new,
+                &norm_full[idx + norm_old.len()..]
+            );
             // Si el archivo original usaba predominantemente CRLF, restaurar \r\n
-            return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+            return Ok(if full_content.contains("\r\n") {
+                patched.replace('\n', "\r\n")
+            } else {
+                patched
+            });
         } else if norm_occurrences.len() > 1 {
             if let Some(target_line) = start_line_hint {
                 let mut best_match = None;
@@ -127,8 +146,17 @@ impl NoteContent {
                 }
 
                 if let Some(idx) = best_match {
-                    let patched = format!("{}{}{}", &norm_full[..idx], norm_new, &norm_full[idx + norm_old.len()..]);
-                    return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+                    let patched = format!(
+                        "{}{}{}",
+                        &norm_full[..idx],
+                        norm_new,
+                        &norm_full[idx + norm_old.len()..]
+                    );
+                    return Ok(if full_content.contains("\r\n") {
+                        patched.replace('\n', "\r\n")
+                    } else {
+                        patched
+                    });
                 }
             }
             return Err(format!(
@@ -147,7 +175,10 @@ impl NoteContent {
             let mut matches_trim_end = Vec::new();
             for i in 0..=(doc_lines.len() - n_old) {
                 let window = &doc_lines[i..i + n_old];
-                let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim_end() == o.trim_end());
+                let all_match = window
+                    .iter()
+                    .zip(&old_lines)
+                    .all(|(d, o)| d.trim_end() == o.trim_end());
                 if all_match {
                     matches_trim_end.push(i);
                 }
@@ -157,9 +188,9 @@ impl NoteContent {
                 Some(matches_trim_end[0])
             } else if matches_trim_end.len() > 1 {
                 if let Some(target_line) = start_line_hint {
-                    matches_trim_end.into_iter().min_by_key(|&line_idx| {
-                        (line_idx + 1).abs_diff(target_line)
-                    })
+                    matches_trim_end
+                        .into_iter()
+                        .min_by_key(|&line_idx| (line_idx + 1).abs_diff(target_line))
                 } else {
                     return Err(format!(
                         "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando espacios finales. Proporciona 'start_line'.",
@@ -171,7 +202,10 @@ impl NoteContent {
                 let mut matches_trim = Vec::new();
                 for i in 0..=(doc_lines.len() - n_old) {
                     let window = &doc_lines[i..i + n_old];
-                    let all_match = window.iter().zip(&old_lines).all(|(d, o)| d.trim() == o.trim());
+                    let all_match = window
+                        .iter()
+                        .zip(&old_lines)
+                        .all(|(d, o)| d.trim() == o.trim());
                     if all_match {
                         matches_trim.push(i);
                     }
@@ -181,9 +215,9 @@ impl NoteContent {
                     Some(matches_trim[0])
                 } else if matches_trim.len() > 1 {
                     if let Some(target_line) = start_line_hint {
-                        matches_trim.into_iter().min_by_key(|&line_idx| {
-                            (line_idx + 1).abs_diff(target_line)
-                        })
+                        matches_trim
+                            .into_iter()
+                            .min_by_key(|&line_idx| (line_idx + 1).abs_diff(target_line))
                     } else {
                         return Err(format!(
                             "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando indentación. Proporciona 'start_line'.",
@@ -201,7 +235,11 @@ impl NoteContent {
                 result_lines.push(&norm_new);
                 result_lines.extend_from_slice(&doc_lines[start_idx + n_old..]);
                 let patched = result_lines.join("\n");
-                return Ok(if full_content.contains("\r\n") { patched.replace('\n', "\r\n") } else { patched });
+                return Ok(if full_content.contains("\r\n") {
+                    patched.replace('\n', "\r\n")
+                } else {
+                    patched
+                });
             }
         }
 
@@ -267,8 +305,12 @@ impl NoteContent {
         let mut d2_count = 0;
         for line in lines {
             let trimmed = line.trim();
-            if trimmed.starts_with("```mermaid") { mermaid_count += 1; }
-            if trimmed.starts_with("```d2") { d2_count += 1; }
+            if trimmed.starts_with("```mermaid") {
+                mermaid_count += 1;
+            }
+            if trimmed.starts_with("```d2") {
+                d2_count += 1;
+            }
         }
         (mermaid_count, d2_count)
     }
@@ -280,7 +322,13 @@ impl NoteContent {
             let trimmed = line.trim_start();
             if trimmed.starts_with('#') {
                 let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                if hashes >= 1 && hashes <= 6 && trimmed[hashes..].trim().to_lowercase().contains(target_heading) {
+                if hashes >= 1
+                    && hashes <= 6
+                    && trimmed[hashes..]
+                        .trim()
+                        .to_lowercase()
+                        .contains(target_heading)
+                {
                     return Some((idx, hashes));
                 }
             }

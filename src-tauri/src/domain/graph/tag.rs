@@ -1,6 +1,5 @@
 /// Servicio de dominio para extracción y normalización de etiquetas (#tags).
 /// Soporta tags en el frontmatter (YAML) y hashtags inline (#etiqueta) en el cuerpo Markdown.
-
 use pulldown_cmark::{Event, Parser};
 use std::collections::HashSet;
 
@@ -81,7 +80,12 @@ impl Tag {
                                 true
                             } else {
                                 let prev = chars[i - 1];
-                                prev.is_whitespace() || prev == '(' || prev == '[' || prev == '{' || prev == '"' || prev == '\''
+                                prev.is_whitespace()
+                                    || prev == '('
+                                    || prev == '['
+                                    || prev == '{'
+                                    || prev == '"'
+                                    || prev == '\''
                             };
 
                             if preceded_by_whitespace_or_punct && i + 1 < len {
@@ -101,7 +105,9 @@ impl Tag {
                                     let tag_candidate: String = chars[i + 1..j].iter().collect();
                                     let normalized = Tag::normalize(&tag_candidate);
                                     // Un hashtag no puede ser solamente números puros (ej. #123 suele ser número de issue)
-                                    if !normalized.is_empty() && normalized.chars().any(|c| c.is_alphabetic()) {
+                                    if !normalized.is_empty()
+                                        && normalized.chars().any(|c| c.is_alphabetic())
+                                    {
                                         tags.push(normalized);
                                     }
                                     i = j;
@@ -187,7 +193,8 @@ mod tests {
 
     #[test]
     fn test_extract_inline_hashtags_basic() {
-        let md = "Este es un texto con #rust y #web/svelte5 como tags. También #arquitectura_limpia.";
+        let md =
+            "Este es un texto con #rust y #web/svelte5 como tags. También #arquitectura_limpia.";
         let tags = Tag::extract_inline(md);
         assert_eq!(tags, vec!["rust", "web/svelte5", "arquitectura_limpia"]);
     }

@@ -1,37 +1,41 @@
-pub mod version;
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
+pub mod version;
 
 use domain::vault::file_types::SupportedFileTypes;
-use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use infrastructure::entrypoint::tauri::commands::{
-    copy_vault_items, move_vault_items, delete_vault_item, full_text_search, get_active_vault_path, get_full_text_index_status,
-    get_open_tabs_state, get_recent_notes_command, get_supported_file_types, get_system_theme,
-    get_vault_directory_children, get_vault_files, get_vault_files_count, get_vault_git_status, get_vault_notes,
-    get_note_meta, get_vault_ui_state, get_vault_graph, git_add_paths, git_commit_paths, git_restore_paths, git_restore_staged_paths,
-    get_git_file_diff, get_git_file_revision, get_git_image_diff, get_git_file_log, get_git_branches, git_checkout_branch, git_create_branch, git_push_vault,
-    read_asset_data_url, read_binary_file, write_binary_file, create_vault_folder, read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items, rename_vault_item,
-    render_markdown_wikilinks, resolve_asset_file_path, resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
-    save_open_tabs_state, save_vault_ui_state, search_folders_command, search_items_command, search_notes_command, select_vault_folder,
-    set_active_vault_path, set_note_view_mode, get_diagram_split_ratio, set_diagram_split_ratio, toggle_devtools, open_tab_in_new_window, get_detached_window_tab,
-    get_recent_workspaces, get_shortcuts_config, toggle_pin_workspace, remove_recent_workspace, create_new_workspace, clone_git_workspace, open_workspace_in_new_window,
-    open_file_with_default_app, show_item_in_folder, get_startup_target, select_standalone_file, parse_startup_args,
-    get_app_version,
-    fetch_community_plugins, install_community_plugin, uninstall_community_plugin,
-    get_installed_community_plugins, check_community_plugin_updates,
-    check_vault_path_exists, list_vault_directory,
-    get_vault_tags, get_notes_by_tag, get_note_backlinks_and_relations,
-    get_mcp_server_status, get_mcp_port_registry, toggle_mcp_server, start_mcp_server, stop_mcp_server,
-    AppState,
+    AppState, check_community_plugin_updates, check_vault_path_exists, clone_git_workspace,
+    copy_vault_items, create_new_workspace, create_vault_folder, delete_vault_item,
+    fetch_community_plugins, full_text_search, get_active_vault_path, get_app_version,
+    get_detached_window_tab, get_diagram_split_ratio, get_full_text_index_status, get_git_branches,
+    get_git_file_diff, get_git_file_log, get_git_file_revision, get_git_image_diff,
+    get_installed_community_plugins, get_mcp_port_registry, get_mcp_server_status,
+    get_note_backlinks_and_relations, get_note_meta, get_notes_by_tag, get_open_tabs_state,
+    get_recent_notes_command, get_recent_workspaces, get_shortcuts_config, get_startup_target,
+    get_supported_file_types, get_system_theme, get_vault_directory_children, get_vault_files,
+    get_vault_files_count, get_vault_git_status, get_vault_graph, get_vault_notes, get_vault_tags,
+    get_vault_ui_state, git_add_paths, git_checkout_branch, git_commit_paths, git_create_branch,
+    git_push_vault, git_restore_paths, git_restore_staged_paths, install_community_plugin,
+    list_vault_directory, move_vault_items, open_file_with_default_app, open_tab_in_new_window,
+    open_workspace_in_new_window, parse_startup_args, read_asset_data_url, read_binary_file,
+    read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items,
+    remove_recent_workspace, rename_vault_item, render_markdown_wikilinks, resolve_asset_file_path,
+    resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
+    save_open_tabs_state, save_vault_ui_state, search_folders_command, search_items_command,
+    search_notes_command, select_standalone_file, select_vault_folder, set_active_vault_path,
+    set_diagram_split_ratio, set_note_view_mode, show_item_in_folder, start_mcp_server,
+    stop_mcp_server, toggle_devtools, toggle_mcp_server, toggle_pin_workspace,
+    uninstall_community_plugin, write_binary_file,
 };
+use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::env;
 use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 use tauri_plugin_log::{Target, TargetKind};
 //use webkit2gtk_nvidia_quirk::ApplyWorkaroundOptions;
 #[cfg(target_os = "linux")]
-use webkit2gtk_nvidia_quirk::{apply_workaround_with_options, ApplyWorkaroundOptions};
+use webkit2gtk_nvidia_quirk::{ApplyWorkaroundOptions, apply_workaround_with_options};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -184,11 +188,15 @@ pub fn run() {
             }
             if let Ok(guard) = state.active_vault_path.lock() {
                 if let Some(ref vault_path) = *guard {
-                    let _ = handle.asset_protocol_scope().allow_directory(vault_path, true);
+                    let _ = handle
+                        .asset_protocol_scope()
+                        .allow_directory(vault_path, true);
                 }
             }
             if let Ok(guard) = state.startup_target.lock() {
-                if let Some(domain::config::startup::StartupTarget::Standalone(ref path_str)) = *guard {
+                if let Some(domain::config::startup::StartupTarget::Standalone(ref path_str)) =
+                    *guard
+                {
                     let p = std::path::Path::new(path_str);
                     if let Some(parent) = p.parent() {
                         let _ = handle.asset_protocol_scope().allow_directory(parent, true);

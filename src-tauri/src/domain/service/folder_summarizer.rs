@@ -23,9 +23,7 @@ impl FolderSummarizer {
             .to_string();
 
         let parent = if clean_folder.contains('/') {
-            clean_folder
-                .rsplit_once('/')
-                .map(|(p, _)| p.to_string())
+            clean_folder.rsplit_once('/').map(|(p, _)| p.to_string())
         } else {
             None
         };

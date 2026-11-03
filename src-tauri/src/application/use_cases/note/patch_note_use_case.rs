@@ -7,18 +7,19 @@ use crate::domain::note::note_repository::NoteRepository;
 /// Reemplaza un fragmento de una nota con tolerancia progresiva (saltos de línea, espacios,
 /// indentación), respetando el control de concurrencia optimista.
 pub struct PatchNoteUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> PatchNoteUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, command: PatchNoteCommand) -> Result<PatchNoteOutcome, String> {
-        let relative_path = NoteRelativePath::new(&command.relative_path).map_err(|e| format!("Ruta inválida: {}", e))?;
+        let relative_path = NoteRelativePath::new(&command.relative_path)
+            .map_err(|e| format!("Ruta inválida: {}", e))?;
         let note = self
-            .notes
+            .note_repository
             .read_note(&command.vault_path, &relative_path)
             .map_err(|e| format!("Error al leer nota: {}", e))?;
 
@@ -32,8 +33,13 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
             }
         }
 
-        let patched_content = NoteContent::apply_patch(&note.content, &command.old_text, &command.new_text, command.start_line)
-            .map_err(|err_msg| format!("{} en '{}'", err_msg, command.relative_path))?;
+        let patched_content = NoteContent::apply_patch(
+            &note.content,
+            &command.old_text,
+            &command.new_text,
+            command.start_line,
+        )
+        .map_err(|err_msg| format!("{} en '{}'", err_msg, command.relative_path))?;
 
         if command.dry_run {
             return Ok(PatchNoteOutcome {
@@ -45,8 +51,14 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
 
         let new_hash = NoteContent::hash(&patched_content);
         let old_content = note.content.clone();
-        let updated_note = Note::with_encoding(relative_path, "".to_string(), note.title, patched_content.clone(), note.encoding);
-        self.notes
+        let updated_note = Note::with_encoding(
+            relative_path,
+            "".to_string(),
+            note.title,
+            patched_content.clone(),
+            note.encoding,
+        );
+        self.note_repository
             .save_note(&command.vault_path, &updated_note)
             .map_err(|err| format!("Error al guardar parche: {}", err))?;
         Ok(PatchNoteOutcome {

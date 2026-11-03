@@ -5,18 +5,19 @@ use crate::domain::note::note_repository::NoteRepository;
 
 /// Lee una nota con los datos que necesita un agente para navegarla sin cargarla entera.
 pub struct ReadNoteDetailsUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> ReadNoteDetailsUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, query: ReadNoteDetailsQuery) -> Result<NoteDetails, String> {
-        let relative_path = NoteRelativePath::new(&query.relative_path).map_err(|e| format!("Ruta inválida: {}", e))?;
+        let relative_path = NoteRelativePath::new(&query.relative_path)
+            .map_err(|e| format!("Ruta inválida: {}", e))?;
         let note = self
-            .notes
+            .note_repository
             .read_note(&query.vault_path, &relative_path)
             .map_err(|err| format!("Error al leer nota: {}", err))?;
         let lines: Vec<&str> = note.content.lines().collect();

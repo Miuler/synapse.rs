@@ -1,7 +1,7 @@
 use crate::domain::config::config::ShortcutsConfig;
 use crate::domain::workspace::workspace_registry::RecentWorkspaceEntry;
-use crate::infrastructure::entrypoint::tauri::dto::SelectVaultFolderResult;
 use crate::infrastructure::config::state::AppState;
+use crate::infrastructure::entrypoint::tauri::dto::SelectVaultFolderResult;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::State;
@@ -83,13 +83,19 @@ pub async fn select_vault_folder(
 }
 
 #[tauri::command]
-pub async fn get_recent_workspaces(state: State<'_, AppState>) -> Result<Vec<RecentWorkspaceEntry>, String> {
-    state.list_workspaces_use_case.execute(crate::application::dto::workspace::list_workspaces_query::ListWorkspacesQuery {})
+pub async fn get_recent_workspaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<RecentWorkspaceEntry>, String> {
+    state
+        .list_workspaces_use_case
+        .execute(crate::application::dto::workspace::list_workspaces_query::ListWorkspacesQuery {})
 }
 
 #[tauri::command]
 pub async fn get_shortcuts_config(state: State<'_, AppState>) -> Result<ShortcutsConfig, String> {
-    state.get_shortcuts_config_use_case.execute(crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery {})
+    state.get_shortcuts_config_use_case.execute(
+        crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery {},
+    )
 }
 
 #[tauri::command]
@@ -107,9 +113,11 @@ pub async fn remove_recent_workspace(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<Vec<RecentWorkspaceEntry>, String> {
-    state
-        .remove_workspace_use_case
-        .execute(crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand { path })
+    state.remove_workspace_use_case.execute(
+        crate::application::dto::workspace::remove_workspace_command::RemoveWorkspaceCommand {
+            path,
+        },
+    )
 }
 
 #[tauri::command]
@@ -117,9 +125,14 @@ pub async fn create_new_workspace(
     state: State<'_, AppState>,
     starting_directory: Option<String>,
 ) -> Result<Option<SelectVaultFolderResult>, String> {
-    let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
+    let mut dialog = rfd::AsyncFileDialog::new()
+        .set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
 
-    if let Some(dir) = starting_directory.as_deref().map(PathBuf::from).filter(|p| p.is_dir()) {
+    if let Some(dir) = starting_directory
+        .as_deref()
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir())
+    {
         dialog = dialog.set_directory(&dir);
     } else if let Ok(home) = std::env::var("HOME") {
         let hp = PathBuf::from(home);
@@ -156,9 +169,14 @@ pub async fn clone_git_workspace(
         return Err("La URL del repositorio Git no puede estar vacía".to_string());
     }
 
-    let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
+    let mut dialog = rfd::AsyncFileDialog::new()
+        .set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
 
-    if let Some(dir) = starting_directory.as_deref().map(PathBuf::from).filter(|p| p.is_dir()) {
+    if let Some(dir) = starting_directory
+        .as_deref()
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir())
+    {
         dialog = dialog.set_directory(&dir);
     } else if let Ok(home) = std::env::var("HOME") {
         let hp = PathBuf::from(home);
@@ -197,10 +215,7 @@ pub async fn clone_git_workspace(
 }
 
 #[tauri::command]
-pub fn open_workspace_in_new_window(
-    app: tauri::AppHandle,
-    path: String,
-) -> Result<(), String> {
+pub fn open_workspace_in_new_window(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let target_dir = PathBuf::from(&path);
     if !target_dir.is_dir() {
         return Err("El directorio del workspace no existe".to_string());

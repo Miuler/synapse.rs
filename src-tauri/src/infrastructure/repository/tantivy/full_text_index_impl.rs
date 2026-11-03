@@ -10,14 +10,16 @@ use tantivy::collector::{Count, TopDocs};
 use tantivy::directory::MmapDirectory;
 use tantivy::query::{BooleanQuery, Occur, Query, QueryParser, RegexQuery};
 use tantivy::schema::{
-    Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, FAST, INDEXED,
-    STORED, STRING, TEXT,
+    FAST, Field, INDEXED, IndexRecordOption, STORED, STRING, Schema, TEXT, TextFieldIndexing,
+    TextOptions, Value,
 };
 use tantivy::snippet::SnippetGenerator;
 use tantivy::tokenizer::{
     AsciiFoldingFilter, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer,
 };
-use tantivy::{doc, DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term};
+use tantivy::{
+    DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc,
+};
 
 pub const SCHEMA_VERSION: &str = "1";
 
@@ -106,14 +108,18 @@ impl FullTextIndexImpl {
             }
         } else {
             // Si el directorio tiene contenido pero no SCHEMA_VERSION, limpiar
-            dir.exists() && fs::read_dir(dir).map(|mut d| d.next().is_some()).unwrap_or(false)
+            dir.exists()
+                && fs::read_dir(dir)
+                    .map(|mut d| d.next().is_some())
+                    .unwrap_or(false)
         };
 
         if should_recreate {
             let _ = fs::remove_dir_all(dir);
         }
 
-        fs::create_dir_all(dir).map_err(|e| format!("Error al crear directorio fts {:?}: {}", dir, e))?;
+        fs::create_dir_all(dir)
+            .map_err(|e| format!("Error al crear directorio fts {:?}: {}", dir, e))?;
 
         let (schema, fields) = Self::build_schema();
 
@@ -208,10 +214,7 @@ impl FullTextIndexImpl {
         }
 
         // Crear una consulta regex de prefijo case-insensitive plegada
-        let clean_token: String = last_word
-            .chars()
-            .filter(|c| c.is_alphanumeric())
-            .collect();
+        let clean_token: String = last_word.chars().filter(|c| c.is_alphanumeric()).collect();
 
         if clean_token.is_empty() {
             return Ok(parsed_query);
@@ -390,7 +393,9 @@ impl FullTextIndex for FullTextIndexImpl {
                 if seg.highlighted {
                     let term = seg.text.trim();
                     if !term.is_empty()
-                        && !matched_terms.iter().any(|t: &String| t.eq_ignore_ascii_case(term))
+                        && !matched_terms
+                            .iter()
+                            .any(|t: &String| t.eq_ignore_ascii_case(term))
                     {
                         matched_terms.push(term.to_string());
                     }
@@ -416,9 +421,15 @@ impl FullTextIndex for FullTextIndexImpl {
 
         for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
             for doc_id in segment_reader.doc_ids_alive() {
-                if let Ok(doc) = searcher.doc::<TantivyDocument>(DocAddress::new(segment_ord as u32, doc_id)) {
-                    if let Some(path) = doc.get_first(self.fields.path_id).and_then(|v| v.as_str()) {
-                        let mtime = doc.get_first(self.fields.mtime).and_then(|v| v.as_u64()).unwrap_or(0);
+                if let Ok(doc) =
+                    searcher.doc::<TantivyDocument>(DocAddress::new(segment_ord as u32, doc_id))
+                {
+                    if let Some(path) = doc.get_first(self.fields.path_id).and_then(|v| v.as_str())
+                    {
+                        let mtime = doc
+                            .get_first(self.fields.mtime)
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
                         versions.insert(path.to_string(), mtime);
                     }
                 }

@@ -1,22 +1,22 @@
 use crate::application::dto::note::search_notes_query::{NoteSearchHit, SearchNotesQuery};
-use crate::domain::note::note_content::NoteContent;
 use crate::domain::graph::tag::Tag;
+use crate::domain::note::note_content::NoteContent;
 use crate::domain::note::note_repository::NoteRepository;
 
 /// Busca notas por título, ruta, etiquetas o alias, con filtro opcional de etiquetas.
 pub struct SearchNotesUseCase<N: NoteRepository> {
-    notes: N,
+    note_repository: N,
 }
 
 impl<N: NoteRepository> SearchNotesUseCase<N> {
-    pub fn new(notes: N) -> Self {
-        Self { notes }
+    pub fn new(note_repository: N) -> Self {
+        Self { note_repository }
     }
 
     pub fn execute(&self, query: SearchNotesQuery) -> Result<Vec<NoteSearchHit>, String> {
         let extensions = vec!["md".to_string(), "markdown".to_string()];
         let notes = self
-            .notes
+            .note_repository
             .list_notes(&query.vault_path, &extensions)
             .map_err(|err| format!("Error al buscar notas: {}", err))?;
         let text = query.query.as_str();

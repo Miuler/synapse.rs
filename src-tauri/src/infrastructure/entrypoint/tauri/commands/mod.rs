@@ -21,5 +21,5 @@ pub use vault::*;
 pub use workspace::*;
 
 // Re-exports for backwards compatibility
-pub use crate::infrastructure::entrypoint::tauri::dto::*;
 pub use crate::infrastructure::config::state::*;
+pub use crate::infrastructure::entrypoint::tauri::dto::*;

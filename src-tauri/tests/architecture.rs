@@ -14,12 +14,18 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 fn offenders(layer: &str, forbidden: &[&str], allowed: &[&str]) -> Vec<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join(layer);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join(layer);
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     let mut found = Vec::new();
     for file in files {
-        let rel = file.strip_prefix(&root).unwrap().to_string_lossy().replace('\\', "/");
+        let rel = file
+            .strip_prefix(&root)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
         if allowed.contains(&rel.as_str()) {
             continue;
         }
@@ -42,18 +48,39 @@ fn offenders(layer: &str, forbidden: &[&str], allowed: &[&str]) -> Vec<String> {
 fn domain_does_not_know_outer_layers() {
     let bad = offenders(
         "domain",
-        &["crate::application", "crate::infrastructure", "tauri::", "std::fs", "std::process", "tantivy", "reqwest"],
+        &[
+            "crate::application",
+            "crate::infrastructure",
+            "tauri::",
+            "std::fs",
+            "std::process",
+            "tantivy",
+            "reqwest",
+        ],
         &[],
     );
-    assert!(bad.is_empty(), "El dominio rompe la regla centrípeta:\n{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "El dominio rompe la regla centrípeta:\n{}",
+        bad.join("\n")
+    );
 }
 
 #[test]
 fn application_does_not_know_infrastructure() {
     let bad = offenders(
         "application",
-        &["crate::infrastructure", "tauri::", "std::fs", "std::process"],
+        &[
+            "crate::infrastructure",
+            "tauri::",
+            "std::fs",
+            "std::process",
+        ],
         &[],
     );
-    assert!(bad.is_empty(), "La aplicación rompe la regla centrípeta:\n{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "La aplicación rompe la regla centrípeta:\n{}",
+        bad.join("\n")
+    );
 }

@@ -4,15 +4,18 @@ use crate::domain::workspace::workspace_session_repository::WorkspaceSessionRepo
 /// Modo de vista recordado de una nota.
 #[derive(Clone)]
 pub struct GetNoteViewModeUseCase<A: WorkspaceSessionRepository> {
-    sessions: A,
+    workspace_session_repository: A,
 }
 
 impl<A: WorkspaceSessionRepository> GetNoteViewModeUseCase<A> {
-    pub fn new(sessions: A) -> Self {
-        Self { sessions }
+    pub fn new(workspace_session_repository: A) -> Self {
+        Self {
+            workspace_session_repository,
+        }
     }
 
     pub fn execute(&self, query: GetNoteViewModeQuery) -> Result<Option<String>, String> {
-        self.sessions.view_mode(&query.relative_path)
+        self.workspace_session_repository
+            .view_mode(&query.relative_path)
     }
 }
