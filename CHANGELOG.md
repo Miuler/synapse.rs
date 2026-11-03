@@ -33,6 +33,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Autocompletado con las palabras del documento** en el editor de D2 y Mermaid: los nombres que ya usas (variables, nodos…) se sugieren aunque el lenguaje no los conozca, detrás de las sugerencias del lenguaje.
 - **Exportar diagramas a PNG y SVG** desde el menú contextual del explorador, para Excalidraw, Mermaid y D2. El archivo se guarda junto al diagrama con el tema actual.
 - **`Shift+F6` cambia todas las coincidencias de una palabra** (como renombrar en JetBrains, pero textual): selecciona las coincidencias exactas de palabra completa y lo que se escribe las cambia todas. Con Vim, se cambian con `c`.
 - **Plegado entre llaves en D2 y Mermaid**, desde el margen del editor de código.
