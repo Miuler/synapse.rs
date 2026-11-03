@@ -21,7 +21,7 @@
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
-  import { lineKeymap, registerVimFolding, renameOccurrencesKeymap } from '@shared/ui/code-editor';
+  import { lineKeymap, minimalChange, registerVimFolding, renameOccurrencesKeymap } from '@shared/ui/code-editor';
 
   registerVimFolding();
 
@@ -987,9 +987,7 @@
       lastContent = c;
       if (c !== editorView.state.doc.toString()) {
         isInternalUpdate = true;
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: c },
-        });
+        editorView.dispatch({ changes: minimalChange(editorView.state.doc.toString(), c) });
         isInternalUpdate = false;
         emitSelectionInfo(editorView.state);
       }

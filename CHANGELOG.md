@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **El editor de diagramas (D2/Mermaid) recupera el foco y el cursor al volver a su pestaña**, y una recarga del archivo desde disco ya no recrea el editor ni manda el cursor al inicio: solo se aplica el tramo que cambió.
 - **Búsqueda de Vim (`/`) y cursor invisibles en el tema oscuro** del editor de código.
 - **Una segunda instancia de la app ya no reescribe el puerto MCP de la bóveda** ni la marca como detenida.
 - **Título editable** de la nota: se guardaba sobre una propiedad no reactiva.

@@ -10,6 +10,8 @@
     readOnly?: boolean;
     showEditor?: boolean;
     vimMode?: boolean;
+    /** Pestaña activa: al volver a ella, el editor recupera el foco y su cursor. */
+    isActive?: boolean;
     onChange?: (content: string) => void;
     onSelectionChange?: (info: any) => void;
   }
@@ -20,6 +22,7 @@
     readOnly = false,
     showEditor = false,
     vimMode = false,
+    isActive = false,
     onChange,
     onSelectionChange,
   }: Props = $props();
@@ -92,6 +95,7 @@
   {readOnly}
   {showEditor}
   {vimMode}
+  {isActive}
   loadingMessage="Cargando Merman WASM..."
   {onChange}
   {onSelectionChange}

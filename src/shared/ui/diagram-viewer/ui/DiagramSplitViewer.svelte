@@ -20,6 +20,8 @@
     readOnly?: boolean;
     showEditor?: boolean;
     vimMode?: boolean;
+    /** Pestaña activa: al volver a ella, el editor recupera el foco y su cursor. */
+    isActive?: boolean;
     loadingMessage?: string;
     onChange?: (content: string) => void;
     onSelectionChange?: (info: any) => void;
@@ -38,6 +40,7 @@
     readOnly = false,
     showEditor = false,
     vimMode = false,
+    isActive = false,
     loadingMessage = 'Cargando motor de diagrama...',
     onChange,
     onSelectionChange,
@@ -373,6 +376,7 @@
           {content}
           {readOnly}
           {vimMode}
+          {isActive}
           {mode}
           {diagnostics}
           onChange={(newVal) => {

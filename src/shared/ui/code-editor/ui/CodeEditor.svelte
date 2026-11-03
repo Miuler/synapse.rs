@@ -17,6 +17,7 @@
   import { registerVimFolding } from '../lib/vim-folding';
   import { renameOccurrencesKeymap } from '../lib/rename-occurrences';
   import { lineKeymap } from '../lib/line-keymap';
+  import { minimalChange } from '../lib/minimal-change';
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
@@ -45,6 +46,8 @@
     content: string;
     readOnly?: boolean;
     vimMode?: boolean;
+    /** Pestaña activa: al volver a ella, el editor recupera el foco (y su cursor). */
+    isActive?: boolean;
     mode?: 'markdown' | 'mermaid' | 'd2';
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
@@ -55,6 +58,7 @@
     content = '',
     readOnly = false,
     vimMode = false,
+    isActive = false,
     mode = 'markdown',
     diagnostics = [],
     onChange,
@@ -400,15 +404,21 @@
     }
   });
 
+  // Al volver a la pestaña, el foco vuelve al editor; CodeMirror restaura su selección.
+  $effect(() => {
+    if (!isActive || readOnly) return;
+    requestAnimationFrame(() => {
+      if (editorView && !editorView.hasFocus && containerRef?.offsetParent) editorView.focus();
+    });
+  });
+
   $effect(() => {
     const c = content;
     if (editorView && c !== untrack(() => lastContent)) {
       lastContent = c;
       if (c !== editorView.state.doc.toString()) {
         isInternalUpdate = true;
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: c },
-        });
+        editorView.dispatch({ changes: minimalChange(editorView.state.doc.toString(), c) });
         isInternalUpdate = false;
         emitSelectionInfo(editorView.state);
       }

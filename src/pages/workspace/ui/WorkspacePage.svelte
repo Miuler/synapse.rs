@@ -2420,6 +2420,9 @@
                   const noteData = await vaultRepository.readNote(matchedOpenPath);
                   if (noteData && (noteData.content ?? "") !== (openedNotes[matchedOpenPath]?.savedContent ?? null)) {
                     const currentMode = openedNotes[matchedOpenPath]?.viewMode || "reading";
+                    // Los editores de texto aplican el contenido nuevo sin recrearse (conservan el
+                    // cursor); los dibujos sí se vuelven a montar para leer la escena nueva.
+                    const remount = isDrawingTab(matchedOpenPath, noteData.content ?? "");
                     openedNotes[matchedOpenPath] = {
                       relative_path: matchedOpenPath,
                       abs_path: noteData.abs_path,
@@ -2430,7 +2433,7 @@
                       isLoading: false,
                       isLoaded: true,
                       viewMode: currentMode,
-                      lastReloaded: Date.now(),
+                      lastReloaded: remount ? Date.now() : openedNotes[matchedOpenPath]?.lastReloaded,
                     };
                   }
                 }
@@ -3865,8 +3868,10 @@
           {@const note = openedNotes[tabPath]}
           {@const content = note?.content ?? ""}
           {@const isLoading = note?.isLoading ?? false}
-          {@const paneEditing = isRight ? isSplitEditing : isEditing}
-          {@const paneViewMode = isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
+          {@const isVisibleTab = tabPath === activePath}
+          {@const hiddenViewMode = (note?.viewMode ?? 'reading') as MarkdownViewMode}
+          {@const paneEditing = !isVisibleTab ? hiddenViewMode !== 'reading' : isRight ? isSplitEditing : isEditing}
+          {@const paneViewMode = !isVisibleTab ? hiddenViewMode : isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
           {@const isDrawing = isDrawingTab(tabPath, content)}
           <div
             class="tab-pane"
@@ -3904,6 +3909,7 @@
                   {#if isD2File(tabPath)}
                     <D2Viewer
                       {content}
+                      isActive={tabPath === activePath}
                       filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
@@ -3918,6 +3924,7 @@
                   {:else if appSettings.mermaidRenderer === 'mermaidjs'}
                     <MermaidViewer
                       {content}
+                      isActive={tabPath === activePath}
                       filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
@@ -3932,6 +3939,7 @@
                   {:else}
                     <MermanViewer
                       {content}
+                      isActive={tabPath === activePath}
                       filePath={tabPath}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
