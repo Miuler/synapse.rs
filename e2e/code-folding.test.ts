@@ -87,3 +87,33 @@ it('zc con el cursor dentro de un bloque lo pliega, y repetido pliega el exterio
   expect(lines).toContain('client -> server');
   await s.browser.keys(['z', 'R']);
 });
+
+it('zM pliega todos los niveles: zo abre el exterior y el interno sigue plegado; zO abre todo', async () => {
+  const placeholders = () => s.browser.execute(() => document.querySelectorAll('.cm-foldPlaceholder').length) as Promise<number>;
+  const all = async () => (await visibleLines()).join('\n');
+  await s.browser.$('.cm-content .cm-line').click();
+  await s.browser.keys(['Escape', 'z', 'M']);
+  await s.browser.waitUntil(async () => !(await all()).includes('rectangle'), { timeout: 5_000 });
+  // zo en "server: {": se ve el contenido del exterior, pero db sigue plegado.
+  await s.browser.keys(['z', 'o']);
+  await s.browser.waitUntil(async () => (await all()).includes('rectangle'), { timeout: 5_000 });
+  expect(await all()).not.toContain('cylinder');
+  expect(await placeholders()).toBe(1);
+  // zM de nuevo y zO: se abre todo de una vez.
+  await s.browser.keys(['z', 'M']);
+  await s.browser.waitUntil(async () => !(await all()).includes('rectangle'), { timeout: 5_000 });
+  await s.browser.keys(['z', 'O']);
+  await s.browser.waitUntil(async () => (await all()).includes('cylinder'), { timeout: 5_000 });
+  expect(await placeholders()).toBe(0);
+  // zC dentro de db pliega server con db dentro: zo en server deja db plegado.
+  const inner = await s.browser.execute(
+    () => [...document.querySelectorAll('.cm-content .cm-line')].find((l) => l.textContent?.includes('rectangle')) as HTMLElement,
+  );
+  await s.browser.$(inner).click();
+  await s.browser.keys(['Escape', 'z', 'C']);
+  await s.browser.waitUntil(async () => !(await all()).includes('rectangle'), { timeout: 5_000 });
+  await s.browser.keys(['z', 'o']);
+  await s.browser.waitUntil(async () => (await all()).includes('rectangle'), { timeout: 5_000 });
+  expect(await all()).not.toContain('cylinder');
+  await s.browser.keys(['z', 'R']);
+});

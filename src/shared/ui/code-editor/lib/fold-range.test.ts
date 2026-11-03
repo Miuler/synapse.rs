@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { EditorState } from '@codemirror/state';
-import { codeFolding, foldEffect } from '@codemirror/language';
+import { codeFolding, foldEffect, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { braceFolding } from './brace-folding';
-import { enclosingFoldRange } from './fold-range';
+import { allFoldRanges, enclosingFoldRange, foldRangesWithin, foldsOnLine, foldsWithin } from './fold-range';
 
 const doc = 'a: {\n  b: {\n    c\n    d\n  }\n  e\n}\nf';
 
@@ -34,5 +34,43 @@ describe('bloque que contiene al cursor', () => {
   it('fuera de todo bloque no devuelve nada', () => {
     const state = stateWith();
     expect(enclosingFoldRange(state, at(state, 'f'))).toBeNull();
+  });
+});
+
+describe('pliegues de varios niveles', () => {
+  const count = (state: EditorState) => {
+    let n = 0;
+    foldedRanges(state).between(0, state.doc.length, () => {
+      n++;
+    });
+    return n;
+  };
+
+  it('allFoldRanges incluye los bloques internos', () => {
+    const state = stateWith();
+    expect(allFoldRanges(state).map((r) => text(state, r))).toEqual([
+      '\n  b: {\n    c\n    d\n  }\n  e\n',
+      '\n    c\n    d\n  ',
+    ]);
+  });
+
+  it('plegar todo y abrir el exterior deja el interno plegado (como zM + zo en Vim)', () => {
+    let state = stateWith();
+    state = state.update({ effects: allFoldRanges(state).map((r) => foldEffect.of(r)) }).state;
+    expect(count(state)).toBe(2);
+    const [outer] = foldsOnLine(state, at(state, 'a:'));
+    state = state.update({ effects: unfoldEffect.of(outer) }).state;
+    expect(count(state)).toBe(1);
+    expect(foldsOnLine(state, at(state, 'b:')).length).toBe(1);
+  });
+
+  it('foldRangesWithin y foldsWithin cubren el bloque y sus hijos (zC y zO)', () => {
+    let state = stateWith();
+    const outer = enclosingFoldRange(state, at(state, 'e'))!;
+    expect(foldRangesWithin(state, outer).length).toBe(2);
+    state = state.update({ effects: foldRangesWithin(state, outer).map((r) => foldEffect.of(r)) }).state;
+    expect(foldsWithin(state, outer).length).toBe(2);
+    state = state.update({ effects: foldsWithin(state, outer).map((r) => unfoldEffect.of(r)) }).state;
+    expect(count(state)).toBe(0);
   });
 });
