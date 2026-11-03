@@ -13,6 +13,7 @@
   import { undoRedoExtension } from '@shared/lib/editor-history';
   import { commentExtension, withCommentTokens } from '@shared/lib/editor-comment';
   import { d2Language } from '../lib/d2-language';
+  import { plantumlLanguage } from '../lib/plantuml-language';
   import { braceFolding } from '../lib/brace-folding';
   import { registerVimFolding } from '../lib/vim-folding';
   import { renameOccurrencesKeymap } from '../lib/rename-occurrences';
@@ -20,7 +21,7 @@
   import { minimalChange } from '../lib/minimal-change';
 
   registerVimFolding();
-  import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
+  import { d2Autocomplete, mermaidAutocomplete, plantumlAutocomplete } from '../lib/diagram-autocompletion';
   import { documentWordsCompletion, withDocumentWords } from '../lib/document-words';
 
   export interface SelectionInfo {
@@ -50,7 +51,7 @@
     isActive?: boolean;
     /** Ctrl+Enter: acción del editor (en los diagramas, redibujar ya). */
     onRun?: () => void;
-    mode?: 'markdown' | 'mermaid' | 'd2';
+    mode?: 'markdown' | 'mermaid' | 'd2' | 'plantuml';
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
@@ -333,14 +334,18 @@
         ? [withCommentTokens(d2Language, { line: '#' }), braceFolding({ lineComment: '#' })]
         : mode === 'mermaid'
           ? [withCommentTokens(mermaidLanguage, { line: '%%' }), braceFolding({ lineComment: '%%' })]
-          : markdown();
+          : mode === 'plantuml'
+            ? [withCommentTokens(plantumlLanguage, { line: "'" }), braceFolding({ lineComment: "'" })]
+            : markdown();
 
     const autocompleteExtension =
       mode === 'd2'
         ? autocompletion({ override: [withDocumentWords(d2Autocomplete)] })
         : mode === 'mermaid'
           ? autocompletion({ override: [withDocumentWords(mermaidAutocomplete)] })
-          : autocompletion({ override: [documentWordsCompletion] });
+          : mode === 'plantuml'
+            ? autocompletion({ override: [withDocumentWords(plantumlAutocomplete)] })
+            : autocompletion({ override: [documentWordsCompletion] });
 
     const currentDiag = diagnostics;
     const linterExtension = linter((view) => buildDiagnostics(view, currentDiag));

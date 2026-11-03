@@ -10,6 +10,7 @@
     isDrawingFile,
     isDiagramFile,
     isD2File,
+    isPlantUmlFile,
     isMarkdownFile,
   } from '@entities/file-type';
   import { ImageViewer } from '@features/image-viewer';
@@ -17,6 +18,7 @@
   import { ExcalidrawViewer } from '@features/excalidraw-editor';
   import { MermaidViewer } from '@features/mermaid-editor';
   import { D2Viewer } from '@features/d2-editor';
+  import { PlantUmlViewer } from '@features/plantuml-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { MarkdownViewer } from '@features/markdown-editor';
   import {
@@ -282,6 +284,12 @@
         {:else if isDiagram}
           {#if isD2File(filePath)}
             <D2Viewer
+              content={revData.content || ''}
+              readOnly={true}
+              showEditor={showMermaidEditor}
+            />
+          {:else if isPlantUmlFile(filePath)}
+            <PlantUmlViewer
               content={revData.content || ''}
               readOnly={true}
               showEditor={showMermaidEditor}

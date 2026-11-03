@@ -102,7 +102,15 @@ async function launch(base: string, vault: string): Promise<Session> {
     });
   }
 
-  const env = { ...process.env, HOME: home };
+  // Con XDG_* definidas en el entorno, cambiar HOME no basta: la app usaría el perfil real del usuario.
+  const env = {
+    ...process.env,
+    HOME: home,
+    XDG_DATA_HOME: join(home, '.local/share'),
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    XDG_STATE_HOME: join(home, '.local/state'),
+  };
   const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'] });
   children.push(driver);
   await waitForPort(4444, 15_000);

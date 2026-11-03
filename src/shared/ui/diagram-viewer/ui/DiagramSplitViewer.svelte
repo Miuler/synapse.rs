@@ -10,7 +10,7 @@
     content: string;
     engineName: string;
     engineTooltip?: string;
-    mode: 'd2' | 'mermaid';
+    mode: 'd2' | 'mermaid' | 'plantuml';
     /** Identifica el diagrama para recordar la proporción del panel de código */
     filePath?: string;
     svgContent: string;

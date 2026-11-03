@@ -1,7 +1,8 @@
 import { vaultRepository } from '@shared/repositories';
 import { parseExcalidrawContent } from '@shared/obsidian-api';
-import { renderD2Svg, renderMermaidJsSvg } from '@shared/lib/diagrams';
-import { isD2File, isDrawingFile, isMermaidFile } from '@entities/file-type';
+import { renderD2Svg, renderMermaidJsSvg, renderPlantUmlSvg } from '@shared/lib/diagrams';
+import { isD2File, isDrawingFile, isMermaidFile, isPlantUmlFile } from '@entities/file-type';
+import { appSettings } from '@entities/settings';
 
 export type DiagramExportFormat = 'png' | 'svg';
 
@@ -9,11 +10,11 @@ export type DiagramExportFormat = 'png' | 'svg';
 const PNG_SCALE = 2;
 const EXPORT_PADDING = 20;
 
-const DIAGRAM_EXTENSIONS = ['.excalidraw.excalidraw', '.excalidraw.json', '.excalidraw.md', '.excalidraw', '.mermaid', '.mmd', '.d2'];
+const DIAGRAM_EXTENSIONS = ['.excalidraw.excalidraw', '.excalidraw.json', '.excalidraw.md', '.excalidraw', '.mermaid', '.mmd', '.d2', '.puml', '.plantuml'];
 
-/** Si el archivo es un diagrama que se puede exportar (Excalidraw, Mermaid o D2). */
+/** Si el archivo es un diagrama que se puede exportar (Excalidraw, Mermaid, D2 o PlantUML). */
 export function isExportableDiagram(path: string): boolean {
-  return isDrawingFile(path) || isMermaidFile(path) || isD2File(path);
+  return isDrawingFile(path) || isMermaidFile(path) || isD2File(path) || isPlantUmlFile(path);
 }
 
 /** Ruta de la exportación: junto al diagrama, con su nombre y la extensión del formato. */
@@ -72,6 +73,8 @@ async function exportCodeDiagram(path: string, code: string, format: DiagramExpo
   let result;
   if (isD2File(path)) {
     result = await renderD2Svg(code);
+  } else if (isPlantUmlFile(path)) {
+    result = await renderPlantUmlSvg(code, appSettings.settings.plantumlServer);
   } else {
     // Las etiquetas HTML de Mermaid (foreignObject) ensucian el canvas y WebKit no deja leer el PNG.
     const source = format === 'png' ? `%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%\n${code}` : code;

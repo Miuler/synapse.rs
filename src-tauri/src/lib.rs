@@ -7,7 +7,7 @@ use domain::vault::file_types::SupportedFileTypes;
 use infrastructure::entrypoint::tauri::commands::{
     AppState, check_community_plugin_updates, check_vault_path_exists, clone_git_workspace,
     copy_vault_items, create_new_workspace, create_vault_folder, delete_vault_item,
-    fetch_community_plugins, full_text_search, get_active_vault_path, get_app_version,
+    fetch_community_plugins, fetch_plantuml_svg, full_text_search, get_active_vault_path, get_app_version,
     get_detached_window_tab, get_diagram_split_ratio, get_full_text_index_status, get_git_branches,
     get_git_file_diff, get_git_file_log, get_git_file_revision, get_git_image_diff,
     get_installed_community_plugins, get_mcp_port_registry, get_mcp_server_status,
@@ -101,6 +101,7 @@ pub fn run() {
             search_notes_command,
             search_folders_command,
             toggle_devtools,
+            fetch_plantuml_svg,
             get_vault_git_status,
             delete_vault_item,
             rename_vault_item,

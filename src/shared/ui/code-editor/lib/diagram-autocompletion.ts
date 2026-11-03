@@ -270,3 +270,24 @@ export function mermaidAutocomplete(context: CompletionContext): CompletionResul
     options: generalOptions,
   };
 }
+
+const PLANTUML_KEYWORDS = [
+  '@startuml', '@enduml', '@startmindmap', '@endmindmap', '@startgantt', '@endgantt', '@startwbs', '@endwbs',
+  'participant', 'actor', 'boundary', 'control', 'entity', 'database', 'collections', 'queue',
+  'class', 'interface', 'abstract', 'enum', 'annotation', 'package', 'namespace', 'component', 'node', 'folder',
+  'frame', 'cloud', 'rectangle', 'usecase', 'state', 'object', 'map', 'json',
+  'note', 'left', 'right', 'top', 'bottom', 'over', 'of', 'end', 'as', 'title', 'header', 'footer', 'legend', 'caption',
+  'skinparam', 'hide', 'show', 'autonumber', 'activate', 'deactivate', 'destroy', 'create', 'return', 'newpage',
+  'alt', 'else', 'opt', 'loop', 'par', 'break', 'critical', 'group', 'box',
+  'start', 'stop', 'if', 'then', 'elseif', 'endif', 'while', 'endwhile', 'repeat', 'fork', 'endfork', 'partition',
+  '!include', '!theme', '!define',
+];
+
+export function plantumlAutocomplete(context: CompletionContext): CompletionResult | null {
+  const word = context.matchBefore(/[@!]?\w*/);
+  if (!word || (word.from === word.to && !context.explicit)) return null;
+  return {
+    from: word.from,
+    options: PLANTUML_KEYWORDS.map((label) => ({ label, type: 'keyword' })),
+  };
+}

@@ -26,7 +26,9 @@
     "diagrams": [
       "mmd",
       "mermaid",
-      "d2"
+      "d2",
+      "puml",
+      "plantuml"
     ],
 
     // Dibujos y bocetos Excalidraw

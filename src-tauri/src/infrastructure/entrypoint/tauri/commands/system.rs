@@ -2,9 +2,18 @@ use crate::application::dto::system::open_file_with_default_app_command::OpenFil
 use crate::application::dto::system::show_item_in_folder_command::ShowItemInFolderCommand;
 use crate::domain::config::startup::StartupTarget;
 use crate::infrastructure::config::state::AppState;
+use crate::infrastructure::service::http::plantuml_client;
 use std::path::Path;
 use std::sync::Arc;
 use tauri::State;
+
+#[tauri::command]
+pub async fn fetch_plantuml_svg(
+    server: String,
+    encoded: String,
+) -> Result<plantuml_client::PlantUmlResponse, String> {
+    plantuml_client::fetch_svg(&server, &encoded).await
+}
 
 #[tauri::command(async)]
 pub fn get_app_version() -> String {

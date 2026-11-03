@@ -37,6 +37,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Soporte para PlantUML (`.puml`, `.plantuml`)**: editor con resaltado y autocompletado, vista previa, errores marcados en su línea, `Ctrl+Enter` para redibujar, creación desde el explorador y la paleta, y exportación a PNG/SVG. El render lo hace un servidor PlantUML (por defecto `plantuml.com`, por lo que el código del diagrama sale de tu máquina); se cambia con el comando «PlantUML: cambiar servidor». El SVG recibido se limpia antes de mostrarlo.
 - **`Ctrl+Enter` en el editor de D2 y Mermaid fuerza el redibujado** del diagrama.
 - **Estado del render de diagramas en la barra de estado**: «Renderizando D2… 1,2 s» mientras dura y el tiempo que tardó al terminar.
 - **Autocompletado con las palabras del documento** en todos los editores (markdown, D2 y Mermaid): los nombres que ya usas (variables, nodos…) se sugieren aunque el lenguaje no los conozca, detrás de las sugerencias del lenguaje.

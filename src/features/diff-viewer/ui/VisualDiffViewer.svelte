@@ -11,12 +11,14 @@
     isDrawingFile,
     isDiagramFile,
     isD2File,
+    isPlantUmlFile,
   } from '@entities/file-type';
   import { ImageViewer } from '@features/image-viewer';
   import { PdfViewer } from '@features/pdf-viewer';
   import { ExcalidrawViewer } from '@features/excalidraw-editor';
   import { MermaidViewer } from '@features/mermaid-editor';
   import { D2Viewer } from '@features/d2-editor';
+  import { PlantUmlViewer } from '@features/plantuml-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { AlertCircle, HardDrive, GitCommit, Split, Eye, Pencil } from 'lucide-svelte';
 
@@ -191,6 +193,12 @@
         {:else if isDiagram}
           {#if isD2File(filePath)}
             <D2Viewer
+              content={localContent}
+              readOnly={!isLocalEditable}
+              onChange={(updated) => persistLocalChanges(updated)}
+            />
+          {:else if isPlantUmlFile(filePath)}
+            <PlantUmlViewer
               content={localContent}
               readOnly={!isLocalEditable}
               onChange={(updated) => persistLocalChanges(updated)}

@@ -15,6 +15,7 @@
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
   import {D2Viewer} from "@features/d2-editor";
+  import {PlantUmlViewer} from "@features/plantuml-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
@@ -35,6 +36,7 @@
     isCodeFile,
     isDiagramFile,
     isD2File,
+    isPlantUmlFile,
     isDrawingFile,
     isPdfFile,
     isOfficeFile,
@@ -2772,7 +2774,7 @@
 
   async function createNewVaultItem(
     emptyTabPathToReplace?: string,
-    fileType: 'markdown' | 'mermaid' | 'd2' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
   ) {
     let extension = 'md';
     let defaultBaseTitle = 'Nuevo Archivo';
@@ -2786,6 +2788,10 @@
       extension = 'd2';
       defaultBaseTitle = 'Nuevo Diagrama D2';
       initialContent = 'x -> y: conexión\n';
+    } else if (fileType === 'plantuml') {
+      extension = 'puml';
+      defaultBaseTitle = 'Nuevo Diagrama PlantUML';
+      initialContent = '@startuml\nAlice -> Bob: Hola\n@enduml\n';
     } else if (fileType === 'excalidraw') {
       extension = 'excalidraw';
       defaultBaseTitle = 'Nuevo Dibujo';
@@ -2972,6 +2978,14 @@
         },
       },
       {
+        id: "cmd-new-plantuml",
+        name: "Crear nuevo diagrama PlantUML (.puml)",
+        category: "Archivo",
+        action: () => {
+          createNewVaultItem(undefined, 'plantuml');
+        },
+      },
+      {
         id: "cmd-new-excalidraw",
         name: "Crear nuevo dibujo Excalidraw (.excalidraw)",
         category: "Archivo",
@@ -3042,6 +3056,17 @@
         category: t('commands.categories.settings'),
         action: () => {
           appSettings.toggleLocale();
+        },
+      },
+      {
+        id: "cmd-set-plantuml-server",
+        name: "PlantUML: cambiar servidor",
+        category: t('commands.categories.settings'),
+        action: () => {
+          const server = window.prompt('URL del servidor PlantUML:', appSettings.settings.plantumlServer)?.trim();
+          if (!server) return;
+          if (/^https?:\/\//i.test(server)) appSettings.setPlantumlServer(server);
+          else window.alert('La URL debe empezar por http:// o https://');
         },
       },
       {
@@ -3910,6 +3935,21 @@
                 {#if isDiagramFile(tabPath)}
                   {#if isD2File(tabPath)}
                     <D2Viewer
+                      {content}
+                      isActive={tabPath === activePath}
+                      filePath={tabPath}
+                      readOnly={!paneEditing}
+                      vimMode={isVimMode}
+                      onChange={(updatedContent) => {
+                        if (openedNotes[tabPath]) {
+                          openedNotes[tabPath].content = updatedContent;
+                        }
+                        debouncedPersistVaultItemToRust(vaultItem);
+                      }}
+                      onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
+                    />
+                  {:else if isPlantUmlFile(tabPath)}
+                    <PlantUmlViewer
                       {content}
                       isActive={tabPath === activePath}
                       filePath={tabPath}

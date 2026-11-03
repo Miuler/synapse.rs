@@ -1111,7 +1111,7 @@
 
   async function handleNewNote(
     fromKeyboard: boolean | unknown = false,
-    fileType: 'markdown' | 'mermaid' | 'd2' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
   ) {
     if (isCreatingNote) return;
     isCreatingNote = true;
@@ -1132,6 +1132,10 @@
         extension = 'd2';
         baseTitle = 'Diagrama';
         initialContent = 'x -> y: conexión\n';
+      } else if (fileType === 'plantuml') {
+        extension = 'puml';
+        baseTitle = 'Diagrama';
+        initialContent = '@startuml\nAlice -> Bob: Hola\n@enduml\n';
       } else if (fileType === 'excalidraw') {
         extension = 'excalidraw';
         baseTitle = 'Dibujo';
@@ -2371,6 +2375,14 @@
         >
           <FileCode class="context-menu-item-icon" />
           <span>Nuevo diagrama D2 (.d2)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'plantuml')}
+        >
+          <FileCode class="context-menu-item-icon" />
+          <span>Nuevo diagrama PlantUML (.puml)</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item

@@ -17,6 +17,7 @@ export interface AppSettings {
   mcpServerEnabled: boolean;
   locale: SupportedLocale;
   propertiesViewMode: PropertiesViewMode;
+  plantumlServer: string;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpServerEnabled: false, // Por defecto servidor MCP desactivado
   locale: 'es', // Por defecto español
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
+  plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
 };
 
 function loadInitialSettings(): AppSettings {
@@ -61,6 +63,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.propertiesViewMode === 'expanded' || parsed.propertiesViewMode === 'collapsed' || parsed.propertiesViewMode === 'hidden') {
         settings.propertiesViewMode = parsed.propertiesViewMode;
+      }
+      if (typeof parsed.plantumlServer === 'string' && /^https?:\/\//i.test(parsed.plantumlServer.trim())) {
+        settings.plantumlServer = parsed.plantumlServer.trim();
       }
     }
   } catch (e) {
@@ -199,6 +204,11 @@ class SettingsManager {
 
   get mermaidRenderer(): MermaidRendererType {
     return this.settings.mermaidRenderer;
+  }
+
+  setPlantumlServer(server: string) {
+    this.settings.plantumlServer = server;
+    this.persist();
   }
 
   setMermaidRenderer(renderer: MermaidRendererType) {
