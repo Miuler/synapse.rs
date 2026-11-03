@@ -273,3 +273,28 @@ fn test_full_text_docx_and_pdf_indexing() {
 
     drop(indexer);
 }
+
+#[test]
+fn test_indexed_versions_reflects_updates_and_deletions() {
+    use app_lib::domain::search::full_text::FullTextDocument;
+    let index = FullTextIndexImpl::in_memory().unwrap();
+    let doc = |path: &str, mtime: u64| FullTextDocument {
+        path: path.to_string(),
+        title: path.to_string(),
+        body: "contenido largo de prueba".repeat(50),
+        kind: DocumentKind::Markdown,
+        mtime_nanos: mtime,
+    };
+    index.upsert(vec![doc("a.md", 1), doc("carpeta/b.md", 2), doc("c.md", 3)]).unwrap();
+    index.commit().unwrap();
+    // Actualizar uno (borra y reinserta) y eliminar otro: solo cuentan los documentos vivos.
+    index.upsert(vec![doc("a.md", 10)]).unwrap();
+    index.delete(&["c.md".to_string()]).unwrap();
+    index.commit().unwrap();
+
+    let versions = index.indexed_versions().unwrap();
+    assert_eq!(versions.len(), 2);
+    assert_eq!(versions.get("a.md"), Some(&10));
+    assert_eq!(versions.get("carpeta/b.md"), Some(&2));
+    assert!(!versions.contains_key("c.md"));
+}

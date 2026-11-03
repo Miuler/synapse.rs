@@ -18,7 +18,8 @@ use tantivy::tokenizer::{
     AsciiFoldingFilter, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer,
 };
 use tantivy::{
-    DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc,
+    DocSet, Index, IndexReader, IndexWriter, ReloadPolicy, TERMINATED, TantivyDocument,
+    Term, doc,
 };
 
 pub const SCHEMA_VERSION: &str = "1";
@@ -415,23 +416,41 @@ impl FullTextIndex for FullTextIndexImpl {
         Ok((hits, total_hits))
     }
 
+    /// Ruta → mtime de cada documento vivo, sin cargar documentos: recorre los términos de
+    /// `path_id` (un término por ruta) y lee `mtime` de su columna rápida. Cargar cada documento
+    /// guardado (con su cuerpo) solo para estos dos campos costaba cientos de MB temporales al
+    /// abrir una bóveda grande.
     fn indexed_versions(&self) -> Result<HashMap<String, u64>, String> {
         let searcher = self.reader.searcher();
         let mut versions = HashMap::new();
 
-        for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
-            for doc_id in segment_reader.doc_ids_alive() {
-                if let Ok(doc) =
-                    searcher.doc::<TantivyDocument>(DocAddress::new(segment_ord as u32, doc_id))
-                {
-                    if let Some(path) = doc.get_first(self.fields.path_id).and_then(|v| v.as_str())
-                    {
-                        let mtime = doc
-                            .get_first(self.fields.mtime)
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0);
-                        versions.insert(path.to_string(), mtime);
+        for segment_reader in searcher.segment_readers() {
+            let inverted = segment_reader
+                .inverted_index(self.fields.path_id)
+                .map_err(|e| format!("Error leyendo términos de path_id: {}", e))?;
+            let mtimes = segment_reader
+                .fast_fields()
+                .u64("mtime")
+                .map_err(|e| format!("Error leyendo la columna mtime: {}", e))?;
+            let alive = segment_reader.alive_bitset();
+
+            let mut terms = inverted
+                .terms()
+                .stream()
+                .map_err(|e| format!("Error recorriendo términos de path_id: {}", e))?;
+            while terms.advance() {
+                let Ok(path) = std::str::from_utf8(terms.key()) else {
+                    continue;
+                };
+                let mut postings = inverted
+                    .read_postings_from_terminfo(terms.value(), IndexRecordOption::Basic)
+                    .map_err(|e| format!("Error leyendo postings de path_id: {}", e))?;
+                let mut doc_id = postings.doc();
+                while doc_id != TERMINATED {
+                    if alive.is_none_or(|bitset| bitset.is_alive(doc_id)) {
+                        versions.insert(path.to_string(), mtimes.first(doc_id).unwrap_or(0));
                     }
+                    doc_id = postings.advance();
                 }
             }
         }
