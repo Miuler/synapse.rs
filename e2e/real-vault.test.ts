@@ -110,20 +110,36 @@ describe.skipIf(!VAULT)('bóveda real', () => {
   });
 
   it('Quick Open: latencia hasta mostrar resultados', async () => {
+    // Se mide dentro de la página: la consulta completa entra de una vez (setValue escribe letra por
+    // letra y dejaba contar resultados de consultas a medias) y se toma el último cambio de la
+    // lista antes de 500 ms de calma, que corresponde a los resultados de la consulta final.
     const times: number[] = [];
     for (const query of ['rust', 'docker', 'proyecto', 'arq', 'linux']) {
       await s.browser.keys(['Control', 'o']);
-      const input = s.browser.$('.quick-open-command-root input');
-      await input.waitForExist({ timeout: 10_000 });
-      const t = performance.now();
-      await input.setValue(query);
-      await s.browser
-        .waitUntil(async () => ((await s.browser.$$('.quick-open-results-container [data-command-item]').length) as number) > 0, { timeout: 10_000 })
-        .catch(() => {});
-      const ms = performance.now() - t;
+      await s.browser.$('.quick-open-command-root input').waitForExist({ timeout: 10_000 });
+      const { ms, count } = (await s.browser.executeAsync((q: string, done: (r: unknown) => void) => {
+        const input = document.querySelector('.quick-open-command-root input') as HTMLInputElement;
+        const list = document.querySelector('.quick-open-command-root') as HTMLElement;
+        const start = performance.now();
+        let last = start;
+        let quiet: ReturnType<typeof setTimeout>;
+        const finish = () => {
+          observer.disconnect();
+          const count = list.querySelectorAll('.quick-open-results-container [data-command-item]').length;
+          done({ ms: last - start, count });
+        };
+        const observer = new MutationObserver(() => {
+          last = performance.now();
+          clearTimeout(quiet);
+          quiet = setTimeout(finish, 500);
+        });
+        observer.observe(list, { childList: true, subtree: true, characterData: true });
+        quiet = setTimeout(finish, 3000); // hasta el primer cambio
+        input.value = q;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }, query)) as { ms: number; count: number };
       times.push(ms);
-      const count = (await s.browser.execute(() => document.querySelectorAll('.quick-open-results-container [data-command-item]').length)) as number;
-      console.log(`  "${query}": ${count} resultados en ${ms.toFixed(0)} ms (incluye ida y vuelta de WebDriver)`);
+      console.log(`  "${query}": ${count} resultados en ${ms.toFixed(0)} ms`);
       if (shots && query === 'rust') await s.browser.saveScreenshot(`${shots}/real-quick-open.png`);
       await s.browser.keys(['Escape']);
       await s.browser.pause(300);

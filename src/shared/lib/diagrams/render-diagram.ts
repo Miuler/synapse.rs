@@ -1,6 +1,7 @@
 import { renderMermaidJsSvg } from './mermaid-service';
 import { renderMermaidSvg, ensureMerman, isMermanInitialized } from './merman-service';
 import { renderD2Svg } from './d2-service';
+import { recordSpan } from '../perf-probe';
 
 export type DiagramRendererType = 'mermaid' | 'mermaidjs' | 'merman' | 'd2';
 
@@ -11,6 +12,19 @@ export async function renderUnifiedDiagramSvg(
   code: string,
   idPrefix = 'cm-diagram',
   renderer: DiagramRendererType = 'mermaid'
+): Promise<{ svg: string | null; error: string | null; errors?: any[] }> {
+  const start = performance.now();
+  try {
+    return await renderDiagramSvg(code, idPrefix, renderer);
+  } finally {
+    recordSpan(`diagrama ${renderer}`, start);
+  }
+}
+
+async function renderDiagramSvg(
+  code: string,
+  idPrefix: string,
+  renderer: DiagramRendererType
 ): Promise<{ svg: string | null; error: string | null; errors?: any[] }> {
   if (!code || !code.trim()) {
     return { svg: null, error: null, errors: [] };

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { measured } from '@shared/lib/perf-probe';
   import { vaultItemStore, type VaultItem, type TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch, Tag, Folder, ChevronDown, ChevronUp } from 'lucide-svelte';
@@ -182,7 +183,7 @@
 
 
   // Prepara los candidatos completos para la lista priorizando el nombre del archivo
-  let allCandidates = $derived.by<FileItemDisplay[]>(() => {
+  let allCandidates = $derived.by<FileItemDisplay[]>(() => measured('quick open: candidatos', () => {
     const trimmed = searchQuery.trim();
     if (trimmed.length > 0) {
       if (nucleoResults.length > 0 && nucleoQuery === trimmed) {
@@ -312,7 +313,7 @@
     }
 
     return list;
-  });
+  }));
 
   // Lista visible en el DOM recortada al tamaño de página (apertura instantánea sin retrasos)
   let fileList = $derived(allCandidates.slice(0, visibleCount));

@@ -2,6 +2,7 @@ import { getObsidianBundle } from './bridge';
 import type { SynapseApp } from './app';
 import type { Plugin, PluginManifest } from './plugin';
 import { createEl } from './dom';
+import { recordSpan } from '../lib/perf-probe';
 
 export interface PluginEntry {
   manifest: PluginManifest;
@@ -99,7 +100,9 @@ export class PluginLoader {
     }
 
     // 2. Leer y evaluar main.js con el shim del módulo 'obsidian'
+    let spanStart = performance.now();
     const code = await this.app.vault.adapter.read(mainJsPath);
+    recordSpan(`plugin ${manifest.id}: leer main.js`, spanStart);
     const obsidianBundle = getObsidianBundle(this.app);
 
     const targetGlobal: any = typeof window !== 'undefined' ? window : (globalThis as any);
@@ -117,8 +120,10 @@ export class PluginLoader {
 
     try {
       // Wrapper de evaluación de módulo CommonJS estándar
+      spanStart = performance.now();
       const factory = new Function('require', 'module', 'exports', code);
       factory(customRequire, moduleObj, exportsObj);
+      recordSpan(`plugin ${manifest.id}: evaluar main.js`, spanStart);
     } catch (err) {
       styleEl?.remove();
       throw new Error(`[PluginLoader] Error al evaluar main.js de ${manifest.id}: ${err}`);
@@ -131,7 +136,9 @@ export class PluginLoader {
     }
 
     // 3. Instanciar e iniciar ciclo de vida
+    spanStart = performance.now();
     const instance: Plugin = new PluginClass(this.app, manifest);
+    recordSpan(`plugin ${manifest.id}: constructor`, spanStart);
     this.plugins[manifest.id] = instance;
 
     const entry: PluginEntry = {
@@ -144,7 +151,9 @@ export class PluginLoader {
 
     this.loadedPlugins.set(manifest.id, entry);
 
+    spanStart = performance.now();
     await instance.load();
+    recordSpan(`plugin ${manifest.id}: load()`, spanStart);
 
     return entry;
   }

@@ -20,6 +20,7 @@
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
+  import { recordSpan } from '@shared/lib/perf-probe';
 
   export interface SelectionInfo {
     hasSelection: boolean;
@@ -757,10 +758,12 @@
         ],
       });
 
+      const spanStart = performance.now();
       editorView = new EditorView({
         state,
         parent: containerRef,
       });
+      recordSpan(`editor ${filePath ?? ''}`, spanStart);
 
       emitSelectionInfo(editorView.state);
       editorView.requestMeasure();

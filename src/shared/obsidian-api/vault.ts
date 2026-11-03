@@ -1,3 +1,4 @@
+import { measured } from '../lib/perf-probe';
 import type { VaultFile as RepositoryVaultFile, VaultRepository } from '@shared/repositories';
 import { SynapseDataAdapter } from './adapter';
 import { Events } from './events';
@@ -71,10 +72,12 @@ export class SynapseVault extends Events implements SynapseVaultLike {
     if (!this.indexSource && typeof this.repository.getVaultFiles !== 'function') return;
     try {
       const files = this.indexSource ? await this.indexSource() : await this.repository.getVaultFiles();
-      this.index.clear();
-      this.folderPaths.clear();
-      for (const file of files) this.upsertIndex(file);
-      this._cachedFiles = files.map((file) => tFileFromMetadata(file, this));
+      measured('fachada: índice', () => {
+        this.index.clear();
+        this.folderPaths.clear();
+        for (const file of files) this.upsertIndex(file);
+        this._cachedFiles = files.map((file) => tFileFromMetadata(file, this));
+      });
       this._filesLoaded = true;
       this.indexLoaded = true;
     } catch (e) {

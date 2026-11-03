@@ -1,5 +1,6 @@
 import { vaultRepository } from '@shared/repositories';
 import { parseExcalidrawContent } from '@shared/obsidian-api';
+import { recordSpan } from '../perf-probe';
 
 interface CacheEntry {
   svg: string;
@@ -36,6 +37,15 @@ export async function renderExcalidrawToSvg(
   filePath?: string,
   isDark = false
 ): Promise<string | null> {
+  const start = performance.now();
+  try {
+    return await renderExcalidrawSvg(rawContent, filePath, isDark);
+  } finally {
+    recordSpan(`excalidraw ${filePath ?? ''}`, start);
+  }
+}
+
+async function renderExcalidrawSvg(rawContent: string, filePath: string | undefined, isDark: boolean): Promise<string | null> {
   if (!rawContent || !rawContent.trim()) {
     return null;
   }

@@ -3,10 +3,13 @@
  * Provee tipado estricto, manejo seguro de errores y compatibilidad de entorno.
  */
 
-/** Registro de llamadas IPC, solo en desarrollo: lo leen las pruebas de rendimiento (e2e). */
+/** Registro de llamadas IPC (en desarrollo, o en builds de medición): lo leen las pruebas e2e. */
 export interface IpcLogEntry {
   cmd: string;
+  /** Momento (performance.now) en que salió la llamada. */
+  start: number;
   ms: number;
+  args?: Record<string, unknown>;
 }
 
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -17,7 +20,7 @@ export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>
     return await invokeTauriRaw<T>(cmd, args);
   } finally {
     const log = ((window as unknown as { __synapseIpcLog?: IpcLogEntry[] }).__synapseIpcLog ??= []);
-    log.push({ cmd, ms: performance.now() - start });
+    log.push({ cmd, start, ms: performance.now() - start, args });
   }
 }
 
