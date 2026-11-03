@@ -10,7 +10,8 @@ export interface IpcLogEntry {
 }
 
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!import.meta.env.DEV) return invokeTauriRaw<T>(cmd, args);
+  // En producción solo se registra si el build se hizo con VITE_SYNAPSE_IPC_LOG=1 (mediciones).
+  if (!import.meta.env.DEV && import.meta.env.VITE_SYNAPSE_IPC_LOG !== '1') return invokeTauriRaw<T>(cmd, args);
   const start = performance.now();
   try {
     return await invokeTauriRaw<T>(cmd, args);

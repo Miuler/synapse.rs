@@ -72,3 +72,24 @@ backend avisa que cambiaron todos los archivos y la fachada pedía metadatos y r
 Ahora, con más de 20 cambios a la vez, refresca el índice con una consulta en bloque y solo
 recalcula la caché de metadatos ya calculada. Además, la fachada construye su índice con la lista
 del explorador (una sola lista por IPC al abrir).
+
+## App de producción con la bóveda real (~6 000 notas)
+
+Build release (`VITE_SYNAPSE_IPC_LOG=1 bun run tauri build --no-bundle`, que deja activo el registro
+IPC) medido con `E2E_APP=src-tauri/target/release/synapsers SYNAPSE_REAL_VAULT=<bóveda> bun test
+./e2e/real-vault.test.ts`, con la app instalada cerrada. Dos corridas:
+
+| | Corrida 1 | Corrida 2 |
+|---|---|---|
+| Explorador visible (incluye arrancar la app) | 1,7 s | 1,7 s |
+| Llamadas IPC al abrir / acumulado | 91 / 12 488 ms | 92 / 12 047 ms |
+| `get_vault_directory_children` | ×19, 3 261 ms | ×18, 3 542 ms |
+| `resolve_asset_file_path` | ×32, 2 164 ms | ×32, 2 076 ms |
+| `read_note_content` | ×9, 1 822 ms | ×9, 1 931 ms |
+| `render_markdown_wikilinks` | ×3, 1 122 ms | ×3, 1 142 ms |
+| `get_vault_git_status` en reposo | 21 ms | 22 ms |
+| Memoria: backend / webview / red | 807 / 583 / 106 MB | 748 / 485 / 108 MB |
+| Quick Open (con ida y vuelta de WebDriver) | 244–412 ms | 276–440 ms |
+
+En reposo los comandos responden en 0–2 ms; durante la apertura, cientos de ms. El costo está en la
+congestión de los primeros segundos, no en cada comando.

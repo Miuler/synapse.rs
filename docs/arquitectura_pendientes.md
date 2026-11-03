@@ -146,19 +146,25 @@ Hallazgos, por prioridad:
    en 2 ms; durante la apertura, en ~600 ms. El backend y el transporte son rápidos: las respuestas
    esperan porque al arrancar el hilo de JS del webview y la CPU están ocupados (restaurar pestañas,
    renderizar notas, cargar plugins, indexar). Medido con build debug y con la app instalada abierta,
-   que obliga a la instancia de prueba a indexar en RAM: repetir con la app instalada cerrada y con
-   build de producción antes de optimizar.
-1d. **Estado de git lento:** `get_vault_git_status` tarda ~330 ms incluso en reposo.
-2. **Memoria del backend:** 640–730 MB en producción para ~6 000 notas es alto. Perfilar el heap
+   que obliga a la instancia de prueba a indexar en RAM. **Confirmado en producción** (build release,
+   app instalada cerrada, dos corridas): `get_diagram_split_ratio` 0–1 ms en reposo y ~320 ms al
+   arrancar; IPC acumulado 12–12,5 s en 91–92 llamadas. Lo que más pesa: `get_vault_directory_children`
+   (×18–19, ~3,3–3,5 s), `resolve_asset_file_path` (×32, ~2,1 s), `read_note_content` (×9, ~1,9 s) y
+   `render_markdown_wikilinks` (×3, ~1,1 s). Siguiente paso: perfilar qué ocupa CPU en esos primeros
+   segundos (front y backend) antes de tocar código.
+1d. **Estado de git (descartado):** en producción `get_vault_git_status` responde en ~22 ms en reposo;
+   los ~330 ms eran del build debug.
+2. **Memoria del backend:** 640–810 MB en producción (748–807 MB en la medición limpia) para ~6 000 notas es alto. Perfilar el heap
    (Tantivy, DashMap/nucleo, extracción de PDF) con `heaptrack` o `dhat`.
 3. **Lecturas de notas lentas:** `read_note_content` promedió ~550 ms (9 llamadas, 5 s) y
-   `render_markdown_wikilinks` ~750 ms por llamada al restaurar pestañas (build debug; medir en
-   release).
+   `render_markdown_wikilinks` ~750 ms por llamada al restaurar pestañas en debug. En release: ~210 ms
+   y ~375 ms respectivamente, todavía inflados por la congestión del arranque (1c).
 4. **Segunda instancia sobre la misma bóveda:** reescribe `.synapse/mcp.json` con el puerto que le
    tocó (27182 en vez de 27183) y deja a los clientes MCP apuntando a un puerto distinto al de la
    instancia principal. No debería persistir el puerto si no es la instancia dueña.
 5. **Arranque en modo dev:** 34 s hasta ver el explorador, dominado por la compilación en frío de
-   Vite; medir el arranque con un build de producción antes de concluir.
+   Vite. En producción el explorador aparece a los **1,7 s** (incluye arrancar la app): no es un
+   problema del producto.
 
 Quick Open con la bóveda real: 170–420 ms por búsqueda medidos desde WebDriver (incluye su ida y
 vuelta). Sin errores ni avisos de consola.
