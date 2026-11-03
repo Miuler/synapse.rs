@@ -73,7 +73,9 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
 
 Ninguno del plan de migración: la medición por etapas y la fachada de Obsidian se cerraron (ver
 «Deuda cerrada en la segunda ronda» y `arquitectura_mediciones.md`). Las tareas de rendimiento que
-quedan están en beads: virtualizar el árbol del explorador e `indexed_versions` de Tantivy.
+quedaban (virtualizar el árbol del explorador e `indexed_versions` de Tantivy) se cerraron.
+`indexed_versions` ahora lee términos y la columna rápida (19 ms → 3 ms), pero no era la fuente
+del pico temporal de memoria al abrir (~650–760 MB, devueltos al sistema al terminar).
 
 ## Postergado (fuera del plan hasta terminar el refactor)
 
@@ -128,8 +130,10 @@ Hallazgos, por prioridad:
 1c. **Congestión al arrancar (resuelta en parte):** en reposo todas las llamadas del arranque suman
    ~130 ms; el resto era espera por el hilo de JS del webview (`e2e/startup-profile.test.ts`). Con 5
    pestañas restauradas el hilo se bloqueaba ~1,25 s; ahora cada pestaña se monta al activarse por
-   primera vez y el explorador no pinta el árbol de respaldo: ~0,8 s. Queda el pintado del
-   explorador con carpetas expandidas (~300 ms, tarea de virtualización en beads).
+   primera vez y el explorador no pinta el árbol de respaldo: ~0,8 s. Con el árbol virtualizado
+   (solo filas visibles: 52 de 195 con las carpetas expandidas) queda en ~0,75 s. Lo que resta:
+   evaluar el JS de la app (~170 ms), procesar la lista de 6 000 notas (~170 ms) y pintar la nota
+   activa (~125 ms).
 1d. **Estado de git (descartado):** en producción `get_vault_git_status` responde en ~22 ms en reposo;
    los ~330 ms eran del build debug.
 2. **Memoria del backend (hecho):** ~370 MB eran memoria liberada que glibc retenía tras los

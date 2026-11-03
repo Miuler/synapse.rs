@@ -98,7 +98,8 @@ congestión de los primeros segundos, no en cada comando.
 
 | | Antes | Después |
 |---|---|---|
-| Bloqueo del hilo de JS al arrancar (5 pestañas) | ~1 250 ms | ~800 ms |
+| Bloqueo del hilo de JS al arrancar (5 pestañas) | ~1 250 ms | ~800 ms; ~750 ms con el árbol virtualizado |
+| Filas del explorador pintadas (9 carpetas expandidas) | 195 | 52 |
 | Llamadas IPC al abrir / acumulado | 92 / 12 s | 71 / 5,1 s |
 | Backend (RSS) | 748–807 MB | 397 MB |
 | Total de la app (RSS) | 1 341–1 496 MB | 932 MB |

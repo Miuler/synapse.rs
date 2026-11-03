@@ -6,7 +6,7 @@
   import { settingsApi } from '@entities/settings';
   import { systemApi } from '@shared/api';
   import type { GitFileStatusKind } from '@shared/repositories';
-  import { ContextMenu, Collapsible } from 'bits-ui';
+  import { ContextMenu } from 'bits-ui';
   import { gitDialogState, gitApi, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
@@ -492,6 +492,65 @@
     }
   });
 
+  // Virtualización: el árbol visible se aplana en filas y solo se pintan las que caen en la vista
+  // (más un margen). Pintar todas costaba >1 ms por fila al abrir con carpetas expandidas.
+  interface TreeRow {
+    node: VaultTreeNode;
+    depth: number;
+  }
+  const OVERSCAN_ROWS = 12;
+  /** Distancia entre filas consecutivas (alto + margen), medida en el DOM. */
+  let rowPitch = $state(28);
+  let treeScrollTop = $state(0);
+  let treeViewportHeight = $state(600);
+  let treeListEl = $state<HTMLElement | null>(null);
+
+  let treeRows = $derived.by(() => {
+    const rows: TreeRow[] = [];
+    const visit = (nodes: VaultTreeNode[], depth: number) => {
+      for (const node of nodes) {
+        rows.push({ node, depth });
+        if (node.isFolder && expandedFolders[node.relativePath]) visit(getDisplayChildren(node), depth + 1);
+      }
+    };
+    visit(displayTreeNodes, 0);
+    return rows;
+  });
+
+  let rowWindow = $derived.by(() => {
+    const first = Math.max(0, Math.floor(treeScrollTop / rowPitch) - OVERSCAN_ROWS);
+    const last = Math.min(treeRows.length, Math.ceil((treeScrollTop + treeViewportHeight) / rowPitch) + OVERSCAN_ROWS);
+    return { first, last };
+  });
+
+  $effect(() => {
+    void rowWindow;
+    const items = treeListEl?.children;
+    if (!items || items.length < 2) return;
+    const pitch = (items[1] as HTMLElement).offsetTop - (items[0] as HTMLElement).offsetTop;
+    if (pitch > 0 && Math.abs(pitch - rowPitch) > 0.5) rowPitch = pitch;
+  });
+
+  /** Lleva una fila a la vista por su índice: con la virtualización puede no estar en el DOM. */
+  function scrollRowIntoView(path: string, block: 'nearest' | 'center' = 'nearest') {
+    if (!sidebarContentEl) return;
+    const index = treeRows.findIndex((row) => row.node.relativePath === path);
+    if (index === -1) return;
+    const listTop = treeListEl
+      ? treeListEl.getBoundingClientRect().top - sidebarContentEl.getBoundingClientRect().top + sidebarContentEl.scrollTop
+      : 0;
+    const rowTop = listTop + index * rowPitch;
+    const viewHeight = sidebarContentEl.clientHeight;
+    if (block === 'center') {
+      sidebarContentEl.scrollTop = rowTop - (viewHeight - rowPitch) / 2;
+    } else if (rowTop < sidebarContentEl.scrollTop) {
+      sidebarContentEl.scrollTop = rowTop;
+    } else if (rowTop + rowPitch > sidebarContentEl.scrollTop + viewHeight) {
+      sidebarContentEl.scrollTop = rowTop + rowPitch - viewHeight;
+    }
+    treeScrollTop = sidebarContentEl.scrollTop;
+  }
+
   // Obtener la lista aplanada de nodos visibles actualmente en el árbol
   function getVisibleNodes(nodes: VaultTreeNode[]): VaultTreeNode[] {
     const visible: VaultTreeNode[] = [];
@@ -505,31 +564,20 @@
   }
 
   function scrollPathIntoView(path: string) {
-    tick().then(() => {
-      if (!sidebarContentEl) return;
-      const selector = `[data-path="${CSS.escape(path)}"]`;
-      const el = sidebarContentEl.querySelector<HTMLElement>(selector);
-      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    });
+    tick().then(() => scrollRowIntoView(path));
   }
 
   function scrollPathPreservingRelativePosition(targetPath: string, currentPath?: string | null) {
     tick().then(() => {
       if (!sidebarContentEl) return;
-      const targetEl = sidebarContentEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(targetPath)}"]`);
-      if (!targetEl) return;
-
-      const currentEl = currentPath
-        ? sidebarContentEl.querySelector<HTMLElement>(`[data-path="${CSS.escape(currentPath)}"]`)
-        : null;
-
-      if (currentEl && currentEl !== targetEl) {
-        const currentRect = currentEl.getBoundingClientRect();
-        const targetRect = targetEl.getBoundingClientRect();
-        const deltaY = targetRect.top - currentRect.top;
-        sidebarContentEl.scrollTop += deltaY;
+      const targetIndex = treeRows.findIndex((row) => row.node.relativePath === targetPath);
+      const currentIndex = currentPath ? treeRows.findIndex((row) => row.node.relativePath === currentPath) : -1;
+      if (targetIndex === -1) return;
+      if (currentIndex !== -1 && currentIndex !== targetIndex) {
+        sidebarContentEl.scrollTop += (targetIndex - currentIndex) * rowPitch;
+        treeScrollTop = sidebarContentEl.scrollTop;
       } else {
-        targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        scrollRowIntoView(targetPath);
       }
     });
   }
@@ -581,12 +629,13 @@
 
     await tick();
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (!sidebarContentEl) return;
+      scrollRowIntoView(pathToLocate, 'center');
+      await tick();
       const selector = `[data-path="${CSS.escape(pathToLocate)}"]`;
       const el = sidebarContentEl.querySelector<HTMLElement>(selector);
       if (el) {
-        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
         el.classList.remove('locate-highlight');
         void el.offsetWidth;
         el.classList.add('locate-highlight');
@@ -718,9 +767,8 @@
       currentIndex = visible.findIndex((n) => n.relativePath === activeTabPath);
     }
 
-    const ITEM_HEIGHT = 28;
     const visibleHeight = sidebarContentEl?.clientHeight || 400;
-    const pageJump = Math.max(1, Math.floor(visibleHeight / ITEM_HEIGHT));
+    const pageJump = Math.max(1, Math.floor(visibleHeight / rowPitch));
 
     const baseIndex = currentIndex === -1 ? 0 : currentIndex;
     let newIndex: number;
@@ -766,7 +814,7 @@
     return selectedPaths.map((p) => map[p]).filter(Boolean);
   });
 
-  function handleFolderClick(e: MouseEvent, node: VaultTreeNode, defaultTriggerClick?: (e: MouseEvent) => void) {
+  function handleFolderClick(e: MouseEvent, node: VaultTreeNode, onToggle?: () => void) {
     sidebarPanelEl?.focus();
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
@@ -783,7 +831,7 @@
     selectedPaths = [node.relativePath];
     lastFocusedPath = node.relativePath;
     anchorPath = node.relativePath;
-    defaultTriggerClick?.(e);
+    onToggle?.();
   }
 
   function handleFileClick(e: MouseEvent, node: VaultTreeNode) {
@@ -2021,7 +2069,9 @@
             ondragleave={() => { if (dragOverPath === '') dragOverPath = null; }}
             ondrop={(e) => handleDropOnTarget(e, null)}
             class="sidebar-content"
+            bind:clientHeight={treeViewportHeight}
             onscroll={(e) => {
+              treeScrollTop = e.currentTarget.scrollTop;
               if (activeRibbonTab !== 'files' || isRestoringScroll) return;
               const top = e.currentTarget.scrollTop;
               savedScrollTop = top;
@@ -2061,9 +2111,15 @@
                 </button>
               </div>
             {:else}
-              {#each displayTreeNodes as rootNode (rootNode.relativePath)}
-                {@render renderNode(rootNode, 0)}
-              {/each}
+              <div
+                bind:this={treeListEl}
+                class="tree-rows"
+                style="padding-top: {rowWindow.first * rowPitch}px; padding-bottom: {(treeRows.length - rowWindow.last) * rowPitch}px;"
+              >
+                {#each treeRows.slice(rowWindow.first, rowWindow.last) as row (row.node.relativePath)}
+                  {@render renderRow(row.node, row.depth)}
+                {/each}
+              </div>
             {/if}
           </div>
 
@@ -2482,62 +2538,45 @@
   </div>
 {/if}
 
-{#snippet renderNode(node: VaultTreeNode, depth: number)}
+{#snippet renderRow(node: VaultTreeNode, depth: number)}
   {#if node.isFolder}
-    <Collapsible.Root
-      open={!!expandedFolders[node.relativePath]}
-      onOpenChange={() => toggleFolder(node.relativePath)}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      data-path={node.relativePath}
+      aria-expanded={!!expandedFolders[node.relativePath]}
+      class="file-tree-item folder"
+      class:drop-target={dragOverPath === node.relativePath}
+      draggable="true"
+      ondragstart={(e) => handleNodeDragStart(e, node)}
+      ondragover={(e) => handleDragOverTarget(e, node)}
+      ondragleave={() => { if (dragOverPath === node.relativePath) dragOverPath = null; }}
+      ondrop={(e) => handleDropOnTarget(e, node)}
+      ondragend={() => (dragOverPath = null)}
+      class:selected={isSelected(node.relativePath)}
+      class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
+      style="padding-left: {12 + depth * 14}px;"
+      onclick={(e) => handleFolderClick(e, node, () => toggleFolder(node.relativePath))}
+      oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
-      <Collapsible.Trigger>
-        {#snippet child({ props })}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            {...props}
-            data-path={node.relativePath}
-            class="file-tree-item folder"
-            class:drop-target={dragOverPath === node.relativePath}
-            draggable="true"
-            ondragstart={(e) => handleNodeDragStart(e, node)}
-            ondragover={(e) => handleDragOverTarget(e, node)}
-            ondragleave={() => { if (dragOverPath === node.relativePath) dragOverPath = null; }}
-            ondrop={(e) => handleDropOnTarget(e, node)}
-            ondragend={() => (dragOverPath = null)}
-            class:selected={isSelected(node.relativePath)}
-            class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
-            style="padding-left: {12 + depth * 14}px;"
-            onclick={(e) => handleFolderClick(e, node, (props as Record<string, any>).onclick)}
-            oncontextmenu={(e) => handleItemContextMenu(e, node)}
-          >
-            {#if expandedFolders[node.relativePath]}
-              <ChevronDown
-                class="chevron-icon"
-                size={12}
-              />
-            {:else}
-              <ChevronRight
-                class="chevron-icon"
-                size={12}
-              />
-            {/if}
-            <FolderIcon
-              isOpen={!!expandedFolders[node.relativePath]}
-              name={node.name}
-              size={15}
-            />
-            <span class="file-name">{node.name}</span>
-          </div>
-        {/snippet}
-      </Collapsible.Trigger>
-
       {#if expandedFolders[node.relativePath]}
-        <Collapsible.Content>
-          {#each getDisplayChildren(node) as child (child.relativePath)}
-            {@render renderNode(child, depth + 1)}
-          {/each}
-        </Collapsible.Content>
+        <ChevronDown
+          class="chevron-icon"
+          size={12}
+        />
+      {:else}
+        <ChevronRight
+          class="chevron-icon"
+          size={12}
+        />
       {/if}
-    </Collapsible.Root>
+      <FolderIcon
+        isOpen={!!expandedFolders[node.relativePath]}
+        name={node.name}
+        size={15}
+      />
+      <span class="file-name">{node.name}</span>
+    </div>
   {:else}
     {@const rawGitStatus = isGitRepo && gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[node.relativePath.replace(/^\.\//, '')]) : undefined}
     {@const fileGitStatus = getGitStatusInfo(rawGitStatus)}
