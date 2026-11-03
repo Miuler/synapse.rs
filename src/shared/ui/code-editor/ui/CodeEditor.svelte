@@ -13,6 +13,7 @@
   import { undoRedoExtension } from '@shared/lib/editor-history';
   import { commentExtension, withCommentTokens } from '@shared/lib/editor-comment';
   import { d2Language } from '../lib/d2-language';
+  import { braceFolding } from '../lib/brace-folding';
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
 
   export interface SelectionInfo {
@@ -312,9 +313,9 @@
 
     const langExtension =
       mode === 'd2'
-        ? withCommentTokens(d2Language, { line: '#' })
+        ? [withCommentTokens(d2Language, { line: '#' }), braceFolding({ lineComment: '#' })]
         : mode === 'mermaid'
-          ? withCommentTokens(mermaidLanguage, { line: '%%' })
+          ? [withCommentTokens(mermaidLanguage, { line: '%%' }), braceFolding({ lineComment: '%%' })]
           : markdown();
 
     const autocompleteExtension =
@@ -338,6 +339,13 @@
         langExtension,
         autocompleteExtension,
         syntaxHighlighting(customHighlightStyle),
+        // Textos del plegado en español
+        EditorState.phrases.of({
+          'Fold line': 'Plegar',
+          'Unfold line': 'Desplegar',
+          'folded code': 'código plegado',
+          unfold: 'desplegar',
+        }),
         search({ top: true }),
         keymap.of(searchKeymap as any),
         EditorView.editable.of(!readOnly),
