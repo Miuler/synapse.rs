@@ -262,7 +262,11 @@ impl NavigationEngine {
     /// Step 2: Background reconciliation runner using `jwalk::WalkDir`.
     pub fn spawn_reconciliation(self: &Arc<Self>) -> thread::JoinHandle<ReconciliationStats> {
         let engine = Arc::clone(self);
-        thread::spawn(move || engine.reconcile_sync())
+        thread::spawn(move || {
+            let stats = engine.reconcile_sync();
+            crate::infrastructure::config::memory::release_freed_memory();
+            stats
+        })
     }
 
     /// Synchronous reconciliation logic (callable from tests or background threads).

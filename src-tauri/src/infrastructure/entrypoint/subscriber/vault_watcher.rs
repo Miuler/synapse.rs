@@ -54,6 +54,9 @@ pub fn should_ignore_path(rel_path: &Path) -> bool {
 
 /// Processes a batch of filesystem paths using Rayon for concurrent metadata parsing and index updates.
 #[allow(clippy::too_many_arguments)]
+/// Desde este tamaño, al terminar el lote se devuelve al sistema la memoria liberada.
+const LARGE_BATCH_PATHS: usize = 200;
+
 pub fn process_paths_batch(
     vault_path: &Path,
     file_types: &SupportedFileTypes,
@@ -71,6 +74,7 @@ pub fn process_paths_batch(
     if paths.is_empty() {
         return;
     }
+    let large_batch = paths.len() >= LARGE_BATCH_PATHS;
 
     let mut existing_paths = HashSet::new();
     let mut deleted_paths = HashSet::new();
@@ -417,6 +421,11 @@ pub fn process_paths_batch(
                 }
             }
         }
+    }
+
+    // Los lotes grandes (p. ej. el escaneo inicial) reservan mucha memoria temporal.
+    if large_batch {
+        crate::infrastructure::config::memory::release_freed_memory();
     }
 }
 

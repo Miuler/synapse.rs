@@ -616,4 +616,5 @@ fn perform_full_sync(
     tot_i.store(0, Ordering::SeqCst);
     idx_b.store(0, Ordering::SeqCst);
     notify_fn();
+    crate::infrastructure::config::memory::release_freed_memory();
 }
