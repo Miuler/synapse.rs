@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { VaultItem, TagCountItem } from '@entities/vault-item';
+  import { vaultItemStore, type VaultItem, type TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch, Tag, Folder, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { FileIcon } from '@entities/file-type';
@@ -17,7 +17,6 @@
   interface Props {
     isOpen?: boolean;
     searchQuery?: string;
-    vaultItems?: VaultItem[];
     recentFiles?: string[];
     onSelectFile?: (path: string, matchedTerms?: string[]) => void;
     onRevealFolder?: (folderPath: string) => void;
@@ -27,12 +26,14 @@
   let {
     isOpen = $bindable(false),
     searchQuery = $bindable(''),
-    vaultItems = [],
     recentFiles = [],
     onSelectFile,
     onRevealFolder,
     onClose
   }: Props = $props();
+
+  // Elementos de la bóveda desde el store de la entidad (fuente única)
+  const vaultItems = $derived(vaultItemStore.items);
 
   // Constante de paginado para carga bajo demanda en scroll
   const PAGE_SIZE = 25;
@@ -179,16 +180,6 @@
     return vaultTags.filter((t) => t.tag.toLowerCase().includes(tagSearchPrefix)).slice(0, 30);
   });
 
-  // Mapa indexado de vaultItems para búsquedas O(1) en vez de find() O(N)
-  let vaultItemMap = $derived.by<Map<string, VaultItem>>(() => {
-    const map = new Map<string, VaultItem>();
-    for (const item of vaultItems) {
-      if (item.relative_path) {
-        map.set(item.relative_path, item);
-      }
-    }
-    return map;
-  });
 
   // Prepara los candidatos completos para la lista priorizando el nombre del archivo
   let allCandidates = $derived.by<FileItemDisplay[]>(() => {
@@ -225,7 +216,7 @@
       for (const path of recentFiles) {
         if (!path || path.startsWith('empty:') || added.has(path)) continue;
         const fileName = path.split('/').pop() || path;
-        const item = vaultItemMap.get(path);
+        const item = vaultItemStore.get(path);
         const title = item ? item.title : fileName.replace(/\.[^/.]+$/, '');
         if (matchesQuery(fileName) || matchesQuery(title) || matchesQuery(path)) {
           filtered.push({
@@ -294,7 +285,7 @@
     // 1. Si no hay búsqueda, PRIORIDAD a los últimos archivos que abrió el usuario
     for (const path of recentFiles) {
       if (!path || path.startsWith('empty:') || addedPaths.has(path)) continue;
-      const item = vaultItemMap.get(path);
+      const item = vaultItemStore.get(path);
       const fileName = path.split('/').pop() || path;
       list.push({
         id: path,

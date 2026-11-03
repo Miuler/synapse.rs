@@ -41,7 +41,7 @@
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
-  import {vaultApi, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
+  import {vaultApi, vaultItemStore, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
   import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
@@ -237,7 +237,7 @@
     try {
       const notes = await vaultRepository.getNotes();
       if (notes && Array.isArray(notes)) {
-        vaultItems = notes.map((n, index) => {
+        vaultItemStore.set(notes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === "string") {
             relPath = n.relative_path;
@@ -256,10 +256,10 @@
             abs_path: n.abs_path,
             view_mode: n.view_mode,
           };
-        });
+        }));
 
         // Sincronizar abs_path en pestañas que se abrieron antes de cargar vaultItems
-        for (const item of vaultItems) {
+        for (const item of vaultItemStore.items) {
           if (openedNotes[item.relative_path] && !openedNotes[item.relative_path].abs_path && item.abs_path) {
             openedNotes[item.relative_path].abs_path = item.abs_path;
           }
@@ -401,18 +401,6 @@
   }
 
   // Lista de metadatos de elementos de la bóveda (VaultItem[])
-  // Lista plana (sin proxies por elemento): con miles de notas, el $state profundo cuesta ~6 veces
-  // más memoria. Para cambiar un elemento se reemplaza el arreglo (ver patchVaultItem).
-  let vaultItems = $state.raw<VaultItem[]>([]);
-
-  /** Actualiza campos de un elemento de la bóveda reemplazando el arreglo para notificar el cambio. */
-  function patchVaultItem(path: string, patch: Partial<VaultItem>) {
-    const idx = vaultItems.findIndex((v) => v.relative_path === path);
-    if (idx < 0) return;
-    const next = vaultItems.slice();
-    next[idx] = { ...next[idx], ...patch };
-    vaultItems = next;
-  }
   let openTabPaths = $state<string[]>([]);
   let activeTabPath = $state<string | null>(null);
   let lastActiveDocumentPath = $state<string | null>(null);
@@ -575,7 +563,7 @@
         for (const tab of state.open_tabs) {
           if (!tab.path) continue;
           openTabPaths.push(tab.path);
-          const vItem = vaultItems.find((v) => v.relative_path === tab.path);
+          const vItem = vaultItemStore.get(tab.path);
           const isDrawing = isDrawingTab(tab.path);
           const isTabLocked = unsavedChanges.isLocked(tab.path);
           const memoryMode = (tab.view_mode || vItem?.view_mode) as MarkdownViewMode | undefined;
@@ -645,7 +633,7 @@
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = newMode;
       }
-      patchVaultItem(activeTabPath, { view_mode: newMode });
+      vaultItemStore.patch(activeTabPath, { view_mode: newMode });
       vaultRepository.setNoteViewMode(activeTabPath, newMode);
       persistTabsState();
     }
@@ -684,7 +672,7 @@
       if (openedNotes[activeTabPath]) {
         openedNotes[activeTabPath].viewMode = nextMode;
       }
-      patchVaultItem(activeTabPath, { view_mode: nextMode });
+      vaultItemStore.patch(activeTabPath, { view_mode: nextMode });
       vaultRepository.setNoteViewMode(activeTabPath, nextMode);
       persistTabsState();
     }
@@ -694,7 +682,7 @@
     if (!path || isSyntheticTab(path)) return;
     if (openedNotes[path] && openedNotes[path].isLoaded && !openedNotes[path].isLoading) return;
 
-    const vaultItem = vaultItems.find((v) => v.relative_path === path);
+    const vaultItem = vaultItemStore.get(path);
     let initialAbsPath = vaultItem?.abs_path;
 
     // Para imágenes y PDFs no se requiere leer contenido como texto; resolveAssetUrl / readAssetDataUrl se encarga
@@ -827,7 +815,7 @@
 
     const note = openedNotes[targetPath];
     if (note && note.content !== note.savedContent) {
-      const vItem = vaultItems.find((v) => v.relative_path === targetPath) || {
+      const vItem = vaultItemStore.get(targetPath) || {
         id: "0",
         title: note.title || targetPath,
         relative_path: targetPath,
@@ -860,7 +848,7 @@
             : 'reading';
           if (note.viewMode !== targetMode) {
             note.viewMode = targetMode;
-            patchVaultItem(path, { view_mode: targetMode });
+            vaultItemStore.patch(path, { view_mode: targetMode });
             vaultRepository.setNoteViewMode(path, targetMode);
             persistTabsState();
           }
@@ -883,7 +871,7 @@
             : 'reading';
           if (note.viewMode !== targetMode) {
             note.viewMode = targetMode;
-            patchVaultItem(path, { view_mode: targetMode });
+            vaultItemStore.patch(path, { view_mode: targetMode });
             vaultRepository.setNoteViewMode(path, targetMode);
             persistTabsState();
           }
@@ -931,7 +919,7 @@
     activeTabPath = path;
     if (!isSyntheticTab(path)) {
       lastActiveDocumentPath = path;
-      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const vItem = vaultItemStore.get(path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
       const existingMode = openedNotes[path]?.viewMode;
@@ -1023,7 +1011,7 @@
           const nextIdx = Math.min(idx, openTabPaths.length - 1);
           activeTabPath = openTabPaths[nextIdx];
           if (activeTabPath && !isSyntheticTab(activeTabPath)) {
-            const vItem = vaultItems.find((v) => v.relative_path === activeTabPath);
+            const vItem = vaultItemStore.get(activeTabPath);
             const isLocked = lockedFiles.has(activeTabPath);
             const isDrawing = isDrawingTab(activeTabPath, openedNotes[activeTabPath]?.content);
             const existingMode = openedNotes[activeTabPath]?.viewMode;
@@ -1071,7 +1059,7 @@
         isStandaloneMode = false;
         showWelcomeScreen = true;
         hasActiveWorkspaceLoaded = false;
-        vaultItems = [];
+        vaultItemStore.clear();
       } else {
         handleNewEmptyTab();
       }
@@ -1093,7 +1081,7 @@
       isStandaloneMode = false;
       showWelcomeScreen = true;
       hasActiveWorkspaceLoaded = false;
-      vaultItems = [];
+      vaultItemStore.clear();
     } else {
       handleNewEmptyTab();
     }
@@ -1259,7 +1247,7 @@
           } catch {}
         }
         const note = openedNotes[p];
-        const vItem = vaultItems.find((v) => v.relative_path === p) || {
+        const vItem = vaultItemStore.get(p) || {
           id: "0",
           title: note?.title || p,
           relative_path: p,
@@ -1310,7 +1298,7 @@
 
   async function handleOpenInNewWindow(path: string, moveTab = false) {
     if (!path || isSyntheticTab(path)) return;
-    const vItem = vaultItems.find((v) => v.relative_path === path);
+    const vItem = vaultItemStore.get(path);
     const title = vItem?.title || path.split('/').pop() || path;
     await systemApi.openTabInNewWindow(path, title);
     if (moveTab) {
@@ -1413,7 +1401,7 @@
     activeSplitTabPath = path;
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
-      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const vItem = vaultItemStore.get(path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
       const existingMode = openedNotes[path]?.viewMode;
@@ -1464,7 +1452,7 @@
           activeSplitTabPath = splitTabPaths[nextIdx];
           if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
             ensureContentLoaded(activeSplitTabPath);
-            const vItem = vaultItems.find((v) => v.relative_path === activeSplitTabPath);
+            const vItem = vaultItemStore.get(activeSplitTabPath);
             const isLocked = lockedFiles.has(activeSplitTabPath);
             const isDrawing = isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content);
             const nextMode = ((isLocked || isDrawing) ? "reading" : (openedNotes[activeSplitTabPath]?.viewMode || vItem?.view_mode || "reading")) as MarkdownViewMode;
@@ -1545,7 +1533,7 @@
 
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
-      const vItem = vaultItems.find((v) => v.relative_path === path);
+      const vItem = vaultItemStore.get(path);
       const isLocked = lockedFiles.has(path);
       const isDrawing = isDrawingTab(path, openedNotes[path]?.content);
       const existingMode = openedNotes[path]?.viewMode;
@@ -1650,7 +1638,7 @@
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = newMode;
       }
-      patchVaultItem(activeSplitTabPath, { view_mode: newMode });
+      vaultItemStore.patch(activeSplitTabPath, { view_mode: newMode });
       vaultRepository.setNoteViewMode(activeSplitTabPath, newMode);
       persistTabsState();
     }
@@ -1678,7 +1666,7 @@
       if (openedNotes[activeSplitTabPath]) {
         openedNotes[activeSplitTabPath].viewMode = nextMode;
       }
-      patchVaultItem(activeSplitTabPath, { view_mode: nextMode });
+      vaultItemStore.patch(activeSplitTabPath, { view_mode: nextMode });
       vaultRepository.setNoteViewMode(activeSplitTabPath, nextMode);
       persistTabsState();
     }
@@ -1771,7 +1759,7 @@
 
   let currentVaultItem = $derived(
     activeTabPath && !isSyntheticTab(activeTabPath)
-      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeTabPath) || {
+      ? vaultItemStore.get(activeTabPath) || {
           id: "0",
           title: activeNote?.title || activeTabPath.split("/").pop() || activeTabPath,
           relative_path: activeTabPath,
@@ -1790,7 +1778,7 @@
 
   let currentSplitVaultItem = $derived(
     activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)
-      ? vaultItems.find((vaultItem) => vaultItem.relative_path === activeSplitTabPath) || {
+      ? vaultItemStore.get(activeSplitTabPath) || {
           id: "0",
           title: openedNotes[activeSplitTabPath]?.title || activeSplitTabPath.split("/").pop() || activeSplitTabPath,
           relative_path: activeSplitTabPath,
@@ -1873,7 +1861,7 @@
           isDirty: false,
         };
       }
-      const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const vaultItem = vaultItemStore.get(path);
       const isDirty = isTabDirty(path);
       const isLocked = lockedFiles.has(path);
       const note = openedNotes[path];
@@ -1901,7 +1889,7 @@
           isDirty: false,
         };
       }
-      const vaultItem = vaultItems.find((item) => item.relative_path === path);
+      const vaultItem = vaultItemStore.get(path);
       const isDirty = isTabDirty(path);
       const isLocked = lockedFiles.has(path);
       const note = openedNotes[path];
@@ -1997,7 +1985,7 @@
     try {
       const activePath = await vaultApi.getActiveVaultPath();
       if (!activePath) {
-        vaultItems = [];
+        vaultItemStore.clear();
         isConnectedToRust = vaultRepository.isConnected();
         if (openTabPaths.length === 0) {
           handleNewEmptyTab();
@@ -2013,7 +2001,7 @@
       refreshMcpStatus();
 
       if (notes && Array.isArray(notes) && notes.length > 0) {
-        vaultItems = notes.map((n, index) => {
+        vaultItemStore.set(notes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === "string") {
             relPath = n.relative_path;
@@ -2032,7 +2020,7 @@
             abs_path: n.abs_path,
             view_mode: n.view_mode,
           };
-        });
+        }));
 
         if (recentFiles.length === 0) {
           const loadedRecent = await vaultRepository.getRecentNotes(15);
@@ -2050,7 +2038,7 @@
           await refreshGitStatus();
         }
       } else {
-        vaultItems = [];
+        vaultItemStore.clear();
         if (openTabPaths.length === 0) {
           handleNewEmptyTab();
         }
@@ -2058,7 +2046,7 @@
     } catch (e) {
       console.warn("Error al cargar lista de archivos de la bóveda:", e);
       isConnectedToRust = false;
-      vaultItems = [];
+      vaultItemStore.clear();
       if (openTabPaths.length === 0) {
         handleNewEmptyTab();
       }
@@ -2262,7 +2250,7 @@
       openedNotes[tabPath].title = cleanTitle;
     }
     vaultItem.title = cleanTitle;
-    patchVaultItem(tabPath, { title: cleanTitle });
+    vaultItemStore.patch(tabPath, { title: cleanTitle });
 
     // Si es un archivo Markdown en modo bóveda, sincronizar renombrado de archivo y frontmatter
     if (isMarkdownFile(tabPath) && !isStandaloneMode) {
@@ -2570,7 +2558,7 @@
 
       const note = openedNotes[p];
       if (note && note.isLoaded && note.content !== note.savedContent) {
-        const vItem = vaultItems.find((v) => v.relative_path === p) || {
+        const vItem = vaultItemStore.get(p) || {
           id: "0",
           title: note.title || p,
           relative_path: p,
@@ -2648,7 +2636,7 @@
       for (const path of released) {
         const note = openedNotes[path];
         if (!note || !note.isLoaded || note.content === note.savedContent) continue;
-        const vItem = vaultItems.find((v) => v.relative_path === path) || {
+        const vItem = vaultItemStore.get(path) || {
           id: "0",
           title: note.title || path,
           relative_path: path,
@@ -2846,11 +2834,11 @@
       initialContent = createCanonicalExcalidrawContent(templateContent);
     }
 
-    let counter = vaultItems.length + 1;
+    let counter = vaultItemStore.count + 1;
     let newTitle = `${defaultBaseTitle} ${counter}`;
     let newRelPath = `${newTitle}.${extension}`;
 
-    while (vaultItems.some((v) => v.relative_path === newRelPath)) {
+    while (vaultItemStore.has(newRelPath)) {
       counter++;
       newTitle = `${defaultBaseTitle} ${counter}`;
       newRelPath = `${newTitle}.${extension}`;
@@ -2862,7 +2850,7 @@
       relative_path: newRelPath,
       abs_path: undefined,
     };
-    vaultItems = [...vaultItems, newVaultItem];
+    vaultItemStore.add(newVaultItem);
     openedNotes[newRelPath] = {
       relative_path: newRelPath,
       abs_path: undefined,
@@ -3625,7 +3613,7 @@
     tabHistory.clear();
 
     if (initialNotes && initialNotes.length > 0) {
-      vaultItems = initialNotes.map((n, index) => {
+      vaultItemStore.set(initialNotes.map((n, index) => {
         let relPath = `${n.title}.md`;
         if (typeof n.relative_path === 'string') {
           relPath = n.relative_path;
@@ -3642,7 +3630,7 @@
           relative_path: relPath,
           abs_path: n.abs_path,
         };
-      });
+      }));
       isConnectedToRust = vaultRepository.isConnected();
       await refreshGitStatus();
       refreshMcpStatus();
@@ -3668,14 +3656,14 @@
     openTabPaths = [filePath];
     activeTabPath = filePath;
     const fileName = filePath.split(/[\\/]/).pop() || filePath;
-    vaultItems = [
+    vaultItemStore.set([
       {
         id: filePath,
         title: fileName,
         relative_path: filePath,
         abs_path: filePath,
       },
-    ];
+    ]);
     await ensureContentLoaded(filePath);
   }
 
@@ -3694,7 +3682,7 @@
         showWelcomeScreen = false;
         hasActiveWorkspaceLoaded = true;
         const newNotes = result.notes || [];
-        vaultItems = newNotes.map((n, index) => {
+        vaultItemStore.set(newNotes.map((n, index) => {
           let relPath = `${n.title}.md`;
           if (typeof n.relative_path === 'string') {
             relPath = n.relative_path;
@@ -3713,7 +3701,7 @@
             abs_path: n.abs_path,
             view_mode: n.view_mode,
           };
-        });
+        }));
         openTabPaths = [];
         activeTabPath = null;
         openedNotes = {};
@@ -3801,7 +3789,6 @@
       {sidebarWidth}
       {isResizingSidebar}
       {isConnectedToRust}
-      {vaultItems}
       {activeTabPath}
       vaultPath={isStandaloneMode ? undefined : appSettings.lastOpenedFolder}
       {gitStatuses}
@@ -3859,7 +3846,7 @@
   {#snippet renderPaneContent(paneTabs: string[], activePath: string | null, isRight: boolean)}
     {#if paneTabs.length === 0 || !activePath || !paneTabs.includes(activePath)}
       <EmptyWorkspace
-        hasVaultItems={vaultItems.length > 0}
+        hasVaultItems={vaultItemStore.count > 0}
         onCreateNew={() => (isRight ? handleNewSplitEmptyTab() : createNewVaultItem())}
       />
     {:else}
@@ -3870,7 +3857,7 @@
             class:hidden={tabPath !== activePath}
           >
             <EmptyWorkspace
-              hasVaultItems={vaultItems.length > 0}
+              hasVaultItems={vaultItemStore.count > 0}
               onCreateNew={() => createNewVaultItem(tabPath)}
             />
           </div>
@@ -3917,7 +3904,7 @@
             />
           </div>
         {:else}
-          {@const vaultItem = vaultItems.find((item) => item.relative_path === tabPath) || {
+          {@const vaultItem = vaultItemStore.get(tabPath) || {
             id: "0",
             title: openedNotes[tabPath]?.title || tabPath,
             relative_path: tabPath,
@@ -4056,8 +4043,8 @@
                     readonly={!paneEditing}
                     value={vaultItem.title}
                     oninput={(e) => {
-                      // vaultItems es $state.raw: se actualiza reemplazando el elemento
-                      patchVaultItem(vaultItem.relative_path, { title: (e.currentTarget as HTMLInputElement).value });
+                      // El store es inmutable: se actualiza reemplazando el elemento
+                      vaultItemStore.patch(vaultItem.relative_path, { title: (e.currentTarget as HTMLInputElement).value });
                     }}
                     onchange={(e) => {
                       const target = e.currentTarget as HTMLInputElement;
@@ -4330,11 +4317,11 @@
 
     <!-- BARRA DE ESTADO INFERIOR -->
     <StatusBar
-      wordCount={vaultItems.length > 0 && currentFocusedTabPath ? displayWordCount : 0}
-      charCount={vaultItems.length > 0 && currentFocusedTabPath ? displayCharCount : 0}
-      line={vaultItems.length > 0 && currentFocusedTabPath ? displayLine : 0}
-      col={vaultItems.length > 0 && currentFocusedTabPath ? displayCol : 0}
-      hasSelection={vaultItems.length > 0 && !!currentFocusedTabPath && currentSelection.hasSelection}
+      wordCount={vaultItemStore.count > 0 && currentFocusedTabPath ? displayWordCount : 0}
+      charCount={vaultItemStore.count > 0 && currentFocusedTabPath ? displayCharCount : 0}
+      line={vaultItemStore.count > 0 && currentFocusedTabPath ? displayLine : 0}
+      col={vaultItemStore.count > 0 && currentFocusedTabPath ? displayCol : 0}
+      hasSelection={vaultItemStore.count > 0 && !!currentFocusedTabPath && currentSelection.hasSelection}
       syncStatus={syncState}
       isVimMode={isVimMode}
       encoding={currentEncoding}
@@ -4360,7 +4347,6 @@
   <QuickOpen
     bind:isOpen={isQuickOpenOpen}
     bind:searchQuery={quickOpenSearchQuery}
-    {vaultItems}
     {recentFiles}
     onSelectFile={handleSelectQuickOpenFile}
     onRevealFolder={handleBreadcrumbNavigateFolder}

@@ -2,7 +2,7 @@
   import { flushPendingWrites } from '@shared/lib/pending-writes';
   import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
-  import { vaultApi } from '@entities/vault-item';
+  import { vaultApi, vaultItemStore } from '@entities/vault-item';
   import { settingsApi } from '@entities/settings';
   import { systemApi } from '@shared/api';
   import type { GitFileStatusKind } from '@shared/repositories';
@@ -20,7 +20,6 @@
     sidebarWidth: number;
     isResizingSidebar: boolean;
     isConnectedToRust: boolean;
-    vaultItems: VaultItem[];
     activeTabPath: string | null;
     vaultPath?: string;
     gitStatuses?: Record<string, GitFileStatusKind>;
@@ -53,7 +52,6 @@
     sidebarWidth,
     isResizingSidebar,
     isConnectedToRust,
-    vaultItems,
     activeTabPath,
     vaultPath,
     gitStatuses = {},
@@ -80,6 +78,9 @@
     onOpenDiffWithRevision,
     onOpenInNewWindow,
   }: Props = $props();
+
+  // Elementos de la bóveda desde el store de la entidad (fuente única)
+  const vaultItems = $derived(vaultItemStore.items);
 
   function getGitStatusInfo(raw: unknown): NormalizedGitStatus | null {
     return parseGitStatusInfo(raw);

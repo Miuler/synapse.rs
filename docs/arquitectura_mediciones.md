@@ -34,3 +34,17 @@ elementos y rutas de ~150 caracteres, leyendo cada propiedad como hace la interf
 
 El índice síncrono de la fachada de Obsidian suma ~1,6 a 2 MB aparte (estimado). Queda pendiente
 medir el heap real del webview con la app abierta.
+
+## Front: costo de las dos listas al abrir la bóveda
+
+Bóveda real (6 045 elementos). JSON que envía el backend y tiempo de `JSON.parse` en
+JavaScriptCore (Bun), mediana de 20:
+
+| Lista | Tamaño | Serializar (Rust) | Parsear (JS) |
+|---|---|---|---|
+| Explorador (`activate_vault`) | 2,30 MB | 1,5 ms | 2,7 ms |
+| Fachada de Obsidian (`get_vault_files`) | 2,26 MB | 2,2 ms | 3,5 ms |
+
+Unificar las listas ahorraría unos 6 ms de CPU, ~2,3 MB de transferencia por IPC (sin medir su
+tiempo) y ~2 MB de memoria. Con estos números no se prioriza; el store único de la entidad
+(`entities/vault-item`) ya da la fuente única del lado del explorador.

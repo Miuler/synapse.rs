@@ -114,14 +114,13 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
 
 ## Deuda que queda
 
-- **Índice único front:** la fachada (`SynapseVault`) y el explorador (`vaultItems`) siguen con
-  listas separadas: tienen datos distintos (metadatos de archivo frente a título y modo de vista)
-  y unificarlas exige que el backend entregue ambos en una sola consulta.
+- **Índice único front:** `vaultItems` ya vive en el store de la entidad
+  (`entities/vault-item/model/vault-item-store.svelte.ts`) y lo leen la página, el explorador y
+  el Quick Open. La fachada de Obsidian sigue con su propia lista; unificarla ahorraría ~6 ms y
+  ~2 MB (ver `arquitectura_mediciones.md`), así que queda en espera.
 - **Memoria real del webview:** medir el heap con la app abierta (lo medido es sintético en
   JavaScriptCore).
 - **Quick Open:** los empates con el mismo nombre y puntaje dependen del orden del `DashMap`.
-- **`sha2`** (huella de contenido en `NoteContent`) usada en el dominio: librería pura de un
-  estándar; falta anotarla en la lista de librerías permitidas.
 - **`read_pdf_document`:** si falta `search_query` y además el PDF no se puede leer, ahora
   responde primero el error de argumento (antes, el de lectura).
 - **`serde` en el dominio:** sigue como excepción temporal (fuera de esta ronda).

@@ -78,6 +78,14 @@ librería, y únicamente si figuran en la lista explícita del test de arquitect
 3. `log`, la fachada de logging: no hace I/O por sí misma (lo hace el backend que configura
    `infrastructure`), así que un caso de uso puede registrar avisos.
 
+Lista actual de Synapse:
+
+| Librería | Tipo | Dónde | Para qué |
+| :--- | :--- | :--- | :--- |
+| `log` | Fachada de logging | casos de uso | Avisos y trazas |
+| `pulldown_cmark` | Estándar (CommonMark) | `domain/graph/tag.rs`, `domain/note/note.rs` | Separar texto real de sintaxis Markdown |
+| `sha2` | Estándar (SHA-256) | `domain/note/note_content.rs` | Huella `sha256:` del contenido para el control de concurrencia optimista del MCP; no se cambia el algoritmo porque los agentes devuelven ese valor |
+
 Entrar en la lista es una decisión, no un descuido. Siguen prohibidas las que obligan a
 anotar el modelo (`serde`, JPA, Jackson).
 
