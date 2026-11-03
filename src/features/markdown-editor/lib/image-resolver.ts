@@ -129,19 +129,21 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
     return imageUrlCache.get(cacheKey)!;
   }
 
-  // 1. Resolver ruta a través del backend Rust (Data URL directa o DashMap)
+  // 1. Resolver la ruta en el backend y servir el archivo por el protocolo de assets de Tauri:
+  // el webview lo lee directamente, sin pasar la imagen en base64 por el IPC. La data URL queda
+  // como último recurso si la ruta no se puede resolver.
   if (isTauriEnvironment()) {
     try {
-      const dataUrl = await vaultApi.readAssetDataUrl(cleanSrc, basePath);
-      if (dataUrl) {
-        imageUrlCache.set(cacheKey, dataUrl);
-        return dataUrl;
-      }
       const absPath = await vaultApi.resolveAssetFilePath(cleanSrc, basePath);
       if (absPath) {
         const url = vaultApi.resolveAssetUrl(absPath);
         imageUrlCache.set(cacheKey, url);
         return url;
+      }
+      const dataUrl = await vaultApi.readAssetDataUrl(cleanSrc, basePath);
+      if (dataUrl) {
+        imageUrlCache.set(cacheKey, dataUrl);
+        return dataUrl;
       }
     } catch (err) {
       console.warn(`Error resolviendo ruta para imagen "${cleanSrc}":`, err);

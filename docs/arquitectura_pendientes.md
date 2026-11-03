@@ -136,9 +136,16 @@ Memoria (RSS) de la app instalada (build de producción) con la misma bóveda:
 
 Hallazgos, por prioridad:
 
-1. **Imágenes por IPC en base64:** al restaurar las pestañas, `read_asset_data_url` hizo 32 llamadas
-   que sumaron 5,3 s. Las imágenes viajan como data URL por el IPC (≈100 ms por 2,5 MB medido);
-   usar el protocolo de assets de Tauri (`convertFileSrc`) evitaría el IPC.
+1. **Imágenes por IPC en base64 (hecho):** las notas y el visor de imágenes usan el protocolo de
+   assets de Tauri; la data URL queda como último recurso. Probado con rutas con emojis, espacios,
+   `@`, acentos y `#` (`e2e/assets.test.ts`).
+1b. **Cola en el hilo principal (causa raíz de la lentitud al abrir):** 66 de 85 comandos Tauri son
+   `fn` síncronas y se ejecutan en el hilo principal, una detrás de otra. Con la bóveda real,
+   `get_diagram_split_ratio` (una búsqueda en memoria) tardó 579 ms y `resolve_asset_file_path`
+   ~140 ms por llamada: esperan en la cola detrás de `read_note_content`,
+   `render_markdown_wikilinks` y el estado de git. Pasar los comandos de lectura a
+   `#[tauri::command(async)]` los saca del hilo principal; las escrituras conviene dejarlas en
+   orden para no reordenar guardados de la misma nota.
 2. **Memoria del backend:** 640–730 MB en producción para ~6 000 notas es alto. Perfilar el heap
    (Tantivy, DashMap/nucleo, extracción de PDF) con `heaptrack` o `dhat`.
 3. **Lecturas de notas lentas:** `read_note_content` promedió ~550 ms (9 llamadas, 5 s) y

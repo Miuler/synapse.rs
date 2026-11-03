@@ -39,69 +39,27 @@
     hasError = false;
 
     if (vaultRepository.isConnected()) {
-      vaultRepository.readAssetDataUrl(currentSrc).then((dataUrl) => {
-        if (!isCurrent) return;
-        if (dataUrl) {
-          resolvedSrc = dataUrl;
-          isLoading = false;
-          hasError = false;
-        } else {
-          console.error('[ImageViewer] El backend no devolvió una Data URL; se reintentará resolviendo la ruta.', {
-            src: currentSrc,
-          });
-          vaultRepository.resolveAssetFilePath(currentSrc).then((absPath) => {
-            if (!isCurrent) return;
-            if (absPath) {
-              vaultRepository.readAssetDataUrl(absPath).then((retryDataUrl) => {
-                if (!isCurrent) return;
-                if (retryDataUrl) {
-                  resolvedSrc = retryDataUrl;
-                  isLoading = false;
-                  hasError = false;
-                } else {
-                  console.error('[ImageViewer] El reintento como Data URL falló; se usará el protocolo asset.', {
-                    src: currentSrc,
-                    absPath,
-                  });
-                  resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
-                  isLoading = false;
-                }
-              }).catch((error) => {
-                if (!isCurrent) return;
-                console.error('[ImageViewer] Falló el reintento de leer el asset como Data URL.', {
-                  src: currentSrc,
-                  absPath,
-                  error,
-                });
-                resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
-                isLoading = false;
-              });
-            } else {
-              console.error('[ImageViewer] No se pudo resolver la ruta absoluta de la imagen.', {
-                src: currentSrc,
-              });
-              hasError = true;
-              isLoading = false;
-            }
-          }).catch((error) => {
-            if (!isCurrent) return;
-            console.error('[ImageViewer] Error resolviendo la ruta absoluta de la imagen.', {
-              src: currentSrc,
-              error,
-            });
-            hasError = true;
+      // Protocolo de assets de Tauri: el webview lee el archivo directamente, sin pasar la imagen
+      // en base64 por el IPC. La data URL queda como último recurso.
+      triedDataUrl = false;
+      vaultRepository
+        .resolveAssetFilePath(currentSrc)
+        .then(async (absPath) => {
+          if (!isCurrent) return;
+          if (absPath) {
+            resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
             isLoading = false;
-          });
-        }
-      }).catch((error) => {
-        if (!isCurrent) return;
-        console.error('[ImageViewer] Error leyendo la imagen como Data URL.', {
-          src: currentSrc,
-          error,
+            hasError = false;
+            return;
+          }
+          await loadAsDataUrl(currentSrc, () => isCurrent);
+        })
+        .catch((error) => {
+          if (!isCurrent) return;
+          console.error('[ImageViewer] Error resolviendo la ruta absoluta de la imagen.', { src: currentSrc, error });
+          hasError = true;
+          isLoading = false;
         });
-        hasError = true;
-        isLoading = false;
-      });
     } else {
       resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
       isLoading = false;
@@ -167,7 +125,29 @@
     isLoading = false;
   }
 
+  // Si el protocolo de assets no pudo servir la imagen, se reintenta una vez como data URL
+  let triedDataUrl = false;
+
+  async function loadAsDataUrl(source: string, isCurrent: () => boolean) {
+    triedDataUrl = true;
+    const dataUrl = await vaultRepository.readAssetDataUrl(source).catch(() => null);
+    if (!isCurrent()) return;
+    if (dataUrl) {
+      resolvedSrc = dataUrl;
+      hasError = false;
+    } else {
+      console.error('[ImageViewer] No se pudo cargar la imagen.', { src: source });
+      hasError = true;
+    }
+    isLoading = false;
+  }
+
   function handleImageError(event: Event) {
+    if (!triedDataUrl && vaultRepository.isConnected() && !resolvedSrc.startsWith('data:')) {
+      const source = src;
+      void loadAsDataUrl(source, () => src === source);
+      return;
+    }
     const image = event.currentTarget as HTMLImageElement;
     console.error('[ImageViewer] El WebView no pudo decodificar o cargar la imagen.', {
       requestedSrc: src,
