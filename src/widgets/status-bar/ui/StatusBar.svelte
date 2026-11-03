@@ -24,6 +24,7 @@
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
   import { systemApi, type McpRuntimeStatus } from '@shared/api';
   import { listen } from '@tauri-apps/api/event';
+  import { diagramRenderStatus } from '@shared/lib/diagrams';
 
   interface Props {
     wordCount?: number;
@@ -80,6 +81,17 @@
 
   // Estados para el selector de vistas Markdown
   let isViewMenuOpen = $state(false);
+
+  // Segundos del render de diagrama en curso (se actualiza mientras dura).
+  let renderElapsedMs = $state(0);
+  $effect(() => {
+    if (diagramRenderStatus.active === 0) return;
+    const tick = () => (renderElapsedMs = performance.now() - diagramRenderStatus.startedAt);
+    tick();
+    const interval = setInterval(tick, 200);
+    return () => clearInterval(interval);
+  });
+  const formatSeconds = (ms: number) => `${(ms / 1000).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
   let appVersion = $state('');
 
   $effect(() => {
@@ -309,6 +321,22 @@
       <span class="dot {syncStatus}"></span>
       <span>{syncStatus === 'synced' ? 'Guardado' : syncStatus === 'saving' ? 'Guardando...' : 'Error de guardado'}</span>
     </div>
+
+    {#if diagramRenderStatus.active > 0 || diagramRenderStatus.lastMs !== null}
+      <div class="divider"></div>
+      <div
+        class="status-item diagram-render-status"
+        class:rendering={diagramRenderStatus.active > 0}
+        title="Ctrl+Enter en el editor fuerza el redibujado"
+      >
+        {#if diagramRenderStatus.active > 0}
+          <Loader2 size={13} class="icon spin" />
+          <span>Renderizando {diagramRenderStatus.engine}… {formatSeconds(renderElapsedMs)}</span>
+        {:else}
+          <span>{diagramRenderStatus.engine}: {formatSeconds(diagramRenderStatus.lastMs ?? 0)}</span>
+        {/if}
+      </div>
+    {/if}
 
     <div class="divider"></div>
 

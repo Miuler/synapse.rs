@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { DiagramSplitViewer } from '@shared/ui/diagram-viewer';
   import {
+    createRenderScheduler,
     ensureMermaidJs,
     renderMermaidJsSvg,
     validateMermaidJs,
@@ -36,7 +37,6 @@
   let isReady = $state(false);
   let error = $state('');
   let diagnostics = $state<EditorDiagnostic[]>([]);
-  let currentRequestId = 0;
 
   onMount(async () => {
     try {
@@ -47,55 +47,52 @@
     }
   });
 
+  async function renderCode(rawCode: string) {
+    try {
+      const valRes = await validateMermaidJs(rawCode);
+      if (!valRes.valid) {
+        error = valRes.error || 'Error de sintaxis en diagrama Mermaid';
+        diagnostics = valRes.errors.map((e: MermaidSyntaxError) => ({
+          line: e.line,
+          column: e.column,
+          endLine: e.endLine,
+          endColumn: e.endColumn,
+          message: e.message,
+          severity: 'error' as const,
+        }));
+        return;
+      }
+
+      const res = await renderMermaidJsSvg(rawCode, 'mermaidjs-viewer');
+      if (res.error) {
+        error = res.error;
+        diagnostics = res.errors.map((e: MermaidSyntaxError) => ({
+          line: e.line,
+          column: e.column,
+          endLine: e.endLine,
+          endColumn: e.endColumn,
+          message: e.message,
+          severity: 'error' as const,
+        }));
+        return;
+      }
+
+      error = '';
+      diagnostics = [];
+      svgContent = res.svg || '';
+    } catch (e: any) {
+      error = String(e?.message || e);
+      diagnostics = [{ line: 1, column: 1, message: error, severity: 'error' }];
+    }
+  }
+
+  const scheduler = createRenderScheduler('Mermaid', renderCode);
+  onDestroy(() => scheduler.destroy());
+
   $effect(() => {
     const rawCode = content;
     if (isReady && rawCode && rawCode.trim()) {
-      const requestId = ++currentRequestId;
-
-      (async () => {
-        try {
-          const valRes = await validateMermaidJs(rawCode);
-          if (requestId !== currentRequestId) return;
-
-          if (!valRes.valid) {
-            error = valRes.error || 'Error de sintaxis en diagrama Mermaid';
-            diagnostics = valRes.errors.map((e: MermaidSyntaxError) => ({
-              line: e.line,
-              column: e.column,
-              endLine: e.endLine,
-              endColumn: e.endColumn,
-              message: e.message,
-              severity: 'error' as const,
-            }));
-            return;
-          }
-
-          const res = await renderMermaidJsSvg(rawCode, 'mermaidjs-viewer');
-          if (requestId !== currentRequestId) return;
-
-          if (res.error) {
-            error = res.error;
-            diagnostics = res.errors.map((e: MermaidSyntaxError) => ({
-              line: e.line,
-              column: e.column,
-              endLine: e.endLine,
-              endColumn: e.endColumn,
-              message: e.message,
-              severity: 'error' as const,
-            }));
-            return;
-          }
-
-          error = '';
-          diagnostics = [];
-          svgContent = res.svg || '';
-        } catch (e: any) {
-          if (requestId === currentRequestId) {
-            error = String(e?.message || e);
-            diagnostics = [{ line: 1, column: 1, message: error, severity: 'error' }];
-          }
-        }
-      })();
+      scheduler.schedule(rawCode);
     } else if (isReady && (!rawCode || !rawCode.trim())) {
       svgContent = '';
       error = '';
@@ -117,6 +114,7 @@
   {readOnly}
   {showEditor}
   {vimMode}
+  onRun={() => scheduler.now(content)}
   {isActive}
   loadingMessage="Cargando Mermaid.js..."
   {onChange}

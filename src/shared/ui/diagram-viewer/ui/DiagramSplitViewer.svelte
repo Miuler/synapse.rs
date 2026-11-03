@@ -22,6 +22,8 @@
     vimMode?: boolean;
     /** Pestaña activa: al volver a ella, el editor recupera el foco y su cursor. */
     isActive?: boolean;
+    /** Ctrl+Enter en el editor: fuerza el redibujado del diagrama. */
+    onRun?: () => void;
     loadingMessage?: string;
     onChange?: (content: string) => void;
     onSelectionChange?: (info: any) => void;
@@ -41,6 +43,7 @@
     showEditor = false,
     vimMode = false,
     isActive = false,
+    onRun,
     loadingMessage = 'Cargando motor de diagrama...',
     onChange,
     onSelectionChange,
@@ -377,6 +380,7 @@
           {readOnly}
           {vimMode}
           {isActive}
+          {onRun}
           {mode}
           {diagnostics}
           onChange={(newVal) => {

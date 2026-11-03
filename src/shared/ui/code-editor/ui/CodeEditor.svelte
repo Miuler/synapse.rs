@@ -2,7 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import { basicSetup } from 'codemirror';
   import { EditorView, keymap } from '@codemirror/view';
-  import { EditorState, Compartment } from '@codemirror/state';
+  import { EditorState, Compartment, Prec } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
@@ -48,6 +48,8 @@
     vimMode?: boolean;
     /** Pestaña activa: al volver a ella, el editor recupera el foco (y su cursor). */
     isActive?: boolean;
+    /** Ctrl+Enter: acción del editor (en los diagramas, redibujar ya). */
+    onRun?: () => void;
     mode?: 'markdown' | 'mermaid' | 'd2';
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
@@ -59,6 +61,7 @@
     readOnly = false,
     vimMode = false,
     isActive = false,
+    onRun,
     mode = 'markdown',
     diagnostics = [],
     onChange,
@@ -364,6 +367,7 @@
         keymap.of(searchKeymap as any),
         renameOccurrencesKeymap(),
         lineKeymap(),
+        Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => (onRun ? (onRun(), true) : false) }])),
         EditorView.editable.of(!readOnly),
         updateListener,
         theme,

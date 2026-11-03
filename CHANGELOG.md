@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **El render de D2 y Mermaid ya no se atrasa al editar**: antes cada tecla lanzaba un render y, con un layout lento como TALA (~3 s por render), se encolaban y el diagrama tardaba decenas de segundos en ponerse al día. Ahora se espera a que se deje de escribir (más tiempo si el render es lento) y nunca hay más de uno pendiente.
+- **Render de D2 y Mermaid al editar**: ya no se lanza un render por tecla (con TALA se acumulaban y el diagrama llegaba muy tarde); se espera una pausa al escribir y nunca hay más de un render en cola. `Ctrl+Enter` fuerza el redibujado y la barra de estado muestra el render en curso y lo que tardó.
 - **El editor de diagramas (D2/Mermaid) recupera el foco y el cursor al volver a su pestaña**, y una recarga del archivo desde disco ya no recrea el editor ni manda el cursor al inicio: solo se aplica el tramo que cambió.
 - **Búsqueda de Vim (`/`) y cursor invisibles en el tema oscuro** del editor de código.
 - **Una segunda instancia de la app ya no reescribe el puerto MCP de la bóveda** ni la marca como detenida.
@@ -34,6 +36,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **`Ctrl+Enter` en el editor de D2 y Mermaid fuerza el redibujado** del diagrama.
+- **Estado del render de diagramas en la barra de estado**: «Renderizando D2… 1,2 s» mientras dura y el tiempo que tardó al terminar.
 - **Autocompletado con las palabras del documento** en todos los editores (markdown, D2 y Mermaid): los nombres que ya usas (variables, nodos…) se sugieren aunque el lenguaje no los conozca, detrás de las sugerencias del lenguaje.
 - **Exportar diagramas a PNG y SVG** desde el menú contextual del explorador, para Excalidraw, Mermaid y D2. El archivo se guarda junto al diagrama con el tema actual.
 - **`Shift+F6` cambia todas las coincidencias de una palabra** (como renombrar en JetBrains, pero textual): selecciona las coincidencias exactas de palabra completa y lo que se escribe las cambia todas. Con Vim, se cambian con `c`.
