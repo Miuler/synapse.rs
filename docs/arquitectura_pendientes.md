@@ -69,28 +69,11 @@ Documento de trabajo. Las reglas ya cerradas están en `arquitectura_cebolla.md`
   (en Synapse es una app de escritorio con Tauri). `domain` y `application` solo
   contienen negocio y casos de uso.
 
-## Abiertos (en orden de trabajo)
+## Abiertos
 
-1. **Cómo se migra el código existente**: orden y límites de cada etapa; el test
-   de arquitectura crece en cada paso. Antes de empezar se miden tres operaciones
-   (abrir la bóveda, búsqueda rápida, guardar una nota grande) y se repite las
-   medición al final de cada etapa para detectar regresiones en la etapa que las causa.
-2. **Fachada del API de Obsidian (front, `src/shared/obsidian-api`)**. Propuesta aceptada
-   como prueba, a validar con mediciones:
-   - Un solo índice de la bóveda en el front: `Map` plano de ruta a `{mtime, size}`, sin
-     contenido, compartido por el explorador de Synapse y la fachada. Reemplaza a
-     `vaultItems` (`$state` profundo) y a `_cachedFiles` de `SynapseVault`. Se llena al abrir
-     la bóveda, antes de cargar plugins, y se actualiza con los eventos del vigilante. El
-     `DashMap` de Rust sigue siendo la fuente de verdad.
-   - `getAbstractFileByPath`, `getActiveFile` y `metadataCache.getFileCache` pasan a ser
-     síncronos (como en Obsidian); `TFile` se crea al pedirlo. El contenido sigue asíncrono.
-   - Con 6 500 notas y rutas de ~150 caracteres el índice ocupa ~1,6 a 2 MB, frente a una
-     estimación de 5 a 8 MB actual. Medir con perfil de memoria del webview antes y después.
-     Tabla de carpetas (carpeta una vez + nombre por archivo) solo si se superan ~50 000 notas.
-   - Verificar firmas contra los tipos oficiales del paquete `obsidian` (solo tipos).
-   - Sacar lo específico de Excalidraw del núcleo de la fachada a su propia carpeta.
-   - Documentar en `verified-plugins.jsonc` el límite de Tauri: sin Node ni Electron en el
-     webview.
+Ninguno del plan de migración: la medición por etapas y la fachada de Obsidian se cerraron (ver
+«Deuda cerrada en la segunda ronda» y `arquitectura_mediciones.md`). Las tareas de rendimiento que
+quedan están en beads: virtualizar el árbol del explorador e `indexed_versions` de Tantivy.
 
 ## Postergado (fuera del plan hasta terminar el refactor)
 
@@ -142,29 +125,23 @@ Hallazgos, por prioridad:
 1b. **Comandos de lectura fuera del hilo principal (hecho):** 36 comandos de lectura pasaron a
    `#[tauri::command(async)]`; las escrituras siguen en el hilo principal, en orden. Mejora modesta
    (IPC acumulado al abrir: 16,5 s → 13,6–15,3 s), porque no era la causa principal.
-1c. **Congestión al arrancar (causa real):** con la app en reposo, `get_diagram_split_ratio` responde
-   en 2 ms; durante la apertura, en ~600 ms. El backend y el transporte son rápidos: las respuestas
-   esperan porque al arrancar el hilo de JS del webview y la CPU están ocupados (restaurar pestañas,
-   renderizar notas, cargar plugins, indexar). Medido con build debug y con la app instalada abierta,
-   que obliga a la instancia de prueba a indexar en RAM. **Confirmado en producción** (build release,
-   app instalada cerrada, dos corridas): `get_diagram_split_ratio` 0–1 ms en reposo y ~320 ms al
-   arrancar; IPC acumulado 12–12,5 s en 91–92 llamadas. Lo que más pesa: `get_vault_directory_children`
-   (×18–19, ~3,3–3,5 s), `resolve_asset_file_path` (×32, ~2,1 s), `read_note_content` (×9, ~1,9 s) y
-   `render_markdown_wikilinks` (×3, ~1,1 s). Siguiente paso: perfilar qué ocupa CPU en esos primeros
-   segundos (front y backend) antes de tocar código.
+1c. **Congestión al arrancar (resuelta en parte):** en reposo todas las llamadas del arranque suman
+   ~130 ms; el resto era espera por el hilo de JS del webview (`e2e/startup-profile.test.ts`). Con 5
+   pestañas restauradas el hilo se bloqueaba ~1,25 s; ahora cada pestaña se monta al activarse por
+   primera vez y el explorador no pinta el árbol de respaldo: ~0,8 s. Queda el pintado del
+   explorador con carpetas expandidas (~300 ms, tarea de virtualización en beads).
 1d. **Estado de git (descartado):** en producción `get_vault_git_status` responde en ~22 ms en reposo;
    los ~330 ms eran del build debug.
-2. **Memoria del backend:** 640–810 MB en producción (748–807 MB en la medición limpia) para ~6 000 notas es alto. Perfilar el heap
-   (Tantivy, DashMap/nucleo, extracción de PDF) con `heaptrack` o `dhat`.
-3. **Lecturas de notas lentas:** `read_note_content` promedió ~550 ms (9 llamadas, 5 s) y
-   `render_markdown_wikilinks` ~750 ms por llamada al restaurar pestañas en debug. En release: ~210 ms
-   y ~375 ms respectivamente, todavía inflados por la congestión del arranque (1c).
-4. **Segunda instancia sobre la misma bóveda:** reescribe `.synapse/mcp.json` con el puerto que le
-   tocó (27182 en vez de 27183) y deja a los clientes MCP apuntando a un puerto distinto al de la
-   instancia principal. No debería persistir el puerto si no es la instancia dueña.
+2. **Memoria del backend (hecho):** ~370 MB eran memoria liberada que glibc retenía tras los
+   recorridos paralelos al abrir la bóveda. `malloc_trim` al terminarlos deja el backend en ~400 MB
+   de RSS (196–239 MB anónimos). Lo vivo de verdad: ~200 MB.
+3. **Lecturas de notas lentas (descartado):** en reposo `read_note_content` tarda 1–3 ms y
+   `render_markdown_wikilinks` ~7 ms; lo lento era la congestión (1c).
+4. **Segunda instancia sobre la misma bóveda (hecho):** no persiste el puerto si otra instancia viva
+   es dueña de la bóveda o si el puerto configurado sigue ocupado.
 5. **Arranque en modo dev:** 34 s hasta ver el explorador, dominado por la compilación en frío de
    Vite. En producción el explorador aparece a los **1,7 s** (incluye arrancar la app): no es un
    problema del producto.
 
-Quick Open con la bóveda real: 170–420 ms por búsqueda medidos desde WebDriver (incluye su ida y
-vuelta). Sin errores ni avisos de consola.
+Quick Open con la bóveda real: 80–110 ms por búsqueda, medidos dentro de la página con la consulta
+completa (la medición anterior contaba consultas a medias). Sin errores ni avisos de consola.
