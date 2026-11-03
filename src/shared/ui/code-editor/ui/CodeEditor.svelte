@@ -20,7 +20,7 @@
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
-  import { withDocumentWords } from '../lib/document-words';
+  import { documentWordsCompletion, withDocumentWords } from '../lib/document-words';
 
   export interface SelectionInfo {
     hasSelection: boolean;
@@ -333,7 +333,7 @@
         ? autocompletion({ override: [withDocumentWords(d2Autocomplete)] })
         : mode === 'mermaid'
           ? autocompletion({ override: [withDocumentWords(mermaidAutocomplete)] })
-          : autocompletion();
+          : autocompletion({ override: [documentWordsCompletion] });
 
     const currentDiag = diagnostics;
     const linterExtension = linter((view) => buildDiagnostics(view, currentDiag));

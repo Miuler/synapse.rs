@@ -5,6 +5,7 @@ import {
   type Completion,
 } from '@codemirror/autocomplete';
 import { vaultApi } from '@entities/vault-item';
+import { documentWordsCompletion } from '@shared/ui/code-editor';
 
 /**
  * Función de autocompletado para Wikilinks `[[...]]`.
@@ -80,11 +81,17 @@ export async function wikilinkCompletionSource(
   }
 }
 
+/** Palabras del documento, salvo dentro de `[[...]]`, donde se sugieren notas. */
+function documentWordsOutsideWikilinks(context: CompletionContext): CompletionResult | null {
+  if (context.matchBefore(/\[\[([^\]\n]*)$/)) return null;
+  return documentWordsCompletion(context);
+}
+
 /**
- * Extensión de CodeMirror 6 para autocompletado de Wikilinks.
+ * Extensión de CodeMirror 6 para autocompletado de Wikilinks y de las palabras del documento.
  */
 export const wikilinkAutocomplete = autocompletion({
-  override: [wikilinkCompletionSource],
+  override: [wikilinkCompletionSource, documentWordsOutsideWikilinks],
   activateOnTyping: true,
   maxRenderedOptions: 30,
 });

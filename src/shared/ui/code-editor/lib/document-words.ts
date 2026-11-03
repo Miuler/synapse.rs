@@ -50,3 +50,6 @@ export function withDocumentWords(
     return { from, options: [...(language?.options ?? []), ...words], validFor: /^[\p{L}\p{N}_-]*$/u };
   };
 }
+
+/** Solo las palabras del documento, para editores sin sugerencias propias del lenguaje (markdown). */
+export const documentWordsCompletion = withDocumentWords(() => null);
