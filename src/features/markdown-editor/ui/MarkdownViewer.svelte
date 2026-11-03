@@ -21,7 +21,7 @@
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
-  import { registerVimFolding } from '@shared/ui/code-editor';
+  import { registerVimFolding, renameOccurrencesKeymap } from '@shared/ui/code-editor';
 
   registerVimFolding();
 
@@ -778,6 +778,7 @@
           imagePasteExtension,
           EditorView.lineWrapping,
           keymap.of(searchKeymap as any),
+          renameOccurrencesKeymap(),
           updateListener,
           baseEditorTheme,
         ],
@@ -916,6 +917,7 @@
                 wikilinkAutocomplete,
                 EditorView.lineWrapping,
                 keymap.of(searchKeymap as any),
+                renameOccurrencesKeymap(),
                 createUpdateListener(),
                 baseEditorTheme,
               ],

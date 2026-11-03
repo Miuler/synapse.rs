@@ -1,0 +1,27 @@
+import { describe, expect, it } from 'bun:test';
+import { EditorState } from '@codemirror/state';
+import { occurrenceSelection } from './rename-occurrences';
+
+function select(doc: string, cursor: number) {
+  const state = EditorState.create({ doc, selection: { anchor: cursor }, extensions: EditorState.allowMultipleSelections.of(true) });
+  const selection = occurrenceSelection(state);
+  return selection && { texts: selection.ranges.map((r) => doc.slice(r.from, r.to)), froms: selection.ranges.map((r) => r.from), main: selection.mainIndex };
+}
+
+describe('seleccionar coincidencias (Shift+F6)', () => {
+  it('selecciona solo coincidencias de palabra completa', () => {
+    const doc = 'server -> db\nservers: x\nmyserver\nserver.shape: y';
+    const result = select(doc, 2)!;
+    expect(result.froms).toEqual([0, doc.lastIndexOf('server.')]);
+    expect(result.texts).toEqual(['server', 'server']);
+  });
+
+  it('la selección principal es la del cursor', () => {
+    const doc = 'a -> b\nb -> a';
+    expect(select(doc, doc.length - 1)!.main).toBe(1);
+  });
+
+  it('sin palabra bajo el cursor no hace nada', () => {
+    expect(select('a ->  b', 5)).toBeNull();
+  });
+});

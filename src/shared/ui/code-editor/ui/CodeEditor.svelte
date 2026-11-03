@@ -15,6 +15,7 @@
   import { d2Language } from '../lib/d2-language';
   import { braceFolding } from '../lib/brace-folding';
   import { registerVimFolding } from '../lib/vim-folding';
+  import { renameOccurrencesKeymap } from '../lib/rename-occurrences';
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete } from '../lib/diagram-autocompletion';
@@ -355,6 +356,7 @@
         }),
         search({ top: true }),
         keymap.of(searchKeymap as any),
+        renameOccurrencesKeymap(),
         EditorView.editable.of(!readOnly),
         updateListener,
         theme,
