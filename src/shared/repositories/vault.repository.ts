@@ -9,6 +9,10 @@ export interface VaultNote {
   content?: string;
   encoding?: string;
   view_mode?: string;
+  /** Metadatos de archivo (milisegundos y bytes), presentes en la lista de la bóveda. */
+  ctime?: number | null;
+  mtime?: number;
+  size?: number;
 }
 
 export interface VaultFileStat {

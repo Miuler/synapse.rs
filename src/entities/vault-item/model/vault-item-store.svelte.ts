@@ -9,6 +9,13 @@ import { VaultItemIndex } from './vault-item-index';
  */
 class VaultItemStore {
   private index = $state.raw(new VaultItemIndex());
+  private resolveLoaded!: () => void;
+  private loaded = new Promise<void>((resolve) => (this.resolveLoaded = resolve));
+
+  /** Resuelve cuando la lista de la bóveda se cargó por primera vez. */
+  whenLoaded(): Promise<void> {
+    return this.loaded;
+  }
 
   get items(): readonly VaultItem[] {
     return this.index.items;
@@ -28,6 +35,7 @@ class VaultItemStore {
 
   set(items: VaultItem[]): void {
     this.index = new VaultItemIndex(items);
+    this.resolveLoaded();
   }
 
   clear(): void {

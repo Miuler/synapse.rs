@@ -56,3 +56,19 @@ rutas largas; mediana de 7 llamadas desde el webview):
 Casi todo el costo es el transporte del IPC de Tauri (serializar y parsear suman ~5 ms). Abrir la
 bóveda gasta unos 200 ms en las dos listas y la mitad es la duplicada: **unificarlas (o no pedir
 la segunda si no hay plugins habilitados) sí vale la pena.**
+
+## Front: llamadas IPC al abrir una bóveda nueva (6 000 notas)
+
+Medido en la app real con `e2e/perf-open.test.ts` (en modo dev, `invokeTauri` anota cada llamada en
+`window.__synapseIpcLog`):
+
+| | Llamadas | IPC acumulado |
+|---|---|---|
+| Antes | 7 848 (3 944 `read_note_content` + 3 946 `get_note_meta`) | 7 208 ms |
+| Después | 45 | 1 976 ms |
+
+La avalancha venía del vigilante de la fachada de Obsidian: al terminar el escaneo inicial, el
+backend avisa que cambiaron todos los archivos y la fachada pedía metadatos y releía cada nota.
+Ahora, con más de 20 cambios a la vez, refresca el índice con una consulta en bloque y solo
+recalcula la caché de metadatos ya calculada. Además, la fachada construye su índice con la lista
+del explorador (una sola lista por IPC al abrir).

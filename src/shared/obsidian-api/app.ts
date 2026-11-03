@@ -1,4 +1,4 @@
-import type { VaultRepository } from '@shared/repositories';
+import type { VaultFile, VaultRepository } from '@shared/repositories';
 import { SynapseVault } from './vault';
 import { SynapseMetadataCache } from './metadata-cache';
 import { SynapseWorkspace } from './workspace';
@@ -29,8 +29,8 @@ export class SynapseApp {
   readonly isMobile: boolean = false;
   readonly ea: ExcalidrawAutomate;
 
-  constructor(repository: VaultRepository) {
-    this.vault = new SynapseVault(repository);
+  constructor(repository: VaultRepository, options: SynapseAppOptions = {}) {
+    this.vault = new SynapseVault(repository, options.indexSource);
     this.workspace = new SynapseWorkspace(repository, this.vault);
     this.metadataCache = new SynapseMetadataCache(repository, this.vault);
     this.fileManager = new SynapseFileManager(this.vault);
@@ -104,6 +104,11 @@ export class SynapseApp {
   }
 }
 
-export function createSynapseApp(repository: VaultRepository): SynapseApp {
-  return new SynapseApp(repository);
+export interface SynapseAppOptions {
+  /** Lista de archivos de la bóveda ya cargada por la app (ver `SynapseVault`). */
+  indexSource?: () => Promise<VaultFile[]>;
+}
+
+export function createSynapseApp(repository: VaultRepository, options: SynapseAppOptions = {}): SynapseApp {
+  return new SynapseApp(repository, options);
 }

@@ -106,6 +106,8 @@ export interface VaultItem {
   kind?: VaultItemKind;
   view_mode?: string;
   sync_state?: VaultSyncState;
+  /** Metadatos de archivo (milisegundos y bytes); los usa la fachada de Obsidian (`TFile.stat`). */
+  stat?: { ctime: number | null; mtime: number; size: number };
 }
 
 export interface TabItem {

@@ -24,6 +24,8 @@ function tFileFromMetadata(file: RepositoryVaultFile, vault: SynapseVaultLike): 
 }
 
 export class SynapseVault extends Events implements SynapseVaultLike {
+  /** A partir de cuántos archivos cambiados a la vez el vigilante trabaja en bloque. */
+  static readonly BULK_CHANGE_THRESHOLD = 20;
   readonly adapter: DataAdapter;
   private readonly rootFolder: TFolder;
   private metadataCache?: SynapseMetadataCache;
@@ -39,7 +41,15 @@ export class SynapseVault extends Events implements SynapseVaultLike {
   private indexLoaded = false;
   private readonly indexLoading: Promise<void>;
 
-  constructor(private readonly repository: VaultRepository) {
+  /**
+   * @param indexSource Origen de la lista de archivos para el índice síncrono. La app lo conecta a
+   * la lista de la bóveda que ya cargó el explorador, para no pedir otra igual por IPC. Sin él, se
+   * pide al backend.
+   */
+  constructor(
+    private readonly repository: VaultRepository,
+    private readonly indexSource?: () => Promise<RepositoryVaultFile[]>
+  ) {
     super();
     this.rootFolder = new TFolder(this, '');
 
@@ -58,9 +68,9 @@ export class SynapseVault extends Events implements SynapseVaultLike {
    * consultas por ruta sean síncronas desde el primer momento.
    */
   private async loadIndex(): Promise<void> {
-    if (typeof this.repository.getVaultFiles !== 'function') return;
+    if (!this.indexSource && typeof this.repository.getVaultFiles !== 'function') return;
     try {
-      const files = await this.repository.getVaultFiles();
+      const files = this.indexSource ? await this.indexSource() : await this.repository.getVaultFiles();
       this.index.clear();
       this.folderPaths.clear();
       for (const file of files) this.upsertIndex(file);
@@ -238,11 +248,17 @@ export class SynapseVault extends Events implements SynapseVaultLike {
         }
 
         // 2. Archivos modificados o creados externamente
-        for (const changedPath of paths) {
-          const clean = pathOf(changedPath);
-          if (this.isRecentlyMutated(clean)) continue;
+        const changed = paths.map((p) => pathOf(p)).filter((p) => !this.isRecentlyMutated(p));
+        // Cambio masivo (escaneo inicial de la bóveda, git checkout...): una sola consulta en bloque
+        // para el índice y sin releer cada nota; la caché de metadatos se calcula al pedirla.
+        const bulk = changed.length > SynapseVault.BULK_CHANGE_THRESHOLD;
+        if (bulk && this.indexLoaded && typeof this.repository.getVaultFiles === 'function') {
+          const files = await this.repository.getVaultFiles().catch(() => null);
+          if (files) for (const f of files) this.upsertIndex(f);
+        }
 
-          if (this.indexLoaded && typeof this.repository.getNoteMeta === 'function') {
+        for (const clean of changed) {
+          if (!bulk && this.indexLoaded && typeof this.repository.getNoteMeta === 'function') {
             const meta = await this.repository.getNoteMeta(clean).catch(() => null);
             if (meta) this.upsertIndex(meta);
           }
@@ -250,8 +266,10 @@ export class SynapseVault extends Events implements SynapseVaultLike {
           if (file) {
             this.trigger('modify', file);
 
-            // Si es markdown, sincronizar caché de metadatos
-            if (file instanceof TFile && /\.(md|markdown)$/i.test(clean)) {
+            // Si es markdown, sincronizar caché de metadatos (en cambios masivos, solo la que ya
+            // estaba calculada)
+            const cached = !!this.metadataCache?.getFileCacheSync(clean);
+            if (file instanceof TFile && /\.(md|markdown)$/i.test(clean) && (!bulk || cached)) {
               this.repository.readNote(clean).then((note) => {
                 if (note && this.metadataCache) {
                   const content = note.content ?? '';

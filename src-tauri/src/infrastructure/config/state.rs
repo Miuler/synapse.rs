@@ -55,9 +55,7 @@ use crate::infrastructure::repository::file::installed_plugin_repository_impl::I
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 use crate::application::use_cases::search::search_full_text_use_case::SearchFullTextUseCase;
 use crate::domain::vault::file_types::SupportedFileTypes;
-use crate::domain::note::note::Note;
 use crate::domain::config::startup::StartupTarget;
-use crate::domain::note::note_path::NoteRelativePath;
 use crate::infrastructure::navigation::engine::NavigationEngine;
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl;
@@ -68,7 +66,7 @@ use crate::domain::search::full_text_index::FullTextIndex;
 use crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl;
 use crate::infrastructure::repository::git::version_control_impl::VersionControlImpl;
 use crate::infrastructure::service::http::community_plugin_downloader_impl::CommunityPluginDownloaderImpl;
-use crate::infrastructure::entrypoint::tauri::dto::SelectVaultFolderResult;
+use crate::infrastructure::entrypoint::tauri::dto::{SelectVaultFolderResult, VaultEntryDto};
 
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -436,21 +434,7 @@ impl AppState {
             *ft_lock = Some(new_ft);
         }
 
-        let mut notes = Vec::with_capacity(new_engine.notes.len());
-        for item in new_engine.notes.iter() {
-            let meta = item.value();
-            let rel_str = meta.path.to_string();
-            let abs_path = path.join(&rel_str).to_string_lossy().to_string();
-            if let Ok(rel_path) = NoteRelativePath::new(&rel_str) {
-                notes.push(Note::new(
-                    rel_path,
-                    abs_path,
-                    meta.title.to_string(),
-                    String::new(),
-                ));
-            }
-        }
-        notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
+        let notes = VaultEntryDto::list(&path, &new_engine, false);
 
         // Sincronizar servidor MCP con la configuración específica de esta bóveda
         self.mcp_runtime.sync_for_vault(&path);

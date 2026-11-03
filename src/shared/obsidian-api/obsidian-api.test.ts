@@ -2031,3 +2031,58 @@ describe('Índice síncrono de la bóveda', () => {
     expect(app.vault.getAbstractFileByPath('nuevas/recien-creada.md')).toBeNull();
   });
 });
+
+describe('Carga del índice y cambios masivos', () => {
+  function countingRepo(files: VaultFile[]) {
+    const calls: Record<string, number> = {};
+    let emit: ((p: { paths: string[]; deleted: string[] }) => void) | null = null;
+    const count = (name: string) => (calls[name] = (calls[name] ?? 0) + 1);
+    const repo = {
+      getVaultFiles: async () => (count('getVaultFiles'), files),
+      getNoteMeta: async (path: string) => (count('getNoteMeta'), files.find((f) => f.path === path) ?? null),
+      readNote: async (path: string) => (count('readNote'), { relative_path: path, title: path, content: '# x' }),
+      onFilesChanged: async (cb: typeof emit) => ((emit = cb), () => {}),
+      getOpenTabsState: async () => null,
+    } as unknown as VaultRepository;
+    return { repo, calls, emit: (paths: string[]) => emit?.({ paths, deleted: [] }) };
+  }
+  const file = (path: string): VaultFile => ({
+    path, name: path, basename: path.replace(/\.md$/, ''), extension: 'md', stat: { ctime: null, mtime: 1, size: 1 },
+  });
+
+  it('con indexSource, el índice no pide otra lista al backend', async () => {
+    const files = [file('a.md'), file('b.md')];
+    const { repo, calls } = countingRepo(files);
+    const app = createSynapseApp(repo, { indexSource: async () => files });
+    await app.vault.whenIndexReady();
+    expect(app.vault.getAbstractFileByPath('b.md')).toBeInstanceOf(TFile);
+    expect(calls.getVaultFiles ?? 0).toBe(0);
+  });
+
+  it('un cambio masivo refresca el índice en bloque y no relee cada nota', async () => {
+    const files = Array.from({ length: 50 }, (_, i) => file(`n${i}.md`));
+    const { repo, calls, emit } = countingRepo(files);
+    const app = createSynapseApp(repo, { indexSource: async () => files });
+    await app.vault.whenIndexReady();
+    await Bun.sleep(10); // dejar registrar el vigilante
+    emit(files.map((f) => f.path));
+    await Bun.sleep(50);
+    // Una consulta en bloque en vez de una por archivo, y sin releer las notas
+    expect(calls.getVaultFiles).toBe(1);
+    expect(calls.getNoteMeta ?? 0).toBeLessThan(2);
+    expect(calls.readNote ?? 0).toBe(0);
+  });
+
+  it('un cambio pequeño sigue recalculando la caché y emitiendo changed', async () => {
+    const files = [file('a.md')];
+    const { repo, calls, emit } = countingRepo(files);
+    const app = createSynapseApp(repo, { indexSource: async () => files });
+    await app.vault.whenIndexReady();
+    await Bun.sleep(10);
+    const changed = new Promise<void>((resolve) => app.metadataCache.on('changed', () => resolve()));
+    emit(['a.md']);
+    await changed;
+    expect(calls.readNote).toBe(1);
+    expect(calls.getNoteMeta).toBeGreaterThanOrEqual(1);
+  });
+});

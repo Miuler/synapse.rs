@@ -41,7 +41,7 @@
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
-  import {vaultApi, vaultItemStore, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
+  import {vaultApi, vaultItemStore, toVaultItem, toVaultFile, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
   import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
@@ -237,26 +237,7 @@
     try {
       const notes = await vaultRepository.getNotes();
       if (notes && Array.isArray(notes)) {
-        vaultItemStore.set(notes.map((n, index) => {
-          let relPath = `${n.title}.md`;
-          if (typeof n.relative_path === "string") {
-            relPath = n.relative_path;
-          } else if (
-            n.relative_path &&
-            typeof n.relative_path === "object" &&
-            (n.relative_path as unknown as string[])[0]
-          ) {
-            relPath = (n.relative_path as unknown as string[])[0];
-          }
-
-          return {
-            id: String(index + 1),
-            title: n.title,
-            relative_path: relPath,
-            abs_path: n.abs_path,
-            view_mode: n.view_mode,
-          };
-        }));
+        vaultItemStore.set(notes.map(toVaultItem));
 
         // Sincronizar abs_path en pestañas que se abrieron antes de cargar vaultItems
         for (const item of vaultItemStore.items) {
@@ -477,7 +458,17 @@
   function ensureSynapseAppLoaded() {
     if (!synapseApp && vaultRepository.isConnected()) {
       try {
-        synapseApp = createSynapseApp(vaultRepository);
+        synapseApp = createSynapseApp(vaultRepository, {
+          // El índice de la fachada sale de la lista que ya cargó el explorador (una sola por IPC).
+          // Si la bóveda no llega a cargar una lista (p. ej. vacía), se pide al backend.
+          indexSource: async () => {
+            const loaded = await Promise.race([
+              vaultItemStore.whenLoaded().then(() => true),
+              new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+            ]);
+            return loaded ? vaultItemStore.items.map(toVaultFile) : vaultRepository.getVaultFiles();
+          },
+        });
         if (pluginStatusBarContainer) {
           synapseApp.statusBar.setContainer(pluginStatusBarContainer);
         }
@@ -2001,26 +1992,7 @@
       refreshMcpStatus();
 
       if (notes && Array.isArray(notes) && notes.length > 0) {
-        vaultItemStore.set(notes.map((n, index) => {
-          let relPath = `${n.title}.md`;
-          if (typeof n.relative_path === "string") {
-            relPath = n.relative_path;
-          } else if (
-            n.relative_path &&
-            typeof n.relative_path === "object" &&
-            (n.relative_path as unknown as string[])[0]
-          ) {
-            relPath = (n.relative_path as unknown as string[])[0];
-          }
-
-          return {
-            id: String(index + 1),
-            title: n.title,
-            relative_path: relPath,
-            abs_path: n.abs_path,
-            view_mode: n.view_mode,
-          };
-        }));
+        vaultItemStore.set(notes.map(toVaultItem));
 
         if (recentFiles.length === 0) {
           const loadedRecent = await vaultRepository.getRecentNotes(15);
@@ -3613,24 +3585,7 @@
     tabHistory.clear();
 
     if (initialNotes && initialNotes.length > 0) {
-      vaultItemStore.set(initialNotes.map((n, index) => {
-        let relPath = `${n.title}.md`;
-        if (typeof n.relative_path === 'string') {
-          relPath = n.relative_path;
-        } else if (
-          n.relative_path &&
-          typeof n.relative_path === 'object' &&
-          (n.relative_path as unknown as string[])[0]
-        ) {
-          relPath = (n.relative_path as unknown as string[])[0];
-        }
-        return {
-          id: String(index + 1),
-          title: n.title,
-          relative_path: relPath,
-          abs_path: n.abs_path,
-        };
-      }));
+      vaultItemStore.set(initialNotes.map(toVaultItem));
       isConnectedToRust = vaultRepository.isConnected();
       await refreshGitStatus();
       refreshMcpStatus();
@@ -3682,26 +3637,7 @@
         showWelcomeScreen = false;
         hasActiveWorkspaceLoaded = true;
         const newNotes = result.notes || [];
-        vaultItemStore.set(newNotes.map((n, index) => {
-          let relPath = `${n.title}.md`;
-          if (typeof n.relative_path === 'string') {
-            relPath = n.relative_path;
-          } else if (
-            n.relative_path &&
-            typeof n.relative_path === 'object' &&
-            (n.relative_path as unknown as string[])[0]
-          ) {
-            relPath = (n.relative_path as unknown as string[])[0];
-          }
-
-          return {
-            id: String(index + 1),
-            title: n.title,
-            relative_path: relPath,
-            abs_path: n.abs_path,
-            view_mode: n.view_mode,
-          };
-        }));
+        vaultItemStore.set(newNotes.map(toVaultItem));
         openTabPaths = [];
         activeTabPath = null;
         openedNotes = {};

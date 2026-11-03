@@ -1,7 +1,6 @@
 use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::domain::note::note::Note;
-use crate::domain::note::note_path::NoteRelativePath;
-use crate::infrastructure::entrypoint::tauri::dto::{VaultEntryNode, VaultFileDto, VaultFilesResponse};
+use crate::infrastructure::entrypoint::tauri::dto::{VaultEntryDto, VaultEntryNode, VaultFileDto, VaultFilesResponse};
 use crate::infrastructure::config::state::AppState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -14,31 +13,13 @@ pub fn get_supported_file_types(state: State<'_, AppState>) -> SupportedFileType
 }
 
 #[tauri::command]
-pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<Note>, String> {
+pub fn get_vault_notes(state: State<'_, AppState>) -> Result<Vec<VaultEntryDto>, String> {
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
     let (Some(vault_path), Some(engine)) = (vault_guard.as_ref(), engine_guard.as_ref()) else {
         return Ok(Vec::new());
     };
-
-    let mut notes = Vec::with_capacity(engine.notes.len());
-    for item in engine.notes.iter() {
-        let meta = item.value();
-        let rel_str = meta.path.to_string();
-        let abs_path = vault_path.join(&rel_str).to_string_lossy().to_string();
-        if let Ok(rel_path) = NoteRelativePath::new(&rel_str) {
-            let mut note = Note::new(
-                rel_path,
-                abs_path,
-                meta.title.to_string(),
-                String::new(), // Zero content kept in memory for list metadata
-            );
-            note.view_mode = meta.view_mode.as_ref().map(|s| s.to_string());
-            notes.push(note);
-        }
-    }
-    notes.sort_by(|a, b| a.relative_path.as_str().cmp(b.relative_path.as_str()));
-    Ok(notes)
+    Ok(VaultEntryDto::list(vault_path, engine, true))
 }
 
 #[tauri::command]

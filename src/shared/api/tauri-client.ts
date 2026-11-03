@@ -3,7 +3,24 @@
  * Provee tipado estricto, manejo seguro de errores y compatibilidad de entorno.
  */
 
+/** Registro de llamadas IPC, solo en desarrollo: lo leen las pruebas de rendimiento (e2e). */
+export interface IpcLogEntry {
+  cmd: string;
+  ms: number;
+}
+
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (!import.meta.env.DEV) return invokeTauriRaw<T>(cmd, args);
+  const start = performance.now();
+  try {
+    return await invokeTauriRaw<T>(cmd, args);
+  } finally {
+    const log = ((window as unknown as { __synapseIpcLog?: IpcLogEntry[] }).__synapseIpcLog ??= []);
+    log.push({ cmd, ms: performance.now() - start });
+  }
+}
+
+async function invokeTauriRaw<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (typeof window === 'undefined') {
     throw new Error('Entorno no es un navegador');
   }
