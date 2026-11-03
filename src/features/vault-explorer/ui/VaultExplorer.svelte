@@ -1000,6 +1000,10 @@
   let isContextMenuOpen = $state(false);
   let contextMenuNode = $state<VaultTreeNode | null>(null);
 
+  let hasConcreteSelection = $derived(
+    contextMenuNode != null || (selectedPaths.length > 0 && selectedPaths[0] != '')
+  );
+
   let toastMessage = $state<string | null>(null);
   let toastTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -1968,7 +1972,8 @@
           <div
             class="sidebar-header"
             data-tauri-drag-region
-            oncontextmenu={() => {
+            oncontextmenu={(e) => {
+              if ((e.target as HTMLElement).closest('.rust-badge-btn')) return;
               contextMenuNode = null;
               selectedPaths = [];
               lastFocusedPath = null;
@@ -1981,6 +1986,10 @@
                 class="rust-badge-btn"
                 data-tauri-drag-region="false"
                 onclick={onOpenVaultFolder}
+                oncontextmenu={(e) => {
+                  contextMenuNode = null;
+                  selectedPaths = [""]; //RAIZ DEL VAULT
+                }}
                 title={vaultPath || 'Bóveda de Archivos'}
               >
                 {vaultFolderName}
@@ -2349,6 +2358,7 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          disabled={!hasConcreteSelection}
           onSelect={handleCopy}
         >
           <Copy class="context-menu-item-icon" />
@@ -2367,6 +2377,7 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          disabled={!hasConcreteSelection}
           onSelect={handleMoveTo}
         >
           <FolderInput class="context-menu-item-icon" />
@@ -2385,6 +2396,7 @@
 
         <ContextMenu.Item
           class="context-menu-item"
+          disabled={!hasConcreteSelection}
           onSelect={handleCopyRelativePath}
         >
           <Link class="context-menu-item-icon" />
@@ -2396,7 +2408,10 @@
           onSelect={handleCopyFullPath}
         >
           <Copy class="context-menu-item-icon" />
-          <span>{selectedPaths.length > 1 ? 'Copiar rutas completas' : 'Copiar ruta completa'}</span>
+          <span>{selectedPaths.length > 1 ?
+            'Copiar rutas completas' :
+            hasConcreteSelection ? 'Copiar ruta completa' : 'Copiar ruta de la bóveda'
+          }</span>
         </ContextMenu.Item>
 
         {#if isGitRepo && (canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore || targetFileForDiff)}
@@ -2489,7 +2504,7 @@
           {/if}
         {/if}
 
-        {#if selectedPaths.length > 0 || contextMenuNode}
+        {#if (selectedPaths.length > 0 && selectedPaths[0] !== "") || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />
 
           {#if contextMenuNode && selectedPaths.length <= 1}
