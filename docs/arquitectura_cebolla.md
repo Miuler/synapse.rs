@@ -86,8 +86,22 @@ Lista actual de Synapse:
 | `pulldown_cmark` | Estándar (CommonMark) | `domain/graph/tag.rs`, `domain/note/note.rs` | Separar texto real de sintaxis Markdown |
 | `sha2` | Estándar (SHA-256) | `domain/note/note_content.rs` | Huella `sha256:` del contenido para el control de concurrencia optimista del MCP; no se cambia el algoritmo porque los agentes devuelven ese valor |
 
+Lista de My Health Record (backend):
+
+| Librería | Tipo | Dónde | Para qué |
+| :--- | :--- | :--- | :--- |
+| `log` | Fachada de logging | casos de uso | Avisos y trazas |
+| `tracing` | Fachada de logging con spans | casos de uso | Trazas estructuradas; se permite como alternativa a `log` |
+| `uuid` | Estándar (RFC 4122) | entidades, identificadores | Identidad de entidades. Con la feature `v7` la generación depende del reloj y de la aleatoriedad: inyectarla o generarla en `infrastructure` |
+| `derive_getters` | Quita código repetitivo | entidades | Equivalente a `@Getter` de Lombok |
+| `bon` | Quita código repetitivo | entidades | Equivalente a `@Builder` de Lombok. El builder debe pasar por las validaciones de invariantes |
+| `strum_macros` | Quita código repetitivo | enums de dominio | `Display` para enums, sin cambiar el significado del modelo |
+| `async_trait` | Quita código repetitivo | contratos asíncronos | Solo mientras los traits se usen como `dyn`; si no, usar `async fn` nativo |
+
 Entrar en la lista es una decisión, no un descuido. Siguen prohibidas las que obligan a
-anotar el modelo (`serde`, JPA, Jackson).
+anotar el modelo (`serde`, JPA, Jackson) y las que contactan servicios externos o hacen I/O
+(`jsonwebtoken` para verificar tokens de terceros, `google_jwt_verify`). Estas últimas van
+detrás de un contrato de servicio externo, con la implementación en `infrastructure`.
 
 La única capa que conoce y usa frameworks es `infrastructure`. La serialización
 (`serde`, Jackson) vive allí, en modelos de transporte con *mappers* hacia el dominio.
@@ -98,9 +112,13 @@ La única capa que conoce y usa frameworks es `infrastructure`. La serializació
    escritorio) es igual que recibir una petición HTTP: es otro punto de entrada. El
    suscriptor deserializa el mensaje e invoca al **caso de uso** correspondiente.
    No existe un `application/handler`.
-2. **Los publicadores de eventos (`EventPublisher`) son un contrato en `domain`**, al mismo
-   nivel que un repositorio. Su implementación, con el framework de mensajería, vive en
-   `infrastructure`.
+2. **Cada publicador va junto a los eventos que publica.** Hay dos tipos:
+   * **Interno:** los eventos de dominio y su publicador (`AccountEventPublisher`) viven en
+     `domain/<agregado>/`. Los consume el mismo microservicio.
+   * **Externo (integración):** los eventos de integración y su publicador
+     (`IntegrationEventPublisher`) viven en `application/integration/event/`. Los consumen otros
+     microservicios.
+   La implementación técnica de ambos, con el framework de mensajería, vive en `infrastructure`.
 
 ### Regla 4: los casos de uso no tienen contrato de entrada
 El caso de uso es una clase concreta. Los puntos de entrada la invocan directamente.
@@ -120,7 +138,7 @@ La pregunta no es "¿está en mi máquina?" sino **"¿yo soy dueño de estos dat
 | :--- | :--- | :--- |
 | Dueño de los datos | Yo | Un tercero |
 | Quién dicta el contrato | Yo (esquema, formato) | Ellos (API, protocolo) |
-| Dónde vive el contrato | `domain/repository` | `application/service` |
+| Dónde vive el contrato | `domain/<agregado>/` | `application/integration/` |
 | Ubicación física | Indiferente (disco, SQLite, Postgres propio en la nube) | Indiferente |
 
 Prueba rápida: si mañana cambio la tecnología y mi dominio no se entera, es un
@@ -160,7 +178,7 @@ natural a ninguna. Además debe cumplir tres condiciones:
    servicio recibe las entidades ya cargadas.
 3. **Nombrado por la operación de negocio** (`LinkResolver`, `FundsTransferer`), nunca
    `NoteService` ni `AccountService`, para no confundirlo con los servicios externos de
-   `application/service`.
+   `application/integration`.
 
 Si la lógica toca una sola entidad o un solo concepto, es un método de la entidad o del
 objeto de valor, no un servicio de dominio.
@@ -171,13 +189,14 @@ objeto de valor, no un servicio de dominio.
 | **`domain`** | **Entity** | Objeto con identidad, estado y métodos que protegen sus invariantes. Prohibidos los modelos anémicos. |
 | | **Value Object** | Inmutable, sin identidad. Valida su propia consistencia al crearse. |
 | | **Domain Event** | Hecho de negocio ya ocurrido, inmutable. |
-| | **Repository** | **Solo contrato.** Guardar y recuperar las entidades de las que soy dueño. |
-| | **Event Publisher** | **Solo contrato.** Emitir eventos de dominio hacia el exterior. |
+| | **Repository** | **Solo contrato**, junto a su entidad en `domain/<agregado>/`. Guardar y recuperar las entidades de las que soy dueño. |
+| | **Event Publisher** | **Solo contrato**, junto a sus eventos en `domain/<agregado>/`. Emitir eventos de dominio dentro del mismo microservicio. |
 | | **Domain Service** | Regla de negocio que involucra **más de una entidad** y no pertenece a ninguna. Sin estado, sin I/O ni repositorios (recibe las entidades ya cargadas), nombrado por la operación. Excepcional. |
 | | **Domain Error** | Errores puros de negocio y de los contratos, sin códigos HTTP ni detalles técnicos. |
 | **`application`** | **Use Case** | **Orquestador atómico**, uno por intención de negocio, con un único método `execute`. Llama al repository, ejecuta métodos de la entidad, invoca servicios externos o dispara el publicador. |
 | | **Command / Query / DTO** | Objetos inmutables de datos puros. Cada caso de uso recibe un `Command` (escritura) o un `Query` (lectura), aunque lleve un solo dato. |
-| | **External Service** | **Solo contrato** de un servicio que no controlamos. |
+| | **Integration Event Publisher** | **Solo contrato**, junto a sus eventos en `application/integration/event/`. Emitir eventos de integración hacia otros microservicios. |
+| | **External Service** | **Solo contrato** de un servicio que no controlamos, en `application/integration/service/`. |
 | **`infrastructure`** | **Controller** | Punto de entrada síncrono (REST, gRPC, comandos de escritorio). Recibe, convierte y llama al caso de uso. |
 | | **Subscriber** | Punto de entrada asíncrono (colas, vigilante de archivos). Escucha e invoca al caso de uso. |
 | | **Repository Impl** | Implementa el repository con frameworks y mapea el modelo de persistencia a la entidad. |
@@ -242,18 +261,17 @@ política de conflictos se escribe en el dominio.
 
 ```text
 src/main/java/com/empresa/proyecto/
-├── domain/                              # NÚCLEO PURO
-│   ├── model/                           # Entidades y objetos de valor
-│   ├── event/                           # Eventos de dominio
-│   ├── repository/                      # Contratos de repository
-│   ├── publisher/                       # Contratos de publicador de eventos
+├── domain/                              # NÚCLEO PURO, agrupado por agregado
+│   ├── account/                         # Account, Email, AccountRepository, AccountEventPublisher, AccountRegistered
 │   ├── service/                         # Servicios de dominio (excepcionales)
 │   └── exception/                       # Errores de negocio
 │
 ├── application/                         # ORQUESTACIÓN
 │   ├── usecase/                         # Un archivo por caso de uso
 │   ├── dto/                             # Commands, Queries y respuestas
-│   └── service/                         # Contratos de servicios externos
+│   └── integration/                     # Contratos externos
+│       ├── event/                       # IntegrationEventPublisher, AccountRegisteredIntegrationEvent
+│       └── service/                     # WelcomeEmailSender
 │
 └── infrastructure/                      # ÚNICA CAPA CON FRAMEWORKS
     ├── entrypoint/
@@ -261,10 +279,11 @@ src/main/java/com/empresa/proyecto/
     │   └── subscriber/                  # Kafka, RabbitMQ
     ├── repository/
     │   └── jpa/                         # AccountRepositoryImpl, AccountJpaEntity, AccountMapper
-    ├── publisher/
-    │   └── kafka/                       # AccountEventPublisherImpl
-    ├── service/
-    │   └── smtp/                        # WelcomeEmailSenderImpl
+    ├── integration/
+    │   ├── event/
+    │   │   └── kafka/                   # AccountIntegrationEventPublisherImpl
+    │   └── service/
+    │       └── smtp/                    # WelcomeEmailSenderImpl
     └── config/                          # Beans e inyección
 ```
 
@@ -273,17 +292,17 @@ src/main/java/com/empresa/proyecto/
 ```text
 src/
 ├── domain/
-│   ├── model/                           # account.rs, email.rs
-│   ├── event/
-│   ├── repository/                      # account_repository.rs (trait)
-│   ├── publisher/                       # account_event_publisher.rs (trait)
+│   ├── account/                         # account.rs, email.rs, account_repository.rs (trait),
+│   │                                    # account_event_publisher.rs (trait), account_registered.rs
 │   ├── service/                         # servicios de dominio (excepcionales)
 │   └── error.rs
 │
 ├── application/
 │   ├── use_cases/                       # register_account_use_case.rs
 │   ├── dto/                             # register_account_command.rs
-│   └── service/                         # welcome_email_sender.rs (trait)
+│   └── integration/
+│       ├── event/                       # integration_event_publisher.rs (trait), account_registered_integration_event.rs
+│       └── welcome_email_sender.rs      # trait
 │
 └── infrastructure/
     ├── entrypoint/
@@ -291,13 +310,13 @@ src/
     │   └── subscriber/                  # vigilante de archivos, colas
     ├── repository/
     │   └── sqlite/                      # account_repository_impl.rs, account_row.rs, account_mapper.rs
-    ├── publisher/
-    ├── service/
+    ├── integration/
+    │   ├── event/                       # apalis_integration_event_publisher_impl.rs
     │   └── smtp/                        # welcome_email_sender_impl.rs
     └── config/                          # ensamblado de dependencias
 ```
 
-En `infrastructure`, la primera subcarpeta (`repository`, `publisher`, `service`) indica qué
+En `infrastructure`, la primera subcarpeta (`repository`, `publisher`, `integration`) indica qué
 contrato se cumple y la segunda indica la tecnología. `entrypoint` agrupa todo lo que
 invoca casos de uso.
 
@@ -310,18 +329,18 @@ Usa un repository, un servicio externo (correo) y un publicador de eventos.
 ### Java
 
 ```java
-// domain/repository/AccountRepository.java
+// domain/account/AccountRepository.java
 public interface AccountRepository {
     void save(Account account) throws SaveError;
     Optional<Account> findByEmail(Email email) throws SaveError;
 }
 
-// domain/publisher/AccountEventPublisher.java
+// domain/account/AccountEventPublisher.java
 public interface AccountEventPublisher {
     void publish(AccountRegistered event);
 }
 
-// application/service/WelcomeEmailSender.java   (servicio externo)
+// application/integration/WelcomeEmailSender.java   (servicio externo)
 public interface WelcomeEmailSender {
     void send(Email to) throws SendError;
 }
@@ -382,18 +401,18 @@ class UseCaseConfig {
 ### Rust
 
 ```rust
-// domain/repository/account_repository.rs
+// domain/account/account_repository.rs
 pub trait AccountRepository: Send + Sync {
     fn save(&self, account: &Account) -> Result<(), SaveError>;
     fn find_by_email(&self, email: &Email) -> Result<Option<Account>, SaveError>;
 }
 
-// domain/publisher/account_event_publisher.rs
+// domain/account/account_event_publisher.rs
 pub trait AccountEventPublisher: Send + Sync {
     fn publish(&self, event: AccountRegistered);
 }
 
-// application/service/welcome_email_sender.rs   (servicio externo)
+// application/integration/welcome_email_sender.rs   (servicio externo)
 pub trait WelcomeEmailSender: Send + Sync {
     fn send(&self, to: &Email) -> Result<(), SendError>;
 }
@@ -557,7 +576,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule implementations_end_with_impl = classes()
         .that().resideInAnyPackage("..infrastructure.repository..", "..infrastructure.publisher..",
-                                   "..infrastructure.service..")
+                                   "..infrastructure.integration..")
         .and().areNotInterfaces()
         .and().haveSimpleNameNotContaining("Mapper")
         .and().haveSimpleNameNotContaining("Entity")
