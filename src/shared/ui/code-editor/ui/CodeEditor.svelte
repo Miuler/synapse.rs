@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { basicSetup } from 'codemirror';
-  import { EditorView, keymap } from '@codemirror/view';
+  import { EditorView, keymap, tooltips } from '@codemirror/view';
   import { EditorState, Compartment, Prec } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
@@ -243,12 +243,15 @@
 
     const theme = EditorView.theme({
       '&': {
-        height: '100%',
-        width: '100%',
         fontSize: '13px',
         fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-        backgroundColor: 'var(--bg-primary, #ffffff)',
         color: 'var(--text-primary, #1f2328)',
+      },
+      // Solo en el editor: `&` también se aplica al contenedor de tooltips del body, que taparía la app
+      '&.cm-editor': {
+        height: '100%',
+        width: '100%',
+        backgroundColor: 'var(--bg-primary, #ffffff)',
       },
       '.cm-scroller': {
         overflow: 'auto',
@@ -355,6 +358,8 @@
       extensions: [
         vimCompartment.of(vimMode ? vim() : []),
         lintCompartment.of([linterExtension, lintGutter()]),
+        // En el body: dentro del editor los contenedores de la vista recortan o tapan los tooltips
+        tooltips({ parent: document.body }),
         basicSetup,
         undoRedoExtension(),
         commentExtension(),

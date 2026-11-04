@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Los mensajes de error del editor de código ya no quedan cortados o tapados por la barra superior**, por ejemplo en un error de la primera línea de un diagrama.
 - **`Ctrl+R` en un editor con Vim rehace** (como en Vim) en vez de recargar el archivo; fuera de Vim sigue recargando.
 - **El render de D2 y Mermaid ya no se atrasa al editar**: antes cada tecla lanzaba un render y, con un layout lento como TALA (~3 s por render), se encolaban y el diagrama tardaba decenas de segundos en ponerse al día. Ahora se espera a que se deje de escribir (más tiempo si el render es lento) y nunca hay más de uno pendiente.
 - **Render de D2 y Mermaid al editar**: ya no se lanza un render por tecla (con TALA se acumulaban y el diagrama llegaba muy tarde); se espera una pausa al escribir y nunca hay más de un render en cola. `Ctrl+Enter` fuerza el redibujado y la barra de estado muestra el render en curso y lo que tardó.

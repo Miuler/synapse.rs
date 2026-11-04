@@ -31,7 +31,7 @@ const server = Bun.serve({
 });
 
 beforeAll(async () => {
-  s = await startApp({ 'secuencia.puml': '@startuml\nAlice -> Bob: Hola\n@enduml\n', 'suelto.plantuml': 'Ana -> Luis\n' });
+  s = await startApp({ 'secuencia.puml': '@startuml\nAlice -> Bob: Hola\n@enduml\n', 'suelto.plantuml': 'Ana -> Luis\n', 'primera.puml': 'MAL\n' });
   await s.browser.$('.file-tree-item[data-path="secuencia.puml"]').waitForExist({ timeout: 30_000 });
   await s.browser.execute((url) => {
     localStorage.setItem('synapse_settings', JSON.stringify({ plantumlServer: url }));
@@ -109,4 +109,35 @@ it('exporta a SVG y PNG desde el explorador', async () => {
   expect(svg).toContain('<svg');
   expect(svg).not.toContain('<script');
   expect(readFileSync(join(s.vault, 'suelto.png')).subarray(0, 4).equals(PNG_SIGNATURE)).toBe(true);
+}, 60_000);
+
+it('el mensaje de un error en la primera línea se ve entero, sin que lo tape la barra', async () => {
+  await s.browser.$('.file-tree-item[data-path="primera.puml"]').click();
+  await s.browser.waitUntil(
+    () => s.browser.execute(() => document.body.textContent?.includes('Syntax Error?')) as Promise<boolean>,
+    { timeout: 15_000, timeoutMsg: 'no apareció el error' },
+  );
+  // Las pestañas anteriores siguen en el DOM: solo cuenta un editor visible.
+  const visibleMarker = () =>
+    s.browser.execute(() =>
+      [...document.querySelectorAll('.cm-lint-marker-error')].some((m) => m.getClientRects().length > 0),
+    ) as Promise<boolean>;
+  const editorShown = await s.browser.execute(() =>
+    [...document.querySelectorAll('.cm-content')].some((c) => c.getClientRects().length > 0),
+  );
+  if (!editorShown) await s.browser.keys(['F2']);
+  await s.browser.waitUntil(visibleMarker, { timeout: 15_000, timeoutMsg: 'sin marca de error visible' });
+  const ranges = await s.browser.$$('.cm-lintRange-error');
+  for (const range of ranges) if (await range.isDisplayed()) await range.moveTo();
+  await s.browser.waitUntil(async () => s.browser.$('.cm-tooltip-lint').isExisting(), { timeout: 5_000 });
+  const visible = await s.browser.execute(() => {
+    const tip = document.querySelector('.cm-tooltip-lint') as HTMLElement;
+    const r = tip.getBoundingClientRect();
+    const inTip = (x: number, y: number) => tip.contains(document.elementFromPoint(x, y));
+    return {
+      text: tip.textContent,
+      corners: inTip(r.left + 2, r.top + 2) && inTip(r.right - 2, r.top + 2) && inTip(r.left + 2, r.bottom - 2),
+    };
+  });
+  expect(visible).toEqual({ text: 'Syntax Error?', corners: true } as any);
 }, 60_000);
