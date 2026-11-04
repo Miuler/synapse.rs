@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { EditorState } from '@codemirror/state';
-import { occurrenceSelection } from './rename-occurrences';
+import type { EditorView } from '@codemirror/view';
+import { occurrenceSelection, selectOccurrences } from './rename-occurrences';
 
 function select(doc: string, cursor: number) {
   const state = EditorState.create({ doc, selection: { anchor: cursor }, extensions: EditorState.allowMultipleSelections.of(true) });
@@ -23,5 +24,30 @@ describe('seleccionar coincidencias (Shift+F6)', () => {
 
   it('sin palabra bajo el cursor no hace nada', () => {
     expect(select('a ->  b', 5)).toBeNull();
+  });
+
+  it('solo funciona si el editor tiene foco', () => {
+    let dispatched = false;
+    const viewWithoutFocus = {
+      hasFocus: false,
+      state: EditorState.create({ doc: 'foo foo', selection: { anchor: 0 } }),
+      dispatch: () => {
+        dispatched = true;
+      },
+    } as unknown as EditorView;
+
+    expect(selectOccurrences(viewWithoutFocus)).toBe(false);
+    expect(dispatched).toBe(false);
+
+    const viewWithFocus = {
+      hasFocus: true,
+      state: EditorState.create({ doc: 'foo foo', selection: { anchor: 0 } }),
+      dispatch: () => {
+        dispatched = true;
+      },
+    } as unknown as EditorView;
+
+    expect(selectOccurrences(viewWithFocus)).toBe(true);
+    expect(dispatched).toBe(true);
   });
 });

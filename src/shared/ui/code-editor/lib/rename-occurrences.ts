@@ -32,6 +32,7 @@ export function occurrenceSelection(state: EditorState): EditorSelection | null 
 
 /** Shift+F6: como renombrar en JetBrains, pero textual: lo que se escribe cambia todas las coincidencias. */
 export function selectOccurrences(view: EditorView): boolean {
+  if (!view.hasFocus) return false;
   const selection = occurrenceSelection(view.state);
   if (!selection) return false;
   view.dispatch({ selection, scrollIntoView: true, userEvent: 'select' });
