@@ -2,7 +2,7 @@
 
 Este documento es a la vez un manifiesto técnico y una **instrucción normativa estricta
 para agentes de inteligencia artificial**. No contiene sugerencias flexibles: son reglas
-sobre cómo estructurar un proyecto con Arquitectura Cebolla (*Onion Architecture*).
+sobre cómo estructurar un proyecto con Arquitectura Cebolla (_Onion Architecture_).
 
 Las reglas valen para cualquier lenguaje. Cuando hace falta un ejemplo se muestra en
 **Java** y en **Rust**.
@@ -53,11 +53,13 @@ con métodos inconexos (`UserService`, `GitUseCases`). Por eso la capa se llama
 ```
 
 ### Regla 1: dependencia unidireccional hacia adentro
+
 - `infrastructure` conoce a `application` y a `domain`.
 - `application` conoce únicamente a `domain`.
 - `domain` no conoce a nadie.
 
 ### Regla 2: ni `domain` ni `application` tienen frameworks
+
 Ambas capas internas están libres de frameworks. Todo se escribe en código puro del
 lenguaje. Queda prohibido importar en ellas:
 
@@ -80,23 +82,25 @@ librería, y únicamente si figuran en la lista explícita del test de arquitect
 
 Lista actual de Synapse:
 
-| Librería | Tipo | Dónde | Para qué |
-| :--- | :--- | :--- | :--- |
-| `log` | Fachada de logging | casos de uso | Avisos y trazas |
-| `pulldown_cmark` | Estándar (CommonMark) | `domain/graph/tag.rs`, `domain/note/note.rs` | Separar texto real de sintaxis Markdown |
-| `sha2` | Estándar (SHA-256) | `domain/note/note_content.rs` | Huella `sha256:` del contenido para el control de concurrencia optimista del MCP; no se cambia el algoritmo porque los agentes devuelven ese valor |
+| Librería         | Tipo                  | Dónde                                        | Para qué                                  |
+| :--------------- | :-------------------- | :------------------------------------------- | :---------------------------------------- |
+| `log`            | Fachada de logging    | casos de uso                                 | Avisos y trazas                           |
+| `pulldown_cmark` | Estándar (CommonMark) | `domain/graph/tag.rs`, `domain/note/note.rs` | Separar texto real de sintaxis Markdown   |
+| `sha2`           | Estándar (SHA-256)    | `domain/note/note_content.rs`                | Huella `sha256:` del contenido para e control de concurrencia optimista del MCP; no se cambia el algoritmo porque los agentes devuelven ese valor |
 
 Lista de My Health Record (backend):
 
-| Librería | Tipo | Dónde | Para qué |
-| :--- | :--- | :--- | :--- |
-| `log` | Fachada de logging | casos de uso | Avisos y trazas |
-| `tracing` | Fachada de logging con spans | casos de uso | Trazas estructuradas; se permite como alternativa a `log` |
-| `uuid` | Estándar (RFC 4122) | entidades, identificadores | Identidad de entidades. Con la feature `v7` la generación depende del reloj y de la aleatoriedad: inyectarla o generarla en `infrastructure` |
-| `derive_getters` | Quita código repetitivo | entidades | Equivalente a `@Getter` de Lombok |
-| `bon` | Quita código repetitivo | entidades | Equivalente a `@Builder` de Lombok. El builder debe pasar por las validaciones de invariantes |
-| `strum_macros` | Quita código repetitivo | enums de dominio | `Display` para enums, sin cambiar el significado del modelo |
-| `async_trait` | Quita código repetitivo | contratos asíncronos | Solo mientras los traits se usen como `dyn`; si no, usar `async fn` nativo |
+| Librería         | Tipo                         | Dónde                      | Para qué                                                    |
+| :--------------- | :--------------------------- | :------------------------- | :---------------------------------------------------------- |
+| `log`            | Fachada de logging           | casos de uso               | Avisos y trazas                                             |
+| `tracing`        | Fachada de logging con spans | casos de uso               | Trazas estructuradas; se permite como alternativa a `log`   |
+| `uuid`           | Estándar (RFC 4122)          | entidades, identificadores | Identidad de entidades                                      |
+| `uuid_v7`        | Estándar (RFC 9562 / UUIDv7) | entidades, casos de uso    | Identidad y generación de UUIDv7 (`Uuid::now_v7()`) para claves primarias ordenables temporalmente |
+| `derive_getters` | Quita código repetitivo      | entidades                  | Equivalente a `@Getter` de Lombok                           |
+| `bon`            | Quita código repetitivo      | entidades                  | Equivalente a `@Builder` de Lombok. El builder debe pasar por las validaciones de invariantes                                                |
+| `strum_macros`   | Quita código repetitivo      | enums de dominio           | `Display` para enums, sin cambiar el significado del modelo |
+| `async_trait`    | Quita código repetitivo      | contratos asíncronos       | Solo mientras los traits se usen como `dyn`; si no, usar `async fn` nativo                                                                   |
+| `thiserror`      | Quita código repetitivo      | errores de casos de uso    | Deriva `Display` y `Error` para los errores de aplicación (equivalente a una excepción tipada); no cambia el significado del modelo          |
 
 Entrar en la lista es una decisión, no un descuido. Siguen prohibidas las que obligan a
 anotar el modelo (`serde`, JPA, Jackson) y las que contactan servicios externos o hacen I/O
@@ -104,27 +108,30 @@ anotar el modelo (`serde`, JPA, Jackson) y las que contactan servicios externos 
 detrás de un contrato de servicio externo, con la implementación en `infrastructure`.
 
 La única capa que conoce y usa frameworks es `infrastructure`. La serialización
-(`serde`, Jackson) vive allí, en modelos de transporte con *mappers* hacia el dominio.
+(`serde`, Jackson) vive allí, en modelos de transporte con _mappers_ hacia el dominio.
 
 ### Regla 3: los eventos
+
 1. **Los suscriptores de eventos (`subscriber`) viven en `infrastructure`.** Escuchar un
    mensaje (Kafka, RabbitMQ, SQS, o el vigilante de archivos de una aplicación de
    escritorio) es igual que recibir una petición HTTP: es otro punto de entrada. El
    suscriptor deserializa el mensaje e invoca al **caso de uso** correspondiente.
    No existe un `application/handler`.
 2. **Cada publicador va junto a los eventos que publica.** Hay dos tipos:
-   * **Interno:** los eventos de dominio y su publicador (`AccountEventPublisher`) viven en
-     `domain/<agregado>/`. Los consume el mismo microservicio.
-   * **Externo (integración):** los eventos de integración y su publicador
-     (`IntegrationEventPublisher`) viven en `application/integration/event/`. Los consumen otros
-     microservicios.
-   La implementación técnica de ambos, con el framework de mensajería, vive en `infrastructure`.
+    - **Interno:** los eventos de dominio y su publicador (`AccountEventPublisher`) viven en
+      `domain/<agregado>/`. Los consume el mismo microservicio.
+    - **Externo (integración):** los eventos de integración y su publicador
+      (`IntegrationEventPublisher`) viven en `application/integration/event/`. Los consumen otros
+      microservicios.
+      La implementación técnica de ambos, con el framework de mensajería, vive en `infrastructure`.
 
 ### Regla 4: los casos de uso no tienen contrato de entrada
+
 El caso de uso es una clase concreta. Los puntos de entrada la invocan directamente.
 No se declara una interfaz de entrada porque no va a cambiar.
 
 ### Regla 5: el arranque y el ensamblado viven en `infrastructure`
+
 Qué se ejecuta al iniciar (servidor, CLI, aplicación de escritorio) y qué implementación
 se pasa a cada caso de uso se decide en `infrastructure/config`.
 
@@ -134,24 +141,24 @@ se pasa a cada caso de uso se decide en `infrastructure/config`.
 
 La pregunta no es "¿está en mi máquina?" sino **"¿yo soy dueño de estos datos y de su forma?"**
 
-| | Repository | Servicio externo |
-| :--- | :--- | :--- |
-| Dueño de los datos | Yo | Un tercero |
-| Quién dicta el contrato | Yo (esquema, formato) | Ellos (API, protocolo) |
-| Dónde vive el contrato | `domain/<agregado>/` | `application/integration/` |
-| Ubicación física | Indiferente (disco, SQLite, Postgres propio en la nube) | Indiferente |
+|                         | Repository                                              | Servicio externo           |
+| :---------------------- | :------------------------------------------------------ | :------------------------- |
+| Dueño de los datos      | Yo                                                      | Un tercero                 |
+| Quién dicta el contrato | Yo (esquema, formato)                                   | Ellos (API, protocolo)     |
+| Dónde vive el contrato  | `domain/<agregado>/`                                    | `application/integration/service/` |
+| Ubicación física        | Indiferente (disco, SQLite, Postgres propio en la nube) | Indiferente                |
 
 Prueba rápida: si mañana cambio la tecnología y mi dominio no se entera, es un
 **repository**. Si tengo que adaptarme a lo que otro decide, es un **servicio externo**.
 
-| Pieza | Clasificación |
-| :--- | :--- |
-| Cuentas o notas en disco, SQLite o Postgres propio | Repository |
-| Mi repositorio de versiones local | Repository |
-| Un índice de búsqueda que construyo yo | Repository |
+| Pieza                                                    | Clasificación    |
+| :------------------------------------------------------- | :--------------- |
+| Cuentas o notas en disco, SQLite o Postgres propio       | Repository       |
+| Mi repositorio de versiones local                        | Repository       |
+| Un índice de búsqueda que construyo yo                   | Repository       |
 | API de pagos, correo SMTP, catálogo de plugins en GitHub | Servicio externo |
-| Abrir un archivo con el sistema operativo | Servicio externo |
-| Un agente o proceso externo | Servicio externo |
+| Abrir un archivo con el sistema operativo                | Servicio externo |
+| Un agente o proceso externo                              | Servicio externo |
 
 ### Capacidades intercambiables
 
@@ -183,42 +190,41 @@ natural a ninguna. Además debe cumplir tres condiciones:
 Si la lógica toca una sola entidad o un solo concepto, es un método de la entidad o del
 objeto de valor, no un servicio de dominio.
 
-
-| Capa | Arquetipo | Responsabilidad y regla de uso |
-| :--- | :--- | :--- |
-| **`domain`** | **Entity** | Objeto con identidad, estado y métodos que protegen sus invariantes. Prohibidos los modelos anémicos. |
-| | **Value Object** | Inmutable, sin identidad. Valida su propia consistencia al crearse. |
-| | **Domain Event** | Hecho de negocio ya ocurrido, inmutable. |
-| | **Repository** | **Solo contrato**, junto a su entidad en `domain/<agregado>/`. Guardar y recuperar las entidades de las que soy dueño. |
-| | **Event Publisher** | **Solo contrato**, junto a sus eventos en `domain/<agregado>/`. Emitir eventos de dominio dentro del mismo microservicio. |
-| | **Domain Service** | Regla de negocio que involucra **más de una entidad** y no pertenece a ninguna. Sin estado, sin I/O ni repositorios (recibe las entidades ya cargadas), nombrado por la operación. Excepcional. |
-| | **Domain Error** | Errores puros de negocio y de los contratos, sin códigos HTTP ni detalles técnicos. |
-| **`application`** | **Use Case** | **Orquestador atómico**, uno por intención de negocio, con un único método `execute`. Llama al repository, ejecuta métodos de la entidad, invoca servicios externos o dispara el publicador. |
-| | **Command / Query / DTO** | Objetos inmutables de datos puros. Cada caso de uso recibe un `Command` (escritura) o un `Query` (lectura), aunque lleve un solo dato. |
-| | **Integration Event Publisher** | **Solo contrato**, junto a sus eventos en `application/integration/event/`. Emitir eventos de integración hacia otros microservicios. |
-| | **External Service** | **Solo contrato** de un servicio que no controlamos, en `application/integration/service/`. |
-| **`infrastructure`** | **Controller** | Punto de entrada síncrono (REST, gRPC, comandos de escritorio). Recibe, convierte y llama al caso de uso. |
-| | **Subscriber** | Punto de entrada asíncrono (colas, vigilante de archivos). Escucha e invoca al caso de uso. |
-| | **Repository Impl** | Implementa el repository con frameworks y mapea el modelo de persistencia a la entidad. |
-| | **Event Publisher Impl** | Implementa el publicador con el framework de mensajería. |
-| | **External Service Impl** | Implementación técnica (HTTP, SDK, procesos) del contrato de servicio externo. |
-| | **Configuration** | Ensambla los casos de uso con sus implementaciones. |
+| Capa                 | Arquetipo                       | Responsabilidad y regla de                                                                                                             |
+| :------------------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------- |
+| **`domain`**         | **Entity**                      | Objeto con identidad, estado y métodos que protegen sus invariantes. Prohibidos los modelos anémicos.                                  |
+|                      | **Value Object**                | Inmutable, sin identidad. Valida su propia consistencia al crearse.                                                                    |
+|                      | **Domain Event**                | Hecho de negocio ya ocurrido, inmutable.                                                                                               |
+|                      | **Repository**                  | **Solo contrato**, junto a su entidad en `domain/<agregado>/`. Guardar y recuperar las entidades de las que soy dueño.                 |
+|                      | **Event Publisher**             | **Solo contrato**, junto a sus eventos en `domain/<agregado>/`. Emitir eventos de dominio dentro del mismo microservicio.              |
+|                      | **Domain Service**              | Regla de negocio que involucra **más de una entidad** y no pertenece a ninguna. Sin estado, sin I/O ni repositorios (recibe las entidades ya cargadas), nombrado por la operación. Excepcional. |
+|                      | **Domain Error**                | Errores puros de negocio y de los contratos, sin códigos HTTP ni detalles técnicos.                                                    |
+| **`application`**    | **Use Case**                    | **Orquestador atómico**, uno por intención de negocio, con un único método `execute`. Llama al repository, ejecuta métodos de la entidad, invoca servicios externos o dispara el publicador. |
+|                      | **Command / Query / DTO**       | Objetos inmutables de datos puros. Cada caso de uso recibe un `Command` (escritura) o un `Query` (lectura), aunque lleve un solo dato. |
+|                      | **Integration Event Publisher** | **Solo contrato**, junto a sus eventos en `application/integration/event/`. Emitir eventos de integración hacia otros microservicios.  |
+|                      | **External Service**            | **Solo contrato** de un servicio que no controlamos, en `application/integration/service/`.                                            |
+| **`infrastructure`** | **Controller**                  | Punto de entrada síncrono (REST, gRPC, comandos de escritorio). Recibe, convierte y llama al caso de uso.                              |
+|                      | **Subscriber**                  | Punto de entrada asíncrono (colas, vigilante de archivos). Escucha e invoca al caso de uso.                                            |
+|                      | **Repository Impl**             | Implementa el repository con frameworks y mapea el modelo de persistencia a la entidad.                                                |
+|                      | **Event Publisher Impl**        | Implementa el publicador con el framework de mensajería.                                                                               |
+|                      | **External Service Impl**       | Implementación técnica (HTTP, SDK, procesos) del contrato de servicio externo.                                                         |
+|                      | **Configuration**               | Ensambla los casos de uso con sus implementaciones.                                                                                    |
 
 ---
 
 ## 5. Nombres
 
-| Elemento | Regla | Ejemplo |
-| :--- | :--- | :--- |
-| Contrato de repository | Agregado + `Repository` | `AccountRepository` |
-| Contrato de servicio externo | Nombre de la **capacidad**, no de la entidad | `WelcomeEmailSender` |
-| Contrato de publicador | Capacidad | `AccountEventPublisher` |
-| Servicio de dominio | Operación de negocio, nunca `…Service` | `FundsTransferer`, `LinkResolver` |
-| Implementación | Contrato + `Impl` | `AccountRepositoryImpl` |
-| Segunda implementación | Calificador delante; `Impl` siempre al final | `MockAccountRepositoryImpl` |
-| Caso de uso | Intención de negocio + `UseCase` | `RegisterAccountUseCase` |
-| Entrada del caso de uso | Intención + `Command` o `Query` | `RegisterAccountCommand` |
-| Modelo de persistencia | Entidad + sufijo técnico | `AccountRow`, `AccountJpaEntity` |
+| Elemento                     | Regla                                        | Ejemplo                           |
+| :--------------------------- | :------------------------------------------- | :-------------------------------- |
+| Contrato de repository       | Agregado + `Repository`                      | `AccountRepository`               |
+| Contrato de servicio externo | Nombre de la **capacidad**, no de la entidad | `WelcomeEmailSender`              |
+| Contrato de publicador       | Capacidad                                    | `AccountEventPublisher`           |
+| Servicio de dominio          | Operación de negocio, nunca `…Service`       | `FundsTransferer`, `LinkResolver` |
+| Implementación               | Contrato + `Impl`                            | `AccountRepositoryImpl`           |
+| Segunda implementación       | Calificador delante; `Impl` siempre al final | `MockAccountRepositoryImpl`       |
+| Caso de uso                  | Intención de negocio + `UseCase`             | `RegisterAccountUseCase`          |
+| Entrada del caso de uso      | Intención + `Command` o `Query`              | `RegisterAccountCommand`          |
+| Modelo de persistencia       | Entidad + sufijo técnico                     | `AccountRow`, `AccountJpaEntity`  |
 
 Reglas de apoyo:
 
@@ -295,14 +301,14 @@ src/
 │   ├── account/                         # account.rs, email.rs, account_repository.rs (trait),
 │   │                                    # account_event_publisher.rs (trait), account_registered.rs
 │   ├── service/                         # servicios de dominio (excepcionales)
-│   └── error.rs
+│   └── error/                           # errores de negocio
 │
 ├── application/
-│   ├── use_cases/                       # register_account_use_case.rs
+│   ├── use_case/                        # register_account_use_case.rs
 │   ├── dto/                             # register_account_command.rs
 │   └── integration/
 │       ├── event/                       # integration_event_publisher.rs (trait), account_registered_integration_event.rs
-│       └── welcome_email_sender.rs      # trait
+│       └── service/                     # welcome_email_sender.rs (trait)
 │
 └── infrastructure/
     ├── entrypoint/
@@ -312,7 +318,8 @@ src/
     │   └── sqlite/                      # account_repository_impl.rs, account_row.rs, account_mapper.rs
     ├── integration/
     │   ├── event/                       # apalis_integration_event_publisher_impl.rs
-    │   └── smtp/                        # welcome_email_sender_impl.rs
+    │   └── service/
+    │       └── smtp/                    # welcome_email_sender_impl.rs
     └── config/                          # ensamblado de dependencias
 ```
 
@@ -340,7 +347,7 @@ public interface AccountEventPublisher {
     void publish(AccountRegistered event);
 }
 
-// application/integration/WelcomeEmailSender.java   (servicio externo)
+// application/integration/service/WelcomeEmailSender.java   (servicio externo)
 public interface WelcomeEmailSender {
     void send(Email to) throws SendError;
 }
@@ -412,7 +419,7 @@ pub trait AccountEventPublisher: Send + Sync {
     fn publish(&self, event: AccountRegistered);
 }
 
-// application/integration/welcome_email_sender.rs   (servicio externo)
+// application/integration/service/welcome_email_sender.rs   (servicio externo)
 pub trait WelcomeEmailSender: Send + Sync {
     fn send(&self, to: &Email) -> Result<(), SendError>;
 }
@@ -422,7 +429,7 @@ pub struct RegisterAccountCommand {
     pub email: String,
 }
 
-// application/use_cases/register_account_use_case.rs
+// application/use_case/register_account_use_case.rs
 pub struct RegisterAccountUseCase<A, M, E>
 where
     A: AccountRepository,
