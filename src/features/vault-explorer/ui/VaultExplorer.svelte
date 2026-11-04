@@ -875,6 +875,12 @@
       return;
     }
 
+    if (e.shiftKey && e.key === 'F6') {
+      e.preventDefault();
+      handleRename();
+      return;
+    }
+
     if (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey))) {
       if ((selectedNodes.length > 0 || contextMenuNode) && itemsToDelete.length === 0) {
         e.preventDefault();
@@ -1610,21 +1616,22 @@
   }
 
   async function handleRename() {
+    const node = selectedNodes[0] || contextMenuNode;
     // Renombrar sólo un elemento evita resultados ambiguos al haber selección múltiple.
-    if (!contextMenuNode || selectedPaths.length > 1) return;
+    if (!node || selectedPaths.length > 1) return;
 
-    const isFolder = contextMenuNode.isFolder;
-    const oldName = contextMenuNode.name;
+    const isFolder = node.isFolder;
+    const oldName = node.name;
     const promptLabel = isFolder ? 'Nuevo nombre de la carpeta:' : 'Nuevo nombre del archivo:';
     const newName = window.prompt(promptLabel, oldName)?.trim();
     if (!newName || newName === oldName) return;
 
     try {
-      await flushPendingWrites([contextMenuNode.relativePath]);
+      await flushPendingWrites([node.relativePath]);
       const renamedPath = onRenameItem
-        ? await onRenameItem(contextMenuNode.relativePath, newName)
-        : await vaultApi.renameItem(contextMenuNode.relativePath, newName);
-      const finalPath = typeof renamedPath === 'string' ? renamedPath : contextMenuNode.relativePath;
+        ? await onRenameItem(node.relativePath, newName)
+        : await vaultApi.renameItem(node.relativePath, newName);
+      const finalPath = typeof renamedPath === 'string' ? renamedPath : node.relativePath;
       selectedPaths = [finalPath];
       lastFocusedPath = finalPath;
       anchorPath = finalPath;

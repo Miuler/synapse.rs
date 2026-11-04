@@ -12,6 +12,10 @@ Este documento establece las **reglas de oro, principios arquitectónicos y est�
 4. **Arquitecturas Mandatarias**:
    - **Backend**: **Arquitectura Cebolla (Onion Architecture)**.
    - **Frontend**: **Feature-Sliced Design (FSD)**.
+5. **Soluciones Mínimas y Cambios Quirúrgicos (KISS / YAGNI)**:
+   - Modificar únicamente las líneas estrictamente necesarias para resolver la petición; preferir ediciones mínimas sobre refactorizaciones no solicitadas.
+   - Prohibido agregar wrappers, funciones helpers intermedias o validaciones defensivas redundantes si la plataforma (DOM, Svelte 5, Rust) ya garantiza el comportamiento.
+   - Reutilizar el estado reactivo existente en lugar de recrear lógica de búsqueda o captura de nodos.
 
 ---
 

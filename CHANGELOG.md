@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Atajo `Shift+F6` en VaultExplorer para renombrar**: permite renombrar el archivo o carpeta seleccionado cuando el explorador de archivos tiene el foco.
+
 ### Corregido
 
 - **`Shift+F6` en CodeMirror solo se activa si tiene el foco**, evitando capturar la combinación o seleccionar ocurrencias cuando el editor no está enfocado.
