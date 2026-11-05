@@ -22,13 +22,14 @@ use tantivy::{
     Term, doc,
 };
 
-pub const SCHEMA_VERSION: &str = "1";
+pub const SCHEMA_VERSION: &str = "2";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {
     pub path_id: Field,
     pub path: Field,
     pub title: Field,
+    pub headings: Field,
     pub body: Field,
     pub kind: Field,
     pub mtime: Field,
@@ -68,6 +69,16 @@ impl FullTextIndexImpl {
         let title = builder.add_text_field("title", es_text_options.clone());
         let body = builder.add_text_field("body", es_text_options);
 
+        // Encabezados de la nota: solo para puntuar y filtrar (`headings:xxx`), no se guardan
+        // porque el texto ya está en `body` y los fragmentos se generan desde allí.
+        let headings_indexing = TextFieldIndexing::default()
+            .set_tokenizer("es_fold")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        let headings = builder.add_text_field(
+            "headings",
+            TextOptions::default().set_indexing_options(headings_indexing),
+        );
+
         // 4. Tipo de documento para filtros `kind:code`, etc.
         let kind = builder.add_text_field("kind", STRING | STORED);
 
@@ -79,6 +90,7 @@ impl FullTextIndexImpl {
             path_id,
             path,
             title,
+            headings,
             body,
             kind,
             mtime,
@@ -187,10 +199,16 @@ impl FullTextIndexImpl {
 
         let mut query_parser = QueryParser::for_index(
             &self.index,
-            vec![self.fields.title, self.fields.body, self.fields.path],
+            vec![
+                self.fields.title,
+                self.fields.headings,
+                self.fields.body,
+                self.fields.path,
+            ],
         );
         query_parser.set_conjunction_by_default();
         query_parser.set_field_boost(self.fields.title, 2.5);
+        query_parser.set_field_boost(self.fields.headings, 1.5);
 
         // Parseo con el QueryParser estándar
         let (parsed_query, _) = query_parser.parse_query_lenient(trimmed);
@@ -224,12 +242,14 @@ impl FullTextIndexImpl {
         let pattern = format!("{}.*", clean_token.to_lowercase());
 
         let title_regex = RegexQuery::from_pattern(&pattern, self.fields.title).ok();
+        let headings_regex = RegexQuery::from_pattern(&pattern, self.fields.headings).ok();
         let body_regex = RegexQuery::from_pattern(&pattern, self.fields.body).ok();
 
-        match (title_regex, body_regex) {
-            (Some(tr), Some(br)) => {
+        match (title_regex, headings_regex, body_regex) {
+            (Some(tr), Some(hr), Some(br)) => {
                 let prefix_clause = Box::new(BooleanQuery::new(vec![
                     (Occur::Should, Box::new(tr) as Box<dyn Query>),
+                    (Occur::Should, Box::new(hr) as Box<dyn Query>),
                     (Occur::Should, Box::new(br) as Box<dyn Query>),
                 ]));
 
@@ -269,6 +289,7 @@ impl FullTextIndex for FullTextIndexImpl {
                 self.fields.path_id => doc.path.as_str(),
                 self.fields.path => doc.path.as_str(),
                 self.fields.title => doc.title.as_str(),
+                self.fields.headings => doc.headings.as_str(),
                 self.fields.body => doc.body.as_str(),
                 self.fields.kind => doc.kind.as_str(),
                 self.fields.mtime => doc.mtime_nanos,
@@ -533,6 +554,7 @@ mod tests {
             path: "nota1.md".to_string(),
             title: "Arquitectura Cebolla".to_string(),
             body: "Synapse implementa arquitectura cebolla en Rust con tantivy.".to_string(),
+            headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 1000,
         };
@@ -541,6 +563,7 @@ mod tests {
             path: "canciones.md".to_string(),
             title: "Lista de Canciones".to_string(),
             body: "Esta canción es hermosa y melódica.".to_string(),
+            headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 2000,
         };
@@ -585,6 +608,7 @@ mod tests {
             path: "nota1.md".to_string(),
             title: "Arquitectura Cebolla Actualizada".to_string(),
             body: "Nueva información sobre arquitectura cebolla.".to_string(),
+            headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 1500,
         };
@@ -596,5 +620,58 @@ mod tests {
         index.delete(&["nota1.md".to_string()]).unwrap();
         index.commit().unwrap();
         assert_eq!(index.num_docs(), 1);
+    }
+
+    #[test]
+    fn test_headings_boost_ranking_and_filter() {
+        let index = FullTextIndexImpl::in_memory().unwrap();
+
+        let sin_encabezado = FullTextDocument {
+            path: "a.md".to_string(),
+            title: "Nota A".to_string(),
+            body: "Resumen del presupuesto anual de la oficina.".to_string(),
+            headings: String::new(),
+            kind: DocumentKind::Markdown,
+            mtime_nanos: 1,
+        };
+        let con_encabezado = FullTextDocument {
+            path: "b.md".to_string(),
+            title: "Nota B".to_string(),
+            body: "Resumen del presupuesto anual de la oficina.".to_string(),
+            headings: "Presupuesto anual".to_string(),
+            kind: DocumentKind::Markdown,
+            mtime_nanos: 2,
+        };
+        index.upsert(vec![sin_encabezado, con_encabezado]).unwrap();
+        index.commit().unwrap();
+
+        // Ambas notas contienen el término en el cuerpo, pero la que lo tiene en un encabezado va primero
+        let q = FullTextQuery {
+            text: "presupuesto".to_string(),
+            limit: 10,
+            prefix_last_term: false,
+        };
+        let (hits, count) = index.search(&q).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(hits[0].note_path, "b.md");
+
+        // El prefijo mientras se escribe también mira los encabezados
+        let q_prefix = FullTextQuery {
+            text: "presup".to_string(),
+            limit: 10,
+            prefix_last_term: true,
+        };
+        let (hits_pre, _) = index.search(&q_prefix).unwrap();
+        assert_eq!(hits_pre[0].note_path, "b.md");
+
+        // Filtro explícito por encabezado
+        let q_filter = FullTextQuery {
+            text: "headings:presupuesto".to_string(),
+            limit: 10,
+            prefix_last_term: false,
+        };
+        let (hits_filter, count_filter) = index.search(&q_filter).unwrap();
+        assert_eq!(count_filter, 1);
+        assert_eq!(hits_filter[0].note_path, "b.md");
     }
 }

@@ -11,7 +11,7 @@
   import {EmptyWorkspace} from "@widgets/empty-workspace";
   import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
-  import {MarkdownViewer} from "@features/markdown-editor";
+  import {MarkdownViewer, splitNavigationTarget, type HeadingTarget} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
   import {D2Viewer} from "@features/d2-editor";
@@ -157,6 +157,9 @@
     isFullTextSearchOpen = true;
   }
   let pendingScrollTerms = $state<Record<string, string[]>>({});
+  // Encabezado al que ir al abrir un enlace `[[nota#Título]]`
+  let pendingScrollHeadings = $state<Record<string, HeadingTarget>>({});
+  let headingRequestId = 0;
   let isEditing = $state(false);
   let isVimMode = $derived(appSettings.vimMode);
   let markdownViewMode = $state<MarkdownViewMode>("reading");
@@ -990,15 +993,14 @@
 
   function handleNavigateLink(targetPath: string) {
     if (!targetPath) return;
-    const [filePath, anchor] = targetPath.split('#');
-    const cleanPath = filePath.trim();
+    const { path: cleanPath, anchor } = splitNavigationTarget(targetPath);
     if (cleanPath) {
       selectTab(cleanPath);
       if (anchor) {
-        pendingScrollTerms[cleanPath] = [anchor.trim()];
+        pendingScrollHeadings[cleanPath] = { text: anchor, id: ++headingRequestId };
       }
     } else if (anchor && activeTabPath) {
-      pendingScrollTerms[activeTabPath] = [anchor.trim()];
+      pendingScrollTerms[activeTabPath] = [anchor];
     }
   }
 
@@ -4077,6 +4079,7 @@
                       viewMode={paneViewMode}
                       isActive={tabPath === activePath}
                       scrollToTerms={pendingScrollTerms[tabPath]}
+                      scrollToHeading={pendingScrollHeadings[tabPath]}
                       onNavigate={handleNavigateLink}
                       onChange={(updatedMarkdown: string) => {
                         if (openedNotes[tabPath]) {

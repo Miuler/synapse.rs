@@ -17,6 +17,7 @@
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
+  import { findHeadingLine, type HeadingTarget } from '../lib/heading-anchor';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
@@ -44,6 +45,7 @@
     viewMode?: MarkdownViewMode;
     isActive?: boolean;
     scrollToTerms?: string[];
+    scrollToHeading?: HeadingTarget;
     editorExtensions?: any[];
     onNavigate?: (path: string) => void;
     onChange?: (markdown: string) => void;
@@ -59,6 +61,7 @@
     viewMode = 'live',
     isActive = true,
     scrollToTerms = [],
+    scrollToHeading,
     editorExtensions = [],
     onNavigate,
     onChange,
@@ -102,6 +105,28 @@
     }
   }
 
+  /** Lleva al título o subtítulo con ese texto; si no hay ninguno, busca el texto como cualquier otro término. */
+  export function goToHeading(heading: string) {
+    if (!heading) return;
+    if (viewMode === 'reading') {
+      readingViewRef?.goToHeading(heading);
+      return;
+    }
+    if (!editorView) return;
+    const doc = editorView.state.doc;
+    const index = findHeadingLine(doc.iterLines(), heading);
+    if (index === -1) {
+      scrollToMatch([heading]);
+      return;
+    }
+    const line = doc.line(index + 1);
+    editorView.dispatch({
+      selection: { anchor: line.to },
+      effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 12 }),
+    });
+    editorView.focus();
+  }
+
   export function scrollToMatch(terms: string[]) {
     if (!terms || terms.length === 0) return;
     if (viewMode === 'reading') {
@@ -129,6 +154,15 @@
     if (scrollToTerms && scrollToTerms.length > 0) {
       tick().then(() => {
         scrollToMatch(scrollToTerms);
+      });
+    }
+  });
+
+  $effect(() => {
+    const target = scrollToHeading;
+    if (target) {
+      tick().then(() => {
+        goToHeading(target.text);
       });
     }
   });
@@ -997,7 +1031,7 @@
 
 <div class="editor-wrapper">
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {onNavigate} {isActive} {vimMode} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} />
   {/if}
   <div
     class="editor-container"

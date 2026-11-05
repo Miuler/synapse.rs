@@ -2,7 +2,7 @@ import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemir
 import { StateField, type EditorState, Facet } from '@codemirror/state';
 import { vaultApi } from '@entities/vault-item';
 import { activeFilePathFacet } from './mermaid-extension';
-import { extractWikilinkTokens, type WikilinkToken } from './link-resolver';
+import { extractWikilinkTokens, isNoteTarget, type WikilinkToken } from './link-resolver';
 
 export const onNavigateFacet = Facet.define<(path: string) => void, (path: string) => void>({
   combine: (values) => values[values.length - 1] || (() => {}),
@@ -24,6 +24,7 @@ class WikilinkWidget extends WidgetType {
       other.token.raw === this.token.raw &&
       other.token.target === this.token.target &&
       other.token.displayText === this.token.displayText &&
+      other.token.anchor === this.token.anchor &&
       other.resolvedPath === this.resolvedPath &&
       other.basePath === this.basePath
     );
@@ -49,14 +50,17 @@ class WikilinkWidget extends WidgetType {
 
       const onNav = view.state.facet(onNavigateFacet);
       const targetPath = this.resolvedPath || resolvedLinkCache.get(cacheKey);
+      // `[[nota#Título]]` y `![[nota#Título]]` abren la nota y van a ese encabezado
+      const withAnchor = (path: string) =>
+        this.token.anchor && !path.includes('#') ? `${path}#${this.token.anchor}` : path;
 
       if (targetPath) {
-        onNav(targetPath);
+        onNav(withAnchor(targetPath));
       } else {
         vaultApi.resolveVaultLink(this.token.target, this.basePath).then((p) => {
           const finalPath = p || this.token.target;
           resolvedLinkCache.set(cacheKey, finalPath);
-          onNav(finalPath);
+          onNav(withAnchor(finalPath));
         });
       }
     });
@@ -97,6 +101,8 @@ function buildWikilinkDecorations(state: EditorState): DecorationSet {
       for (const token of tokens) {
         // Los archivos de imagen son gestionados visualmente por image-extension
         if (token.isImage) continue;
+        // Un embed solo es un enlace si apunta a una nota; el resto (Excalidraw, PDF...) no se toca
+        if (token.isEmbed && !isNoteTarget(token.target)) continue;
 
         const hasCursor = selectionRanges.some(
           (r) => r.from <= token.to && r.to >= token.from

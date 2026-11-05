@@ -8,6 +8,9 @@
   import { vaultRepository } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
+  import { normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
+  import { expandSectionEmbeds, type EmbedLoader } from '../lib/section-embed';
+  import { vaultApi } from '@entities/vault-item';
   import { extractYouTubeId, getYouTubeThumbnailUrl } from '../lib/youtube';
   import { extractFrontmatterAndBody } from '../lib/frontmatter-extractor';
   import NoteProperties from './NoteProperties.svelte';
@@ -16,6 +19,7 @@
     content: string;
     filePath?: string | null;
     scrollToTerms?: string[];
+    scrollToHeading?: HeadingTarget;
     onNavigate?: (path: string) => void;
     isActive?: boolean;
     vimMode?: boolean;
@@ -25,6 +29,7 @@
     content = '',
     filePath = null,
     scrollToTerms = [],
+    scrollToHeading,
     onNavigate,
     isActive = true,
     vimMode = false,
@@ -611,6 +616,25 @@
     renderImages();
   });
 
+  // Lee las notas que se incrustan con `![[nota#Título]]`
+  const embedLoader: EmbedLoader = {
+    resolvePath: (target, baseFile) => vaultApi.resolveVaultLink(target, baseFile),
+    readContent: async (path) => (await vaultRepository.readNote(path))?.content ?? null,
+  };
+
+  /** Lleva al encabezado con ese texto; si no hay ninguno, busca el texto como cualquier otro término. */
+  export function goToHeading(heading: string) {
+    if (!containerRef || !heading) return;
+    const wanted = normalizeHeadingText(heading);
+    for (const el of containerRef.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')) {
+      if (normalizeHeadingText(el.textContent ?? '') === wanted) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
+    scrollToMatch([heading]);
+  }
+
   export function scrollToMatch(terms: string[]) {
     if (!containerRef || !terms || terms.length === 0) return;
     for (const term of terms) {
@@ -659,7 +683,9 @@
     frontmatterData = extracted.metadata;
     const bodyContent = extracted.cleanContent;
 
-    resolveMarkdownWikilinks(bodyContent, filePath).then(async (transformed) => {
+    expandSectionEmbeds(bodyContent, embedLoader, filePath)
+      .then((expanded) => resolveMarkdownWikilinks(expanded, filePath))
+      .then(async (transformed) => {
       if (!isCurrent) return;
       try {
         const parsed = await marked.parse(transformed);
@@ -673,7 +699,9 @@
       if (!isCurrent) return;
       renderDiagrams();
       renderImages();
-      if (scrollToTerms && scrollToTerms.length > 0) {
+      if (scrollToHeading) {
+        goToHeading(scrollToHeading.text);
+      } else if (scrollToTerms && scrollToTerms.length > 0) {
         scrollToMatch(scrollToTerms);
       }
       if (isActive) {
@@ -699,6 +727,14 @@
     if (scrollToTerms && scrollToTerms.length > 0 && renderedHtml) {
       tick().then(() => {
         scrollToMatch(scrollToTerms);
+      });
+    }
+  });
+  $effect(() => {
+    const target = scrollToHeading;
+    if (target && renderedHtml) {
+      tick().then(() => {
+        goToHeading(target.text);
       });
     }
   });
@@ -1004,6 +1040,19 @@
   .empty-doc {
     color: var(--text-secondary, #656d76);
     font-style: italic;
+  }
+
+  /* Sección de otra nota incrustada con ![[nota#Título]] */
+  :global(.markdown-body .note-embed) {
+    margin: 1em 0;
+    padding: 0.25em 1em;
+    border-left: 3px solid var(--accent, #0969da);
+    background: var(--bg-secondary, rgba(127, 127, 127, 0.08));
+    border-radius: 0 6px 6px 0;
+  }
+
+  :global(.markdown-body .note-embed > :first-child) {
+    margin-top: 0.4em;
   }
 
   :global(.markdown-body h1) {

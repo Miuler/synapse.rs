@@ -129,6 +129,52 @@ impl SupportedFileTypes {
         self.is_word_file(filename) || self.is_excel_file(filename)
     }
 
+    /// Verifica si un nombre de archivo o ruta coincide con un diagrama (Mermaid, D2, PlantUML...)
+    pub fn is_diagram_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.diagrams.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
+    /// Verifica si un nombre de archivo o ruta coincide con un archivo de código
+    pub fn is_code_file(&self, filename: &str) -> bool {
+        let lower = filename.to_lowercase();
+        self.code.iter().any(|ext| {
+            let clean = ext.trim_start_matches('.').to_lowercase();
+            lower.ends_with(&format!(".{}", clean))
+        })
+    }
+
+    /// Identificador del tipo de un archivo según su nombre, el mismo que usa el filtro `kind:xxx`.
+    ///
+    /// Sigue el orden de `content_extractor` (los dibujos antes que Markdown, porque
+    /// `.excalidraw.md` también es Markdown) y añade `image` y `excel`, que no se indexan en el
+    /// contenido pero sí aparecen en Quick Open. Un `.md` de Obsidian Excalidraw reconocible solo
+    /// por su frontmatter se clasifica como `markdown`.
+    pub fn kind_name(&self, filename: &str) -> Option<&'static str> {
+        if self.is_pdf_file(filename) {
+            Some("pdf")
+        } else if self.is_word_file(filename) {
+            Some("word")
+        } else if self.is_excel_file(filename) {
+            Some("excel")
+        } else if self.is_drawing_file(filename) {
+            Some("excalidraw")
+        } else if self.is_markdown_file(filename) {
+            Some("markdown")
+        } else if self.is_diagram_file(filename) {
+            Some("mermaid")
+        } else if self.is_code_file(filename) {
+            Some("code")
+        } else if self.is_image_file(filename) {
+            Some("image")
+        } else {
+            None
+        }
+    }
+
     /// Verifica si un nombre de archivo o ruta coincide con alguno de los tipos soportados
     pub fn is_supported_file(&self, filename: &str) -> bool {
         let lower = filename.to_lowercase();
@@ -183,6 +229,22 @@ mod tests {
 
         assert!(types.is_supported_file("informe.docx"));
         assert!(types.is_supported_file("presupuesto.xlsx"));
+    }
+
+    #[test]
+    fn test_kind_name_classifies_by_filename() {
+        let types = SupportedFileTypes::default();
+        assert_eq!(types.kind_name("nota.md"), Some("markdown"));
+        assert_eq!(types.kind_name("carpeta/Manual.PDF"), Some("pdf"));
+        assert_eq!(types.kind_name("informe.docx"), Some("word"));
+        assert_eq!(types.kind_name("presupuesto.xlsx"), Some("excel"));
+        assert_eq!(types.kind_name("foto.png"), Some("image"));
+        assert_eq!(types.kind_name("flujo.mermaid"), Some("mermaid"));
+        assert_eq!(types.kind_name("payroll.cbl"), Some("code"));
+        assert_eq!(types.kind_name("dibujo.excalidraw"), Some("excalidraw"));
+        // Un dibujo guardado como Markdown es un dibujo, no una nota
+        assert_eq!(types.kind_name("dibujo.excalidraw.md"), Some("excalidraw"));
+        assert_eq!(types.kind_name("desconocido.zzz"), None);
     }
 
     #[test]

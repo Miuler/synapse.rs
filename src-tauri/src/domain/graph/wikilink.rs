@@ -79,6 +79,16 @@ impl AssetPath {
         }
     }
 
+    /// Comprueba si el objetivo de un enlace es una nota Markdown: sin extensión (se completa con
+    /// `.md`) o con extensión `.md`/`.markdown`. Distingue `![[nota#Título]]` de `![[foto.png]]`.
+    pub fn is_note_target(target: &str) -> bool {
+        if !AssetPath::has_file_extension(target) {
+            return true;
+        }
+        let lower = target.to_ascii_lowercase();
+        lower.ends_with(".md") || lower.ends_with(".markdown")
+    }
+
     /// Decodifica una cadena con codificación porcentual (URL encoding), ej. `%20` -> `' '`, `%40` -> `'@'`.
     pub fn percent_decode(s: &str) -> String {
         let mut bytes = Vec::with_capacity(s.len());
@@ -456,6 +466,8 @@ impl WikilinkToken {
     ///   `![display_text](<resolved_path>)` para que sea renderizada como `<img>`.
     /// - Si no es imagen (ej. `[[FILE.md]]` o `[[FILE.txt]]`), se transforma en `[display_text](<resolved_path>)`
     ///   para que sea renderizada como un enlace `<a>` navegable.
+    /// - Un embed de otra nota (`![[nota]]`, `![[nota#Título]]`) también es un enlace navegable: al
+    ///   pulsarlo lleva a la nota y, si hay `#Título`, a ese encabezado.
     ///
     /// Si el archivo no tiene extensión, se autocompleta con `.md` al buscar en el DashMap y al generar el fallback.
     pub fn transform_markdown<F>(content: &str, resolver: F) -> String
@@ -474,6 +486,7 @@ impl WikilinkToken {
             result.push_str(&content[last_idx..token.start]);
 
             let is_image = AssetPath::has_image_extension(&token.target);
+            let is_note_embed = token.is_embed && AssetPath::is_note_target(&token.target);
 
             let resolved_path = if token.target.is_empty() {
                 // Enlace interno sólo con ancla (#sección)
@@ -500,10 +513,10 @@ impl WikilinkToken {
                 }
             };
 
-            // Si es un archivo de imagen (o un embed explícito), se formatea como imagen Markdown `![...]`
-            // lo que produce una etiqueta `<img>` insertada en el renderizado.
+            // Si es un archivo de imagen (o un embed de un recurso que no es una nota), se formatea como
+            // imagen Markdown `![...]` lo que produce una etiqueta `<img>` insertada en el renderizado.
             // En caso contrario, se formatea como enlace `[...]` que produce `<a>`.
-            let md_link = if is_image || token.is_embed {
+            let md_link = if is_image || (token.is_embed && !is_note_embed) {
                 if resolved_path.contains(' ') {
                     format!("![{}](<{}>)", token.display_text, resolved_path)
                 } else {
@@ -669,6 +682,41 @@ Enlace real: [[Mi Nota]]
             transformed,
             "Nota [FILE.md](docs/FILE.md) junto a imagen ![FILE.png](assets/img/FILE.png) y otra ![300](assets/sub/banner.webp)."
         );
+    }
+
+    #[test]
+    fn test_transform_markdown_note_embeds_are_navigable_links() {
+        let resolver = |query: &str| -> Option<String> {
+            match query {
+                "Plan.md" => Some("docs/Plan.md".to_string()),
+                _ => None,
+            }
+        };
+
+        // Embed de una nota con encabezado: enlace a la nota con el ancla
+        assert_eq!(
+            WikilinkToken::transform_markdown("![[Plan#Presupuesto anual]]", resolver),
+            "[Plan#Presupuesto anual](<docs/Plan.md#Presupuesto anual>)"
+        );
+        // Con alias y extensión explícita
+        assert_eq!(
+            WikilinkToken::transform_markdown("![[Plan.md#Meta|ver meta]]", resolver),
+            "[ver meta](docs/Plan.md#Meta)"
+        );
+        // Los embeds de imágenes y otros recursos siguen siendo `<img>`
+        assert_eq!(
+            WikilinkToken::transform_markdown("![[foto.png]] ![[manual.pdf]]", resolver),
+            "![foto.png](foto.png) ![manual.pdf](manual.pdf)"
+        );
+    }
+
+    #[test]
+    fn test_is_note_target() {
+        assert!(AssetPath::is_note_target("Plan"));
+        assert!(AssetPath::is_note_target("carpeta/Plan.md"));
+        assert!(AssetPath::is_note_target("1. Introducción"));
+        assert!(!AssetPath::is_note_target("foto.png"));
+        assert!(!AssetPath::is_note_target("manual.pdf"));
     }
 
     #[test]

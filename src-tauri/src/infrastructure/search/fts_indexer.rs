@@ -188,7 +188,7 @@ impl FtsIndexer {
                                 }
 
                                 let bytes = fs::read(&abs).ok()?;
-                                let (kind, title, body) = content_extractor::extract_with_config(
+                                let (kind, title, body, headings) = content_extractor::extract_with_config(
                                     Path::new(&rel_str),
                                     &bytes,
                                     ft,
@@ -233,6 +233,7 @@ impl FtsIndexer {
                                     path: rel_str,
                                     title,
                                     body,
+                                    headings,
                                     kind,
                                     mtime_nanos,
                                 })
@@ -572,7 +573,7 @@ fn perform_full_sync(
             .filter_map(|(rel_str, mtime_nanos)| {
                 let abs = vault_path.join(&rel_str);
                 let bytes = fs::read(&abs).ok()?;
-                let (kind, title, body) = content_extractor::extract_with_config(
+                let (kind, title, body, headings) = content_extractor::extract_with_config(
                     Path::new(&rel_str),
                     &bytes,
                     file_types,
@@ -599,6 +600,7 @@ fn perform_full_sync(
                     path: rel_str,
                     title,
                     body,
+                    headings,
                     kind,
                     mtime_nanos,
                 })

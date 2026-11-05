@@ -1,5 +1,8 @@
 import { vaultApi } from '@entities/vault-item';
 import { isTauriEnvironment } from '@shared/api';
+import { hasExtension, isNoteTarget } from './note-target';
+
+export { hasExtension, isNoteTarget };
 
 export const IMAGE_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'ico', 'avif', 'tiff', 'tif'
@@ -15,17 +18,6 @@ export function isImageExtension(pathOrName: string): boolean {
   if (lastDot <= 0) return false;
   const ext = fileName.slice(lastDot + 1).toLowerCase();
   return IMAGE_EXTENSIONS.has(ext);
-}
-
-/**
- * Comprueba si un texto o nombre de archivo tiene una extensión válida (ej: .txt, .md, .png).
- */
-export function hasExtension(nameOrPath: string): boolean {
-  const fileName = nameOrPath.split('/').pop() || nameOrPath;
-  const lastDot = fileName.lastIndexOf('.');
-  if (lastDot <= 0) return false;
-  const ext = fileName.slice(lastDot + 1);
-  return ext.length > 0 && ext.length <= 10 && !ext.includes(' ') && !ext.includes('/') && !ext.includes('\\');
 }
 
 /**
@@ -91,7 +83,8 @@ export async function resolveMarkdownWikilinks(content: string, baseFile?: strin
     const displayText = aliasClean || targetClean;
     const finalPath = anchor ? `${targetWithExt}#${anchor}` : targetWithExt;
 
-    const isImage = isImageExtension(targetClean) || isEmbedPrefix === '!';
+    // Un embed de otra nota (`![[nota#Título]]`) es un enlace navegable, no una imagen
+    const isImage = isImageExtension(targetClean) || (isEmbedPrefix === '!' && !isNoteTarget(targetClean));
     const prefix = isImage ? '!' : '';
 
     return finalPath.includes(' ')
@@ -109,18 +102,21 @@ export interface WikilinkToken {
   anchor?: string;
   displayText: string;
   isImage: boolean;
+  /** `![[...]]`: transclusión; si apunta a una nota se muestra como enlace navegable. */
+  isEmbed: boolean;
 }
 
 /**
- * Escanea una línea en busca de WikiLinks `[[...]]` para decoraciones en Live Preview.
+ * Escanea una línea en busca de WikiLinks `[[...]]` y embeds `![[...]]` para decoraciones en Live Preview.
  */
 export function extractWikilinkTokens(lineText: string, lineOffset = 0): WikilinkToken[] {
   const tokens: WikilinkToken[] = [];
-  const regex = /(?<!\!)\[\[([^\]\n]+)\]\]/g;
+  const regex = /(!?)\[\[([^\]\n]+)\]\]/g;
   for (const match of lineText.matchAll(regex)) {
     if (match.index === undefined) continue;
     const raw = match[0];
-    const inner = match[1]?.trim();
+    const isEmbed = match[1] === '!';
+    const inner = match[2]?.trim();
     if (!inner) continue;
 
     const [targetPart, aliasPart] = inner.split('|');
@@ -140,6 +136,7 @@ export function extractWikilinkTokens(lineText: string, lineOffset = 0): Wikilin
       anchor: anchorPart ? anchorPart.trim() : undefined,
       displayText,
       isImage,
+      isEmbed,
     });
   }
   return tokens;

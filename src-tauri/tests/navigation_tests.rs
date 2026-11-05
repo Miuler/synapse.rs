@@ -506,6 +506,60 @@ fn test_indexing_multi_format_files_and_nucleo_search() {
 }
 
 #[test]
+fn test_search_kind_filter_by_file_type() {
+    let test_dir = std::env::temp_dir().join("synapse_kind_filter_test");
+    let _ = fs::remove_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_dir);
+    let cache_file = test_dir.join("cache.bin");
+
+    let mut md_file = File::create(test_dir.join("plan.md")).unwrap();
+    writeln!(md_file, "# Plan\nContenido").unwrap();
+    let mut other_md = File::create(test_dir.join("informe.md")).unwrap();
+    writeln!(other_md, "# Informe\nContenido").unwrap();
+    File::create(test_dir.join("plan.pdf")).unwrap();
+    File::create(test_dir.join("plan.docx")).unwrap();
+
+    let engine = NavigationEngine::new(test_dir.clone(), cache_file);
+    engine.reconcile_sync();
+
+    let paths = |query: &str| -> Vec<String> {
+        let mut found: Vec<String> = engine
+            .search(query, 10)
+            .into_iter()
+            .map(|m| m.path.to_string())
+            .collect();
+        found.sort();
+        found
+    };
+
+    // Solo el filtro: lista todos los archivos de ese tipo
+    assert_eq!(paths("kind:markdown"), vec!["informe.md", "plan.md"]);
+    assert_eq!(paths("KIND:PDF"), vec!["plan.pdf"]);
+
+    // Filtro + texto: el texto busca solo entre los archivos de ese tipo
+    assert_eq!(paths("plan kind:markdown"), vec!["plan.md"]);
+    assert_eq!(paths("kind:word plan"), vec!["plan.docx"]);
+    assert!(paths("informe kind:pdf").is_empty());
+
+    // Escribir parte del tipo ya filtra; varios `kind:` se suman
+    assert_eq!(paths("kind:pd"), vec!["plan.pdf"]);
+    assert_eq!(paths("plan kind:pdf kind:word"), vec!["plan.docx", "plan.pdf"]);
+
+    // Tipo inexistente: sin resultados; `kind:` sin valor se busca como texto
+    assert!(paths("kind:inexistente").is_empty());
+    assert!(paths("kind:").is_empty());
+
+    // Sin filtro todo sigue igual
+    assert_eq!(paths("plan"), vec!["plan.docx", "plan.md", "plan.pdf"]);
+
+    let (_, total, matched) = engine.search_with_stats("plan kind:markdown", 10);
+    assert_eq!(total, 4);
+    assert_eq!(matched, 1);
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[test]
 fn test_search_prioritization_filename_recency_and_alphabetical() {
     let test_dir = std::env::temp_dir().join("synapse_priority_test");
     let _ = fs::remove_dir_all(&test_dir);

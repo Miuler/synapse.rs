@@ -45,6 +45,8 @@ pub struct FullTextDocument {
     pub path: String,
     pub title: String,
     pub body: String,
+    /// Títulos y subtítulos de la nota (uno por línea). Vacío si el formato no tiene encabezados.
+    pub headings: String,
     pub kind: DocumentKind,
     /// Fecha de modificación del archivo en nanosegundos (truncada a u64) para sync incremental.
     pub mtime_nanos: u64,

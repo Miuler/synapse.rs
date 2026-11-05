@@ -282,6 +282,7 @@ fn test_indexed_versions_reflects_updates_and_deletions() {
         path: path.to_string(),
         title: path.to_string(),
         body: "contenido largo de prueba".repeat(50),
+        headings: String::new(),
         kind: DocumentKind::Markdown,
         mtime_nanos: mtime,
     };

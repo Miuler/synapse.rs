@@ -3,7 +3,7 @@ use crate::domain::note::note::Note;
 use crate::domain::search::full_text::DocumentKind;
 use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::infrastructure::repository::file::note_repository_impl::detect_and_decode;
-use pulldown_cmark::{Event, Options, Parser, TagEnd};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::path::Path;
 
 const MAX_INDEXABLE_SIZE: usize = 5 * 1024 * 1024; // 5 MB
@@ -23,7 +23,7 @@ pub fn extract(
     rel_path: &Path,
     bytes: &[u8],
     file_types: &SupportedFileTypes,
-) -> Option<(DocumentKind, String, String)> {
+) -> Option<(DocumentKind, String, String, String)> {
     let default_config = IndexingConfig::default();
     extract_with_config(rel_path, bytes, file_types, &default_config)
 }
@@ -34,7 +34,7 @@ pub fn extract_with_config(
     bytes: &[u8],
     file_types: &SupportedFileTypes,
     indexing: &IndexingConfig,
-) -> Option<(DocumentKind, String, String)> {
+) -> Option<(DocumentKind, String, String, String)> {
     let file_name = rel_path.file_name()?.to_str()?;
     let lower_name = file_name.to_lowercase();
     let file_stem = rel_path
@@ -57,7 +57,7 @@ pub fn extract_with_config(
         if text.trim().is_empty() {
             return None;
         }
-        return Some((DocumentKind::Pdf, file_stem.to_string(), text));
+        return Some((DocumentKind::Pdf, file_stem.to_string(), text, String::new()));
     }
 
     // 2. Documentos Microsoft Word (.docx)
@@ -74,7 +74,7 @@ pub fn extract_with_config(
         if text.trim().is_empty() {
             return None;
         }
-        return Some((DocumentKind::Word, file_stem.to_string(), text));
+        return Some((DocumentKind::Word, file_stem.to_string(), text, String::new()));
     }
 
     // 3. Descartar archivos mayores al límite para texto plano
@@ -102,6 +102,7 @@ pub fn extract_with_config(
             DocumentKind::Excalidraw,
             file_stem.to_string(),
             extracted_text,
+            String::new(),
         ));
     }
 
@@ -127,13 +128,15 @@ pub fn extract_with_config(
                 DocumentKind::Excalidraw,
                 file_stem.to_string(),
                 extracted_text,
+                String::new(),
             ));
         }
 
         let title = Note::title_from_content(&decoded, file_stem);
-        let mut plain_body = extract_markdown_plain_text(&decoded);
+        let (mut plain_body, mut headings) = extract_markdown_text_and_headings(&decoded);
         truncate_safe(&mut plain_body, indexing.max_extracted_chars);
-        return Some((DocumentKind::Markdown, title, plain_body));
+        truncate_safe(&mut headings, indexing.max_extracted_chars);
+        return Some((DocumentKind::Markdown, title, plain_body, headings));
     }
 
     // 7. Diagramas (Mermaid)
@@ -145,7 +148,7 @@ pub fn extract_with_config(
     if is_diagram {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((DocumentKind::Mermaid, file_name.to_string(), decoded));
+        return Some((DocumentKind::Mermaid, file_name.to_string(), decoded, String::new()));
     }
 
     // 8. Código y texto estructurado
@@ -157,7 +160,7 @@ pub fn extract_with_config(
     if is_code {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((DocumentKind::Code, file_name.to_string(), decoded));
+        return Some((DocumentKind::Code, file_name.to_string(), decoded, String::new()));
     }
 
     None
@@ -222,6 +225,12 @@ fn extract_excalidraw_text(raw_str: &str) -> String {
 
 /// Convierte contenido Markdown a texto plano limpio sin marcado de sintaxis.
 pub fn extract_markdown_plain_text(content: &str) -> String {
+    extract_markdown_text_and_headings(content).0
+}
+
+/// Como [`extract_markdown_plain_text`], pero además devuelve el texto de los títulos y
+/// subtítulos (uno por línea) en la misma pasada del parser.
+pub fn extract_markdown_text_and_headings(content: &str) -> (String, String) {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_FOOTNOTES);
@@ -231,17 +240,33 @@ pub fn extract_markdown_plain_text(content: &str) -> String {
 
     let parser = Parser::new_ext(content, options);
     let mut plain = String::with_capacity(content.len());
+    let mut headings = String::new();
+    let mut in_heading = false;
 
     for event in parser {
         match event {
+            Event::Start(Tag::Heading { .. }) => {
+                in_heading = true;
+            }
+            Event::End(TagEnd::Heading(_)) => {
+                in_heading = false;
+                headings.push('\n');
+                plain.push('\n');
+            }
             Event::Text(t) | Event::Code(t) | Event::InlineMath(t) | Event::DisplayMath(t) => {
                 plain.push_str(&t);
+                if in_heading {
+                    headings.push_str(&t);
+                }
+            }
+            Event::SoftBreak | Event::HardBreak if in_heading => {
+                plain.push(' ');
+                headings.push(' ');
             }
             Event::SoftBreak | Event::HardBreak => {
                 plain.push(' ');
             }
             Event::End(TagEnd::Paragraph)
-            | Event::End(TagEnd::Heading(_))
             | Event::End(TagEnd::Item)
             | Event::End(TagEnd::TableCell)
             | Event::End(TagEnd::CodeBlock)
@@ -252,7 +277,7 @@ pub fn extract_markdown_plain_text(content: &str) -> String {
         }
     }
 
-    plain
+    (plain, headings)
 }
 
 #[cfg(test)]
@@ -266,11 +291,27 @@ mod tests {
         let file_types = SupportedFileTypes::default();
         let res = extract(path, md.as_bytes(), &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Markdown);
         assert_eq!(title, "Mi Título");
         assert!(body.contains("Este es un párrafo con negrita y enlace."));
         assert!(body.contains("let x = 42;"));
+    }
+
+    #[test]
+    fn test_extract_markdown_headings() {
+        let md = "# Plan *anual*\n\nIntro con texto.\n\n## Presupuesto\n\nCifras.\n\n### Gastos `fijos`\n\nDetalle.";
+        let file_types = SupportedFileTypes::default();
+        let (kind, _, body, headings) =
+            extract(Path::new("plan.md"), md.as_bytes(), &file_types).unwrap();
+        assert_eq!(kind, DocumentKind::Markdown);
+        assert_eq!(
+            headings.lines().collect::<Vec<_>>(),
+            vec!["Plan anual", "Presupuesto", "Gastos fijos"]
+        );
+        // El cuerpo conserva el texto de los encabezados
+        assert!(body.contains("Presupuesto"));
+        assert!(!headings.contains("Intro"));
     }
 
     #[test]
@@ -287,7 +328,7 @@ mod tests {
         let file_types = SupportedFileTypes::default();
         let res = extract(path, json.as_bytes(), &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Excalidraw);
         assert_eq!(title, "diagram");
         assert!(body.contains("Nodo A"));
@@ -319,7 +360,7 @@ Elemento 2 ^def456
         let file_types = SupportedFileTypes::default();
         let res = extract(path, md.as_bytes(), &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Excalidraw);
         assert_eq!(title, "drawing.excalidraw");
         assert!(body.contains("Elemento 1"));
@@ -342,7 +383,7 @@ Base de Datos PostgreSQL ^db1
         let file_types = SupportedFileTypes::default();
         let res = extract(path, md.as_bytes(), &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Excalidraw);
         assert_eq!(title, "arquitectura_sistema");
         assert!(body.contains("Microservicio Pagos"));
@@ -365,7 +406,7 @@ Base de Datos PostgreSQL ^db1
         let path = Path::new("subfolder/hello.cbl");
         let res = extract(path, cobol_src.as_bytes(), &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Code);
         assert_eq!(title, "hello.cbl");
         assert!(body.contains("HELLO COBOL"));
@@ -392,7 +433,7 @@ Base de Datos PostgreSQL ^db1
         let path = Path::new("informes/reporte.docx");
         let res = extract(path, &buffer, &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Word);
         assert_eq!(title, "reporte");
         assert!(body.contains("Contenido extraído del archivo Word"));
@@ -453,7 +494,7 @@ Base de Datos PostgreSQL ^db1
         let path = Path::new("libros/manual.pdf");
         let res = extract(path, &buffer, &file_types);
         assert!(res.is_some());
-        let (kind, title, body) = res.unwrap();
+        let (kind, title, body, _) = res.unwrap();
         assert_eq!(kind, DocumentKind::Pdf);
         assert_eq!(title, "manual");
         assert!(body.contains("Texto indexable de PDF"));

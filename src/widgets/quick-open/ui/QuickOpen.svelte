@@ -4,7 +4,8 @@
   import { vaultItemStore, type VaultItem, type TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
   import { Search, TextSearch, Tag, Folder, ChevronDown, ChevronUp } from 'lucide-svelte';
-  import { FileIcon } from '@entities/file-type';
+  import { FileIcon, fileTypesManager } from '@entities/file-type';
+  import { parseKindFilter, matchesKindFilter } from '../lib/kind-filter';
   import { SearchBox } from '@shared/ui/search-box';
   import { handleRelativePageJump } from '@shared/lib/navigation';
   import {
@@ -203,7 +204,9 @@
       }
 
       // Fallback instantáneo en cliente (0ms): mientras nucleo responde o si no hubo resultados de nucleo
-      const qLower = trimmed.toLowerCase();
+      // `kind:pdf` limita por tipo de archivo; el resto de la consulta es el texto a buscar
+      const { text: textQuery, kinds: kindFilters } = parseKindFilter(trimmed);
+      const qLower = textQuery.toLowerCase();
       // Cada palabra de la consulta debe aparecer en el campo, en cualquier orden ("bcp ttib" ~ "BCP - TTIB ...")
       const qTokens = qLower.split(/\s+/).filter(Boolean);
       const matchesQuery = (text: string) => {
@@ -219,7 +222,10 @@
         const fileName = path.split('/').pop() || path;
         const item = vaultItemStore.get(path);
         const title = item ? item.title : fileName.replace(/\.[^/.]+$/, '');
-        if (matchesQuery(fileName) || matchesQuery(title) || matchesQuery(path)) {
+        if (
+          matchesKindFilter(path, kindFilters, fileTypesManager) &&
+          (matchesQuery(fileName) || matchesQuery(title) || matchesQuery(path))
+        ) {
           filtered.push({
             id: path,
             title,
@@ -235,7 +241,10 @@
       for (const item of vaultItems) {
         if (!item.relative_path || item.relative_path.startsWith('empty:') || added.has(item.relative_path)) continue;
         const fileName = item.relative_path.split('/').pop() || item.relative_path;
-        if (matchesQuery(fileName) || matchesQuery(item.title) || matchesQuery(item.relative_path)) {
+        if (
+          matchesKindFilter(item.relative_path, kindFilters, fileTypesManager) &&
+          (matchesQuery(fileName) || matchesQuery(item.title) || matchesQuery(item.relative_path))
+        ) {
           filtered.push({
             id: item.relative_path,
             title: item.title,
@@ -620,7 +629,7 @@
         <SearchBox
           class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : isFolderMode ? 'is-folder-mode' : ''}
           bind:value={searchQuery}
-          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags)"}
+          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags, 'kind:pdf' tipo)"}
           loading={isFtsLoading}
         >
           {#snippet icon()}

@@ -868,6 +868,28 @@ impl NavigationEngine {
         }
     }
 
+    /// Orden de las listas sin texto de búsqueda: lo abierto más recientemente primero y,
+    /// a igualdad, por nombre de archivo sin distinguir mayúsculas.
+    fn sort_recent_then_name(notes: &mut [NoteMeta]) {
+        notes.sort_by(|a, b| {
+            match (a.last_opened_nanos, b.last_opened_nanos) {
+                (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
+                (Some(_), None) => return std::cmp::Ordering::Less,
+                (None, Some(_)) => return std::cmp::Ordering::Greater,
+                _ => {}
+            }
+            let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
+            let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
+            name_a.to_lowercase().cmp(&name_b.to_lowercase())
+        });
+    }
+
+    /// Valor de un token `kind:xxx` (en minúsculas), o `None` si el token no es un filtro de tipo.
+    fn kind_filter_value(token: &str) -> Option<String> {
+        let (prefix, value) = token.split_at_checked(5)?;
+        (prefix.eq_ignore_ascii_case("kind:") && !value.is_empty()).then(|| value.to_lowercase())
+    }
+
     /// Interactive fuzzy search ranked by a composite nucleo score (see `ranking::QuickOpenScorer`):
     /// 1. Fuzzy match quality per field, weighted: file name > title > tags > path.
     /// 2. Bounded recency bonus, so a recent scattered match never beats a clean unopened one.
@@ -880,17 +902,7 @@ impl NavigationEngine {
         if trimmed_query.is_empty() {
             let mut all_notes: Vec<NoteMeta> =
                 self.notes.iter().map(|item| item.value().clone()).collect();
-            all_notes.sort_by(|a, b| {
-                match (a.last_opened_nanos, b.last_opened_nanos) {
-                    (Some(ta), Some(tb)) if ta != tb => return tb.cmp(&ta),
-                    (Some(_), None) => return std::cmp::Ordering::Less,
-                    (None, Some(_)) => return std::cmp::Ordering::Greater,
-                    _ => {}
-                }
-                let name_a = a.path.rsplit('/').next().unwrap_or(a.path.as_str());
-                let name_b = b.path.rsplit('/').next().unwrap_or(b.path.as_str());
-                name_a.to_lowercase().cmp(&name_b.to_lowercase())
-            });
+            Self::sort_recent_then_name(&mut all_notes);
             let matches = all_notes.into_iter().take(limit).collect();
             return (matches, total_files, total_files);
         }
@@ -900,12 +912,17 @@ impl NavigationEngine {
             Err(_) => return (Vec::new(), total_files, 0),
         };
 
-        // Extraer filtros explícitos de etiquetas (tokens que inician con '#')
+        // Extraer filtros explícitos de etiquetas (tokens que inician con '#') y de tipo (`kind:pdf`)
         // Si el token tras '#' contiene solo números (ej. '#500' en un título), no es una etiqueta, es texto
         let mut tag_filters = Vec::new();
+        let mut kind_filters: Vec<String> = Vec::new();
         let mut non_tag_tokens = Vec::new();
 
         for part in trimmed_query.split_whitespace() {
+            if let Some(kind) = Self::kind_filter_value(part) {
+                kind_filters.push(kind);
+                continue;
+            }
             let after_hash = part.trim_start_matches('#');
             let is_tag = part.starts_with('#')
                 && part.len() > 1
@@ -920,14 +937,36 @@ impl NavigationEngine {
             }
         }
 
-        let effective_search_query = if !tag_filters.is_empty() {
-            if !non_tag_tokens.is_empty() {
-                non_tag_tokens.join(" ")
-            } else {
-                tag_filters.join(" ")
-            }
-        } else {
+        // Un `kind:` se cumple si el tipo del archivo empieza por lo escrito (`kind:pd` ya encuentra
+        // los PDF); con varios `kind:` basta con que cumpla uno, porque un archivo solo tiene un tipo.
+        let passes_kind_filters = |meta: &NoteMeta| {
+            kind_filters.is_empty()
+                || self
+                    .file_types
+                    .kind_name(meta.path.as_str())
+                    .is_some_and(|kind| kind_filters.iter().any(|kf| kind.starts_with(kf.as_str())))
+        };
+
+        // Solo filtro de tipo, sin texto ni etiquetas: se listan los archivos de ese tipo
+        if non_tag_tokens.is_empty() && tag_filters.is_empty() {
+            let mut of_kind: Vec<NoteMeta> = self
+                .notes
+                .iter()
+                .filter(|item| passes_kind_filters(item.value()))
+                .map(|item| item.value().clone())
+                .collect();
+            Self::sort_recent_then_name(&mut of_kind);
+            let matched = of_kind.len();
+            let matches = of_kind.into_iter().take(limit).collect();
+            return (matches, total_files, matched);
+        }
+
+        let effective_search_query = if tag_filters.is_empty() && kind_filters.is_empty() {
             trimmed_query.to_string()
+        } else if !non_tag_tokens.is_empty() {
+            non_tag_tokens.join(" ")
+        } else {
+            tag_filters.join(" ")
         };
 
         nucleo.pattern.reparse(
@@ -951,12 +990,12 @@ impl NavigationEngine {
         // Si nucleo no terminó a tiempo o aún no tiene todas las notas inyectadas, se completa con un escaneo lineal
         let nucleo_incomplete = nucleo_running || (snapshot.item_count() as usize) < total_files;
         let tag_only = !tag_filters.is_empty() && non_tag_tokens.is_empty();
-        let passes_tag_filters = |meta: &NoteMeta| {
+        let passes_filters = |meta: &NoteMeta| {
             tag_filters.iter().all(|tf| {
                 meta.tags
                     .iter()
                     .any(|t| crate::domain::graph::tag::Tag::matches(t.as_str(), tf))
-            })
+            }) && passes_kind_filters(meta)
         };
 
         let mut candidates = Vec::new();
@@ -965,7 +1004,7 @@ impl NavigationEngine {
         for (nucleo_rank, item) in snapshot.matched_items(..).take(5000).enumerate() {
             let id = *item.data;
             if let Some(meta) = self.notes.get(&id) {
-                if !passes_tag_filters(&meta) {
+                if !passes_filters(&meta) {
                     continue;
                 }
                 seen_candidate_ids.insert(id);
@@ -983,7 +1022,7 @@ impl NavigationEngine {
                     continue;
                 }
                 let meta = item.value();
-                if !passes_tag_filters(meta) {
+                if !passes_filters(meta) {
                     continue;
                 }
                 if tag_only || scorer.score(meta).is_some() {
@@ -992,6 +1031,10 @@ impl NavigationEngine {
                 }
             }
             matched_count = matched_count.max(candidates.len());
+        }
+        if !kind_filters.is_empty() {
+            // El conteo de nucleo incluye archivos de otros tipos
+            matched_count = candidates.len();
         }
 
         // Puntaje compuesto (ver `ranking.rs`): calidad difusa por campo ponderada + bonus de recencia.
