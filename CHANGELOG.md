@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **`Tab` en los editores de código y Markdown inserta 4 espacios** en vez de sacar el foco del editor; con texto seleccionado sangra las líneas, y `Shift+Tab` quita la sangría. Con Vim, solo en modo inserción.
 - **La búsqueda en modo lectura ya no congela la app al escribir** en notas grandes: se busca una sola vez al dejar de escribir, y limpiar los resaltados es mucho más rápido.
 - **`Ctrl+Shift+F` abre la búsqueda en el contenido** también con una nota abierta; antes abría la búsqueda dentro de la nota.
 - **`Ctrl+R` en un editor abre buscar y reemplazar** con el foco en el campo de reemplazo. Con Vim sigue siendo rehacer, salvo con el foco en el panel de búsqueda. Fuera del editor sigue recargando.

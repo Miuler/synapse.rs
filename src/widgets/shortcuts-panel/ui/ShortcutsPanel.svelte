@@ -58,6 +58,7 @@
           { label: 'Deshacer', shortcut: 'Ctrl+Z' },
           { label: 'Rehacer', shortcut: 'Ctrl+Shift+Z, Ctrl+Y' },
           { label: 'Comentar / descomentar líneas', shortcut: 'Ctrl+/' },
+          { label: 'Sangrar / quitar sangría', shortcut: 'Tab, Shift+Tab' },
           { label: 'Buscar en el archivo', shortcut: 'Ctrl+F' },
           { label: 'Buscar y reemplazar en el archivo', shortcut: 'Ctrl+R' },
         ],
