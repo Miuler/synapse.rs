@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **La búsqueda en modo lectura ya no congela la app al escribir** en notas grandes: se busca una sola vez al dejar de escribir, y limpiar los resaltados es mucho más rápido.
 - **`Ctrl+Shift+F` abre la búsqueda en el contenido** también con una nota abierta; antes abría la búsqueda dentro de la nota.
 - **`Ctrl+R` en un editor abre buscar y reemplazar** con el foco en el campo de reemplazo. Con Vim sigue siendo rehacer, salvo con el foco en el panel de búsqueda. Fuera del editor sigue recargando.
 - **Las propiedades de la nota reconocen listas en línea** como `tags: [uno, dos, tres]`.

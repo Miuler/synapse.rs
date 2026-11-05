@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { Marked } from 'marked';
   import { Search, ChevronUp, ChevronDown, X } from 'lucide-svelte';
   import { resolveIncludes } from '../lib/include-resolver';
@@ -78,7 +78,30 @@
   let matchCount = $state(0);
   let currentMatchIndex = $state(0);
   let searchInputRef = $state<HTMLInputElement | null>(null);
-  let matchesNodes = $state<HTMLElement[]>([]);
+  let matchesNodes: HTMLElement[] = [];
+  let activeMark: HTMLElement | null = null;
+  // Una nota grande puede tener miles de coincidencias: se busca al dejar de escribir.
+  const SEARCH_DEBOUNCE_MS = 150;
+  let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  let searchPending = $state(false);
+
+  function cancelScheduledSearch() {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = null;
+    searchPending = false;
+  }
+
+  function scheduleSearch() {
+    cancelScheduledSearch();
+    searchPending = true;
+    searchTimer = setTimeout(performSearch, SEARCH_DEBOUNCE_MS);
+  }
+
+  function flushScheduledSearch() {
+    if (searchTimer) performSearch();
+  }
+
+  onDestroy(cancelScheduledSearch);
 
   export function triggerSearch() {
     showSearchBar = true;
@@ -89,6 +112,7 @@
   }
 
   export function closeSearch() {
+    cancelScheduledSearch();
     showSearchBar = false;
     searchQuery = '';
     clearHighlights();
@@ -98,6 +122,7 @@
   function clearHighlights() {
     if (!containerRef) return;
     const marks = containerRef.querySelectorAll('mark.reading-search-highlight');
+    const parents = new Set<Node>();
     marks.forEach((mark) => {
       const parent = mark.parentNode;
       if (!parent) return;
@@ -105,14 +130,17 @@
         parent.insertBefore(mark.firstChild, mark);
       }
       parent.removeChild(mark);
-      parent.normalize();
+      parents.add(parent);
     });
+    parents.forEach((parent) => parent.normalize());
     matchesNodes = [];
+    activeMark = null;
     matchCount = 0;
     currentMatchIndex = 0;
   }
 
   function performSearch() {
+    cancelScheduledSearch();
     clearHighlights();
     const query = searchQuery.trim();
     if (!containerRef || !query) return;
@@ -201,23 +229,21 @@
   }
 
   function updateActiveHighlight() {
-    matchesNodes.forEach((mark, idx) => {
-      if (idx === currentMatchIndex - 1) {
-        mark.classList.add('reading-search-active');
-        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        mark.classList.remove('reading-search-active');
-      }
-    });
+    activeMark?.classList.remove('reading-search-active');
+    activeMark = matchesNodes[currentMatchIndex - 1] ?? null;
+    activeMark?.classList.add('reading-search-active');
+    activeMark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function findNext() {
+    flushScheduledSearch();
     if (matchCount === 0) return;
     currentMatchIndex = currentMatchIndex >= matchCount ? 1 : currentMatchIndex + 1;
     updateActiveHighlight();
   }
 
   function findPrevious() {
+    flushScheduledSearch();
     if (matchCount === 0) return;
     currentMatchIndex = currentMatchIndex <= 1 ? matchCount : currentMatchIndex - 1;
     updateActiveHighlight();
@@ -677,14 +703,8 @@
     }
   });
   $effect(() => {
-    if (showSearchBar && searchQuery) {
-      performSearch();
-    }
-  });
-
-  $effect(() => {
     // Si se re-renderiza el HTML y la barra de búsqueda está abierta, refrescar
-    if (renderedHtml && showSearchBar && searchQuery) {
+    if (renderedHtml && untrack(() => showSearchBar && searchQuery)) {
       tick().then(() => {
         performSearch();
       });
@@ -709,9 +729,7 @@
           class="reading-search-input"
           placeholder="Buscar en el documento..."
           bind:value={searchQuery}
-          oninput={() => {
-            performSearch();
-          }}
+          oninput={scheduleSearch}
           onkeydown={handleSearchKeyDown}
         />
         {#if searchQuery}
@@ -720,6 +738,7 @@
             class="reading-search-icon-btn"
             title="Borrar búsqueda"
             onclick={() => {
+              cancelScheduledSearch();
               searchQuery = '';
               clearHighlights();
               searchInputRef?.focus();
@@ -731,7 +750,7 @@
       </div>
 
       <div class="reading-search-info">
-        {#if searchQuery}
+        {#if searchQuery && !searchPending}
           <span class="reading-search-count">
             {matchCount > 0 ? `${currentMatchIndex} de ${matchCount}` : 'Sin coincidencias'}
           </span>
