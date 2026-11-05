@@ -13,6 +13,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **`Ctrl+Shift+F` abre la búsqueda en el contenido** también con una nota abierta; antes abría la búsqueda dentro de la nota.
+- **`Ctrl+R` en un editor abre buscar y reemplazar** con el foco en el campo de reemplazo. Con Vim sigue siendo rehacer, salvo con el foco en el panel de búsqueda. Fuera del editor sigue recargando.
+- **Las propiedades de la nota reconocen listas en línea** como `tags: [uno, dos, tres]`.
 - **`Shift+F6` en CodeMirror solo se activa si tiene el foco**, evitando capturar la combinación o seleccionar ocurrencias cuando el editor no está enfocado.
 
 - **Los mensajes de error del editor de código ya no quedan cortados o tapados por la barra superior**, por ejemplo en un error de la primera línea de un diagrama.

@@ -22,7 +22,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
-  import {CodeEditor} from "@shared/ui/code-editor";
+  import {CodeEditor, openReplacePanel} from "@shared/ui/code-editor";
   import {GraphViewer} from "@features/graph-viewer";
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
@@ -3420,7 +3420,7 @@
         appSettings.toggleTheme();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
         const targetPath = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
         if (targetPath && markdownViewers[targetPath]) {
           stopEvent();
@@ -3439,8 +3439,15 @@
         return;
       }
       if (matchesShortcut(e, ws.reload_active_file)) {
-        // En un editor con Vim, Ctrl+R es rehacer: se lo deja al editor.
-        if ((e.target as Element | null)?.closest?.('.cm-editor')?.querySelector('.cm-vimMode')) return;
+        // En un editor, Ctrl+R abre reemplazar; con Vim es rehacer, salvo con el foco en el panel de búsqueda.
+        const target = e.target as Element | null;
+        const editor = target?.closest?.('.cm-editor') as HTMLElement | null | undefined;
+        if (editor) {
+          if (editor.querySelector('.cm-vimMode') && !target?.closest('.cm-search')) return;
+          stopEvent();
+          openReplacePanel(editor);
+          return;
+        }
         stopEvent();
         if (activeTabPath && !isSyntheticTab(activeTabPath)) {
           handleReloadItems([activeTabPath]);

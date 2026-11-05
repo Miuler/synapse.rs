@@ -10,6 +10,21 @@ describe('extractFrontmatterAndBody', () => {
     expect(res.cleanContent).toBe(raw);
   });
 
+  it('reconoce listas en línea sin romper los wikilinks', () => {
+    const raw = `---
+tags: [uno, dos, tres]
+alias: ["a, b", 'c', [[nota, x]]]
+vacia: []
+up: [[Nota]]
+---
+`;
+    const { metadata } = extractFrontmatterAndBody(raw);
+    expect(metadata.tags).toEqual(['uno', 'dos', 'tres']);
+    expect(metadata.alias).toEqual(['a, b', 'c', '[[nota, x]]']);
+    expect(metadata.vacia).toEqual([]);
+    expect(metadata.up).toBe('[[Nota]]');
+  });
+
   it('extrae metadatos y separa el cuerpo limpiamente', () => {
     const raw = `---
 title: Mi Nota

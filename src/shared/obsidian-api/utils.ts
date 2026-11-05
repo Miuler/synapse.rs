@@ -80,7 +80,37 @@ function parsePrimitive(rawVal: string): any {
   if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
     return rawVal.slice(1, -1);
   }
+  // Lista en línea: `[uno, dos]`. `[[nota]]` sigue siendo un wikilink.
+  if (rawVal.startsWith('[') && rawVal.endsWith(']') && !rawVal.startsWith('[[')) {
+    return splitFlowItems(rawVal.slice(1, -1)).map(parsePrimitive);
+  }
   return rawVal;
+}
+
+/** Separa por comas los elementos de una lista en línea, sin cortar cadenas entre comillas ni `[[a, b]]`. */
+function splitFlowItems(inner: string): string[] {
+  const items: string[] = [];
+  let current = '';
+  let quote = '';
+  let depth = 0;
+  for (const ch of inner) {
+    if (quote) {
+      if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '[') {
+      depth++;
+    } else if (ch === ']') {
+      depth--;
+    } else if (ch === ',' && depth === 0) {
+      items.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  items.push(current.trim());
+  return items.filter(Boolean);
 }
 
 /**
