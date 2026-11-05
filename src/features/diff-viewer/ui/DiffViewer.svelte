@@ -35,10 +35,12 @@
     filePath: string;
     isStaged?: boolean;
     baseRevision?: string;
+    /** Compara `filePath` con este otro archivo de la bóveda en lugar de con git. */
+    compareWith?: string;
     onClose?: () => void;
   }
 
-  let { filePath, isStaged = false, baseRevision, onClose }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, onClose }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -52,7 +54,7 @@
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
   const isPureBinary = $derived((isImage && !isSvg) || isPdf);
   const isVisualCandidate = $derived(
-    isImage || isPdf || isDrawing || isDiagram
+    !compareWith && (isImage || isPdf || isDrawing || isDiagram)
   );
 
   $effect(() => {
@@ -86,7 +88,9 @@
     loading = true;
     error = null;
     try {
-      const data = await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
+      const data = compareWith
+        ? await vaultRepository.diffVaultFiles(compareWith, filePath)
+        : await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
       diffData = data;
     } catch (err: unknown) {
       console.error('Error al cargar git diff:', err);
@@ -101,6 +105,7 @@
     const _p = filePath;
     const _s = isStaged;
     const _r = baseRevision;
+    const _c = compareWith;
     fetchDiff();
   });
 
@@ -185,9 +190,12 @@
         class="diff-file-badge"
         class:is-staged={isStaged && !baseRevision}
         class:is-revision={Boolean(baseRevision)}
-        title={baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
+        title={compareWith ? 'Comparación de dos archivos' : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
       >
-        {#if baseRevision}
+        {#if compareWith}
+          <GitCompare size={14} class="badge-icon" />
+          <span>ARCHIVOS</span>
+        {:else if baseRevision}
           <History size={14} class="badge-icon" />
           <span>REV: {baseRevision.slice(0, 7)}</span>
         {:else if isStaged}
@@ -201,7 +209,7 @@
 
       <div class="diff-file-info" title={filePath}>
         <span class="diff-file-name">{fileName}</span>
-        <span class="diff-file-path">{filePath}</span>
+        <span class="diff-file-path">{compareWith ? `${compareWith} → ${filePath}` : filePath}</span>
       </div>
 
       {#if hasDiff}
@@ -371,7 +379,7 @@
         </div>
         <h3 class="state-title">Sin diferencias</h3>
         <p class="state-desc">
-          No hay cambios en <strong>{fileName}</strong> {baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
+          No hay cambios en <strong>{fileName}</strong> {compareWith ? `respecto a ${compareWith}` : baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
         </p>
       </div>
     {:else if diffData}

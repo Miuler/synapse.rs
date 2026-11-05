@@ -8,6 +8,7 @@ export function isSyntheticTab(p: string | null | undefined): boolean {
     p.startsWith('diff:') ||
     p.startsWith('diff-staged:') ||
     p.startsWith('diff-rev:') ||
+    p.startsWith('diff-files:') ||
     p.startsWith('rev:') ||
     p.startsWith('synapse://')
   );
@@ -39,6 +40,10 @@ export function getTabDisplayTitle(path: string | null | undefined, fallbackTitl
       return `Grafo: ${cleanTabTitle(name, target)}`;
     }
     return 'Vista de Grafo';
+  }
+  if (path.startsWith('diff-files:')) {
+    const [a, b] = path.slice('diff-files:'.length).split('\n');
+    return `Diff: ${a?.split('/').pop()} ↔ ${b?.split('/').pop()}`;
   }
   if (path.startsWith('diff-staged:')) {
     const f = path.slice('diff-staged:'.length).split('/').pop() || path;

@@ -157,6 +157,62 @@ pub fn get_git_file_diff(
         })
 }
 
+/// Lee un archivo de texto de la bóveda sin permitir salir de ella.
+fn read_vault_text(vault_path: &std::path::Path, path: &str) -> Result<String, String> {
+    let vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+    let file = vault
+        .join(path)
+        .canonicalize()
+        .map_err(|e| format!("No se pudo abrir {}: {}", path, e))?;
+    if !file.starts_with(&vault) {
+        return Err(format!("{} está fuera de la bóveda", path));
+    }
+    std::fs::read_to_string(&file)
+        .map_err(|_| format!("{} no es un archivo de texto y no se puede comparar", path))
+}
+
+/// Diff de dos archivos de la bóveda; no depende de git.
+#[tauri::command(async)]
+pub fn diff_vault_files(
+    state: State<'_, AppState>,
+    old_path: String,
+    new_path: String,
+) -> Result<FileDiff, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let old_content = read_vault_text(vault_path, &old_path)?;
+    let new_content = read_vault_text(vault_path, &new_path)?;
+    Ok(build_files_diff(old_path, new_path, old_content, new_content))
+}
+
+fn build_files_diff(
+    old_path: String,
+    new_path: String,
+    old_content: String,
+    new_content: String,
+) -> FileDiff {
+    let unified = similar::TextDiff::from_lines(&old_content, &new_content)
+        .unified_diff()
+        .header(&format!("a/{}", old_path), &format!("b/{}", new_path))
+        .to_string();
+    let diff = if unified.is_empty() {
+        unified
+    } else {
+        format!("diff --git a/{} b/{}\n{}", old_path, new_path, unified)
+    };
+    FileDiff {
+        path: new_path.clone(),
+        is_staged: false,
+        old_file_name: old_path,
+        new_file_name: new_path,
+        old_content,
+        new_content,
+        diff,
+    }
+}
+
 #[tauri::command(async)]
 pub fn get_git_file_revision(
     state: State<'_, AppState>,

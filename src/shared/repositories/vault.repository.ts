@@ -401,6 +401,7 @@ export interface VaultRepository {
    * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD (o una revisión específica).
    */
   getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse>;
+  diffVaultFiles(oldPath: string, newPath: string): Promise<GitDiffResponse>;
 
   /**
    * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD, Staged o commit específico).
@@ -1047,6 +1048,22 @@ export class TauriVaultRepository implements VaultRepository {
       staged,
       revision: revision ?? null,
     });
+  }
+
+  async diffVaultFiles(oldPath: string, newPath: string): Promise<GitDiffResponse> {
+    if (!this.isConnected()) {
+      return {
+        path: newPath,
+        is_staged: false,
+        old_file_name: oldPath,
+        new_file_name: newPath,
+        old_content: '',
+        new_content: '',
+        diff: '',
+      };
+    }
+
+    return await invokeTauri<GitDiffResponse>('diff_vault_files', { oldPath, newPath });
   }
 
   async getGitFileRevision(path: string, staged: boolean, revision?: string): Promise<GitFileRevisionResult> {

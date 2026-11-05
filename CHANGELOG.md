@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Comparar dos archivos desde VaultExplorer**: al seleccionar exactamente dos archivos, el menú contextual ofrece «Comparar archivos» y abre un diff entre ellos, sin necesidad de git. Solo admite archivos de texto.
 - **La búsqueda en el contenido indexa los títulos y subtítulos de las notas Markdown** y les da más peso que al resto del texto: una nota con el término en un encabezado sale antes que una que solo lo menciona en un párrafo. También se puede filtrar con `headings:término`. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
 - **Filtro `kind:` en Quick Open (`Ctrl+O`)**: `kind:pdf informe` busca solo entre los PDF; `kind:markdown`, `word`, `excel`, `code`, `image`, `mermaid` y `excalidraw` funcionan igual, basta con escribir el comienzo (`kind:pd`). Solo `kind:pdf` lista todos los PDF.
 - **Los enlaces `[[nota#Título]]` llevan al encabezado**, como en Obsidian: al pulsarlos (en el editor y en modo lectura) se abre la nota y se va a ese título o subtítulo, no a la primera vez que aparece el texto. Con `[[nota#Título#Subtítulo]]` vale el último.

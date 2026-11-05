@@ -3799,6 +3799,7 @@
       onOpenDiff={(path, staged) => selectTab(staged ? `diff-staged:${path}` : `diff:${path}`)}
       onOpenRevision={(path, revision) => selectTab(`rev:${revision}:${path}`)}
       onOpenDiffWithRevision={(path, revision) => selectTab(`diff-rev:${revision}:${path}`)}
+      onCompareFiles={(a, b) => selectTab(`diff-files:${a}\n${b}`)}
       onOpenInNewWindow={handleOpenInNewWindow}
     />
 
@@ -3850,6 +3851,18 @@
             <EmptyWorkspace
               hasVaultItems={vaultItemStore.count > 0}
               onCreateNew={() => createNewVaultItem(tabPath)}
+            />
+          </div>
+        {:else if tabPath.startsWith("diff-files:")}
+          {@const [oldFile, newFile] = tabPath.slice("diff-files:".length).split("\n")}
+          <div
+            class="tab-pane full-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <DiffViewer
+              filePath={newFile}
+              compareWith={oldFile}
+              onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
         {:else if tabPath.startsWith("diff-rev:")}

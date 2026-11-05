@@ -44,6 +44,7 @@
     onOpenDiff?: (path: string, staged: boolean) => void;
     onOpenRevision?: (path: string, revision: string) => void;
     onOpenDiffWithRevision?: (path: string, revision: string) => void;
+    onCompareFiles?: (oldPath: string, newPath: string) => void;
     onOpenInNewWindow?: (path: string) => void;
     lockedFiles?: Set<string>;
     onToggleLockFile?: (path: string) => void;
@@ -78,6 +79,7 @@
     onOpenDiff,
     onOpenRevision,
     onOpenDiffWithRevision,
+    onCompareFiles,
     onOpenInNewWindow,
   }: Props = $props();
 
@@ -1009,6 +1011,13 @@
 
   let hasConcreteSelection = $derived(
     contextMenuNode != null || (selectedPaths.length > 0 && selectedPaths[0] != '')
+  );
+
+  // Exactamente dos archivos seleccionados, en el orden en que se eligieron.
+  let filesToCompare = $derived(
+    selectedPaths.length === 2 && selectedNodes.length === 2 && selectedNodes.every((n) => !n.isFolder)
+      ? selectedPaths
+      : null
   );
 
   let toastMessage = $state<string | null>(null);
@@ -2224,6 +2233,18 @@
           <span>{reloadMenuLabel}</span>
           <span class="context-menu-shortcut">Ctrl+R</span>
         </ContextMenu.Item>
+
+        {#if filesToCompare && onCompareFiles}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
+          >
+            <GitCompare class="context-menu-item-icon" />
+            <span>Comparar archivos</span>
+          </ContextMenu.Item>
+        {/if}
 
         {#if contextMenuNode && !contextMenuNode.isFolder}
           <ContextMenu.Separator class="context-menu-divider" />
