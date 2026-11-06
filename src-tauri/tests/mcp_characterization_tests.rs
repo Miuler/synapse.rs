@@ -219,6 +219,36 @@ fn mcp_tools_output_is_preserved() {
     );
     call(
         &h,
+        "write_note",
+        json!({"relative_path": "carpeta-nueva/nota.md", "content": "Hola", "title": "Nota"}),
+        &mut out,
+    );
+    call(
+        &h,
+        "write_note",
+        json!({"relative_path": "carpeta-nueva/nota.md", "content": "Otra"}),
+        &mut out,
+    );
+    call(
+        &h,
+        "write_note",
+        json!({"relative_path": "carpeta-nueva/nota.md", "content": "Otra", "overwrite": true}),
+        &mut out,
+    );
+    call(
+        &h,
+        "write_note",
+        json!({"relative_path": "carpeta-nueva/nota.md", "content": "Con hash", "expected_hash": "sha256:df650caabe31705662a3d08d1c32f1e05dc57beb917d6861489e30b51e3d5e9d"}),
+        &mut out,
+    );
+    call(
+        &h,
+        "write_note",
+        json!({"relative_path": "no-existe.md", "content": "Otra", "expected_hash": "sha256:malo"}),
+        &mut out,
+    );
+    call(
+        &h,
         "patch_note",
         json!({"relative_path": "recetas/pan.md", "old_text": "agua", "new_text": "leche", "dry_run": true}),
         &mut out,

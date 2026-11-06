@@ -406,7 +406,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 7. write_note
                 McpTool {
                     name: "write_note".to_string(),
-                    description: "Crea o actualiza una nota completa con protección de hash OCC, freno anti-truncamiento y modo dry_run.".to_string(),
+                    description: "Crea una nota o reemplaza una existente, con protección de hash OCC, freno anti-truncamiento y modo dry_run. Reemplazar exige expected_hash (recomendado) u overwrite: true; si no, falla. La respuesta indica en 'created' si la nota es nueva y en 'warning' si su carpeta no existía.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, true)),
                     input_schema: json!({
                         "type": "object",
@@ -436,6 +436,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "expected_hash": {
                                 "type": "string",
                                 "description": "Hash obtenido previamente en read_note para control de concurrencia optimista"
+                            },
+                            "overwrite": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Permite reemplazar una nota existente sin haberla leído. Es preferible leerla y enviar expected_hash, que basta por sí solo. Sin ninguno de los dos, escribir sobre una nota existente falla"
                             },
                             "allow_large_overwrite": {
                                 "type": "boolean",
@@ -1158,6 +1163,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .get("expected_hash")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
+            overwrite: args
+                .get("overwrite")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
             allow_large_overwrite: args
                 .get("allow_large_overwrite")
                 .and_then(|v| v.as_bool())
@@ -1167,23 +1176,41 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false),
         };
-        let payload = match WriteNoteUseCase::new(&self.note_repository).execute(command) {
+        // Antes de escribir: guardar la nota crea las carpetas que falten.
+        let missing_folder = Path::new(rel_path_str)
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty() && !self.vault().join(p).exists())
+            .map(|p| p.to_string_lossy().to_string());
+        let mut payload = match WriteNoteUseCase::new(&self.note_repository).execute(command) {
             Err(e) => return McpCallToolResult::error(e),
             Ok(WriteNoteOutcome::Preview {
+                created,
                 old_content,
                 new_content,
             }) => json!({
                 "dry_run": true,
+                "created": created,
                 "relative_path": rel_path_str,
                 "unified_diff": generate_unified_diff(&old_content, &new_content, rel_path_str),
             }),
-            Ok(WriteNoteOutcome::Saved { new_hash }) => json!({
+            Ok(WriteNoteOutcome::Saved { created, new_hash }) => json!({
                 "status": "success",
+                "created": created,
                 "relative_path": rel_path_str,
                 "new_content_hash": new_hash,
-                "message": format!("Nota '{}' guardada exitosamente.", rel_path_str),
+                "message": format!(
+                    "Nota '{}' {} exitosamente.",
+                    rel_path_str,
+                    if created { "creada" } else { "sobrescrita" }
+                ),
             }),
         };
+        if let Some(folder) = missing_folder {
+            payload["warning"] = json!(format!(
+                "La carpeta '{}' no existía en la bóveda. Comprueba que el nombre es correcto.",
+                folder
+            ));
+        }
         to_text(&payload, "")
     }
 

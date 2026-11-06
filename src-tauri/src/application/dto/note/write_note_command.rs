@@ -9,6 +9,8 @@ pub struct WriteNoteCommand {
     pub aliases: Option<Vec<String>>,
     /// Huella esperada del contenido actual (control de concurrencia optimista).
     pub expected_hash: Option<String>,
+    /// Permite reemplazar una nota existente sin haberla leído (sin `expected_hash`).
+    pub overwrite: bool,
     pub allow_large_overwrite: bool,
     pub dry_run: bool,
 }
@@ -16,10 +18,14 @@ pub struct WriteNoteCommand {
 pub enum WriteNoteOutcome {
     /// Ensayo: contenido anterior (vacío si la nota no existía) y el que se escribiría.
     Preview {
+        /// La nota no existía: se crearía en lugar de sobrescribirse.
+        created: bool,
         old_content: String,
         new_content: String,
     },
     Saved {
+        /// La nota no existía: se creó en lugar de sobrescribirse.
+        created: bool,
         new_hash: String,
     },
 }

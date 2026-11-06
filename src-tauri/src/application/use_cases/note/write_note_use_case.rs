@@ -5,8 +5,8 @@ use crate::domain::note::note_content::NoteContent;
 use crate::domain::note::note_path::NoteRelativePath;
 use crate::domain::note::note_repository::NoteRepository;
 
-/// Escribe una nota completa. Rechaza la escritura si la nota cambió desde que se leyó
-/// (`expected_hash`) o si recortaría drásticamente una nota grande sin permiso explícito.
+/// Escribe una nota completa. Rechaza la escritura si la nota ya existe y no se autorizó
+/// reemplazarla (`expected_hash` u `overwrite`), si cambió desde que se leyó o si recortaría drásticamente una nota grande sin permiso explícito.
 pub struct WriteNoteUseCase<N: NoteRepository> {
     note_repository: N,
 }
@@ -22,10 +22,22 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
         let content = command.content.as_str();
 
         // Leer nota existente si existe
-        let existing_note = self
+        let existing_note = match self
             .note_repository
             .read_note(&command.vault_path, &relative_path)
-            .ok();
+        {
+            Ok(note) => Some(note),
+            Err(e) if e.starts_with("El archivo no existe") => None,
+            // Existe pero no se pudo leer: tratarla como nueva la destruiría.
+            Err(e) => return Err(format!("No se pudo leer la nota existente: {}", e)),
+        };
+
+        if existing_note.is_none() && command.expected_hash.is_some() {
+            return Err(format!(
+                "Se indicó expected_hash, pero la nota '{}' no existe: pudo moverse o borrarse. Comprueba la ruta; para crearla, omite expected_hash.",
+                command.relative_path
+            ));
+        }
 
         if let Some(ref note) = existing_note {
             let current_hash = NoteContent::hash(&note.content);
@@ -36,6 +48,13 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
                         current_hash, exp
                     ));
                 }
+            } else if !command.overwrite {
+                return Err(format!(
+                    "La nota '{}' ya existe (hash '{}', {} líneas). Usa read_note para ver su contenido, patch_note para cambiar una parte, o reenvía con expected_hash (recomendado) u overwrite: true para reemplazarla.",
+                    command.relative_path,
+                    current_hash,
+                    note.content.lines().count()
+                ));
             }
 
             // Freno anti-truncamiento (>150 líneas y reduce más del 40%)
@@ -52,6 +71,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             }
         }
 
+        let created = existing_note.is_none();
         let title = command.title.clone().unwrap_or_else(|| {
             existing_note
                 .as_ref()
@@ -79,6 +99,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
         if command.dry_run {
             let old_content = existing_note.map(|n| n.content).unwrap_or_default();
             return Ok(WriteNoteOutcome::Preview {
+                created,
                 old_content,
                 new_content: final_body,
             });
@@ -95,6 +116,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             .save_note(&command.vault_path, &note)
             .map_err(|err| format!("Error al guardar la nota: {}", err))?;
         Ok(WriteNoteOutcome::Saved {
+            created,
             new_hash: NoteContent::hash(&final_body),
         })
     }

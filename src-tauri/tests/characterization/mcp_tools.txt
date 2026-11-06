@@ -243,7 +243,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"dry_run\": true,\n  \"relative_path\": \"nueva.md\",\n  \"unified_diff\": \"--- a/nueva.md\\n+++ b/nueva.md\\n+---\\n+title: Nueva\\n+tags:\\n+- x\\n+---\\n+Hola\"\n}"
+      "text": "{\n  \"created\": true,\n  \"dry_run\": true,\n  \"relative_path\": \"nueva.md\",\n  \"unified_diff\": \"--- a/nueva.md\\n+++ b/nueva.md\\n+---\\n+title: Nueva\\n+tags:\\n+- x\\n+---\\n+Hola\"\n}"
     }
   ],
   "isError": false
@@ -253,7 +253,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"message\": \"Nota 'nueva.md' guardada exitosamente.\",\n  \"new_content_hash\": \"sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03\",\n  \"relative_path\": \"nueva.md\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"created\": true,\n  \"message\": \"Nota 'nueva.md' creada exitosamente.\",\n  \"new_content_hash\": \"sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03\",\n  \"relative_path\": \"nueva.md\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false
@@ -264,6 +264,56 @@
     {
       "type": "text",
       "text": "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03', esperado: 'sha256:malo'. Relee el documento antes de escribir."
+    }
+  ],
+  "isError": true
+}
+### write_note {"content":"Hola","relative_path":"carpeta-nueva/nota.md","title":"Nota"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"created\": true,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' creada exitosamente.\",\n  \"new_content_hash\": \"sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\",\n  \"warning\": \"La carpeta 'carpeta-nueva' no existía en la bóveda. Comprueba que el nombre es correcto.\"\n}"
+    }
+  ],
+  "isError": false
+}
+### write_note {"content":"Otra","relative_path":"carpeta-nueva/nota.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "La nota 'carpeta-nueva/nota.md' ya existe (hash 'sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da', 4 líneas). Usa read_note para ver su contenido, patch_note para cambiar una parte, o reenvía con expected_hash (recomendado) u overwrite: true para reemplazarla."
+    }
+  ],
+  "isError": true
+}
+### write_note {"content":"Otra","overwrite":true,"relative_path":"carpeta-nueva/nota.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"created\": false,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' sobrescrita exitosamente.\",\n  \"new_content_hash\": \"sha256:df650caabe31705662a3d08d1c32f1e05dc57beb917d6861489e30b51e3d5e9d\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### write_note {"content":"Con hash","expected_hash":"sha256:df650caabe31705662a3d08d1c32f1e05dc57beb917d6861489e30b51e3d5e9d","relative_path":"carpeta-nueva/nota.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"created\": false,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' sobrescrita exitosamente.\",\n  \"new_content_hash\": \"sha256:3895044e657cc5c482ff8109aa10f9676ec2e90dfe43ff6e995339e6ed0da0ff\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
+    }
+  ],
+  "isError": false
+}
+### write_note {"content":"Otra","expected_hash":"sha256:malo","relative_path":"no-existe.md"}
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Se indicó expected_hash, pero la nota 'no-existe.md' no existe: pudo moverse o borrarse. Comprueba la ruta; para crearla, omite expected_hash."
     }
   ],
   "isError": true
@@ -433,7 +483,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"folder_path\": \"\",\n  \"folders\": [],\n  \"folders_count\": 0,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"name\": \"agentes.md\",\n      \"relative_path\": \"agentes.md\",\n      \"title\": \"Agentes IA\"\n    },\n    {\n      \"name\": \"arquitectura.md\",\n      \"relative_path\": \"arquitectura.md\",\n      \"title\": \"Arquitectura Synapse\"\n    },\n    {\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"documentos/fsd.md\",\n      \"title\": \"fsd\"\n    },\n    {\n      \"name\": \"idea.md\",\n      \"relative_path\": \"ideas/idea.md\",\n      \"title\": \"idea\"\n    },\n    {\n      \"name\": \"pan.md\",\n      \"relative_path\": \"recetas/pan.md\",\n      \"title\": \"pan\"\n    }\n  ],\n  \"notes_count\": 5,\n  \"offset\": 0,\n  \"total_folders\": 0,\n  \"total_notes\": 5\n}"
+      "text": "{\n  \"folder_path\": \"\",\n  \"folders\": [],\n  \"folders_count\": 0,\n  \"has_more\": false,\n  \"limit\": 50,\n  \"next_offset\": null,\n  \"notes\": [\n    {\n      \"name\": \"agentes.md\",\n      \"relative_path\": \"agentes.md\",\n      \"title\": \"Agentes IA\"\n    },\n    {\n      \"name\": \"arquitectura.md\",\n      \"relative_path\": \"arquitectura.md\",\n      \"title\": \"Arquitectura Synapse\"\n    },\n    {\n      \"name\": \"fsd.md\",\n      \"relative_path\": \"documentos/fsd.md\",\n      \"title\": \"fsd\"\n    },\n    {\n      \"name\": \"idea.md\",\n      \"relative_path\": \"ideas/idea.md\",\n      \"title\": \"idea\"\n    },\n    {\n      \"name\": \"nota.md\",\n      \"relative_path\": \"carpeta-nueva/nota.md\",\n      \"title\": \"Nota\"\n    },\n    {\n      \"name\": \"pan.md\",\n      \"relative_path\": \"recetas/pan.md\",\n      \"title\": \"pan\"\n    }\n  ],\n  \"notes_count\": 6,\n  \"offset\": 0,\n  \"total_folders\": 0,\n  \"total_notes\": 6\n}"
     }
   ],
   "isError": false

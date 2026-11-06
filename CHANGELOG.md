@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **MCP: `write_note` informa de lo que hizo**: la respuesta indica con `created` si la nota se creó o se sobrescribió, y añade `warning` si su carpeta no existía.
+- **MCP: `write_note` ya no pisa notas sin permiso** (cambio incompatible): para reemplazar una nota existente hay que enviar `expected_hash` u `overwrite: true`; si no, falla y explica cómo seguir. También falla si se envía `expected_hash` y la nota no existe.
 - **Tamaño del texto en el editor y la previsualización**: `Ctrl+rueda`, `Ctrl++` y `Ctrl+-` lo cambian, y `Ctrl+0` lo restablece. Los atajos se configuran en `shortcuts.jsonc` (`zoom_in`, `zoom_out`, `zoom_reset`) y admiten varias combinaciones separadas por comas.
 - **Comparar dos archivos desde VaultExplorer**: al seleccionar exactamente dos archivos, el menú contextual ofrece «Comparar archivos» y abre un diff entre ellos, sin necesidad de git. Solo admite archivos de texto.
 - **La búsqueda en el contenido indexa los títulos y subtítulos de las notas Markdown** y les da más peso que al resto del texto: una nota con el término en un encabezado sale antes que una que solo lo menciona en un párrafo. También se puede filtrar con `headings:término`. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
