@@ -149,6 +149,12 @@ pub struct WorkspaceShortcutsConfig {
     pub prev_tab: String,
     #[serde(default = "default_ws_git_push")]
     pub git_push: String,
+    #[serde(default = "default_ws_zoom_in")]
+    pub zoom_in: String,
+    #[serde(default = "default_ws_zoom_out")]
+    pub zoom_out: String,
+    #[serde(default = "default_ws_zoom_reset")]
+    pub zoom_reset: String,
 }
 
 fn default_ws_quick_open() -> String {
@@ -215,6 +221,16 @@ fn default_ws_git_push() -> String {
     "Ctrl+Shift+K".to_string()
 }
 
+fn default_ws_zoom_in() -> String {
+    "Ctrl++, Ctrl+=".to_string()
+}
+fn default_ws_zoom_out() -> String {
+    "Ctrl+-".to_string()
+}
+fn default_ws_zoom_reset() -> String {
+    "Ctrl+0".to_string()
+}
+
 impl Default for WorkspaceShortcutsConfig {
     fn default() -> Self {
         Self {
@@ -239,6 +255,9 @@ impl Default for WorkspaceShortcutsConfig {
             next_tab: default_ws_next_tab(),
             prev_tab: default_ws_prev_tab(),
             git_push: default_ws_git_push(),
+            zoom_in: default_ws_zoom_in(),
+            zoom_out: default_ws_zoom_out(),
+            zoom_reset: default_ws_zoom_reset(),
         }
     }
 }

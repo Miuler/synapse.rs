@@ -243,7 +243,7 @@
 
     const theme = EditorView.theme({
       '&': {
-        fontSize: '13px',
+        fontSize: 'calc(13px * var(--content-zoom, 1))',
         fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
         color: 'var(--text-primary, #1f2328)',
       },

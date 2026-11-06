@@ -233,7 +233,7 @@
   const livePreviewTheme = EditorView.theme({
     '&': {
       fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
-      fontSize: '15.5px !important',
+      fontSize: 'calc(15.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.75 !important',
     },
     '.cm-scroller': {
@@ -244,7 +244,7 @@
     },
     '.cm-line': {
       fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
-      fontSize: '15.5px !important',
+      fontSize: 'calc(15.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.75 !important',
       padding: '0 4px',
     },
@@ -295,7 +295,7 @@
   const sourceModeTheme = EditorView.theme({
     '&': {
       fontFamily: 'var(--code-font, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace) !important',
-      fontSize: '13.5px !important',
+      fontSize: 'calc(13.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.6 !important',
     },
     '.cm-scroller': {
@@ -306,7 +306,7 @@
     },
     '.cm-line': {
       fontFamily: 'inherit !important',
-      fontSize: '13.5px !important',
+      fontSize: 'calc(13.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.6 !important',
       padding: '0 4px',
     },
@@ -435,7 +435,7 @@
       borderRadius: '10px',
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       color: '#fff',
-      fontSize: '18px',
+      fontSize: 'calc(18px * var(--content-zoom, 1))',
       lineHeight: '1',
     },
     /* Estilos del widget de imagen interactivo en CodeMirror */
@@ -474,7 +474,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '4px',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
       fontWeight: '500',
       padding: '3px 8px',
       borderRadius: '4px',
@@ -507,7 +507,7 @@
     },
     '.cm-image-caption': {
       padding: '6px 12px',
-      fontSize: '12px',
+      fontSize: 'calc(12px * var(--content-zoom, 1))',
       fontStyle: 'italic',
       color: 'var(--text-secondary, #656d76)',
       backgroundColor: 'var(--bg-secondary, #f6f8fa)',
@@ -520,7 +520,7 @@
       gap: '8px',
       padding: '20px 28px',
       color: 'var(--text-secondary, #656d76)',
-      fontSize: '12.5px',
+      fontSize: 'calc(12.5px * var(--content-zoom, 1))',
     },
     '.cm-image-spinner': {
       width: '14px',
@@ -538,11 +538,11 @@
       color: 'var(--error-text, #cf222e)',
       backgroundColor: 'var(--error-bg, #ffebe9)',
       border: '1px solid var(--error-border, rgba(207, 34, 46, 0.3))',
-      fontSize: '12px',
+      fontSize: 'calc(12px * var(--content-zoom, 1))',
     },
     '.cm-image-error code': {
       fontFamily: 'var(--code-font, monospace)',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
     },
     /* Estilos del widget de diagrama Mermaid dentro de CodeMirror */
     '.cm-mermaid-widget-wrapper': {
@@ -574,7 +574,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
       fontWeight: '600',
       color: 'var(--text-secondary, #656d76)',
     },
@@ -582,7 +582,7 @@
       color: 'var(--accent, #0969da)',
     },
     '.cm-mermaid-include-pill': {
-      fontSize: '9.5px',
+      fontSize: 'calc(9.5px * var(--content-zoom, 1))',
       fontWeight: '700',
       letterSpacing: '0.03em',
       textTransform: 'uppercase',
@@ -600,7 +600,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '4px',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
       fontWeight: '500',
       padding: '2px 8px',
       borderRadius: '4px',
@@ -619,7 +619,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '5px',
-      fontSize: '10.5px',
+      fontSize: 'calc(10.5px * var(--content-zoom, 1))',
       fontWeight: '600',
       padding: '2px 8px',
       borderRadius: '999px',
@@ -653,7 +653,7 @@
       height: 'auto',
     },
     '.cm-mermaid-empty': {
-      fontSize: '12px',
+      fontSize: 'calc(12px * var(--content-zoom, 1))',
       fontStyle: 'italic',
       color: 'var(--text-secondary, #656d76)',
     },
@@ -664,7 +664,7 @@
       border: '1px solid var(--error-border, rgba(207, 34, 46, 0.3))',
       borderRadius: '6px',
       color: 'var(--error-text, #cf222e)',
-      fontSize: '12px',
+      fontSize: 'calc(12px * var(--content-zoom, 1))',
     },
     '.cm-mermaid-error-title': {
       fontWeight: '600',
@@ -678,10 +678,10 @@
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-word',
       fontFamily: 'var(--code-font, monospace)',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
     },
     '.cm-mermaid-loading': {
-      fontSize: '12px',
+      fontSize: 'calc(12px * var(--content-zoom, 1))',
       color: 'var(--text-secondary, #656d76)',
     },
     /* Estilos del widget de tabla interactiva */
@@ -705,7 +705,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '6px',
-      fontSize: '11.5px',
+      fontSize: 'calc(11.5px * var(--content-zoom, 1))',
       fontWeight: '600',
       color: 'var(--text-secondary, #656d76)',
     },
@@ -716,7 +716,7 @@
       display: 'inline-flex',
       alignItems: 'center',
       gap: '5px',
-      fontSize: '11px',
+      fontSize: 'calc(11px * var(--content-zoom, 1))',
       fontWeight: '500',
       padding: '2px 8px',
       borderRadius: '4px',
@@ -749,7 +749,7 @@
     '.cm-tooltip-autocomplete > ul > li': {
       padding: '6px 10px !important',
       borderRadius: '4px !important',
-      fontSize: '13px !important',
+      fontSize: 'calc(13px * var(--content-zoom, 1)) !important',
       color: 'var(--text-primary, #1f2328) !important',
       display: 'flex !important',
       alignItems: 'center !important',
@@ -762,7 +762,7 @@
     },
     '.cm-completionDetail': {
       marginLeft: 'auto !important',
-      fontSize: '11px !important',
+      fontSize: 'calc(11px * var(--content-zoom, 1)) !important',
       color: 'var(--text-muted, #8c959f) !important',
       fontStyle: 'normal !important',
       overflow: 'hidden !important',

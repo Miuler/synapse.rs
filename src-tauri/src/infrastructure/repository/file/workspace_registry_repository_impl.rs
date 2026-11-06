@@ -167,6 +167,7 @@ impl WorkspaceRegistryRepositoryImpl {
   // Configuración de Atajos de Teclado (Shortcuts) de Synapse.rs
   // Formato: JSONC (soporta comentarios // y /* */)
   // Puedes personalizar cualquier combinación de teclas aquí.
+  // Para asignar varios atajos a una misma acción, sepáralos con comas: "Alt+1, Ctrl+B"
   // ============================================================================
 
   // Atajos de la Pantalla de Bienvenida (Workspaces Recientes)
@@ -220,7 +221,17 @@ impl WorkspaceRegistryRepositoryImpl {
     // Cambiar a la pestaña siguiente
     "next_tab": "Ctrl+PageDown, Ctrl+Tab",
     // Cambiar a la pestaña anterior
-    "prev_tab": "Ctrl+PageUp, Ctrl+Shift+Tab"
+    "prev_tab": "Ctrl+PageUp, Ctrl+Shift+Tab",
+    // Alternar entre modo Edición y modo Lectura de la nota activa
+    "toggle_edit_mode": "F2",
+    // Enviar commits locales al repositorio remoto (Git Push)
+    "git_push": "Ctrl+Shift+K",
+    // Aumentar el tamaño del texto en el editor y la previsualización
+    "zoom_in": "Ctrl++, Ctrl+=",
+    // Reducir el tamaño del texto en el editor y la previsualización
+    "zoom_out": "Ctrl+-",
+    // Restablecer el tamaño del texto al valor por defecto
+    "zoom_reset": "Ctrl+0"
   }
 }
 "#

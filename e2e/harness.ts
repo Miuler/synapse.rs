@@ -18,7 +18,10 @@ setDefaultTimeout(60_000);
 const ROOT = resolve(import.meta.dir, '..');
 // E2E_APP permite usar otro binario, p. ej. el de producción (target/release/synapsers), que ya
 // trae el front incluido y no necesita Vite.
-const APP = process.env.E2E_APP ?? join(ROOT, 'src-tauri/target/debug/synapsers');
+// El binario de `bun run build:e2e` carga la interfaz desde VITE_PORT, no desde el 5173 de `tauri dev`,
+// que puede estar ocupado por otro proyecto.
+const VITE_PORT = 5301;
+const APP = process.env.E2E_APP ?? join(ROOT, 'src-tauri/target/e2e/debug/synapsers');
 const NEEDS_VITE = !process.env.E2E_APP;
 const DRIVER = join(process.env.HOME ?? '', '.cargo/bin/tauri-driver');
 
@@ -88,17 +91,17 @@ async function launch(base: string, vault: string): Promise<Session> {
   // Vite reenvía al terminal los avisos de la consola del webview (p. ej. de Svelte): se guardan
   // en vite.log para que las pruebas puedan revisarlos.
   const viteLog = join(base, 'vite.log');
-  if (NEEDS_VITE && !(await isListening(5173))) {
+  if (NEEDS_VITE && !(await isListening(VITE_PORT))) {
     const out = Bun.file(viteLog).writer();
-    const vite = spawn('bun', ['x', 'vite', '--port', '5173', '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    const vite = spawn('bun', ['x', 'vite', '--port', String(VITE_PORT), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
     vite.stdout?.on('data', (d) => out.write(d));
     vite.stderr?.on('data', (d) => out.write(d));
     children.push(vite);
   }
   if (NEEDS_VITE) {
-    await waitForPort(5173, 30_000).catch(async () => {
+    await waitForPort(VITE_PORT, 30_000).catch(async () => {
       // vite escucha en ::1 (localhost)
-      if (!(await isListening(5173))) throw new Error('Vite no arrancó');
+      if (!(await isListening(VITE_PORT))) throw new Error('Vite no arrancó');
     });
   }
 

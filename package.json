@@ -10,6 +10,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "tauri": "tauri",
     "test": "bun test src/",
+    "build:e2e": "cd src-tauri && CARGO_TARGET_DIR=target/e2e TAURI_CONFIG='{\"build\":{\"devUrl\":\"http://localhost:5301\"}}' cargo build",
     "test:e2e": "bun test ./e2e"
   },
   "devDependencies": {

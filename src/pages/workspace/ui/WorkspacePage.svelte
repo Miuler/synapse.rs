@@ -195,6 +195,22 @@
   }
 
   let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect(() => {
+    document.documentElement.style.setProperty("--content-zoom", String(appSettings.contentZoom));
+  });
+
+  // Ctrl+rueda sobre el editor o la previsualización cambia el tamaño del texto.
+  $effect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || !e.deltaY) return;
+      if (!(e.target as Element | null)?.closest?.(".cm-editor, .markdown-body")) return;
+      e.preventDefault();
+      appSettings.setContentZoom(appSettings.contentZoom + (e.deltaY < 0 ? 0.1 : -0.1));
+    };
+    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true });
+  });
+
   const gitStatusRefreshDebounceMs = DEFAULT_APP_CONFIG.editor?.git_status_refresh_debounce_ms ?? 5000;
 
   // Evita lanzar un proceso `git status` por cada guardado: agrupa las solicitudes
@@ -3378,6 +3394,22 @@
         e.stopPropagation();
         e.stopImmediatePropagation();
       };
+
+      if (matchesShortcut(e, ws.zoom_in)) {
+        stopEvent();
+        appSettings.setContentZoom(appSettings.contentZoom + 0.1);
+        return;
+      }
+      if (matchesShortcut(e, ws.zoom_out)) {
+        stopEvent();
+        appSettings.setContentZoom(appSettings.contentZoom - 0.1);
+        return;
+      }
+      if (matchesShortcut(e, ws.zoom_reset)) {
+        stopEvent();
+        appSettings.setContentZoom(1);
+        return;
+      }
 
       if (matchesShortcut(e, ws.toggle_devtools)) {
         stopEvent();

@@ -1034,7 +1034,7 @@
   .markdown-body {
     max-width: 100%;
     margin: 0;
-    font-size: 15px;
+    font-size: calc(15px * var(--content-zoom, 1));
   }
 
   .empty-doc {
@@ -1187,7 +1187,7 @@
 
   :global(.reading-image-caption) {
     margin-top: 8px;
-    font-size: 13px;
+    font-size: calc(13px * var(--content-zoom, 1));
     color: var(--text-secondary, #656d76);
     font-style: italic;
   }
@@ -1210,7 +1210,7 @@
   }
 
   :global(.reading-mermaid-badge) {
-    font-size: 11px;
+    font-size: calc(11px * var(--content-zoom, 1));
     font-weight: 600;
     color: var(--text-secondary, #656d76);
   }
@@ -1242,7 +1242,7 @@
     border: 1px solid var(--error-border, rgba(207, 34, 46, 0.3));
     border-radius: 6px;
     color: var(--error-text, #cf222e);
-    font-size: 12px;
+    font-size: calc(12px * var(--content-zoom, 1));
   }
 
   :global(.reading-mermaid-error .error-badge) {
@@ -1257,12 +1257,12 @@
   }
 
   :global(.reading-mermaid-loading) {
-    font-size: 12px;
+    font-size: calc(12px * var(--content-zoom, 1));
     color: var(--text-secondary, #656d76);
   }
 
   :global(.reading-mermaid-empty) {
-    font-size: 12px;
+    font-size: calc(12px * var(--content-zoom, 1));
     color: var(--text-secondary, #656d76);
     font-style: italic;
   }

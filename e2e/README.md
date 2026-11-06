@@ -14,7 +14,7 @@ cargo install tauri-driver --locked
 Ejecutar:
 
 ```bash
-cd src-tauri && cargo build && cd ..
+bun run build:e2e   # binario propio en src-tauri/target/e2e; carga la interfaz desde el puerto 5301
 bun run test:e2e
 ```
 

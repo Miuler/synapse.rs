@@ -18,6 +18,7 @@ export interface AppSettings {
   locale: SupportedLocale;
   propertiesViewMode: PropertiesViewMode;
   plantumlServer: string;
+  contentZoom: number;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -32,7 +33,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   locale: 'es', // Por defecto español
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
+  contentZoom: 1, // Tamaño del texto del editor y la previsualización
 };
+
+function clampZoom(zoom: number): number {
+  return Math.min(3, Math.max(0.5, Math.round(zoom * 10) / 10));
+}
 
 function loadInitialSettings(): AppSettings {
   const settings: AppSettings = { ...DEFAULT_SETTINGS, locale: i18n.locale };
@@ -51,6 +57,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.defaultExcalidrawViewer === 'native' || parsed.defaultExcalidrawViewer === 'obsidian') {
         settings.defaultExcalidrawViewer = parsed.defaultExcalidrawViewer;
+      }
+      if (typeof parsed.contentZoom === 'number' && Number.isFinite(parsed.contentZoom)) {
+        settings.contentZoom = clampZoom(parsed.contentZoom);
       }
       if (typeof parsed.vimMode === 'boolean') {
         settings.vimMode = parsed.vimMode;
@@ -243,6 +252,17 @@ class SettingsManager {
 
   setLastOpenedFolder(folder: string | undefined) {
     this.settings.lastOpenedFolder = folder;
+    this.persist();
+  }
+
+  get contentZoom(): number {
+    return this.settings.contentZoom;
+  }
+
+  setContentZoom(zoom: number) {
+    const next = clampZoom(zoom);
+    if (next === this.settings.contentZoom) return;
+    this.settings = { ...this.settings, contentZoom: next };
     this.persist();
   }
 

@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Tamaño del texto en el editor y la previsualización**: `Ctrl+rueda`, `Ctrl++` y `Ctrl+-` lo cambian, y `Ctrl+0` lo restablece. Los atajos se configuran en `shortcuts.jsonc` (`zoom_in`, `zoom_out`, `zoom_reset`) y admiten varias combinaciones separadas por comas.
 - **Comparar dos archivos desde VaultExplorer**: al seleccionar exactamente dos archivos, el menú contextual ofrece «Comparar archivos» y abre un diff entre ellos, sin necesidad de git. Solo admite archivos de texto.
 - **La búsqueda en el contenido indexa los títulos y subtítulos de las notas Markdown** y les da más peso que al resto del texto: una nota con el término en un encabezado sale antes que una que solo lo menciona en un párrafo. También se puede filtrar con `headings:término`. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
 - **Filtro `kind:` en Quick Open (`Ctrl+O`)**: `kind:pdf informe` busca solo entre los PDF; `kind:markdown`, `word`, `excel`, `code`, `image`, `mermaid` y `excalidraw` funcionan igual, basta con escribir el comienzo (`kind:pd`). Solo `kind:pdf` lista todos los PDF.

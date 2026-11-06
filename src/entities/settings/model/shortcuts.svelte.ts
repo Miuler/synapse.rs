@@ -29,6 +29,9 @@ export interface WorkspaceShortcutsConfig {
   next_tab: string;
   prev_tab: string;
   git_push: string;
+  zoom_in: string;
+  zoom_out: string;
+  zoom_reset: string;
 }
 
 export interface ShortcutsConfig {
@@ -65,6 +68,9 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
     git_push: 'Ctrl+Shift+K',
+    zoom_in: 'Ctrl++, Ctrl+=',
+    zoom_out: 'Ctrl+-',
+    zoom_reset: 'Ctrl+0',
   },
 };
 
@@ -102,6 +108,9 @@ function parseCombo(comboStr: string): ParsedCombo | null {
     }
   }
 
+  // La tecla «+» es también el separador: `Ctrl++` deja el último fragmento vacío.
+  if (!targetKey && comboStr.trim().endsWith('+')) targetKey = '+';
+  if (targetKey === 'plus') targetKey = '+';
   if (!targetKey) return null;
 
   return { wantCtrl, wantAlt, wantShift, targetKey };
@@ -125,6 +134,8 @@ function matchesSingleCombo(e: KeyboardEvent, combo: ParsedCombo): boolean {
   const hasCtrl = e.ctrlKey || e.metaKey;
   if (hasCtrl !== combo.wantCtrl) return false;
   if (e.altKey !== combo.wantAlt) return false;
+  // Según la distribución del teclado, «+» se escribe con o sin Shift.
+  if (combo.targetKey === '+') return e.key === '+';
   if (e.shiftKey !== combo.wantShift) return false;
 
   const targetKey = combo.targetKey;
