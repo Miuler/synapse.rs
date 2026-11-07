@@ -310,6 +310,10 @@
                   <span class="guide-badge">title:termino</span>
                   <span class="guide-desc">Busca exclusivamente en títulos</span>
                 </div>
+                <div class="guide-item">
+                  <span class="guide-badge">hs:termino</span>
+                  <span class="guide-desc">Busca en encabezados (también headings:)</span>
+                </div>
               </div>
             </div>
           {:else if hits.length === 0 && !isLoading}
@@ -340,6 +344,17 @@
                     <span class="fts-hit-path" title={hit.note_path}>{hit.note_path}</span>
                   </div>
 
+                  {#if hit.heading && hit.heading.length > 0}
+                    <div class="fts-hit-heading">
+                      {#each hit.heading as seg}
+                        {#if seg.highlighted}
+                          <mark class="fts-mark">{seg.text}</mark>
+                        {:else}
+                          {seg.text}
+                        {/if}
+                      {/each}
+                    </div>
+                  {/if}
                   {#if hit.snippet && hit.snippet.length > 0}
                     <div class="fts-hit-snippet">
                       {#each hit.snippet as seg}
@@ -698,6 +713,17 @@
     margin-left: auto;
     opacity: 0.7;
     max-width: 40%;
+  }
+
+  .fts-hit-heading {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-primary, #1f2328);
+    padding-left: 24px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .fts-hit-snippet {

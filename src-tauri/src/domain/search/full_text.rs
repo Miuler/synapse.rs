@@ -78,6 +78,10 @@ pub struct HighlightSegment {
 pub struct FullTextHit {
     pub note_path: String,
     pub title: Vec<HighlightSegment>,
+    /// Encabezado encontrado al filtrar con `headings:`; vacío en otras búsquedas.
+    /// `snippet` contiene entonces el texto que le sigue.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heading: Vec<HighlightSegment>,
     pub snippet: Vec<HighlightSegment>,
     /// Términos (en su forma original en el documento) que coincidieron; útil para
     /// localizar la coincidencia en el editor al abrir la nota.

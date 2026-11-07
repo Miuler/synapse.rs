@@ -2,7 +2,7 @@ use crate::domain::search::full_text::{
     DocumentKind, FullTextDocument, FullTextHit, FullTextQuery, HighlightSegment,
 };
 use crate::domain::search::full_text_index::FullTextIndex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
@@ -22,7 +22,7 @@ use tantivy::{
     Term, doc,
 };
 
-pub const SCHEMA_VERSION: &str = "2";
+pub const SCHEMA_VERSION: &str = "3";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {
@@ -69,14 +69,16 @@ impl FullTextIndexImpl {
         let title = builder.add_text_field("title", es_text_options.clone());
         let body = builder.add_text_field("body", es_text_options);
 
-        // Encabezados de la nota: solo para puntuar y filtrar (`headings:xxx`), no se guardan
-        // porque el texto ya está en `body` y los fragmentos se generan desde allí.
+        // Encabezados de la nota: para puntuar y filtrar (`headings:xxx`). Se guardan para saber
+        // qué línea del cuerpo es el encabezado buscado y mostrarla en el fragmento.
         let headings_indexing = TextFieldIndexing::default()
             .set_tokenizer("es_fold")
             .set_index_option(IndexRecordOption::WithFreqsAndPositions);
         let headings = builder.add_text_field(
             "headings",
-            TextOptions::default().set_indexing_options(headings_indexing),
+            TextOptions::default()
+                .set_indexing_options(headings_indexing)
+                .set_stored(),
         );
 
         // 4. Tipo de documento para filtros `kind:code`, etc.
@@ -192,7 +194,8 @@ impl FullTextIndexImpl {
 
     /// Construye la consulta de tantivy combinando `QueryParser` con soporte de prefijo en el último término.
     fn build_query(&self, query: &FullTextQuery) -> Result<Box<dyn Query>, String> {
-        let trimmed = query.text.trim();
+        let expanded = expand_field_aliases(query.text.trim());
+        let trimmed = expanded.as_str();
         if trimmed.is_empty() {
             return Err("Consulta vacía".to_string());
         }
@@ -251,6 +254,9 @@ impl FullTextIndexImpl {
                     (Occur::Should, Box::new(tr) as Box<dyn Query>),
                     (Occur::Should, Box::new(hr) as Box<dyn Query>),
                     (Occur::Should, Box::new(br) as Box<dyn Query>),
+                    // El índice guarda raíces ("para" → "par"), que el regex de prefijo no
+                    // alcanza: la palabra completa también debe coincidir.
+                    (Occur::Should, query_parser.parse_query_lenient(last_word).0),
                 ]));
 
                 // Si hay palabras anteriores, combinamos con AND (Must)
@@ -274,6 +280,85 @@ impl FullTextIndexImpl {
             }
             _ => Ok(parsed_query),
         }
+    }
+}
+
+impl FullTextIndexImpl {
+    /// Tokens de `text` tal como se indexan, con su posición en bytes.
+    fn analyze(&self, text: &str) -> Vec<(String, std::ops::Range<usize>)> {
+        let Ok(mut analyzer) = self.index.tokenizer_for_field(self.fields.headings) else {
+            return Vec::new();
+        };
+        let mut stream = analyzer.token_stream(text);
+        let mut tokens = Vec::new();
+        while let Some(token) = stream.next() {
+            tokens.push((token.text.clone(), token.offset_from..token.offset_to));
+        }
+        tokens
+    }
+
+    /// El encabezado con más términos buscados y, aparte, el texto que le sigue.
+    /// `None` si ningún encabezado coincide o no se encuentra en el cuerpo.
+    fn heading_excerpt(
+        &self,
+        body: &str,
+        headings: &str,
+        heading_terms: &HashSet<String>,
+        highlight_terms: &HashSet<String>,
+    ) -> Option<(Vec<HighlightSegment>, Vec<HighlightSegment>)> {
+        const MAX_CHARS: usize = 160;
+
+        let mut best: Option<(usize, &str)> = None;
+        for line in headings.lines() {
+            let matches = self
+                .analyze(line)
+                .iter()
+                .filter(|(token, _)| heading_terms.contains(token))
+                .count();
+            if matches > 0 && best.is_none_or(|(most, _)| matches > most) {
+                best = Some((matches, line));
+            }
+        }
+        let (_, heading) = best?;
+
+        let mut start = None;
+        let mut offset = 0;
+        for line in body.split_inclusive('\n') {
+            if line.trim_end_matches('\n') == heading {
+                start = Some(offset);
+                break;
+            }
+            offset += line.len();
+        }
+        let after = &body[start? + heading.len()..];
+        let text = after.trim_start();
+        let end = text
+            .char_indices()
+            .nth(MAX_CHARS)
+            .map_or(text.len(), |(index, _)| index);
+        let mut following = text[..end].replace('\n', " ");
+        let following_ranges = self.highlight_ranges(&following, highlight_terms);
+        if end < text.len() {
+            following.push_str("...");
+        }
+
+        let heading_ranges = self.highlight_ranges(heading, highlight_terms);
+        Some((
+            snippet_to_segments(heading, &heading_ranges),
+            snippet_to_segments(&following, &following_ranges),
+        ))
+    }
+
+    fn highlight_ranges(
+        &self,
+        text: &str,
+        terms: &HashSet<String>,
+    ) -> Vec<std::ops::Range<usize>> {
+        self.analyze(text)
+            .into_iter()
+            .filter(|(token, _)| terms.contains(token))
+            .map(|(_, range)| range)
+            .collect()
     }
 }
 
@@ -352,6 +437,18 @@ impl FullTextIndex for FullTextIndexImpl {
                 .map_err(|e| format!("Error creando title snippet generator: {}", e))?;
         title_snippet_gen.set_max_num_chars(200);
 
+        let mut query_terms = HashSet::new();
+        let mut heading_terms = HashSet::new();
+        tantivy_query.query_terms(&mut |term, _| {
+            if let Some(text) = term.value().as_str() {
+                query_terms.insert(text.to_string());
+                if term.field() == self.fields.headings {
+                    heading_terms.insert(text.to_string());
+                }
+            }
+        });
+        let filters_by_heading = expand_field_aliases(&query.text).contains("headings:");
+
         let mut hits = Vec::with_capacity(top_docs.len());
 
         for (score, doc_address) in top_docs {
@@ -393,8 +490,24 @@ impl FullTextIndex for FullTextIndexImpl {
             };
 
             // Generar fragmentos y resaltado para cuerpo
+            let headings_str = doc
+                .get_first(self.fields.headings)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let heading_excerpt = if filters_by_heading {
+                self.heading_excerpt(body_str, headings_str, &heading_terms, &query_terms)
+            } else {
+                None
+            };
+
             let body_snippet = body_snippet_gen.snippet(body_str);
-            let snippet_segments = if body_snippet.fragment().is_empty() {
+            let (heading_segments, following_segments) = match heading_excerpt {
+                Some((heading, following)) => (heading, Some(following)),
+                None => (Vec::new(), None),
+            };
+            let snippet_segments = if let Some(segments) = following_segments {
+                segments
+            } else if body_snippet.fragment().is_empty() {
                 let fallback_preview = if body_str.chars().count() > 160 {
                     let truncated: String = body_str.chars().take(160).collect();
                     format!("{}...", truncated)
@@ -411,7 +524,11 @@ impl FullTextIndex for FullTextIndexImpl {
 
             // Extraer términos que coincidieron para scroll en el editor
             let mut matched_terms = Vec::new();
-            for seg in title_segments.iter().chain(snippet_segments.iter()) {
+            for seg in title_segments
+                .iter()
+                .chain(heading_segments.iter())
+                .chain(snippet_segments.iter())
+            {
                 if seg.highlighted {
                     let term = seg.text.trim();
                     if !term.is_empty()
@@ -427,6 +544,7 @@ impl FullTextIndex for FullTextIndexImpl {
             hits.push(FullTextHit {
                 note_path: path,
                 title: title_segments,
+                heading: heading_segments,
                 snippet: snippet_segments,
                 matched_terms,
                 kind,
@@ -542,6 +660,31 @@ pub fn snippet_to_segments(
     segments
 }
 
+/// Sustituye `hs:` por `headings:` al inicio de un término (admite `-`, `+` o `(` delante).
+/// No toca el texto entre comillas, donde `hs:` es texto literal.
+fn expand_field_aliases(text: &str) -> String {
+    const ALIAS: &str = "hs:";
+    let mut out = String::with_capacity(text.len());
+    let mut in_quotes = false;
+    let mut at_term_start = true;
+    let mut rest = text;
+    while let Some(c) = rest.chars().next() {
+        if at_term_start && !in_quotes && rest.starts_with(ALIAS) {
+            out.push_str("headings:");
+            rest = &rest[ALIAS.len()..];
+            at_term_start = false;
+            continue;
+        }
+        if c == '"' {
+            in_quotes = !in_quotes;
+        }
+        at_term_start = c.is_whitespace() || (at_term_start && matches!(c, '-' | '+' | '('));
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -623,6 +766,80 @@ mod tests {
     }
 
     #[test]
+    fn test_heading_filter_snippet_starts_at_heading() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = FullTextIndexImpl::open_or_create(dir.path()).unwrap();
+        index
+            .upsert(vec![FullTextDocument {
+                path: "a.md".to_string(),
+                title: "Nota".to_string(),
+                body: "Introducción que menciona otra cosa.\nCierre\nHerramientas gate\naisix\n"
+                    .to_string(),
+                headings: "Cierre\nHerramientas gate\n".to_string(),
+                kind: DocumentKind::Markdown,
+                mtime_nanos: 1,
+            }])
+            .unwrap();
+        index.commit().unwrap();
+
+        let (hits, _) = index
+            .search(&FullTextQuery {
+                text: "hs:\"herramientas gate\"".to_string(),
+                limit: 10,
+                prefix_last_term: false,
+            })
+            .unwrap();
+        let text: String = hits[0].snippet.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(text, "aisix ");
+        let marked: Vec<_> = hits[0]
+            .heading
+            .iter()
+            .filter(|s| s.highlighted)
+            .map(|s| s.text.as_str())
+            .collect();
+        assert_eq!(marked, ["Herramientas", "gate"]);
+    }
+
+    #[test]
+    fn test_heading_snippet_with_real_markdown_and_prefix() {
+        let md = "---\ntitle: Nota\n---\n\n# Nota\n\nollama:\n\n- `~/.ollama/models/`\n\n---\n\n# Prompts para Gemini\n\n**Opción 1:** texto\n\n<div>x</div>\n\n# Otro *título* con [enlace](http://a.b)\n\nfin\n";
+        let (body, headings) =
+            crate::infrastructure::search::content_extractor::extract_markdown_text_and_headings(md);
+        let dir = tempfile::tempdir().unwrap();
+        let index = FullTextIndexImpl::open_or_create(dir.path()).unwrap();
+        index
+            .upsert(vec![FullTextDocument {
+                path: "a.md".to_string(),
+                title: "Nota".to_string(),
+                body,
+                headings,
+                kind: DocumentKind::Markdown,
+                mtime_nanos: 1,
+            }])
+            .unwrap();
+        index.commit().unwrap();
+
+        for (query, expected) in [("hs:Prompts para", "Prompts para Gemini"), ("hs:Otro", "Otro título")] {
+            let (hits, _) = index
+                .search(&FullTextQuery {
+                    text: query.to_string(),
+                    limit: 10,
+                    prefix_last_term: true,
+                })
+                .unwrap();
+            let text: String = hits[0].heading.iter().map(|s| s.text.as_str()).collect();
+            assert!(text.starts_with(expected), "{query}: {text:?}");
+        }
+    }
+
+    #[test]
+    fn test_expand_field_aliases() {
+        assert_eq!(expand_field_aliases("hs:plan"), "headings:plan");
+        assert_eq!(expand_field_aliases("uno -hs:dos (hs:tres"), "uno -headings:dos (headings:tres");
+        assert_eq!(expand_field_aliases("\"hs:plan\" ths:x"), "\"hs:plan\" ths:x");
+    }
+
+    #[test]
     fn test_headings_boost_ranking_and_filter() {
         let index = FullTextIndexImpl::in_memory().unwrap();
 
@@ -673,5 +890,15 @@ mod tests {
         let (hits_filter, count_filter) = index.search(&q_filter).unwrap();
         assert_eq!(count_filter, 1);
         assert_eq!(hits_filter[0].note_path, "b.md");
+
+        // `hs:` es abreviatura de `headings:`
+        let q_alias = FullTextQuery {
+            text: "hs:presupuesto".to_string(),
+            limit: 10,
+            prefix_last_term: false,
+        };
+        let (hits_alias, count_alias) = index.search(&q_alias).unwrap();
+        assert_eq!(count_alias, 1);
+        assert_eq!(hits_alias[0].note_path, "b.md");
     }
 }

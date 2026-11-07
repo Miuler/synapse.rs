@@ -928,6 +928,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "path": h.hit.note_path,
                             "title": h.hit.title,
                             "score": h.hit.score,
+                            "heading": h.hit.heading,
                             "snippet": h.hit.snippet,
                             "total_lines": h.total_lines,
                             "estimated_tokens": h.estimated_tokens,

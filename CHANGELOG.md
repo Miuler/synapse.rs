@@ -9,6 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Abreviatura `hs:` para `headings:` en la búsqueda de contenido**, y la guía de búsqueda ahora explica este filtro.
+- **`hs:` y `headings:` también funcionan en Quick Open (`Ctrl+O`)**: buscan en los encabezados sin tener que escribir `?` delante.
+- **Al filtrar por `headings:` o `hs:`, el resultado muestra el encabezado encontrado con formato de título** y, en la línea siguiente, el texto que le sigue. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
 - **MCP: `write_note` informa de lo que hizo**: la respuesta indica con `created` si la nota se creó o se sobrescribió, y añade `warning` si su carpeta no existía.
 - **MCP: `write_note` ya no pisa notas sin permiso** (cambio incompatible): para reemplazar una nota existente hay que enviar `expected_hash` u `overwrite: true`; si no, falla y explica cómo seguir. También falla si se envía `expected_hash` y la nota no existe.
 - **Tamaño del texto en el editor y la previsualización**: `Ctrl+rueda`, `Ctrl++` y `Ctrl+-` lo cambian, y `Ctrl+0` lo restablece. Los atajos se configuran en `shortcuts.jsonc` (`zoom_in`, `zoom_out`, `zoom_reset`) y admiten varias combinaciones separadas por comas.
@@ -21,6 +24,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **La búsqueda en el contenido ya no pierde resultados cuando la última palabra es completa** y su raíz es más corta, como «para» en `hs:Prompts para`.
 - **`Tab` en los editores de código y Markdown inserta 4 espacios** en vez de sacar el foco del editor; con texto seleccionado sangra las líneas, y `Shift+Tab` quita la sangría. Con Vim, solo en modo inserción.
 - **La búsqueda en modo lectura ya no congela la app al escribir** en notas grandes: se busca una sola vez al dejar de escribir, y limpiar los resaltados es mucho más rápido.
 - **`Ctrl+Shift+F` abre la búsqueda en el contenido** también con una nota abierta; antes abría la búsqueda dentro de la nota.

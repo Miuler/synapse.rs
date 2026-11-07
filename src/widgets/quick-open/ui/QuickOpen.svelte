@@ -6,6 +6,7 @@
   import { Search, TextSearch, Tag, Folder, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { FileIcon, fileTypesManager } from '@entities/file-type';
   import { parseKindFilter, matchesKindFilter } from '../lib/kind-filter';
+  import { hasHeadingFilter } from '../lib/heading-filter';
   import { SearchBox } from '@shared/ui/search-box';
   import { handleRelativePageJump } from '@shared/lib/navigation';
   import {
@@ -68,8 +69,9 @@
   );
 
   // Modo búsqueda full-text si la consulta inicia con '?'
-  const isFtsMode = $derived(searchQuery.startsWith('?'));
-  const ftsQuery = $derived(isFtsMode ? searchQuery.slice(1).trim() : '');
+  // `hs:` busca en encabezados, que solo están en el índice de contenido
+  const isFtsMode = $derived(searchQuery.startsWith('?') || hasHeadingFilter(searchQuery));
+  const ftsQuery = $derived(isFtsMode ? searchQuery.replace(/^\?/, '').trim() : '');
   let ftsResults = $state<FullTextHit[]>([]);
   let ftsTotalHits = $state(0);
   let ftsElapsedMs = $state(0);
@@ -629,7 +631,7 @@
         <SearchBox
           class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : isFolderMode ? 'is-folder-mode' : ''}
           bind:value={searchQuery}
-          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags, 'kind:pdf' tipo)"}
+          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags, 'kind:pdf' tipo, 'hs:' encabezados)"}
           loading={isFtsLoading}
         >
           {#snippet icon()}
@@ -703,6 +705,17 @@
                       <span class="quick-fts-kind {hit.kind}">{hit.kind}</span>
                       <span class="item-path">{hit.note_path}</span>
                     </div>
+                    {#if hit.heading && hit.heading.length > 0}
+                      <div class="quick-fts-heading">
+                        {#each hit.heading as seg}
+                          {#if seg.highlighted}
+                            <mark class="quick-fts-mark">{seg.text}</mark>
+                          {:else}
+                            {seg.text}
+                          {/if}
+                        {/each}
+                      </div>
+                    {/if}
                     {#if hit.snippet && hit.snippet.length > 0}
                       <div class="quick-fts-snippet">
                         {#each hit.snippet as seg}
@@ -1315,6 +1328,17 @@
   .quick-fts-kind.excalidraw {
     background: rgba(26, 127, 55, 0.12);
     color: #1a7f37;
+  }
+
+  .quick-fts-heading {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-primary, #1f2328);
+    padding-left: 24px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .quick-fts-snippet {

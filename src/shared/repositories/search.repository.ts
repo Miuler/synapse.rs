@@ -10,6 +10,8 @@ export interface HighlightSegment {
 export interface FullTextHit {
   note_path: string;
   title: HighlightSegment[];
+  /** Encabezado encontrado al filtrar con `hs:`; `snippet` es entonces el texto que le sigue. */
+  heading?: HighlightSegment[];
   snippet: HighlightSegment[];
   matched_terms: string[];
   kind: DocumentKind;
