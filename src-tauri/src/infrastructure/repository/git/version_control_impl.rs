@@ -364,23 +364,43 @@ impl VersionControlImpl {
             if s.is_empty() { None } else { Some(s) }
         });
 
-        let mut cmd = std::process::Command::new("git");
-        cmd.current_dir(work_dir);
-        cmd.arg("add");
-        cmd.arg("--");
-        let mut count = 0;
+        let mut targets: Vec<String> = Vec::new();
         for p in paths {
             let clean = p.replace('\\', "/");
             let clean = clean.trim_start_matches("./");
             if !clean.is_empty() {
-                let target_path = match &prefix_from_workdir {
+                targets.push(match &prefix_from_workdir {
                     Some(prefix) => format!("{}/{}", prefix, clean),
                     None => clean.to_string(),
-                };
-                cmd.arg(target_path);
-                count += 1;
+                });
             }
         }
+
+        // Lo que ya no está en disco se quita del índice: `git add` falla con una ruta borrada que
+        // ya no está en el índice (p. ej. un borrado que ya estaba en stage).
+        let (existing, missing): (Vec<String>, Vec<String>) =
+            targets.into_iter().partition(|t| work_dir.join(t).exists());
+        if !missing.is_empty() {
+            let output = std::process::Command::new("git")
+                .current_dir(work_dir)
+                .args(["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"])
+                .args(&missing)
+                .output()
+                .map_err(|e| format!("Error al ejecutar git rm: {}", e))?;
+            if !output.status.success() {
+                return Err(format!(
+                    "git rm falló: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ));
+            }
+        }
+
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(work_dir);
+        cmd.arg("add");
+        cmd.arg("--");
+        let count = existing.len();
+        cmd.args(&existing);
 
         if count == 0 {
             return Ok(());
@@ -2074,6 +2094,22 @@ mod tests {
         let stat_after = status_after.statuses.get("doc.md").unwrap();
         assert_eq!(stat_after.index, None);
         assert_eq!(stat_after.worktree.as_deref(), Some("M"));
+
+        // 3. Borrar una carpeta entera y hacer add dos veces (la segunda, con el borrado ya en stage)
+        let nested = vault_dir.join("Sistema de Notas");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("Bibliografía.md"), "x\n").unwrap();
+        run_cmd(&["add", "."]);
+        run_cmd(&["commit", "-m", "nested"]);
+        std::fs::remove_dir_all(&nested).unwrap();
+        let paths = vec!["Sistema de Notas/Bibliografía.md".to_string()];
+        let first = git_service.git_add(&vault_dir, &paths);
+        assert!(first.is_ok(), "add de borrado falló: {:?}", first.err());
+        let second = git_service.git_add(&vault_dir, &paths);
+        assert!(second.is_ok(), "add de borrado ya en stage falló: {:?}", second.err());
+        let status = git_service.get_vault_status(&vault_dir).unwrap();
+        let stat = status.statuses.get("Sistema de Notas/Bibliografía.md").unwrap();
+        assert_eq!(stat.index.as_deref(), Some("D"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

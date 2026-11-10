@@ -13,6 +13,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Explorador: archivos borrados**: un archivo borrado que Git todavía tiene sigue apareciendo en el árbol, en rojo y tachado; al hacer clic se abre su diff.
 - **Filtro de Git completo**: con el filtro de Git el explorador muestra todo lo que entraría en un commit (sin seguimiento, modificado, añadido o borrado), aunque sea un tipo de archivo que normalmente no se ve en el explorador.
 
+### Corregido
+
+- **Commit con archivos borrados**: hacer commit de un archivo borrado cuyo borrado ya estaba en stage (o de una carpeta borrada entera) fallaba con «git add falló: … no concordó con ningún archivo».
+
 ## [1.0.0-alpha.4] - 2026-11-09
 
 ### Añadido
