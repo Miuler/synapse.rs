@@ -1141,6 +1141,9 @@
   :global(.markdown-body pre code) {
     background-color: transparent;
     padding: 0;
+    /* El estilo global de `code` (en línea) trae borde: en un bloque se dibujaría en cada línea */
+    border: none;
+    border-radius: 0;
   }
 
   :global(.markdown-body a) {

@@ -74,3 +74,36 @@ it('junto al título se ve la ruta de títulos de donde está la vista', async (
     timeoutMsg: 'tras el clic la ruta no volvió a Inicio',
   });
 });
+
+const outlineState = () =>
+  s.browser.execute(() => ({
+    items: [...document.querySelectorAll('.heading-outline .outline-text')].map((e) => e.textContent),
+    current: document.querySelector('.heading-outline .outline-heading.current .outline-text')?.textContent ?? null,
+  })) as Promise<{ items: string[]; current: string | null }>;
+
+it('la búsqueda rápida filtra títulos y Enter va al primero', async () => {
+  await s.browser.$('.editor-outline-btn').click();
+  await s.browser.$('.heading-outline .outline-search-input').waitForDisplayed({ timeout: 5_000 });
+  // Sin letras dobles: WebKitWebDriver a veces pierde la segunda de un par repetido
+  await s.browser.keys('detal');
+  await s.browser.waitUntil(async () => (await outlineState()).items.join('>') === 'Inicio>Parte A>Detalle A1', {
+    timeout: 5_000,
+    timeoutMsg: 'la búsqueda no filtró los títulos',
+  });
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await headingPath()).join('>') === 'Inicio>Parte A>Detalle A1', {
+    timeout: 5_000,
+    timeoutMsg: 'Enter no llevó a Detalle A1',
+  });
+  const text = await s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .editor-heading-path')?.textContent?.replace(/\s+/g, ' ').trim());
+  expect(text).toBe("(Inicio›Parte A›Detalle A1)");
+});
+
+it('el índice abre desplegado en la ruta actual y resalta el título', async () => {
+  await s.browser.$('.editor-outline-btn').click();
+  await s.browser.$('.heading-outline').waitForDisplayed({ timeout: 5_000 });
+  const state = await outlineState();
+  expect(state.items).toEqual(['Inicio', 'Parte A', 'Detalle A1', 'Cierre']);
+  expect(state.current).toBe('Detalle A1');
+  await s.browser.keys('Escape');
+});

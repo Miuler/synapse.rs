@@ -12,12 +12,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Explorador: expandir y contraer todo**: dos botones en la cabecera del explorador. Con el filtro de Git activo solo afectan a las carpetas del filtro; al quitarlo, las demás siguen como estaban.
 - **Explorador: archivos borrados**: un archivo borrado que Git todavía tiene sigue apareciendo en el árbol, en rojo y tachado; al hacer clic se abre su diff.
 - **Filtro de Git completo**: con el filtro de Git el explorador muestra todo lo que entraría en un commit (sin seguimiento, modificado, añadido o borrado), aunque sea un tipo de archivo que normalmente no se ve en el explorador.
-- **Índice de la nota**: al hacer clic en el título de una nota Markdown (o en el botón de índice a su lado) se abre un índice con todos sus títulos y subtítulos, contraído por defecto (solo se ven los de primer nivel), con botones para expandir y contraer todo; al elegir uno, la nota va a ese título.
-- **Ubicación en la nota**: a la derecha del título de una nota Markdown se ve la ruta de títulos de la parte que estás viendo (p. ej. `Inicio › Parte A › Detalle`), que se actualiza al desplazarte; al hacer clic en un tramo se va a ese título.
+- **Índice de la nota**: al hacer clic en el título de una nota Markdown (o en el botón de índice a su lado) se abre un índice con todos sus títulos y subtítulos, contraído por defecto (solo se ven los de primer nivel), con botones para expandir y contraer todo; al elegir uno, la nota va a ese título. El índice abre desplegado hasta el título donde estás, que aparece resaltado, y tiene arriba una búsqueda rápida de títulos (Enter va al primero que coincide).
+- **Ubicación en la nota**: junto al título de una nota Markdown, entre paréntesis, se ve la ruta de títulos de la parte que estás viendo (p. ej. `(Inicio › Parte A › Detalle)`), que se actualiza al desplazarte; al hacer clic en un tramo se va a ese título.
 - **Breadcrumb: copiar ruta completa**: el menú contextual del archivo en el breadcrumb ofrece «Copiar ruta relativa» y «Copiar ruta completa».
 
 ### Corregido
 
+- **Bloques de código en lectura**: dentro de un bloque de código aparecía una línea horizontal bajo cada línea de texto (heredaba el borde del código en línea).
 - **Commit con archivos borrados**: hacer commit de un archivo borrado cuyo borrado ya estaba en stage (o de una carpeta borrada entera) fallaba con «git add falló: … no concordó con ningún archivo».
 
 ## [1.0.0-alpha.4] - 2026-11-09

@@ -4111,8 +4111,11 @@
                   {/if}
                 {:else if isMarkdownFile(tabPath)}
                   <div class="editor-title-row">
+                  <!-- El campo toma el ancho de su texto para que la ruta de títulos quede a continuación -->
+                  <span class="editor-title-sizer" data-value={vaultItem.title || 'Título del archivo...'}>
                   <input
                     type="text"
+                    size="1"
                     class="editor-title-input"
                     readonly={!paneEditing}
                     onclick={() => {
@@ -4135,22 +4138,14 @@
                     }}
                     placeholder="Título del archivo..."
                   />
+                  </span>
                     {#if (headingLines[tabPath] ?? -1) >= 0}
                     {@const headingPath = headingPathAt(extractHeadingTree(content), headingLines[tabPath])}
                       <nav class="editor-heading-path" aria-label="Ubicación en la nota">
-                        <span class="editor-heading-path-inner">
-                          {#each headingPath as h, i (h.line)}
-                            {#if i > 0}<span class="editor-heading-sep">›</span>{/if}
-                            <button
-                              type="button"
-                              class="editor-heading-crumb"
-                              class:current={i === headingPath.length - 1}
-                              onclick={() => (pendingScrollHeadings[tabPath] = { text: h.raw, id: ++headingRequestId })}
-                            >{h.text}</button>
-                          {/each}
-                        </span>
+                        <span class="editor-heading-path-inner">({#each headingPath as h, i (h.line)}{#if i > 0}<span class="editor-heading-sep">›</span>{/if}<button type="button" class="editor-heading-crumb" class:current={i === headingPath.length - 1} onclick={() => (pendingScrollHeadings[tabPath] = { text: h.raw, id: ++headingRequestId })}>{h.text}</button>{/each})</span>
                       </nav>
                     {/if}
+                    <span class="editor-title-spacer"></span>
                     <button
                       type="button"
                       class="editor-outline-btn"
@@ -4164,6 +4159,7 @@
                     {#if outlineOpenFor === tabPath}
                       <HeadingOutline
                         {content}
+                        currentLine={headingLines[tabPath] ?? -1}
                         onClose={() => (outlineOpenFor = null)}
                         onSelect={(h) => {
                           outlineOpenFor = null;
@@ -4615,9 +4611,37 @@
     align-items: center;
   }
 
-  .editor-title-row .editor-title-input {
-    flex: 1;
+  .editor-title-row {
+    align-items: baseline;
+  }
+
+  .editor-title-sizer {
+    display: inline-grid;
     min-width: 0;
+    max-width: 70%;
+    flex: 0 1 auto;
+  }
+
+  .editor-title-sizer::after,
+  .editor-title-sizer .editor-title-input {
+    grid-area: 1 / 1;
+    min-width: 0;
+    width: auto;
+    font-size: 24px;
+    font-weight: 700;
+    font-family: inherit;
+    padding: 16px 8px 8px 24px;
+  }
+
+  .editor-title-sizer::after {
+    content: attr(data-value) ' ';
+    visibility: hidden;
+    white-space: pre;
+    overflow: hidden;
+  }
+
+  .editor-title-spacer {
+    flex: 1;
   }
 
   .editor-title-input[readonly] {
@@ -4627,8 +4651,6 @@
   .editor-heading-path {
     flex: 0 1 auto;
     min-width: 0;
-    max-width: 55%;
-    margin-top: 8px;
     overflow: hidden;
     white-space: nowrap;
     /* Si no entra, se recorta por la izquierda: siempre se ve el título actual */
@@ -4669,6 +4691,7 @@
   }
 
   .editor-outline-btn {
+    align-self: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;
