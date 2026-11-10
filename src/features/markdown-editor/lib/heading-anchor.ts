@@ -84,3 +84,62 @@ export function findHeadingSection(lines: string[], heading: string): { start: n
   }
   return { start, end: lines.length };
 }
+
+export interface HeadingNode {
+  level: number;
+  /** Texto legible del encabezado (sin marcado de enlaces ni énfasis). */
+  text: string;
+  /** Texto tal como está en el archivo, para ir a él con `HeadingTarget`. */
+  raw: string;
+  line: number;
+  children: HeadingNode[];
+}
+
+function displayHeadingText(text: string): string {
+  return text
+    .replace(/!?\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (_, target: string, alias?: string) => alias ?? target)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[`*_~=]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Encabezados de una nota en árbol: cada uno cuelga del anterior de nivel menor. Ignora el
+ * frontmatter y los bloques de código, igual que `findHeadingLine`.
+ */
+export function extractHeadingTree(content: string): HeadingNode[] {
+  const roots: HeadingNode[] = [];
+  const stack: HeadingNode[] = [];
+  let inFence = false;
+  let inFrontmatter = false;
+  content.split(/\r?\n/).forEach((line, index) => {
+    if (index === 0 && line.trim() === '---') {
+      inFrontmatter = true;
+      return;
+    }
+    if (inFrontmatter) {
+      if (line.trim() === '---' || line.trim() === '...') inFrontmatter = false;
+      return;
+    }
+    if (FENCE_LINE.test(line)) {
+      inFence = !inFence;
+      return;
+    }
+    if (inFence) return;
+    const match = HEADING_LINE.exec(line);
+    if (!match) return;
+    const node: HeadingNode = {
+      level: match[1].length,
+      text: displayHeadingText(match[2]) || match[2],
+      raw: match[2],
+      line: index,
+      children: [],
+    };
+    while (stack.length > 0 && stack[stack.length - 1].level >= node.level) stack.pop();
+    if (stack.length > 0) stack[stack.length - 1].children.push(node);
+    else roots.push(node);
+    stack.push(node);
+  });
+  return roots;
+}

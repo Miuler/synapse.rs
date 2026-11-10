@@ -25,6 +25,8 @@
 
   interface Props {
     path?: string;
+    /** Ruta absoluta del archivo, para «Copiar ruta completa». */
+    fullPath?: string;
     readOnly?: boolean;
     class?: string;
     isGitRepo?: boolean;
@@ -41,6 +43,7 @@
 
   let {
     path = '',
+    fullPath = '',
     readOnly = false,
     class: customClass = '',
     isGitRepo = false,
@@ -502,8 +505,17 @@
                       onSelect={handleCopyPath}
                     >
                       <Copy size={14} class="context-menu-item-icon" />
-                      <span>Copiar ruta</span>
+                      <span>Copiar ruta relativa</span>
                     </ContextMenu.Item>
+                    {#if fullPath}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => navigator.clipboard.writeText(fullPath)}
+                      >
+                        <Copy size={14} class="context-menu-item-icon" />
+                        <span>Copiar ruta completa</span>
+                      </ContextMenu.Item>
+                    {/if}
                   </ContextMenu.Content>
                 </ContextMenu.Portal>
               </ContextMenu.Root>

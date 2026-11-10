@@ -12,6 +12,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Explorador: expandir y contraer todo**: dos botones en la cabecera del explorador. Con el filtro de Git activo solo afectan a las carpetas del filtro; al quitarlo, las demás siguen como estaban.
 - **Explorador: archivos borrados**: un archivo borrado que Git todavía tiene sigue apareciendo en el árbol, en rojo y tachado; al hacer clic se abre su diff.
 - **Filtro de Git completo**: con el filtro de Git el explorador muestra todo lo que entraría en un commit (sin seguimiento, modificado, añadido o borrado), aunque sea un tipo de archivo que normalmente no se ve en el explorador.
+- **Índice de la nota**: al hacer clic en el título de una nota Markdown (o en el botón de índice a su lado) se abre un índice con todos sus títulos y subtítulos, contraído por defecto (solo se ven los de primer nivel), con botones para expandir y contraer todo; al elegir uno, la nota va a ese título.
+- **Breadcrumb: copiar ruta completa**: el menú contextual del archivo en el breadcrumb ofrece «Copiar ruta relativa» y «Copiar ruta completa».
 
 ### Corregido
 

@@ -13,3 +13,4 @@ export * from './lib/heading-anchor';
 export * from './lib/wikilink-extension';
 export * from './lib/image-paste';
 export { MarkdownViewer, NoteProperties };
+export { default as HeadingOutline } from './ui/HeadingOutline.svelte';

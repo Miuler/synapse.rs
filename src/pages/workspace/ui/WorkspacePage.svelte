@@ -12,7 +12,7 @@
   import {SettingsPanel} from "@widgets/settings-panel";
   import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
-  import {MarkdownViewer, splitNavigationTarget, type HeadingTarget} from "@features/markdown-editor";
+  import {MarkdownViewer, HeadingOutline, splitNavigationTarget, type HeadingTarget} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
   import {D2Viewer} from "@features/d2-editor";
@@ -56,7 +56,7 @@
   import {getCurrentWebviewWindow, getAllWebviewWindows} from "@tauri-apps/api/webviewWindow";
   import {BreadCrumb} from "@widgets/breadcrumb";
   import {UnsavedChangesDialog} from "@shared/ui/unsaved-changes-dialog";
-  import { Check } from "lucide-svelte";
+  import { Check, ListTree } from "lucide-svelte";
   import {
     isSyntheticTab,
     isDrawingTab,
@@ -162,6 +162,8 @@
   // Encabezado al que ir al abrir un enlace `[[nota#Título]]`
   let pendingScrollHeadings = $state<Record<string, HeadingTarget>>({});
   let headingRequestId = 0;
+  // Pestaña con el índice de títulos abierto (clic en el título de la nota)
+  let outlineOpenFor = $state<string | null>(null);
   let isEditing = $state(false);
   let isVimMode = $derived(appSettings.vimMode);
   let markdownViewMode = $state<MarkdownViewMode>("reading");
@@ -3978,6 +3980,7 @@
             {#if !tabPath.startsWith('synapse://')}
               <BreadCrumb
                 path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
+                fullPath={isStandaloneMode || !appSettings.lastOpenedFolder ? tabPath : `${appSettings.lastOpenedFolder.replace(/[\\/]+$/, '')}/${tabPath}`}
                 readOnly={isStandaloneMode}
                 {isGitRepo}
                 {gitStatuses}
@@ -4105,10 +4108,15 @@
                     />
                   {/if}
                 {:else if isMarkdownFile(tabPath)}
+                  <div class="editor-title-row">
                   <input
                     type="text"
                     class="editor-title-input"
                     readonly={!paneEditing}
+                    onclick={() => {
+                      if (!paneEditing) outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath;
+                    }}
+                    title={paneEditing ? undefined : 'Clic para ver el índice'}
                     value={vaultItem.title}
                     oninput={(e) => {
                       // El store es inmutable: se actualiza reemplazando el elemento
@@ -4125,6 +4133,27 @@
                     }}
                     placeholder="Título del archivo..."
                   />
+                    <button
+                      type="button"
+                      class="editor-outline-btn"
+                      class:active={outlineOpenFor === tabPath}
+                      aria-label="Índice de la nota"
+                      title="Índice de la nota"
+                      onclick={() => (outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath)}
+                    >
+                      <ListTree size={16} />
+                    </button>
+                    {#if outlineOpenFor === tabPath}
+                      <HeadingOutline
+                        {content}
+                        onClose={() => (outlineOpenFor = null)}
+                        onSelect={(h) => {
+                          outlineOpenFor = null;
+                          pendingScrollHeadings[tabPath] = { text: h.raw, id: ++headingRequestId };
+                        }}
+                      />
+                    {/if}
+                  </div>
 
                   <div class="editor-main-content">
                     <MarkdownViewer
@@ -4559,6 +4588,40 @@
     outline: none;
     padding: 16px 24px 8px 24px;
     font-family: inherit;
+  }
+
+  .editor-title-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .editor-title-row .editor-title-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .editor-title-input[readonly] {
+    cursor: pointer;
+  }
+
+  .editor-outline-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 16px 0 0;
+    padding: 4px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+  }
+
+  .editor-outline-btn:hover,
+  .editor-outline-btn.active {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+    color: var(--text-primary, #1f2328);
   }
 
   .editor-title-input::placeholder {
