@@ -17,7 +17,7 @@
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import type { MarkdownViewMode } from '@entities/vault-item';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
-  import { findHeadingLine, type HeadingTarget } from '../lib/heading-anchor';
+  import { findHeadingLine, extractHeadingTree, flattenHeadings, normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import { imagePasteExtension } from '../lib/image-paste';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
@@ -50,6 +50,8 @@
     onNavigate?: (path: string) => void;
     onChange?: (markdown: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
+    /** Línea (base 0) del título en el que está la parte de arriba de la vista; -1 antes del primero. */
+    onHeadingLineChange?: (line: number) => void;
   }
 
   let {
@@ -66,6 +68,7 @@
     onNavigate,
     onChange,
     onSelectionChange,
+    onHeadingLineChange,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -126,6 +129,62 @@
     });
     editorView.focus();
   }
+
+  // Título actual según el scroll: se calcula como mucho una vez por cuadro y solo se avisa si cambia.
+  let wrapperRef = $state<HTMLDivElement | null>(null);
+  let flatHeadings = $derived(onHeadingLineChange && isMarkdown ? flattenHeadings(extractHeadingTree(content)) : []);
+  let headingFrame = 0;
+  let lastHeadingLine: number | null = null;
+
+  function currentHeadingLine(): number {
+    if (flatHeadings.length === 0 || !wrapperRef) return -1;
+    const top = wrapperRef.getBoundingClientRect().top + 24;
+    if (viewMode === 'reading') {
+      const root = wrapperRef.querySelector('.reading-view, .markdown-body') ?? wrapperRef;
+      let line = -1;
+      let k = 0;
+      for (const el of root.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')) {
+        if (el.closest('.note-embed')) continue;
+        const text = normalizeHeadingText(el.textContent ?? '');
+        let j = k;
+        while (j < flatHeadings.length && normalizeHeadingText(flatHeadings[j].raw) !== text) j++;
+        if (j === flatHeadings.length) continue;
+        k = j + 1;
+        if (el.getBoundingClientRect().top > top) break;
+        line = flatHeadings[j].line;
+      }
+      return line;
+    }
+    if (!editorView) return -1;
+    const block = editorView.lineBlockAtHeight(top - editorView.documentTop);
+    const lineNo = editorView.state.doc.lineAt(Math.min(block.from, editorView.state.doc.length)).number - 1;
+    let line = -1;
+    for (const h of flatHeadings) {
+      if (h.line > lineNo) break;
+      line = h.line;
+    }
+    return line;
+  }
+
+  function scheduleHeadingUpdate() {
+    if (!onHeadingLineChange || headingFrame) return;
+    headingFrame = requestAnimationFrame(() => {
+      headingFrame = 0;
+      const line = currentHeadingLine();
+      if (line !== lastHeadingLine) {
+        lastHeadingLine = line;
+        onHeadingLineChange?.(line);
+      }
+    });
+  }
+
+  $effect(() => {
+    void flatHeadings;
+    void viewMode;
+    lastHeadingLine = null;
+    // Tras pintar el contenido o cambiar de modo
+    setTimeout(scheduleHeadingUpdate, 50);
+  });
 
   export function scrollToMatch(terms: string[]) {
     if (!terms || terms.length === 0) return;
@@ -1029,7 +1088,7 @@
   });
 </script>
 
-<div class="editor-wrapper">
+<div class="editor-wrapper" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
   {#if isMarkdown && viewMode === 'reading'}
     <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} />
   {/if}

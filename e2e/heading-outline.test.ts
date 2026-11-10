@@ -8,7 +8,7 @@ const filler = Array.from({ length: 80 }, (_, i) => `línea ${i}`).join('\n\n');
 
 beforeAll(async () => {
   s = await startApp({
-    'guia.md': `# Inicio\n\n## Parte A\n\n${filler}\n\n### Detalle A1\n\ntexto final\n\n# Cierre\n\n## Parte B\n`,
+    'guia.md': `# Inicio\n\n## Parte A\n\n${filler}\n\n### Detalle A1\n\ntexto final\n\n${filler}\n\n# Cierre\n\n## Parte B\n\n${filler}\n`,
   });
   await s.browser.$('.file-tree-item[data-path="guia.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="guia.md"]').click();
@@ -50,4 +50,27 @@ it('elegir un subtítulo cierra el índice y lleva a él', async () => {
       }) as Promise<boolean>,
     { timeout: 5_000, timeoutMsg: 'el subtítulo no quedó a la vista' },
   );
+});
+
+const headingPath = () =>
+  s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .editor-heading-crumb')].map((e) => e.textContent?.trim()),
+  ) as Promise<string[]>;
+
+it('junto al título se ve la ruta de títulos de donde está la vista', async () => {
+  await s.browser.waitUntil(async () => (await headingPath()).join('>') === 'Inicio>Parte A>Detalle A1', {
+    timeout: 5_000,
+    timeoutMsg: 'ruta de títulos: no llegó a Inicio>Parte A>Detalle A1',
+  });
+  // Al hacer clic en un tramo se va a ese título
+  await s.browser.execute(() => {
+    const crumb = [...document.querySelectorAll('.tab-pane:not(.hidden) .editor-heading-crumb')].find(
+      (e) => e.textContent?.trim() === 'Inicio',
+    );
+    (crumb as HTMLElement).click();
+  });
+  await s.browser.waitUntil(async () => (await headingPath()).join('>') === 'Inicio', {
+    timeout: 5_000,
+    timeoutMsg: 'tras el clic la ruta no volvió a Inicio',
+  });
 });

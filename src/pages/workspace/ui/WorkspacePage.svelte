@@ -12,7 +12,7 @@
   import {SettingsPanel} from "@widgets/settings-panel";
   import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
-  import {MarkdownViewer, HeadingOutline, splitNavigationTarget, type HeadingTarget} from "@features/markdown-editor";
+  import {MarkdownViewer, HeadingOutline, splitNavigationTarget, extractHeadingTree, headingPathAt, type HeadingTarget} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
   import {D2Viewer} from "@features/d2-editor";
@@ -164,6 +164,8 @@
   let headingRequestId = 0;
   // Pestaña con el índice de títulos abierto (clic en el título de la nota)
   let outlineOpenFor = $state<string | null>(null);
+  // Línea del título visible en cada pestaña de Markdown (para la ruta de títulos junto al título)
+  let headingLines = $state<Record<string, number>>({});
   let isEditing = $state(false);
   let isVimMode = $derived(appSettings.vimMode);
   let markdownViewMode = $state<MarkdownViewMode>("reading");
@@ -4133,6 +4135,22 @@
                     }}
                     placeholder="Título del archivo..."
                   />
+                    {#if (headingLines[tabPath] ?? -1) >= 0}
+                    {@const headingPath = headingPathAt(extractHeadingTree(content), headingLines[tabPath])}
+                      <nav class="editor-heading-path" aria-label="Ubicación en la nota">
+                        <span class="editor-heading-path-inner">
+                          {#each headingPath as h, i (h.line)}
+                            {#if i > 0}<span class="editor-heading-sep">›</span>{/if}
+                            <button
+                              type="button"
+                              class="editor-heading-crumb"
+                              class:current={i === headingPath.length - 1}
+                              onclick={() => (pendingScrollHeadings[tabPath] = { text: h.raw, id: ++headingRequestId })}
+                            >{h.text}</button>
+                          {/each}
+                        </span>
+                      </nav>
+                    {/if}
                     <button
                       type="button"
                       class="editor-outline-btn"
@@ -4158,6 +4176,7 @@
                   <div class="editor-main-content">
                     <MarkdownViewer
                       bind:this={markdownViewers[tabPath]}
+                      onHeadingLineChange={(line) => (headingLines[tabPath] = line)}
                       {content}
                       filePath={tabPath}
                       readOnly={!paneEditing}
@@ -4603,6 +4622,50 @@
 
   .editor-title-input[readonly] {
     cursor: pointer;
+  }
+
+  .editor-heading-path {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 55%;
+    margin-top: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    /* Si no entra, se recorta por la izquierda: siempre se ve el título actual */
+    direction: rtl;
+    text-align: left;
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+  }
+
+  .editor-heading-path-inner {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  .editor-heading-sep {
+    margin: 0 4px;
+    opacity: 0.6;
+  }
+
+  .editor-heading-crumb {
+    border: none;
+    background: transparent;
+    padding: 2px 3px;
+    border-radius: 4px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .editor-heading-crumb:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+    color: var(--text-primary, #1f2328);
+  }
+
+  .editor-heading-crumb.current {
+    color: var(--text-primary, #1f2328);
+    font-weight: 600;
   }
 
   .editor-outline-btn {

@@ -143,3 +143,22 @@ export function extractHeadingTree(content: string): HeadingNode[] {
   });
   return roots;
 }
+
+/** Títulos en orden del documento. */
+export function flattenHeadings(nodes: HeadingNode[], out: HeadingNode[] = []): HeadingNode[] {
+  for (const n of nodes) {
+    out.push(n);
+    flattenHeadings(n.children, out);
+  }
+  return out;
+}
+
+/** Ruta de títulos (del primer nivel al actual) hasta el título de esa línea. */
+export function headingPathAt(nodes: HeadingNode[], line: number): HeadingNode[] {
+  for (const n of nodes) {
+    if (n.line === line) return [n];
+    const sub = headingPathAt(n.children, line);
+    if (sub.length > 0) return [n, ...sub];
+  }
+  return [];
+}
