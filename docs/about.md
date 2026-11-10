@@ -49,10 +49,15 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
   - **Exportación en un clic:** Exporta diagramas Mermaid, D2 y Excalidraw a gráficos vectoriales **SVG** o imágenes de alta resolución **PNG** directamente desde el menú contextual.
 - **Lienzos Infinitos con Excalidraw:** Mapas mentales, bocetos y wireframes interactivos embebidos directamente en notas (`.excalidraw.md`).
 
-### 5. 🐙 Git Nativo en Puro Rust y Comparación Visual
-- **Control de versiones con `gix`:** Historial de revisiones, commits, branching, sincronización remota (`Ctrl+Shift+K`) y visor de diffs visuales sin requerir la CLI de Git instalada.
-- **Diff entre archivos arbitrarios:** Selecciona dos archivos cualesquiera en el explorador y compáralos lado a lado al instante sin necesidad de commits previos.
-- **Diff visual de imágenes:** Inspecciona modificaciones gráficas pixel a pixel mediante algoritmo `pixelmatch`.
+### 5. 🐙 Git Nativo en Puro Rust y Suite de Comparación Visual (Multi-Modal Diff)
+- **Control de versiones nativo con `gix`:** Historial de revisiones, commits, branching, stage/unstage y sincronización remota (`Ctrl+Shift+K`) sin depender de herramientas externas.
+- **Comparación de Imágenes Binarias (2 Paneles vs. Píxel a Píxel):**
+  - **Diff Binario Panel a Panel (`2 Paneles`):** Compara lado a lado la imagen local en disco frente a la revisión en Git (`HEAD`, `Stage` o commit histórico), con controles independientes de zoom y encuadre.
+  - **Diff Binario Píxel a Píxel (`Diferencias`):** Superposición algorítmica de alta precisión que resalta en magenta cada píxel modificado y calcula el conteo exacto y porcentaje de variación visual (ej. `139,137 píxeles distintos (5.47%)`).
+- **Comparación Dual para Diagramas como Excalidraw, Mermaid, D2 y PlantUML (Como Diagrama vs. Como Texto):**
+  - **Diff como Diagrama (`2 Paneles` interactivos):** Renderiza el lienzo visual en ambos paneles (Disco Duro vs. Git). El panel local permite conmutar al vuelo entre **modo `Lectura` y modo `Escritura`** para corregir el diagrama en vivo mientras observas la versión anterior.
+  - **Diff como Texto (`Texto` — Dividida, Unificada o Parche):** Inspecciona las diferencias exactas a nivel de código fuente o estructura JSON/Markdown con resaltado de sintaxis línea por línea y carácter por carácter.
+- **Diff entre archivos arbitrarios del explorador:** Selecciona dos archivos cualesquiera con `Ctrl+Clic` en el explorador de la bóveda y compáralos al instante sin necesidad de que estén en Git.
 
 ### 6. 🤖 Servidor MCP Integrado de Alto Rendimiento (Model Context Protocol)
 - **Tu conocimiento al servicio de la IA:** Conecta asistentes y agentes de IA (Claude Code, Google Antigravity, Cursor, Windsurf, Roo Code, etc.) directamente a tu bóveda personal mediante un servidor MCP nativo de alto rendimiento.
@@ -88,6 +93,8 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 | **Diagramas D2 y PlantUML** | **Nativo con autocompletado y exportación** | Vía Plugins | No | No | Vía Plugins |
 | **Lienzo Excalidraw Integrado** | **Nativo (.excalidraw.md)** | Vía Plugin | No | Vía Plugin | Con extensiones |
 | **Git Nativo Integrado** | **Puro Rust (`gix`)** | Requiere Git CLI | No | Vía Git local | Requiere Git CLI |
+| **Diff de Imágenes Binarias** | **Nativo (2 Paneles + Píxel a Píxel %)** | No | No | No | Básico (sin conteo píxel) |
+| **Diff de Diagramas (Excalidraw/D2/Mermaid)** | **Dual: Como Diagrama interactivo y Como Texto** | No (Solo texto plano) | No | No | Con extensiones |
 | **Comparación de Archivos (Diff)** | **Nativa (2 archivos o Git)** | Vía Plugins | No | No | Nativa |
 | **Servidor MCP Nativo (AI Ready)** | **Sí (OCC, Sub-tags, Outline & Snippets)** | Requiere Plugins de terceros | No | No | Vía extensiones |
 | **Modo VIM al vuelo** | **Sí (Toggle instantáneo + Plegado)** | Sí (Configuración) | No | Experimental | Vía extensión |
@@ -119,19 +126,43 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
   - Exportación directa a PNG y SVG con el tema visual activo.
 - **Lienzos Creativos con Excalidraw:** Integración profunda con el motor de Excalidraw para arquitectura de sistemas, diagramas libres y notas visuales.
 - **Visor Multimedia y de Documentos:**
-  - Lector embebido de PDFs de alta fidelidad.
-  - Visor de imágenes con soporte de diff visual pixel a pixel (`pixelmatch`) para ver cambios en diseños gráficos.
+  - Lector embebido de PDFs de alta fidelidad (también compatible con comparación panel a panel en Git).
+  - Visor de imágenes con zoom interactivo y comparación visual tanto lado a lado como píxel a píxel.
   - Integración nativa con visor externo del sistema operativo para hojas de cálculo Excel y documentos Word.
 
-### ⚙️ 3. Panel de Configuración y Personalización
+### 🔍 3. Suite de Comparación Visual y Textual (Diff Multi-Modal)
+
+Synapse lleva el control de versiones más allá del código fuente, ofreciendo **comparación visual y textual nativa** tanto para imágenes binarias como para diagramas interactivos (`.excalidraw`, `.excalidraw.md`, `.d2`, `.mmd`, `.puml`):
+
+#### 🖼️ A. Imágenes Binarias: Diff Panel a Panel y Diff Binario Píxel a Píxel
+- **Diff Panel a Panel (`2 Paneles`):** Inspecciona en paralelo la imagen actual en tu **Disco Duro (Local)** frente a la versión en **Git (`HEAD`, `Stage` o revisión histórica)**, con divisor redimensionable y controles de zoom (`1:1`, ajuste a pantalla, porcentaje).
+
+![Diff Binario de Imagen en 2 Paneles](arquitectura_diff__binario_2_paneles.png)
+
+- **Diff Binario Píxel a Píxel (`Diferencias`):** Detecta automáticamente hasta la más mínima alteración visual superponiendo en color magenta los **píxeles modificados**, informando en la cabecera las dimensiones de la imagen y la métrica exacta de cambio (ej. `139,137 píxeles distintos (5.47%)`).
+
+![Diff Binario Píxel a Píxel](arquitectura_diff__binario_pixel_x_pixel.png)
+
+#### 📐 B. Diagramas (Excalidraw, Mermaid, D2, PlantUML): Diff como Diagrama y Diff como Texto
+- **Diff como Diagrama (`2 Paneles` interactivos):** Compara visualmente dos estados de un diagrama renderizando sus lienzos completos lado a lado. Además, el panel izquierdo (**Disco Duro Local**) permite alternar al instante entre **`Lectura`** y **`Escritura`**, permitiéndote editar formas, flechas o textos en vivo mientras consultas la versión de `HEAD` en el panel derecho.
+
+![Diff de Excalidraw como Diagrama](arquitectura_diff__excalidraw_as_diagram.png)
+
+- **Diff como Texto (`Texto` — Dividida, Unificada o Parche):** Con un solo clic en el botón `Texto` de la barra superior, alterna de la vista gráfica al diff estructural del archivo para auditar coordenadas, propiedades JSON o cambios línea por línea con resaltado a nivel de token.
+
+![Diff de Excalidraw como Texto](arquitectura_diff__excalidraw_as_text.png)
+
+### ⚙️ 4. Panel de Configuración y Personalización
 - **Configuración Centralizada:** Ajusta temas visuales (claro/oscuro), idioma de interfaz, tamaño base de tipografía, servidores de renderizado externo (PlantUML) y comportamiento del modo Vim.
 - **Atajos de Teclado Modulares (`shortcuts.jsonc`):** Atajos editables directamente desde el panel o mediante archivo de configuración con soporte para múltiples combinaciones por comando y preservación de comentarios.
 
-### ⚡ 4. Núcleo Tecnológico de Vanguardia
+### ⚡ 5. Núcleo Tecnológico de Vanguardia
 - **Frontend con Svelte 5 (Runes):** Cero overhead de Virtual DOM; reactividad pura a nivel de compilador para transiciones instantáneas y una interfaz fluida a 120 FPS.
 - **Feature-Sliced Design (FSD):** Arquitectura frontend altamente estructurada en capas (`app`, `pages`, `widgets`, `features`, `entities`, `shared`), facilitando una base de código limpia y libre de acoplamientos indeseados.
 - **Onion Architecture en Rust:** Backend limpio dividido en Dominio, Casos de Uso y Adaptadores de Infraestructura, garantizando estabilidad, desacoplamiento y testabilidad de clase mundial.
 - **Bun como Entorno de Ejecución:** Tiempos de empaquetado, resolución de dependencias y comprobación de tipos ultrarrápidos.
+
+![Mapa de Arquitectura Global de Synapse.rs](arquitectura.png)
 
 ---
 
