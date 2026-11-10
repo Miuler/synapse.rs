@@ -6,55 +6,71 @@
 
 ---
 
+![Synapse.rs Interfaz](synapsers.png)
+
+---
+
 ## 🌟 La Visión: Redefiniendo el Conocimiento Personal
 
 En un mundo saturado de herramientas lentas basadas en Electron o plataformas en la nube que encierran tus ideas tras suscripciones mensuales y muros de datos (*vendor lock-in*), **Synapse** nace como una declaración de principios:
 
 > **Tus pensamientos merecen la velocidad del metal y la soberanía absoluta de tus archivos.**
 
-Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust** con la reactividad y elegancia de **Svelte 5 (Runes)**. El resultado es un entorno de trabajo cognitivo donde la fricción desaparece: abre vaults masivos en milisegundos, dibuja conceptos complejos al instante y localiza cualquier pensamiento en tus notas, diagramas, libros PDF o documentos Word a la velocidad del pensamiento.
+Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust** con la reactividad pura y elegancia de **Svelte 5 (Runes)**. El resultado es un entorno de trabajo cognitivo donde la fricción desaparece: abre vaults masivos en milisegundos, dibuja conceptos complejos al instante y localiza cualquier pensamiento en tus notas, diagramas, libros PDF o documentos Word a la velocidad del pensamiento.
 
 ---
 
 ## 🚀 ¿Por qué Synapse? Argumentos de Venta y Propuesta de Valor
 
 ### 1. 🏎️ Rendimiento Descomunal: Adiós al "Bloatware"
-- **Inicio en milisegundos:** Olvídate de pantallas de carga eternas. Synapse se inicia al instante.
-- **Consumo mínimo de RAM:** Construido sobre **Tauri v2** en lugar de empaquetar un navegador Chromium completo por ventana. Synapse consume una fracción insignificante de la memoria que exigen herramientas como Obsidian, Notion o Logseq.
+- **Inicio en milisegundos:** Pestañas montadas bajo demanda, explorador de archivos virtualizado y comandos de lectura desacoplados del hilo principal.
+- **Consumo mínimo de RAM:** Construido sobre **Tauri v2** en lugar de empaquetar un navegador Chromium completo por ventana. Synapse libera proactivamente la memoria al sistema tras la apertura del vault, consumiendo una fracción mínima en comparación con Obsidian, Notion o Logseq.
 - **Motor de indexación en Rust:** Indexación paralela con hilos nativos (`rayon` + `jwalk`), procesando decenas de miles de archivos en segundos sin congelar la interfaz.
 
 ### 2. 🛡️ Soberanía de Datos y Privacidad Radical (Local-First)
-- **Tus archivos son tuyos:** Tus notas son simples archivos en tu disco duro (Markdown estándar, Mermaid, Excalidraw, imágenes). Sin formatos propietarios ni bases de datos opacas.
-- **100% Offline:** Funciona en un avión, en la montaña o en una red aislada. No requiere conexión a internet ni autenticación en servidores de terceros.
-- **Cero Telemetría:** Nadie analiza tus notas para entrenar modelos sin tu permiso ni monetizar tu atención.
+- **Tus archivos son tuyos:** Notas y diagramas en formatos abiertos estándar (Markdown, Mermaid, D2, PlantUML, Excalidraw, imágenes). Sin formatos propietarios ni bases de datos cerradas.
+- **100% Offline:** Funciona en un avión, en la montaña o en redes aisladas sin requerir conexión a internet ni cuentas externas.
+- **Cero Telemetría:** Nadie escanea ni monetiza tus pensamientos, diagramas o notas.
 
 ### 3. 🔍 Búsqueda Cognitiva de Nivel Industrial (Tantivy + Nucleo)
-- **Búsqueda difusa en memoria (Nucleo Fuzzy Matcher):** El mismo motor de búsqueda interactiva ultrarrápida usado en los editores de terminal más modernos, encontrando cualquier archivo en tu vault en menos de 2 ms conforme escribes.
-- **Motor Full-Text estilo Lucene en Rust (Tantivy):** Busca dentro del contenido real de tus notas, pero además...
-- **¡Indexación de adjuntos (PDFs y Word DOCX)!:** Synapse extrae e indexa de forma inteligente el texto de tus libros, artículos académicos (`.pdf`) y documentos de oficina (`.docx`). Tu vault se convierte en un archivo vivo donde nada se pierde.
+- **Quick Open inteligente (`Ctrl+O`):** Búsqueda difusa en memoria ultrarrápida con Nucleo Matcher (< 2 ms).
+- **Filtros por tipo de archivo (`kind:`):** Encuentra al vuelo lo que buscas filtrando por extensión o categoría: `kind:pdf`, `kind:markdown`, `kind:word`, `kind:excel`, `kind:mermaid`, `kind:d2`, `kind:excalidraw` o `kind:code`.
+- **Búsqueda directa en encabezados (`hs:` o `headings:`):** Localiza secciones y subtítulos específicos directamente desde `Ctrl+O` o la búsqueda global (`Ctrl+Shift+F`), mostrando el título indexado y el contexto inmediato.
+- **Motor Full-Text estilo Lucene en Rust (Tantivy):** Ponderación inteligente de títulos, búsqueda por prefijos y frases sin degradación de velocidad.
+- **Indexación de adjuntos (PDFs y Word DOCX):** Extrae e indexa de forma nativa el texto de libros, papers (`.pdf`) y documentos (`.docx`), convirtiendo tu vault en una biblioteca viva.
 
-### 4. 🎨 Tríada de Pensamiento Visual Integrada
-- **Markdown Enriquecido:** Editor híbrido fluido con soporte CodeMirror 6, renderizado dinámico y modo de lectura/edición.
-- **Diagramas Mermaid & Merman con Puntero Láser:** Convierte texto en diagramas de flujo, secuencias y arquitecturas. Incluye un puntero láser interactivo diseñado para presentaciones en vivo y explicaciones de arquitectura.
-- **Lienzos Infinitos con Excalidraw:** Bocetos a mano alzada, mapas mentales y prototipos embebidos directamente en tus notas (`.excalidraw.md`).
+### 4. 🎨 Suite de Pensamiento Visual y Diagramas como Código
+- **Markdown Enriquecido y Modular:** Soporte CodeMirror 6, renderizado dinámico en modo lectura, enlaces profundos a encabezados (`[[nota#Título]]`) e incrustación de secciones completas con transclusión recursiva (`![[nota#Título]]`).
+- **Tríada de Diagramación como Código (Mermaid, D2 y PlantUML):**
+  - **Mermaid & Merman:** Diagramas de flujo y secuencias con puntero láser interactivo para presentaciones de arquitectura en vivo.
+  - **D2 Lang:** Sintaxis declarativa moderna para diagramas de arquitectura técnica y flujos complejos.
+  - **PlantUML (`.puml`, `.plantuml`):** Soporte completo para diagramas UML con servidor configurable, autocompletado y validación de sintaxis en línea.
+  - **Render reactivo optimizado:** Planificador con debounce dinámico, `Ctrl+Enter` para forzar redibujado y monitor de estado del render en la barra de estado.
+  - **Exportación en un clic:** Exporta diagramas Mermaid, D2 y Excalidraw a gráficos vectoriales **SVG** o imágenes de alta resolución **PNG** directamente desde el menú contextual.
+- **Lienzos Infinitos con Excalidraw:** Mapas mentales, bocetos y wireframes interactivos embebidos directamente en notas (`.excalidraw.md`).
 
-### 5. 🐙 Git Nativo en Puro Rust (Sin Dependencias Externas)
-- **Control de versiones con `gix`:** Historial de revisiones, branching, estados de sincronización y visor visual de diferencias (*diff viewer*) sin necesidad de tener git instalado en el sistema operativo.
+### 5. 🐙 Git Nativo en Puro Rust y Comparación Visual
+- **Control de versiones con `gix`:** Historial de revisiones, commits, branching, sincronización remota (`Ctrl+Shift+K`) y visor de diffs visuales sin requerir la CLI de Git instalada.
+- **Diff entre archivos arbitrarios:** Selecciona dos archivos cualesquiera en el explorador y compáralos lado a lado al instante sin necesidad de commits previos.
+- **Diff visual de imágenes:** Inspecciona modificaciones gráficas pixel a pixel mediante algoritmo `pixelmatch`.
 
 ### 6. 🤖 Servidor MCP Integrado de Alto Rendimiento (Model Context Protocol)
-- **Tu conocimiento al servicio de la IA:** Conecta agentes de IA (Claude Code, Google Antigravity, Cursor, Windsurf, Roo Code, etc.) directamente a tu bóveda personal como un servidor MCP nativo.
-- **Búsqueda Cognitiva por Sub-tags Jerárquicos:** Los agentes pueden filtrar notas con etiquetas jerárquicas como `#linux/cachyos` buscando directamente por tags raíz o sub-etiquetas (`tags: ["cachyos"]`), obteniendo snippets inmediatos y conteo de tokens sin descargas innecesarias.
-- **Lectura Eficiente y Ahorro Masivo de Tokens:** Soporte para lectura de tabla de contenidos (`outline_only: true`) calculada en tiempo real (< 0.5 ms en Rust) y extracción quirúrgica por sección (`section`). Los LLMs consumen una fracción de contexto y tiempo de respuesta sin desincronización de caché.
-- **Edición Quirúrgica Tolerante y Concurrencia Optimista (OCC):** `patch_note` con verificación por hash criptográfico y anclaje difuso tolerante a espacios y saltos de línea (CRLF/LF), evitando colisiones y errores de edición entre el usuario y la IA.
+- **Tu conocimiento al servicio de la IA:** Conecta asistentes y agentes de IA (Claude Code, Google Antigravity, Cursor, Windsurf, Roo Code, etc.) directamente a tu bóveda personal mediante un servidor MCP nativo de alto rendimiento.
+- **Concurrencia Optimista (OCC) y Edición Segura:** `write_note` y `patch_note` exigen `expected_hash` u `overwrite: true` explícito, impidiendo que agentes de IA sobrescriban o pisen notas inadvertidamente.
+- **Búsqueda Jerárquica por Sub-tags:** Filtra notas por etiquetas jerárquicas (`#linux/cachyos`), extrayendo snippets y estimaciones de tokens al vuelo.
+- **Lectura Quirúrgica y Ahorro Masivo de Tokens:** Lectura ultrarrápida del índice de contenidos (`outline_only: true`) y extracción por sección individual (`section`), ahorrando hasta un 90% de contexto a los LLMs.
+- **Persistencia inteligente de sesión:** El servidor MCP recuerda su activación por bóveda y se reactiva automáticamente entre sesiones de trabajo.
 
 ### 7. 🔌 Ecosistema Extensible: Plugins Comunitarios de Obsidian
-- **No empiezas de cero:** Explora, instala y ejecuta plugins directamente desde el catálogo oficial de la comunidad de Obsidian.
-- **Caché inteligente de doble nivel:** Navegación fluida por el catálogo sin saturar la red ni bloquear el trabajo.
+- **Compatibilidad con plugins:** Explora, instala y ejecuta extensiones creadas para Obsidian mediante una fachada nativa compatible de su API.
+- **Filtro "Solo compatibles":** Navega de forma segura por el catálogo destacando extensiones verificadas y testeadas rigurosamente.
 
-### 8. ⌨️ Diseñado para la Productividad de Teclado
-- **Modo VIM nativo:** Actívalo y desactívalo al vuelo desde la barra de estado para una edición táctil y precisa.
-- **Paleta de Comandos Unificada (Ctrl+P):** Controla toda la aplicación sin levantar las manos del teclado.
-- **Modo Standalone:** ¿Solo quieres editar un archivo `.md` o `.excalidraw` suelto en tu disco? Ábrelo directamente sin verte forzado a crear un workspace.
+### 8. ⌨️ Diseñado para la Máxima Ergonomía de Teclado
+- **Modo VIM nativo:** Toggle instantáneo desde la barra de estado o atajo rápido, con soporte de comandos de navegación, búsqueda (`/`), rehacer (`Ctrl+R`) y plegado por niveles (`zc`, `zo`, `za`, `zM`, `zR`).
+- **Autocompletado inteligente del documento:** Sugerencias basadas en palabras y símbolos ya escritos en la nota o diagrama actual.
+- **Paleta de Comandos y Atajos Personalizables:** Configura cada acción en `shortcuts.jsonc` preservando comentarios y formato.
+- **Zoom tipográfico interactivo:** Ajusta el tamaño de fuente al vuelo con `Ctrl + Rueda`, `Ctrl + +`, `Ctrl + -` y `Ctrl + 0`.
+- **Modo Standalone:** Edita archivos individuales `.md`, `.d2`, `.puml` o `.excalidraw` sueltos en tu disco sin necesidad de abrir o crear un workspace.
 
 ---
 
@@ -67,11 +83,15 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 | **Velocidad de Arranque** | **Instantánea (< 0.2s)** | 2 - 5s | Lenta (depende de red) | 3 - 6s | 2 - 4s |
 | **Soberanía / Local-First** | **100% Local / Zero Lock-in** | Local-First | En la nube (Propietario) | Local-First | Local-First |
 | **Búsqueda en PDFs y DOCX** | **Nativa en Rust (Tantivy)** | Requiere Plugins | Indexado en nube | Básico | Requiere Extensiones |
+| **Filtros Avanzados (`kind:`, `hs:`)** | **Nativo en Quick Open & FTS** | Plugins de terceros | Búsqueda básica | Básico | Con extensiones |
 | **Diagramas Mermaid Interactivos** | **Nativo + Puntero Láser** | Básico (estático) | Básico | Básico | Con extensiones |
+| **Diagramas D2 y PlantUML** | **Nativo con autocompletado y exportación** | Vía Plugins | No | No | Vía Plugins |
 | **Lienzo Excalidraw Integrado** | **Nativo (.excalidraw.md)** | Vía Plugin | No | Vía Plugin | Con extensiones |
 | **Git Nativo Integrado** | **Puro Rust (`gix`)** | Requiere Git CLI | No | Vía Git local | Requiere Git CLI |
-| **Servidor MCP Nativo (AI Ready)** | **Sí (Sub-tags, OCC, Outline & Snippets)** | Requiere Plugins de terceros | No | No | Vía extensiones |
-| **Modo VIM al vuelo** | **Sí (Toggle instantáneo)** | Sí (Configuración) | No | Experimental | Vía extensión |
+| **Comparación de Archivos (Diff)** | **Nativa (2 archivos o Git)** | Vía Plugins | No | No | Nativa |
+| **Servidor MCP Nativo (AI Ready)** | **Sí (OCC, Sub-tags, Outline & Snippets)** | Requiere Plugins de terceros | No | No | Vía extensiones |
+| **Modo VIM al vuelo** | **Sí (Toggle instantáneo + Plegado)** | Sí (Configuración) | No | Experimental | Vía extensión |
+| **Atajos personalizables (JSONC)** | **Sí (`shortcuts.jsonc`)** | Sí (GUI) | Limitado | Sí | Sí (`keybindings.json`) |
 | **Modo Archivo Único (Standalone)** | **Sí (Abre archivos sueltos)** | No (Exige Vault) | No | No (Exige Grafo) | Sí |
 | **Distribución Portable** | **Binario Único sin instalador** | Instalador/AppImage | Instalador | Instalador/AppImage | Instalador/Tarball |
 
@@ -80,24 +100,37 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 ## 🛠️ Características Detalladas
 
 ### 🗂️ 1. Navegación y Gestión de Espacios de Trabajo
-- **Multipestaña inteligente:** Abre notas, diagramas, imágenes y documentos en pestañas paralelas con estado de cambios sin guardar (`*`).
-- **Navegación Fluida por Breadcrumbs:** Haz clic en cualquier nivel de la ruta superior para desplegar y revelar automáticamente el árbol del directorio en el explorador lateral.
+- **Multipestaña inteligente y Pestaña Vacía con Quick Search:** Abre notas, diagramas, imágenes y documentos en pestañas paralelas con control de estado sucio (`*`). Las pestañas vacías ofrecen acceso inmediato al buscador `Ctrl+O` y personalización visual con fondo configurable.
+- **Explorador Virtualizado:** Navega fluidamente por bóvedas con decenas de miles de archivos gracias al renderizado virtualizado de filas.
+- **Navegación Fluida por Breadcrumbs:** Haz clic en cualquier nivel de la ruta superior para desplegar y revelar automáticamente el árbol del directorio en el explorador lateral, o acceder a acciones Git directas.
+- **Operaciones de Archivo Ágiles:** Corta, copia y mueve con `Ctrl+X` y `Ctrl+V`, renombra al vuelo con `Shift+F6` o compara archivos seleccionados desde el menú contextual.
 - **Áreas de arrastre de ventana integradas:** Experiencia de escritorio moderna con soporte de maximizado con doble clic y áreas de arrastre nativas de Tauri (`data-tauri-drag-region`).
 - **Workspaces Recientes:** Pantalla de bienvenida con acceso rápido a proyectos recientes, clonación directa de repositorios Git y creación guiada de vaults.
 
 ### 📝 2. Suite de Edición Integral
-- **Markdown Multi-Modo:** Conmutación fluida entre modo edición y modo vista previa renderizada.
-- **Diagramación como Código:** Sintaxis Mermaid coloreada con CodeMirror 6, visualización en tiempo real y herramientas de presentación interactiva con puntero láser.
-- **Lienzos Creativos:** Integración profunda con el motor de Excalidraw para arquitectura de sistemas, diagramas libres y notas visuales.
+- **Markdown Multi-Modo y Transclusión de Secciones:**
+  - Alterna entre edición y lectura con `F2`.
+  - Navega a encabezados exactos con `[[nota#Título]]`.
+  - Incrusta y transcluye secciones completas de otras notas con `![[nota#Título]]`, expandiendo enlaces anidados de forma automática y segura.
+  - Panel interactivo de propiedades frontmatter en modo lectura con soporte de etiquetas y listas en línea.
+- **Diagramación como Código Multilenguaje:**
+  - Sintaxis Mermaid, D2 y PlantUML con autocompletado contextual y sugerencias de palabras del propio documento.
+  - Plegado de código entre llaves en diagramas para mantener el orden mental.
+  - Exportación directa a PNG y SVG con el tema visual activo.
+- **Lienzos Creativos con Excalidraw:** Integración profunda con el motor de Excalidraw para arquitectura de sistemas, diagramas libres y notas visuales.
 - **Visor Multimedia y de Documentos:**
   - Lector embebido de PDFs de alta fidelidad.
   - Visor de imágenes con soporte de diff visual pixel a pixel (`pixelmatch`) para ver cambios en diseños gráficos.
   - Integración nativa con visor externo del sistema operativo para hojas de cálculo Excel y documentos Word.
 
-### ⚡ 3. Núcleo Tecnológico de Vanguardia
+### ⚙️ 3. Panel de Configuración y Personalización
+- **Configuración Centralizada:** Ajusta temas visuales (claro/oscuro), idioma de interfaz, tamaño base de tipografía, servidores de renderizado externo (PlantUML) y comportamiento del modo Vim.
+- **Atajos de Teclado Modulares (`shortcuts.jsonc`):** Atajos editables directamente desde el panel o mediante archivo de configuración con soporte para múltiples combinaciones por comando y preservación de comentarios.
+
+### ⚡ 4. Núcleo Tecnológico de Vanguardia
 - **Frontend con Svelte 5 (Runes):** Cero overhead de Virtual DOM; reactividad pura a nivel de compilador para transiciones instantáneas y una interfaz fluida a 120 FPS.
 - **Feature-Sliced Design (FSD):** Arquitectura frontend altamente estructurada en capas (`app`, `pages`, `widgets`, `features`, `entities`, `shared`), facilitando una base de código limpia y libre de acoplamientos indeseados.
-- **Onion Architecture en Rust:** Backend limpio dividido en Dominio, Casos de Uso y Adaptadores de Infraestructura, garantizando estabilidad y testabilidad de clase mundial.
+- **Onion Architecture en Rust:** Backend limpio dividido en Dominio, Casos de Uso y Adaptadores de Infraestructura, garantizando estabilidad, desacoplamiento y testabilidad de clase mundial.
 - **Bun como Entorno de Ejecución:** Tiempos de empaquetado, resolución de dependencias y comprobación de tipos ultrarrápidos.
 
 ---
@@ -105,16 +138,16 @@ Synapse combina la potencia, seguridad de memoria y velocidad extrema de **Rust*
 ## 🎯 ¿Para quién es Synapse?
 
 ### 💻 Desarrolladores de Software y DevOps
-Gestiona tus notas técnicas, specs de producto, diagramas de arquitectura de sistemas y *cheat sheets* directamente sincronizados con tus repositorios Git, sin salir de tu flujo de trabajo de teclado y VIM.
+Gestiona tus notas técnicas, specs de producto, diagramas de arquitectura de sistemas (Mermaid, D2, PlantUML) y *cheat sheets* directamente sincronizados con tus repositorios Git, sin salir de tu flujo de trabajo de teclado y VIM.
 
 ### 🏗️ Arquitectos de Soluciones y Tech Leads
-Diseña y documenta flujos complejos usando Mermaid y Excalidraw, presenta diagramas a stakeholders usando el modo interactivo con puntero láser, y mantén decisiones de diseño (ADRs) bajo control de versiones.
+Diseña y documenta flujos complejos usando Mermaid, D2, PlantUML y Excalidraw; presenta diagramas a stakeholders usando el modo interactivo con puntero láser, y mantén decisiones de diseño (ADRs) bajo control de versiones.
 
 ### 🔬 Investigadores, Académicos y Estudiantes
-Almacena cientos de papers en PDF, guías y notas Markdown. Usa la búsqueda Full-Text en Rust para encontrar citas, conceptos y términos específicos en milisegundos a través de todo tu archivo documental.
+Almacena cientos de papers en PDF, guías y notas Markdown. Usa la búsqueda Full-Text en Rust y los filtros por encabezados (`hs:`) y tipo (`kind:pdf`) para encontrar citas, conceptos y términos específicos en milisegundos a través de todo tu archivo documental.
 
 ### ✍️ Creadores y Escritores Técnicos
-Disfruta de un entorno limpio, libre de distracciones, con atajos rápidos, guardado automático configurable y un tema oscuro pulido que cuida tu vista en sesiones prolongadas.
+Disfruta de un entorno limpio, libre de distracciones, con enlaces transclusivos a secciones (`![[nota#Título]]`), atajos rápidos, guardado automático configurable y un tema oscuro pulido que cuida tu vista en sesiones prolongadas.
 
 ---
 
