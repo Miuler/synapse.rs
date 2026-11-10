@@ -245,6 +245,113 @@ impl WorkspaceRegistryRepositoryImpl {
     }
 }
 
+/// Fin (exclusivo) de la cadena JSON que empieza en `start` (en la comilla de apertura).
+fn json_string_end(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut i = start + 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'"' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Salta espacios y comentarios `//` y `/* */` desde `i`.
+fn skip_jsonc_trivia(text: &str, mut i: usize) -> usize {
+    let bytes = text.as_bytes();
+    loop {
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if text[i..].starts_with("//") {
+            i = text[i..].find('\n').map_or(text.len(), |n| i + n);
+        } else if text[i..].starts_with("/*") {
+            i = text[i + 2..].find("*/").map_or(text.len(), |n| i + 2 + n + 2);
+        } else {
+            return i;
+        }
+    }
+}
+
+/// Busca la clave `key` dentro del objeto que empieza en `from` (su `{`), ignorando objetos
+/// anidados, cadenas y comentarios. Devuelve la posición del valor.
+fn find_jsonc_key_value(text: &str, from: usize, key: &str) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut depth = 0usize;
+    let mut i = from;
+    while i < bytes.len() {
+        i = skip_jsonc_trivia(text, i);
+        if i >= bytes.len() {
+            break;
+        }
+        match bytes[i] {
+            b'{' | b'[' => {
+                depth += 1;
+                i += 1;
+            }
+            b'}' | b']' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return None;
+                }
+                i += 1;
+            }
+            b'"' => {
+                let end = json_string_end(text, i)?;
+                let is_key = text[skip_jsonc_trivia(text, end)..].starts_with(':');
+                if depth == 1 && is_key && &text[i + 1..end - 1] == key {
+                    let colon = skip_jsonc_trivia(text, end);
+                    return Some(skip_jsonc_trivia(text, colon + 1));
+                }
+                i = end;
+            }
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Reemplaza (o añade) `section.action` en un JSONC conservando el resto del texto.
+pub(crate) fn set_jsonc_shortcut(
+    raw: &str,
+    section: &str,
+    action: &str,
+    value: &str,
+) -> Result<String, String> {
+    let root = skip_jsonc_trivia(raw, 0);
+    if !raw[root..].starts_with('{') {
+        return Err("shortcuts.jsonc no contiene un objeto".to_string());
+    }
+    let section_start = find_jsonc_key_value(raw, root, section)
+        .filter(|&p| raw[p..].starts_with('{'))
+        .ok_or_else(|| format!("shortcuts.jsonc no tiene la sección \"{section}\""))?;
+    let encoded = serde_json::to_string(value).map_err(|e| e.to_string())?;
+
+    if let Some(value_start) = find_jsonc_key_value(raw, section_start, action) {
+        if !raw[value_start..].starts_with('"') {
+            return Err(format!("El atajo \"{action}\" no es una cadena"));
+        }
+        let value_end = json_string_end(raw, value_start)
+            .ok_or_else(|| "Cadena sin cerrar en shortcuts.jsonc".to_string())?;
+        return Ok(format!("{}{}{}", &raw[..value_start], encoded, &raw[value_end..]));
+    }
+
+    let line_start = raw[..section_start].rfind('\n').map_or(0, |n| n + 1);
+    let indent: String = raw[line_start..]
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .collect();
+    let encoded_key = serde_json::to_string(action).map_err(|e| e.to_string())?;
+    Ok(format!(
+        "{}\n{indent}  {encoded_key}: {encoded},{}",
+        &raw[..section_start + 1],
+        &raw[section_start + 1..]
+    ))
+}
+
 impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
     fn load_registry(&self) -> Result<WorkspaceRegistryConfig, String> {
         self.ensure_dir_exists()?;
@@ -447,6 +554,19 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
 
         Ok(AppConfig::default().shortcuts)
     }
+
+    fn save_shortcut(&self, section: &str, action: &str, value: &str) -> Result<ShortcutsConfig, String> {
+        self.load_shortcuts_config()?;
+        let path = self.shortcuts_file_path();
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|e| format!("No se pudo leer {}: {e}", path.display()))?;
+        let updated = set_jsonc_shortcut(&raw, section, action, value)?;
+        let parsed = serde_json_lenient::from_str::<ShortcutsConfig>(&updated)
+            .map_err(|e| format!("El cambio dejaría shortcuts.jsonc inválido: {e}"))?;
+        std::fs::write(&path, updated)
+            .map_err(|e| format!("No se pudo guardar {}: {e}", path.display()))?;
+        Ok(parsed)
+    }
 }
 
 #[cfg(test)]
@@ -455,6 +575,24 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_set_jsonc_shortcut_keeps_comments() {
+        let raw = "{\n  // Pantalla de bienvenida\n  \"welcome\": {\n    \"open_folder\": \"Ctrl+Shift+O\" // carpeta\n  },\n  \"workspace\": {\n    /* \"quick_open\": \"x\" */\n    \"quick_open\": \"Ctrl+O\",\n    \"close_tab\": \"Ctrl+W\"\n  }\n}\n";
+        let updated = set_jsonc_shortcut(raw, "workspace", "quick_open", "Ctrl+O, Alt+O").unwrap();
+        assert!(updated.contains("\"quick_open\": \"Ctrl+O, Alt+O\","));
+        assert!(updated.contains("/* \"quick_open\": \"x\" */"));
+        assert!(updated.contains("// Pantalla de bienvenida"));
+        assert!(updated.contains("\"open_folder\": \"Ctrl+Shift+O\" // carpeta"));
+
+        let added = set_jsonc_shortcut(&updated, "workspace", "zoom_in", "Ctrl+=").unwrap();
+        assert!(added.contains("\"workspace\": {\n    \"zoom_in\": \"Ctrl+=\","), "{added}");
+        let json: serde_json::Value = serde_json_lenient::from_str(&added).unwrap();
+        assert_eq!(json["workspace"]["zoom_in"], "Ctrl+=");
+        assert_eq!(json["welcome"]["open_folder"], "Ctrl+Shift+O");
+
+        assert!(set_jsonc_shortcut(raw, "otra", "quick_open", "Ctrl+O").is_err());
+    }
 
     #[test]
     fn test_workspace_registry_crud_and_persistence() {

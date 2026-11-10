@@ -24,6 +24,10 @@
     onSelectFile?: (path: string, matchedTerms?: string[]) => void;
     onRevealFolder?: (folderPath: string) => void;
     onClose?: () => void;
+    /** Se muestra dentro de la página (sin diálogo) y la lista solo aparece al escribir. */
+    inline?: boolean;
+    /** En modo `inline`, pone el foco en el campo cuando pasa a `true`. */
+    focusOnActive?: boolean;
   }
 
   let {
@@ -32,8 +36,17 @@
     recentFiles = [],
     onSelectFile,
     onRevealFolder,
-    onClose
+    onClose,
+    inline = false,
+    focusOnActive = false
   }: Props = $props();
+
+  let inlineRootEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!inline || !focusOnActive || !inlineRootEl) return;
+    const input = inlineRootEl.querySelector<HTMLInputElement>('input');
+    queueMicrotask(() => input?.focus());
+  });
 
   // Elementos de la bóveda desde el store de la entidad (fuente única)
   const vaultItems = $derived(vaultItemStore.items);
@@ -538,6 +551,10 @@
   }
 
   function handleKeydownRoot(e: KeyboardEvent) {
+    if (inline && e.key === 'Escape') {
+      searchQuery = '';
+      return;
+    }
     if (e.key === 'ArrowDown' && visibleCount < allCandidates.length) {
       const highlighted = listContainerEl?.querySelector('[data-highlighted], [data-selected]');
       if (highlighted && highlighted.nextElementSibling === null) {
@@ -571,7 +588,7 @@
   }
 
   function closeDialog() {
-    isOpen = false;
+    if (!inline) isOpen = false;
     searchQuery = '';
     visibleCount = PAGE_SIZE;
     if (onClose) onClose();
@@ -583,44 +600,7 @@
   }
 </script>
 
-<Dialog.Root
-  open={isOpen}
-  onOpenChange={(open) => {
-    isOpen = open;
-    if (!open) {
-      closeDialog();
-    }
-  }}
->
-  <Dialog.Portal>
-    <Dialog.Overlay class="quick-open-backdrop" />
-    <Dialog.Content
-      class={`quick-open-container ${isResizing ? 'is-resizing' : ''}`}
-      style="width: {dialogWidth}px; height: {dialogHeight}px;"
-    >
-      <!-- Handles de redimensionamiento desde las 4 esquinas y 4 bordes -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner nw" onpointerdown={(e) => startResize(e, 'nw')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner ne" onpointerdown={(e) => startResize(e, 'ne')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner sw" onpointerdown={(e) => startResize(e, 'sw')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner se" onpointerdown={(e) => startResize(e, 'se')}>
-        <svg class="corner-grip-icon" viewBox="0 0 10 10" width="10" height="10">
-          <path d="M9 1L1 9 M9 5L5 9 M9 9L9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge n" onpointerdown={(e) => startResize(e, 'n')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge s" onpointerdown={(e) => startResize(e, 's')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge e" onpointerdown={(e) => startResize(e, 'e')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge w" onpointerdown={(e) => startResize(e, 'w')}></div>
-
-      <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
+{#snippet searchBody()}
       <Command.Root
         bind:value={selectedCommandValue}
         class="quick-open-command-root"
@@ -657,6 +637,7 @@
           {/snippet}
         </SearchBox>
 
+        {#if !inline || hasQuery}
         <Command.List
           bind:ref={listContainerEl}
           class="quick-open-results-container"
@@ -910,10 +891,62 @@
             {/if}
           </div>
         </footer>
+        {/if}
       </Command.Root>
+{/snippet}
+
+{#if inline}
+  <div
+    class="quick-open-container is-inline"
+    class:has-query={hasQuery}
+    bind:this={inlineRootEl}
+  >
+    {@render searchBody()}
+  </div>
+{:else}
+<Dialog.Root
+  open={isOpen}
+  onOpenChange={(open) => {
+    isOpen = open;
+    if (!open) {
+      closeDialog();
+    }
+  }}
+>
+  <Dialog.Portal>
+    <Dialog.Overlay class="quick-open-backdrop" />
+    <Dialog.Content
+      class={`quick-open-container ${isResizing ? 'is-resizing' : ''}`}
+      style="width: {dialogWidth}px; height: {dialogHeight}px;"
+    >
+      <!-- Handles de redimensionamiento desde las 4 esquinas y 4 bordes -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle corner nw" onpointerdown={(e) => startResize(e, 'nw')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle corner ne" onpointerdown={(e) => startResize(e, 'ne')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle corner sw" onpointerdown={(e) => startResize(e, 'sw')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle corner se" onpointerdown={(e) => startResize(e, 'se')}>
+        <svg class="corner-grip-icon" viewBox="0 0 10 10" width="10" height="10">
+          <path d="M9 1L1 9 M9 5L5 9 M9 9L9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle edge n" onpointerdown={(e) => startResize(e, 'n')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle edge s" onpointerdown={(e) => startResize(e, 's')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle edge e" onpointerdown={(e) => startResize(e, 'e')}></div>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="resize-handle edge w" onpointerdown={(e) => startResize(e, 'w')}></div>
+
+      <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
+      {@render searchBody()}
     </Dialog.Content>
   </Dialog.Portal>
 </Dialog.Root>
+{/if}
 
 <style>
   :global(.sr-only) {
@@ -967,6 +1000,26 @@
     z-index: 1001;
     outline: none;
     animation: slideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Variante dentro de la página (pestaña vacía) */
+  :global(.quick-open-container.is-inline) {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 0;
+    max-height: 60vh;
+    z-index: auto;
+    animation: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  :global(.quick-open-container.is-inline.has-query) {
+    height: 60vh;
   }
 
   :global(.quick-open-container.is-resizing) {

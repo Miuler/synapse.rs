@@ -1,19 +1,64 @@
 <script lang="ts">
   import { Button } from 'bits-ui';
-  import { FileText, Plus } from 'lucide-svelte';
+  import { FileText, Plus, ImagePlus, ImageOff } from 'lucide-svelte';
+  import { convertFileSrc } from '@tauri-apps/api/core';
+  import { appSettings } from '@entities/settings';
+  import { QuickOpen } from '@widgets/quick-open';
+  import { invokeTauri } from '@shared/repositories/tauri';
 
   interface Props {
     hasVaultItems?: boolean;
     onCreateNew?: () => void;
+    /** Pestaña visible: el buscador toma el foco al activarse. */
+    active?: boolean;
+    recentFiles?: string[];
+    onSelectFile?: (path: string, matchedTerms?: string[]) => void;
+    onRevealFolder?: (folderPath: string) => void;
   }
 
   let {
     hasVaultItems = true,
-    onCreateNew
+    onCreateNew,
+    active = true,
+    recentFiles = [],
+    onSelectFile,
+    onRevealFolder
   }: Props = $props();
+
+  let searchQuery = $state('');
+  let wallpaperUrl = $derived(appSettings.wallpaper ? convertFileSrc(appSettings.wallpaper) : null);
+
+  async function chooseWallpaper() {
+    try {
+      const path = await invokeTauri<string | null>('pick_image_file');
+      if (path) appSettings.setWallpaper(path);
+    } catch (err) {
+      console.warn('No se pudo elegir el fondo:', err);
+    }
+  }
 </script>
 
-<div class="empty-workspace">
+<div
+  class="empty-workspace"
+  class:has-wallpaper={!!wallpaperUrl}
+  class:has-search-open={searchQuery.trim().length > 0}
+  style={wallpaperUrl ? `--wallpaper: url("${wallpaperUrl}")` : undefined}
+>
+  {#if hasVaultItems && onSelectFile}
+    <div class="empty-search">
+      <QuickOpen
+        inline
+        isOpen={true}
+        focusOnActive={active}
+        bind:searchQuery
+        {recentFiles}
+        {onSelectFile}
+        {onRevealFolder}
+      />
+    </div>
+  {/if}
+
+  <div class="empty-message">
   <FileText
     class="empty-icon"
     size={56}
@@ -35,17 +80,35 @@
       <span>Crear nuevo archivo</span>
     </Button.Root>
   {/if}
+  </div>
+
+  <div class="wallpaper-actions">
+    <button type="button" class="wallpaper-btn" onclick={chooseWallpaper} title="Cambiar el fondo de la pestaña vacía">
+      <ImagePlus size={14} />
+      <span>Cambiar fondo</span>
+    </button>
+    {#if appSettings.wallpaper}
+      <button type="button" class="wallpaper-btn" onclick={() => appSettings.setWallpaper(undefined)} title="Quitar el fondo">
+        <ImageOff size={14} />
+        <span>Quitar</span>
+      </button>
+    {/if}
+  </div>
 </div>
 
 <style>
   .empty-workspace {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     height: 100%;
     width: 100%;
     gap: 12px;
+    padding: 12vh 24px 24px;
+    box-sizing: border-box;
+    overflow: hidden;
     color: var(--text-secondary, #656d76);
     text-align: center;
     user-select: none;
@@ -56,6 +119,63 @@
     height: 56px;
     color: var(--border-primary, #d0d7de);
     margin-bottom: 8px;
+  }
+
+  .empty-workspace.has-wallpaper {
+    background-image: var(--wallpaper);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .empty-search {
+    width: min(640px, 100%);
+    z-index: 1;
+  }
+
+  .empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6vh;
+  }
+
+  /* Con fondo, el texto va sobre una tarjeta para que se lea */
+  .has-wallpaper .empty-message {
+    padding: 20px 28px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg-primary, #ffffff) 82%, transparent);
+    backdrop-filter: blur(6px);
+  }
+
+  .has-search-open .empty-message {
+    display: none;
+  }
+
+  .wallpaper-actions {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .wallpaper-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+    background: color-mix(in srgb, var(--bg-primary, #ffffff) 85%, transparent);
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .wallpaper-btn:hover {
+    color: var(--text-primary, #1f2328);
+    border-color: var(--accent, #0969da);
   }
 
   .empty-workspace h2 {

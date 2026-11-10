@@ -19,6 +19,8 @@ export interface AppSettings {
   propertiesViewMode: PropertiesViewMode;
   plantumlServer: string;
   contentZoom: number;
+  /** Ruta absoluta de la imagen de fondo de la pestaña vacía. */
+  wallpaper?: string;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -72,6 +74,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.propertiesViewMode === 'expanded' || parsed.propertiesViewMode === 'collapsed' || parsed.propertiesViewMode === 'hidden') {
         settings.propertiesViewMode = parsed.propertiesViewMode;
+      }
+      if (typeof parsed.wallpaper === 'string' && parsed.wallpaper.trim().length > 0) {
+        settings.wallpaper = parsed.wallpaper.trim();
       }
       if (typeof parsed.plantumlServer === 'string' && /^https?:\/\//i.test(parsed.plantumlServer.trim())) {
         settings.plantumlServer = parsed.plantumlServer.trim();
@@ -264,6 +269,19 @@ class SettingsManager {
     if (next === this.settings.contentZoom) return;
     this.settings = { ...this.settings, contentZoom: next };
     this.persist();
+  }
+
+  get wallpaper(): string | undefined {
+    return this.settings.wallpaper;
+  }
+
+  setWallpaper(path: string | undefined) {
+    this.settings = { ...this.settings, wallpaper: path?.trim() || undefined };
+    this.persist();
+  }
+
+  get plantumlServer(): string {
+    return this.settings.plantumlServer;
   }
 
   get vimMode(): boolean {

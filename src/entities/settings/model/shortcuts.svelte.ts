@@ -231,6 +231,15 @@ class ShortcutsConfigManager {
     })();
     return this.loadPromise;
   }
+
+  /** Guarda un atajo en `shortcuts.jsonc` (conserva sus comentarios) y lo aplica. */
+  async save(section: keyof ShortcutsConfig, action: string, value: string): Promise<void> {
+    const saved = await invokeTauri<ShortcutsConfig>('save_shortcut', { section, action, value });
+    this.config = {
+      welcome: { ...DEFAULT_SHORTCUTS_CONFIG.welcome, ...saved.welcome },
+      workspace: { ...DEFAULT_SHORTCUTS_CONFIG.workspace, ...saved.workspace },
+    };
+  }
 }
 
 export const shortcutsConfig = new ShortcutsConfigManager();

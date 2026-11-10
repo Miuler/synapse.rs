@@ -9,6 +9,7 @@
   import {QuickOpen} from "@widgets/quick-open";
   import {FullTextSearch} from "@widgets/full-text-search";
   import {EmptyWorkspace} from "@widgets/empty-workspace";
+  import {SettingsPanel} from "@widgets/settings-panel";
   import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
   import {MarkdownViewer, splitNavigationTarget, type HeadingTarget} from "@features/markdown-editor";
@@ -94,6 +95,7 @@
   let quickOpenSearchQuery = $state("");
   let ftsSearchQuery = $state("");
   let isPluginsModalOpen = $state(false);
+  let isSettingsOpen = $state(false);
 
   // Notificación toast rápida en Workspace
   let workspaceToastMessage = $state<string | null>(null);
@@ -3634,6 +3636,8 @@
       }
     } else if (actionId === "welcome") {
       showWelcomeScreen = true;
+    } else if (actionId === "settings") {
+      isSettingsOpen = true;
     }
   }
 
@@ -3869,6 +3873,10 @@
       <EmptyWorkspace
         hasVaultItems={vaultItemStore.count > 0}
         onCreateNew={() => (isRight ? handleNewSplitEmptyTab() : createNewVaultItem())}
+        active={!isQuickOpenOpen}
+        {recentFiles}
+        onSelectFile={handleSelectQuickOpenFile}
+        onRevealFolder={handleBreadcrumbNavigateFolder}
       />
     {:else}
       {#each paneTabs as tabPath (tabPath)}
@@ -3883,6 +3891,10 @@
             <EmptyWorkspace
               hasVaultItems={vaultItemStore.count > 0}
               onCreateNew={() => createNewVaultItem(tabPath)}
+              active={tabPath === activePath && !isQuickOpenOpen}
+              {recentFiles}
+              onSelectFile={handleSelectQuickOpenFile}
+              onRevealFolder={handleBreadcrumbNavigateFolder}
             />
           </div>
         {:else if tabPath.startsWith("diff-files:")}
@@ -4416,6 +4428,8 @@
     bind:searchQuery={ftsSearchQuery}
     onSelectHit={handleSelectFullTextHit}
   />
+
+  <SettingsPanel bind:open={isSettingsOpen} />
 
   <!-- 7. GESTOR Y EXPLORADOR DE PLUGINS DE LA COMUNIDAD DE OBSIDIAN -->
   <CommunityPluginsModal

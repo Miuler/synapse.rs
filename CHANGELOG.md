@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Panel de configuración**: el botón de engranaje del ribbon abre un panel para cambiar el tema, el idioma, el tamaño del texto, el fondo de la pestaña vacía, el modo Vim, las propiedades de la nota, los visores de Mermaid y Excalidraw, el servidor de PlantUML y todos los atajos de teclado. Los atajos se guardan en `shortcuts.jsonc` sin perder sus comentarios.
+- **Pestaña vacía con buscador y fondo**: la pestaña vacía muestra arriba el buscador de `Ctrl+O`, con el foco puesto para empezar a escribir, y permite elegir una imagen de fondo con «Cambiar fondo».
 - **Abreviatura `hs:` para `headings:` en la búsqueda de contenido**, y la guía de búsqueda ahora explica este filtro.
 - **`hs:` y `headings:` también funcionan en Quick Open (`Ctrl+O`)**: buscan en los encabezados sin tener que escribir `?` delante.
 - **Al filtrar por `headings:` o `hs:`, el resultado muestra el encabezado encontrado con formato de título** y, en la línea siguiente, el texto que le sigue. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.

@@ -99,6 +99,33 @@ pub async fn get_shortcuts_config(state: State<'_, AppState>) -> Result<Shortcut
 }
 
 #[tauri::command]
+pub async fn save_shortcut(
+    state: State<'_, AppState>,
+    section: String,
+    action: String,
+    value: String,
+) -> Result<ShortcutsConfig, String> {
+    state.save_shortcut_use_case.execute(
+        crate::application::dto::workspace::save_shortcut_command::SaveShortcutCommand {
+            section,
+            action,
+            value,
+        },
+    )
+}
+
+/// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.
+#[tauri::command]
+pub async fn pick_image_file() -> Result<Option<String>, String> {
+    let file = rfd::AsyncFileDialog::new()
+        .set_title("Seleccionar imagen de fondo")
+        .add_filter("Imágenes", &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"])
+        .pick_file()
+        .await;
+    Ok(file.map(|f| f.path().to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
 pub async fn toggle_pin_workspace(
     state: State<'_, AppState>,
     path: String,
