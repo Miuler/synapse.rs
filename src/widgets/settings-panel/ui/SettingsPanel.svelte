@@ -173,7 +173,7 @@
             </div>
           </div>
           <div class="row wallpaper-row">
-            <span class="row-label">Fondo de la pestaña vacía</span>
+            <span class="row-label">Fondo de la pestaña vacía (de esta bóveda)</span>
             <div class="inline">
               {#if wallpaperUrl}
                 <img class="wallpaper-thumb" src={wallpaperUrl} alt="Fondo actual" />

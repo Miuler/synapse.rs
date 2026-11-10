@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - Fondo por defecto en la pestaña vacía: una imagen para el tema claro y otra para el oscuro, incluidas en la app. Se usan mientras no se elija un fondo propio.
+- El fondo propio de la pestaña vacía ahora es de cada bóveda, no general. El que ya estaba elegido pasa a la bóveda abierta.
 
 - **Explorador: expandir y contraer todo**: dos botones en la cabecera del explorador. Con el filtro de Git activo solo afectan a las carpetas del filtro; al quitarlo, las demás siguen como estaban.
 - **Explorador: archivos borrados**: un archivo borrado que Git todavía tiene sigue apareciendo en el árbol, en rojo y tachado; al hacer clic se abre su diff.

@@ -19,8 +19,8 @@ export interface AppSettings {
   propertiesViewMode: PropertiesViewMode;
   plantumlServer: string;
   contentZoom: number;
-  /** Ruta absoluta de la imagen de fondo de la pestaña vacía. */
-  wallpaper?: string;
+  /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
+  wallpapers?: Record<string, string>;
 }
 
 const STORAGE_KEY = 'synapse_settings';
@@ -75,8 +75,14 @@ function loadInitialSettings(): AppSettings {
       if (parsed.propertiesViewMode === 'expanded' || parsed.propertiesViewMode === 'collapsed' || parsed.propertiesViewMode === 'hidden') {
         settings.propertiesViewMode = parsed.propertiesViewMode;
       }
-      if (typeof parsed.wallpaper === 'string' && parsed.wallpaper.trim().length > 0) {
-        settings.wallpaper = parsed.wallpaper.trim();
+      if (parsed.wallpapers && typeof parsed.wallpapers === 'object') {
+        settings.wallpapers = Object.fromEntries(
+          Object.entries(parsed.wallpapers).filter(([k, v]) => k && typeof v === 'string' && v.trim()),
+        ) as Record<string, string>;
+      }
+      // Antes el fondo era general: pasa a la bóveda que estaba abierta
+      if (typeof parsed.wallpaper === 'string' && parsed.wallpaper.trim() && settings.lastOpenedFolder) {
+        settings.wallpapers = { [settings.lastOpenedFolder]: parsed.wallpaper.trim(), ...settings.wallpapers };
       }
       if (typeof parsed.plantumlServer === 'string' && /^https?:\/\//i.test(parsed.plantumlServer.trim())) {
         settings.plantumlServer = parsed.plantumlServer.trim();
@@ -271,12 +277,19 @@ class SettingsManager {
     this.persist();
   }
 
+  /** Fondo propio de la bóveda abierta, si se eligió uno. */
   get wallpaper(): string | undefined {
-    return this.settings.wallpaper;
+    const vault = this.settings.lastOpenedFolder;
+    return vault ? this.settings.wallpapers?.[vault] : undefined;
   }
 
   setWallpaper(path: string | undefined) {
-    this.settings = { ...this.settings, wallpaper: path?.trim() || undefined };
+    const vault = this.settings.lastOpenedFolder;
+    if (!vault) return;
+    const wallpapers = { ...this.settings.wallpapers };
+    if (path?.trim()) wallpapers[vault] = path.trim();
+    else delete wallpapers[vault];
+    this.settings = { ...this.settings, wallpapers };
     this.persist();
   }
 
