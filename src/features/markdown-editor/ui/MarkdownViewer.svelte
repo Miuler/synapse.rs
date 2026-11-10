@@ -132,7 +132,7 @@
 
   // Título actual según el scroll: se calcula como mucho una vez por cuadro y solo se avisa si cambia.
   let wrapperRef = $state<HTMLDivElement | null>(null);
-  let flatHeadings = $derived(onHeadingLineChange && isMarkdown ? flattenHeadings(extractHeadingTree(content)) : []);
+  let flatHeadings = $derived(isMarkdown ? flattenHeadings(extractHeadingTree(content)) : []);
   let headingFrame = 0;
   let lastHeadingLine: number | null = null;
 
@@ -166,10 +166,53 @@
     return line;
   }
 
+  // Primer bloque visible en lectura: al pasar a edición, el cursor va a esa línea del archivo.
+  let readingAnchor: { headingLine: number; text: string } | null = null;
+
+  function captureReadingAnchor() {
+    const root = wrapperRef?.querySelector('.markdown-body');
+    if (!root || !wrapperRef) return;
+    const top = wrapperRef.getBoundingClientRect().top + 4;
+    for (const block of root.children) {
+      if (block.getBoundingClientRect().bottom <= top) continue;
+      const text = (block.textContent ?? '').trim().split('\n')[0].trim();
+      readingAnchor = { headingLine: currentHeadingLine(), text };
+      return;
+    }
+  }
+
+  /** Línea (base 0) del archivo donde está el texto del bloque, buscando desde su título. */
+  function findAnchorLine(lines: string[], anchor: { headingLine: number; text: string }): number {
+    const wanted = normalizeHeadingText(anchor.text).slice(0, 40);
+    const start = Math.max(0, anchor.headingLine);
+    if (wanted) {
+      for (let i = start; i < lines.length; i++) {
+        if (normalizeHeadingText(lines[i]).includes(wanted)) return i;
+      }
+    }
+    return start;
+  }
+
+  function placeCursorAtReadingAnchor() {
+    const anchor = readingAnchor;
+    if (!editorView || !anchor) return;
+    const doc = editorView.state.doc;
+    const lines = doc.toString().split('\n');
+    const index = findAnchorLine(lines, anchor);
+    if (index === 0 && anchor.headingLine < 0 && !anchor.text) return;
+    const line = doc.line(Math.min(index + 1, doc.lines));
+    editorView.dispatch({
+      selection: { anchor: line.from },
+      effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 8 }),
+    });
+  }
+
   function scheduleHeadingUpdate() {
-    if (!onHeadingLineChange || headingFrame) return;
+    if (headingFrame || (!onHeadingLineChange && viewMode !== 'reading')) return;
     headingFrame = requestAnimationFrame(() => {
       headingFrame = 0;
+      if (viewMode === 'reading') captureReadingAnchor();
+      if (!onHeadingLineChange) return;
       const line = currentHeadingLine();
       if (line !== lastHeadingLine) {
         lastHeadingLine = line;
@@ -1027,8 +1070,11 @@
   });
 
   // Reaccionar a cambios en viewMode (Modo Fuente vs Modo Vista Previa vs Modo Lectura)
+  let previousViewMode: MarkdownViewMode | null = null;
   $effect(() => {
     const mode = viewMode;
+    const fromReading = previousViewMode === 'reading' && mode !== 'reading';
+    previousViewMode = mode;
     if (editorView) {
       editorView.dispatch({
         effects: viewModeCompartment.reconfigure(getActiveExtensions(mode)),
@@ -1036,6 +1082,8 @@
       if (mode !== 'reading') {
         tick().then(() => {
           editorView?.requestMeasure();
+          // Viniendo de lectura: el cursor en la primera línea que se estaba viendo
+          if (fromReading) requestAnimationFrame(() => placeCursorAtReadingAnchor());
           focusEditorIfEditable();
         });
       }

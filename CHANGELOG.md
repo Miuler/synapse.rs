@@ -14,6 +14,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Filtro de Git completo**: con el filtro de Git el explorador muestra todo lo que entraría en un commit (sin seguimiento, modificado, añadido o borrado), aunque sea un tipo de archivo que normalmente no se ve en el explorador.
 - **Índice de la nota**: al hacer clic en el título de una nota Markdown (o en el botón de índice a su lado) se abre un índice con todos sus títulos y subtítulos, contraído por defecto (solo se ven los de primer nivel), con botones para expandir y contraer todo; al elegir uno, la nota va a ese título. El índice abre desplegado hasta el título donde estás, que aparece resaltado, y tiene arriba una búsqueda rápida de títulos (Enter va al primero que coincide).
 - **Ubicación en la nota**: junto al título de una nota Markdown, entre paréntesis, se ve la ruta de títulos de la parte que estás viendo (p. ej. `(Inicio › Parte A › Detalle)`), que se actualiza al desplazarte; al hacer clic en un tramo se va a ese título.
+- **De lectura a edición sin perder el sitio**: al pasar del modo lectura a un modo de edición, el cursor queda en la primera línea que se estaba viendo en lectura.
 - **Breadcrumb: copiar ruta completa**: el menú contextual del archivo en el breadcrumb ofrece «Copiar ruta relativa» y «Copiar ruta completa».
 
 ### Corregido
