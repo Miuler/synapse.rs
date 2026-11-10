@@ -9,9 +9,10 @@
   import { ContextMenu } from 'bits-ui';
   import { gitDialogState, gitApi, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile } from '@entities/file-type';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
+  import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
   import { measured } from '@shared/lib/perf-probe';
@@ -103,6 +104,8 @@
     isFolder: boolean;
     item?: VaultItem;
     children: VaultTreeNode[];
+    /** Borrado en disco pero aún en Git: se muestra tachado. */
+    deleted?: boolean;
   }
 
   // Estado de carpetas expandidas (por defecto TODAS colapsadas)
@@ -111,23 +114,25 @@
   // Caché de hijos de carpetas cargados bajo demanda desde Rust DashMap
   let folderChildren = $state<Record<string, VaultTreeNode[]>>({});
 
-  export function getChildren(node: VaultTreeNode): VaultTreeNode[] {
-    return folderChildren[node.relativePath] || node.children || [];
+  function fromGitNode(n: GitTreeNode): VaultTreeNode {
+    return {
+      name: n.name,
+      relativePath: n.relativePath,
+      isFolder: n.isFolder,
+      deleted: n.deleted,
+      children: n.children.map(fromGitNode),
+      item: n.isFolder ? undefined : { id: n.relativePath, title: n.name, relative_path: n.relativePath } as VaultItem,
+    };
   }
 
-  // Orden: carpetas con emoji al inicio, luego el resto de carpetas y archivos.
-  // Dentro de cada grupo, alfabético sin distinguir mayúsculas/minúsculas.
-  const LEADING_EMOJI = /^\p{Extended_Pictographic}/u;
-  function sortSiblings(nodes: VaultTreeNode[]): VaultTreeNode[] {
-    const rank = (node: VaultTreeNode) => {
-      if (node.isFolder && LEADING_EMOJI.test(node.name)) return 0;
-      return node.isFolder ? 1 : 2;
-    };
-    return nodes.sort((a, b) => {
-      const byRank = rank(a) - rank(b);
-      if (byRank !== 0) return byRank;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-    });
+  // Archivos borrados que Git aún tiene (solo los tipos que el explorador muestra)
+  let deletedTree = $derived.by(() =>
+    isGitRepo && gitStatuses ? buildDeletedTree(gitStatuses, getGitStatusInfo, (p) => isSupportedFile(p)) : [],
+  );
+
+  export function getChildren(node: VaultTreeNode): VaultTreeNode[] {
+    const real = folderChildren[node.relativePath] || node.children || [];
+    return mergeDeleted(real, childrenAt(deletedTree, node.relativePath), fromGitNode);
   }
 
   // Si la carga perezosa de la raíz falló, el explorador muestra el árbol armado con la lista plana.
@@ -213,11 +218,48 @@
     }
   });
 
-  async function toggleFolder(folderPath: string) {
+  async function toggleFolder(folderPath: string, deleted = false) {
     const nextState = !expandedFolders[folderPath];
     expandedFolders[folderPath] = nextState;
-    if (nextState && !folderChildren[folderPath]) {
+    if (nextState && !deleted && !(isGitRepo && filterOnlyModifiedGitFiles) && !folderChildren[folderPath]) {
       await loadDirectory(folderPath);
+    }
+    persistExpandedFolders();
+  }
+
+  // Expandir/contraer todo. Con el filtro de Git solo se tocan las carpetas del filtro, así que al
+  // quitarlo las demás siguen como estaban.
+  async function setAllFolders(expand: boolean) {
+    const filtered = isGitRepo && filterOnlyModifiedGitFiles;
+    if (filtered) {
+      const next = { ...expandedFolders };
+      for (const path of collectFolderPaths(gitTree as GitTreeNode[])) next[path] = expand;
+      expandedFolders = next;
+    } else if (!expand) {
+      expandedFolders = {};
+    } else {
+      const nextChildren = { ...folderChildren };
+      const next = { ...expandedFolders };
+      let level = (nextChildren[''] ?? displayTreeNodes).filter((n) => n.isFolder);
+      while (level.length > 0) {
+        const pending = level.filter((n) => !n.deleted && !nextChildren[n.relativePath]);
+        const loaded = isConnectedToRust ? await Promise.all(pending.map((n) => fetchDirectory(n.relativePath))) : [];
+        pending.forEach((n, i) => {
+          const nodes = loaded[i];
+          if (nodes) nextChildren[n.relativePath] = nodes;
+        });
+        const nextLevel: VaultTreeNode[] = [];
+        for (const n of level) {
+          next[n.relativePath] = true;
+          const real = nextChildren[n.relativePath] || n.children || [];
+          const kids = mergeDeleted(real, childrenAt(deletedTree, n.relativePath), fromGitNode);
+          nextLevel.push(...kids.filter((k) => k.isFolder));
+        }
+        level = nextLevel;
+      }
+      for (const path of collectFolderPaths(deletedTree)) next[path] = true;
+      folderChildren = nextChildren;
+      expandedFolders = next;
     }
     persistExpandedFolders();
   }
@@ -286,26 +328,11 @@
   // Filtro de solo archivos con modificaciones Git
   let filterOnlyModifiedGitFiles = $state(false);
 
-  // Set reactivo con las rutas que tienen modificaciones o estado Git relevante
-  let gitModifiedPaths = $derived.by(() => {
-    if (!isGitRepo || !gitStatuses) return new Set<string>();
-    const set = new Set<string>();
-    for (const [path, status] of Object.entries(gitStatuses)) {
-      const info = getGitStatusInfo(status);
-      if (info && (info.worktree || info.index || info.is_stashed)) {
-        const clean = path.replace(/^\.\//, '');
-        set.add(clean);
-        // Agregar también prefijos de carpetas para mantener visibles los ancestros
-        const parts = clean.split('/');
-        let cur = '';
-        for (let i = 0; i < parts.length - 1; i++) {
-          cur = cur ? `${cur}/${parts[i]}` : parts[i];
-          set.add(cur);
-        }
-      }
-    }
-    return set;
-  });
+  // Con el filtro de Git, el árbol sale del estado de Git: todo lo que entraría en un commit,
+  // aunque no sea un tipo de archivo que el explorador muestre normalmente.
+  let gitTree = $derived.by(() =>
+    isGitRepo && gitStatuses ? buildGitTree(gitStatuses, getGitStatusInfo).map(fromGitNode) : [],
+  );
 
   // Conteo de archivos modificados
   let modifiedFilesCount = $derived.by(() => {
@@ -320,41 +347,12 @@
     return count;
   });
 
-  // Función recursiva para filtrar nodos cuando el filtro está activo
-  function filterNodeByGit(node: VaultTreeNode): VaultTreeNode | null {
-    if (node.isFolder) {
-      const children = getChildren(node);
-      const filteredChildren = children
-        .map((child) => filterNodeByGit(child))
-        .filter((child): child is VaultTreeNode => child !== null);
-
-      if (filteredChildren.length > 0 || gitModifiedPaths.has(node.relativePath)) {
-        return {
-          ...node,
-          children: filteredChildren,
-        };
-      }
-      return null;
-    } else {
-      const cleanPath = node.relativePath.replace(/^\.\//, '');
-      const rawStatus = gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[cleanPath]) : undefined;
-      const info = getGitStatusInfo(rawStatus);
-      if (info && (info.worktree || info.index || info.is_stashed)) {
-        return node;
-      }
-      return null;
-    }
-  }
-
   // Helper para obtener los hijos en el render considerando el filtro
   function getDisplayChildren(node: VaultTreeNode): VaultTreeNode[] {
-    const rawChildren = getChildren(node);
     if (!isGitRepo || !filterOnlyModifiedGitFiles) {
-      return rawChildren;
+      return getChildren(node);
     }
-    return rawChildren
-      .map((child) => filterNodeByGit(child))
-      .filter((child): child is VaultTreeNode => child !== null);
+    return node.children;
   }
 
   // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback, y aplica el filtro si está activo
@@ -370,12 +368,9 @@
           : treeNodes;
 
     if (!isGitRepo || !filterOnlyModifiedGitFiles) {
-      return baseNodes;
+      return mergeDeleted(baseNodes, deletedTree, fromGitNode);
     }
-
-    return baseNodes
-      .map((node) => filterNodeByGit(node))
-      .filter((node): node is VaultTreeNode => node !== null);
+    return gitTree;
   });
 
   // Expandir carpetas padres automáticamente SOLO cuando cambia la pestaña activa
@@ -560,7 +555,7 @@
     for (const node of nodes) {
       visible.push(node);
       if (node.isFolder && expandedFolders[node.relativePath]) {
-        visible.push(...getVisibleNodes(getChildren(node)));
+        visible.push(...getVisibleNodes(getDisplayChildren(node)));
       }
     }
     return visible;
@@ -852,7 +847,11 @@
     selectedPaths = [node.relativePath];
     lastFocusedPath = node.relativePath;
     anchorPath = node.relativePath;
-    if (isOfficeFile(node.relativePath)) {
+    if (node.deleted) {
+      // Ya no está en disco: se ve lo que se borró
+      const info = getFileGitStatus(node.relativePath);
+      handleOpenDiff(node.relativePath, info?.index === 'D' && info?.worktree !== 'D');
+    } else if (isOfficeFile(node.relativePath)) {
       handleOpenFileWithDefaultApp(node.relativePath);
     } else {
       onSelectTab(node.relativePath);
@@ -2078,6 +2077,24 @@
               </button>
               <button
                 type="button"
+                class="sidebar-action-btn expand-all-btn"
+                onclick={() => setAllFolders(true)}
+                title={isGitRepo && filterOnlyModifiedGitFiles ? 'Expandir las carpetas del filtro' : 'Expandir todas las carpetas'}
+                aria-label="Expandir todas las carpetas"
+              >
+                <ChevronsUpDown size={14} />
+              </button>
+              <button
+                type="button"
+                class="sidebar-action-btn collapse-all-btn"
+                onclick={() => setAllFolders(false)}
+                title={isGitRepo && filterOnlyModifiedGitFiles ? 'Contraer las carpetas del filtro' : 'Contraer todas las carpetas'}
+                aria-label="Contraer todas las carpetas"
+              >
+                <ChevronsDownUp size={14} />
+              </button>
+              <button
+                type="button"
                 class="sidebar-action-btn"
                 onclick={() => locateActiveFile()}
                 title="Ubicar archivo activo (Ctrl+Alt+1, Alt+L)"
@@ -2636,6 +2653,7 @@
       data-path={node.relativePath}
       aria-expanded={!!expandedFolders[node.relativePath]}
       class="file-tree-item folder"
+      class:git-deleted={node.deleted}
       class:drop-target={dragOverPath === node.relativePath}
       draggable="true"
       ondragstart={(e) => handleNodeDragStart(e, node)}
@@ -2646,7 +2664,7 @@
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
       style="padding-left: {12 + depth * 14}px;"
-      onclick={(e) => handleFolderClick(e, node, () => toggleFolder(node.relativePath))}
+      onclick={(e) => handleFolderClick(e, node, () => toggleFolder(node.relativePath, node.deleted))}
       oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
       {#if expandedFolders[node.relativePath]}
@@ -2687,6 +2705,7 @@
       class:git-staged={fileGitStatus?.index && !fileGitStatus?.worktree}
       class:git-modified={fileGitStatus?.worktree === 'M'}
       class:git-untracked={fileGitStatus?.worktree === '?'}
+      class:git-deleted={node.deleted}
       class:git-stashed={fileGitStatus?.is_stashed && !fileGitStatus?.index && !fileGitStatus?.worktree}
       style="padding-left: {26 + depth * 14}px;"
       onclick={(e) => handleFileClick(e, node)}
@@ -2833,6 +2852,11 @@
   .sidebar-action-btn:hover:not(:disabled) {
     background: var(--hover-bg, rgba(0, 0, 0, 0.06));
     color: var(--text-primary, #1f2328);
+  }
+
+  .file-tree-item.git-deleted .file-name {
+    color: var(--color-danger, #cf222e);
+    text-decoration: line-through;
   }
 
   .git-filter-btn {
