@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-alpha.4] - 2026-11-09
+
 ### Añadido
 
 - **Panel de configuración**: el botón de engranaje del ribbon abre un panel para cambiar el tema, el idioma, el tamaño del texto, el fondo de la pestaña vacía, el modo Vim, las propiedades de la nota, los visores de Mermaid y Excalidraw, el servidor de PlantUML y todos los atajos de teclado. Los atajos se guardan en `shortcuts.jsonc` sin perder sus comentarios.
@@ -792,6 +794,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-alpha.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.4
 [1.0.0-alpha.3]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.3
 [1.0.0-alpha.2]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.2
 [1.0.0-alpha.1]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.1
