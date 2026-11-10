@@ -5,6 +5,9 @@
   import { appSettings } from '@entities/settings';
   import { QuickOpen } from '@widgets/quick-open';
   import { invokeTauri } from '@shared/repositories/tauri';
+  // Fondos por defecto según el tema; Vite los empaqueta y van dentro del binario
+  import defaultWallpaperDark from '@shared/assets/synapsers_w_dark.avif';
+  import defaultWallpaperLight from '@shared/assets/synapsers_w_light.avif';
 
   interface Props {
     hasVaultItems?: boolean;
@@ -39,10 +42,11 @@
 </script>
 
 <div
-  class="empty-workspace"
-  class:has-wallpaper={!!wallpaperUrl}
+  class="empty-workspace has-wallpaper"
   class:has-search-open={searchQuery.trim().length > 0}
-  style={wallpaperUrl ? `--wallpaper: url("${wallpaperUrl}")` : undefined}
+  style={wallpaperUrl
+    ? `--wallpaper: url("${wallpaperUrl}")`
+    : `--wallpaper-light: url("${defaultWallpaperLight}"); --wallpaper-dark: url("${defaultWallpaperDark}")`}
 >
   {#if hasVaultItems && onSelectFile}
     <div class="empty-search">
@@ -119,6 +123,14 @@
     height: 56px;
     color: var(--border-primary, #d0d7de);
     margin-bottom: 8px;
+  }
+
+  /* Sin fondo propio se usa el de la app según el tema */
+  .empty-workspace {
+    --wallpaper: var(--wallpaper-light);
+  }
+  :global([data-theme='dark']) .empty-workspace {
+    --wallpaper: var(--wallpaper-dark);
   }
 
   .empty-workspace.has-wallpaper {
