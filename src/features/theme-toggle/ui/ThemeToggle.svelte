@@ -73,10 +73,6 @@
     color: var(--accent, #0969da);
   }
 
-  :global(html[data-theme='light']) .theme-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
-  }
-
   :global(.theme-icon) {
     color: var(--accent, #0969da);
     flex-shrink: 0;

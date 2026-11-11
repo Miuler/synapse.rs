@@ -42,7 +42,7 @@
 </script>
 
 <div
-  class="empty-workspace has-wallpaper"
+  class="empty-workspace has-wallpaper synapse-empty-tab"
   class:has-search-open={searchQuery.trim().length > 0}
   style={wallpaperUrl
     ? `--wallpaper: url("${wallpaperUrl}")`
@@ -221,8 +221,8 @@
 
   :global(.create-btn:hover) {
     background-color: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
     border-color: var(--accent, #0969da);
-    box-shadow: 0 4px 12px rgba(9, 105, 218, 0.2);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
   }
 </style>

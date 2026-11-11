@@ -589,7 +589,7 @@
   .mode-btn.active {
     background-color: var(--bg-primary, #ffffff);
     color: var(--text-primary, #1f2328);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--card-shadow);
   }
 
   /* Botones de acción */
@@ -696,7 +696,7 @@
     background-color: var(--bg-secondary, #f6f8fa);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow-hover);
     z-index: 10;
     overflow: hidden;
   }
@@ -739,7 +739,7 @@
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 6px;
     padding: 6px 10px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--card-shadow);
     z-index: 10;
     max-width: 70%;
     flex-wrap: wrap;
@@ -777,7 +777,7 @@
 
   .wikilink-pill:hover {
     background-color: var(--accent, #6366f1);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   /* Modo Editor de Texto / Markdown */

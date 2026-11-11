@@ -194,7 +194,7 @@
   <Dialog.Portal>
     <Dialog.Overlay class="git-branch-dialog-overlay" />
     <Dialog.Content
-      class="git-branch-dialog"
+      class="git-branch-dialog synapse-dialog"
       onkeydown={handleKeyDown}
       onOpenAutoFocus={(e) => {
         e.preventDefault();
@@ -583,7 +583,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--overlay-bg);
     backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
@@ -649,7 +649,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(9, 105, 218, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--accent, #0969da);
     flex-shrink: 0;
   }
@@ -682,8 +682,8 @@
     gap: 4px;
     padding: 2px 8px;
     border-radius: 12px;
-    background: rgba(46, 160, 67, 0.15);
-    color: #2ea043;
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
     font-size: 11.5px;
     font-weight: 500;
   }
@@ -776,7 +776,7 @@
   .git-branch-new-btn.active {
     background: var(--accent, #0969da);
     border-color: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   /* Panel para crear nueva rama */
@@ -843,7 +843,7 @@
   .git-create-input:focus,
   .git-create-select:focus {
     border-color: var(--accent, #0969da);
-    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   .git-create-checkbox-label {
@@ -883,15 +883,15 @@
   }
 
   .git-alert.success {
-    background: rgba(46, 160, 67, 0.12);
-    border: 1px solid rgba(46, 160, 67, 0.35);
-    color: #2ea043;
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+    color: var(--success);
   }
 
   .git-alert.error {
-    background: rgba(207, 34, 46, 0.1);
-    border: 1px solid rgba(207, 34, 46, 0.35);
-    color: #cf222e;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    color: var(--danger);
   }
 
   .git-alert-text {
@@ -982,8 +982,8 @@
   }
 
   .git-branch-row.is-current {
-    border-color: rgba(46, 160, 67, 0.4);
-    background: rgba(46, 160, 67, 0.04);
+    border-color: color-mix(in srgb, var(--success) 40%, transparent);
+    background: color-mix(in srgb, var(--success) 4%, transparent);
   }
 
   .git-branch-info {
@@ -1025,8 +1025,8 @@
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 10px;
-    background: rgba(46, 160, 67, 0.15);
-    color: #2ea043;
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
   }
 
   .upstream-tag {
@@ -1090,9 +1090,9 @@
   }
 
   .git-row-btn.checkout:hover:not(:disabled) {
-    background: rgba(46, 160, 67, 0.1);
-    border-color: #2ea043;
-    color: #2ea043;
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+    border-color: var(--success);
+    color: var(--success);
   }
 
   .git-row-btn:disabled {
@@ -1126,7 +1126,7 @@
   .git-btn.primary {
     background: var(--accent, #0969da);
     border: 1px solid var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   .git-btn.primary:hover:not(:disabled) {

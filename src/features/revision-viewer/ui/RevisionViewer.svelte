@@ -218,7 +218,7 @@
           title="Copiar texto al portapapeles"
         >
           {#if copiedRaw}
-            <Check size={14} style="color: #1a7f37;" />
+            <Check size={14} style="color: var(--success);" />
           {:else}
             <Copy size={14} />
           {/if}
@@ -387,13 +387,13 @@
   }
 
   .revision-badge.rev {
-    background: rgba(9, 105, 218, 0.12);
+    background: var(--accent-bg);
     color: var(--accent, #0969da);
-    border: 1px solid rgba(9, 105, 218, 0.25);
+    border: 1px solid var(--accent-border);
   }
 
   .revision-badge.readonly {
-    background: rgba(101, 109, 118, 0.1);
+    background: var(--badge-bg);
     color: var(--text-secondary, #656d76);
     border: 1px solid var(--border-primary, #d0d7de);
   }
@@ -462,7 +462,7 @@
   .toggle-btn.active {
     background-color: var(--bg-primary, #ffffff);
     color: var(--text-primary, #1f2328);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--card-shadow);
   }
 
   .rev-btn {
@@ -496,7 +496,7 @@
   }
 
   .rev-btn.close-btn:hover {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .revision-body {
@@ -560,7 +560,7 @@
   }
 
   .state-icon.error-icon {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .state-title {

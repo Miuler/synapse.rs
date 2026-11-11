@@ -141,7 +141,7 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="git-log-dialog-overlay" />
-    <Dialog.Content class="git-log-dialog" onkeydown={handleKeyDown}>
+    <Dialog.Content class="git-log-dialog synapse-dialog" onkeydown={handleKeyDown}>
       <!-- Cabecera -->
       <div class="git-log-dialog-header">
         <div class="git-log-dialog-icon-wrap">
@@ -320,7 +320,7 @@
   :global(.git-log-dialog-overlay) {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--overlay-bg);
     backdrop-filter: blur(2px);
     z-index: 9999;
     animation: fadeIn 0.15s ease-out;
@@ -339,7 +339,7 @@
     color: var(--text-primary, #1f2328);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 10px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+    box-shadow: var(--modal-shadow);
     display: flex;
     flex-direction: column;
     z-index: 10000;
@@ -380,7 +380,7 @@
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: rgba(9, 105, 218, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--accent, #0969da);
     flex-shrink: 0;
   }
@@ -476,7 +476,7 @@
   .git-log-search-input:focus {
     border-color: var(--accent, #0969da);
     background: var(--bg-primary, #ffffff);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   .git-log-search-clear {
@@ -518,7 +518,7 @@
   }
 
   .git-log-state-box.error {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .retry-btn {
@@ -571,7 +571,7 @@
   }
 
   .git-log-row:hover {
-    background: rgba(9, 105, 218, 0.04);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
   }
 
   .col-hash {
@@ -590,7 +590,7 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--accent, #0969da);
-    background: rgba(9, 105, 218, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     padding: 2px 5px;
     border-radius: 4px;
   }
@@ -614,7 +614,7 @@
   }
 
   :global(.copy-success) {
-    color: #1a7f37;
+    color: var(--success);
   }
 
   .col-date {
@@ -686,14 +686,14 @@
   }
 
   .diff-btn {
-    background: rgba(9, 105, 218, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     color: var(--accent, #0969da);
-    border-color: rgba(9, 105, 218, 0.3);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
   .diff-btn:hover {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   .git-log-footer {

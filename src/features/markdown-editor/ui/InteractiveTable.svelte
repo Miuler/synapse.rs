@@ -390,7 +390,7 @@
   }
 
   .table-card:hover {
-    border-color: rgba(9, 105, 218, 0.35);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
     box-shadow: var(--card-shadow-hover, 0 4px 12px rgba(0, 0, 0, 0.06));
   }
 
@@ -423,7 +423,7 @@
     font-weight: 500;
     padding: 1px 7px;
     border-radius: 999px;
-    background-color: rgba(9, 105, 218, 0.08);
+    background-color: color-mix(in srgb, var(--accent) 8%, transparent);
     color: var(--accent, #0969da);
   }
 
@@ -451,13 +451,13 @@
   .table-btn:hover {
     color: var(--accent, #0969da);
     border-color: var(--accent, #0969da);
-    background-color: rgba(9, 105, 218, 0.04);
+    background-color: color-mix(in srgb, var(--accent) 4%, transparent);
   }
 
   .table-source-btn:hover {
-    color: #cf222e;
-    border-color: #cf222e;
-    background-color: rgba(207, 34, 46, 0.04);
+    color: var(--danger);
+    border-color: var(--danger);
+    background-color: color-mix(in srgb, var(--danger) 4%, transparent);
   }
 
   .table-scroll-wrapper {
@@ -532,14 +532,14 @@
 
   .column-tool-btn:hover {
     color: var(--accent, #0969da);
-    background-color: rgba(9, 105, 218, 0.1);
-    border-color: rgba(9, 105, 218, 0.2);
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   .column-tool-btn.delete-btn:hover {
-    color: #cf222e;
-    background-color: rgba(207, 34, 46, 0.1);
-    border-color: rgba(207, 34, 46, 0.2);
+    color: var(--danger);
+    background-color: color-mix(in srgb, var(--danger) 10%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 20%, transparent);
   }
 
   .table-row-gutter {
@@ -593,12 +593,12 @@
 
   .row-tool-btn:hover {
     color: var(--accent, #0969da);
-    background-color: rgba(9, 105, 218, 0.12);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
   .row-tool-btn.delete-btn:hover {
-    color: #cf222e;
-    background-color: rgba(207, 34, 46, 0.12);
+    color: var(--danger);
+    background-color: color-mix(in srgb, var(--danger) 12%, transparent);
   }
 
   .table-data-row:nth-child(2n) {
@@ -636,7 +636,7 @@
   .table-input:focus {
     background-color: var(--bg-primary, #ffffff);
     border-color: var(--accent, #0969da);
-    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   .header-input {

@@ -199,8 +199,8 @@
         const alpha = Math.max(0, 1 - (now - p.time) / maxAge);
         ctx.beginPath();
         ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 30, 60, ${alpha})`;
-        ctx.shadowColor = '#ff0033';
+        ctx.fillStyle = `rgba(255, 30, 60, ${alpha})`; /* fijo: láser */
+        ctx.shadowColor = '#ff0033'; /* fijo: láser */
         ctx.shadowBlur = 14 * alpha;
         ctx.fill();
         continue;
@@ -224,11 +224,11 @@
           ctx.moveTo(prevMidX, prevMidY);
           ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
         }
-        ctx.strokeStyle = `rgba(255, 30, 60, ${alpha})`;
+        ctx.strokeStyle = `rgba(255, 30, 60, ${alpha})`; /* fijo: láser */
         ctx.lineWidth = 6 * alpha;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = '#ff0033';
+        ctx.shadowColor = '#ff0033'; /* fijo: láser */
         ctx.shadowBlur = 12 * alpha;
         ctx.stroke();
       }
@@ -238,8 +238,8 @@
       const headAlpha = Math.max(0, 1 - headAge / maxAge);
       ctx.beginPath();
       ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`;
-      ctx.shadowColor = '#ff0033';
+      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`; /* fijo: láser */
+      ctx.shadowColor = '#ff0033'; /* fijo: láser */
       ctx.shadowBlur = 18 * headAlpha;
       ctx.fill();
     }
@@ -529,7 +529,7 @@
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 3px;
-    background: rgba(101, 109, 118, 0.15);
+    background: var(--badge-bg);
     color: var(--text-secondary, #656d76);
     border: 1px solid var(--border-primary, #d0d7de);
     text-transform: uppercase;
@@ -553,7 +553,7 @@
   }
 
   .editor-header-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover-bg);
     color: var(--text-primary, #1f2328);
   }
 
@@ -580,17 +580,17 @@
 
   .editor-save-btn:hover {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   .syntax-error-badge {
     font-size: 10px;
     font-weight: 600;
-    color: #cf222e;
-    background: #ffebe9;
+    color: var(--danger);
+    background: var(--error-bg);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(207, 34, 46, 0.3);
+    border: 1px solid var(--danger-border);
     text-transform: none;
   }
 
@@ -607,9 +607,9 @@
     align-items: flex-start;
     gap: 8px;
     padding: 10px 12px;
-    background: #ffebe9;
-    border-top: 1px solid rgba(207, 34, 46, 0.3);
-    color: #cf222e;
+    background: var(--error-bg);
+    border-top: 1px solid var(--danger-border);
+    color: var(--danger);
     font-size: 12px;
     font-family: var(--code-font, monospace);
     max-height: 120px;
@@ -677,16 +677,16 @@
   }
 
   .error-msg {
-    color: #cf222e;
-    background: #ffebe9;
+    color: var(--danger);
+    background: var(--error-bg);
     padding: 14px;
     border-radius: 8px;
     font-family: var(--code-font, monospace);
     font-size: 13px;
     width: 85%;
-    border: 1px solid rgba(207, 34, 46, 0.3);
+    border: 1px solid var(--danger-border);
     z-index: 10;
-    box-shadow: 0 4px 12px rgba(207, 34, 46, 0.1);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--danger) 10%, transparent);
   }
 
   .error-title {
@@ -718,7 +718,7 @@
     padding: 8px 16px;
     border-radius: 8px;
     border: 1px solid var(--border-primary, #d0d7de);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow-hover);
     z-index: 10;
   }
 
@@ -737,19 +737,19 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: #888;
+    background-color: var(--text-muted);
     transition: background-color 0.2s ease;
   }
 
   :global(.laser-toggle-btn.active) {
-    background-color: rgba(255, 30, 60, 0.15) !important;
-    color: #e0002b !important;
-    border: 1px solid rgba(255, 30, 60, 0.3);
+    background-color: rgba(255, 30, 60, 0.15) !important; /* fijo: color del láser */
+    color: #e0002b !important; /* fijo: color del láser */
+    border: 1px solid rgba(255, 30, 60, 0.3); /* fijo: color del láser */
   }
 
   :global(.laser-toggle-btn.active .laser-dot) {
-    background-color: #ff0033;
-    box-shadow: 0 0 8px #ff0033;
+    background-color: #ff0033; /* fijo: color del láser */
+    box-shadow: 0 0 8px #ff0033; /* fijo: color del láser */
   }
 
   :global(.zoom-controls .separator) {
@@ -771,7 +771,7 @@
   }
 
   :global(.zoom-controls button:hover) {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--hover-bg);
   }
 
   :global(.zoom-controls span) {

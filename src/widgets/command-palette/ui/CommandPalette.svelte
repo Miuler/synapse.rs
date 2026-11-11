@@ -40,7 +40,7 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="palette-backdrop" />
-    <Dialog.Content class="palette-container">
+    <Dialog.Content class="palette-container synapse-dialog synapse-command-palette">
       <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
       <Command.Root class="command-root" loop>
         <SearchBox

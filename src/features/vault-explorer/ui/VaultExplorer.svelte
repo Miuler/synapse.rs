@@ -1991,7 +1991,7 @@
       <aside
         bind:this={sidebarPanelEl}
         {...props}
-        class="sidebar-panel"
+        class="sidebar-panel synapse-sidebar synapse-explorer"
         class:is-resizing={isResizingSidebar}
         class:is-hidden={activeRibbonTab !== 'files'}
         style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;"
@@ -2652,7 +2652,7 @@
     <div
       data-path={node.relativePath}
       aria-expanded={!!expandedFolders[node.relativePath]}
-      class="file-tree-item folder"
+      class="file-tree-item folder synapse-explorer-item synapse-explorer-folder"
       class:git-deleted={node.deleted}
       class:drop-target={dragOverPath === node.relativePath}
       draggable="true"
@@ -2692,7 +2692,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       data-path={node.relativePath}
-      class="file-tree-item file"
+      class="file-tree-item file synapse-explorer-item synapse-explorer-file"
       draggable="true"
       ondragstart={(e) => handleNodeDragStart(e, node)}
       ondragover={(e) => handleDragOverTarget(e, node)}
@@ -2822,7 +2822,7 @@
 
   .rust-badge-btn:hover {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   .sidebar-header-actions {
@@ -2864,7 +2864,7 @@
   }
 
   .git-filter-btn.active {
-    background: rgba(9, 105, 218, 0.15);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
     color: var(--accent, #0969da);
   }
 
@@ -2873,7 +2873,7 @@
     top: -3px;
     right: -5px;
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
     font-size: 9px;
     font-weight: 700;
     min-width: 13px;
@@ -2898,7 +2898,7 @@
   }
 
   :global(.git-empty-filter-icon) {
-    color: #2ea043;
+    color: var(--success);
     margin-bottom: 2px;
   }
 
@@ -2939,15 +2939,15 @@
 
   @keyframes locate-pulse {
     0% {
-      box-shadow: 0 0 0 0 rgba(9, 105, 218, 0.6);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
       background-color: var(--accent-bg, rgba(9, 105, 218, 0.28));
     }
     50% {
-      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.35);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
       background-color: var(--accent-bg, rgba(9, 105, 218, 0.38));
     }
     100% {
-      box-shadow: 0 0 0 0 rgba(9, 105, 218, 0);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
       background-color: var(--accent-bg, rgba(9, 105, 218, 0.14));
     }
   }
@@ -3012,7 +3012,7 @@
 
   .file-tree-item.drop-target {
     outline: 1px dashed var(--accent, #0969da);
-    background-color: rgba(9, 105, 218, 0.12);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
   .sidebar-content.drop-target-root {
@@ -3110,7 +3110,7 @@
   }
 
   .file-tree-item.git-stashed:not(.active) .file-name {
-    color: #7c3aed;
+    color: var(--purple);
   }
 
   .file-name {
@@ -3257,13 +3257,13 @@
   }
 
   :global(.vault-context-menu .context-menu-item.delete) {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   :global(.vault-context-menu .context-menu-item.delete:hover),
   :global(.vault-context-menu .context-menu-item.delete[data-highlighted]) {
-    background: rgba(207, 34, 46, 0.1);
-    color: #a40e26;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    color: var(--danger);
   }
 
   :global(.vault-context-menu .context-menu-shortcut) {
@@ -3300,7 +3300,7 @@
   .vault-toast-icon {
     width: 14px;
     height: 14px;
-    color: #2da44e;
+    color: var(--success);
     flex-shrink: 0;
   }
 

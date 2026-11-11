@@ -242,7 +242,7 @@
   <Dialog.Portal>
     <Dialog.Overlay class="fts-backdrop" />
     <Dialog.Content
-      class={`fts-container ${isResizing ? 'is-resizing' : ''}`}
+      class={`synapse-dialog fts-container ${isResizing ? 'is-resizing' : ''}`}
       style="width: {dialogWidth}px; height: {dialogHeight}px;"
     >
       <!-- Handles de redimensionamiento -->
@@ -685,23 +685,23 @@
   }
 
   .fts-kind-tag.markdown {
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--accent, #0969da);
   }
 
   .fts-kind-tag.mermaid {
-    background: rgba(227, 98, 9, 0.12);
-    color: #e36209;
+    background: color-mix(in srgb, var(--orange, var(--orange, #e36209)) 12%, transparent);
+    color: var(--orange, #e36209);
   }
 
   .fts-kind-tag.code {
-    background: rgba(130, 80, 223, 0.12);
-    color: #8250df;
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
+    color: var(--purple);
   }
 
   .fts-kind-tag.excalidraw {
-    background: rgba(26, 127, 55, 0.12);
-    color: #1a7f37;
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
   }
 
   .fts-hit-path {
@@ -785,8 +785,8 @@
     font-size: 10px;
     padding: 1px 4px;
     border-radius: 3px;
-    background: rgba(207, 34, 46, 0.1);
-    color: #cf222e;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    color: var(--danger);
     font-weight: 500;
   }
 

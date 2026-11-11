@@ -184,7 +184,7 @@
   <Dialog.Portal>
     <Dialog.Overlay class="git-commit-dialog-overlay" />
     <Dialog.Content
-      class="git-commit-dialog"
+      class="git-commit-dialog synapse-dialog"
       onOpenAutoFocus={(e) => {
         e.preventDefault();
         requestAnimationFrame(() => textareaEl?.focus());
@@ -371,7 +371,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--overlay-bg);
     backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
@@ -435,8 +435,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: rgba(46, 160, 67, 0.15);
-    color: #2ea043;
+    background: color-mix(in srgb, var(--success) 15%, transparent);
+    color: var(--success);
   }
 
   .git-commit-dialog-titles {
@@ -593,8 +593,8 @@
   }
 
   .git-commit-file-item.checked {
-    background: rgba(9, 105, 218, 0.06);
-    border-color: rgba(9, 105, 218, 0.15);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   .git-commit-checkbox {
@@ -620,28 +620,28 @@
   }
 
   .git-status-badge.status-deleted {
-    background: rgba(207, 34, 46, 0.12);
-    color: #cf222e;
-    border: 1px solid rgba(207, 34, 46, 0.28);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
+    border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
   }
 
   .git-status-badge.status-modified {
-    background: rgba(217, 119, 6, 0.12);
-    color: #d97706;
-    border: 1px solid rgba(217, 119, 6, 0.28);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
+    color: var(--warning);
+    border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
   }
 
   .git-status-badge.status-untracked {
-    background: rgba(9, 105, 218, 0.12);
-    color: #0969da;
-    border: 1px solid rgba(9, 105, 218, 0.28);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   }
 
   .git-status-badge.status-added,
   .git-status-badge.status-staged {
-    background: rgba(46, 160, 67, 0.12);
-    color: #2ea043;
-    border: 1px solid rgba(46, 160, 67, 0.28);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
+    border: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
   }
 
   .git-commit-file-path {
@@ -699,7 +699,7 @@
   }
 
   .git-commit-input-label .required {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .git-commit-textarea {
@@ -722,7 +722,7 @@
 
   .git-commit-textarea:focus {
     border-color: var(--accent, #0969da);
-    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
   }
 
   .git-commit-textarea:disabled {
@@ -748,9 +748,9 @@
     gap: 8px;
     padding: 8px 12px;
     border-radius: 6px;
-    background: rgba(207, 34, 46, 0.1);
-    border: 1px solid rgba(207, 34, 46, 0.35);
-    color: #cf222e;
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    color: var(--danger);
     font-size: 12px;
     line-height: 1.4;
   }
@@ -798,17 +798,17 @@
   }
 
   .git-commit-btn.submit {
-    background: #2ea043;
-    color: #ffffff;
-    border-color: rgba(27, 31, 36, 0.15);
+    background: var(--success);
+    color: var(--on-accent);
+    border-color: color-mix(in srgb, var(--text-primary) 15%, transparent);
   }
 
   .git-commit-btn.submit:hover:not(:disabled) {
-    background: #2c974b;
+    background: color-mix(in srgb, var(--success) 85%, black);
   }
 
   .git-commit-btn.submit:focus-visible {
-    outline: 2px solid #2ea043;
+    outline: 2px solid var(--success);
     outline-offset: 2px;
   }
 

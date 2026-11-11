@@ -94,7 +94,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={200}>
-  <Toolbar.Root class="ribbon" orientation="vertical" aria-label="Barra de herramientas lateral">
+  <Toolbar.Root class="ribbon synapse-ribbon" orientation="vertical" aria-label="Barra de herramientas lateral">
     <div class="top-actions">
       {#each topTools as tool}
         <Tooltip.Root>

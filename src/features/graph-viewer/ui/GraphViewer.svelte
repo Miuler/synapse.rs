@@ -106,16 +106,16 @@
       graphInstance = new ForceGraph3D(containerEl)
         .width(width)
         .height(height)
-        .backgroundColor('#0d1117')
+        .backgroundColor('#0d1117') // fijo: color de canvas/WebGL del grafo
         .nodeId('id')
         .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Fantasma)' : ` (${node.id})`}`)
         .nodeVal((node: any) => (node.is_ghost ? 1.5 : Math.max(2, Math.min(node.val * 1.5, 12))))
         .nodeColor((node: any) => {
-          if (node.is_ghost) return '#9ca3af';
-          if (activeNotePath && node.id === activeNotePath) return '#3b82f6';
-          return node.color || '#60a5fa';
+          if (node.is_ghost) return '#9ca3af'; // fijo: color de canvas/WebGL del grafo
+          if (activeNotePath && node.id === activeNotePath) return '#3b82f6'; // fijo: color de canvas/WebGL del grafo
+          return node.color || '#60a5fa'; // fijo: color de canvas/WebGL del grafo
         })
-        .linkColor(() => 'rgba(255, 255, 255, 0.2)')
+        .linkColor(() => 'rgba(255, 255, 255, 0.2)') // fijo: color de canvas/WebGL del grafo
         .linkWidth(0.8)
         .warmupTicks(isGlobalMode ? 30 : 10)
         .cooldownTicks(isGlobalMode ? 80 : 120)
@@ -146,19 +146,19 @@
 
           if (node.is_ghost) {
             ctx.setLineDash([3, 2]);
-            ctx.strokeStyle = '#9ca3af';
+            ctx.strokeStyle = '#9ca3af'; // fijo: color de canvas/WebGL del grafo
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
+            ctx.fillStyle = 'rgba(156, 163, 175, 0.15)'; // fijo: color de canvas/WebGL del grafo
             ctx.fill();
             ctx.setLineDash([]);
           } else {
-            ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6'));
+            ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6')); // fijo: color de canvas/WebGL del grafo
             ctx.fill();
 
             if (isMatched || isFocused) {
               ctx.lineWidth = 2;
-              ctx.strokeStyle = '#ffffff';
+              ctx.strokeStyle = '#ffffff'; // fijo: color de canvas/WebGL del grafo
               ctx.stroke();
             }
           }
@@ -170,7 +170,7 @@
             ctx.font = `${fontSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151');
+            ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151'); // fijo: color de canvas/WebGL del grafo
             ctx.fillText(node.label, node.x, node.y + radius + 2);
           }
         })
@@ -179,9 +179,9 @@
         .linkColor((link: any) => {
           const targetNode = typeof link.target === 'object' ? link.target : null;
           if (targetNode?.is_ghost) {
-            return 'rgba(156, 163, 175, 0.35)';
+            return 'rgba(156, 163, 175, 0.35)'; // fijo: color de canvas/WebGL del grafo
           }
-          return 'rgba(150, 150, 150, 0.35)';
+          return 'rgba(150, 150, 150, 0.35)'; // fijo: color de canvas/WebGL del grafo
         })
         .linkDirectionalParticles(isGlobalMode ? 0 : 2)
         .linkDirectionalParticleSpeed(0.006)
@@ -371,7 +371,7 @@
     backdrop-filter: blur(8px);
     border: 1px solid var(--border-primary, rgba(208, 215, 222, 0.8));
     z-index: 10;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .mode-toggles {
@@ -399,7 +399,7 @@
   .toggle-btn.active {
     background-color: var(--bg-primary, #ffffff);
     color: var(--accent, #0969da);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow);
   }
 
   .depth-selector {

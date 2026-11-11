@@ -3802,7 +3802,7 @@
 
 <svelte:window onblur={handleWindowBlur} />
 
-<div class="workspace-layout" class:welcome-active={showWelcomeScreen && !isDetachedWindow}>
+<div class="workspace-layout synapse-app" class:welcome-active={showWelcomeScreen && !isDetachedWindow}>
   {#if showWelcomeScreen && !isDetachedWindow}
     <WelcomeScreen
       onWorkspaceOpened={handleWorkspaceSelectedFromWelcome}
@@ -3860,7 +3860,7 @@
       />
     {:else if activeRibbonTab === 'relations'}
       <aside
-        class="relations-sidebar-wrapper"
+        class="relations-sidebar-wrapper synapse-right-sidebar"
         style="width: {sidebarWidth}px;"
       >
         <RelationsInspector
@@ -4117,7 +4117,7 @@
                     />
                   {/if}
                 {:else if isMarkdownFile(tabPath)}
-                  <div class="editor-title-row">
+                  <div class="editor-title-row synapse-note-title">
                   <!-- El campo toma el ancho de su texto para que la ruta de títulos quede a continuación -->
                   <span class="editor-title-sizer" data-value={vaultItem.title || 'Título del archivo...'}>
                   <input
@@ -4258,7 +4258,7 @@
   {/snippet}
 
   <!-- 3. ÁREA DE TRABAJO PRINCIPAL -->
-  <main class="main-workspace" class:is-resizing={isResizingSidebar || isResizingSplit}>
+  <main class="main-workspace synapse-main" class:is-resizing={isResizingSidebar || isResizingSplit}>
     {#if !isSplit}
       <!-- MODO NORMAL: UN SOLO PANEL -->
       <WorkspacePane
@@ -4787,7 +4787,7 @@
   :global(.workspace-toast-icon) {
     width: 14px;
     height: 14px;
-    color: #2da44e;
+    color: var(--success);
     flex-shrink: 0;
   }
 

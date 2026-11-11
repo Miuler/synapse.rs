@@ -357,7 +357,7 @@
     max-width: none;
     max-height: none;
     border-radius: 4px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--popover-shadow);
     pointer-events: none;
     image-rendering: auto;
     transition: opacity 0.15s ease;
@@ -439,7 +439,7 @@
     background: var(--bg-secondary, #f6f8fa);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 20px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--popover-shadow);
     z-index: 10;
   }
 

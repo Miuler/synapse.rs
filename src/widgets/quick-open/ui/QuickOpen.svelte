@@ -916,7 +916,7 @@
   <Dialog.Portal>
     <Dialog.Overlay class="quick-open-backdrop" />
     <Dialog.Content
-      class={`quick-open-container ${isResizing ? 'is-resizing' : ''}`}
+      class={`quick-open-container synapse-dialog synapse-quick-open ${isResizing ? 'is-resizing' : ''}`}
       style="width: {dialogWidth}px; height: {dialogHeight}px;"
     >
       <!-- Handles de redimensionamiento desde las 4 esquinas y 4 bordes -->
@@ -1015,7 +1015,7 @@
     max-height: 60vh;
     z-index: auto;
     animation: none;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--popover-shadow);
   }
 
   :global(.quick-open-container.is-inline.has-query) {
@@ -1275,10 +1275,10 @@
     font-weight: 700;
     font-family: var(--mono, monospace);
     color: var(--accent, #0969da);
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     padding: 2px 5px;
     border-radius: 4px;
-    border: 1px solid rgba(9, 105, 218, 0.25);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     flex-shrink: 0;
   }
 
@@ -1364,23 +1364,23 @@
   }
 
   .quick-fts-kind.markdown {
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--accent, #0969da);
   }
 
   .quick-fts-kind.mermaid {
-    background: rgba(227, 98, 9, 0.12);
-    color: #e36209;
+    background: color-mix(in srgb, var(--orange, var(--orange, #e36209)) 12%, transparent);
+    color: var(--orange, #e36209);
   }
 
   .quick-fts-kind.code {
-    background: rgba(130, 80, 223, 0.12);
-    color: #8250df;
+    background: color-mix(in srgb, var(--purple) 12%, transparent);
+    color: var(--purple);
   }
 
   .quick-fts-kind.excalidraw {
-    background: rgba(26, 127, 55, 0.12);
-    color: #1a7f37;
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
   }
 
   .quick-fts-heading {
@@ -1425,10 +1425,10 @@
     font-weight: 700;
     font-family: var(--mono, monospace);
     color: var(--accent, #0969da);
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     padding: 2px 5px;
     border-radius: 4px;
-    border: 1px solid rgba(9, 105, 218, 0.25);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     flex-shrink: 0;
   }
 
@@ -1541,9 +1541,9 @@
     letter-spacing: 0.05em;
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(130, 80, 223, 0.15);
+    background: color-mix(in srgb, var(--purple) 15%, transparent);
     color: var(--accent-purple, #8250df);
-    border: 1px solid rgba(130, 80, 223, 0.3);
+    border: 1px solid color-mix(in srgb, var(--purple) 30%, transparent);
   }
 
   :global(.quick-open-container .tag-active-icon) {
@@ -1605,7 +1605,7 @@
 
   .item-tag-pill:hover {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
     border-color: var(--accent, #0969da);
   }
 </style>

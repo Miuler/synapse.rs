@@ -525,7 +525,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<header class="editor-header" data-tauri-drag-region ondblclick={handleHeaderDblClick}>
+<header class="editor-header synapse-header" data-tauri-drag-region ondblclick={handleHeaderDblClick}>
   <!-- BOTONES DE NAVEGACIÓN ATRÁS / ADELANTE -->
   <div class="nav-buttons" data-tauri-drag-region="false">
     <button
@@ -557,7 +557,7 @@
   </div>
 
   <!-- ÁREA CENTRAL DE PESTAÑAS: OCUPA SOLO EL ESPACIO DISPONIBLE Y SOPORTA SCROLL CON FLECHAS -->
-  <div class="tabs-area-wrapper" data-tauri-drag-region>
+  <div class="tabs-area-wrapper synapse-tabs" data-tauri-drag-region>
     {#if canScrollLeft}
       <button
         type="button"
@@ -591,7 +591,7 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   {...props}
-                  class="tab-title-container"
+                  class="tab-title-container synapse-tab"
                   class:active={tab.path === activeTabPath}
                   class:is-dirty={tab.isDirty}
                   class:is-dragging={draggingTabPath === tab.path}
@@ -611,13 +611,13 @@
                   ondragend={handleTabDragEnd}
                 >
                   {#if tab.path.startsWith('diff-staged:')}
-                    <GitCompareArrows size={14} class="file-icon" style="color: #22c55e;" />
+                    <GitCompareArrows size={14} class="file-icon" style="color: var(--success);" />
                   {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-files:')}
-                    <GitCompare size={14} class="file-icon" style="color: #a855f7;" />
+                    <GitCompare size={14} class="file-icon" style="color: var(--purple);" />
                   {:else if tab.path.startsWith('diff:')}
-                    <GitCompare size={14} class="file-icon" style="color: #3b82f6;" />
+                    <GitCompare size={14} class="file-icon" style="color: var(--diff-blue, #3b82f6);" />
                   {:else if tab.path.startsWith('rev:')}
-                    <History size={14} class="file-icon" style="color: #0969da;" />
+                    <History size={14} class="file-icon" style="color: var(--accent);" />
                   {:else}
                     <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="file-icon" />
                   {/if}
@@ -858,13 +858,13 @@
                       onmousedown={handleTabMouseDown}
                     >
                       {#if tab.path.startsWith('diff-staged:')}
-                        <GitCompareArrows size={14} class="dropdown-file-icon" style="color: #22c55e;" />
+                        <GitCompareArrows size={14} class="dropdown-file-icon" style="color: var(--success);" />
                       {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-files:')}
-                        <GitCompare size={14} class="dropdown-file-icon" style="color: #a855f7;" />
+                        <GitCompare size={14} class="dropdown-file-icon" style="color: var(--purple);" />
                       {:else if tab.path.startsWith('diff:')}
-                        <GitCompare size={14} class="dropdown-file-icon" style="color: #3b82f6;" />
+                        <GitCompare size={14} class="dropdown-file-icon" style="color: var(--diff-blue, #3b82f6);" />
                       {:else if tab.path.startsWith('rev:')}
-                        <History size={14} class="dropdown-file-icon" style="color: #0969da;" />
+                        <History size={14} class="dropdown-file-icon" style="color: var(--accent);" />
                       {:else}
                         <FileIcon path={tab.path} name={tab.title} kind={tab.kind} size={14} class="dropdown-file-icon" />
                       {/if}
@@ -1127,7 +1127,7 @@
     opacity: 1;
     background: var(--bg-primary, #ffffff);
     border-color: var(--accent, #0969da);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .tab-title-container.is-dragging {
@@ -1269,7 +1269,7 @@
   :global(.tabs-dropdown-menu .dropdown-close-all-btn) {
     background: transparent;
     border: none;
-    color: #cf222e;
+    color: var(--danger);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -1279,7 +1279,7 @@
   }
 
   :global(.tabs-dropdown-menu .dropdown-close-all-btn:hover) {
-    background: rgba(207, 34, 46, 0.1);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
   }
 
   :global(.tabs-dropdown-menu .dropdown-search-container) {
@@ -1330,7 +1330,7 @@
   }
 
   :global(.tabs-dropdown-menu .dropdown-search-clear:hover) {
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--active-bg);
     color: var(--text-primary, #1f2328);
   }
 
@@ -1360,7 +1360,7 @@
   :global(.tabs-dropdown-menu .dropdown-tab-item:hover),
   :global(.tabs-dropdown-menu .dropdown-tab-item.selected),
   :global(.tabs-dropdown-menu .dropdown-tab-item[data-highlighted]) {
-    background: rgba(9, 105, 218, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
 
   :global(.tabs-dropdown-menu .dropdown-tab-item.selected),
@@ -1489,7 +1489,7 @@
 
   .save-btn:hover {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   .icon {
@@ -1503,7 +1503,7 @@
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
     padding: 4px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--popover-shadow);
     z-index: 9999;
     display: flex;
     flex-direction: column;

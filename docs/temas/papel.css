@@ -1,0 +1,106 @@
+/*
+ * Tema de ejemplo «Papel»: estilo máquina de escribir, con versión clara (papel crema) y oscura
+ * (tinta sobre pizarra). Copiar a <bóveda>/.synapse/themes/papel.css y elegirlo en
+ * Configuración → Apariencia → Tema personalizado.
+ *
+ * Muestra las tres formas de personalizar:
+ *   1. Variables de color, fuentes, títulos e íconos (lo más estable: preferir siempre esto).
+ *   2. Zonas públicas con clases `synapse-*` (barra lateral, pestañas, editor, diálogos…).
+ *   3. Selectores dentro del contenido de la nota (.markdown-body …).
+ * Lista completa en docs/temas.md.
+ */
+
+/* ── 1. Variables: modo claro ─────────────────────────────────────────── */
+html[data-theme='light'] {
+  --bg-primary: #f7f1e3;
+  --bg-secondary: #efe6d2;
+  --bg-tertiary: #e6dbc2;
+  --text-primary: #2b2620;
+  --text-secondary: #6b6155;
+  --border-primary: #d6c9ad;
+  --border-subtle: rgba(43, 38, 32, 0.08);
+  --accent: #9c3d1f;
+  --accent-bg: rgba(156, 61, 31, 0.1);
+  --accent-border: rgba(156, 61, 31, 0.4);
+  --hover-bg: rgba(43, 38, 32, 0.06);
+  --active-bg: rgba(43, 38, 32, 0.1);
+  --code-inline-bg: rgba(43, 38, 32, 0.07);
+}
+
+/* ── 1. Variables: modo oscuro ────────────────────────────────────────── */
+html[data-theme='dark'] {
+  --bg-primary: #1e1d1a;
+  --bg-secondary: #262420;
+  --bg-tertiary: #302d28;
+  --text-primary: #e8e1d3;
+  --text-secondary: #a59c8c;
+  --border-primary: #3d3932;
+  --border-subtle: rgba(232, 225, 211, 0.08);
+  --accent: #e0915f;
+  --accent-bg: rgba(224, 145, 95, 0.15);
+  --accent-border: rgba(224, 145, 95, 0.4);
+}
+
+/* ── 1. Variables comunes a ambos modos ───────────────────────────────── */
+html[data-theme] {
+  /* Fuentes: la del texto de las notas y la de la interfaz */
+  --font-text: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+  --main-font: 'IBM Plex Sans', system-ui, sans-serif;
+  --code-font: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Títulos por nivel (se aplican igual en lectura y en edición) */
+  --h1-font: var(--font-text);
+  --h1-size: 1.9em;
+  --h1-weight: 700;
+  --h1-color: var(--text-primary);
+  --h2-font: var(--font-text);
+  --h2-size: 1.5em;
+  --h2-weight: 700;
+  --h3-size: 1.25em;
+  --h3-weight: 700;
+  --h3-color: var(--accent);
+  --h4-weight: 700;
+  --h5-weight: 700;
+  --h6-weight: 400;
+  --h6-color: var(--text-secondary);
+
+  /* Ícono de carpeta: cualquier imagen (aquí un SVG en línea con un sobre de papel) */
+  --icon-folder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0522d' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 6h6l2 2h10v11H3z'/%3E%3C/svg%3E");
+  --icon-folder-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0522d' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M3 6h6l2 2h8v3H7l-4 8z'/%3E%3Cpath d='M7 11h15l-4 8H3z'/%3E%3C/svg%3E");
+}
+
+/* ── 2. Zonas públicas ────────────────────────────────────────────────── */
+.synapse-sidebar {
+  border-right: 1px dashed var(--border-primary);
+}
+
+.synapse-tab.active {
+  font-weight: 600;
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 6px;
+}
+
+.synapse-statusbar {
+  font-family: var(--code-font);
+  letter-spacing: 0.02em;
+}
+
+.synapse-dialog {
+  border-radius: 4px;
+}
+
+/* ── 3. Contenido de la nota ──────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom: 1px dashed var(--border-primary);
+}
+
+.markdown-body a {
+  text-decoration: underline;
+}
+
+.markdown-body blockquote {
+  font-style: italic;
+  border-left-style: double;
+  border-left-width: 4px;
+}

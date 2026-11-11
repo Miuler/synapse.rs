@@ -284,12 +284,8 @@
   }
 
   .note-properties-header:hover {
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: var(--hover-bg-subtle);
     color: var(--text-primary, #1f2328);
-  }
-
-  :global(.dark) .note-properties-header:hover {
-    background-color: rgba(255, 255, 255, 0.04);
   }
 
   .header-left {
@@ -398,8 +394,8 @@
     font-size: 11.5px;
     font-weight: 500;
     color: var(--accent, #0969da);
-    background-color: rgba(9, 105, 218, 0.08);
-    border: 1px solid rgba(9, 105, 218, 0.2);
+    background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.12s ease;
@@ -407,7 +403,7 @@
   }
 
   .tag-pill:hover {
-    background-color: rgba(9, 105, 218, 0.15);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
     border-color: var(--accent, #0969da);
   }
 
@@ -454,7 +450,7 @@
 
   .link-pill.internal,
   .value-link.internal {
-    background-color: rgba(9, 105, 218, 0.05);
+    background-color: color-mix(in srgb, var(--accent) 5%, transparent);
   }
 
   /* Booleano */
@@ -469,13 +465,13 @@
   }
 
   .boolean-badge.is-true {
-    background-color: rgba(46, 160, 67, 0.12);
-    color: #2ea043;
+    background-color: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
   }
 
   .boolean-badge.is-false {
-    background-color: rgba(209, 36, 47, 0.12);
-    color: #cf222e;
+    background-color: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
   }
 
   /* Objeto / JSON */
@@ -517,6 +513,6 @@
   }
 
   :global(.copy-success-icon) {
-    color: #2ea043 !important;
+    color: var(--success) !important;
   }
 </style>

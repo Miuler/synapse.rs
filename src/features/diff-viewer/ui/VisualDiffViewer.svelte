@@ -303,7 +303,7 @@
   }
 
   .state-container.error {
-    color: #f85149;
+    color: var(--danger);
   }
 
   .spinner {
@@ -362,27 +362,27 @@
   }
 
   .pane-tag.local {
-    background-color: rgba(56, 189, 248, 0.12);
-    color: #38bdf8;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    background-color: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
   }
 
   .pane-tag.git {
-    background-color: rgba(245, 158, 11, 0.12);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.25);
+    background-color: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid var(--warning-border);
   }
 
   .pane-tag.git.is-staged {
-    background-color: rgba(46, 160, 67, 0.15);
-    color: #3fb950;
-    border: 1px solid rgba(46, 160, 67, 0.3);
+    background-color: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
   }
 
   .pane-tag.git.is-revision {
-    background-color: rgba(147, 51, 234, 0.15);
-    color: #a855f7;
-    border: 1px solid rgba(147, 51, 234, 0.3);
+    background-color: var(--purple-bg);
+    color: var(--purple);
+    border: 1px solid var(--purple-border);
   }
 
   .pane-header-right {
@@ -419,12 +419,12 @@
 
   .mode-toggle-btn:hover {
     color: var(--text-primary, #f0f6fc);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--hover-bg);
   }
 
   .mode-toggle-btn.active {
     background-color: var(--accent, #38bdf8);
-    color: #0b0d10;
+    color: var(--on-accent);
     font-weight: 600;
   }
 
@@ -445,8 +445,8 @@
   }
 
   .not-in-git-badge {
-    background-color: rgba(248, 81, 73, 0.15);
-    color: #f85149;
+    background-color: var(--danger-bg);
+    color: var(--danger);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 10px;
@@ -493,7 +493,7 @@
     opacity: 0;
     pointer-events: none;
     background-color: var(--accent, #38bdf8);
-    color: #0b0d10;
+    color: var(--on-accent);
     border-radius: 3px;
     padding: 4px 1px;
     display: flex;

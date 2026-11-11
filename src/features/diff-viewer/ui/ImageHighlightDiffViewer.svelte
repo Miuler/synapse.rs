@@ -192,7 +192,7 @@
   }
 
   .state-container.error {
-    color: #f85149;
+    color: var(--danger);
   }
 
   .spinner {
@@ -231,15 +231,15 @@
     padding: 2px 8px;
     border-radius: 4px;
     font-weight: 600;
-    background-color: rgba(46, 160, 67, 0.15);
-    color: #3fb950;
-    border: 1px solid rgba(46, 160, 67, 0.3);
+    background-color: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
   }
 
   .stat-pill.has-diff {
-    background-color: rgba(248, 81, 73, 0.15);
-    color: #ff3366;
-    border-color: rgba(248, 81, 73, 0.35);
+    background-color: var(--danger-bg);
+    color: #ff3366; /* fijo: magenta del diff de píxeles */
+    border-color: var(--danger-border);
   }
 
   .stat-dot {
@@ -266,8 +266,8 @@
     width: 12px;
     height: 12px;
     border-radius: 2px;
-    background-color: #ff0077;
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    background-color: #ff0077; /* fijo: magenta del diff de píxeles */
+    border: 1px solid rgba(255, 255, 255, 0.4); /* fijo: borde de la muestra de magenta */
   }
 
   .zoom-controls {
@@ -316,10 +316,10 @@
     align-items: center;
     justify-content: center;
     background-image:
-      linear-gradient(45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
-      linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%),
-      linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%);
+      linear-gradient(45deg, var(--border-subtle) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--border-subtle) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--border-subtle) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--border-subtle) 75%);
     background-size: 20px 20px;
     background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
   }
@@ -337,7 +337,7 @@
   .diff-img {
     display: block;
     max-width: none;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--popover-shadow);
     border-radius: 2px;
     border: 1px solid var(--border-primary, rgba(255, 255, 255, 0.1));
   }

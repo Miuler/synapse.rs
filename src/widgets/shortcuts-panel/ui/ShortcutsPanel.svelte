@@ -120,7 +120,7 @@
 <Dialog.Root bind:open={isOpen}>
   <Dialog.Portal>
     <Dialog.Overlay class="shortcuts-backdrop" />
-    <Dialog.Content class="shortcuts-panel">
+    <Dialog.Content class="shortcuts-panel synapse-dialog">
       <Dialog.Title class="shortcuts-title">Atajos de teclado</Dialog.Title>
       <SearchBox bind:value={query} placeholder="Buscar un atajo o una acción..." />
 
@@ -168,7 +168,7 @@
     color: var(--text-primary, #1f2328);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 10px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--modal-shadow);
     z-index: 1001;
   }
 

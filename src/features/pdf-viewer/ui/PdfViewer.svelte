@@ -439,7 +439,7 @@
   }
 
   .synapse-pdf-error {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .synapse-pdf-error-title {

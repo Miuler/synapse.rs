@@ -453,23 +453,23 @@
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.4px;
-    background-color: rgba(59, 130, 246, 0.15);
-    color: #3b82f6;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background-color: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .diff-file-badge.is-staged {
-    background-color: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-    border-color: rgba(34, 197, 94, 0.3);
+    background-color: var(--git-staged-bg);
+    color: var(--git-staged);
+    border-color: var(--git-staged-border);
   }
 
   .diff-file-badge.is-revision {
-    background-color: rgba(147, 51, 234, 0.15);
-    color: #9333ea;
-    border-color: rgba(147, 51, 234, 0.3);
+    background-color: var(--purple-bg);
+    color: var(--purple);
+    border-color: var(--purple-border);
   }
 
   .diff-file-info {
@@ -508,11 +508,11 @@
   }
 
   .stat-added {
-    color: #22c55e;
+    color: var(--success);
   }
 
   .stat-deleted {
-    color: #ef4444;
+    color: var(--danger);
   }
 
   .diff-toolbar-right {
@@ -554,7 +554,7 @@
   .toggle-btn.active {
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--card-shadow);
   }
 
   .action-btn {
@@ -620,11 +620,11 @@
   }
 
   .error-icon {
-    color: #ef4444;
+    color: var(--danger);
   }
 
   .success-icon {
-    color: #22c55e;
+    color: var(--success);
   }
 
   .state-title {
@@ -645,7 +645,7 @@
   .retry-btn {
     padding: 6px 16px;
     background-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     border-radius: 5px;
     font-size: 12px;
@@ -728,18 +728,18 @@
   }
 
   .diff-raw-line.add {
-    background-color: rgba(34, 197, 94, 0.15);
-    color: #16a34a;
+    background-color: var(--success-bg);
+    color: var(--success);
   }
 
   .diff-raw-line.del {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: #dc2626;
+    background-color: var(--danger-bg);
+    color: var(--danger);
   }
 
   .diff-raw-line.hunk {
-    background-color: rgba(59, 130, 246, 0.12);
-    color: #2563eb;
+    background-color: var(--accent-bg);
+    color: var(--accent);
     font-weight: 600;
   }
 

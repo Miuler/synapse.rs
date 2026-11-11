@@ -453,14 +453,14 @@
       backgroundColor: 'var(--accent-bg, rgba(9, 105, 218, 0.04))',
     },
     '.cm-activeLineGutter': {
-      backgroundColor: 'rgba(9, 105, 218, 0.08)',
+      backgroundColor: 'color-mix(in srgb, var(--accent) 8%, transparent)',
       color: 'var(--accent, #0969da)',
     },
     '.cm-cursor, .cm-dropCursor': {
       borderLeftColor: 'var(--text-primary, #1f2328)',
     },
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-      backgroundColor: 'rgba(9, 105, 218, 0.25) !important',
+      backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent) !important',
     },
     '.cm-panels': {
       backgroundColor: 'var(--bg-secondary, #f6f8fa)',
@@ -538,8 +538,8 @@
       transform: 'translate(-50%, -50%)',
       padding: '8px 14px',
       borderRadius: '10px',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      color: '#fff',
+      backgroundColor: 'color-mix(in srgb, var(--text-primary) 70%, transparent)',
+      color: 'var(--bg-primary)',
       fontSize: 'calc(18px * var(--content-zoom, 1))',
       lineHeight: '1',
     },
@@ -561,7 +561,7 @@
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     },
     '.cm-image-card:hover': {
-      borderColor: 'rgba(9, 105, 218, 0.4)',
+      borderColor: 'color-mix(in srgb, var(--accent) 40%, transparent)',
       boxShadow: 'var(--card-shadow-hover, 0 4px 12px rgba(0, 0, 0, 0.08))',
     },
     '.cm-image-actions': {
@@ -588,7 +588,7 @@
       backdropFilter: 'blur(4px)',
       color: 'var(--text-secondary, #656d76)',
       cursor: 'pointer',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      boxShadow: 'var(--card-shadow)',
     },
     '.cm-image-action-btn:hover': {
       color: 'var(--accent, #0969da)',
@@ -660,7 +660,7 @@
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     },
     '.cm-mermaid-widget-wrapper:hover': {
-      borderColor: 'rgba(9, 105, 218, 0.4)',
+      borderColor: 'color-mix(in srgb, var(--accent) 40%, transparent)',
       boxShadow: 'var(--card-shadow-hover, 0 4px 14px rgba(0, 0, 0, 0.07))',
     },
     '.cm-mermaid-widget-wrapper.is-live-edit': {
@@ -693,7 +693,7 @@
       textTransform: 'uppercase',
       padding: '1px 6px',
       borderRadius: '4px',
-      backgroundColor: 'rgba(9, 105, 218, 0.12)',
+      backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
       color: 'var(--accent, #0969da)',
     },
     '.cm-mermaid-actions': {
@@ -728,7 +728,7 @@
       fontWeight: '600',
       padding: '2px 8px',
       borderRadius: '999px',
-      backgroundColor: 'rgba(9, 105, 218, 0.1)',
+      backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)',
       color: 'var(--accent, #0969da)',
     },
     '.cm-mermaid-live-dot': {
@@ -832,7 +832,7 @@
       transition: 'all 0.15s ease',
     },
     '.cm-table-banner-btn:hover': {
-      backgroundColor: 'rgba(9, 105, 218, 0.08)',
+      backgroundColor: 'color-mix(in srgb, var(--accent) 8%, transparent)',
       borderColor: 'var(--accent, #0969da)',
     },
     /* Estilos del popup de autocompletado de wikilinks */
@@ -840,7 +840,7 @@
       backgroundColor: 'var(--bg-primary, #ffffff) !important',
       border: '1px solid var(--border-primary, #d0d7de) !important',
       borderRadius: '8px !important',
-      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12) !important',
+      boxShadow: 'var(--popover-shadow) !important',
       padding: '6px 4px !important',
       fontFamily: 'inherit !important',
       minWidth: '340px !important',
@@ -1139,7 +1139,7 @@
   });
 </script>
 
-<div class="editor-wrapper" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
+<div class="editor-wrapper synapse-editor" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
   {#if isMarkdown && viewMode === 'reading'}
     <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} />
   {/if}

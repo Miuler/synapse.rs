@@ -793,7 +793,7 @@
   :global(.breadcrumb-toast-icon) {
     width: 14px;
     height: 14px;
-    color: #2da44e;
+    color: var(--success);
     flex-shrink: 0;
   }
 

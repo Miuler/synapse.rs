@@ -578,7 +578,7 @@
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--card-shadow);
     transition: all 0.15s ease;
   }
 

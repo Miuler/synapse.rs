@@ -89,3 +89,27 @@ it('un fragmento cambia títulos en lectura y edición, la fuente del texto y el
     { timeout: 10_000, timeoutMsg: 'el ícono de carpeta no se reemplazó' },
   );
 });
+
+it('el tema de ejemplo «Papel» se aplica y las zonas públicas existen', async () => {
+  writeFileSync(join(s.vault, '.synapse/themes/papel.css'), readFileSync(join(import.meta.dir, '../docs/temas/papel.css'), 'utf8'));
+  // Quitar el fragmento del caso anterior para ver el ícono del tema
+  await s.browser.$('[aria-label="Configuración"]').click();
+  await s.browser.$('.settings-panel').waitForDisplayed({ timeout: 5_000 });
+  await s.browser.$('.snippet-toggle[data-snippet="estilo"]').click();
+  await s.browser.$('.appearance-reload').click();
+  await s.browser.$('.custom-theme-select option[value="papel"]').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.custom-theme-select').selectByAttribute('value', 'papel');
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim())) ===
+      ((await s.browser.execute(() => document.documentElement.dataset.theme)) === 'dark' ? '#1e1d1a' : '#f7f1e3'),
+    { timeout: 5_000, timeoutMsg: 'el tema Papel no cambió --bg-primary' },
+  );
+  await s.browser.keys('Escape');
+  const zones = (await s.browser.execute(() =>
+    ['.synapse-app', '.synapse-ribbon', '.synapse-sidebar', '.synapse-explorer-item', '.synapse-header', '.synapse-tab', '.synapse-main', '.synapse-note-title', '.synapse-editor', '.synapse-statusbar'].filter(
+      (sel) => !document.querySelector(sel),
+    ),
+  )) as string[];
+  expect(zones).toEqual([]);
+});

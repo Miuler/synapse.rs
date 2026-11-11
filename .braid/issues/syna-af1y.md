@@ -3,12 +3,13 @@ schema_version: 9
 id: syna-af1y
 title: 'Temas: pasar los colores fijos a variables'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - temas
 owner: null
 created_at: 2026-11-11T21:45:09.247816664Z
+completed_at: 2026-11-11T22:26:29.089126658Z
 acceptance:
 - Ningún color fijo fuera de app.css salvo justificados
 - Sin cambios visibles en los temas claro y oscuro actuales

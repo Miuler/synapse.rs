@@ -116,7 +116,7 @@
     <AlertDialog.Overlay class="confirm-dialog-overlay" />
     <AlertDialog.Content
       bind:ref={dialogContentEl}
-      class="confirm-dialog unsaved-changes-dialog"
+      class="confirm-dialog unsaved-changes-dialog synapse-dialog"
       onOpenAutoFocus={(e) => {
         e.preventDefault();
         focusDefaultButton();
@@ -208,8 +208,8 @@
   }
 
   :global(.confirm-dialog .confirm-dialog-icon-wrap.warning) {
-    background: rgba(210, 153, 34, 0.15);
-    color: #d29922;
+    background: color-mix(in srgb, var(--warning) 15%, transparent);
+    color: var(--warning);
   }
 
   .unsaved-actions {
@@ -222,7 +222,7 @@
 
   .confirm-dialog-btn.primary {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
     border-color: var(--accent, #0969da);
   }
 

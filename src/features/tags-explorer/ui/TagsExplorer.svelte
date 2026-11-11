@@ -297,7 +297,7 @@
   .tag-pill-btn.active {
     background-color: var(--bg-primary, #ffffff);
     border-color: var(--border-primary, #d0d7de);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .tag-left {

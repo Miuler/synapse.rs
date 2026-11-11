@@ -103,8 +103,8 @@
   }
 
   .win-btn.close:hover {
-    color: #ffffff;
-    background-color: #e5534b;
+    color: #ffffff; /* fijo: semáforo/cierre de ventana */
+    background-color: #e5534b; /* fijo: semáforo/cierre de ventana */
   }
 
   :global(.win-icon) {

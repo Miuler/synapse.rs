@@ -303,7 +303,7 @@
   }
 </script>
 
-<footer class="status-bar">
+<footer class="status-bar synapse-statusbar">
   <div class="left-group">
     <button
       type="button"
@@ -855,14 +855,14 @@
   }
 
   .md-view-btn.live-mode {
-    color: #1a7f37;
-    background: rgba(46, 160, 67, 0.08);
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 8%, transparent);
     font-weight: 600;
   }
 
   .md-view-btn.live-mode:hover,
   .md-view-btn.live-mode.active {
-    background: rgba(46, 160, 67, 0.16);
+    background: color-mix(in srgb, var(--success) 16%, transparent);
   }
 
   .md-view-btn.source-mode {
@@ -877,14 +877,14 @@
   }
 
   .md-view-btn.reading-mode {
-    color: #8250df;
-    background: rgba(130, 80, 223, 0.08);
+    color: var(--purple);
+    background: color-mix(in srgb, var(--purple) 8%, transparent);
     font-weight: 600;
   }
 
   .md-view-btn.reading-mode:hover,
   .md-view-btn.reading-mode.active {
-    background: rgba(130, 80, 223, 0.16);
+    background: color-mix(in srgb, var(--purple) 16%, transparent);
   }
 
   /* Menú desplegable para vistas Markdown */
@@ -948,12 +948,12 @@
   }
 
   :global(.view-dropdown .view-item.current) {
-    background: rgba(9, 105, 218, 0.05);
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
   }
 
   :global(.view-dropdown .view-item.current:hover),
   :global(.view-dropdown .view-item.current[data-highlighted]) {
-    background: rgba(9, 105, 218, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   :global(.view-dropdown .item-icon-box) {
@@ -969,18 +969,18 @@
   }
 
   :global(.view-dropdown .view-item.mode-live .item-icon-box) {
-    color: #1a7f37;
-    background: rgba(46, 160, 67, 0.1);
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
   }
 
   :global(.view-dropdown .view-item.mode-source .item-icon-box) {
     color: var(--accent, #0969da);
-    background: rgba(9, 105, 218, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   :global(.view-dropdown .view-item.mode-reading .item-icon-box) {
-    color: #8250df;
-    background: rgba(130, 80, 223, 0.1);
+    color: var(--purple);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
   }
 
   :global(.view-dropdown .item-icon) {
@@ -1019,7 +1019,7 @@
   }
 
   :global(.view-dropdown .view-item.current.mode-live .item-label) {
-    color: #1a7f37;
+    color: var(--success);
   }
 
   :global(.view-dropdown .view-item.current.mode-source .item-label) {
@@ -1027,7 +1027,7 @@
   }
 
   :global(.view-dropdown .view-item.current.mode-reading .item-label) {
-    color: #8250df;
+    color: var(--purple);
   }
 
   :global(.view-dropdown .item-desc) {
@@ -1192,7 +1192,7 @@
 
   :global(.vim-btn[data-state="on"] .vim-badge) {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
   }
 
   /* Indicador MCP */
@@ -1204,17 +1204,17 @@
   }
 
   .mcp-btn.mcp-running {
-    color: #1a7f37;
-    background: rgba(46, 160, 67, 0.12);
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
   }
 
   .mcp-btn.mcp-running:hover {
-    background: rgba(46, 160, 67, 0.2);
+    background: color-mix(in srgb, var(--success) 20%, transparent);
   }
 
   .mcp-btn.mcp-running :global(.mcp-icon) {
     opacity: 1;
-    color: #1a7f37;
+    color: var(--success);
   }
 
   .mcp-port-tag {
@@ -1252,18 +1252,18 @@
   }
 
   .dot.synced {
-    background-color: #3fb950;
-    box-shadow: 0 0 6px rgba(63, 185, 80, 0.6);
+    background-color: var(--success);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--success) 60%, transparent);
   }
 
   .dot.saving {
-    background-color: #d29922;
-    box-shadow: 0 0 6px rgba(210, 153, 34, 0.6);
+    background-color: var(--warning);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--warning) 60%, transparent);
   }
 
   .dot.error {
-    background-color: #f85149;
-    box-shadow: 0 0 6px rgba(248, 81, 73, 0.6);
+    background-color: var(--danger);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 60%, transparent);
   }
 
   /* Contenedor y botón de indexación */
@@ -1282,13 +1282,13 @@
 
   .indexing-btn.indexing {
     color: var(--accent, #0969da);
-    background: rgba(9, 105, 218, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     font-weight: 600;
   }
 
   .indexing-btn.error {
-    color: #cf222e;
-    background: rgba(207, 34, 46, 0.08);
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
   }
 
   .indexing-icon {
@@ -1296,7 +1296,7 @@
   }
 
   .error-icon {
-    color: #cf222e;
+    color: var(--danger);
   }
 
   .spin {
@@ -1363,21 +1363,21 @@
   }
 
   :global(.indexing-popover .pill-ready) {
-    background: rgba(46, 160, 67, 0.12);
-    color: #1a7f37;
-    border: 1px solid rgba(46, 160, 67, 0.25);
+    background: color-mix(in srgb, var(--success) 12%, transparent);
+    color: var(--success);
+    border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   }
 
   :global(.indexing-popover .pill-indexing) {
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--accent, #0969da);
-    border: 1px solid rgba(9, 105, 218, 0.25);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   }
 
   :global(.indexing-popover .pill-error) {
-    background: rgba(207, 34, 46, 0.12);
-    color: #cf222e;
-    border: 1px solid rgba(207, 34, 46, 0.25);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
+    border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
   }
 
   :global(.indexing-popover .pulse-dot) {
@@ -1552,9 +1552,9 @@
     gap: 6px;
     padding: 6px 8px;
     border-radius: 6px;
-    background: rgba(207, 34, 46, 0.08);
-    border: 1px solid rgba(207, 34, 46, 0.25);
-    color: #cf222e;
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+    color: var(--danger);
     font-size: 10px;
   }
 
@@ -1696,7 +1696,7 @@
   }
 
   :global(.status-toast-icon) {
-    color: #2da44e;
+    color: var(--success);
     flex-shrink: 0;
   }
 

@@ -180,7 +180,7 @@
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--popover-shadow);
     padding: 6px;
     font-size: 13px;
   }

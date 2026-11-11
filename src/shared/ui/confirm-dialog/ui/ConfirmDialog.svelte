@@ -117,7 +117,7 @@
     <AlertDialog.Overlay class="confirm-dialog-overlay" />
     <AlertDialog.Content
       bind:ref={dialogContentEl}
-      class="confirm-dialog"
+      class="confirm-dialog synapse-dialog"
       onOpenAutoFocus={(e) => {
         e.preventDefault();
         focusCancelButton();
@@ -179,7 +179,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--overlay-bg);
     backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
@@ -246,12 +246,12 @@
   }
 
   :global(.confirm-dialog .confirm-dialog-icon-wrap.danger) {
-    background: rgba(207, 34, 46, 0.12);
-    color: #cf222e;
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    color: var(--danger);
   }
 
   :global(.confirm-dialog .confirm-dialog-icon-wrap.default) {
-    background: rgba(9, 105, 218, 0.12);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
     color: var(--accent, #0969da);
   }
 
@@ -356,25 +356,25 @@
   }
 
   :global(.confirm-dialog .confirm-dialog-btn.confirm.danger) {
-    background: #cf222e;
-    color: #ffffff;
-    border-color: #a40e26;
+    background: var(--danger);
+    color: var(--on-accent);
+    border-color: color-mix(in srgb, var(--danger) 75%, black);
   }
 
   :global(.confirm-dialog .confirm-dialog-btn.confirm.danger:hover:not(:disabled)) {
-    background: #a40e26;
+    background: color-mix(in srgb, var(--danger) 75%, black);
   }
 
   :global(.confirm-dialog .confirm-dialog-btn.confirm.danger:focus),
   :global(.confirm-dialog .confirm-dialog-btn.confirm.danger:focus-visible) {
-    outline: 2px solid #cf222e;
+    outline: 2px solid var(--danger);
     outline-offset: 2px;
-    border-color: #a40e26;
+    border-color: color-mix(in srgb, var(--danger) 75%, black);
   }
 
   :global(.confirm-dialog .confirm-dialog-btn.confirm.default) {
     background: var(--accent, #0969da);
-    color: #ffffff;
+    color: var(--on-accent);
     border-color: var(--accent, #0969da);
   }
 

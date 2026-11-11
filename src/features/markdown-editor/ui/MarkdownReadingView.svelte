@@ -750,7 +750,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="markdown-reading-wrapper"
+  class="markdown-reading-wrapper synapse-reading"
   bind:this={containerRef}
   onkeydown={handleWrapperKeyDown}
   tabindex="-1"
@@ -902,7 +902,7 @@
     background-color: var(--bg-secondary, #f6f8fa);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--popover-shadow);
   }
 
   .reading-search-input-wrapper {
@@ -938,7 +938,7 @@
 
   .reading-search-input:focus {
     border-color: var(--accent, #0969da);
-    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.2);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   .reading-search-icon-btn {
@@ -1008,7 +1008,7 @@
   }
 
   .reading-search-case-btn.active {
-    background-color: rgba(9, 105, 218, 0.15);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
     border-color: var(--accent, #0969da);
     color: var(--accent, #0969da);
   }
@@ -1018,16 +1018,16 @@
   }
 
   :global(mark.reading-search-highlight) {
-    background-color: rgba(255, 223, 93, 0.45);
+    background-color: rgba(255, 223, 93, 0.45); /* fijo: resaltado de búsqueda, no depende del tema */
     color: inherit;
     border-radius: 2px;
     padding: 1px 2px;
   }
 
   :global(mark.reading-search-highlight.reading-search-active) {
-    background-color: #ff9632 !important;
-    color: #000000 !important;
-    outline: 2px solid #ff9632;
+    background-color: #ff9632 !important; /* fijo: resaltado de búsqueda, no depende del tema */
+    color: #000000 !important; /* fijo: texto sobre resaltado naranja */
+    outline: 2px solid #ff9632; /* fijo: resaltado de búsqueda, no depende del tema */
     border-radius: 2px;
   }
 

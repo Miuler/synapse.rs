@@ -298,7 +298,7 @@
   .tab-btn.active {
     background-color: var(--bg-primary, #ffffff);
     color: var(--accent, #0969da);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .inspector-content {
@@ -335,7 +335,7 @@
 
   .relation-card:hover {
     border-color: var(--accent, #0969da);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .relation-card.is-unresolved {

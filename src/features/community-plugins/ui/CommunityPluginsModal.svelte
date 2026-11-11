@@ -112,7 +112,7 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="plugin-modal-backdrop" />
-    <Dialog.Content class="plugin-modal-content">
+    <Dialog.Content class="plugin-modal-content synapse-dialog">
       <!-- Encabezado del Modal -->
       <div class="plugin-modal-header">
         <div class="header-title-row">
@@ -515,7 +515,7 @@
   :global(.plugin-modal-backdrop) {
     position: fixed;
     inset: 0;
-    background-color: rgba(0, 0, 0, 0.65);
+    background-color: var(--overlay-bg);
     backdrop-filter: blur(4px);
     z-index: 1000;
   }
@@ -531,7 +531,7 @@
     background: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: 12px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--modal-shadow);
     z-index: 1001;
     display: flex;
     flex-direction: column;
@@ -623,12 +623,12 @@
   .tab-btn.active {
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--card-shadow);
   }
 
   .tab-update-badge {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-size: 0.72rem;
     font-weight: 600;
     padding: 1px 6px;
@@ -664,7 +664,7 @@
   .action-btn-pill.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
 
   .action-btn-pill.primary:hover:not(:disabled) {
@@ -746,10 +746,10 @@
   .alert-error {
     margin: 10px 20px 0 20px;
     padding: 10px 14px;
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
     border-radius: 6px;
-    color: #ef4444;
+    color: var(--danger);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -791,7 +791,7 @@
 
   .btn-primary-action {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     padding: 8px 16px;
     border-radius: 6px;
@@ -908,7 +908,7 @@
     align-items: center;
     gap: 6px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     padding: 6px 12px;
     border-radius: 6px;
@@ -928,7 +928,7 @@
     align-items: center;
     gap: 5px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     padding: 5px 10px;
     border-radius: 6px;
@@ -946,7 +946,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: #10b981;
+    color: var(--success);
     font-size: 0.82rem;
     font-weight: 500;
   }
@@ -993,7 +993,7 @@
   }
 
   .installed-card.has-update {
-    border-color: rgba(99, 102, 241, 0.45);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   }
 
   .installed-card.disabled {
@@ -1064,8 +1064,8 @@
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     border-radius: 6px;
     font-size: 0.82rem;
   }
@@ -1086,7 +1086,7 @@
     align-items: center;
     gap: 6px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border: none;
     padding: 5px 12px;
     border-radius: 6px;
@@ -1131,7 +1131,7 @@
     width: 16px;
     left: 3px;
     bottom: 3px;
-    background-color: #fff;
+    background-color: var(--on-accent);
     border-radius: 50%;
     transition: 0.2s;
   }
@@ -1162,8 +1162,8 @@
   }
 
   .icon-action-btn.danger:hover {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
   }
 
   /* Subvista de Configuración */

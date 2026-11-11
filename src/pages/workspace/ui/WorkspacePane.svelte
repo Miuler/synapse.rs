@@ -164,7 +164,7 @@
 {#if isSplit}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="split-pane-wrapper {paneId}-pane"
+    class="split-pane-wrapper synapse-pane {paneId}-pane"
     {style}
     onpointerdown={onPointerDown}
   >
@@ -200,7 +200,7 @@
     right: 0;
     bottom: 0;
     width: 50%;
-    background-color: rgba(9, 105, 218, 0.12);
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
     border: 2px dashed var(--accent, #0969da);
     border-radius: 8px;
     z-index: 100;
@@ -223,7 +223,7 @@
     background: var(--bg-primary, #ffffff);
     border: 1px solid var(--accent, #0969da);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--popover-shadow);
   }
 
   @keyframes fadeIn {
