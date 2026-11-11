@@ -883,7 +883,7 @@
     box-sizing: border-box;
     background-color: var(--bg-primary, #ffffff);
     color: var(--text-primary, #1f2328);
-    font-family: var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    font-family: var(--font-text, var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif));
     line-height: 1.7;
     position: relative;
     outline: none;
@@ -1055,9 +1055,12 @@
     margin-top: 0.4em;
   }
 
+  /* Títulos por nivel con las variables --hN-* de los temas (las mismas que en el editor) */
   :global(.markdown-body h1) {
-    font-size: 2em;
-    font-weight: 700;
+    font-family: var(--h1-font, inherit);
+    font-size: var(--h1-size, 2em);
+    font-weight: var(--h1-weight, 700);
+    color: var(--h1-color, inherit);
     padding-bottom: 0.3em;
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     margin-top: 24px;
@@ -1065,8 +1068,10 @@
   }
 
   :global(.markdown-body h2) {
-    font-size: 1.5em;
-    font-weight: 600;
+    font-family: var(--h2-font, inherit);
+    font-size: var(--h2-size, 1.5em);
+    font-weight: var(--h2-weight, 600);
+    color: var(--h2-color, inherit);
     padding-bottom: 0.3em;
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     margin-top: 24px;
@@ -1074,10 +1079,33 @@
   }
 
   :global(.markdown-body h3) {
-    font-size: 1.25em;
-    font-weight: 600;
+    font-family: var(--h3-font, inherit);
+    font-size: var(--h3-size, 1.25em);
+    font-weight: var(--h3-weight, 600);
+    color: var(--h3-color, inherit);
     margin-top: 24px;
     margin-bottom: 12px;
+  }
+
+  :global(.markdown-body h4) {
+    font-family: var(--h4-font, inherit);
+    font-size: var(--h4-size, 1em);
+    font-weight: var(--h4-weight, 700);
+    color: var(--h4-color, inherit);
+  }
+
+  :global(.markdown-body h5) {
+    font-family: var(--h5-font, inherit);
+    font-size: var(--h5-size, 0.83em);
+    font-weight: var(--h5-weight, 700);
+    color: var(--h5-color, inherit);
+  }
+
+  :global(.markdown-body h6) {
+    font-family: var(--h6-font, inherit);
+    font-size: var(--h6-size, 0.67em);
+    font-weight: var(--h6-weight, 700);
+    color: var(--h6-color, inherit);
   }
 
   :global(.markdown-body p) {

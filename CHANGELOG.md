@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Temas y fragmentos CSS por bóveda**: en Configuración → Apariencia se elige un tema de `.synapse/themes/` y se activan fragmentos de `.synapse/snippets/` (archivos `.css`). Se aplican sin reiniciar y cada bóveda guarda los suyos en `.synapse/appearance.json`. Los temas pueden cambiar los títulos por nivel en lectura y edición (`--h1-font`, `--h1-size`, `--h1-weight`, `--h1-color`… hasta `h6`), la fuente del texto de las notas (`--font-text`) y el ícono de carpeta (`--icon-folder`, `--icon-folder-open`).
+
 - **Diff de Excalidraw por píxeles**: el diff visual de un dibujo tiene el modo «Diferencias», como las imágenes. Las dos versiones se exportan a imagen con el mismo marco y se resaltan en magenta los píxeles que cambiaron.
 
 - Fondo por defecto en la pestaña vacía: una imagen para el tema claro y otra para el oscuro, incluidas en la app. Se usan mientras no se elija un fondo propio.

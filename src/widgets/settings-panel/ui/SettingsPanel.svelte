@@ -11,6 +11,7 @@
   } from '@entities/settings';
   import type { SupportedLocale } from '@shared/lib/i18n';
   import { invokeTauri } from '@shared/repositories/tauri';
+  import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
   import { convertFileSrc } from '@tauri-apps/api/core';
 
   interface Props {
@@ -183,6 +184,39 @@
                 <button type="button" onclick={() => appSettings.setWallpaper(undefined)}>Quitar</button>
               {/if}
             </div>
+          </div>
+
+          <h4 class="subsection">Tema y fragmentos CSS (de esta bóveda)</h4>
+          <label class="row">
+            <span class="row-label">Tema personalizado</span>
+            <select
+              class="custom-theme-select"
+              value={appearance.theme ?? ''}
+              onchange={(e) => appearance.setTheme(e.currentTarget.value || null)}
+            >
+              <option value="">Ninguno</option>
+              {#each appearance.themes as name (name)}
+                <option value={name}>{name}</option>
+              {/each}
+            </select>
+          </label>
+          {#each appearance.snippets as name (name)}
+            <label class="row">
+              <span class="row-label">{name}</span>
+              <input
+                type="checkbox"
+                class="snippet-toggle"
+                data-snippet={name}
+                checked={appearance.enabledSnippets.includes(name)}
+                onchange={(e) => appearance.toggleSnippet(name, e.currentTarget.checked)}
+              />
+            </label>
+          {/each}
+          <div class="row">
+            <span class="row-label hint">
+              Temas en <code>{THEMES_DIR}/</code> y fragmentos en <code>{SNIPPETS_DIR}/</code>, como archivos <code>.css</code>.
+            </span>
+            <button type="button" class="appearance-reload" onclick={() => appearance.load()}>Recargar</button>
           </div>
         {:else if section === 'editor'}
           <h3>Editor</h3>

@@ -29,6 +29,7 @@
   import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
+  import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
   import {
@@ -2010,6 +2011,7 @@
     });
   });
 
+  let appearanceVault: string | null = null;
   async function fetchNotesFromBackend() {
     try {
       const activePath = await vaultApi.getActiveVaultPath();
@@ -2023,6 +2025,11 @@
       }
 
       appSettings.setLastOpenedFolder(activePath);
+      // Fragmentos CSS y tema de la bóveda: solo al cambiar de bóveda, no en cada refresco
+      if (appearanceVault !== activePath) {
+        appearanceVault = activePath;
+        appearance.load().catch((err) => console.warn('No se pudo cargar la apariencia de la bóveda:', err));
+      }
       const notes = await vaultRepository.getNotes();
       isConnectedToRust = vaultRepository.isConnected();
       ensureSynapseAppLoaded();

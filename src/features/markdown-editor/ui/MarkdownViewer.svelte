@@ -315,10 +315,13 @@
 
   // 1. Estilos y tema para modo Vista Previa en Vivo (Live Preview interactivo estilo Obsidian)
   const livePreviewHighlightStyle = HighlightStyle.define([
-    { tag: tags.heading1, fontSize: '1.8em', fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading2, fontSize: '1.45em', fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading3, fontSize: '1.25em', fontWeight: '600', color: 'var(--text-primary, #1f2328)' },
-    { tag: tags.heading, fontWeight: '600', color: 'var(--text-primary, #1f2328)' },
+    // Títulos por nivel con las variables --hN-* de los temas (las mismas que en lectura)
+    { tag: tags.heading1, fontFamily: 'var(--h1-font, inherit)', fontSize: 'var(--h1-size, 1.8em)', fontWeight: 'var(--h1-weight, 700)', color: 'var(--h1-color, var(--text-primary, #1f2328))' },
+    { tag: tags.heading2, fontFamily: 'var(--h2-font, inherit)', fontSize: 'var(--h2-size, 1.45em)', fontWeight: 'var(--h2-weight, 700)', color: 'var(--h2-color, var(--text-primary, #1f2328))' },
+    { tag: tags.heading3, fontFamily: 'var(--h3-font, inherit)', fontSize: 'var(--h3-size, 1.25em)', fontWeight: 'var(--h3-weight, 600)', color: 'var(--h3-color, var(--text-primary, #1f2328))' },
+    { tag: tags.heading4, fontFamily: 'var(--h4-font, inherit)', fontSize: 'var(--h4-size, 1em)', fontWeight: 'var(--h4-weight, 600)', color: 'var(--h4-color, var(--text-primary, #1f2328))' },
+    { tag: tags.heading5, fontFamily: 'var(--h5-font, inherit)', fontSize: 'var(--h5-size, 1em)', fontWeight: 'var(--h5-weight, 600)', color: 'var(--h5-color, var(--text-primary, #1f2328))' },
+    { tag: tags.heading6, fontFamily: 'var(--h6-font, inherit)', fontSize: 'var(--h6-size, 1em)', fontWeight: 'var(--h6-weight, 600)', color: 'var(--h6-color, var(--text-primary, #1f2328))' },
     { tag: tags.processingInstruction, color: 'var(--text-secondary, #8c959f)', opacity: '0.6', fontWeight: '400' },
     { tag: tags.emphasis, fontStyle: 'italic' },
     { tag: tags.strong, fontWeight: '700', color: 'var(--text-primary, #1f2328)' },
@@ -334,7 +337,7 @@
 
   const livePreviewTheme = EditorView.theme({
     '&': {
-      fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
+      fontFamily: 'var(--font-text, var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)) !important',
       fontSize: 'calc(15.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.75 !important',
     },
@@ -345,7 +348,7 @@
       fontFamily: 'inherit !important',
     },
     '.cm-line': {
-      fontFamily: 'var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif) !important',
+      fontFamily: 'var(--font-text, var(--main-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)) !important',
       fontSize: 'calc(15.5px * var(--content-zoom, 1)) !important',
       lineHeight: '1.75 !important',
       padding: '0 4px',
