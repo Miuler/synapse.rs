@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Tema de ejemplo «Neón»** (`docs/temas/neon.css`): cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque, títulos con brillo magenta, cian y amarillo, íconos de carpeta propios y desplegables dibujados a mano. Tiene versión oscura y una clara «amanecer».
+
 - **Temas: todo el color en variables, zonas públicas y tema de ejemplo**: los colores de la interfaz salen de variables CSS (nuevas: `--success`, `--warning`, `--danger`, `--purple`, `--on-accent`, `--overlay-bg`…), así un tema cambia toda la app. Las zonas principales tienen clases estables `synapse-*` (barra lateral, filas del explorador, pestañas, editor, lectura, barra de estado, diálogos). Guía en `docs/temas.md` y tema de ejemplo «Papel» en `docs/temas/papel.css`. Algunos tonos cambian levemente al seguir las variables del tema, sobre todo en la pantalla de bienvenida.
 
 - **Temas y fragmentos CSS por bóveda**: en Configuración → Apariencia se elige un tema de `.synapse/themes/` y se activan fragmentos de `.synapse/snippets/` (archivos `.css`). Se aplican sin reiniciar y cada bóveda guarda los suyos en `.synapse/appearance.json`. Los temas pueden cambiar los títulos por nivel en lectura y edición (`--h1-font`, `--h1-size`, `--h1-weight`, `--h1-color`… hasta `h6`), la fuente del texto de las notas (`--font-text`) y el ícono de carpeta (`--icon-folder`, `--icon-folder-open`).

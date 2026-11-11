@@ -1,0 +1,231 @@
+/*
+ * Tema de ejemplo «Neón»: cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque,
+ * títulos con brillo de neón y acentos magenta y cian. Pensado para el modo oscuro; en modo claro
+ * usa una variante «amanecer» lavanda con los mismos acentos.
+ *
+ * Instalar: copiar a <bóveda>/.synapse/themes/neon.css y elegirlo en
+ * Configuración → Apariencia → Tema personalizado. Guía de variables y zonas en docs/temas.md.
+ *
+ * Fuentes: usa Orbitron y Share Tech Mono si están instaladas; si no, cae a las del sistema.
+ */
+
+/* ── Paleta ────────────────────────────────────────────────────────────── */
+html[data-theme='dark'] {
+  --neon-magenta: #ff2bd6;
+  --neon-cyan: #19f0ff;
+  --neon-yellow: #f8ff4a;
+  --neon-glow: 0 0 6px color-mix(in srgb, var(--neon-magenta) 70%, transparent),
+    0 0 18px color-mix(in srgb, var(--neon-magenta) 40%, transparent);
+  --neon-glow-cyan: 0 0 6px color-mix(in srgb, var(--neon-cyan) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--neon-cyan) 35%, transparent);
+
+  /* Fondos semitransparentes: dejan ver la rejilla de fondo */
+  --bg-primary: rgba(10, 6, 24, 0.82);
+  --bg-secondary: rgba(18, 10, 40, 0.78);
+  --bg-tertiary: rgba(32, 18, 66, 0.8);
+  --text-primary: #e9e4ff;
+  --text-secondary: #9a8fc7;
+  --border-primary: rgba(255, 43, 214, 0.28);
+  --border-subtle: rgba(25, 240, 255, 0.12);
+
+  --accent: var(--neon-cyan);
+  --accent-bg: rgba(25, 240, 255, 0.12);
+  --accent-border: rgba(25, 240, 255, 0.5);
+  --on-accent: #0a0618;
+
+  --hover-bg: rgba(255, 43, 214, 0.1);
+  --hover-bg-subtle: rgba(255, 43, 214, 0.05);
+  --active-bg: rgba(25, 240, 255, 0.14);
+  --badge-bg: rgba(255, 43, 214, 0.14);
+  --overlay-bg: rgba(5, 2, 14, 0.7);
+  --code-inline-bg: rgba(25, 240, 255, 0.1);
+  --table-alt-row: rgba(255, 43, 214, 0.04);
+
+  --success: #3dffa8;
+  --warning: var(--neon-yellow);
+  --danger: #ff3864;
+  --purple: #b14dff;
+
+  --popover-shadow: 0 0 0 1px rgba(255, 43, 214, 0.35), 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 43, 214, 0.2);
+  --modal-shadow: 0 0 0 1px rgba(25, 240, 255, 0.4), 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(25, 240, 255, 0.18);
+
+  --syntax-keyword: var(--neon-magenta);
+  --syntax-string: var(--neon-yellow);
+  --syntax-function: var(--neon-cyan);
+  --syntax-number: #ff9e3d;
+  --syntax-type: #3dffa8;
+  --syntax-comment: #6f659a;
+
+  --app-backdrop:
+    radial-gradient(ellipse at 15% 0%, rgba(255, 43, 214, 0.22), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, rgba(25, 240, 255, 0.18), transparent 50%),
+    linear-gradient(rgba(25, 240, 255, 0.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(25, 240, 255, 0.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    #07040f;
+}
+
+html[data-theme='light'] {
+  --neon-magenta: #d1009e;
+  --neon-cyan: #0090b8;
+  --neon-yellow: #b38600;
+  --neon-glow: 0 0 8px color-mix(in srgb, var(--neon-magenta) 35%, transparent);
+  --neon-glow-cyan: 0 0 8px color-mix(in srgb, var(--neon-cyan) 30%, transparent);
+
+  --bg-primary: rgba(250, 246, 255, 0.85);
+  --bg-secondary: rgba(240, 232, 255, 0.82);
+  --bg-tertiary: rgba(228, 216, 252, 0.85);
+  --text-primary: #1f1240;
+  --text-secondary: #5e4f8f;
+  --border-primary: rgba(209, 0, 158, 0.25);
+  --border-subtle: rgba(0, 144, 184, 0.14);
+  --accent: var(--neon-magenta);
+  --accent-bg: rgba(209, 0, 158, 0.1);
+  --accent-border: rgba(209, 0, 158, 0.45);
+  --hover-bg: rgba(209, 0, 158, 0.07);
+  --active-bg: rgba(0, 144, 184, 0.12);
+
+  --app-backdrop:
+    radial-gradient(ellipse at 10% 0%, rgba(255, 43, 214, 0.18), transparent 55%),
+    radial-gradient(ellipse at 95% 100%, rgba(25, 240, 255, 0.2), transparent 50%),
+    linear-gradient(rgba(124, 58, 237, 0.07) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(124, 58, 237, 0.07) 1px, transparent 1px) 0 0 / 32px 32px,
+    #f4eeff;
+}
+
+/* ── Fuentes, títulos e íconos ────────────────────────────────────────── */
+html[data-theme] {
+  --main-font: 'Rajdhani', 'Exo 2', system-ui, sans-serif;
+  --font-text: 'Exo 2', 'Rajdhani', system-ui, sans-serif;
+  --code-font: 'Share Tech Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  --h1-font: 'Orbitron', 'Rajdhani', sans-serif;
+  --h1-size: 2.1em;
+  --h1-weight: 800;
+  --h1-color: var(--neon-magenta);
+  --h2-font: 'Orbitron', 'Rajdhani', sans-serif;
+  --h2-size: 1.5em;
+  --h2-weight: 700;
+  --h2-color: var(--neon-cyan);
+  --h3-font: 'Orbitron', 'Rajdhani', sans-serif;
+  --h3-weight: 600;
+  --h3-color: var(--neon-yellow);
+  --h4-color: var(--neon-magenta);
+  --h5-color: var(--neon-cyan);
+  --h6-color: var(--text-secondary);
+
+  /* Carpeta como un chip de circuito, en cian (cerrada) y magenta (abierta) */
+  --icon-folder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2319f0ff' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M3 7h6l2 2h10v10H3z'/%3E%3Cpath d='M7 13h3l1 2h6' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='15' r='1.2' fill='%2319f0ff'/%3E%3C/svg%3E");
+  --icon-folder-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff2bd6' stroke-width='1.8' stroke-linejoin='round'%3E%3Cpath d='M3 7h6l2 2h8v3'/%3E%3Cpath d='M3 7v12h15l4-8H7l-4 8'/%3E%3C/svg%3E");
+}
+
+/* ── Fondo de la app: rejilla y resplandores detrás de paneles translúcidos ── */
+.synapse-app {
+  background: var(--app-backdrop);
+}
+
+.synapse-sidebar,
+.synapse-right-sidebar,
+.synapse-header,
+.synapse-statusbar,
+.synapse-ribbon {
+  backdrop-filter: blur(10px) saturate(140%);
+}
+
+.synapse-ribbon {
+  border-right: 1px solid var(--border-primary);
+  box-shadow: inset -1px 0 12px rgba(255, 43, 214, 0.12);
+}
+
+/* ── Explorador ───────────────────────────────────────────────────────── */
+.synapse-explorer-item:hover {
+  text-shadow: var(--neon-glow-cyan);
+}
+
+/* ── Pestañas: la activa con subrayado de neón ───────────────────────── */
+.synapse-tab.active {
+  border-color: var(--neon-magenta) !important;
+  box-shadow: 0 0 10px rgba(255, 43, 214, 0.35), inset 0 -2px 0 var(--neon-magenta);
+  text-shadow: var(--neon-glow);
+}
+
+/* ── Contenido de la nota ─────────────────────────────────────────────── */
+.markdown-body h1 {
+  text-shadow: var(--neon-glow);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.markdown-body h2 {
+  text-shadow: var(--neon-glow-cyan);
+  letter-spacing: 0.03em;
+}
+
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, var(--neon-magenta), var(--neon-cyan), transparent) 1;
+}
+
+.markdown-body a {
+  color: var(--neon-cyan);
+  text-shadow: var(--neon-glow-cyan);
+}
+
+.markdown-body strong {
+  color: var(--neon-yellow);
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--neon-magenta);
+  background: linear-gradient(90deg, rgba(255, 43, 214, 0.1), transparent);
+  box-shadow: -4px 0 12px -4px var(--neon-magenta);
+}
+
+.markdown-body pre {
+  border: 1px solid var(--accent-border);
+  box-shadow: 0 0 14px rgba(25, 240, 255, 0.15), inset 0 0 20px rgba(25, 240, 255, 0.05);
+}
+
+/* Líneas de barrido muy suaves sobre la lectura, como un monitor CRT */
+.synapse-reading {
+  background-image: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, 0.015) 2px 3px);
+}
+
+/* ── Título de la nota y barra de estado ──────────────────────────────── */
+/* Solo brillo: cambiar fuente o espaciado aquí descuadra el ancho del título */
+.synapse-note-title input {
+  text-shadow: var(--neon-glow);
+}
+
+.synapse-statusbar {
+  font-family: var(--code-font);
+  border-top: 1px solid var(--border-primary);
+  box-shadow: 0 -1px 12px rgba(25, 240, 255, 0.12);
+}
+
+/* ── Diálogos: vidrio oscuro con borde de neón ───────────────────────── */
+.synapse-dialog {
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--accent-border) !important;
+}
+
+/* Desplegables: el control nativo de GTK ignora el fondo y sale blanco, así que se dibuja a mano */
+html[data-theme] select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 26px !important;
+  background: #140b2e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2319f0ff' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center / 10px 6px !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme='light'] select {
+  background-color: #f6efff !important;
+}
+html[data-theme] select option {
+  background-color: #140b2e;
+  color: #e9e4ff;
+}
+
+/* Barras de desplazamiento de neón */
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--neon-magenta), var(--neon-cyan));
+}

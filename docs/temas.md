@@ -11,8 +11,10 @@ Cada bóveda puede tener su propio aspecto con archivos `.css`:
 - El tema se carga primero y los fragmentos después, así que un fragmento puede retocar un tema.
 - Los cambios se aplican sin reiniciar. Si editas o agregas archivos, pulsa **Recargar** en
   Configuración: la app no vigila la carpeta `.synapse`.
-- Ejemplo completo: [`docs/temas/papel.css`](temas/papel.css), un estilo máquina de escribir con
-  versión clara y oscura.
+- Ejemplos completos, con versión clara y oscura:
+  - [`docs/temas/papel.css`](temas/papel.css): estilo máquina de escribir.
+  - [`docs/temas/neon.css`](temas/neon.css): neón cyberpunk, con fondo de rejilla, paneles
+    translúcidos con desenfoque y títulos con brillo.
 
 ## Modo claro y oscuro
 
@@ -100,6 +102,14 @@ Ejemplo: íconos distintos según la carpeta.
 
 Dentro de `.markdown-body` (vista de lectura) los elementos son HTML normal: `h1`–`h6`, `p`, `a`,
 `blockquote`, `ul`, `table`, `code`, `pre`… En el editor, CodeMirror usa `.cm-line` para cada línea.
+
+## Consejos
+
+- Si los fondos son translúcidos, pon algo detrás en `.synapse-app` (una imagen o un degradado).
+- En Linux los `<select>` usan el control nativo de GTK, que ignora el fondo. Para pintarlos, ponles
+  `appearance: none` y dibuja la flecha con `background-image` (ver `neon.css`).
+- Cambiar la fuente o el espaciado del título de la nota (`.synapse-note-title input`) descuadra su
+  ancho; mejor limitarse a color y sombras.
 
 ## Límites
 
