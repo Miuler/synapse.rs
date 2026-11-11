@@ -3,15 +3,18 @@
     vaultRepository,
     type GitImageDiffResult,
   } from '@shared/repositories';
+  import { excalidrawPixelDiff } from '../lib/excalidraw-pixel-diff';
   import { AlertCircle, CheckCircle2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-svelte';
 
   interface Props {
     filePath: string;
     isStaged?: boolean;
     baseRevision?: string;
+    /** Dibujo de Excalidraw: se exportan las dos versiones a imagen y se comparan en memoria. */
+    isDrawing?: boolean;
   }
 
-  let { filePath, isStaged = false, baseRevision }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, isDrawing = false }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -30,7 +33,19 @@
     loading = true;
     error = null;
     try {
-      diffResult = await vaultRepository.getGitImageDiff(filePath, isStaged, baseRevision);
+      if (isDrawing) {
+        const [rev, local] = await Promise.all([
+          vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision),
+          vaultRepository.readNote(filePath),
+        ]);
+        if (!rev?.exists) {
+          diffResult = null;
+        } else {
+          diffResult = await excalidrawPixelDiff(rev.content || '', local?.content || '', filePath, isStaged);
+        }
+      } else {
+        diffResult = await vaultRepository.getGitImageDiff(filePath, isStaged, baseRevision);
+      }
     } catch (err: unknown) {
       console.error('Error calculando diff de imagen:', err);
       error = err instanceof Error ? err.message : String(err);

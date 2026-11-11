@@ -53,6 +53,8 @@
   const isSvg = $derived(isSvgFile(filePath));
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
   const isPureBinary = $derived((isImage && !isSvg) || isPdf);
+  // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
+  const hasPixelDiff = $derived((isImage && !isSvg) || isDrawing);
   const isVisualCandidate = $derived(
     !compareWith && (isImage || isPdf || isDrawing || isDiagram)
   );
@@ -63,7 +65,7 @@
 
   const activeVisualTab = $derived.by<DiffVisualTab>(() => {
     if (!isVisualCandidate) return 'text';
-    if (workspaceDiffSettings.visualTab === 'highlight' && !(isImage && !isSvg)) {
+    if (workspaceDiffSettings.visualTab === 'highlight' && !hasPixelDiff) {
       return 'side_by_side';
     }
     if (isPureBinary && workspaceDiffSettings.visualTab === 'text') {
@@ -239,8 +241,8 @@
             <span>2 Paneles</span>
           </button>
 
-          <!-- 2. RESALTADO PERCEPTUAL (Solo imágenes raster, no SVG) -->
-          {#if isImage && !isSvg}
+          <!-- 2. RESALTADO PERCEPTUAL (imágenes raster y dibujos de Excalidraw) -->
+          {#if hasPixelDiff}
             <button
               type="button"
               class="toggle-btn"
@@ -354,8 +356,8 @@
   <main class="diff-body">
     {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
       <VisualDiffViewer {filePath} {isStaged} {baseRevision} />
-    {:else if isImage && !isSvg && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} />
+    {:else if hasPixelDiff && activeVisualTab === 'highlight'}
+      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>

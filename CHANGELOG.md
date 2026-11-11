@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Diff de Excalidraw por píxeles**: el diff visual de un dibujo tiene el modo «Diferencias», como las imágenes. Las dos versiones se exportan a imagen con el mismo marco y se resaltan en magenta los píxeles que cambiaron.
+
 - Fondo por defecto en la pestaña vacía: una imagen para el tema claro y otra para el oscuro, incluidas en la app. Se usan mientras no se elija un fondo propio.
 - El fondo propio de la pestaña vacía ahora es de cada bóveda, no general. El que ya estaba elegido pasa a la bóveda abierta.
 
