@@ -2,6 +2,9 @@ use crate::application::dto::search::index_vault_change_command::IndexVaultChang
 use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery;
 use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
 use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
+use crate::application::use_cases::appearance::{
+    GetThemeDirsUseCase, ListGlobalThemesUseCase, SaveThemeDirsUseCase,
+};
 use crate::application::use_cases::note::list_notes_use_case::ListNotesUseCase;
 use crate::application::use_cases::note::read_note_use_case::ReadNoteUseCase;
 use crate::application::use_cases::note::read_standalone_note_use_case::ReadStandaloneNoteUseCase;
@@ -58,6 +61,7 @@ use crate::domain::vault::file_types::SupportedFileTypes;
 use crate::infrastructure::entrypoint::mcp::server::{McpBackgroundRuntime, McpContextProvider};
 use crate::infrastructure::entrypoint::tauri::dto::{SelectVaultFolderResult, VaultEntryDto};
 use crate::infrastructure::navigation::engine::NavigationEngine;
+use crate::infrastructure::repository::file::global_theme_repository_impl::GlobalThemeRepositoryImpl;
 use crate::infrastructure::repository::file::installed_plugin_repository_impl::InstalledPluginRepositoryImpl;
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl;
@@ -146,6 +150,9 @@ pub struct AppState {
     pub remove_workspace_use_case: RemoveWorkspaceUseCase<WorkspaceRegistryRepositoryImpl>,
     pub get_shortcuts_config_use_case: GetShortcutsConfigUseCase<WorkspaceRegistryRepositoryImpl>,
     pub save_shortcut_use_case: SaveShortcutUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub get_theme_dirs_use_case: GetThemeDirsUseCase<GlobalThemeRepositoryImpl>,
+    pub save_theme_dirs_use_case: SaveThemeDirsUseCase<GlobalThemeRepositoryImpl>,
+    pub list_global_themes_use_case: ListGlobalThemesUseCase<GlobalThemeRepositoryImpl>,
     pub fetch_community_plugins_use_case:
         FetchCommunityPluginsUseCase<CommunityPluginDownloaderImpl>,
     pub get_installed_plugins_use_case: GetInstalledPluginsUseCase<InstalledPluginRepositoryImpl>,
@@ -291,6 +298,11 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
+            get_theme_dirs_use_case: GetThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
+            save_theme_dirs_use_case: SaveThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
+            list_global_themes_use_case: ListGlobalThemesUseCase::new(
+                GlobalThemeRepositoryImpl::new(),
+            ),
             fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(
                 community_plugin_downloader.clone(),
             ),
@@ -441,6 +453,11 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
+            get_theme_dirs_use_case: GetThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
+            save_theme_dirs_use_case: SaveThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
+            list_global_themes_use_case: ListGlobalThemesUseCase::new(
+                GlobalThemeRepositoryImpl::new(),
+            ),
             fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(
                 community_plugin_downloader.clone(),
             ),

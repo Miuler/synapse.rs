@@ -1,4 +1,7 @@
 /*
+ * @nombre Islas
+ * @capa
+ *
  * Capa «Islas»: paneles flotantes con esquinas redondeadas y un margen entre ellos sobre un marco
  * más oscuro, al estilo de los IDE modernos. No define colores propios: se apoya en las variables del
  * tema que tenga debajo (el de la app, Papel o Neón), así sirve de base para los temas «… Islas».

@@ -29,6 +29,25 @@
   ];
   let section = $state<Section>('appearance');
 
+  // Carpetas de temas globales: la que se está escribiendo y el error del último guardado
+  let newThemeDir = $state('');
+  let themeDirsError = $state('');
+
+  async function saveThemeDirs(dirs: string[]) {
+    themeDirsError = '';
+    try {
+      await appearance.setThemeDirs(dirs);
+    } catch (e) {
+      themeDirsError = String(e);
+    }
+  }
+
+  async function addThemeDir() {
+    if (!newThemeDir.trim()) return;
+    await saveThemeDirs([...appearance.themeDirs, newThemeDir]);
+    if (!themeDirsError) newThemeDir = '';
+  }
+
   // Nombres legibles de cada acción de shortcuts.jsonc
   const shortcutGroups: { section: keyof ShortcutsConfig; title: string; labels: Record<string, string> }[] = [
     {
@@ -216,8 +235,46 @@
             <span class="row-label hint">
               Temas en <code>{THEMES_DIR}/</code> y fragmentos en <code>{SNIPPETS_DIR}/</code>, como archivos <code>.css</code>.
             </span>
-            <button type="button" class="appearance-reload" onclick={() => appearance.load()}>Recargar</button>
+            <button type="button" class="appearance-reload" onclick={() => appearance.rescan()}>Recargar</button>
           </div>
+
+          <h4 class="subsection">Carpetas de temas globales (todas las bóvedas)</h4>
+          <p class="hint">
+            Cada <code>.css</code> de estas carpetas aparece como tema en todas las bóvedas. Se guardan en
+            <code>appearance.theme_dirs</code> del <code>config.jsonc</code> global. «~» es tu carpeta de usuario.
+          </p>
+          {#each appearance.themeDirs as dir, i (dir)}
+            <div class="row theme-dir" data-dir={dir}>
+              <code class="theme-dir-path">{dir}</code>
+              <span class="theme-dir-count">
+                {appearance.globalThemes.filter((t) => t.dir === dir).length} temas
+              </span>
+              <button
+                type="button"
+                class="theme-dir-remove"
+                aria-label="Quitar carpeta {dir}"
+                onclick={() => saveThemeDirs(appearance.themeDirs.filter((_, j) => j !== i))}
+              >Quitar</button>
+            </div>
+          {/each}
+          <form
+            class="row theme-dir-add"
+            onsubmit={(e) => {
+              e.preventDefault();
+              addThemeDir();
+            }}
+          >
+            <input
+              class="theme-dir-input"
+              placeholder="~/mis-temas o /ruta/absoluta"
+              bind:value={newThemeDir}
+            />
+            <button type="submit" class="theme-dir-add-btn">Agregar</button>
+            <button type="button" class="theme-dirs-rescan" onclick={() => appearance.rescan()}>Reescanear</button>
+          </form>
+          {#if themeDirsError}
+            <p class="error">{themeDirsError}</p>
+          {/if}
         {:else if section === 'editor'}
           <h3>Editor</h3>
           <label class="row">
@@ -456,6 +513,24 @@
 
   .shortcut-input.saving {
     opacity: 0.6;
+  }
+
+  .theme-dir-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .theme-dir-count {
+    color: var(--text-secondary, #656d76);
+    font-size: 12px;
+  }
+
+  .theme-dir-input {
+    flex: 1;
+    min-width: 0;
   }
 
   .wallpaper-thumb {

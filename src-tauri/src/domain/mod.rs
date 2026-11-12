@@ -4,6 +4,7 @@
 // (empezando por los modelos más usados) sin pagar copias extra en las respuestas grandes
 // (árbol de la bóveda, contenido de notas, resultados de búsqueda).
 
+pub mod appearance;
 pub mod config;
 pub mod graph;
 pub mod mcp;

@@ -1,3 +1,4 @@
+pub mod appearance;
 pub mod assets;
 pub mod file_ops;
 pub mod git;
@@ -9,6 +10,7 @@ pub mod system;
 pub mod vault;
 pub mod workspace;
 
+pub use appearance::*;
 pub use assets::*;
 pub use file_ops::*;
 pub use git::*;

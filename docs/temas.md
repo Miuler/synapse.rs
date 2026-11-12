@@ -1,13 +1,20 @@
 # Temas y fragmentos CSS
 
-Cada bóveda puede tener su propio aspecto con archivos `.css`:
+Cada bóveda puede tener su propio aspecto con archivos `.css`, y además hay temas globales que
+valen para todas:
 
-| Carpeta en la bóveda | Qué es | Cómo se activa |
+| Carpeta | Qué es | Cómo se activa |
 |---|---|---|
+| `~/.config/synapsers/themes/*.css` y las demás carpetas globales | Temas para todas las bóvedas | Configuración → Apariencia → **Tema personalizado** |
 | `.synapse/themes/*.css` | Temas. Se usa uno a la vez. | Configuración → Apariencia → **Tema personalizado** |
 | `.synapse/snippets/*.css` | Fragmentos: retoques sueltos. | Configuración → Apariencia, un interruptor por fragmento |
 
 - Lo elegido se guarda en `.synapse/appearance.json` de la bóveda.
+- **Carpetas globales:** se configuran en Configuración → Apariencia → *Carpetas de temas globales*
+  (agregar, quitar y **Reescanear**), o a mano en `appearance.theme_dirs` de
+  `~/.config/synapsers/config.jsonc`. Se leen al iniciar y al reescanear. Si dos carpetas tienen un
+  tema con el mismo nombre, gana la primera de la lista.
+- Con el mismo nombre, un tema de la bóveda reemplaza a uno global, y uno global a uno integrado.
 - El tema se carga primero y los fragmentos después, así que un fragmento puede retocar un tema.
 - Los cambios se aplican sin reiniciar. Si editas o agregas archivos, pulsa **Recargar** en
   Configuración: la app no vigila la carpeta `.synapse`.
@@ -15,10 +22,17 @@ Cada bóveda puede tener su propio aspecto con archivos `.css`:
   (están en [`src/entities/appearance/themes/`](../src/entities/appearance/themes/)):
   - **Papel** (`papel.css`): estilo máquina de escribir.
   - **Neón** (`neon.css`): cyberpunk, con fondo de rejilla, paneles translúcidos y títulos con brillo.
+  - **Neón CRT** (`neon-crt.css`): Neón con líneas de barrido tipo monitor viejo en la lectura.
+    En Linux pueden dar lag al desplazarse.
   - **Rosa** (`rosa.css`): tonos rosa suaves, frambuesa en claro y ciruela en oscuro.
   - **Islas** (`islas.css`): paneles flotantes con esquinas redondeadas sobre un marco más oscuro.
     No trae colores propios; se combina con los demás en **Papel Islas**, **Neón Islas** y **Rosa Islas**.
     Se ajusta con `--island-gap`, `--island-radius`, `--island-frame` y `--island-border`.
+
+  Para sumar un tema integrado basta con dejar su `.css` en esa carpeta y recompilar: entra solo en
+  la lista. Para no recompilar, usa una carpeta global. Al inicio del archivo (integrado o global), en un comentario, `@nombre Mi tema` da el nombre visible (si falta se usa
+  el del archivo), `@capa` lo marca como capa que se combina con cada tema, como Islas, y
+  `@base otro` parte de otro tema integrado y le suma lo suyo, como Neón CRT.
 
   Sirven de ejemplo para escribir los tuyos. Para modificar uno, copia su archivo a
   `.synapse/themes/` con el mismo nombre: el de la bóveda reemplaza al integrado.
@@ -115,6 +129,9 @@ Dentro de `.markdown-body` (vista de lectura) los elementos son HTML normal: `h1
 - Si los fondos son translúcidos, pon algo detrás en `.synapse-app` (una imagen o un degradado).
 - En Linux los `<select>` usan el control nativo de GTK, que ignora el fondo. Para pintarlos, ponles
   `appearance: none` y dibuja la flecha con `background-image` (ver `neon.css`).
+- Evita degradados repetidos finos (`repeating-linear-gradient` cada pocos píxeles) sobre zonas
+  que se desplazan, como la lectura o el editor: en Linux se vuelven a pintar enteros en cada scroll
+  y causan lag. El desenfoque, la translucidez y los brillos no dieron problemas.
 - Cambiar la fuente o el espaciado del título de la nota (`.synapse-note-title input`) descuadra su
   ancho; mejor limitarse a color y sombras.
 

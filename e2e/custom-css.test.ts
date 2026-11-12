@@ -112,3 +112,43 @@ it('el tema integrado «Papel» se aplica sin archivo en la bóveda y las zonas 
   )) as string[];
   expect(zones).toEqual([]);
 });
+
+it('los temas globales de ~/.config/synapsers/themes y de carpetas agregadas aparecen al reescanear', async () => {
+  const accentOf = () => accent();
+  // Carpeta por defecto: la app la crea y la registra en config.jsonc al iniciar
+  const defaultDir = join(s.home, '.config/synapsers/themes');
+  mkdirSync(defaultDir, { recursive: true });
+  writeFileSync(
+    join(defaultDir, 'verde.css'),
+    '/*\n * @nombre Verde Global\n */\n:root, html[data-theme] { --accent: rgb(0, 200, 0); }\n',
+  );
+  // Otra carpeta que el usuario agrega desde Configuración
+  const extra = join(s.home, 'mis-temas');
+  mkdirSync(extra, { recursive: true });
+  writeFileSync(join(extra, 'azul.css'), ':root, html[data-theme] { --accent: rgb(0, 0, 210); }\n');
+
+  await s.browser.$('[aria-label="Configuración"]').click();
+  await s.browser.$('.settings-panel').waitForDisplayed({ timeout: 5_000 });
+  await s.browser.$('.theme-dirs-rescan').click();
+  await s.browser.$('.custom-theme-select option[value="verde"]').waitForExist({ timeout: 5_000 });
+  expect(await s.browser.$('.custom-theme-select option[value="verde"]').getText()).toBe('Verde Global');
+  // Las capas integradas también se combinan con los temas globales
+  await s.browser.$('.custom-theme-select option[value="verde-islas"]').waitForExist({ timeout: 5_000 });
+
+  await s.browser.$('.theme-dir-input').setValue('~/mis-temas');
+  await s.browser.$('.theme-dir-add-btn').click();
+  await s.browser.$('.custom-theme-select option[value="azul"]').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.custom-theme-select').selectByAttribute('value', 'azul');
+  await s.browser.waitUntil(async () => (await accentOf()) === 'rgb(0, 0, 210)', { timeout: 5_000 });
+
+  const config = readFileSync(join(s.home, '.config/synapsers/config.jsonc'), 'utf8');
+  expect(config).toContain('"~/.config/synapsers/themes"');
+  expect(config).toContain('"~/mis-temas"');
+
+  // Quitar la carpeta la saca de la lista
+  await s.browser.$('.theme-dir[data-dir="~/mis-temas"] .theme-dir-remove').click();
+  await s.browser.waitUntil(async () => !(await s.browser.$('.custom-theme-select option[value="azul"]').isExisting()), {
+    timeout: 5_000,
+  });
+  await s.browser.keys('Escape');
+});

@@ -1,4 +1,6 @@
 /*
+ * @nombre Neón
+ *
  * Tema de ejemplo «Neón»: cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque,
  * títulos con brillo de neón y acentos magenta y cian. Pensado para el modo oscuro; en modo claro
  * usa una variante «amanecer» lavanda con los mismos acentos.
@@ -184,11 +186,6 @@ html[data-theme] {
 .markdown-body pre {
   border: 1px solid var(--accent-border);
   box-shadow: 0 0 14px rgba(25, 240, 255, 0.15), inset 0 0 20px rgba(25, 240, 255, 0.05);
-}
-
-/* Líneas de barrido muy suaves sobre la lectura, como un monitor CRT */
-.synapse-reading {
-  background-image: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, 0.015) 2px 3px);
 }
 
 /* ── Título de la nota y barra de estado ──────────────────────────────── */

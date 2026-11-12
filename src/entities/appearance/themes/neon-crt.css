@@ -1,0 +1,11 @@
+/*
+ * @nombre Neón CRT
+ * @base neon
+ *
+ * Neón con líneas de barrido suaves sobre la lectura, como un monitor CRT. En Linux, donde WebKit
+ * dibuja gran parte por CPU, estas líneas pueden dar lag al desplazarse; en Windows y macOS, que
+ * componen con la GPU, deberían ir fluidas.
+ */
+.synapse-reading {
+  background-image: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255, 255, 255, 0.015) 2px 3px);
+}
