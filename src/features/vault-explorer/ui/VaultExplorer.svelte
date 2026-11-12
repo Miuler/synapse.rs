@@ -2542,7 +2542,16 @@
             </ContextMenu.Item>
           {/if}
 
-          {#if targetFileForDiff}
+          {#if filesToCompare && onCompareFiles}
+            <!-- Con dos archivos seleccionados, «Diff» los compara entre sí (no contra Git) -->
+            <ContextMenu.Item
+              class="context-menu-item diff-two-files"
+              onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
+            >
+              <GitCompare class="context-menu-item-icon" />
+              <span>Diff entre los 2 archivos</span>
+            </ContextMenu.Item>
+          {:else if targetFileForDiff}
             <ContextMenu.Item
               class="context-menu-item"
               disabled={!canGitDiff}

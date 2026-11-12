@@ -9,14 +9,18 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Menú de la pestaña completo**: además de abrir en nueva ventana, con la app por defecto y mostrar en carpeta, ahora permite **Renombrar archivo** (abre la edición en el breadcrumb de esa pestaña), **Copiar ruta relativa** y **Copiar ruta completa**, igual que el menú del breadcrumb.
 - **Editor de draw.io embebido**: los `.drawio` se abren en el editor de draw.io dentro de una pestaña y al guardar se escribe el XML del diagrama. Los `.drawio.png` se siguen viendo como imagen y se editan con **Abrir con draw.io** en el menú contextual del explorador o con el botón **draw.io** del visor de imágenes; al guardar se reescribe el PNG con el diagrama incrustado, que sigue siendo editable. Respeta el tema claro u oscuro. Se carga desde `embed.diagrams.net` (el diagrama no sale del equipo: viaja por `postMessage`); la dirección se puede cambiar con `drawioUrl` en los ajustes para usar un draw.io propio sin red.
 - **Los `.drawio.png` vuelven a abrirse como imagen**: el modo draw.io solo dura mientras la pestaña está abierta; abrir el archivo desde el explorador o la apertura rápida, o cerrar la pestaña, lo devuelve al visor de imágenes.
+
+### Corregido
+
+- **«Diff» con dos archivos seleccionados**: en una bóveda con Git, el «Diff» del menú del explorador hacía el diff de Git de un solo archivo (y solía mostrar «Sin diferencias»). Ahora, con dos archivos seleccionados, se llama «Diff entre los 2 archivos» y los compara entre sí.
 
 ## [1.0.0-beta.1] - 2026-11-12
 
 ### Añadido
 
-- **Menú de la pestaña completo**: además de abrir en nueva ventana, con la app por defecto y mostrar en carpeta, ahora permite **Renombrar archivo** (abre la edición en el breadcrumb de esa pestaña), **Copiar ruta relativa** y **Copiar ruta completa**, igual que el menú del breadcrumb.
 - **Tema integrado «Papiro»**: papel kraft envejecido con fibras y manchas, la nota como una hoja de bordes rotos y tostados, y tinta sepia con títulos en serif. En oscuro, cuero curtido con letras de pergamino. También en «Papiro Islas».
 - **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` (que se lee siempre) y de las carpetas extra que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas extra se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
 - **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.
