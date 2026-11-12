@@ -3,7 +3,7 @@ use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcuts
 use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
 use crate::application::dto::workspace::record_workspace_opened_command::RecordWorkspaceOpenedCommand;
 use crate::application::use_cases::appearance::{
-    GetThemeDirsUseCase, ListGlobalThemesUseCase, SaveThemeDirsUseCase,
+    GetDefaultThemeDirUseCase, GetThemeDirsUseCase, ListGlobalThemesUseCase, SaveThemeDirsUseCase,
 };
 use crate::application::use_cases::note::list_notes_use_case::ListNotesUseCase;
 use crate::application::use_cases::note::read_note_use_case::ReadNoteUseCase;
@@ -150,6 +150,7 @@ pub struct AppState {
     pub remove_workspace_use_case: RemoveWorkspaceUseCase<WorkspaceRegistryRepositoryImpl>,
     pub get_shortcuts_config_use_case: GetShortcutsConfigUseCase<WorkspaceRegistryRepositoryImpl>,
     pub save_shortcut_use_case: SaveShortcutUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub get_default_theme_dir_use_case: GetDefaultThemeDirUseCase<GlobalThemeRepositoryImpl>,
     pub get_theme_dirs_use_case: GetThemeDirsUseCase<GlobalThemeRepositoryImpl>,
     pub save_theme_dirs_use_case: SaveThemeDirsUseCase<GlobalThemeRepositoryImpl>,
     pub list_global_themes_use_case: ListGlobalThemesUseCase<GlobalThemeRepositoryImpl>,
@@ -298,6 +299,9 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
+            get_default_theme_dir_use_case: GetDefaultThemeDirUseCase::new(
+                GlobalThemeRepositoryImpl::new(),
+            ),
             get_theme_dirs_use_case: GetThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
             save_theme_dirs_use_case: SaveThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
             list_global_themes_use_case: ListGlobalThemesUseCase::new(
@@ -453,6 +457,9 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
+            get_default_theme_dir_use_case: GetDefaultThemeDirUseCase::new(
+                GlobalThemeRepositoryImpl::new(),
+            ),
             get_theme_dirs_use_case: GetThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
             save_theme_dirs_use_case: SaveThemeDirsUseCase::new(GlobalThemeRepositoryImpl::new()),
             list_global_themes_use_case: ListGlobalThemesUseCase::new(

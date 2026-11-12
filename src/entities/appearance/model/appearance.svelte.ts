@@ -13,8 +13,8 @@ const STYLE_ID = 'synapse-custom-css';
 
 // Los temas salen de tres lugares; ante el mismo nombre gana el último:
 //   1. Integrados: cada `.css` de `../themes/` entra al compilar, sin registrarlo aquí.
-//   2. Globales: `.css` de las carpetas de `appearance.theme_dirs` del config.jsonc del usuario
-//      (por defecto `~/.config/synapsers/themes`), leídos al iniciar y con «Reescanear».
+//   2. Globales: `.css` de `~/.config/synapsers/themes` (siempre) y de las carpetas extra de
+//      `appearance.theme_dirs` del config.jsonc del usuario, leídos al iniciar y con «Reescanear».
 //   3. De la bóveda: `.synapse/themes/*.css`.
 // Metadatos en un comentario al inicio del archivo (integrados y globales):
 //   @nombre Neón   nombre visible (si falta, se usa el del archivo)
@@ -79,7 +79,9 @@ class Appearance {
   themes = $state<string[]>([]);
   /** Temas que están como archivo en la bóveda (los demás son integrados o globales). */
   vaultThemes = $state<string[]>([]);
-  /** Carpetas de temas globales, de `appearance.theme_dirs` en el config.jsonc del usuario. */
+  /** Carpeta de temas globales que se lee siempre (`~/.config/synapsers/themes`). */
+  defaultThemeDir = $state('');
+  /** Carpetas extra de temas globales, de `appearance.theme_dirs` en el config.jsonc del usuario. */
   themeDirs = $state<string[]>([]);
   /** Temas globales leídos en el último escaneo. */
   globalThemes = $state<GlobalTheme[]>([]);
@@ -117,7 +119,8 @@ class Appearance {
   /** Vuelve a leer las carpetas de temas globales (sin aplicar nada). */
   private async scanGlobalThemes() {
     try {
-      [this.themeDirs, this.globalThemes] = await Promise.all([
+      [this.defaultThemeDir, this.themeDirs, this.globalThemes] = await Promise.all([
+        invokeTauri<string>('get_default_theme_dir'),
         invokeTauri<string[]>('get_theme_dirs'),
         invokeTauri<GlobalTheme[]>('list_global_themes'),
       ]);

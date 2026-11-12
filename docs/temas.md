@@ -10,10 +10,11 @@ valen para todas:
 | `.synapse/snippets/*.css` | Fragmentos: retoques sueltos. | Configuración → Apariencia, un interruptor por fragmento |
 
 - Lo elegido se guarda en `.synapse/appearance.json` de la bóveda.
-- **Carpetas globales:** se configuran en Configuración → Apariencia → *Carpetas de temas globales*
-  (agregar, quitar y **Reescanear**), o a mano en `appearance.theme_dirs` de
-  `~/.config/synapsers/config.jsonc`. Se leen al iniciar y al reescanear. Si dos carpetas tienen un
-  tema con el mismo nombre, gana la primera de la lista.
+- **Carpetas globales:** `~/.config/synapsers/themes` se lee siempre. Puedes sumar carpetas extra
+  en Configuración → Apariencia → *Carpetas de temas globales* (agregar, quitar y **Reescanear**),
+  o a mano en `appearance.theme_dirs` de `~/.config/synapsers/config.jsonc`. Se leen al iniciar y al
+  reescanear. Si dos carpetas tienen un tema con el mismo nombre, gana la por defecto y luego el
+  orden de la lista.
 - Con el mismo nombre, un tema de la bóveda reemplaza a uno global, y uno global a uno integrado.
 - El tema se carga primero y los fragmentos después, así que un fragmento puede retocar un tema.
 - Los cambios se aplican sin reiniciar. Si editas o agregas archivos, pulsa **Recargar** en

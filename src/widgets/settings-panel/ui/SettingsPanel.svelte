@@ -240,9 +240,18 @@
 
           <h4 class="subsection">Carpetas de temas globales (todas las bóvedas)</h4>
           <p class="hint">
-            Cada <code>.css</code> de estas carpetas aparece como tema en todas las bóvedas. Se guardan en
-            <code>appearance.theme_dirs</code> del <code>config.jsonc</code> global. «~» es tu carpeta de usuario.
+            Cada <code>.css</code> de estas carpetas aparece como tema en todas las bóvedas. La primera se lee
+            siempre; las que agregues se guardan en <code>appearance.theme_dirs</code> del
+            <code>config.jsonc</code> global. «~» es tu carpeta de usuario.
           </p>
+          {#if appearance.defaultThemeDir}
+            <div class="row theme-dir theme-dir-default" data-dir={appearance.defaultThemeDir}>
+              <code class="theme-dir-path">{appearance.defaultThemeDir}</code>
+              <span class="theme-dir-count">
+                {appearance.globalThemes.filter((t) => t.dir === appearance.defaultThemeDir).length} temas · siempre
+              </span>
+            </div>
+          {/if}
           {#each appearance.themeDirs as dir, i (dir)}
             <div class="row theme-dir" data-dir={dir}>
               <code class="theme-dir-path">{dir}</code>

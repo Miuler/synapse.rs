@@ -3,7 +3,23 @@ use crate::application::dto::appearance::{
 };
 use crate::domain::appearance::{GlobalTheme, GlobalThemeRepository};
 
-/// Carpetas de temas globales configuradas.
+/// Carpeta de temas globales que se lee siempre.
+#[derive(Clone)]
+pub struct GetDefaultThemeDirUseCase<R: GlobalThemeRepository> {
+    repository: R,
+}
+
+impl<R: GlobalThemeRepository> GetDefaultThemeDirUseCase<R> {
+    pub fn new(repository: R) -> Self {
+        Self { repository }
+    }
+
+    pub fn execute(&self) -> String {
+        self.repository.default_theme_dir()
+    }
+}
+
+/// Carpetas extra de temas globales configuradas.
 #[derive(Clone)]
 pub struct GetThemeDirsUseCase<R: GlobalThemeRepository> {
     repository: R,
@@ -19,7 +35,7 @@ impl<R: GlobalThemeRepository> GetThemeDirsUseCase<R> {
     }
 }
 
-/// Guarda las carpetas de temas globales, sin vacías ni repetidas.
+/// Guarda las carpetas extra de temas globales, sin vacías, repetidas ni la carpeta por defecto.
 #[derive(Clone)]
 pub struct SaveThemeDirsUseCase<R: GlobalThemeRepository> {
     repository: R,
@@ -31,10 +47,11 @@ impl<R: GlobalThemeRepository> SaveThemeDirsUseCase<R> {
     }
 
     pub fn execute(&self, command: SaveThemeDirsCommand) -> Result<Vec<String>, String> {
+        let default_dir = self.repository.default_theme_dir();
         let mut dirs: Vec<String> = Vec::new();
         for dir in command.dirs {
             let dir = dir.trim().to_string();
-            if !dir.is_empty() && !dirs.contains(&dir) {
+            if !dir.is_empty() && dir != default_dir && !dirs.contains(&dir) {
                 dirs.push(dir);
             }
         }
@@ -67,6 +84,9 @@ mod tests {
     struct Fake(Mutex<Vec<String>>);
 
     impl GlobalThemeRepository for &Fake {
+        fn default_theme_dir(&self) -> String {
+            "~/.config/synapsers/themes".into()
+        }
         fn load_theme_dirs(&self) -> Result<Vec<String>, String> {
             Ok(self.0.lock().unwrap().clone())
         }
@@ -80,11 +100,17 @@ mod tests {
     }
 
     #[test]
-    fn save_quita_vacias_y_repetidas() {
+    fn save_quita_vacias_repetidas_y_la_por_defecto() {
         let fake = Fake::default();
         let saved = SaveThemeDirsUseCase::new(&fake)
             .execute(SaveThemeDirsCommand {
-                dirs: vec![" ~/a ".into(), "".into(), "~/a".into(), "/b".into()],
+                dirs: vec![
+                    " ~/a ".into(),
+                    "".into(),
+                    "~/.config/synapsers/themes".into(),
+                    "~/a".into(),
+                    "/b".into(),
+                ],
             })
             .unwrap();
         assert_eq!(saved, vec!["~/a", "/b"]);

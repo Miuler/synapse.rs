@@ -10,7 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - **Tema integrado «Papiro»**: papel kraft envejecido con fibras y manchas, la nota como una hoja de bordes rotos y tostados, y tinta sepia con títulos en serif. En oscuro, cuero curtido con letras de pergamino. También en «Papiro Islas».
-- **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` y de las carpetas que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
+- **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` (que se lee siempre) y de las carpetas extra que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas extra se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
 - **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.
 - **Actualizador automático (Auto-updater)**:
   - Integración del plugin `tauri-plugin-updater` para detectar y aplicar actualizaciones firmadas desde GitHub Releases.

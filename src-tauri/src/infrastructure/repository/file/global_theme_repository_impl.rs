@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
 /// Lee las carpetas de temas globales de `<config>/config.jsonc` (`appearance.theme_dirs`) y los
-/// `.css` que hay en ellas. Si el archivo no existe se crea con la carpeta `<config>/themes`.
+/// `.css` que hay en ellas. `<config>/themes` se lee siempre y no forma parte de esa lista.
 #[derive(Clone)]
 pub struct GlobalThemeRepositoryImpl {
     config_dir: PathBuf,
@@ -12,7 +12,8 @@ pub struct GlobalThemeRepositoryImpl {
 }
 
 const HEADER: &str = "// Configuración global de Synapse: vale para todas las bóvedas.\n\
-// appearance.theme_dirs: carpetas con temas CSS propios (*.css). «~» es la carpeta del usuario.\n\
+// appearance.theme_dirs: carpetas extra con temas CSS propios (*.css). «~» es la carpeta del usuario.\n\
+// ~/.config/synapsers/themes se lee siempre, sin necesidad de ponerla aquí.\n\
 // Se editan también desde Configuración → Apariencia.\n";
 
 impl GlobalThemeRepositoryImpl {
@@ -32,7 +33,7 @@ impl GlobalThemeRepositoryImpl {
     }
 
     /// `<config>/themes`, con `~` si está dentro de la carpeta del usuario.
-    fn default_theme_dir(&self) -> String {
+    fn default_dir_display(&self) -> String {
         let dir = self.config_dir.join("themes");
         match self.home.as_deref().and_then(|h| dir.strip_prefix(h).ok()) {
             Some(rest) => format!("~/{}", rest.to_string_lossy()),
@@ -95,21 +96,29 @@ impl Default for GlobalThemeRepositoryImpl {
 }
 
 impl GlobalThemeRepository for GlobalThemeRepositoryImpl {
+    fn default_theme_dir(&self) -> String {
+        self.default_dir_display()
+    }
+
     fn load_theme_dirs(&self) -> Result<Vec<String>, String> {
         let config = self.read_config();
         match config
             .pointer("/appearance/theme_dirs")
             .and_then(Value::as_array)
         {
-            Some(dirs) => Ok(dirs
-                .iter()
-                .filter_map(|d| d.as_str().map(str::to_string))
-                .collect()),
+            Some(dirs) => {
+                // La carpeta por defecto no va en la lista (versiones anteriores la guardaban ahí)
+                let default_dir = self.default_dir_display();
+                Ok(dirs
+                    .iter()
+                    .filter_map(|d| d.as_str().map(str::to_string))
+                    .filter(|d| *d != default_dir)
+                    .collect())
+            }
             None => {
-                // Primera vez: se deja el archivo con la carpeta por defecto para que el usuario la vea
-                let dirs = vec![self.default_theme_dir()];
-                self.save_theme_dirs(&dirs)?;
-                Ok(dirs)
+                // Primera vez: se deja el archivo con la lista vacía para que el usuario vea dónde va
+                self.save_theme_dirs(&[])?;
+                Ok(vec![])
             }
         }
     }
@@ -129,14 +138,13 @@ impl GlobalThemeRepository for GlobalThemeRepositoryImpl {
     }
 
     fn list_themes(&self) -> Result<Vec<GlobalTheme>, String> {
-        let dirs = self.load_theme_dirs()?;
-        let default_dir = self.default_theme_dir();
+        let default_dir = self.default_dir_display();
+        let _ = std::fs::create_dir_all(self.expand(&default_dir));
+        let mut dirs = vec![default_dir];
+        dirs.extend(self.load_theme_dirs()?);
         let mut themes: Vec<GlobalTheme> = Vec::new();
         for dir in dirs {
             let path = self.expand(&dir);
-            if dir == default_dir {
-                let _ = std::fs::create_dir_all(&path);
-            }
             for (id, file) in Self::css_files(&path) {
                 if themes.iter().any(|t| t.id == id) {
                     continue;
@@ -167,11 +175,9 @@ mod tests {
             Some(home.path().to_path_buf()),
         );
 
-        // Primera lectura: crea config.jsonc con la carpeta por defecto y la carpeta misma
-        assert_eq!(
-            repo.load_theme_dirs().unwrap(),
-            vec!["~/.config/synapsers/themes"]
-        );
+        // Primera lectura: crea config.jsonc con la lista vacía; la carpeta por defecto se lee igual
+        assert_eq!(repo.default_theme_dir(), "~/.config/synapsers/themes");
+        assert!(repo.load_theme_dirs().unwrap().is_empty());
         assert!(repo.list_themes().unwrap().is_empty());
         assert!(config_dir.join("themes").is_dir());
 
@@ -182,11 +188,8 @@ mod tests {
         std::fs::write(otra.join("verde.css"), "v{}").unwrap();
         std::fs::write(otra.join("nota.md"), "x").unwrap();
 
-        repo.save_theme_dirs(&[
-            "~/.config/synapsers/themes".into(),
-            otra.to_string_lossy().into_owned(),
-        ])
-        .unwrap();
+        repo.save_theme_dirs(&[otra.to_string_lossy().into_owned()])
+            .unwrap();
         let themes = repo.list_themes().unwrap();
         let ids: Vec<_> = themes
             .iter()
@@ -199,9 +202,24 @@ mod tests {
         assert!(raw.starts_with("// Configuración global"));
         let parsed: Value = serde_json_lenient::from_str(&raw).unwrap();
         assert_eq!(
-            parsed["appearance"]["theme_dirs"][1],
+            parsed["appearance"]["theme_dirs"][0],
             otra.to_string_lossy().as_ref()
         );
+    }
+
+    #[test]
+    fn la_carpeta_por_defecto_guardada_antes_no_aparece_en_la_lista() {
+        let home = tempfile::tempdir().unwrap();
+        let config_dir = home.path().join(".config/synapsers");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        std::fs::write(
+            config_dir.join("config.jsonc"),
+            r#"{ "appearance": { "theme_dirs": ["~/.config/synapsers/themes", "/extra"] } }"#,
+        )
+        .unwrap();
+        let repo =
+            GlobalThemeRepositoryImpl::with_dirs(config_dir, Some(home.path().to_path_buf()));
+        assert_eq!(repo.load_theme_dirs().unwrap(), vec!["/extra"]);
     }
 
     #[test]

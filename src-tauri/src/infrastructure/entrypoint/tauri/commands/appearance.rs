@@ -6,6 +6,11 @@ use crate::infrastructure::config::state::AppState;
 use tauri::State;
 
 #[tauri::command]
+pub async fn get_default_theme_dir(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state.get_default_theme_dir_use_case.execute())
+}
+
+#[tauri::command]
 pub async fn get_theme_dirs(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     state.get_theme_dirs_use_case.execute(GetThemeDirsQuery {})
 }

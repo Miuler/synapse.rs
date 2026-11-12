@@ -141,8 +141,10 @@ it('los temas globales de ~/.config/synapsers/themes y de carpetas agregadas apa
   await s.browser.$('.custom-theme-select').selectByAttribute('value', 'azul');
   await s.browser.waitUntil(async () => (await accentOf()) === 'rgb(0, 0, 210)', { timeout: 5_000 });
 
+  // La carpeta por defecto se muestra fija (sin «Quitar») y no se guarda en la lista
+  expect(await s.browser.$('.theme-dir-default .theme-dir-remove').isExisting()).toBe(false);
   const config = readFileSync(join(s.home, '.config/synapsers/config.jsonc'), 'utf8');
-  expect(config).toContain('"~/.config/synapsers/themes"');
+  expect(config).not.toContain('"~/.config/synapsers/themes"');
   expect(config).toContain('"~/mis-temas"');
 
   // Quitar la carpeta la saca de la lista
