@@ -91,6 +91,54 @@ jobs:
       - name: Build release (Windows)
         run: bun tauri build --no-bundle --target x86_64-pc-windows-msvc --runner cargo-xwin
 
+      - name: Package and sign updater bundles
+        env:
+          TAG: ${{ github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+
+          mkdir -p dist-release
+          cp src-tauri/target/release/synapsers dist-release/synapsers
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe dist-release/synapsers.exe
+
+          # Comprimir bundles para updater
+          tar -czf dist-release/synapsers-linux-x86_64.tar.gz -C dist-release synapsers
+          (cd dist-release && zip -9 synapsers-windows-x86_64.zip synapsers.exe)
+
+          # Firmar los bundles
+          bun tauri signer sign dist-release/synapsers-linux-x86_64.tar.gz --app-version "$VERSION"
+          bun tauri signer sign dist-release/synapsers-windows-x86_64.zip --app-version "$VERSION"
+
+          LINUX_SIG=$(cat dist-release/synapsers-linux-x86_64.tar.gz.sig)
+          WINDOWS_SIG=$(cat dist-release/synapsers-windows-x86_64.zip.sig)
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Generar manifiesto latest.json para el plugin updater de Tauri v2
+          cat <<EOF > dist-release/latest.json
+          {
+            "version": "${VERSION}",
+            "notes": "Synapse release ${TAG}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "${LINUX_SIG}",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG}/synapsers-linux-x86_64.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "${WINDOWS_SIG}",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG}/synapsers-windows-x86_64.zip"
+              }
+            }
+          }
+          EOF
+
+          # Validar formato json
+          python3 -m json.tool dist-release/latest.json > dist-release/latest.formatted.json
+          mv dist-release/latest.formatted.json dist-release/latest.json
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,5 +149,10 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            src-tauri/target/release/synapsers \
-            src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe
+            dist-release/synapsers \
+            dist-release/synapsers.exe \
+            dist-release/synapsers-linux-x86_64.tar.gz \
+            dist-release/synapsers-linux-x86_64.tar.gz.sig \
+            dist-release/synapsers-windows-x86_64.zip \
+            dist-release/synapsers-windows-x86_64.zip.sig \
+            dist-release/latest.json
