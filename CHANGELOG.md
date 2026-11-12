@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Página web de presentación** (`docs/index.html`): landing estática basada en `docs/about.md`, con capturas ampliables (visor con zoom a tamaño real y navegación con flechas), comparativa, temas, arquitectura y la mascota (pulpo kawaii) fija en la esquina inferior derecha.
+
 - **Temas integrados «Rosa» e «Islas»**: «Rosa» en tonos rosa suaves; «Islas» muestra los paneles como islas flotantes con esquinas redondeadas sobre un marco más oscuro, y se combina con los demás en «Papel Islas», «Neón Islas» y «Rosa Islas».
 - **Temas integrados «Papel» y «Neón»**: vienen con la app y aparecen en Configuración → Apariencia → Tema personalizado sin copiar archivos. Un archivo `.synapse/themes/` con el mismo nombre los reemplaza. «Neón» es cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque, títulos con brillo magenta, cian y amarillo, íconos de carpeta propios y desplegables dibujados a mano. Tiene versión oscura y una clara «amanecer».
 
