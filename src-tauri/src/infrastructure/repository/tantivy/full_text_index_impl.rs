@@ -18,8 +18,7 @@ use tantivy::tokenizer::{
     AsciiFoldingFilter, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer,
 };
 use tantivy::{
-    DocSet, Index, IndexReader, IndexWriter, ReloadPolicy, TERMINATED, TantivyDocument,
-    Term, doc,
+    DocSet, Index, IndexReader, IndexWriter, ReloadPolicy, TERMINATED, TantivyDocument, Term, doc,
 };
 
 pub const SCHEMA_VERSION: &str = "3";
@@ -349,11 +348,7 @@ impl FullTextIndexImpl {
         ))
     }
 
-    fn highlight_ranges(
-        &self,
-        text: &str,
-        terms: &HashSet<String>,
-    ) -> Vec<std::ops::Range<usize>> {
+    fn highlight_ranges(&self, text: &str, terms: &HashSet<String>) -> Vec<std::ops::Range<usize>> {
         self.analyze(text)
             .into_iter()
             .filter(|(token, _)| terms.contains(token))
@@ -804,7 +799,9 @@ mod tests {
     fn test_heading_snippet_with_real_markdown_and_prefix() {
         let md = "---\ntitle: Nota\n---\n\n# Nota\n\nollama:\n\n- `~/.ollama/models/`\n\n---\n\n# Prompts para Gemini\n\n**Opción 1:** texto\n\n<div>x</div>\n\n# Otro *título* con [enlace](http://a.b)\n\nfin\n";
         let (body, headings) =
-            crate::infrastructure::search::content_extractor::extract_markdown_text_and_headings(md);
+            crate::infrastructure::search::content_extractor::extract_markdown_text_and_headings(
+                md,
+            );
         let dir = tempfile::tempdir().unwrap();
         let index = FullTextIndexImpl::open_or_create(dir.path()).unwrap();
         index
@@ -819,7 +816,10 @@ mod tests {
             .unwrap();
         index.commit().unwrap();
 
-        for (query, expected) in [("hs:Prompts para", "Prompts para Gemini"), ("hs:Otro", "Otro título")] {
+        for (query, expected) in [
+            ("hs:Prompts para", "Prompts para Gemini"),
+            ("hs:Otro", "Otro título"),
+        ] {
             let (hits, _) = index
                 .search(&FullTextQuery {
                     text: query.to_string(),
@@ -835,8 +835,14 @@ mod tests {
     #[test]
     fn test_expand_field_aliases() {
         assert_eq!(expand_field_aliases("hs:plan"), "headings:plan");
-        assert_eq!(expand_field_aliases("uno -hs:dos (hs:tres"), "uno -headings:dos (headings:tres");
-        assert_eq!(expand_field_aliases("\"hs:plan\" ths:x"), "\"hs:plan\" ths:x");
+        assert_eq!(
+            expand_field_aliases("uno -hs:dos (hs:tres"),
+            "uno -headings:dos (headings:tres"
+        );
+        assert_eq!(
+            expand_field_aliases("\"hs:plan\" ths:x"),
+            "\"hs:plan\" ths:x"
+        );
     }
 
     #[test]

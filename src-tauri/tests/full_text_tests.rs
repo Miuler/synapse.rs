@@ -286,7 +286,9 @@ fn test_indexed_versions_reflects_updates_and_deletions() {
         kind: DocumentKind::Markdown,
         mtime_nanos: mtime,
     };
-    index.upsert(vec![doc("a.md", 1), doc("carpeta/b.md", 2), doc("c.md", 3)]).unwrap();
+    index
+        .upsert(vec![doc("a.md", 1), doc("carpeta/b.md", 2), doc("c.md", 3)])
+        .unwrap();
     index.commit().unwrap();
     // Actualizar uno (borra y reinserta) y eliminar otro: solo cuentan los documentos vivos.
     index.upsert(vec![doc("a.md", 10)]).unwrap();

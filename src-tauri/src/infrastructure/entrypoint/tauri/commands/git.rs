@@ -184,7 +184,12 @@ pub fn diff_vault_files(
     };
     let old_content = read_vault_text(vault_path, &old_path)?;
     let new_content = read_vault_text(vault_path, &new_path)?;
-    Ok(build_files_diff(old_path, new_path, old_content, new_content))
+    Ok(build_files_diff(
+        old_path,
+        new_path,
+        old_content,
+        new_content,
+    ))
 }
 
 fn build_files_diff(

@@ -2106,9 +2106,16 @@ mod tests {
         let first = git_service.git_add(&vault_dir, &paths);
         assert!(first.is_ok(), "add de borrado falló: {:?}", first.err());
         let second = git_service.git_add(&vault_dir, &paths);
-        assert!(second.is_ok(), "add de borrado ya en stage falló: {:?}", second.err());
+        assert!(
+            second.is_ok(),
+            "add de borrado ya en stage falló: {:?}",
+            second.err()
+        );
         let status = git_service.get_vault_status(&vault_dir).unwrap();
-        let stat = status.statuses.get("Sistema de Notas/Bibliografía.md").unwrap();
+        let stat = status
+            .statuses
+            .get("Sistema de Notas/Bibliografía.md")
+            .unwrap();
         assert_eq!(stat.index.as_deref(), Some("D"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);

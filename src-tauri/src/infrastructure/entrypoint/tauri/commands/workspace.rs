@@ -119,7 +119,10 @@ pub async fn save_shortcut(
 pub async fn pick_image_file() -> Result<Option<String>, String> {
     let file = rfd::AsyncFileDialog::new()
         .set_title("Seleccionar imagen de fondo")
-        .add_filter("Imágenes", &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"])
+        .add_filter(
+            "Imágenes",
+            &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"],
+        )
         .pick_file()
         .await;
     Ok(file.map(|f| f.path().to_string_lossy().into_owned()))

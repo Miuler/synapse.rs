@@ -269,7 +269,9 @@ fn skip_jsonc_trivia(text: &str, mut i: usize) -> usize {
         if text[i..].starts_with("//") {
             i = text[i..].find('\n').map_or(text.len(), |n| i + n);
         } else if text[i..].starts_with("/*") {
-            i = text[i + 2..].find("*/").map_or(text.len(), |n| i + 2 + n + 2);
+            i = text[i + 2..]
+                .find("*/")
+                .map_or(text.len(), |n| i + 2 + n + 2);
         } else {
             return i;
         }
@@ -336,7 +338,12 @@ pub(crate) fn set_jsonc_shortcut(
         }
         let value_end = json_string_end(raw, value_start)
             .ok_or_else(|| "Cadena sin cerrar en shortcuts.jsonc".to_string())?;
-        return Ok(format!("{}{}{}", &raw[..value_start], encoded, &raw[value_end..]));
+        return Ok(format!(
+            "{}{}{}",
+            &raw[..value_start],
+            encoded,
+            &raw[value_end..]
+        ));
     }
 
     let line_start = raw[..section_start].rfind('\n').map_or(0, |n| n + 1);
@@ -555,7 +562,12 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
         Ok(AppConfig::default().shortcuts)
     }
 
-    fn save_shortcut(&self, section: &str, action: &str, value: &str) -> Result<ShortcutsConfig, String> {
+    fn save_shortcut(
+        &self,
+        section: &str,
+        action: &str,
+        value: &str,
+    ) -> Result<ShortcutsConfig, String> {
         self.load_shortcuts_config()?;
         let path = self.shortcuts_file_path();
         let raw = std::fs::read_to_string(&path)
@@ -586,7 +598,10 @@ mod tests {
         assert!(updated.contains("\"open_folder\": \"Ctrl+Shift+O\" // carpeta"));
 
         let added = set_jsonc_shortcut(&updated, "workspace", "zoom_in", "Ctrl+=").unwrap();
-        assert!(added.contains("\"workspace\": {\n    \"zoom_in\": \"Ctrl+=\","), "{added}");
+        assert!(
+            added.contains("\"workspace\": {\n    \"zoom_in\": \"Ctrl+=\","),
+            "{added}"
+        );
         let json: serde_json::Value = serde_json_lenient::from_str(&added).unwrap();
         assert_eq!(json["workspace"]["zoom_in"], "Ctrl+=");
         assert_eq!(json["welcome"]["open_folder"], "Ctrl+Shift+O");

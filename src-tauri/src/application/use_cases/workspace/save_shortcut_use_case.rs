@@ -17,7 +17,10 @@ impl<A: WorkspaceRegistryRepository> SaveShortcutUseCase<A> {
 
     pub fn execute(&self, command: SaveShortcutCommand) -> Result<ShortcutsConfig, String> {
         if command.section != "welcome" && command.section != "workspace" {
-            return Err(format!("Sección de atajos desconocida: {}", command.section));
+            return Err(format!(
+                "Sección de atajos desconocida: {}",
+                command.section
+            ));
         }
         let value = command.value.trim();
         if value.is_empty() {

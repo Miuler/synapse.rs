@@ -1490,7 +1490,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let notes_val = match args.get("notes").and_then(|v| v.as_array()) {
             Some(n) => n,
             None => {
-                return McpCallToolResult::error("El argumento 'notes' debe ser una lista de rutas");
+                return McpCallToolResult::error(
+                    "El argumento 'notes' debe ser una lista de rutas",
+                );
             }
         };
         let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {

@@ -543,7 +543,10 @@ fn test_search_kind_filter_by_file_type() {
 
     // Escribir parte del tipo ya filtra; varios `kind:` se suman
     assert_eq!(paths("kind:pd"), vec!["plan.pdf"]);
-    assert_eq!(paths("plan kind:pdf kind:word"), vec!["plan.docx", "plan.pdf"]);
+    assert_eq!(
+        paths("plan kind:pdf kind:word"),
+        vec!["plan.docx", "plan.pdf"]
+    );
 
     // Tipo inexistente: sin resultados; `kind:` sin valor se busca como texto
     assert!(paths("kind:inexistente").is_empty());

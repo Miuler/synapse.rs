@@ -57,7 +57,12 @@ pub fn extract_with_config(
         if text.trim().is_empty() {
             return None;
         }
-        return Some((DocumentKind::Pdf, file_stem.to_string(), text, String::new()));
+        return Some((
+            DocumentKind::Pdf,
+            file_stem.to_string(),
+            text,
+            String::new(),
+        ));
     }
 
     // 2. Documentos Microsoft Word (.docx)
@@ -74,7 +79,12 @@ pub fn extract_with_config(
         if text.trim().is_empty() {
             return None;
         }
-        return Some((DocumentKind::Word, file_stem.to_string(), text, String::new()));
+        return Some((
+            DocumentKind::Word,
+            file_stem.to_string(),
+            text,
+            String::new(),
+        ));
     }
 
     // 3. Descartar archivos mayores al límite para texto plano
@@ -148,7 +158,12 @@ pub fn extract_with_config(
     if is_diagram {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((DocumentKind::Mermaid, file_name.to_string(), decoded, String::new()));
+        return Some((
+            DocumentKind::Mermaid,
+            file_name.to_string(),
+            decoded,
+            String::new(),
+        ));
     }
 
     // 8. Código y texto estructurado
@@ -160,7 +175,12 @@ pub fn extract_with_config(
     if is_code {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((DocumentKind::Code, file_name.to_string(), decoded, String::new()));
+        return Some((
+            DocumentKind::Code,
+            file_name.to_string(),
+            decoded,
+            String::new(),
+        ));
     }
 
     None

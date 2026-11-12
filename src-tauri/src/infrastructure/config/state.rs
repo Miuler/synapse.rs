@@ -46,11 +46,11 @@ use crate::application::use_cases::version::save_version_use_case::SaveVersionUs
 use crate::application::use_cases::version::track_files_use_case::TrackFilesUseCase;
 use crate::application::use_cases::version::untrack_files_use_case::UntrackFilesUseCase;
 use crate::application::use_cases::workspace::get_shortcuts_config_use_case::GetShortcutsConfigUseCase;
-use crate::application::use_cases::workspace::save_shortcut_use_case::SaveShortcutUseCase;
 use crate::application::use_cases::workspace::get_workspace_registry_use_case::GetWorkspaceRegistryUseCase;
 use crate::application::use_cases::workspace::list_workspaces_use_case::ListWorkspacesUseCase;
 use crate::application::use_cases::workspace::record_workspace_opened_use_case::RecordWorkspaceOpenedUseCase;
 use crate::application::use_cases::workspace::remove_workspace_use_case::RemoveWorkspaceUseCase;
+use crate::application::use_cases::workspace::save_shortcut_use_case::SaveShortcutUseCase;
 use crate::application::use_cases::workspace::toggle_workspace_pin_use_case::ToggleWorkspacePinUseCase;
 use crate::domain::config::startup::StartupTarget;
 use crate::domain::search::full_text_index::FullTextIndex;
@@ -290,9 +290,7 @@ impl AppState {
             get_shortcuts_config_use_case: GetShortcutsConfigUseCase::new(
                 workspace_registry_repository.clone(),
             ),
-            save_shortcut_use_case: SaveShortcutUseCase::new(
-                workspace_registry_repository.clone(),
-            ),
+            save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
             fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(
                 community_plugin_downloader.clone(),
             ),
@@ -442,9 +440,7 @@ impl AppState {
             get_shortcuts_config_use_case: GetShortcutsConfigUseCase::new(
                 workspace_registry_repository.clone(),
             ),
-            save_shortcut_use_case: SaveShortcutUseCase::new(
-                workspace_registry_repository.clone(),
-            ),
+            save_shortcut_use_case: SaveShortcutUseCase::new(workspace_registry_repository.clone()),
             fetch_community_plugins_use_case: FetchCommunityPluginsUseCase::new(
                 community_plugin_downloader.clone(),
             ),
