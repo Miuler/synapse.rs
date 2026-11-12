@@ -37,9 +37,10 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri -> src-tauri/target"
+          workspaces: "src-tauri -> target"
+          shared-key: "synapse-release-cache"
           cache-directories: |
-            ~/.xwin-cache
+            ~/.cache/xwin
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
