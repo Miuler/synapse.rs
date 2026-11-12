@@ -91,7 +91,7 @@ jobs:
       - name: Build release (Windows)
         run: bun tauri build --no-bundle --target x86_64-pc-windows-msvc --runner cargo-xwin
 
-      - name: Create GitHub Release draft
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -101,6 +101,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            --draft \
             src-tauri/target/release/synapsers \
             src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe
