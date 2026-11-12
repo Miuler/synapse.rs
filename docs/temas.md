@@ -24,6 +24,8 @@ valen para todas:
   - **Neón** (`neon.css`): cyberpunk, con fondo de rejilla, paneles translúcidos y títulos con brillo.
   - **Neón CRT** (`neon-crt.css`): Neón con líneas de barrido tipo monitor viejo en la lectura.
     En Linux pueden dar lag al desplazarse.
+  - **Papiro** (`papiro.css`): papel kraft envejecido con fibras, hoja de bordes rotos y tostados
+    y tinta sepia; en oscuro, cuero curtido.
   - **Rosa** (`rosa.css`): tonos rosa suaves, frambuesa en claro y ciruela en oscuro.
   - **Islas** (`islas.css`): paneles flotantes con esquinas redondeadas sobre un marco más oscuro.
     No trae colores propios; se combina con los demás en **Papel Islas**, **Neón Islas** y **Rosa Islas**.

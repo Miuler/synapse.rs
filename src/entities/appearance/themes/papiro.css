@@ -1,0 +1,243 @@
+/*
+ * @nombre Papiro
+ *
+ * Tema integrado «Papiro»: papel kraft envejecido con fibras, bordes tostados y tinta sepia.
+ * Claro: papiro dorado. Oscuro: cuero curtido con letras de pergamino.
+ *
+ * La textura es una imagen SVG de ruido (no un degradado repetido) y está fija en el fondo de la
+ * ventana, así no se vuelve a pintar al desplazarse.
+ */
+
+/* ── Paleta: modo claro (papiro dorado) ───────────────────────────────── */
+html[data-theme='light'] {
+  --papiro-edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='t' x='-5%25' y='-5%25' width='110%25' height='110%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035' numOctaves='4' seed='11'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='18'/%3E%3C/filter%3E%3Cfilter id='q' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035' numOctaves='4' seed='11'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='18' result='d'/%3E%3CfeGaussianBlur in='d' stdDeviation='9'/%3E%3C/filter%3E%3Cmask id='m'%3E%3Crect width='600' height='600' fill='white'/%3E%3Crect x='9' y='9' width='582' height='582' fill='black' filter='url(%23t)'/%3E%3C/mask%3E%3C/defs%3E%3Crect x='9' y='9' width='582' height='582' fill='none' stroke='%23743f14' stroke-width='22' filter='url(%23q)'/%3E%3Crect width='600' height='600' fill='%23402410' mask='url(%23m)'/%3E%3C/svg%3E");
+  --papiro-base: #d9b98a;
+  --papiro-ink: #3b2412;
+  --papiro-ink-soft: #6e4a2a;
+  --papiro-burn: rgba(92, 52, 20, 0.55);
+
+  --bg-primary: rgba(232, 206, 160, 0.72);
+  --bg-secondary: rgba(214, 182, 132, 0.78);
+  --bg-tertiary: rgba(196, 160, 108, 0.8);
+  --text-primary: var(--papiro-ink);
+  --text-secondary: var(--papiro-ink-soft);
+  --border-primary: rgba(110, 70, 34, 0.35);
+  --border-subtle: rgba(110, 70, 34, 0.15);
+
+  --accent: #8a3b12;
+  --accent-bg: rgba(138, 59, 18, 0.12);
+  --accent-border: rgba(138, 59, 18, 0.45);
+  --on-accent: #f6e7c8;
+  --hover-bg: rgba(92, 52, 20, 0.08);
+  --hover-bg-subtle: rgba(92, 52, 20, 0.04);
+  --active-bg: rgba(92, 52, 20, 0.14);
+  --badge-bg: rgba(92, 52, 20, 0.12);
+  --code-inline-bg: rgba(92, 52, 20, 0.1);
+  --table-alt-row: rgba(92, 52, 20, 0.05);
+  --overlay-bg: rgba(40, 22, 8, 0.45);
+
+  --syntax-keyword: #8a3b12;
+  --syntax-string: #5a6b1f;
+  --syntax-function: #6b3d8a;
+  --syntax-number: #a0521d;
+  --syntax-type: #2f5d62;
+  --syntax-comment: #8c7355;
+
+  --h1-color: #4a2810;
+  --h2-color: #6b3413;
+  --h3-color: #8a3b12;
+}
+
+/* ── Paleta: modo oscuro (cuero curtido) ──────────────────────────────── */
+html[data-theme='dark'] {
+  --papiro-edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cfilter id='t' x='-5%25' y='-5%25' width='110%25' height='110%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035' numOctaves='4' seed='11'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='18'/%3E%3C/filter%3E%3Cfilter id='q' x='-10%25' y='-10%25' width='120%25' height='120%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035' numOctaves='4' seed='11'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='18' result='d'/%3E%3CfeGaussianBlur in='d' stdDeviation='9'/%3E%3C/filter%3E%3Cmask id='m'%3E%3Crect width='600' height='600' fill='white'/%3E%3Crect x='9' y='9' width='582' height='582' fill='black' filter='url(%23t)'/%3E%3C/mask%3E%3C/defs%3E%3Crect x='9' y='9' width='582' height='582' fill='none' stroke='%23000' stroke-width='22' filter='url(%23q)'/%3E%3Crect width='600' height='600' fill='%23120a05' mask='url(%23m)'/%3E%3C/svg%3E");
+  --papiro-base: #2a1b10;
+  --papiro-ink: #ecd7b0;
+  --papiro-ink-soft: #bfa27a;
+  --papiro-burn: rgba(0, 0, 0, 0.6);
+
+  --bg-primary: rgba(44, 29, 17, 0.8);
+  --bg-secondary: rgba(36, 23, 13, 0.84);
+  --bg-tertiary: rgba(58, 39, 23, 0.86);
+  --text-primary: var(--papiro-ink);
+  --text-secondary: var(--papiro-ink-soft);
+  --border-primary: rgba(214, 170, 110, 0.22);
+  --border-subtle: rgba(214, 170, 110, 0.1);
+
+  --accent: #e0a458;
+  --accent-bg: rgba(224, 164, 88, 0.14);
+  --accent-border: rgba(224, 164, 88, 0.45);
+  --on-accent: #24160b;
+  --hover-bg: rgba(224, 164, 88, 0.08);
+  --hover-bg-subtle: rgba(224, 164, 88, 0.04);
+  --active-bg: rgba(224, 164, 88, 0.15);
+  --badge-bg: rgba(224, 164, 88, 0.12);
+  --code-inline-bg: rgba(224, 164, 88, 0.1);
+  --table-alt-row: rgba(224, 164, 88, 0.04);
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+
+  --syntax-keyword: #e0a458;
+  --syntax-string: #b5c06a;
+  --syntax-function: #d7a0e0;
+  --syntax-number: #f0b27a;
+  --syntax-type: #8ec5c0;
+  --syntax-comment: #8a7458;
+
+  --h1-color: #f2d7a6;
+  --h2-color: #e8b877;
+  --h3-color: #e0a458;
+}
+
+/* ── Fuentes, títulos e íconos ────────────────────────────────────────── */
+html[data-theme] {
+  --font-text: 'IM Fell English', 'EB Garamond', 'Cormorant Garamond', Georgia, serif;
+  --main-font: 'EB Garamond', Georgia, serif;
+  --code-font: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+
+  --h1-font: 'IM Fell English SC', 'IM Fell English', 'Cinzel', Georgia, serif;
+  --h1-size: 2.1em;
+  --h1-weight: 700;
+  --h2-font: 'IM Fell English', 'Cinzel', Georgia, serif;
+  --h2-size: 1.55em;
+  --h2-weight: 700;
+  --h3-font: var(--font-text);
+  --h3-weight: 700;
+  --h4-weight: 700;
+  --h6-color: var(--text-secondary);
+
+  /* Carpeta como un rollo de papiro atado */
+  --icon-folder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d9b98a' stroke='%236e4a2a' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M5 5h12a2 2 0 0 1 0 4H7v10H5a2 2 0 0 1 0-4V5z'/%3E%3Cpath d='M7 9h10v10H7z'/%3E%3Cpath d='M10 13h5M10 16h4' stroke-linecap='round'/%3E%3C/svg%3E");
+  --icon-folder-open: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ecd2a2' stroke='%238a3b12' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M4 6c3-1 5-1 8 0s5 1 8 0v12c-3 1-5 1-8 0s-5-1-8 0z'/%3E%3Cpath d='M8 10h8M8 13h7M8 16h5' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  /* Textura de fibras: ruido SVG en escala de grises, mezclado con el color base */
+  --papiro-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.09' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.22 0 0 0 0 0.1 0 0 0 0.28 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --papiro-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.18 0 0 0 0 0.08 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+/* ── Fondo: papel con fibras, grano, manchas y bordes tostados ────────── */
+.synapse-app {
+  background:
+    radial-gradient(ellipse at 50% 50%, transparent 55%, var(--papiro-burn) 100%),
+    radial-gradient(circle at 78% 22%, rgba(120, 70, 25, 0.16), transparent 18%),
+    radial-gradient(circle at 18% 80%, rgba(120, 70, 25, 0.12), transparent 22%),
+    var(--papiro-grain),
+    var(--papiro-texture),
+    var(--papiro-base);
+}
+
+/* ── Hoja: bordes rotos y tostados alrededor del área de la nota ───────────
+ * Es una capa fija sobre el panel (no sobre lo que se desplaza) para no repintarla en cada scroll. */
+.synapse-pane::after {
+  content: '';
+  position: absolute;
+  /* Debajo de la barra de pestañas, para no taparla */
+  inset: var(--header-height, 42px) 0 0 0;
+  z-index: 20;
+  pointer-events: none;
+  /* 9 cortes: las esquinas quedan fijas y los lados solo se estiran a lo largo, así el borde
+     mide siempre lo mismo aunque el panel sea grande */
+  border: 48px solid transparent;
+  border-image: var(--papiro-edge) 80 / 48px / 0 stretch;
+}
+
+/* Margen interior para que el borde no tape el texto */
+.synapse-pane .markdown-body {
+  padding-left: 72px !important;
+  padding-right: 72px !important;
+}
+.synapse-pane .synapse-note-title,
+.synapse-pane .cm-content {
+  padding-left: 56px !important;
+  padding-right: 56px !important;
+}
+
+/* ── Zonas ────────────────────────────────────────────────────────────── */
+.synapse-sidebar {
+  border-right: 1px solid var(--border-primary);
+  box-shadow: inset -8px 0 12px -10px rgba(60, 30, 10, 0.5);
+}
+
+.synapse-tab.active {
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.synapse-statusbar {
+  font-family: var(--code-font);
+  border-top: 1px solid var(--border-primary);
+}
+
+.synapse-dialog {
+  border: 1px solid var(--border-primary) !important;
+  border-radius: 4px !important;
+}
+
+/* ── Contenido de la nota: tinta sobre papel ─────────────────────────── */
+.markdown-body {
+  font-size: 1.05em;
+  line-height: 1.7;
+}
+
+.markdown-body h1,
+.markdown-body h2 {
+  border-bottom: 1px solid var(--border-primary);
+  text-shadow: 0 1px 0 rgba(255, 240, 210, 0.25);
+}
+
+.markdown-body h1::first-letter {
+  color: var(--accent);
+  font-size: 1.25em;
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.markdown-body strong {
+  color: var(--h2-color);
+}
+
+.markdown-body blockquote {
+  font-style: italic;
+  border-left: 3px double var(--accent-border);
+  background: var(--hover-bg-subtle);
+}
+
+.markdown-body pre,
+.markdown-body code {
+  border: 1px solid var(--border-subtle);
+}
+
+.markdown-body hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-primary), transparent);
+}
+
+/* Desplegables: el control nativo de GTK ignora el fondo, así que se dibuja a mano */
+html[data-theme] select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 26px !important;
+  background: #e8cea0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236e4a2a' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center / 10px 6px !important;
+  color: var(--text-primary) !important;
+}
+html[data-theme='dark'] select {
+  background-color: #2c1d11 !important;
+}
+html[data-theme] select option {
+  background-color: #e8cea0;
+  color: #3b2412;
+}
+html[data-theme='dark'] select option {
+  background-color: #2c1d11;
+  color: #ecd7b0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 6px;
+}

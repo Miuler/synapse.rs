@@ -9,6 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Tema integrado «Papiro»**: papel kraft envejecido con fibras y manchas, la nota como una hoja de bordes rotos y tostados, y tinta sepia con títulos en serif. En oscuro, cuero curtido con letras de pergamino. También en «Papiro Islas».
+- **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` y de las carpetas que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
+- **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.
 - **Actualizador automático (Auto-updater)**:
   - Integración del plugin `tauri-plugin-updater` para detectar y aplicar actualizaciones firmadas desde GitHub Releases.
   - Firma digital criptográfica de los paquetes y generación automática del manifiesto `latest.json` en los flujos de CI/CD para Linux (`.tar.gz`) y Windows (`.zip`).
@@ -27,8 +30,6 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **Página web de presentación** (`docs/index.html`): landing estática basada en `docs/about.md`, con capturas ampliables (visor con zoom a tamaño real y navegación con flechas), comparativa, temas, arquitectura y la mascota (pulpo kawaii) fija en la esquina inferior derecha.
 
-- **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` y de las carpetas que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
-- **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.
 - **Temas integrados «Rosa» e «Islas»**: «Rosa» en tonos rosa suaves; «Islas» muestra los paneles como islas flotantes con esquinas redondeadas sobre un marco más oscuro, y se combina con los demás en «Papel Islas», «Neón Islas» y «Rosa Islas».
 - **Temas integrados «Papel» y «Neón»**: vienen con la app y aparecen en Configuración → Apariencia → Tema personalizado sin copiar archivos. Un archivo `.synapse/themes/` con el mismo nombre los reemplaza. «Neón» es cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque, títulos con brillo magenta, cian y amarillo, íconos de carpeta propios y desplegables dibujados a mano. Tiene versión oscura y una clara «amanecer».
 
