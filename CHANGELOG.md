@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Temas integrados «Rosa» e «Islas»**: «Rosa» en tonos rosa suaves; «Islas» muestra los paneles como islas flotantes con esquinas redondeadas sobre un marco más oscuro, y se combina con los demás en «Papel Islas», «Neón Islas» y «Rosa Islas».
 - **Temas integrados «Papel» y «Neón»**: vienen con la app y aparecen en Configuración → Apariencia → Tema personalizado sin copiar archivos. Un archivo `.synapse/themes/` con el mismo nombre los reemplaza. «Neón» es cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque, títulos con brillo magenta, cian y amarillo, íconos de carpeta propios y desplegables dibujados a mano. Tiene versión oscura y una clara «amanecer».
 
 - **Temas: todo el color en variables, zonas públicas y tema de ejemplo**: los colores de la interfaz salen de variables CSS (nuevas: `--success`, `--warning`, `--danger`, `--purple`, `--on-accent`, `--overlay-bg`…), así un tema cambia toda la app. Las zonas principales tienen clases estables `synapse-*` (barra lateral, filas del explorador, pestañas, editor, lectura, barra de estado, diálogos). Guía en `docs/temas.md` y tema de ejemplo «Papel». Algunos tonos cambian levemente al seguir las variables del tema, sobre todo en la pantalla de bienvenida.
@@ -30,6 +31,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Cabeceras alineadas**: la línea inferior de la cabecera del explorador ahora coincide con la de la barra de pestañas.
 - **Bloques de código en lectura**: dentro de un bloque de código aparecía una línea horizontal bajo cada línea de texto (heredaba el borde del código en línea).
 - **Commit con archivos borrados**: hacer commit de un archivo borrado cuyo borrado ya estaba en stage (o de una carpeta borrada entera) fallaba con «git add falló: … no concordó con ningún archivo».
 

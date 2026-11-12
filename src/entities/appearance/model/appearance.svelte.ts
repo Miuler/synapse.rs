@@ -6,6 +6,8 @@ import { vaultRepository } from '@shared/repositories';
 import { refreshThemeIcons } from '@shared/lib/theme-icons.svelte';
 import papelCss from '../themes/papel.css?raw';
 import neonCss from '../themes/neon.css?raw';
+import islasCss from '../themes/islas.css?raw';
+import rosaCss from '../themes/rosa.css?raw';
 
 export const SNIPPETS_DIR = '.synapse/snippets';
 export const THEMES_DIR = '.synapse/themes';
@@ -14,8 +16,13 @@ const STYLE_ID = 'synapse-custom-css';
 
 /** Temas que vienen con la app. Un archivo de la bóveda con el mismo nombre los reemplaza. */
 export const BUILTIN_THEMES: Record<string, { label: string; css: string }> = {
+  islas: { label: 'Islas', css: islasCss },
   neon: { label: 'Neón', css: neonCss },
+  'neon-islas': { label: 'Neón Islas', css: `${neonCss}\n${islasCss}` },
   papel: { label: 'Papel', css: papelCss },
+  'papel-islas': { label: 'Papel Islas', css: `${papelCss}\n${islasCss}` },
+  rosa: { label: 'Rosa', css: rosaCss },
+  'rosa-islas': { label: 'Rosa Islas', css: `${rosaCss}\n${islasCss}` },
 };
 
 interface AppearanceConfig {

@@ -2763,7 +2763,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 14px;
+    /* Misma altura que la barra de pestañas, para que sus líneas inferiores coincidan */
+    box-sizing: border-box;
+    height: var(--header-height, 42px);
+    flex-shrink: 0;
+    padding: 0 14px;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;

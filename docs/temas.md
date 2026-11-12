@@ -11,13 +11,17 @@ Cada bóveda puede tener su propio aspecto con archivos `.css`:
 - El tema se carga primero y los fragmentos después, así que un fragmento puede retocar un tema.
 - Los cambios se aplican sin reiniciar. Si editas o agregas archivos, pulsa **Recargar** en
   Configuración: la app no vigila la carpeta `.synapse`.
-- La app trae temas integrados, con versión clara y oscura, que aparecen en la lista sin copiar nada:
-  - **Papel** ([`papel.css`](../src/entities/appearance/themes/papel.css)): estilo máquina de escribir.
-  - **Neón** ([`neon.css`](../src/entities/appearance/themes/neon.css)): cyberpunk, con fondo de
-    rejilla, paneles translúcidos con desenfoque y títulos con brillo.
+- La app trae temas integrados, con versión clara y oscura, que aparecen en la lista sin copiar nada
+  (están en [`src/entities/appearance/themes/`](../src/entities/appearance/themes/)):
+  - **Papel** (`papel.css`): estilo máquina de escribir.
+  - **Neón** (`neon.css`): cyberpunk, con fondo de rejilla, paneles translúcidos y títulos con brillo.
+  - **Rosa** (`rosa.css`): tonos rosa suaves, frambuesa en claro y ciruela en oscuro.
+  - **Islas** (`islas.css`): paneles flotantes con esquinas redondeadas sobre un marco más oscuro.
+    No trae colores propios; se combina con los demás en **Papel Islas**, **Neón Islas** y **Rosa Islas**.
+    Se ajusta con `--island-gap`, `--island-radius`, `--island-frame` y `--island-border`.
 
   Sirven de ejemplo para escribir los tuyos. Para modificar uno, copia su archivo a
-  `.synapse/themes/` con el mismo nombre (`papel.css`, `neon.css`): el de la bóveda reemplaza al integrado.
+  `.synapse/themes/` con el mismo nombre: el de la bóveda reemplaza al integrado.
 
 ## Modo claro y oscuro
 

@@ -986,9 +986,10 @@
 
 <style>
   .editor-header {
-    height: 42px;
-    min-height: 42px;
-    max-height: 42px;
+    box-sizing: border-box;
+    height: var(--header-height, 42px);
+    min-height: var(--header-height, 42px);
+    max-height: var(--header-height, 42px);
     flex-shrink: 0;
     background-color: var(--bg-primary, #ffffff);
     border-bottom: 1px solid var(--border-primary, #d0d7de);

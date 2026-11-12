@@ -1,0 +1,72 @@
+/*
+ * Capa «Islas»: paneles flotantes con esquinas redondeadas y un margen entre ellos sobre un marco
+ * más oscuro, al estilo de los IDE modernos. No define colores propios: se apoya en las variables del
+ * tema que tenga debajo (el de la app, Papel o Neón), así sirve de base para los temas «… Islas».
+ *
+ * Variables para ajustarla desde un fragmento:
+ *   --island-gap      separación entre islas y con el borde de la ventana
+ *   --island-radius   radio de las esquinas
+ *   --island-frame    fondo del marco que se ve entre las islas
+ *   --island-border   borde de cada isla
+ */
+
+html[data-theme] {
+  --island-gap: 8px;
+  --island-radius: 10px;
+  --island-border: 1px solid var(--border-subtle);
+}
+html[data-theme='light'] {
+  --island-frame: color-mix(in srgb, var(--bg-secondary) 84%, #000);
+}
+html[data-theme='dark'] {
+  --island-frame: color-mix(in srgb, var(--bg-primary) 45%, #000);
+}
+
+/* Marco: el fondo de la ventana se ve entre las islas */
+.synapse-app {
+  box-sizing: border-box;
+  padding: var(--island-gap) var(--island-gap) var(--island-gap) 0;
+  background: var(--island-frame);
+}
+.synapse-main {
+  gap: var(--island-gap);
+  background: transparent;
+}
+
+/* La barra de herramientas y la de estado forman parte del marco */
+.synapse-ribbon,
+.synapse-statusbar {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.synapse-statusbar {
+  margin-bottom: calc(-1 * var(--island-gap));
+}
+
+/* Islas */
+.synapse-sidebar,
+.synapse-right-sidebar,
+.synapse-pane {
+  border: var(--island-border) !important;
+  border-radius: var(--island-radius);
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+.synapse-sidebar {
+  margin-right: var(--island-gap);
+  background-color: var(--bg-secondary);
+}
+.synapse-right-sidebar {
+  margin-left: var(--island-gap);
+}
+
+/* Dentro de una isla la cabecera ya no necesita separarse del marco */
+.synapse-header {
+  background-color: transparent;
+}
+
+/* Diálogos y menús con el mismo redondeo */
+.synapse-dialog {
+  border-radius: var(--island-radius) !important;
+}

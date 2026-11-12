@@ -171,10 +171,21 @@
     {@render paneContent()}
   </div>
 {:else}
-  {@render paneContent()}
+  <div class="single-pane-wrapper synapse-pane">
+    {@render paneContent()}
+  </div>
 {/if}
 
 <style>
+  .single-pane-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+  }
+
   .split-pane-wrapper {
     display: flex;
     flex-direction: column;
