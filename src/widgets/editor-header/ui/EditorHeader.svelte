@@ -25,6 +25,7 @@
     ExternalLink,
     FolderSearch,
     Copy,
+    Edit2,
     History,
     Lock
   } from 'lucide-svelte';
@@ -52,6 +53,10 @@
     onOpenFileWithDefaultApp?: (path: string) => void;
     onShowItemInFolder?: (path: string) => void;
     onOpenInNewWindow?: (path: string, moveTab?: boolean) => void;
+    /** Renombrar desde el menú de la pestaña (lo hace el breadcrumb de esa pestaña). */
+    onRenameTab?: (path: string) => void;
+    /** Ruta absoluta de un archivo de la bóveda, para «Copiar ruta completa». */
+    fullPathOf?: (path: string) => string;
     onReorderTab?: (draggedPath: string, targetIndex: number) => void;
     onReceiveTabFromOtherWindow?: (path: string, targetIndex: number, sourceWindow: string) => void;
     onNewTab?: () => void;
@@ -88,6 +93,8 @@
     onOpenFileWithDefaultApp,
     onShowItemInFolder,
     onOpenInNewWindow,
+    onRenameTab,
+    fullPathOf,
     onReorderTab,
     onReceiveTabFromOtherWindow,
     onNewTab,
@@ -710,15 +717,28 @@
                     <span>Mostrar en carpeta</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
+                  {#if onRenameTab}
+                    <ContextMenu.Item class="context-menu-item tab-rename" onSelect={() => onRenameTab(tab.path)}>
+                      <Edit2 size={14} class="context-menu-item-icon" />
+                      <span>Renombrar archivo</span>
+                    </ContextMenu.Item>
+                  {/if}
                   <ContextMenu.Item
                     class="context-menu-item"
-                    onSelect={() => {
-                      navigator.clipboard.writeText(tab.path);
-                    }}
+                    onSelect={() => navigator.clipboard.writeText(tab.path)}
                   >
                     <Copy size={14} class="context-menu-item-icon" />
-                    <span>Copiar ruta</span>
+                    <span>Copiar ruta relativa</span>
                   </ContextMenu.Item>
+                  {#if fullPathOf}
+                    <ContextMenu.Item
+                      class="context-menu-item"
+                      onSelect={() => navigator.clipboard.writeText(fullPathOf(tab.path))}
+                    >
+                      <Copy size={14} class="context-menu-item-icon" />
+                      <span>Copiar ruta completa</span>
+                    </ContextMenu.Item>
+                  {/if}
                 {/if}
               </ContextMenu.Content>
             </ContextMenu.Portal>

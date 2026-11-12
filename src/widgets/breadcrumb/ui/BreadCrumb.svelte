@@ -27,6 +27,8 @@
     path?: string;
     /** Ruta absoluta del archivo, para «Copiar ruta completa». */
     fullPath?: string;
+    /** Pedido externo de renombrar (p. ej. desde el menú de la pestaña); cambia `n` en cada pedido. */
+    renameRequest?: { path: string; n: number } | null;
     readOnly?: boolean;
     class?: string;
     isGitRepo?: boolean;
@@ -44,6 +46,7 @@
   let {
     path = '',
     fullPath = '',
+    renameRequest = null,
     readOnly = false,
     class: customClass = '',
     isGitRepo = false,
@@ -233,6 +236,14 @@
     if (!cleanPath) return;
     gitDialogState.openFileLog(cleanPath);
   }
+
+  let lastRenameRequest = 0;
+  $effect(() => {
+    if (renameRequest && renameRequest.n !== lastRenameRequest && renameRequest.path === path) {
+      lastRenameRequest = renameRequest.n;
+      startEditing();
+    }
+  });
 
   function startEditing() {
     if (readOnly || !fileName || path.startsWith('empty:') || isEditing) return;

@@ -15,6 +15,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Menú de la pestaña completo**: además de abrir en nueva ventana, con la app por defecto y mostrar en carpeta, ahora permite **Renombrar archivo** (abre la edición en el breadcrumb de esa pestaña), **Copiar ruta relativa** y **Copiar ruta completa**, igual que el menú del breadcrumb.
 - **Tema integrado «Papiro»**: papel kraft envejecido con fibras y manchas, la nota como una hoja de bordes rotos y tostados, y tinta sepia con títulos en serif. En oscuro, cuero curtido con letras de pergamino. También en «Papiro Islas».
 - **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` (que se lee siempre) y de las carpetas extra que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas extra se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
 - **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.

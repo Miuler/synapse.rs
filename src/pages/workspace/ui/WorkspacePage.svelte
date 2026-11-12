@@ -2242,6 +2242,18 @@
     scheduleGitStatusRefresh();
   }
 
+  // Renombrar desde el menú de la pestaña: se activa la pestaña y su breadcrumb abre la edición
+  let renameRequest = $state<{ path: string; n: number } | null>(null);
+  function requestRenameTab(path: string, select: (p: string) => void) {
+    select(path);
+    renameRequest = { path, n: (renameRequest?.n ?? 0) + 1 };
+  }
+
+  function fullPathOf(path: string): string {
+    const root = appSettings.lastOpenedFolder;
+    return isStandaloneMode || !root ? path : `${root.replace(/[\\/]+$/, '')}/${path}`;
+  }
+
   async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
     if (!(await confirmProtectedRelocation([relativePath], 'Renombrarlo'))) return relativePath;
 
@@ -4006,6 +4018,7 @@
                 {isGitRepo}
                 {gitStatuses}
                 onNavigateFolder={handleBreadcrumbNavigateFolder}
+                {renameRequest}
                 onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
                 onOpenFileWithDefaultApp={(p) => systemApi.openFileWithDefaultApp(p)}
                 onShowItemInFolder={(p) => systemApi.showItemInFolder(p)}
@@ -4321,6 +4334,8 @@
         bind:containerRef={editorContainerRef}
         showSplitDropZoneOverlay={isDragOverSplitRight}
         onSelectTab={(path) => selectTab(path)}
+        onRenameTab={isStandaloneMode ? undefined : (p) => requestRenameTab(p, selectTab)}
+        {fullPathOf}
         onCloseTab={(path) => requestCloseTab(path)}
         onCloseAllTabs={requestCloseAllTabs}
         onCloseOtherTabs={requestCloseOtherTabs}
@@ -4378,6 +4393,8 @@
           showWindowControls={false}
           isSplitActive={true}
           onSelectTab={(path) => selectTab(path)}
+        onRenameTab={isStandaloneMode ? undefined : (p) => requestRenameTab(p, selectTab)}
+        {fullPathOf}
           onCloseTab={(path) => requestCloseTab(path)}
           onCloseAllTabs={requestCloseAllTabs}
           onCloseOtherTabs={requestCloseOtherTabs}
@@ -4441,6 +4458,8 @@
           showWindowControls={true}
           isSplitActive={true}
           onSelectTab={(path) => selectSplitTab(path)}
+          onRenameTab={isStandaloneMode ? undefined : (p) => requestRenameTab(p, selectSplitTab)}
+          {fullPathOf}
           onCloseTab={(path) => requestCloseSplitTab(path)}
           onCloseAllTabs={closeAllSplitTabs}
           onCloseOtherTabs={closeOtherSplitTabs}

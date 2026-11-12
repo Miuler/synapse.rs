@@ -34,6 +34,8 @@
     onCloseOtherTabs?: (path: string) => void;
     onCloseTabsToRight?: (path: string) => void;
     onOpenInNewWindow?: (path: string) => void;
+    onRenameTab?: (path: string) => void;
+    fullPathOf?: (path: string) => string;
     onReorderTab?: (draggedPath: string, targetIndex: number) => void;
     onReceiveTab?: (path: string, insertIndex?: number, sourceWindowId?: string) => void;
     onNewTab?: () => void;
@@ -78,6 +80,8 @@
     onCloseOtherTabs,
     onCloseTabsToRight,
     onOpenInNewWindow,
+    onRenameTab,
+    fullPathOf,
     onReorderTab,
     onReceiveTab,
     onNewTab,
@@ -125,6 +129,8 @@
     onOpenFileWithDefaultApp={(p) => systemApi.openFileWithDefaultApp(p)}
     onShowItemInFolder={(p) => systemApi.showItemInFolder(p)}
     {onOpenInNewWindow}
+    {onRenameTab}
+    {fullPathOf}
     {onReorderTab}
     onReceiveTabFromOtherWindow={onReceiveTab}
     {onNewTab}
