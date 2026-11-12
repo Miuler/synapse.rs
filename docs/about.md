@@ -55,8 +55,9 @@ Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Sv
 - **Diff de imágenes binarias:**
   - *2 Paneles:* Vista lado a lado entre disco local y la versión en Git con zoom independiente.
   - *Píxel a Píxel:* Resaltado visual en magenta de cada píxel alterado con porcentaje y conteo exacto de diferencias.
-- **Diff dual para diagramas (Excalidraw, D2, Mermaid, PlantUML):**
+- **Diff multi-modo para diagramas (Excalidraw, D2, Mermaid, PlantUML):**
   - *Como Diagrama:* Visualiza ambos estados en paralelo con la posibilidad de alternar el panel local a modo *Escritura* para editar sobre la marcha.
+  - *Píxel a Píxel (para Excalidraw):* Genera un render temporal en binario de ambas versiones para comparar visualmente píxel a píxel y localizar de inmediato cualquier trazo, caja o texto modificado en el lienzo.
   - *Como Texto:* Inspecciona diferencias línea por línea en el código fuente o estructura JSON.
 
 ### 6. 🤖 Servidor MCP Integrado (Model Context Protocol)
@@ -72,6 +73,26 @@ Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Sv
 - **Atajos configurables:** Personalización de combinaciones mediante `shortcuts.jsonc` (conservando comentarios).
 - **Modo Archivo Único:** Abre y edita archivos individuales `.md`, `.d2` o `.excalidraw` sin necesidad de crear un workspace.
 - **Plugins de Obsidian:** Compatibilidad con extensiones comunitarias verificadas a través de una fachada de su API.
+
+### 8. 🎨 Temas por Defecto
+Synapse incluye temas integrados listos para usar con variantes clara y oscura:
+
+#### Neón
+Inspiración cyberpunk con acentos luminosos sobre fondo oscuro:
+
+![Tema Neón](synapsers_neon.png)
+
+#### Neón Islas
+Variante con paneles flotantes y esquinas redondeadas:
+
+![Tema Neón Islas](synapsers_neon_island.png)
+
+#### Rosa
+Tonos frambuesa en modo claro y ciruela suave en modo oscuro:
+
+![Tema Rosa Oscuro](synapsers_rosa_dark.png)
+
+![Tema Rosa Claro](synapsers_rosa_light.png)
 
 ---
 
@@ -106,11 +127,15 @@ Detección automática de cambios resaltando los píxeles modificados en magenta
 
 ---
 
-### Diff de Diagramas (Como Diagrama vs. Como Texto)
+### Diff de Diagramas (Como Diagrama vs. Píxel a Píxel vs. Como Texto)
 
 Comparación visual interactiva en dos paneles con modo de edición local:
 
 ![Diff de Excalidraw como Diagrama](arquitectura_diff__excalidraw_as_diagram.png)
+
+Renderizado temporal a imagen binaria para ubicar fácilmente cualquier cambio gráfico mediante resaltado píxel a píxel:
+
+![Diff de Excalidraw Píxel a Píxel](arquitectura_diff__excalidraw_pixel_x_pixel.png)
 
 Vista de código para auditar cambios a nivel de texto o estructura JSON:
 
