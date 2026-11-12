@@ -9,7 +9,7 @@
   import { ContextMenu } from 'bits-ui';
   import { gitDialogState, gitApi, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
@@ -47,6 +47,8 @@
     onOpenDiffWithRevision?: (path: string, revision: string) => void;
     onCompareFiles?: (oldPath: string, newPath: string) => void;
     onOpenInNewWindow?: (path: string) => void;
+    /** Abre un `.drawio.png` en el editor de draw.io en vez de en el visor de imágenes. */
+    onOpenWithDrawio?: (path: string) => void;
     lockedFiles?: Set<string>;
     onToggleLockFile?: (path: string) => void;
   }
@@ -82,6 +84,7 @@
     onOpenDiffWithRevision,
     onCompareFiles,
     onOpenInNewWindow,
+    onOpenWithDrawio,
   }: Props = $props();
 
   // Elementos de la bóveda desde el store de la entidad (fuente única)
@@ -2331,6 +2334,20 @@
           >
             <FolderSearch class="context-menu-item-icon" />
             <span>Mostrar en carpeta</span>
+          </ContextMenu.Item>
+        {/if}
+
+        {#if contextMenuNode && !contextMenuNode.isFolder && onOpenWithDrawio && isDrawioPngFile(contextMenuNode.relativePath)}
+          <ContextMenu.Separator class="context-menu-divider" />
+
+          <ContextMenu.Item
+            class="context-menu-item"
+            onSelect={() => {
+              if (contextMenuNode) onOpenWithDrawio?.(contextMenuNode.relativePath);
+            }}
+          >
+            <PenTool class="context-menu-item-icon" />
+            <span>Abrir con draw.io</span>
           </ContextMenu.Item>
         {/if}
 

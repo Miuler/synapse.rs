@@ -41,6 +41,11 @@
       "excalidraw.excalidraw"
     ],
 
+    // Diagramas draw.io (se editan con el editor de draw.io embebido)
+    "drawio": [
+      "drawio"
+    ],
+
     // Documentos PDF
     "pdf": [
       "pdf"

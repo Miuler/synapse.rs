@@ -1,15 +1,19 @@
 <script lang="ts">
   import { Toolbar, Separator } from 'bits-ui';
-  import { AlertCircle, Minus, Plus, Maximize2 } from 'lucide-svelte';
+  import { AlertCircle, Minus, Plus, Maximize2, PenTool } from 'lucide-svelte';
+  import { isDrawioPngFile } from '@entities/file-type';
   import { vaultRepository } from '@shared/repositories';
 
   interface Props {
     src: string;
     alt?: string;
     content?: string;
+    /** Si el archivo es un `.drawio.png`, muestra un botón para editarlo en draw.io. */
+    onEditWithDrawio?: () => void;
   }
 
-  let { src, alt = 'Imagen', content }: Props = $props();
+  let { src, alt = 'Imagen', content, onEditWithDrawio }: Props = $props();
+  const isDrawioPng = $derived(isDrawioPngFile(src));
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
@@ -319,6 +323,12 @@
       <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label="Ajustar a ventana">
         <Maximize2 size={16} />
       </Toolbar.Button>
+      {#if isDrawioPng && onEditWithDrawio}
+        <Separator.Root class="divider" orientation="vertical" />
+        <Toolbar.Button class="ctrl-btn text-btn drawio-edit-btn" onclick={onEditWithDrawio} aria-label="Editar con draw.io">
+          <PenTool size={16} /> draw.io
+        </Toolbar.Button>
+      {/if}
     </Toolbar.Root>
   {/if}
 </div>

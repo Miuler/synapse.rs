@@ -5,6 +5,7 @@ export interface SupportedFileTypes {
   markdown: string[];
   diagrams: string[];
   drawings: string[];
+  drawio?: string[];
   pdf: string[];
   code: string[];
   word?: string[];
@@ -78,6 +79,7 @@ class FileTypesManager {
       this.fileTypes.markdown,
       this.fileTypes.diagrams,
       this.fileTypes.drawings,
+      this.fileTypes.drawio,
       this.fileTypes.pdf,
       this.fileTypes.code,
       this.fileTypes.word,
@@ -159,6 +161,17 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.drawings);
   }
 
+  /** Diagrama draw.io en XML (`.drawio`): se abre en el editor de draw.io embebido. */
+  isDrawioFile(path: string | null | undefined): boolean {
+    return this.matchesExtension(path, this.fileTypes.drawio || ['drawio']);
+  }
+
+  /** PNG con un diagrama draw.io incrustado (`.drawio.png`): se ve como imagen y puede editarse en draw.io. */
+  isDrawioPngFile(path: string | null | undefined): boolean {
+    if (!path) return false;
+    return path.toLowerCase().split('?')[0].split('#')[0].endsWith('.drawio.png');
+  }
+
   isPdfFile(path: string | null | undefined): boolean {
     return this.matchesExtension(path, this.fileTypes.pdf);
   }
@@ -185,6 +198,7 @@ class FileTypesManager {
       this.isMarkdownFile(path) ||
       this.isDiagramFile(path) ||
       this.isDrawingFile(path) ||
+      this.isDrawioFile(path) ||
       this.isPdfFile(path) ||
       this.isCodeFile(path) ||
       this.isOfficeFile(path)
@@ -202,6 +216,8 @@ export const isD2File = (path: string | null | undefined) => fileTypesManager.is
 export const isMermaidFile = (path: string | null | undefined) => fileTypesManager.isMermaidFile(path);
 export const isPlantUmlFile = (path: string | null | undefined) => fileTypesManager.isPlantUmlFile(path);
 export const isDrawingFile = (path: string | null | undefined) => fileTypesManager.isDrawingFile(path);
+export const isDrawioFile = (path: string | null | undefined) => fileTypesManager.isDrawioFile(path);
+export const isDrawioPngFile = (path: string | null | undefined) => fileTypesManager.isDrawioPngFile(path);
 export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);
 export const isCodeFile = (path: string | null | undefined) => fileTypesManager.isCodeFile(path);
 export const isWordFile = (path: string | null | undefined) => fileTypesManager.isWordFile(path);

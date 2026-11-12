@@ -17,6 +17,7 @@
   import {MermaidViewer} from "@features/mermaid-editor";
   import {D2Viewer} from "@features/d2-editor";
   import {PlantUmlViewer} from "@features/plantuml-editor";
+  import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
@@ -40,6 +41,8 @@
     isD2File,
     isPlantUmlFile,
     isDrawingFile,
+    isDrawioFile,
+    isDrawioPngFile,
     isPdfFile,
     isOfficeFile,
     loadSupportedFileTypes,
@@ -78,6 +81,13 @@
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
+  /** Pestañas `.drawio.png` abiertas en el editor de draw.io en vez de en el visor de imágenes. */
+  const drawioPngTabs = new SvelteSet<string>();
+
+  function openWithDrawio(path: string) {
+    drawioPngTabs.add(path);
+    handleSelectTabFromExplorer(path);
+  }
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
   let isShortcutsPanelOpen = $state(false);
@@ -3847,6 +3857,7 @@
       onOpenRevision={(path, revision) => selectTab(`rev:${revision}:${path}`)}
       onOpenDiffWithRevision={(path, revision) => selectTab(`diff-rev:${revision}:${path}`)}
       onCompareFiles={(a, b) => selectTab(`diff-files:${a}\n${b}`)}
+      onOpenWithDrawio={openWithDrawio}
       onOpenInNewWindow={handleOpenInNewWindow}
     />
 
@@ -3983,6 +3994,7 @@
             class:full-pane={isDiagramFile(tabPath) ||
               isImageFile(tabPath) ||
               isDrawing ||
+              isDrawioFile(tabPath) ||
               isPdfFile(tabPath) ||
               tabPath.startsWith('synapse://')}
           >
@@ -4010,7 +4022,26 @@
               </div>
             {:else}
               {#key note?.lastReloaded}
-                {#if isDiagramFile(tabPath)}
+                {#if isDrawioFile(tabPath)}
+                  <DrawioViewer
+                    filePath={tabPath}
+                    format="xml"
+                    {content}
+                    onSaveXml={(xml) => {
+                      if (openedNotes[tabPath]) {
+                        openedNotes[tabPath].content = xml;
+                      }
+                      cancelPendingSave(tabPath);
+                      persistVaultItemToRust(vaultItem);
+                    }}
+                  />
+                {:else if isDrawioPngFile(tabPath) && drawioPngTabs.has(tabPath)}
+                  <DrawioViewer
+                    filePath={tabPath}
+                    format="xmlpng"
+                    onExit={() => drawioPngTabs.delete(tabPath)}
+                  />
+                {:else if isDiagramFile(tabPath)}
                   {#if isD2File(tabPath)}
                     <D2Viewer
                       {content}
@@ -4211,6 +4242,7 @@
                     src={note?.abs_path || tabPath}
                     alt={vaultItem.title || tabPath}
                     {content}
+                    onEditWithDrawio={() => drawioPngTabs.add(tabPath)}
                   />
                 {:else if isPdfFile(tabPath)}
                   <PdfViewer

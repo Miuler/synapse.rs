@@ -7,6 +7,8 @@ pub struct SupportedFileTypes {
     pub diagrams: Vec<String>,
     pub drawings: Vec<String>,
     #[serde(default)]
+    pub drawio: Vec<String>,
+    #[serde(default)]
     pub pdf: Vec<String>,
     pub code: Vec<String>,
     #[serde(default)]
@@ -30,6 +32,7 @@ impl SupportedFileTypes {
             &self.markdown,
             &self.diagrams,
             &self.drawings,
+            &self.drawio,
             &self.pdf,
             &self.code,
             &self.word,

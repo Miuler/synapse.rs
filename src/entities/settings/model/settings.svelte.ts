@@ -18,6 +18,8 @@ export interface AppSettings {
   locale: SupportedLocale;
   propertiesViewMode: PropertiesViewMode;
   plantumlServer: string;
+  /** Dirección del editor de draw.io en modo embed (por defecto el público; puede ser uno propio sin red). */
+  drawioUrl: string;
   contentZoom: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   locale: 'es', // Por defecto español
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
+  drawioUrl: 'https://embed.diagrams.net/', // Editor público de draw.io en modo embed
   contentZoom: 1, // Tamaño del texto del editor y la previsualización
 };
 
@@ -86,6 +89,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.plantumlServer === 'string' && /^https?:\/\//i.test(parsed.plantumlServer.trim())) {
         settings.plantumlServer = parsed.plantumlServer.trim();
+      }
+      if (typeof parsed.drawioUrl === 'string' && /^https?:\/\//i.test(parsed.drawioUrl.trim())) {
+        settings.drawioUrl = parsed.drawioUrl.trim();
       }
     }
   } catch (e) {
