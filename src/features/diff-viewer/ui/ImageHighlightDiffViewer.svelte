@@ -4,6 +4,7 @@
     type GitImageDiffResult,
   } from '@shared/repositories';
   import { excalidrawPixelDiff } from '../lib/excalidraw-pixel-diff';
+  import { imagePixelDiff } from '../lib/image-pixel-diff';
   import { AlertCircle, CheckCircle2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-svelte';
 
   interface Props {
@@ -12,9 +13,11 @@
     baseRevision?: string;
     /** Dibujo de Excalidraw: se exportan las dos versiones a imagen y se comparan en memoria. */
     isDrawing?: boolean;
+    /** Compara `filePath` con este otro archivo de la bóveda en lugar de con Git. */
+    compareWith?: string;
   }
 
-  let { filePath, isStaged = false, baseRevision, isDrawing = false }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, isDrawing = false, compareWith }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -33,7 +36,20 @@
     loading = true;
     error = null;
     try {
-      if (isDrawing) {
+      if (compareWith && isDrawing) {
+        const [before, after] = await Promise.all([
+          vaultRepository.readNote(compareWith),
+          vaultRepository.readNote(filePath),
+        ]);
+        diffResult = await excalidrawPixelDiff(before?.content || '', after?.content || '', filePath, false);
+      } else if (compareWith) {
+        const [before, after] = await Promise.all([
+          vaultRepository.readAssetDataUrl(compareWith),
+          vaultRepository.readAssetDataUrl(filePath),
+        ]);
+        if (!before || !after) throw new Error('No se pudo leer una de las imágenes');
+        diffResult = await imagePixelDiff(before, after, filePath);
+      } else if (isDrawing) {
         const [rev, local] = await Promise.all([
           vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision),
           vaultRepository.readNote(filePath),
@@ -58,6 +74,7 @@
     const _p = filePath;
     const _s = isStaged;
     const _r = baseRevision;
+    const _c = compareWith;
     loadDiff();
   });
 

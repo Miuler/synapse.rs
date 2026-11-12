@@ -55,9 +55,16 @@
   const isPureBinary = $derived((isImage && !isSvg) || isPdf);
   // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
   const hasPixelDiff = $derived((isImage && !isSvg) || isDrawing);
-  const isVisualCandidate = $derived(
-    !compareWith && (isImage || isPdf || isDrawing || isDiagram)
+  // Al comparar dos archivos, el modo visual solo tiene sentido si los dos son del mismo tipo
+  const sameKind = $derived(
+    !compareWith ||
+      (isImageFile(compareWith) && !isDrawingFile(compareWith)) === isImage &&
+        isPdfFile(compareWith) === isPdf &&
+        isDrawingFile(compareWith) === isDrawing &&
+        isDiagramFile(compareWith) === isDiagram &&
+        isSvgFile(compareWith) === isSvg,
   );
+  const isVisualCandidate = $derived(sameKind && (isImage || isPdf || isDrawing || isDiagram));
 
   $effect(() => {
     workspaceDiffSettings.initFromWorkspace();
@@ -235,7 +242,7 @@
             class="toggle-btn"
             class:active={activeVisualTab === 'side_by_side'}
             onclick={() => workspaceDiffSettings.setVisualTab('side_by_side')}
-            title="Vista dividida lado a lado (Disco vs Git)"
+            title={compareWith ? 'Vista dividida lado a lado' : 'Vista dividida lado a lado (Disco vs Git)'}
           >
             <Columns size={13} />
             <span>2 Paneles</span>
@@ -355,9 +362,9 @@
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
     {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
-      <VisualDiffViewer {filePath} {isStaged} {baseRevision} />
+      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} />
     {:else if hasPixelDiff && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} />
+      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {compareWith} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>

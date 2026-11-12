@@ -26,9 +26,12 @@
     filePath: string;
     isStaged?: boolean;
     baseRevision?: string;
+    /** Compara `filePath` con este otro archivo de la bóveda (panel derecho) en lugar de con Git. */
+    compareWith?: string;
   }
 
-  let { filePath, isStaged = false, baseRevision }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith }: Props = $props();
+  const compareName = $derived(compareWith ? compareWith.split('/').pop() || compareWith : '');
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -75,9 +78,21 @@
     loading = true;
     error = null;
     try {
-      // 1. Obtener revisión de Git
-      const rev = await vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision);
-      gitRevision = rev;
+      // 1. Panel derecho: la revisión de Git, o el otro archivo al comparar dos archivos
+      if (compareWith) {
+        const binary = isImage || isPdf;
+        const other = binary ? null : await vaultRepository.readNote(compareWith);
+        gitRevision = {
+          path: compareWith,
+          revision: '',
+          content: other?.content ?? null,
+          data_url: binary ? await vaultRepository.readAssetDataUrl(compareWith) : null,
+          is_binary: binary,
+          exists: true,
+        };
+      } else {
+        gitRevision = await vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision);
+      }
 
       // 2. Si es dibujo o diagrama, leer contenido de texto de disco
       if (isDrawing || isDiagram) {
@@ -100,6 +115,7 @@
     const _p = filePath;
     const _s = isStaged;
     const _r = baseRevision;
+    const _c = compareWith;
     loadData();
   });
 
@@ -133,7 +149,7 @@
   {#if loading}
     <div class="state-container">
       <div class="spinner"></div>
-      <p>Cargando visualización de ambos paneles (Disco vs Git)...</p>
+      <p>Cargando visualización de ambos paneles{compareWith ? '' : ' (Disco vs Git)'}...</p>
     </div>
   {:else if error}
     <div class="state-container error">
@@ -147,7 +163,7 @@
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
-          <span>Disco Duro (Local{#if (isDrawing || isDiagram) && isLocalEditable} — Editable{:else if isDrawing || isDiagram} — Lectura{/if})</span>
+          <span>{#if compareWith}{fileName}{:else}Disco Duro (Local{#if (isDrawing || isDiagram) && isLocalEditable} — Editable{:else if isDrawing || isDiagram} — Lectura{/if}){/if}</span>
         </div>
         <div class="pane-header-right">
           {#if isDrawing || isDiagram}
@@ -247,9 +263,11 @@
       <div class="pane-header">
         <div class="pane-tag git" class:is-staged={isStaged && !baseRevision} class:is-revision={Boolean(baseRevision)}>
           <GitCommit size={13} />
-          <span>{baseRevision ? `REV: ${baseRevision.slice(0, 7)}` : (isStaged ? 'Stage / Index' : 'HEAD (Último commit)')}</span>
+          <span>{compareWith ? compareName : baseRevision ? `REV: ${baseRevision.slice(0, 7)}` : (isStaged ? 'Stage / Index' : 'HEAD (Último commit)')}</span>
         </div>
-        {#if !gitRevision?.exists}
+        {#if compareWith}
+          <span class="pane-rev-info">Archivo comparado</span>
+        {:else if !gitRevision?.exists}
           <span class="not-in-git-badge">No existe en esta revisión</span>
         {:else}
           <span class="pane-rev-info">{baseRevision ? `Revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'Revisión en Stage' : 'Última versión commiteada')}</span>
