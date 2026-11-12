@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - **Editor de draw.io embebido**: los `.drawio` se abren en el editor de draw.io dentro de una pestaña y al guardar se escribe el XML del diagrama. Los `.drawio.png` se siguen viendo como imagen y se editan con **Abrir con draw.io** en el menú contextual del explorador o con el botón **draw.io** del visor de imágenes; al guardar se reescribe el PNG con el diagrama incrustado, que sigue siendo editable. Respeta el tema claro u oscuro. Se carga desde `embed.diagrams.net` (el diagrama no sale del equipo: viaja por `postMessage`); la dirección se puede cambiar con `drawioUrl` en los ajustes para usar un draw.io propio sin red.
+- **Los `.drawio.png` vuelven a abrirse como imagen**: el modo draw.io solo dura mientras la pestaña está abierta; abrir el archivo desde el explorador o la apertura rápida, o cerrar la pestaña, lo devuelve al visor de imágenes.
 
 ## [1.0.0-beta.1] - 2026-11-12
 

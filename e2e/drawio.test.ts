@@ -106,6 +106,14 @@ it('un .drawio.png se ve como imagen y se edita desde el menú contextual', asyn
     timeoutMsg: 'no se reescribió el PNG',
   });
   expect(pngText('menu.drawio.png').startsWith('\x89PNG')).toBe(true);
+
+  // Abrirlo de nuevo de la forma normal lo muestra otra vez como imagen
+  await s.browser.$('.file-tree-item[data-path="menu.drawio.png"]').click();
+  await s.browser.waitUntil(
+    async () => !(await s.browser.$('.drawio-viewer[data-drawio-path="menu.drawio.png"]').isExisting()),
+    { timeout: 5_000, timeoutMsg: 'siguió abierto en draw.io' },
+  );
+  await s.browser.$('.tab-pane:not(.hidden) .drawio-edit-btn').waitForExist({ timeout: 5_000 });
 }, 60_000);
 
 it('el visor de imágenes ofrece editar un .drawio.png con draw.io', async () => {

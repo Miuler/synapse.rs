@@ -81,12 +81,14 @@
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
-  /** Pestañas `.drawio.png` abiertas en el editor de draw.io en vez de en el visor de imágenes. */
+  /** Pestañas `.drawio.png` abiertas en el editor de draw.io en vez de en el visor de imágenes.
+   *  Solo dura mientras la pestaña está abierta: abrir el archivo de la forma normal (explorador,
+   *  apertura rápida…) o cerrar la pestaña lo devuelve al visor de imágenes. */
   const drawioPngTabs = new SvelteSet<string>();
 
   function openWithDrawio(path: string) {
-    drawioPngTabs.add(path);
     handleSelectTabFromExplorer(path);
+    drawioPngTabs.add(path);
   }
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
@@ -1038,6 +1040,7 @@
   }
 
   function closeTab(path: string) {
+    drawioPngTabs.delete(path);
     const idx = openTabPaths.indexOf(path);
     if (idx !== -1) {
       openTabPaths.splice(idx, 1);
@@ -1483,6 +1486,7 @@
   }
 
   function closeSplitTab(path: string) {
+    drawioPngTabs.delete(path);
     const idx = splitTabPaths.indexOf(path);
     if (idx !== -1) {
       splitTabPaths = splitTabPaths.filter((p) => p !== path);
@@ -1664,6 +1668,7 @@
   }
 
   function handleSelectTabFromExplorer(path: string, viewerPreference?: ExcalidrawViewerType) {
+    drawioPngTabs.delete(path);
     if (activeFocusedPane === 'right' && isSplit) {
       selectSplitTab(path, viewerPreference);
     } else {
