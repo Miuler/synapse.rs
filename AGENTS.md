@@ -16,6 +16,8 @@ Este documento establece las **reglas de oro, principios arquitectónicos y est�
    - Modificar únicamente las líneas estrictamente necesarias para resolver la petición; preferir ediciones mínimas sobre refactorizaciones no solicitadas.
    - Prohibido agregar wrappers, funciones helpers intermedias o validaciones defensivas redundantes si la plataforma (DOM, Svelte 5, Rust) ya garantiza el comportamiento.
    - Reutilizar el estado reactivo existente en lugar de recrear lógica de búsqueda o captura de nodos.
+6. **Registro en CHANGELOG.md**:
+   - Antes de hacer commit, si los cambios son relevantes para el usuario o el proyecto (nuevas funcionalidades, correcciones visibles o cambios de arquitectura/infraestructura importantes), **DEBE actualizarse la sección `## [Sin publicar] (Unreleased)` en `CHANGELOG.md`** siguiendo el formato establecido (Keep a Changelog).
 
 ---
 
@@ -59,7 +61,7 @@ El backend reside en `src-tauri/src` y se organiza en capas concéntricas. La re
    - **PROHIBIDO**: Importar implementaciones concretas de `infrastructure` o depender de `tauri`. Debe recibir los puertos mediante genéricos (`<R: NoteRepository>`) o inyección de dependencias (`Arc<dyn Trait>`).
 
 3. **Capa `infrastructure` (Adaptadores y Framework)**:
-   - Implementa los traits de `domain` interactuando con el sistema operativo (sistema de archivos, Git con `gix`, Tantivy, persistencia `bincode`, eventos con `notify`).
+   - Implementa los traits de `domain` interactuando con el sistema operativo (sistema de archivos, Git con `gix`, Tantivy, persistencia `postcard`, eventos con `notify`).
    - Contiene la capa de presentación/IPC de Tauri en `infrastructure/tauri/commands.rs`.
    - Los comandos de Tauri deben delegar la lógica de negocio en los casos de uso de `application` y orquestar llamadas de infraestructura.
 
@@ -160,6 +162,8 @@ bun run build
 # 3. Verificación de la suite de pruebas del Backend Rust (todos deben pasar)
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+Adicionalmente, antes de realizar cualquier commit, verificar si los cambios son relevantes e incluirlos en `CHANGELOG.md` bajo `## [Sin publicar] (Unreleased)`.
 
 <!-- braid:agents:start v8 -->
 ## braid workflow

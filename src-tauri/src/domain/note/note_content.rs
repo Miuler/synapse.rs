@@ -271,9 +271,16 @@ impl NoteContent {
     }
     /// Calcula el hash SHA-256 en formato hex con prefijo "sha256:" para control optimista de concurrencia.
     pub fn hash(text: &str) -> String {
+        use std::fmt::Write;
         let mut hasher = Sha256::new();
         hasher.update(text.as_bytes());
-        format!("sha256:{:x}", hasher.finalize())
+        let digest = hasher.finalize();
+        let mut result = String::with_capacity(7 + digest.len() * 2);
+        result.push_str("sha256:");
+        for byte in digest {
+            let _ = write!(result, "{:02x}", byte);
+        }
+        result
     }
     /// Estima los tokens de texto usando la heurística ceil(bytes / 4).
     pub fn estimate_tokens(text: &str) -> usize {
@@ -388,5 +395,20 @@ impl NoteContent {
             }
         }
         diagrams
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_sha256() {
+        let text = "hello world";
+        let h = NoteContent::hash(text);
+        assert_eq!(
+            h,
+            "sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
     }
 }

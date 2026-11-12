@@ -1,7 +1,7 @@
 use super::model::{NoteId, NoteMeta};
 use dashmap::DashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::BufWriter;
 use std::path::Path;
 
 pub fn save_cache_to_disk(
@@ -13,16 +13,14 @@ pub fn save_cache_to_disk(
     }
     let file = File::create(cache_path)?;
     let mut writer = BufWriter::new(file);
-    bincode::serde::encode_into_std_write(map, &mut writer, bincode::config::standard())?;
+    postcard::to_io(map, &mut writer)?;
     Ok(())
 }
 
 pub fn load_cache_from_disk(
     cache_path: &Path,
 ) -> Result<DashMap<NoteId, NoteMeta>, Box<dyn std::error::Error + Send + Sync>> {
-    let file = File::open(cache_path)?;
-    let mut reader = BufReader::new(file);
-    let map: DashMap<NoteId, NoteMeta> =
-        bincode::serde::decode_from_std_read(&mut reader, bincode::config::standard())?;
+    let bytes = std::fs::read(cache_path)?;
+    let map: DashMap<NoteId, NoteMeta> = postcard::from_bytes(&bytes)?;
     Ok(map)
 }

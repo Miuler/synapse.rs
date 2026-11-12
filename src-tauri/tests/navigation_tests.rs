@@ -13,7 +13,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 #[test]
-fn test_note_meta_compact_str_and_bincode_roundtrip() {
+fn test_note_meta_compact_str_and_postcard_roundtrip() {
     let dir = std::env::temp_dir().join("synapse_test_storage");
     let _ = fs::create_dir_all(&dir);
     let cache_file = dir.join("test_cache.bin");

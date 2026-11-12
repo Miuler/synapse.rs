@@ -7,6 +7,19 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Actualizador automático (Auto-updater)**:
+  - Integración del plugin `tauri-plugin-updater` para detectar y aplicar actualizaciones firmadas desde GitHub Releases.
+  - Firma digital criptográfica de los paquetes y generación automática del manifiesto `latest.json` en los flujos de CI/CD para Linux (`.tar.gz`) y Windows (`.zip`).
+
+### Cambiado
+
+- **Caché de navegación a `postcard`**:
+  - Reemplazo de la biblioteca desmantenida `bincode` por `postcard` (`v1.1` con `use-std`) para la serialización binaria en disco de la caché del motor de navegación (`DashMap<NoteId, NoteMeta>`), reduciendo huella y garantizando compatibilidad moderna de tipos.
+- **Optimización de compilación**:
+  - Compilación con *ThinLTO* en modo release y uso del enlazador `lld` en Linux para acelerar los tiempos de enlazado y empaquetado en CI.
+
 ## [1.0.0-alpha.5] - 2026-11-11
 
 ### Añadido

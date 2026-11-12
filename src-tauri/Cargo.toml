@@ -16,7 +16,7 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 anyhow = "1"
 vergen = { version = "10.0.3", features = ["build"] }
 vergen-gix = { version = "10.0.3", features = ["build"] }
@@ -25,24 +25,24 @@ vergen-gix = { version = "10.0.3", features = ["build"] }
 serde_json = "1.0.154"
 serde_json_lenient = "0.2.4"
 serde = { version = "1.0.229", features = ["derive"] }
-tauri = { version = "2.11.6", features = ["protocol-asset", "devtools"] }
-tauri-plugin-log = "2.9.2"
+tauri = { version = "2.12.5", features = ["protocol-asset", "devtools"] }
+tauri-plugin-log = "2.10.2"
 nucleo-matcher = "0.3"
 nucleo = "0.5"
 dashmap = { version = "6.2", features = ["serde"] }
-bincode = { version = "2.0.0-rc.3", features = ["serde"] }
+postcard = { version = "1.1", features = ["use-std"] }
 compact_str = { version = "0.10", features = ["serde"] }
 jwalk = "0.9"
 notify = "8.2"
 pulldown-cmark = "0.13"
-log = "0.4.34"
-indicatif = { version = "0.18.4", features = ["tokio"] }
+log = "0.4.35"
+indicatif = { version = "0.18.6", features = ["tokio"] }
 tracing-indicatif = "0.3.14"
 indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
-rfd = "0.17.2"
-encoding_rs = "0.8.35"
+rfd = "0.18"
+encoding_rs = "0.8.44"
 chardetng = "1.0.0"
 base64 = "0.23.1"
 reqwest = { version = "0.13", default-features = false, features = [
@@ -54,7 +54,7 @@ gix = { version = "0.90.0", default-features = false, features = [
   "parallel",
   "sha1",
 ] }
-rayon = "1.10.0"
+rayon = "1.12.0"
 tantivy = "0.27"
 image = { version = "0.25", default-features = false, features = [
   "png",
@@ -67,10 +67,10 @@ image = { version = "0.25", default-features = false, features = [
 ] }
 pixelmatch = "0.1"
 quick-xml = "0.42"
-zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
-lopdf = "0.46"
+zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
+lopdf = "0.47"
 serde_yaml = "0.9.34"
-sha2 = "0.10"
+sha2 = "0.11"
 similar = { version = "3.2.1", default-features = false, features = ["text"] }
 tauri-plugin-cli = "2.5.0"
 
@@ -90,4 +90,3 @@ lto = "thin"
 codegen-units = 16
 panic = "abort"
 strip = true
-
