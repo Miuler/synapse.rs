@@ -90,8 +90,7 @@ it('un fragmento cambia títulos en lectura y edición, la fuente del texto y el
   );
 });
 
-it('el tema de ejemplo «Papel» se aplica y las zonas públicas existen', async () => {
-  writeFileSync(join(s.vault, '.synapse/themes/papel.css'), readFileSync(join(import.meta.dir, '../docs/temas/papel.css'), 'utf8'));
+it('el tema integrado «Papel» se aplica sin archivo en la bóveda y las zonas públicas existen', async () => {
   // Quitar el fragmento del caso anterior para ver el ícono del tema
   await s.browser.$('[aria-label="Configuración"]').click();
   await s.browser.$('.settings-panel').waitForDisplayed({ timeout: 5_000 });

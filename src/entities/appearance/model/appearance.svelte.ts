@@ -4,11 +4,19 @@
 // que gane sobre los estilos de la app.
 import { vaultRepository } from '@shared/repositories';
 import { refreshThemeIcons } from '@shared/lib/theme-icons.svelte';
+import papelCss from '../themes/papel.css?raw';
+import neonCss from '../themes/neon.css?raw';
 
 export const SNIPPETS_DIR = '.synapse/snippets';
 export const THEMES_DIR = '.synapse/themes';
 const CONFIG_PATH = '.synapse/appearance.json';
 const STYLE_ID = 'synapse-custom-css';
+
+/** Temas que vienen con la app. Un archivo de la bóveda con el mismo nombre los reemplaza. */
+export const BUILTIN_THEMES: Record<string, { label: string; css: string }> = {
+  neon: { label: 'Neón', css: neonCss },
+  papel: { label: 'Papel', css: papelCss },
+};
 
 interface AppearanceConfig {
   theme: string | null;
@@ -26,6 +34,8 @@ class Appearance {
   /** Fragmentos y temas disponibles (nombre sin `.css`). */
   snippets = $state<string[]>([]);
   themes = $state<string[]>([]);
+  /** Temas que están como archivo en la bóveda (los demás son integrados). */
+  vaultThemes = $state<string[]>([]);
   /** Lo elegido en esta bóveda. */
   enabledSnippets = $state<string[]>([]);
   theme = $state<string | null>(null);
@@ -44,8 +54,9 @@ class Appearance {
       console.warn(`${CONFIG_PATH} no es JSON válido; se ignora`);
     }
     this.snippets = snippets;
-    this.themes = themes;
-    this.theme = config.theme && themes.includes(config.theme) ? config.theme : null;
+    this.vaultThemes = themes;
+    this.themes = [...new Set([...Object.keys(BUILTIN_THEMES), ...themes])].sort((a, b) => a.localeCompare(b));
+    this.theme = config.theme && this.themes.includes(config.theme) ? config.theme : null;
     this.enabledSnippets = config.snippets.filter((s) => snippets.includes(s));
     await this.apply();
   }
@@ -73,10 +84,17 @@ class Appearance {
     await this.apply();
   }
 
+  /** Nombre visible: el integrado tiene etiqueta propia salvo que la bóveda lo reemplace. */
+  themeLabel(name: string) {
+    return !this.vaultThemes.includes(name) && BUILTIN_THEMES[name] ? BUILTIN_THEMES[name].label : name;
+  }
+
   /** Inyecta el tema y después los fragmentos, para que un fragmento pueda retocar el tema. */
   private async apply() {
+    const theme = this.theme;
+    const builtin = theme && !this.vaultThemes.includes(theme) ? BUILTIN_THEMES[theme] : undefined;
     const paths = [
-      ...(this.theme ? [`${THEMES_DIR}/${this.theme}.css`] : []),
+      ...(theme && !builtin ? [`${THEMES_DIR}/${theme}.css`] : []),
       ...this.enabledSnippets.map((s) => `${SNIPPETS_DIR}/${s}.css`),
     ];
     const parts = await Promise.all(
@@ -85,6 +103,7 @@ class Appearance {
         return note?.content ? `/* ${p} */\n${note.content}` : '';
       }),
     );
+    if (builtin) parts.unshift(`/* tema integrado: ${theme} */\n${builtin.css}`);
     let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
     if (!style) {
       style = document.createElement('style');

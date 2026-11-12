@@ -3,7 +3,7 @@
  * títulos con brillo de neón y acentos magenta y cian. Pensado para el modo oscuro; en modo claro
  * usa una variante «amanecer» lavanda con los mismos acentos.
  *
- * Instalar: copiar a <bóveda>/.synapse/themes/neon.css y elegirlo en
+ * Viene integrado en la app; para modificarlo, copiar a <bóveda>/.synapse/themes/neon.css. Se elige en
  * Configuración → Apariencia → Tema personalizado. Guía de variables y zonas en docs/temas.md.
  *
  * Fuentes: usa Orbitron y Share Tech Mono si están instaladas; si no, cae a las del sistema.

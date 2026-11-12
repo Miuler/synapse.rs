@@ -11,10 +11,13 @@ Cada bóveda puede tener su propio aspecto con archivos `.css`:
 - El tema se carga primero y los fragmentos después, así que un fragmento puede retocar un tema.
 - Los cambios se aplican sin reiniciar. Si editas o agregas archivos, pulsa **Recargar** en
   Configuración: la app no vigila la carpeta `.synapse`.
-- Ejemplos completos, con versión clara y oscura:
-  - [`docs/temas/papel.css`](temas/papel.css): estilo máquina de escribir.
-  - [`docs/temas/neon.css`](temas/neon.css): neón cyberpunk, con fondo de rejilla, paneles
-    translúcidos con desenfoque y títulos con brillo.
+- La app trae temas integrados, con versión clara y oscura, que aparecen en la lista sin copiar nada:
+  - **Papel** ([`papel.css`](../src/entities/appearance/themes/papel.css)): estilo máquina de escribir.
+  - **Neón** ([`neon.css`](../src/entities/appearance/themes/neon.css)): cyberpunk, con fondo de
+    rejilla, paneles translúcidos con desenfoque y títulos con brillo.
+
+  Sirven de ejemplo para escribir los tuyos. Para modificar uno, copia su archivo a
+  `.synapse/themes/` con el mismo nombre (`papel.css`, `neon.css`): el de la bóveda reemplaza al integrado.
 
 ## Modo claro y oscuro
 

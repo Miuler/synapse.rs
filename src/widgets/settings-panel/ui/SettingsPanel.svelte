@@ -196,7 +196,7 @@
             >
               <option value="">Ninguno</option>
               {#each appearance.themes as name (name)}
-                <option value={name}>{name}</option>
+                <option value={name}>{appearance.themeLabel(name)}</option>
               {/each}
             </select>
           </label>
