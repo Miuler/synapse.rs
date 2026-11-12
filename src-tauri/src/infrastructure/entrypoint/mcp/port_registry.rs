@@ -1,4 +1,5 @@
 use crate::domain::mcp::mcp::{McpPortRegistry, McpPortRegistryEntry, McpVaultConfig};
+use crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl;
 use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
@@ -7,69 +8,28 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const DEFAULT_MCP_PORT: u16 = 27182;
 pub const MAX_PORT_SEARCH_RANGE: u16 = 28000;
 
-/// Resuelve las rutas de almacenamiento global para el registro de puertos MCP.
-/// Retorna `~/.config/synapse/mcp-ports.json` como principal y `~/.config/synapsers/mcp-ports.json` como compatibilidad.
-pub fn get_global_registry_paths() -> Vec<PathBuf> {
-    let mut base_dirs = Vec::new();
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        let trimmed = xdg.trim();
-        if !trimmed.is_empty() {
-            base_dirs.push(PathBuf::from(trimmed));
-        }
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        let trimmed = home.trim();
-        if !trimmed.is_empty() {
-            base_dirs.push(PathBuf::from(trimmed).join(".config"));
-        }
-    }
-    if let Ok(up) = std::env::var("USERPROFILE") {
-        let trimmed = up.trim();
-        if !trimmed.is_empty() {
-            base_dirs.push(PathBuf::from(trimmed).join(".config"));
-        }
-    }
-    if base_dirs.is_empty() {
-        base_dirs.push(PathBuf::from(".config"));
-    }
-
-    let mut result = Vec::new();
-    for base in base_dirs {
-        let p1 = base.join("synapse").join("mcp-ports.json");
-        let p2 = base.join("synapsers").join("mcp-ports.json");
-        if !result.contains(&p1) {
-            result.push(p1);
-        }
-        if !result.contains(&p2) {
-            result.push(p2);
-        }
-    }
-    result
+/// Registro global de puertos MCP: `~/.config/synapsers/mcp-ports.json`, en la misma carpeta que
+/// el resto de la configuración global de la app.
+pub fn get_global_registry_path() -> PathBuf {
+    WorkspaceRegistryRepositoryImpl::resolve_config_dir().join("mcp-ports.json")
 }
 
 /// Lee el registro global de puertos MCP desde disco.
 pub fn read_global_registry() -> McpPortRegistry {
-    for path in get_global_registry_paths() {
-        if path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(reg) = serde_json::from_str::<McpPortRegistry>(&content) {
-                    return reg;
-                }
-            }
-        }
-    }
-    McpPortRegistry::default()
+    std::fs::read_to_string(get_global_registry_path())
+        .ok()
+        .and_then(|content| serde_json::from_str::<McpPortRegistry>(&content).ok())
+        .unwrap_or_default()
 }
 
-/// Escribe el registro global de puertos MCP en `~/.config/synapse` y `~/.config/synapsers`.
+/// Escribe el registro global de puertos MCP.
 pub fn write_global_registry(registry: &McpPortRegistry) {
     if let Ok(json_str) = serde_json::to_string_pretty(registry) {
-        for path in get_global_registry_paths() {
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let _ = std::fs::write(&path, &json_str);
+        let path = get_global_registry_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
         }
+        let _ = std::fs::write(&path, &json_str);
     }
 }
 
@@ -282,7 +242,7 @@ pub fn record_mcp_started(vault_path: &Path, port: u16) {
     };
     write_vault_config(vault_path, &vault_config);
 
-    // 2. Guardar en ~/.config/synapse/mcp-ports.json
+    // 2. Guardar en ~/.config/synapsers/mcp-ports.json
     registry.vaults.insert(
         canonical_key.clone(),
         McpPortRegistryEntry {
@@ -312,7 +272,7 @@ pub fn record_mcp_disabled(vault_path: &Path, port: u16) {
     };
     write_vault_config(vault_path, &vault_config);
 
-    // 2. Actualizar en ~/.config/synapse/mcp-ports.json
+    // 2. Actualizar en ~/.config/synapsers/mcp-ports.json
     let mut registry = read_global_registry();
     if let Some(entry) = registry.vaults.get_mut(&canonical_key) {
         entry.running = false;

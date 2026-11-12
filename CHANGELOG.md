@@ -15,6 +15,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- **Una sola carpeta de configuración global, `~/.config/synapsers`**: el registro de puertos MCP (`mcp-ports.json`) ya no se escribe también en `~/.config/synapse`. Esa carpeta ya no se usa y se puede borrar.
 - **Caché de navegación a `postcard`**:
   - Reemplazo de la biblioteca desmantenida `bincode` por `postcard` (`v1.1` con `use-std`) para la serialización binaria en disco de la caché del motor de navegación (`DashMap<NoteId, NoteMeta>`), reduciendo huella y garantizando compatibilidad moderna de tipos.
 - **Optimización de compilación**:
