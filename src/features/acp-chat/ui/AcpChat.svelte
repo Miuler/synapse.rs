@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { agentStore, type Attachment, type ToolContent } from '@entities/acp-agent';
+  import { agentStore, type Attachment, type Conversation, type ToolContent } from '@entities/acp-agent';
   import { vaultItemStore } from '@entities/vault-item';
   import {
     Bot,
@@ -27,9 +27,11 @@
     onOpenSettings?: () => void;
     /** Abre en Synapse una nota de la bóveda (ruta relativa). */
     onOpenNote?: (relativePath: string) => void;
+    /** Conversación que muestra este chat. */
+    conv: Conversation;
   }
 
-  let { cwd, onOpenSettings, onOpenNote }: Props = $props();
+  let { cwd, onOpenSettings, onOpenNote, conv }: Props = $props();
 
   // Enlaces en las respuestas: notas de la bóveda se abren en Synapse; el resto, fuera
   function onMessageClick(e: MouseEvent) {
@@ -48,13 +50,13 @@
   let dragOver = $state(false);
   let pickIndex = $state(0);
 
-  const busy = $derived(agentStore.connection === 'busy');
-  const ready = $derived(agentStore.connection === 'ready' || busy);
+  const busy = $derived(conv.connection === 'busy');
+  const ready = $derived(conv.connection === 'ready' || busy);
 
   // Bajar al final cuando llega contenido nuevo
   $effect(() => {
-    const _n = agentStore.items.length;
-    const last = agentStore.items.at(-1);
+    const _n = conv.items.length;
+    const last = conv.items.at(-1);
     const _t = last && 'text' in last ? last.text.length : 0;
     tick().then(() => scroller?.scrollTo({ top: scroller.scrollHeight }));
   });
@@ -90,7 +92,7 @@
                 pick: () => {
                   const m = mention;
                   draft = draft.slice(0, m.start) + draft.slice(caret);
-                  agentStore.attachActiveNote();
+                  conv.attachActiveNote();
                   tick().then(() => {
                     textarea?.focus();
                     textarea?.setSelectionRange(m.start, m.start);
@@ -109,7 +111,7 @@
           pick: () => {
             const m = mention;
             draft = draft.slice(0, m.start) + draft.slice(caret);
-            agentStore.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
+            conv.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
             tick().then(() => {
               textarea?.focus();
               textarea?.setSelectionRange(m.start, m.start);
@@ -119,7 +121,7 @@
         }))];
     }
     if (slash !== null) {
-      return agentStore.commands
+      return conv.commands
         .filter((c) => c.name.toLowerCase().startsWith(slash))
         .slice(0, 8)
         .map((c) => ({
@@ -143,7 +145,7 @@
     const text = draft.trim();
     if (!text || !ready || busy) return;
     draft = '';
-    agentStore.send(text);
+    conv.send(text);
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -174,7 +176,7 @@
     if (!raw) return;
     e.preventDefault();
     try {
-      for (const p of JSON.parse(raw) as string[]) agentStore.attach({ kind: 'file', path: absPath(p), name: nameOf(p) });
+      for (const p of JSON.parse(raw) as string[]) conv.attach({ kind: 'file', path: absPath(p), name: nameOf(p) });
     } catch {
       /* datos de arrastre inválidos */
     }
@@ -183,7 +185,7 @@
   // Pegar imágenes del portapapeles (capturas, imágenes copiadas) como adjunto del mensaje
   let pasted = 0;
   const imageTitle = $derived(
-    agentStore.session && !agentStore.session.capabilities.image
+    conv.session && !conv.session.capabilities.image
       ? 'Este agente no acepta imágenes: se le indicará que hay una imagen sin enviarla'
       : 'Imagen pegada',
   );
@@ -201,7 +203,7 @@
         const data = url.slice(url.indexOf(',') + 1);
         pasted += 1;
         const ext = file.type.split('/')[1] ?? 'png';
-        agentStore.attach({ kind: 'image', path: `pegada-${Date.now()}-${pasted}`, name: `Imagen ${pasted}.${ext}`, mimeType: file.type, data });
+        conv.attach({ kind: 'image', path: `pegada-${Date.now()}-${pasted}`, name: `Imagen ${pasted}.${ext}`, mimeType: file.type, data });
       };
       reader.readAsDataURL(file);
     }
@@ -238,44 +240,25 @@
       return `${c.amount} ${c.currency}`;
     }
   }
-  const usagePct = $derived(agentStore.usage ? Math.min(100, (agentStore.usage.used / agentStore.usage.size) * 100) : 0);
+  const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
 </script>
 
 <div class="acp-chat">
-  {#if agentStore.agents.length === 0}
-    <div class="acp-empty">
-      <Bot size={28} />
-      <p>No hay agentes configurados.</p>
-      {#if agentStore.listError}<p class="acp-error-text">{agentStore.listError}</p>{/if}
-      <button type="button" class="acp-btn primary" onclick={() => onOpenSettings?.()}>
-        <Settings size={14} /> Configurar agentes
-      </button>
-    </div>
-  {:else if !agentStore.activeAgent}
-    <div class="acp-empty">
-      <Bot size={28} />
-      <p>Elige un agente en la cabecera para empezar.</p>
-    </div>
-  {:else if !cwd}
-    <div class="acp-empty">
-      <Bot size={28} />
-      <p>Abre una bóveda para conversar con el agente.</p>
-    </div>
-  {:else}
+  {#if conv}
     <div class="acp-messages" bind:this={scroller}>
-      {#if agentStore.connection === 'installing' || agentStore.connection === 'starting'}
-        <div class="acp-status"><Loader2 size={14} class="acp-spin" /> {statusText[agentStore.connection]}</div>
-      {:else if agentStore.connection === 'idle' && agentStore.items.length === 0}
+      {#if conv.connection === 'installing' || conv.connection === 'starting'}
+        <div class="acp-status"><Loader2 size={14} class="acp-spin" /> {statusText[conv.connection]}</div>
+      {:else if conv.connection === 'idle' && conv.items.length === 0}
         <div class="acp-empty">
-          <button type="button" class="acp-btn primary" onclick={() => agentStore.connectLatest(cwd)}>
-            <Bot size={14} /> Conectar con {agentStore.activeAgent.name}
+          <button type="button" class="acp-btn primary" onclick={() => conv.connect()}>
+            <Bot size={14} /> Conectar con {conv.agent?.name ?? "el agente"}
           </button>
         </div>
       {/if}
 
-      {#if agentStore.plan.length}
+      {#if conv.plan.length}
         <div class="acp-plan" aria-label="Plan del agente">
-          {#each agentStore.plan as entry, i (i)}
+          {#each conv.plan as entry, i (i)}
             <div class="acp-plan-entry" data-status={entry.status}>
               {#if entry.status === 'completed'}<CircleCheck size={13} />{:else if entry.status === 'in_progress'}<CircleDot
                   size={13}
@@ -286,7 +269,7 @@
         </div>
       {/if}
 
-      {#each agentStore.items as item (item.id)}
+      {#each conv.items as item (item.id)}
         {#if item.type === 'user'}
           <div class="acp-msg user">
             {item.text}
@@ -308,7 +291,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="acp-msg agent markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'thought'}
-          <details class="acp-thought"><summary>Razonamiento</summary>{item.text}</details>
+          <details class="acp-thought"><summary>🧠 Razonamiento</summary>{item.text}</details>
         {:else if item.type === 'tool'}
           <details class="acp-tool" data-status={item.status ?? ''}>
             <summary>
@@ -355,7 +338,7 @@
                     class="acp-btn"
                     class:primary={opt.kind.startsWith('allow')}
                     class:danger={opt.kind.startsWith('reject')}
-                    onclick={() => agentStore.answer(item.id, opt.id)}>{opt.name}</button
+                    onclick={() => conv.answer(item.id, opt.id)}>{opt.name}</button
                   >
                 {/each}
               </div>
@@ -370,18 +353,18 @@
         {/if}
       {/each}
       {#if busy}
-        <div class="acp-status"><Loader2 size={14} class="acp-spin" /> Pensando…</div>
+        <div class="acp-status acp-thinking"><span class="acp-brain" aria-hidden="true">🧠</span> Pensando…</div>
       {/if}
     </div>
 
-    {#if agentStore.usage}
-      <div class="acp-usage-row" title="Ventana de contexto del modelo: {agentStore.usage.used.toLocaleString()} de {agentStore.usage.size.toLocaleString()} tokens usados">
+    {#if conv.usage}
+      <div class="acp-usage-row" title="Ventana de contexto del modelo: {conv.usage.used.toLocaleString()} de {conv.usage.size.toLocaleString()} tokens usados">
         <div class="acp-usage" class:warn={usagePct >= 80}>
           <div class="acp-usage-bar" style="width: {usagePct}%"></div>
         </div>
         <span class="acp-usage-text">
-          Contexto {compact(agentStore.usage.used)} / {compact(agentStore.usage.size)} ({usagePct.toFixed(0)}%)
-          {#if agentStore.usage.cost}· {formatCost(agentStore.usage.cost)}{/if}
+          Contexto {compact(conv.usage.used)} / {compact(conv.usage.size)} ({usagePct.toFixed(0)}%)
+          {#if conv.usage.cost}· {formatCost(conv.usage.cost)}{/if}
         </span>
       </div>
     {/if}
@@ -417,13 +400,13 @@
           {/each}
         </div>
       {/if}
-      {#if agentStore.pendingAttachments.length}
+      {#if conv.pendingAttachments.length}
         <div class="acp-chips">
-          {#each agentStore.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
+          {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
               {#if a.kind === 'image'}<img src="data:{a.mimeType};base64,{a.data}" alt="" /><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
-              <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => agentStore.detach(a)}><X size={10} /></button>
+              <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>
           {/each}
         </div>
@@ -445,12 +428,12 @@
           oninput={(e) => (caret = e.currentTarget.selectionStart)}
           rows="3"
           placeholder={ready
-            ? `Escribe a ${agentStore.activeAgent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
+            ? `Escribe a ${conv.agent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
             : 'El agente no está conectado'}
           disabled={!ready}
         ></textarea>
         {#if busy}
-          <button type="button" class="acp-send" title="Detener" onclick={() => agentStore.cancel()}>
+          <button type="button" class="acp-send" title="Detener" onclick={() => conv.cancel()}>
             <Square size={14} />
           </button>
         {:else}
@@ -481,10 +464,6 @@
     color: var(--text-muted);
     text-align: center;
     font-size: 13px;
-  }
-  .acp-error-text {
-    color: var(--danger);
-    font-size: 12px;
   }
   .acp-messages {
     flex: 1;
@@ -738,6 +717,15 @@
     border-radius: 6px;
     border: 1px solid var(--border-primary);
     object-fit: cover;
+  }
+  .acp-brain {
+    display: inline-block;
+    animation: acpBrain 1.4s ease-in-out infinite;
+  }
+  @keyframes acpBrain {
+    50% {
+      transform: scale(1.18);
+    }
   }
   .acp-tool-label {
     margin-top: 6px;

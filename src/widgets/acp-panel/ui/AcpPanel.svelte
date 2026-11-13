@@ -1,7 +1,21 @@
 <script lang="ts">
-  import { agentStore } from '@entities/acp-agent';
+  import { agentStore, type Conversation } from '@entities/acp-agent';
   import { AcpChat } from '@features/acp-chat';
-  import { Bot, Settings, X, PictureInPicture2, PanelRight, Plus, FileJson, Trash2, History } from 'lucide-svelte';
+  import {
+    Bot,
+    Settings,
+    X,
+    PictureInPicture2,
+    PanelRight,
+    Plus,
+    FileJson,
+    Trash2,
+    History,
+    ChevronDown,
+    ChevronRight,
+    Pin,
+    PinOff,
+  } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
   interface Props {
@@ -14,26 +28,6 @@
   }
 
   let { cwd, onClose, onOpenSettings, onOpenNote }: Props = $props();
-
-  // Historial de conversaciones de la bóveda
-  let confirmDeleteAll = $state(false);
-  $effect(() => {
-    if (cwd) agentStore.loadHistory(cwd);
-  });
-
-  function formatDate(ms: number) {
-    const d = new Date(ms);
-    return d.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-  }
-
-  function onPickHistory(e: Event) {
-    const id = (e.currentTarget as HTMLSelectElement).value;
-    if (!cwd) return;
-    if (id === '__new__') agentStore.newSession(cwd);
-    else if (id) agentStore.resume(cwd, id);
-  }
-
-  const inHistory = $derived(agentStore.history.some((h) => h.id === agentStore.transcriptId));
 
   const WIDTH_KEY = 'synapse.agent.width';
   const POS_KEY = 'synapse.agent.float';
@@ -57,19 +51,40 @@
   let float = $state<{ x: number; y: number; w: number; h: number }>(
     loadJson(POS_KEY, { x: Math.max(16, window.innerWidth - 440), y: 80, w: 420, h: 560 }),
   );
+  let confirmDeleteAll = $state(false);
 
-  // Al abrir el panel, el último agente usado retoma su última conversación (si ya está instalado)
-  onMount(async () => {
-    await agentStore.refresh();
-    const agent = agentStore.activeAgent;
-    if (cwd && agent?.installed && !agentStore.session && agentStore.connection === 'idle' && !agentStore.items.length) {
-      agentStore.connectLatest(cwd);
-    }
+  onMount(() => {
+    agentStore.refresh();
+  });
+  $effect(() => {
+    if (cwd) agentStore.loadHistory(cwd);
   });
 
-  function onSelect(e: Event) {
-    const id = (e.currentTarget as HTMLSelectElement).value;
-    if (id && cwd) agentStore.select(id, cwd);
+  /** Con una conversación fijada, el panel acoplado se ensancha para la segunda columna. */
+  const dockedWidth = $derived(agentStore.pinnedConversation ? width * 2 : width);
+
+  function formatDate(ms: number) {
+    return new Date(ms).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function startWith(agentId: string) {
+    if (cwd && agentId) agentStore.newConversation(cwd, agentId);
+  }
+
+  function onPickAgent(e: Event) {
+    const sel = e.currentTarget as HTMLSelectElement;
+    startWith(sel.value);
+    sel.value = '';
+  }
+
+  function onPickHistory(e: Event) {
+    const sel = e.currentTarget as HTMLSelectElement;
+    if (cwd && sel.value) agentStore.openFromHistory(cwd, sel.value);
+    sel.value = '';
+  }
+
+  function titleOf(c: Conversation) {
+    return c.title || 'Conversación nueva';
   }
 
   // Redimensionar el panel acoplado desde su borde izquierdo
@@ -77,8 +92,9 @@
     e.preventDefault();
     const x0 = e.clientX;
     const w0 = width;
+    const factor = agentStore.pinnedConversation ? 2 : 1;
     const move = (ev: PointerEvent) => {
-      width = Math.max(280, Math.min(window.innerWidth * 0.6, w0 - (ev.clientX - x0)));
+      width = Math.max(280, Math.min((window.innerWidth * 0.6) / factor, w0 - (ev.clientX - x0) / factor));
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -132,31 +148,30 @@
     <Bot size={15} />
     <select
       class="acp-select"
-      aria-label="Agente"
-      value={agentStore.activeAgentId ?? ''}
-      onchange={onSelect}
+      aria-label="Nueva conversación con…"
+      title="Nueva conversación con un agente"
+      value=""
+      onchange={onPickAgent}
       disabled={!cwd || agentStore.agents.length === 0}
     >
-      <option value="" disabled>Elegir agente…</option>
+      <option value="" disabled>Nueva conversación con…</option>
       {#each agentStore.agents as a (a.id)}
         <option value={a.id}>{a.name}{a.installed ? '' : ' (se descargará)'}</option>
       {/each}
     </select>
+    {#if agentStore.working || agentStore.pendingPermissions}
+      <span class="acp-counts" title="Conversaciones trabajando y permisos pendientes">
+        {#if agentStore.working}<span class="acp-brain">🧠</span>{agentStore.working}{/if}
+        {#if agentStore.pendingPermissions}· ⚠ {agentStore.pendingPermissions}{/if}
+      </span>
+    {/if}
     <button
       type="button"
       class="acp-icon"
-      title="Nueva conversación"
+      title="Nueva conversación con el último agente"
       aria-label="Nueva conversación"
-      disabled={!cwd || !agentStore.activeAgent}
-      onclick={() => cwd && agentStore.newSession(cwd)}><Plus size={15} /></button
-    >
-    <button
-      type="button"
-      class="acp-icon"
-      title="Ver la conversación en crudo (JSON, se abre con la aplicación por defecto)"
-      aria-label="Ver conversación en crudo"
-      disabled={!inHistory}
-      onclick={() => agentStore.openRaw()}><FileJson size={14} /></button
+      disabled={!cwd || !agentStore.lastAgentId}
+      onclick={() => agentStore.lastAgentId && startWith(agentStore.lastAgentId)}><Plus size={15} /></button
     >
     <button
       type="button"
@@ -178,25 +193,17 @@
       <select
         class="acp-mini-select grow"
         aria-label="Historial de conversaciones"
-        title="Retomar una conversación anterior"
-        value={inHistory ? agentStore.transcriptId : ''}
+        title="Reabrir una conversación cerrada"
+        value=""
         onchange={onPickHistory}
       >
-        <option value="" disabled>{agentStore.history.length ? 'Conversación actual' : 'Sin conversaciones guardadas'}</option>
-        <option value="__new__">＋ Nueva conversación</option>
-        {#each agentStore.history as h (h.id)}
+        <option value="" disabled>
+          {agentStore.closedHistory.length ? `Historial (${agentStore.closedHistory.length})` : 'Sin conversaciones cerradas'}
+        </option>
+        {#each agentStore.closedHistory as h (h.id)}
           <option value={h.id}>{h.title || 'Sin título'} · {h.agent_name} · {formatDate(h.updated_at)}</option>
         {/each}
       </select>
-      <button
-        type="button"
-        class="acp-icon small"
-        title="Borrar esta conversación del historial"
-        aria-label="Borrar conversación"
-        disabled={!inHistory}
-        onclick={() => cwd && agentStore.transcriptId && agentStore.deleteTranscript(cwd, agentStore.transcriptId)}
-        ><Trash2 size={13} /></button
-      >
       {#if confirmDeleteAll}
         <button
           type="button"
@@ -204,51 +211,154 @@
           onclick={() => {
             confirmDeleteAll = false;
             if (cwd) agentStore.deleteAllTranscripts(cwd);
-          }}>Borrar {agentStore.history.length}</button
+          }}>Borrar {agentStore.closedHistory.length}</button
         >
         <button type="button" class="acp-icon small" title="Cancelar" onclick={() => (confirmDeleteAll = false)}><X size={12} /></button>
       {:else}
         <button
           type="button"
           class="acp-link"
-          title="Borrar todas las conversaciones de esta bóveda"
-          disabled={!agentStore.history.length}
+          title="Borrar las conversaciones cerradas de esta bóveda"
+          disabled={!agentStore.closedHistory.length}
           onclick={() => (confirmDeleteAll = true)}>Borrar todas</button
         >
       {/if}
     </div>
   {/if}
-  {#if agentStore.session && (agentStore.session.modes.length || agentStore.session.models.length || agentStore.session.tool_servers.length)}
+{/snippet}
+
+{#snippet convBar(c: Conversation)}
+  {#if c.session}
     <div class="acp-subbar">
-      {#if agentStore.session.modes.length}
+      {#if c.session.modes.length}
         <select
           class="acp-mini-select"
           aria-label="Modo del agente"
           title="Modo del agente"
-          value={agentStore.currentMode ?? ''}
-          onchange={(e) => agentStore.setMode(e.currentTarget.value)}
+          value={c.currentMode ?? ''}
+          onchange={(e) => c.setMode(e.currentTarget.value)}
         >
-          {#each agentStore.session.modes as m (m.id)}
+          {#each c.session.modes as m (m.id)}
             <option value={m.id} title={m.description ?? ''}>{m.name || m.id}</option>
           {/each}
         </select>
       {/if}
-      {#if agentStore.session.models.length}
+      {#if c.session.models.length}
         <select
           class="acp-mini-select"
           aria-label="Modelo"
           title="Modelo"
-          value={agentStore.currentModel ?? ''}
-          onchange={(e) => agentStore.setModel(e.currentTarget.value)}
+          value={c.currentModel ?? ''}
+          onchange={(e) => c.setModel(e.currentTarget.value)}
         >
-          {#each agentStore.session.models as m (m.id)}
+          {#each c.session.models as m (m.id)}
             <option value={m.id}>{m.name || m.id}</option>
           {/each}
         </select>
       {/if}
-      {#if agentStore.session.tool_servers.includes('synapse_instance')}
+      {#if c.session.tool_servers.includes('synapse_instance')}
         <span class="acp-badge" title="El agente puede usar las herramientas MCP de Synapse (notas, búsqueda, Git…)">MCP Synapse</span>
       {/if}
+      <button
+        type="button"
+        class="acp-icon small"
+        title="Ver la conversación en crudo (JSON, se abre con la aplicación por defecto)"
+        aria-label="Ver conversación en crudo"
+        onclick={() => c.openRaw()}><FileJson size={13} /></button
+      >
+      <button
+        type="button"
+        class="acp-icon small"
+        title="Borrar esta conversación del historial"
+        aria-label="Borrar conversación"
+        onclick={() => cwd && agentStore.deleteTranscript(cwd, c.id)}><Trash2 size={13} /></button
+      >
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet row(c: Conversation, open: boolean, pinned: boolean)}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="acp-row" class:unseen={c.unseen} data-conversation={c.id} onclick={() => !pinned && agentStore.toggle(c.id)}>
+    <span class="acp-dot" data-status={c.status}></span>
+    {#if !pinned}
+      {#if open}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
+    {/if}
+    <span class="acp-row-title"><span class="agent">{c.agent?.name ?? c.agentId} ·</span> {titleOf(c)}</span>
+    {#if c.status === 'working'}<span class="acp-brain" title="Pensando">🧠</span>{/if}
+    {#if c.pendingPermissions}<span class="acp-perm-badge">permiso</span>{/if}
+    <button
+      type="button"
+      class="acp-icon small"
+      title={pinned ? 'Devolver al acordeón' : 'Fijar al costado'}
+      aria-label={pinned ? 'Desfijar' : 'Fijar al costado'}
+      onclick={(e) => {
+        e.stopPropagation();
+        agentStore.togglePin(c.id);
+      }}
+    >
+      {#if pinned}<PinOff size={13} />{:else}<Pin size={13} />{/if}
+    </button>
+    <button
+      type="button"
+      class="acp-icon small"
+      title="Cerrar (queda en el historial)"
+      aria-label="Cerrar conversación"
+      onclick={(e) => {
+        e.stopPropagation();
+        agentStore.close(c.id);
+      }}><X size={13} /></button
+    >
+  </div>
+{/snippet}
+
+{#snippet content()}
+  {#if agentStore.agents.length === 0}
+    <div class="acp-empty-panel">
+      <Bot size={28} />
+      <p>No hay agentes configurados.</p>
+      {#if agentStore.listError}<p class="acp-error-text">{agentStore.listError}</p>{/if}
+      <button type="button" class="acp-link" onclick={onOpenSettings}>Configurar agentes</button>
+    </div>
+  {:else if !cwd}
+    <div class="acp-empty-panel">
+      <Bot size={28} />
+      <p>Abre una bóveda para conversar con un agente.</p>
+    </div>
+  {:else if agentStore.conversations.length === 0}
+    <div class="acp-empty-panel">
+      <Bot size={28} />
+      <p>Empieza una conversación con un agente, o reabre una del historial.</p>
+      <div class="acp-start">
+        {#each agentStore.agents as a (a.id)}
+          <button type="button" onclick={() => startWith(a.id)}>{a.name}</button>
+        {/each}
+      </div>
+    </div>
+  {:else}
+    <div class="acp-columns">
+      {#if agentStore.pinnedConversation}
+        {@const c = agentStore.pinnedConversation}
+        <section class="acp-pinned" aria-label="Conversación fijada">
+          {@render row(c, true, true)}
+          {@render convBar(c)}
+          {#key c.id}<AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />{/key}
+        </section>
+      {/if}
+      <div class="acp-accordion">
+        {#each agentStore.conversations.filter((x) => x.id !== agentStore.pinned) as c (c.id)}
+          {@const open = agentStore.expanded.includes(c.id)}
+          <section class="acp-section" class:open aria-label="Conversación {titleOf(c)}">
+            {@render row(c, open, false)}
+            {#if open}
+              <div class="acp-section-body">
+                {@render convBar(c)}
+                <AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />
+              </div>
+            {/if}
+          </section>
+        {/each}
+      </div>
     </div>
   {/if}
 {/snippet}
@@ -261,10 +371,10 @@
     aria-label="Agente"
   >
     {@render header()}
-    <AcpChat {cwd} {onOpenSettings} {onOpenNote} />
+    {@render content()}
   </section>
 {:else}
-  <aside class="acp-panel docked synapse-agent-panel synapse-right-sidebar" style="width: {width}px;" aria-label="Agente">
+  <aside class="acp-panel docked synapse-agent-panel synapse-right-sidebar" style="width: {dockedWidth}px;" aria-label="Agente">
     <div
       role="separator"
       tabindex="-1"
@@ -273,7 +383,7 @@
       onpointerdown={startResize}
     ></div>
     {@render header()}
-    <AcpChat {cwd} {onOpenSettings} {onOpenNote} />
+    {@render content()}
   </aside>
 {/if}
 
@@ -424,5 +534,137 @@
   .acp-icon:hover:not(:disabled) {
     background: var(--bg-tertiary);
     color: var(--text-primary);
+  }
+  .acp-columns {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .acp-pinned {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    border-right: 1px solid var(--border-primary);
+  }
+  .acp-accordion {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .acp-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-bottom: 1px solid var(--border-primary);
+  }
+  .acp-section.open {
+    flex: 1;
+    min-height: 220px;
+  }
+  .acp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--bg-primary);
+  }
+  .acp-row:hover {
+    background: var(--bg-secondary);
+  }
+  .acp-section.open > .acp-row {
+    background: var(--bg-secondary);
+  }
+  .acp-row-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .acp-row-title .agent {
+    color: var(--text-muted);
+  }
+  .acp-row.unseen .acp-row-title {
+    font-weight: 600;
+  }
+  .acp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    background: var(--text-muted);
+  }
+  .acp-dot[data-status='working'] {
+    background: var(--success, #1d9e75);
+  }
+  .acp-dot[data-status='permission'] {
+    background: var(--warning, #ba7517);
+  }
+  .acp-dot[data-status='error'] {
+    background: var(--danger);
+  }
+  .acp-perm-badge {
+    font-size: 10px;
+    padding: 0 6px;
+    border-radius: 999px;
+    color: var(--warning, #9a6700);
+    border: 1px solid color-mix(in srgb, var(--warning, #9a6700) 50%, transparent);
+  }
+  .acp-section-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .acp-counts {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .acp-empty-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex: 1;
+    padding: 24px 16px;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 13px;
+  }
+  .acp-start {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 260px;
+  }
+  .acp-start button {
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .acp-start button:hover {
+    border-color: var(--accent);
+  }
+  .acp-brain {
+    font-size: 12px;
+  }
+  .acp-error-text {
+    color: var(--danger);
+    font-size: 12px;
   }
 </style>

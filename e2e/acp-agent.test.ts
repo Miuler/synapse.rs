@@ -155,24 +155,51 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeout: 5_000,
     timeoutMsg: 'no se guardó la conversación en la bóveda',
   });
-  await s.browser.waitUntil(
-    async () => (await text('.acp-history option')).some((t) => t?.includes('Fake') || t?.includes('·')),
-    { timeout: 5_000, timeoutMsg: 'la conversación no aparece en el historial' },
-  );
-  // Nueva conversación: vacía; borrar todas deja el historial vacío
+  // Acordeón: «＋» abre otra conversación arriba; como mucho 2 desplegadas a la vez
+  const count = (sel: string) => s.browser.execute((q) => document.querySelectorAll(q).length, sel) as Promise<number>;
   await s.browser.$('button[aria-label="Nueva conversación"]').click();
-  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).length === 0, { timeout: 10_000 });
-  // Retomar desde el historial devuelve la conversación (y su agente)
+  await s.browser.waitUntil(async () => (await count('.acp-section')) === 2, { timeout: 10_000, timeoutMsg: 'no se abrió la segunda conversación' });
+  expect(await count('.acp-section.open')).toBe(2);
+  await s.browser.$('button[aria-label="Nueva conversación"]').click();
+  await s.browser.waitUntil(async () => (await count('.acp-section')) === 3, { timeout: 10_000, timeoutMsg: 'no se abrió la tercera conversación' });
+  expect(await count('.acp-section.open')).toBe(2);
+
+  // Fijar la primera conversación al costado: sale del acordeón a su propia columna
+  await s.browser.execute(() => {
+    const row = [...document.querySelectorAll('.acp-row')].find((r) => r.textContent?.includes('hola'))!;
+    (row.querySelector('button[aria-label="Fijar al costado"]') as HTMLButtonElement).click();
+  });
+  await s.browser.waitUntil(async () => (await text('.acp-pinned .acp-row-title')).some((t) => t?.includes('hola')), {
+    timeout: 5_000,
+    timeoutMsg: 'la conversación no quedó fijada al costado',
+  });
+  expect(await count('.acp-accordion .acp-section')).toBe(2);
+
+  // Cerrarla la manda al historial; reabrirla devuelve sus mensajes
+  await s.browser.execute(() => {
+    (document.querySelector('.acp-pinned button[aria-label="Cerrar conversación"]') as HTMLButtonElement).click();
+  });
+  await s.browser.waitUntil(async () => (await text('.acp-history option')).some((t) => t?.includes('hola')), {
+    timeout: 5_000,
+    timeoutMsg: 'la conversación cerrada no aparece en el historial',
+  });
+  expect(await count('.acp-pinned')).toBe(0);
   await s.browser.execute(() => {
     const sel = document.querySelector('.acp-history select') as HTMLSelectElement;
-    sel.value = [...sel.options].find((o) => o.value && o.value !== '__new__')!.value;
+    sel.value = [...sel.options].find((o) => o.textContent?.includes('hola'))!.value;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Hola desde el agente')), {
     timeout: 10_000,
-    timeoutMsg: 'no se retomó la conversación del historial',
+    timeoutMsg: 'no se reabrió la conversación del historial',
   });
-  expect(await s.browser.execute(() => (document.querySelector('.acp-select') as HTMLSelectElement).value)).toBe('falso');
+
+  // «Borrar todas» borra las conversaciones cerradas
+  await s.browser.execute(() => {
+    const row = [...document.querySelectorAll('.acp-row')].find((r) => r.textContent?.includes('hola'))!;
+    (row.querySelector('button[aria-label="Cerrar conversación"]') as HTMLButtonElement).click();
+  });
+  await s.browser.waitUntil(async () => (await text('.acp-history option')).some((t) => t?.includes('hola')), { timeout: 5_000 });
   await s.browser.$('button=Borrar todas').click();
   await s.browser.$('.acp-danger').click();
   await s.browser.waitUntil(async () => readdirSync(dir).filter((f) => f.endsWith('.json')).length === 0, {
