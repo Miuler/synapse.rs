@@ -30,10 +30,10 @@ Reglas gRPC:
 
 - Los `.proto` viven en `proto/` del crate (o en un crate `*-proto` compartido cuando haya
   más de un consumidor) y se versionan por paquete (`synapse.sync.v1`).
-- Los tipos generados por `prost` son de **infraestructura**: se traducen a tipos de dominio en
-  el adaptador de entrada; nunca llegan a `domain` ni a `application`.
+- Los tipos generados por `prost` son de **infraestructura**: se traducen a `Command`/`Query` en
+  el controller (`infrastructure/entrypoint/controller/`); nunca llegan a `domain` ni a `application`.
 - Errores: se mapean a `tonic::Status` con el código correcto (`INVALID_ARGUMENT`,
-  `NOT_FOUND`, `ABORTED`, `UNAUTHENTICATED`…), en un único lugar del adaptador.
+  `NOT_FOUND`, `ABORTED`, `UNAUTHENTICATED`…), en un único lugar del controller.
 - Autenticación y contexto (tenant, usuario) en **interceptores/capas `tower`**, inyectados en
   las extensiones del `Request`.
 - Streaming para binarios grandes; nunca un `bytes` gigante en un mensaje unario.
@@ -48,9 +48,11 @@ Reglas gRPC:
 - Migraciones con `sqlx migrate`, versionadas en `migrations/` del crate. Nunca se edita una
   migración publicada: se agrega otra.
 - Toda escritura que toque más de una tabla va en una transacción explícita.
-- Los repositorios son puertos (traits) en `domain`/`application` e implementaciones en
-  `infrastructure`.
-- Almacenamiento de objetos: crate **`object_store`** (S3, R2, disco local) detrás de un puerto propio.
+- El contrato del repository (trait) vive junto a su entidad en `domain/<agregado>/`; su
+  implementación (`…RepositoryImpl`) en `infrastructure/repository/<tecnología>/`.
+- Almacenamiento de objetos: crate **`object_store`** (S3, R2, disco local) detrás de un
+  repository propio (si los datos son nuestros) o de un servicio externo (si el contrato lo dicta un tercero),
+  según la regla de propiedad de la arquitectura cebolla.
 
 ## 4. Serialización
 
@@ -75,7 +77,8 @@ Reglas gRPC:
 - **Logs: `tracing`** + **`tracing-subscriber`** (`EnvFilter` vía `RUST_LOG`, formato `fmt`
   en desarrollo y JSON en producción). No se usa `println!` ni el crate `log` en código nuevo;
   las dependencias que emiten `log` se puentean con `tracing-log`.
-- Instrumentar con `#[tracing::instrument(skip(...))]` en casos de uso y adaptadores; nunca se
+- Instrumentar con `#[tracing::instrument(skip(...))]` en casos de uso, controllers y
+  en las implementaciones de repositories y servicios externos; nunca se
   registran secretos, tokens ni contenido de archivos del usuario (usar `skip` y campos de tamaño o hash).
 - **Telemetría: OpenTelemetry** — `opentelemetry`, `opentelemetry_sdk`,
   `opentelemetry-otlp` (exportador OTLP por gRPC) y `tracing-opentelemetry` para que las spans

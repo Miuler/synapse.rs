@@ -1,7 +1,7 @@
 ## 1. Estructura del proyecto
 
-- [ ] 1.1 Crear `synapse-server/` (crate binario independiente, capas `domain`/`application`/`infrastructure`/
-  `entrypoint`, sin dependencia de Tauri); verificar con `cargo build` dentro de `synapse-server/`. La reorganización de
+- [ ] 1.1 Crear `synapse-server/` (crate binario independiente, capas `domain`/`application`/`infrastructure`
+  según la arquitectura cebolla, sin dependencia de Tauri); verificar con `cargo build` dentro de `synapse-server/`. La reorganización de
   carpetas del repo es una tarea aparte
 - [ ] 1.2 Configuración por archivo y variables de entorno (direcciones gRPC y HTTP, base de datos, backend de blobs,
   umbral de chunking, periodo de gracia) y `GET /healthz` con `axum`; prueba de integración que arranca el servidor y
@@ -17,9 +17,9 @@
 - [ ] 2.2 Migraciones `sqlx` para `tenants` (con `google_sub` único), `snapshots`, `tree_nodes`, `file_versions`,
   `blobs`, `file_chunks`; apertura de SQLite con `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`; prueba que
   migra una base vacía y lee los PRAGMA aplicados
-- [ ] 2.3 Trait `BlobStore` con implementación `LocalFs` (Zstd, rutas por prefijo de hash); pruebas de escritura
-  idempotente y lectura
-- [ ] 2.4 Implementación `S3` del `BlobStore` detrás de una feature; prueba contra MinIO o marcada `#[ignore]` si no hay
+- [ ] 2.3 Repository `ContentRepository` (contrato en `domain/content/`) y `ContentRepositoryImpl` con `object_store`
+  sobre disco local (Zstd, rutas por prefijo de hash); pruebas de escritura idempotente y lectura
+- [ ] 2.4 Backend S3/R2 de `ContentRepositoryImpl` por configuración (feature `aws` de `object_store`); prueba contra MinIO o marcada `#[ignore]` si no hay
 
 ## 3. Sincronización (`sync-ingest`)
 

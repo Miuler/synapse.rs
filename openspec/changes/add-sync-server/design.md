@@ -23,7 +23,7 @@ el cliente.
 ## Decisions
 
 **Carpeta y build.** `synapse-server/` en la raíz, crate binario propio con arquitectura cebolla como `src-tauri`
-(`domain` / `application` / `infrastructure` / `entrypoint`). La organización general del repo (mover lo actual a
+(`domain` / `application` / `infrastructure`, con los controllers gRPC en `infrastructure/entrypoint/controller/`). La organización general del repo (mover lo actual a
 `synapsers-desktop/`, crear `synapsers-app/`) se decide y ejecuta fuera de este cambio, como una tarea aparte, porque no
 altera comportamiento. Este cambio solo exige que `synapse-server` sea un crate independiente que compile con
 `cargo build` desde su carpeta y no dependa de Tauri; si más adelante el repo adopta un workspace de Cargo, el crate se
@@ -98,8 +98,10 @@ En PostgreSQL las tablas grandes se particionan con `PARTITION BY HASH (tenant_i
 Cada `PushDelta` se aplica en una sola transacción (`BEGIN … COMMIT`): comprueba `base_root_hash`, inserta
 `file_versions`, actualiza `tree_nodes`, verifica la raíz y sobrescribe `snapshots.root_hash`.
 
-**Blobs: trait `BlobStore`** con implementaciones `LocalFs` (`<data>/blobs/ab/cd/<hash>.zst`) y `S3` (R2 sin coste de
-egress). Siempre Zstd.
+**Contenidos: repository `ContentRepository`.** Los contenidos y su formato en el almacén son nuestros, así que por la
+regla de propiedad es un repository (contrato en `domain/content/`), no un servicio externo. Una sola implementación,
+`ContentRepositoryImpl` en `infrastructure/repository/object_store/`, que usa `object_store` con disco local
+(`<data>/blobs/ab/cd/<hash>.zst`) o S3/R2 (sin coste de egress) según la configuración. Siempre Zstd.
 
 **Índices.** Los segmentos de Tantivy (u otras estructuras serializadas) son nodos `INDEX` del árbol y artefactos opacos
 en el CAS; el servidor no conoce su formato. Un cliente ligero hace `PullState` filtrado por `INDEX` y luego

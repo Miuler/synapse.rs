@@ -2,15 +2,17 @@
 
 ## 1. Backend Rust (Arquitectura Cebolla)
 
-- [ ] 1.1 Definir entidades y puertos en `src-tauri/src/domain/acp/` (`AcpAgentProfile`, `AcpSession`, `AcpClientPort`,
-  `AcpAgentRegistryPort`, `AcpInstallerPort`).
-- [ ] 1.2 Implementar casos de uso en `src-tauri/src/application/use_cases/acp/` (gestión de perfiles,
-  instalación/descarga, ciclo de vida de sesión, prompts y permisos).
-- [ ] 1.3 Implementar adaptador `stdio` JSON-RPC en `src-tauri/src/infrastructure/service/acp/` con emisión de eventos
-  Tauri.
+- [ ] 1.1 Definir entidades (`AgentProfile`, `AgentSession`, `AgentMessage`, `PermissionRequest`) y el repository
+  `AgentProfileRepository` en `src-tauri/src/domain/agent/`, y los contratos de servicios externos `AgentRunner`,
+  `AgentCatalog` y `AgentInstaller` en `src-tauri/src/application/integration/service/`.
+- [ ] 1.2 Implementar los casos de uso (`…UseCase`, uno por intención, con su `Command`/`Query`) en
+  `src-tauri/src/application/use_case/` (perfiles, instalación, ciclo de vida de sesión, prompts y permisos).
+- [ ] 1.3 Implementar `AgentRunnerImpl` (`stdio` JSON-RPC) en `src-tauri/src/infrastructure/integration/service/acp/`
+  con emisión de eventos Tauri.
 - [ ] 1.4 Implementar descargador del catálogo verificado (**Antigravity** y **Claude**) y persistencia de perfiles
   personalizados.
-- [ ] 1.5 Exponer comandos `#[tauri::command]` en `src-tauri/src/infrastructure/entrypoint/tauri/` y registrarlos en
+- [ ] 1.5 Exponer comandos `#[tauri::command]` en un controller de
+  `src-tauri/src/infrastructure/entrypoint/controller/tauri/` y registrarlos en
   `lib.rs`.
 - [ ] 1.6 Añadir pruebas unitarias y de integración (`cargo test --manifest-path src-tauri/Cargo.toml`).
 

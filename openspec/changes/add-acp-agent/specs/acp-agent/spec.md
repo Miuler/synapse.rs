@@ -1,10 +1,8 @@
-# Delta Spec: `acp-agent`
-
 ## ADDED Requirements
 
 ### Requirement: Catálogo verificado y agentes personalizados ACP
 
-El sistema DEBE ofrecer un catálogo verificado de agentes ACP que incluya **Antigravity** y **Claude**, con descarga
+El sistema SHALL ofrecer un catálogo verificado de agentes ACP que incluya **Antigravity** y **Claude**, con descarga
 automática de sus binarios cuando no estén presentes, además de permitir registrar agentes personalizados mediante
 comando, argumentos y variables de entorno.
 
@@ -24,7 +22,7 @@ comando, argumentos y variables de entorno.
 
 ### Requirement: Comunicación ACP por `stdio`
 
-El backend Rust DEBE ejecutar cada agente ACP como un proceso hijo local comunicándose mediante JSON-RPC sobre `stdin` y
+El backend Rust SHALL ejecutar cada agente ACP como un proceso hijo local comunicándose mediante JSON-RPC sobre `stdin` y
 `stdout`, transmitiendo respuestas en streaming, llamadas a herramientas y solicitudes de permisos al frontend.
 
 #### Scenario: Envío de prompt y streaming de respuesta
@@ -43,7 +41,7 @@ El backend Rust DEBE ejecutar cada agente ACP como un proceso hijo local comunic
 
 ### Requirement: Panel independiente a la derecha con modo flotante
 
-La interfaz del agente ACP DEBE mostrarse por defecto como un panel independiente fijo a la derecha del workspace, con
+La interfaz del agente ACP SHALL mostrarse por defecto como un panel independiente fijo a la derecha del workspace, con
 un control para alternar entre modo acoplado (fijo) y modo flotante.
 
 #### Scenario: Alternar entre panel fijo derecho y modo flotante
@@ -55,7 +53,7 @@ un control para alternar entre modo acoplado (fijo) y modo flotante.
 
 ### Requirement: Selector rápido y configuración dual
 
-El panel ACP DEBE incluir un selector rápido en su cabecera para cambiar de agente en cualquier momento, un estado vacío
+El panel ACP SHALL incluir un selector rápido en su cabecera para cambiar de agente en cualquier momento, un estado vacío
 con acción directa si no hay agentes configurados, y un acceso directo a la sección ACP en los Ajustes de Synapse.
 
 #### Scenario: Cambio de agente desde la cabecera del panel
@@ -63,3 +61,10 @@ con acción directa si no hay agentes configurados, y un acceso directo a la sec
 - **GIVEN** hay más de un agente ACP disponible (verificado o personalizado)
 - **WHEN** el usuario selecciona otro agente en el selector de la cabecera del panel
 - **THEN** Synapse cierra la sesión anterior si aplica e inicia la sesión con el nuevo agente seleccionado.
+
+#### Scenario: Sin agentes configurados
+
+- **GIVEN** no hay ningún agente ACP instalado ni personalizado
+- **WHEN** el usuario abre el panel ACP
+- **THEN** el panel muestra un estado vacío con una acción para agregar o instalar un agente y un acceso a la sección
+  ACP de los Ajustes.
