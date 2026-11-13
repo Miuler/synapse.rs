@@ -64,7 +64,8 @@ export interface GitCommitLogItem {
   short_hash: string;
   author_name: string;
   author_email: string;
-  date_iso: string;
+  /** Fecha ISO-8601 del autor (el backend la envía como `date`). */
+  date: string;
   timestamp: number;
   message: string;
 }

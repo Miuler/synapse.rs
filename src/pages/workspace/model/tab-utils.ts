@@ -8,6 +8,7 @@ export function isSyntheticTab(p: string | null | undefined): boolean {
     p.startsWith('diff:') ||
     p.startsWith('diff-staged:') ||
     p.startsWith('diff-rev:') ||
+    p.startsWith('diff-commit:') ||
     p.startsWith('diff-files:') ||
     p.startsWith('rev:') ||
     p.startsWith('synapse://')
@@ -54,6 +55,12 @@ export function getTabDisplayTitle(path: string | null | undefined, fallbackTitl
     const rev = parts[0] || '';
     const f = parts.slice(1).join(':').split('/').pop() || parts.slice(1).join(':');
     return `Diff (${rev.slice(0, 7)}): ${f}`;
+  }
+  if (path.startsWith('diff-commit:')) {
+    const parts = path.slice('diff-commit:'.length).split(':');
+    const rev = parts[0] || '';
+    const f = parts.slice(1).join(':').split('/').pop() || parts.slice(1).join(':');
+    return `Cambios (${rev.slice(0, 7)}): ${f}`;
   }
   if (path.startsWith('diff:')) {
     const f = path.slice('diff:'.length).split('/').pop() || path;

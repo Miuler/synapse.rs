@@ -24,6 +24,8 @@ beforeAll(async () => {
     mkdirSync(dirname(join(vault, p)), { recursive: true });
     writeFileSync(join(vault, p), content);
   }
+  // Con .synapse la app abre la bóveda sin preguntar
+  mkdirSync(join(vault, '.synapse'), { recursive: true });
   const git = (...args: string[]) =>
     execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@local', ...args], { cwd: vault });
   git('init', '-q');

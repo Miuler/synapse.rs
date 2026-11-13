@@ -41,7 +41,8 @@ const drawing = (elements: unknown[]) =>
 beforeAll(async () => {
   base = mkdtempSync(join(tmpdir(), 'synapse-e2e-exdiff-'));
   const vault = join(base, 'vault');
-  mkdirSync(vault, { recursive: true });
+  // Con .synapse la app abre la bóveda sin preguntar
+  mkdirSync(join(vault, '.synapse'), { recursive: true });
   writeFileSync(join(vault, 'dibujo.excalidraw'), drawing([rect('a', 0, '#1971c2')]));
   const git = (...args: string[]) =>
     execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@local', ...args], { cwd: vault });

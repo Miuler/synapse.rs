@@ -11,6 +11,7 @@
     Check,
     X,
     FileText,
+    GitCommitHorizontal,
   } from 'lucide-svelte';
   import {
     vaultRepository,
@@ -22,6 +23,8 @@
     filePath?: string | null;
     onViewRevision?: (filePath: string, commitHash: string) => void;
     onDiffRevision?: (filePath: string, commitHash: string) => void;
+    /** Abre el parche del commit: el archivo en ese commit contra su commit padre. */
+    onPatchRevision?: (filePath: string, commitHash: string) => void;
     onClose?: () => void;
   }
 
@@ -30,6 +33,7 @@
     filePath = null,
     onViewRevision,
     onDiffRevision,
+    onPatchRevision,
     onClose,
   }: GitFileLogDialogProps = $props();
 
@@ -90,6 +94,12 @@
     onViewRevision?.(filePath, commitHash);
   }
 
+  function handlePatch(commitHash: string) {
+    if (!filePath) return;
+    open = false;
+    onPatchRevision?.(filePath, commitHash);
+  }
+
   function handleDiff(commitHash: string) {
     if (!filePath) return;
     open = false;
@@ -108,9 +118,12 @@
     }
   }
 
-  function formatTime(isoStr: string): string {
+  function formatTime(isoStr: string, timestamp?: number): string {
     try {
-      const d = new Date(isoStr);
+      // La fecha ISO o, si no llega, el timestamp UNIX (segundos)
+      let d = new Date(isoStr);
+      if (Number.isNaN(d.getTime()) && timestamp) d = new Date(timestamp * 1000);
+      if (Number.isNaN(d.getTime())) return isoStr || '—';
       return d.toLocaleDateString(undefined, {
         year: 'numeric',
         month: 'short',
@@ -255,8 +268,8 @@
                     </td>
 
                     <!-- Columna Fecha -->
-                    <td class="col-date" title={commit.date_iso}>
-                      <span class="commit-date">{formatTime(commit.date_iso)}</span>
+                    <td class="col-date" title={commit.date}>
+                      <span class="commit-date">{formatTime(commit.date, commit.timestamp)}</span>
                     </td>
 
                     <!-- Columna Autor -->
@@ -281,6 +294,17 @@
                           <Eye size={13} />
                           <span>Ver archivo</span>
                         </button>
+                        {#if onPatchRevision}
+                          <button
+                            type="button"
+                            class="action-btn diff-btn patch-btn"
+                            onclick={() => handlePatch(commit.commit_hash)}
+                            title="Ver qué cambió este commit en el archivo (contra su commit padre)"
+                          >
+                            <GitCommitHorizontal size={13} />
+                            <span>Ver cambios</span>
+                          </button>
+                        {/if}
                         <button
                           type="button"
                           class="action-btn diff-btn"

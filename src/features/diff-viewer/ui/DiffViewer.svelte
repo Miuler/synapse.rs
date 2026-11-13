@@ -9,6 +9,8 @@
     isPdfFile,
     isDrawingFile,
     isDiagramFile,
+    isD2File,
+    isPlantUmlFile,
     DEFAULT_APP_CONFIG,
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
@@ -37,10 +39,12 @@
     baseRevision?: string;
     /** Compara `filePath` con este otro archivo de la bóveda en lugar de con git. */
     compareWith?: string;
+    /** Parche de un commit: el archivo en ese commit contra su commit padre. */
+    commitRevision?: string;
     onClose?: () => void;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, onClose }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, onClose }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -54,7 +58,8 @@
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
   const isPureBinary = $derived((isImage && !isSvg) || isPdf);
   // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
-  const hasPixelDiff = $derived((isImage && !isSvg) || isDrawing);
+  // y diagramas (renderizados a SVG y rasterizados en memoria)
+  const hasPixelDiff = $derived((isImage && !isSvg) || isDrawing || isDiagram);
   // Al comparar dos archivos, el modo visual solo tiene sentido si los dos son del mismo tipo
   const sameKind = $derived(
     !compareWith ||
@@ -62,6 +67,8 @@
         isPdfFile(compareWith) === isPdf &&
         isDrawingFile(compareWith) === isDrawing &&
         isDiagramFile(compareWith) === isDiagram &&
+        isD2File(compareWith) === isD2File(filePath) &&
+        isPlantUmlFile(compareWith) === isPlantUmlFile(filePath) &&
         isSvgFile(compareWith) === isSvg,
   );
   const isVisualCandidate = $derived(sameKind && (isImage || isPdf || isDrawing || isDiagram));
@@ -99,7 +106,9 @@
     try {
       const data = compareWith
         ? await vaultRepository.diffVaultFiles(compareWith, filePath)
-        : await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
+        : commitRevision
+          ? await vaultRepository.diffGitRevisions(filePath, `${commitRevision}^`, commitRevision)
+          : await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
       diffData = data;
     } catch (err: unknown) {
       console.error('Error al cargar git diff:', err);
@@ -114,6 +123,7 @@
     const _p = filePath;
     const _s = isStaged;
     const _r = baseRevision;
+    const _k = commitRevision;
     const _c = compareWith;
     fetchDiff();
   });
@@ -198,12 +208,15 @@
       <div
         class="diff-file-badge"
         class:is-staged={isStaged && !baseRevision}
-        class:is-revision={Boolean(baseRevision)}
-        title={compareWith ? 'Comparación de dos archivos' : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
+        class:is-revision={Boolean(baseRevision || commitRevision)}
+        title={compareWith ? 'Comparación de dos archivos' : commitRevision ? `Cambios del commit ${commitRevision}` : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
       >
         {#if compareWith}
           <GitCompare size={14} class="badge-icon" />
           <span>ARCHIVOS</span>
+        {:else if commitRevision}
+          <History size={14} class="badge-icon" />
+          <span>COMMIT: {commitRevision.slice(0, 7)}</span>
         {:else if baseRevision}
           <History size={14} class="badge-icon" />
           <span>REV: {baseRevision.slice(0, 7)}</span>
@@ -362,9 +375,9 @@
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
     {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
-      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} />
+      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} />
     {:else if hasPixelDiff && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {compareWith} />
+      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
@@ -388,7 +401,7 @@
         </div>
         <h3 class="state-title">Sin diferencias</h3>
         <p class="state-desc">
-          No hay cambios en <strong>{fileName}</strong> {compareWith ? `respecto a ${compareWith}` : baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
+          No hay cambios en <strong>{fileName}</strong> {compareWith ? `respecto a ${compareWith}` : commitRevision ? `en el commit ${commitRevision.slice(0, 7)}` : baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
         </p>
       </div>
     {:else if diffData}

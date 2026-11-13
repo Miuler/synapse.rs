@@ -192,6 +192,44 @@ pub fn diff_vault_files(
     ))
 }
 
+/// Diff de un archivo entre dos revisiones de Git (p. ej. el parche de un commit: `abc^` contra `abc`).
+/// Si el archivo no existe en una de ellas, esa versión cuenta como vacía.
+#[tauri::command(async)]
+pub fn diff_git_revisions(
+    state: State<'_, AppState>,
+    path: String,
+    old_revision: String,
+    new_revision: String,
+) -> Result<FileDiff, String> {
+    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+    let Some(ref vault_path) = *guard else {
+        return Err("No hay ninguna bóveda abierta".to_string());
+    };
+    let read = |revision: String| -> Result<String, String> {
+        let rev = state
+            .get_file_revision_use_case
+            .execute(GetFileRevisionQuery {
+                vault_path: vault_path.clone(),
+                path: path.clone(),
+                staged: false,
+                revision: Some(revision),
+            })?;
+        Ok(if rev.exists {
+            rev.content.unwrap_or_default()
+        } else {
+            String::new()
+        })
+    };
+    let old_content = read(old_revision)?;
+    let new_content = read(new_revision)?;
+    Ok(build_files_diff(
+        path.clone(),
+        path,
+        old_content,
+        new_content,
+    ))
+}
+
 fn build_files_diff(
     old_path: String,
     new_path: String,

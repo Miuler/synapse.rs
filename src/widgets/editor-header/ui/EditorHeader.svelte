@@ -115,6 +115,7 @@
       p.startsWith('diff:') ||
       p.startsWith('diff-staged:') ||
       p.startsWith('diff-rev:') ||
+      p.startsWith('diff-commit:') ||
       p.startsWith('diff-files:') ||
       p.startsWith('rev:') ||
       p.startsWith('synapse://')
@@ -619,7 +620,7 @@
                 >
                   {#if tab.path.startsWith('diff-staged:')}
                     <GitCompareArrows size={14} class="file-icon" style="color: var(--success);" />
-                  {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-files:')}
+                  {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-commit:') || tab.path.startsWith('diff-files:')}
                     <GitCompare size={14} class="file-icon" style="color: var(--purple);" />
                   {:else if tab.path.startsWith('diff:')}
                     <GitCompare size={14} class="file-icon" style="color: var(--diff-blue, #3b82f6);" />
@@ -879,7 +880,7 @@
                     >
                       {#if tab.path.startsWith('diff-staged:')}
                         <GitCompareArrows size={14} class="dropdown-file-icon" style="color: var(--success);" />
-                      {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-files:')}
+                      {:else if tab.path.startsWith('diff-rev:') || tab.path.startsWith('diff-commit:') || tab.path.startsWith('diff-files:')}
                         <GitCompare size={14} class="dropdown-file-icon" style="color: var(--purple);" />
                       {:else if tab.path.startsWith('diff:')}
                         <GitCompare size={14} class="dropdown-file-icon" style="color: var(--diff-blue, #3b82f6);" />

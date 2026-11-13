@@ -151,7 +151,8 @@ export interface GitCommitLogItem {
   short_hash: string;
   author_name: string;
   author_email: string;
-  date_iso: string;
+  /** Fecha ISO-8601 del autor (el backend la envía como `date`). */
+  date: string;
   timestamp: number;
   message: string;
 }
@@ -402,6 +403,9 @@ export interface VaultRepository {
    */
   getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse>;
   diffVaultFiles(oldPath: string, newPath: string): Promise<GitDiffResponse>;
+
+  /** Diff de un archivo entre dos revisiones de Git (p. ej. `abc^` contra `abc`, el parche de un commit). */
+  diffGitRevisions(path: string, oldRevision: string, newRevision: string): Promise<GitDiffResponse>;
 
   /**
    * Obtiene el contenido o data_url de un archivo en una revisión histórica (HEAD, Staged o commit específico).
@@ -1064,6 +1068,10 @@ export class TauriVaultRepository implements VaultRepository {
     }
 
     return await invokeTauri<GitDiffResponse>('diff_vault_files', { oldPath, newPath });
+  }
+
+  async diffGitRevisions(path: string, oldRevision: string, newRevision: string): Promise<GitDiffResponse> {
+    return await invokeTauri<GitDiffResponse>('diff_git_revisions', { path, oldRevision, newRevision });
   }
 
   async getGitFileRevision(path: string, staged: boolean, revision?: string): Promise<GitFileRevisionResult> {

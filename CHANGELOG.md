@@ -9,6 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Ver los cambios de un commit**: en el Historial de Git, «Ver cambios» abre el parche de ese commit para el archivo (contra su commit padre). Texto en Dividida, Unificada o Parche; imágenes, dibujos y diagramas con 2 Paneles y Diferencias.
+- **Diff píxel por píxel de diagramas**: Mermaid, D2 y PlantUML tienen el modo **Diferencias** en el diff de Git, en el stage, en el parche de un commit y al comparar dos archivos. Las dos versiones se renderizan y se comparan en memoria, sin escribir nada en disco.
+- **Comparar dos dibujos o diagramas**: «Comparar archivos» con dos Excalidraw o dos diagramas del mismo lenguaje ofrece 2 Paneles, Texto y Diferencias.
 - **Comparar dos imágenes**: «Comparar archivos» con dos imágenes (o dos dibujos, diagramas o PDF del mismo tipo) muestra el modo visual: **2 Paneles** lado a lado y, para imágenes raster y dibujos de Excalidraw, **Diferencias** píxel por píxel. Si las imágenes tienen distinto tamaño, se comparan desde la esquina superior izquierda.
 - **Menú de la pestaña completo**: además de abrir en nueva ventana, con la app por defecto y mostrar en carpeta, ahora permite **Renombrar archivo** (abre la edición en el breadcrumb de esa pestaña), **Copiar ruta relativa** y **Copiar ruta completa**, igual que el menú del breadcrumb.
 - **Editor de draw.io embebido**: los `.drawio` se abren en el editor de draw.io dentro de una pestaña y al guardar se escribe el XML del diagrama. Los `.drawio.png` se siguen viendo como imagen y se editan con **Abrir con draw.io** en el menú contextual del explorador o con el botón **draw.io** del visor de imágenes; al guardar se reescribe el PNG con el diagrama incrustado, que sigue siendo editable. Respeta el tema claro u oscuro. Se carga desde `embed.diagrams.net` (el diagrama no sale del equipo: viaja por `postMessage`); la dirección se puede cambiar con `drawioUrl` en los ajustes para usar un draw.io propio sin red.
@@ -16,6 +19,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Diff visual en stage**: comparaba el disco contra el stage; ahora compara el stage contra HEAD, como `git diff --staged`.
+- **Fechas del Historial de Git**: mostraban «Invalid Date».
+- **PlantUML en el diff lado a lado**: el panel de la versión de Git lo dibujaba como Mermaid.
 - **«Diff» con dos archivos seleccionados**: en una bóveda con Git, el «Diff» del menú del explorador hacía el diff de Git de un solo archivo (y solía mostrar «Sin diferencias»). Ahora, con dos archivos seleccionados, se llama «Diff entre los 2 archivos» y los compara entre sí.
 
 ## [1.0.0-beta.1] - 2026-11-12

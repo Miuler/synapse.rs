@@ -3948,6 +3948,19 @@
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
+        {:else if tabPath.startsWith("diff-commit:")}
+          {@const rest = tabPath.slice("diff-commit:".length)}
+          {@const sep = rest.indexOf(":")}
+          <div
+            class="tab-pane full-pane"
+            class:hidden={tabPath !== activePath}
+          >
+            <DiffViewer
+              filePath={rest.slice(sep + 1)}
+              commitRevision={rest.slice(0, sep)}
+              onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
+            />
+          </div>
         {:else if tabPath.startsWith("diff-rev:")}
           {@const rest = tabPath.slice("diff-rev:".length)}
           {@const firstColonIdx = rest.indexOf(":")}
@@ -4565,6 +4578,7 @@
     onRefreshGit={refreshGitStatus}
     onViewRevision={(p, rev) => selectTab(`rev:${rev}:${p}`)}
     onDiffRevision={(p, rev) => selectTab(`diff-rev:${rev}:${p}`)}
+    onPatchRevision={(p, rev) => selectTab(`diff-commit:${rev}:${p}`)}
   />
 
   {#if workspaceToastMessage}

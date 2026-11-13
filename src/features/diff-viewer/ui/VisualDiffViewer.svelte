@@ -4,6 +4,7 @@
     vaultRepository,
     type GitFileRevisionResult,
   } from '@shared/repositories';
+  import { diffSides, loadSide } from '../lib/diff-sides';
   import { appSettings } from '@entities/settings';
   import {
     isImageFile,
@@ -28,10 +29,15 @@
     baseRevision?: string;
     /** Compara `filePath` con este otro archivo de la bóveda (panel derecho) en lugar de con Git. */
     compareWith?: string;
+    /** Parche de un commit: el archivo en ese commit contra su commit padre. */
+    commitRevision?: string;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith }: Props = $props();
-  const compareName = $derived(compareWith ? compareWith.split('/').pop() || compareWith : '');
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision }: Props = $props();
+  // Panel izquierdo = «después», panel derecho = «antes»
+  const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision }));
+  /** Solo se puede editar el panel izquierdo cuando es el archivo en disco. */
+  const afterIsDisk = $derived(sides.after.kind === 'disk');
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -78,31 +84,18 @@
     loading = true;
     error = null;
     try {
-      // 1. Panel derecho: la revisión de Git, o el otro archivo al comparar dos archivos
-      if (compareWith) {
-        const binary = isImage || isPdf;
-        const other = binary ? null : await vaultRepository.readNote(compareWith);
-        gitRevision = {
-          path: compareWith,
-          revision: '',
-          content: other?.content ?? null,
-          data_url: binary ? await vaultRepository.readAssetDataUrl(compareWith) : null,
-          is_binary: binary,
-          exists: true,
-        };
-      } else {
-        gitRevision = await vaultRepository.getGitFileRevision(filePath, isStaged, baseRevision);
-      }
-
-      // 2. Si es dibujo o diagrama, leer contenido de texto de disco
-      if (isDrawing || isDiagram) {
-        const noteData = await vaultRepository.readNote(filePath);
-        localContent = noteData?.content || '';
-      } else if (isImage || isPdf) {
-        // Para imágenes o PDF, obtener dataUrl de disco
-        const url = await vaultRepository.readAssetDataUrl(filePath);
-        localDataUrl = url;
-      }
+      const binary = isImage || isPdf;
+      const [before, after] = await Promise.all([loadSide(sides.before, binary), loadSide(sides.after, binary)]);
+      gitRevision = {
+        path: sides.before.path,
+        revision: sides.before.kind === 'rev' ? sides.before.rev : '',
+        content: before.content,
+        data_url: before.dataUrl,
+        is_binary: binary,
+        exists: before.exists,
+      };
+      localContent = after.content ?? '';
+      localDataUrl = after.dataUrl;
     } catch (err: unknown) {
       console.error('Error cargando diff visual:', err);
       error = err instanceof Error ? err.message : String(err);
@@ -116,6 +109,7 @@
     const _s = isStaged;
     const _r = baseRevision;
     const _c = compareWith;
+    const _k = commitRevision;
     loadData();
   });
 
@@ -163,10 +157,10 @@
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
-          <span>{#if compareWith}{fileName}{:else}Disco Duro (Local{#if (isDrawing || isDiagram) && isLocalEditable} — Editable{:else if isDrawing || isDiagram} — Lectura{/if}){/if}</span>
+          <span>{sides.afterLabel}{#if afterIsDisk && !compareWith && (isDrawing || isDiagram)}{isLocalEditable ? ' — Editable' : ' — Lectura'}{/if}</span>
         </div>
         <div class="pane-header-right">
-          {#if isDrawing || isDiagram}
+          {#if afterIsDisk && (isDrawing || isDiagram)}
             <div class="mode-toggle-group" role="group" aria-label="Modo de edición local">
               <button
                 type="button"
@@ -261,29 +255,29 @@
     <!-- PANEL DERECHO: GIT (HEAD, STAGED O REVISIÓN) -->
     <div class="pane right-pane" style="width: {100 - splitRatio}%">
       <div class="pane-header">
-        <div class="pane-tag git" class:is-staged={isStaged && !baseRevision} class:is-revision={Boolean(baseRevision)}>
+        <div class="pane-tag git" class:is-revision={Boolean(baseRevision || commitRevision)}>
           <GitCommit size={13} />
-          <span>{compareWith ? compareName : baseRevision ? `REV: ${baseRevision.slice(0, 7)}` : (isStaged ? 'Stage / Index' : 'HEAD (Último commit)')}</span>
+          <span>{sides.beforeLabel}</span>
         </div>
         {#if compareWith}
           <span class="pane-rev-info">Archivo comparado</span>
         {:else if !gitRevision?.exists}
-          <span class="not-in-git-badge">No existe en esta revisión</span>
-        {:else}
-          <span class="pane-rev-info">{baseRevision ? `Revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'Revisión en Stage' : 'Última versión commiteada')}</span>
+          <span class="not-in-git-badge">No existe en esta versión</span>
         {/if}
       </div>
 
       <div class="pane-content">
         {#if !gitRevision?.exists}
           <div class="empty-git-state">
-            <p>Este archivo no existe en {baseRevision ? `la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'el Stage' : 'el último commit (HEAD)')}.</p>
+            <p>Este archivo no existe en «{sides.beforeLabel}».</p>
           </div>
         {:else if isDrawing}
           <ExcalidrawViewer content={gitRevision.content || ''} filePath={filePath} readOnly={true} />
         {:else if isDiagram}
           {#if isD2File(filePath)}
             <D2Viewer content={gitRevision.content || ''} readOnly={true} />
+          {:else if isPlantUmlFile(filePath)}
+            <PlantUmlViewer content={gitRevision.content || ''} readOnly={true} />
           {:else if appSettings.mermaidRenderer === 'mermaidjs'}
             <MermaidViewer content={gitRevision.content || ''} readOnly={true} />
           {:else}
@@ -389,12 +383,6 @@
     background-color: var(--warning-bg);
     color: var(--warning);
     border: 1px solid var(--warning-border);
-  }
-
-  .pane-tag.git.is-staged {
-    background-color: var(--success-bg);
-    color: var(--success);
-    border: 1px solid var(--success-border);
   }
 
   .pane-tag.git.is-revision {

@@ -16,6 +16,8 @@
     onRefreshGit?: () => Promise<void> | void;
     onViewRevision?: (filePath: string, commitHash: string) => void;
     onDiffRevision?: (filePath: string, commitHash: string) => void;
+    /** Abre el parche del commit: el archivo en ese commit contra su commit padre. */
+    onPatchRevision?: (filePath: string, commitHash: string) => void;
     onToast?: (message: string) => void;
   }
 
@@ -26,6 +28,7 @@
     onRefreshGit,
     onViewRevision,
     onDiffRevision,
+    onPatchRevision,
     onToast,
   }: Props = $props();
 
@@ -120,4 +123,5 @@
   filePath={gitDialogState.fileLogTarget}
   onViewRevision={onViewRevision}
   onDiffRevision={onDiffRevision}
+  {onPatchRevision}
 />
