@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Dialog } from 'bits-ui';
+  import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     GitCommitHorizontal,
     GitBranch,
@@ -26,6 +26,7 @@
     onConfirm: (message: string, selectedPaths: string[]) => void | Promise<void>;
     onCancel?: () => void;
   }
+
 
   let {
     open = $bindable(false),
@@ -173,46 +174,56 @@
   }
 </script>
 
-<Dialog.Root
+<ResizableDialog
   {open}
-  onOpenChange={(isOpen) => {
-    if (!isOpen && !loading) {
-      handleCancel();
-    }
+  onClose={handleCancel}
+  busy={loading}
+  title="Hacer commit en Git"
+  description="Confirma los cambios de los archivos seleccionados en el historial de Git."
+  sizeKey="synapse.gitCommitDialog.size"
+  defaultSize={{ w: 820, h: 640 }}
+  minSize={{ w: 420, h: 380 }}
+  tone="var(--success)"
+  class="git-commit-dialog"
+  onkeydown={handleKeyDown}
+  onOpenAutoFocus={(e) => {
+    e.preventDefault();
+    requestAnimationFrame(() => textareaEl?.focus());
   }}
 >
-  <Dialog.Portal>
-    <Dialog.Overlay class="git-commit-dialog-overlay" />
-    <Dialog.Content
-      class="git-commit-dialog synapse-dialog"
-      onOpenAutoFocus={(e) => {
-        e.preventDefault();
-        requestAnimationFrame(() => textareaEl?.focus());
-      }}
-      onkeydown={handleKeyDown}
-    >
-      <!-- Cabecera -->
-      <div class="git-commit-dialog-header">
-        <div class="git-commit-dialog-icon-wrap">
-          <GitCommitHorizontal size={20} class="git-commit-dialog-icon" />
-        </div>
-        <div class="git-commit-dialog-titles">
-          <div class="git-commit-dialog-title-row">
-            <Dialog.Title class="git-commit-dialog-title">
-              Hacer commit en Git
-            </Dialog.Title>
-            {#if branchName}
-              <span class="git-commit-branch-badge" title="Rama actual: {branchName}">
-                <GitBranch size={11} />
-                <span>{branchName}</span>
-              </span>
-            {/if}
-          </div>
-          <Dialog.Description class="git-commit-dialog-desc">
-            Confirma los cambios de los archivos seleccionados en el historial de Git.
-          </Dialog.Description>
-        </div>
-      </div>
+  {#snippet icon()}<GitCommitHorizontal size={20} />{/snippet}
+  {#snippet badge()}
+    {#if branchName}
+      <span class="git-commit-branch-badge" title="Rama actual: {branchName}">
+        <GitBranch size={11} />
+        <span>{branchName}</span>
+      </span>
+    {/if}
+  {/snippet}
+  {#snippet footer()}
+        <button
+          type="button"
+          class="git-commit-btn cancel"
+          onclick={handleCancel}
+          disabled={loading}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="git-commit-btn submit"
+          onclick={handleSubmit}
+          disabled={!canSubmit}
+        >
+          {#if loading}
+            <Loader2 size={14} class="spin-icon" />
+            <span>Haciendo commit...</span>
+          {:else}
+            <GitCommitHorizontal size={14} />
+            <span>Hacer commit ({selectedPaths.length})</span>
+          {/if}
+        </button>
+  {/snippet}
 
       <!-- Lista de archivos modificados/borrados con selector -->
       <div class="git-commit-files-box">
@@ -335,133 +346,9 @@
         </div>
       {/if}
 
-      <!-- Botones de acción -->
-      <div class="git-commit-dialog-actions">
-        <button
-          type="button"
-          class="git-commit-btn cancel"
-          onclick={handleCancel}
-          disabled={loading}
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          class="git-commit-btn submit"
-          onclick={handleSubmit}
-          disabled={!canSubmit}
-        >
-          {#if loading}
-            <Loader2 size={14} class="spin-icon" />
-            <span>Haciendo commit...</span>
-          {:else}
-            <GitCommitHorizontal size={14} />
-            <span>Hacer commit ({selectedPaths.length})</span>
-          {/if}
-        </button>
-      </div>
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+</ResizableDialog>
 
 <style>
-  :global(.git-commit-dialog-overlay) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: var(--overlay-bg);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10001;
-    animation: overlay-fade-in 0.15s ease-out;
-  }
-
-  @keyframes overlay-fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  :global(.git-commit-dialog) {
-    background: var(--bg-primary, #ffffff);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 10px;
-    box-shadow: var(--modal-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
-    width: 90%;
-    max-width: 520px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    animation: modal-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10002;
-    outline: none;
-    box-sizing: border-box;
-  }
-
-  @keyframes modal-scale-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -50%) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-  }
-
-  .git-commit-dialog-header {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-
-  .git-commit-dialog-icon-wrap {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: color-mix(in srgb, var(--success) 15%, transparent);
-    color: var(--success);
-  }
-
-  .git-commit-dialog-titles {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .git-commit-dialog-title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  :global(.git-commit-dialog-title) {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary, #1f2328);
-    margin: 0;
-    line-height: 1.25;
-  }
-
   .git-commit-branch-badge {
     display: inline-flex;
     align-items: center;
@@ -475,13 +362,6 @@
     color: var(--text-secondary, #656d76);
   }
 
-  :global(.git-commit-dialog-desc) {
-    font-size: 13px;
-    color: var(--text-secondary, #656d76);
-    line-height: 1.4;
-    margin: 0;
-  }
-
   /* Cuadro de archivos */
   .git-commit-files-box {
     background-color: var(--bg-secondary, #f6f8fa);
@@ -491,6 +371,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* La lista de archivos ocupa el alto que sobra al agrandar el diálogo */
+    flex: 1;
+    min-height: 0;
   }
 
   .git-commit-files-header {
@@ -567,7 +450,8 @@
   }
 
   .git-commit-files-list {
-    max-height: 160px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -765,13 +649,6 @@
   }
 
   /* Botones de acción */
-  .git-commit-dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 2px;
-  }
-
   .git-commit-btn {
     display: inline-flex;
     align-items: center;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Dialog } from 'bits-ui';
+  import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     Tag,
     History,
@@ -44,61 +44,6 @@
   let filterText = $state('');
   let copiedHash = $state<string | null>(null);
 
-  // Tamaño del diálogo: se cambia arrastrando bordes o esquinas y se recuerda para todos los archivos.
-  const SIZE_KEY = 'synapse.gitLogDialog.size';
-  const MIN_W = 560;
-  const MIN_H = 320;
-  function loadSize(): { w: number; h: number } {
-    try {
-      const v = JSON.parse(localStorage.getItem(SIZE_KEY) ?? 'null');
-      if (v && v.w > 0 && v.h > 0) return v;
-    } catch {
-      /* sin tamaño guardado */
-    }
-    return { w: 1200, h: 680 };
-  }
-  let size = $state(loadSize());
-  const clampW = (w: number) => Math.max(MIN_W, Math.min(window.innerWidth - 16, w));
-  const clampH = (h: number) => Math.max(MIN_H, Math.min(window.innerHeight - 16, h));
-
-  function startResize(e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const x0 = e.clientX;
-    const y0 = e.clientY;
-    const w0 = clampW(size.w);
-    const h0 = clampH(size.h);
-    // El diálogo está centrado: crece igual hacia ambos lados, por eso el desplazamiento cuenta doble
-    const move = (ev: PointerEvent) => {
-      size = {
-        w: dx ? clampW(w0 + 2 * dx * (ev.clientX - x0)) : w0,
-        h: dy ? clampH(h0 + 2 * dy * (ev.clientY - y0)) : h0,
-      };
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      try {
-        localStorage.setItem(SIZE_KEY, JSON.stringify(size));
-      } catch {
-        /* sin almacenamiento */
-      }
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  }
-
-  const HANDLES: { cls: string; dx: -1 | 0 | 1; dy: -1 | 0 | 1 }[] = [
-    { cls: 'n', dx: 0, dy: -1 },
-    { cls: 's', dx: 0, dy: 1 },
-    { cls: 'e', dx: 1, dy: 0 },
-    { cls: 'w', dx: -1, dy: 0 },
-    { cls: 'ne', dx: 1, dy: -1 },
-    { cls: 'nw', dx: -1, dy: -1 },
-    { cls: 'se', dx: 1, dy: 1 },
-    { cls: 'sw', dx: -1, dy: 1 },
-  ];
 
   const fileName = $derived(filePath ? filePath.split('/').pop() || filePath : '');
 
@@ -201,57 +146,36 @@
   }
 </script>
 
-<Dialog.Root
+<ResizableDialog
   {open}
-  onOpenChange={(isOpen) => {
-    if (!isOpen) {
-      handleClose();
-    }
-  }}
+  onClose={handleClose}
+  title="Historial de cambios (Git Log)"
+  description="Visualiza las revisiones históricas del archivo y compara diferencias contra la versión local."
+  sizeKey="synapse.gitLogDialog.size"
+  defaultSize={{ w: 1200, h: 680 }}
+  minSize={{ w: 560, h: 320 }}
+  class="git-log-dialog"
+  bodyPadding="0"
+  onkeydown={handleKeyDown}
 >
-  <Dialog.Portal>
-    <Dialog.Overlay class="git-log-dialog-overlay" />
-    <Dialog.Content
-      class="git-log-dialog synapse-dialog"
-      style="width: {size.w}px; height: {size.h}px;"
-      onkeydown={handleKeyDown}
-    >
-      {#each HANDLES as h (h.cls)}
-        <div
-          class="git-log-resize {h.cls}"
-          aria-hidden="true"
-          onpointerdown={(e) => startResize(e, h.dx, h.dy)}
-        ></div>
-      {/each}
-      <!-- Cabecera -->
-      <div class="git-log-dialog-header">
-        <div class="git-log-dialog-icon-wrap">
-          <History size={20} class="git-log-dialog-icon" />
-        </div>
-        <div class="git-log-dialog-titles">
-          <div class="git-log-dialog-title-row">
-            <Dialog.Title class="git-log-dialog-title">
-              Historial de cambios (Git Log)
-            </Dialog.Title>
-            <span class="git-log-file-badge" title={filePath || ''}>
-              <FileText size={11} />
-              <span>{fileName}</span>
-            </span>
-          </div>
-          <Dialog.Description class="git-log-dialog-desc">
-            Visualiza las revisiones históricas del archivo y compara diferencias contra la versión local.
-          </Dialog.Description>
-        </div>
-        <button
-          type="button"
-          class="git-log-close-btn"
-          onclick={handleClose}
-          aria-label="Cerrar diálogo"
-          title="Cerrar (Esc)"
-        >
-          <X size={16} />
-        </button>
-      </div>
+  {#snippet icon()}<History size={20} />{/snippet}
+  {#snippet badge()}
+    <span class="git-log-file-badge" title={filePath || ''}>
+      <FileText size={11} />
+      <span>{fileName}</span>
+    </span>
+  {/snippet}
+  {#snippet footer()}
+    <span class="git-log-count-info">
+      {filteredCommits.length} {filteredCommits.length === 1 ? 'revisión' : 'revisiones'}
+      {#if filterText && filteredCommits.length !== commits.length}
+        (de {commits.length})
+      {/if}
+    </span>
+    <button type="button" class="close-btn" onclick={handleClose}>
+      Cerrar
+    </button>
+  {/snippet}
 
       <!-- Barra de Filtro / Búsqueda -->
       <div class="git-log-search-bar">
@@ -398,142 +322,9 @@
         {/if}
       </div>
 
-      <!-- Pie del diálogo -->
-      <div class="git-log-footer">
-        <span class="git-log-count-info">
-          {filteredCommits.length} {filteredCommits.length === 1 ? 'revisión' : 'revisiones'}
-          {#if filterText && filteredCommits.length !== commits.length}
-            (de {commits.length})
-          {/if}
-        </span>
-        <button type="button" class="close-btn" onclick={handleClose}>
-          Cerrar
-        </button>
-      </div>
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+</ResizableDialog>
 
 <style>
-  :global(.git-log-dialog-overlay) {
-    position: fixed;
-    inset: 0;
-    background: var(--overlay-bg);
-    backdrop-filter: blur(2px);
-    z-index: 9999;
-    animation: fadeIn 0.15s ease-out;
-  }
-
-  :global(.git-log-dialog) {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    max-width: calc(100vw - 16px);
-    max-height: calc(100vh - 16px);
-    background: var(--bg-primary, #ffffff);
-    color: var(--text-primary, #1f2328);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 10px;
-    box-shadow: var(--modal-shadow);
-    display: flex;
-    flex-direction: column;
-    z-index: 10000;
-    outline: none;
-    overflow: hidden;
-    animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .git-log-resize {
-    position: absolute;
-    z-index: 5;
-  }
-  .git-log-resize.n,
-  .git-log-resize.s {
-    left: 8px;
-    right: 8px;
-    height: 6px;
-    cursor: ns-resize;
-  }
-  .git-log-resize.n { top: 0; }
-  .git-log-resize.s { bottom: 0; }
-  .git-log-resize.e,
-  .git-log-resize.w {
-    top: 8px;
-    bottom: 8px;
-    width: 6px;
-    cursor: ew-resize;
-  }
-  .git-log-resize.e { right: 0; }
-  .git-log-resize.w { left: 0; }
-  .git-log-resize.ne,
-  .git-log-resize.nw,
-  .git-log-resize.se,
-  .git-log-resize.sw {
-    width: 12px;
-    height: 12px;
-  }
-  .git-log-resize.ne { top: 0; right: 0; cursor: nesw-resize; }
-  .git-log-resize.sw { bottom: 0; left: 0; cursor: nesw-resize; }
-  .git-log-resize.nw { top: 0; left: 0; cursor: nwse-resize; }
-  .git-log-resize.se { bottom: 0; right: 0; cursor: nwse-resize; }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -48%) scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-  }
-
-  .git-log-dialog-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px 20px 14px;
-    border-bottom: 1px solid var(--border-secondary, #e1e4e8);
-    background: var(--bg-secondary, #f6f8fa);
-  }
-
-  .git-log-dialog-icon-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--accent, #0969da);
-    flex-shrink: 0;
-  }
-
-  .git-log-dialog-titles {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .git-log-dialog-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  :global(.git-log-dialog-title) {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary, #1f2328);
-    margin: 0;
-  }
-
   .git-log-file-badge {
     display: inline-flex;
     align-items: center;
@@ -550,30 +341,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  :global(.git-log-dialog-desc) {
-    font-size: 12px;
-    color: var(--text-secondary, #656d76);
-    margin: 3px 0 0;
-  }
-
-  .git-log-close-btn {
-    border: none;
-    background: none;
-    color: var(--text-secondary, #656d76);
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s ease;
-  }
-
-  .git-log-close-btn:hover {
-    background: var(--bg-tertiary, #eaeef2);
-    color: var(--text-primary, #1f2328);
   }
 
   .git-log-search-bar {
@@ -854,16 +621,8 @@
     color: var(--on-accent);
   }
 
-  .git-log-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 20px;
-    border-top: 1px solid var(--border-secondary, #e1e4e8);
-    background: var(--bg-secondary, #f6f8fa);
-  }
-
   .git-log-count-info {
+    margin-right: auto;
     font-size: 12px;
     color: var(--text-secondary, #656d76);
   }

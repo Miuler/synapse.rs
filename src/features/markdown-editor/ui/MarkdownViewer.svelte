@@ -207,11 +207,66 @@
     });
   }
 
+  // Primera línea visible al editar: al volver a lectura, se lleva esa parte del documento arriba.
+  let editorAnchorLine: number | null = null;
+
+  function captureEditorAnchor() {
+    if (!editorView || !wrapperRef) return;
+    const top = wrapperRef.getBoundingClientRect().top + 4;
+    const block = editorView.lineBlockAtHeight(top - editorView.documentTop);
+    editorAnchorLine = editorView.state.doc.lineAt(Math.min(block.from, editorView.state.doc.length)).number - 1;
+  }
+
+  /** Solo letras y números, para comparar una línea del archivo con el texto renderizado. */
+  const plainText = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+  function scrollReadingToEditorAnchor() {
+    const lineNo = editorAnchorLine;
+    const root = wrapperRef?.querySelector<HTMLElement>('.markdown-body');
+    if (lineNo === null || !root) return;
+    if (lineNo === 0) return;
+    const lines = content.split('\n');
+    // Texto de la primera línea con contenido desde la línea visible
+    let wanted = '';
+    for (let i = lineNo; i < lines.length && !wanted; i++) wanted = plainText(lines[i]).slice(0, 30);
+    // Título bajo el que está esa línea, para no confundir textos repetidos
+    let headingIdx = -1;
+    for (let j = 0; j < flatHeadings.length && flatHeadings[j].line <= lineNo; j++) headingIdx = j;
+
+    const blocks = Array.from(root.children) as HTMLElement[];
+    let start = 0;
+    if (headingIdx >= 0) {
+      let k = 0;
+      for (let b = 0; b < blocks.length; b++) {
+        const el = blocks[b];
+        if (!/^H[1-6]$/.test(el.tagName)) continue;
+        const text = normalizeHeadingText(el.textContent ?? '');
+        while (k < flatHeadings.length && normalizeHeadingText(flatHeadings[k].raw) !== text) k++;
+        if (k === flatHeadings.length) break;
+        if (k === headingIdx) {
+          start = b;
+          break;
+        }
+        k++;
+      }
+    }
+    let target: HTMLElement | undefined = blocks[start];
+    if (wanted) {
+      const rest = blocks.slice(start);
+      target =
+        rest.find((el) => plainText(el.textContent ?? '').startsWith(wanted)) ??
+        rest.find((el) => plainText(el.textContent ?? '').includes(wanted)) ??
+        target;
+    }
+    target?.scrollIntoView({ block: 'start' });
+  }
+
   function scheduleHeadingUpdate() {
-    if (headingFrame || (!onHeadingLineChange && viewMode !== 'reading')) return;
+    if (headingFrame) return;
     headingFrame = requestAnimationFrame(() => {
       headingFrame = 0;
       if (viewMode === 'reading') captureReadingAnchor();
+      else captureEditorAnchor();
       if (!onHeadingLineChange) return;
       const line = currentHeadingLine();
       if (line !== lastHeadingLine) {
@@ -1076,7 +1131,8 @@
   let previousViewMode: MarkdownViewMode | null = null;
   $effect(() => {
     const mode = viewMode;
-    const fromReading = previousViewMode === 'reading' && mode !== 'reading';
+    const previousMode = previousViewMode;
+    const fromReading = previousMode === 'reading' && mode !== 'reading';
     previousViewMode = mode;
     if (editorView) {
       editorView.dispatch({
@@ -1092,8 +1148,11 @@
       }
     }
     if (mode === 'reading') {
+      const fromEditing = previousMode !== null && previousMode !== 'reading';
       tick().then(() => {
         requestAnimationFrame(() => {
+          // Viniendo de edición: la lectura arranca donde se estaba editando
+          if (fromEditing) scrollReadingToEditorAnchor();
           readingViewRef?.focus();
         });
       });

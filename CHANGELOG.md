@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - **Historial de Git más ancho y redimensionable**: el diálogo se agranda arrastrando sus bordes o esquinas, como una ventana, y recuerda el tamaño para todos los archivos. Los dos botones de diff van uno sobre otro y el mensaje del commit ocupa hasta dos líneas. Los commits con tag muestran el nombre del tag como etiqueta junto al mensaje.
+- **Diálogos de commit y de ramas más grandes y redimensionables**: abren más anchos y altos, se agrandan arrastrando sus bordes o esquinas y recuerdan su tamaño; la lista de archivos o de ramas usa el alto extra. Los tres diálogos de Git (commit, ramas e historial) comparten ahora el mismo marco, cabecera y pie.
 - **Ver los cambios de un commit**: en el Historial de Git, «Ver cambios» abre el parche de ese commit para el archivo (contra su commit padre). Texto en Dividida, Unificada o Parche; imágenes, dibujos y diagramas con 2 Paneles y Diferencias.
 - **Diff píxel por píxel de diagramas**: Mermaid, D2 y PlantUML tienen el modo **Diferencias** en el diff de Git, en el stage, en el parche de un commit y al comparar dos archivos. Las dos versiones se renderizan y se comparan en memoria, sin escribir nada en disco.
 - **Comparar dos dibujos o diagramas**: «Comparar archivos» con dos Excalidraw o dos diagramas del mismo lenguaje ofrece 2 Paneles, Texto y Diferencias.
@@ -20,6 +21,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **La caché de la bóveda ya no se corrompe si la app se cierra mientras guarda**: `.synapse/cache.bin` se guarda con `object_store`, que escribe en un archivo temporal y lo renombra al terminar; si el guardado se interrumpe, queda la versión anterior.
+- **Volver a lectura conserva la posición**: al pasar de edición a lectura en una nota Markdown, la lectura se abre en la parte del documento que se estaba editando en lugar de volver al inicio.
 - **Diff visual en stage**: comparaba el disco contra el stage; ahora compara el stage contra HEAD, como `git diff --staged`.
 - **Fechas del Historial de Git**: mostraban «Invalid Date».
 - **PlantUML en el diff lado a lado**: el panel de la versión de Git lo dibujaba como Mermaid.

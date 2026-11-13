@@ -1,4 +1,5 @@
-// Al pasar de lectura a edición, el cursor queda en la primera línea que se veía en lectura.
+// Al pasar de lectura a edición, el cursor queda en la primera línea que se veía en lectura,
+// y al volver a lectura se conserva la parte del documento que se veía al editar.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { startApp, type Session } from './harness';
 
@@ -55,4 +56,28 @@ it('con texto repetido usa el título bajo el que estaba', async () => {
     [...document.querySelectorAll('span')].map((e) => e.textContent ?? '').find((t) => /^Lín \d+, Col \d+$/.test(t)),
   );
   expect(pos).toBe('Lín 188, Col 1');
+});
+
+it('al volver a lectura conserva la posición de la edición', async () => {
+  // Seguimos en edición con «línea 10» bajo «Final» arriba
+  await s.browser.execute(() => {
+    const line = [...document.querySelectorAll('.cm-line')].find((e) => e.textContent === 'línea 30');
+    line?.scrollIntoView({ block: 'start' });
+  });
+  await Bun.sleep(300);
+  await setMode('reading');
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => {
+        const root = document.querySelector('.markdown-body');
+        if (!root) return null;
+        const top = root.closest('.editor-wrapper')!.getBoundingClientRect().top + 4;
+        const first = [...root.children].find((b) => b.getBoundingClientRect().bottom > top);
+        // Debe ser la «línea 30» bajo «Final», no la del principio
+        const final = [...root.querySelectorAll('h2')].find((e) => e.textContent?.trim() === 'Final');
+        const after = final && first ? final.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING : 0;
+        return after ? first?.textContent?.trim() : null;
+      })) === 'línea 30',
+    { timeout: 5_000, timeoutMsg: 'la lectura no quedó en «línea 30» bajo «Final»' },
+  );
 });

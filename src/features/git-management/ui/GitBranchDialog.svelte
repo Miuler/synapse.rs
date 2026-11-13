@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Dialog } from 'bits-ui';
+  import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     GitBranch,
     Search,
@@ -183,55 +183,41 @@
   }
 </script>
 
-<Dialog.Root
+<ResizableDialog
   {open}
-  onOpenChange={(isOpen) => {
-    if (!isOpen && !isActionLoading) {
-      handleClose();
-    }
+  onClose={handleClose}
+  busy={isActionLoading}
+  title="Ramas Git"
+  description="Gestiona, cambia entre ramas locales y remotas, o crea una nueva rama."
+  sizeKey="synapse.gitBranchDialog.size"
+  defaultSize={{ w: 860, h: 640 }}
+  minSize={{ w: 460, h: 380 }}
+  class="git-branch-dialog"
+  onkeydown={handleKeyDown}
+  onOpenAutoFocus={(e) => {
+    e.preventDefault();
+    requestAnimationFrame(() => searchInputEl?.focus());
   }}
 >
-  <Dialog.Portal>
-    <Dialog.Overlay class="git-branch-dialog-overlay" />
-    <Dialog.Content
-      class="git-branch-dialog synapse-dialog"
-      onkeydown={handleKeyDown}
-      onOpenAutoFocus={(e) => {
-        e.preventDefault();
-        requestAnimationFrame(() => searchInputEl?.focus());
-      }}
+  {#snippet icon()}<GitBranch size={20} />{/snippet}
+  {#snippet badge()}
+    {#if currentBranchName}
+      <span class="git-current-badge" title="Rama activa actual">
+        <Check size={11} />
+        <span>{currentBranchName}</span>
+      </span>
+    {/if}
+  {/snippet}
+  {#snippet footer()}
+    <button
+      type="button"
+      class="git-btn secondary"
+      onclick={handleClose}
+      disabled={isActionLoading}
     >
-      <!-- Cabecera -->
-      <div class="git-branch-dialog-header">
-        <div class="git-branch-icon-wrap">
-          <GitBranch size={20} class="git-branch-header-icon" />
-        </div>
-        <div class="git-branch-titles">
-          <div class="git-branch-title-row">
-            <Dialog.Title class="git-branch-dialog-title">
-              Ramas Git
-            </Dialog.Title>
-            {#if currentBranchName}
-              <span class="git-current-badge" title="Rama activa actual">
-                <Check size={11} />
-                <span>{currentBranchName}</span>
-              </span>
-            {/if}
-          </div>
-          <Dialog.Description class="git-branch-dialog-desc">
-            Gestiona, cambia entre ramas locales y remotas, o crea una nueva rama.
-          </Dialog.Description>
-        </div>
-        <button
-          type="button"
-          class="git-branch-close-btn"
-          onclick={handleClose}
-          aria-label="Cerrar diálogo"
-          title="Cerrar"
-        >
-          <X size={16} />
-        </button>
-      </div>
+      Cerrar
+    </button>
+  {/snippet}
 
       <!-- Barra de herramientas: Búsqueda y botón de nueva rama -->
       <div class="git-branch-toolbar">
@@ -561,121 +547,9 @@
         {/if}
       </div>
 
-      <!-- Footer -->
-      <div class="git-branch-dialog-footer">
-        <button
-          type="button"
-          class="git-btn secondary"
-          onclick={handleClose}
-          disabled={isActionLoading}
-        >
-          Cerrar
-        </button>
-      </div>
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+</ResizableDialog>
 
 <style>
-  :global(.git-branch-dialog-overlay) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: var(--overlay-bg);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10001;
-    animation: overlay-fade-in 0.15s ease-out;
-  }
-
-  @keyframes overlay-fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  :global(.git-branch-dialog) {
-    background: var(--bg-primary, #ffffff);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 10px;
-    box-shadow: var(--modal-shadow, 0 12px 32px rgba(0, 0, 0, 0.25));
-    width: 90%;
-    max-width: 580px;
-    max-height: 85vh;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    animation: modal-scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10002;
-    outline: none;
-    box-sizing: border-box;
-  }
-
-  @keyframes modal-scale-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -50%) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-  }
-
-  /* Header */
-  .git-branch-dialog-header {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    position: relative;
-  }
-
-  .git-branch-icon-wrap {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--accent, #0969da);
-    flex-shrink: 0;
-  }
-
-  .git-branch-titles {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .git-branch-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  :global(.git-branch-dialog-title) {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary, #1f2328);
-    margin: 0;
-  }
-
   .git-current-badge {
     display: inline-flex;
     align-items: center;
@@ -688,31 +562,6 @@
     font-weight: 500;
   }
 
-  :global(.git-branch-dialog-desc) {
-    font-size: 12.5px;
-    color: var(--text-secondary, #656d76);
-    margin: 0;
-  }
-
-  .git-branch-close-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary, #656d76);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .git-branch-close-btn:hover {
-    background: var(--bg-secondary, #f6f8fa);
-    color: var(--text-primary, #1f2328);
-  }
-
-  /* Toolbar */
   .git-branch-toolbar {
     display: flex;
     gap: 8px;
@@ -942,8 +791,8 @@
   .git-branch-list-container {
     flex: 1;
     overflow-y: auto;
-    min-height: 180px;
-    max-height: 340px;
+    /* La lista ocupa el alto que sobra al agrandar el diálogo */
+    min-height: 120px;
     padding-right: 4px;
   }
 
@@ -1139,13 +988,6 @@
   }
 
   /* Footer */
-  .git-branch-dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    border-top: 1px solid var(--border-primary, #d0d7de);
-    padding-top: 12px;
-  }
-
   :global(.spin-icon) {
     animation: spin 1s linear infinite;
   }
