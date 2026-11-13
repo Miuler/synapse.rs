@@ -73,6 +73,8 @@ use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::service::http::community_plugin_downloader_impl::CommunityPluginDownloaderImpl;
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 
+use crate::application::service::diagram_renderer::DiagramRenderer;
+use crate::infrastructure::integration::service::webview_diagram_renderer_impl::WebviewDiagramRendererImpl;
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -87,6 +89,7 @@ pub struct FullTextComponents {
 pub struct DynamicMcpContextProvider {
     pub active_vault_path: Arc<Mutex<Option<PathBuf>>>,
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
+    pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
 }
 
 impl McpContextProvider for DynamicMcpContextProvider {
@@ -97,6 +100,10 @@ impl McpContextProvider for DynamicMcpContextProvider {
                 .map(|ft| Arc::clone(&ft.index) as Arc<dyn FullTextIndex>)
         });
         (vault, fts)
+    }
+
+    fn diagram_renderer(&self) -> Option<Arc<dyn DiagramRenderer>> {
+        Some(Arc::clone(&self.diagram_renderer) as Arc<dyn DiagramRenderer>)
     }
 }
 
@@ -168,6 +175,8 @@ pub struct AppState {
     pub mcp_runtime: Arc<McpBackgroundRuntime>,
     /// Proporción (porcentaje) del panel de código en los visores de diagramas, por archivo. Solo en memoria.
     pub diagram_split_ratios: Arc<DashMap<String, f32>>,
+    /// Dibujo de diagramas para el MCP: la ventana responde con `mcp_diagram_rendered`.
+    pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
 }
 
 pub fn open_vault_components(
@@ -249,7 +258,9 @@ impl AppState {
         let full_text = Arc::new(Mutex::new(None));
         let app_handle: Arc<Mutex<Option<tauri::AppHandle>>> = Arc::new(Mutex::new(None));
 
+        let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
             full_text: Arc::clone(&full_text),
         });
@@ -384,6 +395,7 @@ impl AppState {
             startup_target: Arc::new(Mutex::new(None)),
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
+            diagram_renderer,
         }
     }
 
@@ -405,7 +417,9 @@ impl AppState {
         let active_vault_path = Arc::new(Mutex::new(Some(initial_vault_path.clone())));
         let full_text = Arc::new(Mutex::new(Some(full_text_comps)));
 
+        let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
             full_text: Arc::clone(&full_text),
         });
@@ -542,6 +556,7 @@ impl AppState {
             startup_target: Arc::new(Mutex::new(None)),
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
+            diagram_renderer,
         }
     }
 

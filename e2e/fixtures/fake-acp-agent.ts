@@ -9,6 +9,8 @@ const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', 
 let promptId: unknown = null;
 let mcp: string[] = [];
 let mcpTools = 'sin-probar';
+/** Resultado de pedir un diagrama como imagen al MCP (marca de read_note + render_diagram). */
+let diagramInfo = 'sin-probar';
 
 /** Lanza el servidor MCP por stdio que pasó Synapse y cuenta sus herramientas (tools/list). */
 async function countMcpTools(server: { command: string; args: string[] }): Promise<string> {
@@ -31,7 +33,18 @@ async function countMcpTools(server: { command: string; args: string[] }): Promi
   try {
     await call(1, 'initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'falso', version: '1' } });
     const list = await Promise.race([call(2, 'tools/list'), new Promise((r) => setTimeout(() => r(null), 10_000))]);
-    return list ? String((list as any).result?.tools?.length ?? 0) : 'timeout';
+    if (!list) return 'timeout';
+    // Un diagrama: read_note lo marca y render_diagram lo devuelve como imagen dibujada por la ventana
+    const read = await call(3, 'tools/call', { name: 'read_note', arguments: { relative_path: 'flujo.mmd' } });
+    const marker = JSON.parse(read.result?.content?.[0]?.text ?? '{}').diagram;
+    const img = await Promise.race([
+      call(4, 'tools/call', { name: 'render_diagram', arguments: { relative_path: 'flujo.mmd' } }),
+      new Promise((r) => setTimeout(() => r(null), 30_000)),
+    ]);
+    const image = (img as any)?.result?.content?.find((c: any) => c.type === 'image');
+    const err = (img as any)?.result?.isError ? (img as any).result.content?.[0]?.text : '';
+    diagramInfo = `diagram:${marker?.kind ?? 'no'} img:${image ? `${image.mimeType}:${image.data.length > 100 ? 'ok' : 'vacia'}` : `no(${err || 'timeout'})`}`;
+    return String((list as any).result?.tools?.length ?? 0);
   } finally {
     child.kill();
   }
@@ -79,7 +92,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       content: [{ type: 'diff', path: '/tmp/nota.md', oldText: 'viejo', newText: 'nuevo' }],
       rawInput: { relative_path: 'nota.md', mode: 'full' },
     });
-    update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Hola desde el agente [${blocks.join(',')}] [mcp ${mcp.join(',')} tools:${mcpTools}] [${instr}]\n\n**negrita**` } });
+    update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Hola desde el agente [${blocks.join(',')}] [mcp ${mcp.join(',')} tools:${mcpTools}] [${instr}] [${diagramInfo}]\n\n**negrita**` } });
     send({
       jsonrpc: '2.0',
       id: 'perm-1',

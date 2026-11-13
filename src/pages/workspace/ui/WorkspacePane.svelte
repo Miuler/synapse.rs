@@ -45,6 +45,8 @@
     onToggleView?: () => void;
     onSave?: () => void;
     onOpenCommandPalette?: () => void;
+    onToggleAgent?: () => void;
+    isAgentOpen?: boolean;
     onPointerDown?: () => void;
     onDragOver?: (e: DragEvent) => void;
     onDragLeave?: (e: DragEvent) => void;
@@ -91,6 +93,8 @@
     onToggleView,
     onSave,
     onOpenCommandPalette,
+    onToggleAgent,
+    isAgentOpen = false,
     onPointerDown,
     onDragOver,
     onDragLeave,
@@ -141,6 +145,8 @@
     {onToggleView}
     {onSave}
     {onOpenCommandPalette}
+    {onToggleAgent}
+    {isAgentOpen}
     {showWindowControls}
     {isSplitActive}
   />

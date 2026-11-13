@@ -9,7 +9,7 @@ let s: Session;
 const FAKE_AGENT = join(import.meta.dir, 'fixtures/fake-acp-agent.ts');
 
 beforeAll(async () => {
-  s = await startApp({ 'nota.md': '# Nota\n', 'otra.md': '# Otra\n' });
+  s = await startApp({ 'nota.md': '# Nota\n', 'otra.md': '# Otra\n', 'flujo.mmd': 'graph TD\n  A[Inicio] --> B[Fin]\n' });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
 }, 120_000);
@@ -21,7 +21,7 @@ const text = (sel: string) =>
   >;
 
 it('registra un agente personalizado y conversa con él', async () => {
-  await s.browser.$('button[aria-label="Agente de IA"]').click();
+  await s.browser.$('.editor-header .agent-toggle').click();
   await s.browser.$('.synapse-agent-panel').waitForExist({ timeout: 5_000 });
   // Por defecto no hay ningún agente elegido
   expect(await s.browser.execute(() => (document.querySelector('.acp-select') as HTMLSelectElement).value)).toBe('');
@@ -99,6 +99,8 @@ it('registra un agente personalizado y conversa con él', async () => {
   expect(reply).toMatch(/mcp synapse_instance:stdio tools:[1-9]\d*/);
   // Instrucciones de sesión: usar el MCP de esta instancia para las notas
   expect(reply).toContain('[instr:si]');
+  // El MCP marca el diagrama y lo devuelve dibujado como PNG por la ventana
+  expect(reply).toContain('diagram:mermaid img:image/png:ok');
   // Plan y herramienta con diff
   expect(await text('.acp-plan-entry')).toEqual(['Leer la nota', 'Editar la nota']);
   await s.browser.$('.acp-tool summary').click();
@@ -119,6 +121,33 @@ it('registra un agente personalizado y conversa con él', async () => {
     { timeout: 10_000, timeoutMsg: 'el agente no recibió el permiso' },
   );
   expect(await text('.acp-permission-done')).toContain('Permitir');
+
+  // `@this` vuelve a adjuntar el archivo de la pestaña visible
+  expect((await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md'))).toBe(false);
+  await s.browser.$('.acp-input textarea').click();
+  await s.browser.keys('@thi'.split(''));
+  await s.browser.waitUntil(async () => (await text('.acp-suggest-label')).includes('@this'), {
+    timeout: 5_000,
+    timeoutMsg: '@this no aparece en las sugerencias',
+  });
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md')), {
+    timeout: 5_000,
+    timeoutMsg: '@this no adjuntó la nota activa',
+  });
+
+  // Pegar una imagen del portapapeles la deja como adjunto con miniatura
+  await s.browser.execute(() => {
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], 'captura.png', { type: 'image/png' }));
+    const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+    document.querySelector('.acp-input textarea')!.dispatchEvent(ev);
+  });
+  await s.browser.waitUntil(async () => (await text('.acp-composer .acp-chip.image')).some((t) => t?.includes('Imagen 1.png')), {
+    timeout: 5_000,
+    timeoutMsg: 'la imagen pegada no aparece como adjunto',
+  });
 
   // La conversación queda guardada en la bóveda y aparece en el historial
   const dir = join(s.vault, '.synapse/agent-sessions');

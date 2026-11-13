@@ -245,6 +245,11 @@ class AgentStore {
       this.connection = 'starting';
       this.session = await agentApi.startSession(agent.id, cwd, this.feedbackMode, resume);
       if (resumeId && !this.session.resumed && this.items.length) this.#replay = replayText(this.items);
+      // Modelo recordado para este agente: no hay que elegirlo en cada conversación nueva
+      const savedModel = load(`synapse.agent.model.${agent.id}`);
+      if (savedModel && savedModel !== this.currentModel && this.session.models.some((m) => m.id === savedModel)) {
+        await this.setModel(savedModel);
+      }
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
       this.commands = this.#early.get(this.session.id) ?? [];
@@ -335,6 +340,14 @@ class AgentStore {
     this.attachments.push(a);
   }
 
+  /** Adjunta el archivo de la pestaña visible (`@this`), aunque se hubiera quitado antes. */
+  attachActiveNote() {
+    const note = this.activeNote;
+    if (!note) return;
+    if (this.dismissedActiveNote === note.path) this.dismissedActiveNote = null;
+    this.attach({ kind: 'file', path: note.path, name: note.name });
+  }
+
   detach(a: Attachment) {
     if (a.kind === 'file' && this.activeNote?.path === a.path && !this.attachments.includes(a)) {
       this.dismissedActiveNote = a.path;
@@ -346,6 +359,7 @@ class AgentStore {
   async send(text: string) {
     const session = this.session;
     if (!session || this.connection === 'busy' || !text.trim()) return;
+    if (/(^|\s)@this\b/.test(text)) this.attachActiveNote();
     const attachments = this.pendingAttachments;
     const blocks: PromptBlock[] = [];
     if (this.#replay) {
@@ -357,7 +371,9 @@ class AgentStore {
       blocks.push(
         a.kind === 'file'
           ? { type: 'file', path: a.path, name: a.name }
-          : { type: 'selection', path: a.path, text: a.text, start_line: a.startLine, end_line: a.endLine },
+          : a.kind === 'image'
+            ? { type: 'image', mime_type: a.mimeType, data: a.data }
+            : { type: 'selection', path: a.path, text: a.text, start_line: a.startLine, end_line: a.endLine },
       );
     }
     this.#push({ type: 'user', text, attachments });
@@ -397,6 +413,7 @@ class AgentStore {
 
   async setModel(modelId: string) {
     if (!this.session) return;
+    save(`synapse.agent.model.${this.session.agent_id}`, modelId);
     const previous = this.currentModel;
     this.currentModel = modelId;
     try {

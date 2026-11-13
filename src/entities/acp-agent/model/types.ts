@@ -69,7 +69,9 @@ export type PromptBlock =
 /** Adjunto visible como etiqueta en el cuadro de texto. */
 export type Attachment =
   | { kind: 'file'; path: string; name: string }
-  | { kind: 'selection'; path: string; name: string; text: string; startLine: number; endLine: number };
+  | { kind: 'selection'; path: string; name: string; text: string; startLine: number; endLine: number }
+  /** Imagen pegada (`path` es un identificador local, `data` va en base64 sin prefijo). */
+  | { kind: 'image'; path: string; name: string; mimeType: string; data: string };
 
 export interface PlanEntry {
   content: string;

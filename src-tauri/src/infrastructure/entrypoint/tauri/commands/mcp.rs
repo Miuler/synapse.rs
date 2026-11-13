@@ -28,3 +28,23 @@ pub fn start_mcp_server(state: State<'_, AppState>) -> Result<McpRuntimeStatus, 
 pub fn stop_mcp_server(state: State<'_, AppState>) -> Result<McpRuntimeStatus, String> {
     state.mcp_runtime.disable()
 }
+
+/// Respuesta de la ventana a `mcp://render-diagram`: la imagen en base64 o el error.
+#[tauri::command]
+pub fn mcp_diagram_rendered(
+    state: State<'_, AppState>,
+    request_id: String,
+    data: Option<String>,
+    mime_type: Option<String>,
+    error: Option<String>,
+) {
+    use crate::application::service::diagram_renderer::RenderedImage;
+    let result = match (data, error) {
+        (Some(data_base64), None) => Ok(RenderedImage {
+            mime_type: mime_type.unwrap_or_else(|| "image/png".into()),
+            data_base64,
+        }),
+        (_, err) => Err(err.unwrap_or_else(|| "La ventana no devolvió la imagen".into())),
+    };
+    state.diagram_renderer.resolve(&request_id, result);
+}

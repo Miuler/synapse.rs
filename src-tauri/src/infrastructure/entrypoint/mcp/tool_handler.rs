@@ -21,6 +21,7 @@ use crate::application::dto::vault_item::move_folder_contents_command::{
 use crate::application::dto::vault_item::move_notes_command::MoveNotesCommand;
 use crate::application::dto::vault_item::search_folders_query::SearchFoldersQuery;
 use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
+use crate::application::service::diagram_renderer::{DiagramRenderer, diagram_kind};
 use crate::application::use_cases::note::append_to_note_use_case::AppendToNoteUseCase;
 use crate::application::use_cases::note::delete_note_use_case::DeleteNoteUseCase;
 use crate::application::use_cases::note::extract_note_diagrams_use_case::ExtractNoteDiagramsUseCase;
@@ -104,6 +105,8 @@ pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: Versi
     git_service: Option<Arc<G>>,
     vault_item_repository: Arc<dyn VaultItemRepository>,
     pdf_document_repository: Arc<dyn PdfDocumentRepository>,
+    /// Quién dibuja los diagramas como imagen (la ventana de Synapse); `None` sin ventana.
+    diagram_renderer: Option<Arc<dyn DiagramRenderer>>,
 }
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHandler<R, I, G> {
@@ -122,7 +125,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             git_service,
             vault_item_repository,
             pdf_document_repository,
+            diagram_renderer: None,
         }
+    }
+
+    /// Permite devolver diagramas como imagen (`render_diagram`).
+    pub fn with_diagram_renderer(mut self, renderer: Option<Arc<dyn DiagramRenderer>>) -> Self {
+        self.diagram_renderer = renderer;
+        self
     }
 
     pub fn vault_path(&self) -> &Path {
@@ -724,6 +734,22 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["title", "details"]
                     }),
                 },
+                // 19. render_diagram
+                McpTool {
+                    name: "render_diagram".to_string(),
+                    description: "Devuelve un diagrama de la bóveda (Excalidraw, Mermaid, D2, PlantUML) dibujado como imagen PNG, tal como lo ve el usuario en Synapse. Úsalo cuando read_note indique `diagram.render_tool` y necesites ver el diagrama, no solo su código. Requiere la ventana de Synapse abierta.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa del diagrama en la bóveda"
+                            }
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
                 // 17. list_vault_tree (alias retrocompatible)
                 McpTool {
                     name: "list_vault_tree".to_string(),
@@ -777,6 +803,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "get_vault_git_status" => self.execute_get_vault_git_status(),
             "read_pdf_document" => self.execute_read_pdf_document(&args),
             "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
+            "render_diagram" => self.execute_render_diagram(&args),
             "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
         }
@@ -1158,7 +1185,54 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 })
             }
         };
+        let mut payload = payload;
+        // Marca de diagrama: el agente puede pedirlo como imagen con `render_diagram`
+        if let (Some(kind), Some(obj)) = (diagram_kind(rel_path_str), payload.as_object_mut()) {
+            obj.insert(
+                "diagram".into(),
+                json!({
+                    "kind": kind,
+                    "render_tool": "render_diagram",
+                    "renderable": self.diagram_renderer.is_some(),
+                    "hint": if self.diagram_renderer.is_some() {
+                        "Es un diagrama: llama a render_diagram con este relative_path para verlo como imagen PNG."
+                    } else {
+                        "Es un diagrama; verlo como imagen requiere la ventana de Synapse abierta (MCP de la instancia)."
+                    },
+                }),
+            );
+        }
         to_text(&payload, "")
+    }
+
+    /// Dibuja un diagrama de la bóveda como imagen PNG, a través de la ventana de Synapse.
+    fn execute_render_diagram(&self, args: &Value) -> McpCallToolResult {
+        let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
+            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+        };
+        let Some(kind) = diagram_kind(rel) else {
+            return McpCallToolResult::error(format!(
+                "'{rel}' no es un diagrama que Synapse sepa dibujar (Excalidraw, Mermaid, D2 o PlantUML)"
+            ));
+        };
+        if !self.vault().join(rel).is_file() {
+            return McpCallToolResult::error(format!("No existe el archivo '{rel}' en la bóveda"));
+        }
+        let Some(renderer) = &self.diagram_renderer else {
+            return McpCallToolResult::error(
+                "Dibujar diagramas requiere la ventana de Synapse abierta (usa el MCP de la instancia)",
+            );
+        };
+        match renderer.render(rel) {
+            Ok(img) => McpCallToolResult {
+                content: vec![
+                    McpContentItem::text(format!("Diagrama {kind} «{rel}» dibujado como imagen.")),
+                    McpContentItem::image(img.data_base64, img.mime_type),
+                ],
+                is_error: false,
+            },
+            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}': {e}")),
+        }
     }
 
     fn execute_write_note(&self, args: &Value) -> McpCallToolResult {

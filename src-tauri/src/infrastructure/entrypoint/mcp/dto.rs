@@ -162,8 +162,34 @@ pub struct McpToolsListResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpContentItem {
     #[serde(rename = "type")]
-    pub content_type: String, // "text"
-    pub text: String,
+    pub content_type: String, // "text" o "image"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// Imagen en base64 (solo `type: "image"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
+    #[serde(rename = "mimeType", default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+impl McpContentItem {
+    pub fn text(text: impl Into<String>) -> Self {
+        Self {
+            content_type: "text".to_string(),
+            text: Some(text.into()),
+            data: None,
+            mime_type: None,
+        }
+    }
+
+    pub fn image(data_base64: String, mime_type: String) -> Self {
+        Self {
+            content_type: "image".to_string(),
+            text: None,
+            data: Some(data_base64),
+            mime_type: Some(mime_type),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,20 +202,14 @@ pub struct McpCallToolResult {
 impl McpCallToolResult {
     pub fn text(text: impl Into<String>) -> Self {
         Self {
-            content: vec![McpContentItem {
-                content_type: "text".to_string(),
-                text: text.into(),
-            }],
+            content: vec![McpContentItem::text(text)],
             is_error: false,
         }
     }
 
     pub fn error(message: impl Into<String>) -> Self {
         Self {
-            content: vec![McpContentItem {
-                content_type: "text".to_string(),
-                text: message.into(),
-            }],
+            content: vec![McpContentItem::text(message)],
             is_error: true,
         }
     }

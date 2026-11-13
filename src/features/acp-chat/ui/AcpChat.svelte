@@ -12,6 +12,7 @@
     Loader2,
     FileText,
     TextSelect,
+    ImageIcon,
     X,
     Circle,
     CircleCheck,
@@ -78,7 +79,28 @@
 
   const suggestions = $derived.by((): { label: string; detail: string; pick: () => void }[] => {
     if (mention) {
-      return vaultItemStore.items
+      // `@this`: el archivo de la pestaña que se está viendo
+      const note = agentStore.activeNote;
+      const self =
+        note && 'this'.startsWith(mention.query)
+          ? [
+              {
+                label: '@this',
+                detail: `Archivo actual · ${relOf(note.path)}`,
+                pick: () => {
+                  const m = mention;
+                  draft = draft.slice(0, m.start) + draft.slice(caret);
+                  agentStore.attachActiveNote();
+                  tick().then(() => {
+                    textarea?.focus();
+                    textarea?.setSelectionRange(m.start, m.start);
+                    caret = m.start;
+                  });
+                },
+              },
+            ]
+          : [];
+      return [...self, ...vaultItemStore.items
         .filter((it) => fuzzy(it.relative_path.toLowerCase(), mention.query))
         .slice(0, 8)
         .map((it) => ({
@@ -94,7 +116,7 @@
               caret = m.start;
             });
           },
-        }));
+        }))];
     }
     if (slash !== null) {
       return agentStore.commands
@@ -155,6 +177,33 @@
       for (const p of JSON.parse(raw) as string[]) agentStore.attach({ kind: 'file', path: absPath(p), name: nameOf(p) });
     } catch {
       /* datos de arrastre inválidos */
+    }
+  }
+
+  // Pegar imágenes del portapapeles (capturas, imágenes copiadas) como adjunto del mensaje
+  let pasted = 0;
+  const imageTitle = $derived(
+    agentStore.session && !agentStore.session.capabilities.image
+      ? 'Este agente no acepta imágenes: se le indicará que hay una imagen sin enviarla'
+      : 'Imagen pegada',
+  );
+  function onPaste(e: ClipboardEvent) {
+    const files = [...(e.clipboardData?.items ?? [])]
+      .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => !!f);
+    if (!files.length) return;
+    e.preventDefault();
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result);
+        const data = url.slice(url.indexOf(',') + 1);
+        pasted += 1;
+        const ext = file.type.split('/')[1] ?? 'png';
+        agentStore.attach({ kind: 'image', path: `pegada-${Date.now()}-${pasted}`, name: `Imagen ${pasted}.${ext}`, mimeType: file.type, data });
+      };
+      reader.readAsDataURL(file);
     }
   }
 
@@ -244,9 +293,13 @@
             {#if item.attachments.length}
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
-                  <span class="acp-chip" title={a.path}
-                    >{#if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}{chipLabel(a)}</span
-                  >
+                  {#if a.kind === 'image'}
+                    <img class="acp-sent-image" src="data:{a.mimeType};base64,{a.data}" alt={a.name} title={a.name} />
+                  {:else}
+                    <span class="acp-chip" title={a.path}
+                      >{#if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}{chipLabel(a)}</span
+                    >
+                  {/if}
                 {/each}
               </div>
             {/if}
@@ -367,8 +420,8 @@
       {#if agentStore.pendingAttachments.length}
         <div class="acp-chips">
           {#each agentStore.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
-            <span class="acp-chip" title={a.path}>
-              {#if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
+            <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
+              {#if a.kind === 'image'}<img src="data:{a.mimeType};base64,{a.data}" alt="" /><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
               <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => agentStore.detach(a)}><X size={10} /></button>
             </span>
@@ -386,6 +439,7 @@
           bind:this={textarea}
           bind:value={draft}
           onkeydown={onKeydown}
+          onpaste={onPaste}
           onkeyup={(e) => (caret = e.currentTarget.selectionStart)}
           onclick={(e) => (caret = e.currentTarget.selectionStart)}
           oninput={(e) => (caret = e.currentTarget.selectionStart)}
@@ -671,6 +725,19 @@
     gap: 6px;
     cursor: pointer;
     list-style: none;
+  }
+  .acp-chip.image img {
+    width: 18px;
+    height: 18px;
+    object-fit: cover;
+    border-radius: 3px;
+  }
+  .acp-sent-image {
+    max-width: 120px;
+    max-height: 90px;
+    border-radius: 6px;
+    border: 1px solid var(--border-primary);
+    object-fit: cover;
   }
   .acp-tool-label {
     margin-top: 6px;

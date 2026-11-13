@@ -136,6 +136,12 @@ pub type McpStatusCallback = Arc<dyn Fn(McpRuntimeStatus) + Send + Sync>;
 /// Proveedor dinámico para obtener el workspace actual y componentes del AppState
 pub trait McpContextProvider: Send + Sync {
     fn get_context(&self) -> (Option<PathBuf>, Option<Arc<dyn FullTextIndex>>);
+    /// Quién dibuja los diagramas como imagen, si hay una ventana de Synapse.
+    fn diagram_renderer(
+        &self,
+    ) -> Option<Arc<dyn crate::application::service::diagram_renderer::DiagramRenderer>> {
+        None
+    }
 }
 
 /// Servidor MCP en segundo plano (HTTP Streamable / JSON-RPC) que corre en el mismo proceso de Synapse
@@ -505,7 +511,8 @@ impl McpBackgroundRuntime {
             let note_repo = NoteRepositoryImpl::new();
             let git_service = Some(Arc::new(VersionControlImpl));
 
-            let tool_handler = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+            let tool_handler = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl))
+                .with_diagram_renderer(provider.diagram_renderer());
             let stdio_server = McpStdioServer::new(tool_handler);
 
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {

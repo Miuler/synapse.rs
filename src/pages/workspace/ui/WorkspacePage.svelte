@@ -14,7 +14,7 @@
   import {captureSelection} from "@features/acp-chat";
   import {agentStore} from "@entities/acp-agent";
   import {WelcomeScreen} from "@widgets/welcome-screen";
-  import {VaultExplorer} from "@features/vault-explorer";
+  import {VaultExplorer, listenDiagramRenderRequests} from "@features/vault-explorer";
   import {MarkdownViewer, HeadingOutline, splitNavigationTarget, extractHeadingTree, headingPathAt, type HeadingTarget} from "@features/markdown-editor";
   import {MermanViewer} from "@features/merman-editor";
   import {MermaidViewer} from "@features/mermaid-editor";
@@ -2368,6 +2368,13 @@
   }
 
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
+  // El MCP pide diagramas como imagen (`render_diagram`); los dibuja la ventana principal
+  onMount(() => {
+    if (isDetachedWindow) return;
+    const off = listenDiagramRenderRequests();
+    return () => { off.then((f) => f()); };
+  });
+
   onMount(() => {
     window.scrollTo(0, 0);
 
@@ -4445,6 +4452,8 @@
           }
         }}
         onOpenCommandPalette={() => (isPaletteOpen = true)}
+        onToggleAgent={() => setAgentPanelOpen(!isAgentPanelOpen)}
+        isAgentOpen={isAgentPanelOpen}
         onPointerDown={() => { activeFocusedPane = 'left'; }}
         onDragOver={handleEditorDragOver}
         onDragLeave={handleEditorDragLeave}
@@ -4504,6 +4513,8 @@
             }
           }}
           onOpenCommandPalette={() => (isPaletteOpen = true)}
+          onToggleAgent={() => setAgentPanelOpen(!isAgentPanelOpen)}
+          isAgentOpen={isAgentPanelOpen}
           onPointerDown={() => { activeFocusedPane = 'left'; }}
           onDragOver={(e) => handlePaneDragOver(e, 'left')}
           onDrop={(e) => handlePaneDrop(e, 'left')}
@@ -4569,6 +4580,8 @@
             }
           }}
           onOpenCommandPalette={() => (isPaletteOpen = true)}
+          onToggleAgent={() => setAgentPanelOpen(!isAgentPanelOpen)}
+          isAgentOpen={isAgentPanelOpen}
           onPointerDown={() => { activeFocusedPane = 'right'; }}
           onDragOver={(e) => handlePaneDragOver(e, 'right')}
           onDrop={(e) => handlePaneDrop(e, 'right')}

@@ -18,6 +18,7 @@
     Eye,
     Columns2,
     MoreHorizontal,
+    Bot,
     Minus,
     Square,
     GitCompare,
@@ -65,6 +66,9 @@
     onChangeMarkdownView?: (mode: MarkdownViewMode) => void;
     onSplitView?: (path?: string) => void;
     onOpenCommandPalette?: () => void;
+    /** Muestra u oculta el panel del agente de IA. */
+    onToggleAgent?: () => void;
+    isAgentOpen?: boolean;
     onOpenQuickOpen?: () => void;
     onSave?: () => void;
     onAction?: (actionId: string) => void;
@@ -103,6 +107,8 @@
     onChangeMarkdownView,
     onSplitView,
     onOpenCommandPalette,
+    onToggleAgent,
+    isAgentOpen = false,
     onOpenQuickOpen,
     onSave,
     onAction
@@ -996,6 +1002,20 @@
       <MoreHorizontal size={14} class="icon" />
     </button>
 
+    {#if onToggleAgent && showWindowControls}
+      <button
+        type="button"
+        class="icon-btn agent-toggle"
+        class:active={isAgentOpen}
+        aria-pressed={isAgentOpen}
+        onclick={() => onToggleAgent?.()}
+        title={isAgentOpen ? 'Ocultar el agente de IA' : 'Agente de IA'}
+        aria-label="Agente de IA"
+      >
+        <Bot size={14} class="icon" />
+      </button>
+    {/if}
+
     <!-- Espaciador dedicado para arrastrar la ventana incluso con múltiples pestañas abiertas -->
     <div class="window-drag-spacer" data-tauri-drag-region title="Arrastrar ventana"></div>
 
@@ -1227,6 +1247,11 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .agent-toggle.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   .window-drag-spacer {

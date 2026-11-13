@@ -26,19 +26,23 @@ export function exportPathFor(path: string, format: DiagramExportFormat): string
   return `${base}.${format}`;
 }
 
+/** Dibuja el diagrama de la bóveda y devuelve los bytes (PNG o SVG), con el tema actual de la app. */
+export async function renderDiagram(path: string, format: DiagramExportFormat): Promise<Uint8Array> {
+  if (!isExportableDiagram(path)) throw new Error('No es un diagrama que Synapse sepa dibujar');
+  const note = await vaultRepository.readNote(path);
+  if (!note?.content?.trim()) throw new Error('El diagrama está vacío');
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return isDrawingFile(path)
+    ? exportExcalidraw(note.content, format, isDark)
+    : exportCodeDiagram(path, note.content, format);
+}
+
 /**
  * Exporta el diagrama a PNG o SVG en la bóveda, junto al archivo, con el tema actual de la app.
  * Devuelve la ruta relativa del archivo creado.
  */
 export async function exportDiagram(path: string, format: DiagramExportFormat): Promise<string> {
-  const note = await vaultRepository.readNote(path);
-  if (!note?.content?.trim()) throw new Error('El diagrama está vacío');
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-
-  const bytes = isDrawingFile(path)
-    ? await exportExcalidraw(note.content, format, isDark)
-    : await exportCodeDiagram(path, note.content, format);
-
+  const bytes = await renderDiagram(path, format);
   const target = exportPathFor(path, format);
   await vaultRepository.writeBinary(target, bytes);
   return target;
