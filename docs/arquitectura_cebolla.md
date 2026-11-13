@@ -4,7 +4,8 @@ Este documento es a la vez un manifiesto técnico y una **instrucción normativa
 para agentes de inteligencia artificial**. No contiene sugerencias flexibles: son reglas
 sobre cómo estructurar un proyecto con Arquitectura Cebolla (_Onion Architecture_).
 
-Las reglas valen para cualquier lenguaje. Cuando hace falta un ejemplo se muestra en
+Las reglas valen para cualquier lenguaje. Para el stack y las librerías de los proyectos Rust,
+ver [Stack y reglas para proyectos Rust](stack_rust.md). Cuando hace falta un ejemplo se muestra en
 **Java** y en **Rust**.
 
 ---
