@@ -48,13 +48,15 @@ fn read_note_marca_los_diagramas_y_render_diagram_devuelve_la_imagen() {
     let h = handler(tmp.path(), true);
 
     let read = as_json(&h, "read_note", json!({"relative_path": "flujo.d2"}));
-    let payload: Value = serde_json::from_str(read["content"][0]["text"].as_str().unwrap()).unwrap();
+    let payload: Value =
+        serde_json::from_str(read["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["diagram"]["kind"], "d2");
     assert_eq!(payload["diagram"]["render_tool"], "render_diagram");
     assert_eq!(payload["diagram"]["renderable"], true);
 
     let nota = as_json(&h, "read_note", json!({"relative_path": "nota.md"}));
-    let payload: Value = serde_json::from_str(nota["content"][0]["text"].as_str().unwrap()).unwrap();
+    let payload: Value =
+        serde_json::from_str(nota["content"][0]["text"].as_str().unwrap()).unwrap();
     assert!(payload.get("diagram").is_none());
 
     let img = as_json(&h, "render_diagram", json!({"relative_path": "flujo.d2"}));
@@ -74,9 +76,15 @@ fn sin_ventana_render_diagram_explica_que_falta() {
     std::fs::write(tmp.path().join("x.mmd"), "graph TD\nA-->B\n").unwrap();
     let h = handler(tmp.path(), false);
     let read = as_json(&h, "read_note", json!({"relative_path": "x.mmd"}));
-    let payload: Value = serde_json::from_str(read["content"][0]["text"].as_str().unwrap()).unwrap();
+    let payload: Value =
+        serde_json::from_str(read["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["diagram"]["renderable"], false);
     let img = as_json(&h, "render_diagram", json!({"relative_path": "x.mmd"}));
     assert_eq!(img["isError"], true);
-    assert!(img["content"][0]["text"].as_str().unwrap().contains("ventana"));
+    assert!(
+        img["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("ventana")
+    );
 }

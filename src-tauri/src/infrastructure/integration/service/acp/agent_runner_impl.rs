@@ -5,9 +5,11 @@ use crate::domain::agent::{
     ToolServer,
 };
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::process::Stdio;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
@@ -15,9 +17,26 @@ use tokio::sync::Mutex;
 /// Destino de los eventos de los agentes (nombre del evento y contenido).
 pub type AgentEventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 
-struct RunningAgent {
+/// Tiempo que un proceso sin sesiones sigue vivo, por si se abre otra conversación enseguida.
+const IDLE_SHUTDOWN: Duration = Duration::from_secs(30);
+/// Conversaciones por proceso: con más, se lanza otro proceso del mismo agente. Así una
+/// conversación con un turno largo o un fallo del proceso no arrastra a demasiadas otras.
+pub const MAX_SESSIONS_PER_PROCESS: usize = 4;
+
+/// Un proceso de agente ya saludado (`initialize`), compartido por todas sus sesiones.
+struct AgentProcess {
     conn: Arc<Connection>,
     child: Option<Child>,
+    capabilities: AgentCapabilities,
+    sessions: HashSet<String>,
+    /// Distingue este proceso de otro posterior con la misma clave.
+    generation: u64,
+}
+
+/// Una conversación (sesión ACP) sobre un proceso.
+struct RunningSession {
+    process_key: String,
+    conn: Arc<Connection>,
     capabilities: AgentCapabilities,
     /// Bóveda de la sesión y si el agente tiene el MCP de Synapse (para indicarle cómo leer las notas).
     cwd: String,
@@ -26,18 +45,34 @@ struct RunningAgent {
     instructions: Option<String>,
 }
 
-/// Lanza cada agente como proceso hijo y conversa con él por ACP sobre `stdin`/`stdout`.
+/// Lanza cada agente como proceso hijo y conversa con él por ACP sobre `stdin`/`stdout`. Un mismo
+/// proceso atiende todas las conversaciones de ese agente en esa bóveda (`session/new` por cada una).
 #[derive(Clone)]
 pub struct AgentRunnerImpl {
     sink: AgentEventSink,
-    sessions: Arc<Mutex<HashMap<String, RunningAgent>>>,
+    processes: Arc<Mutex<HashMap<String, AgentProcess>>>,
+    sessions: Arc<Mutex<HashMap<String, RunningSession>>>,
+    generation: Arc<AtomicU64>,
+    idle_shutdown: Duration,
+}
+
+/// Clave del proceso: el mismo agente, en la misma bóveda y lanzado igual.
+fn process_key(agent_id: &str, cwd: &str, launch: &AgentLaunch) -> String {
+    format!(
+        "{agent_id}\u{0}{cwd}\u{0}{}\u{0}{}",
+        launch.command,
+        launch.args.join("\u{1}")
+    )
 }
 
 impl AgentRunnerImpl {
     pub fn new(sink: AgentEventSink) -> Self {
         Self {
             sink,
+            processes: Arc::default(),
             sessions: Arc::default(),
+            generation: Arc::default(),
+            idle_shutdown: IDLE_SHUTDOWN,
         }
     }
 
@@ -63,17 +98,8 @@ impl AgentRunnerImpl {
             .ok_or_else(|| "La sesión del agente ya no está abierta".to_string())
     }
 
-    /// Hace el saludo ACP y abre la sesión sobre una conexión ya establecida.
-    async fn open(
-        &self,
-        conn: Arc<Connection>,
-        child: Option<Child>,
-        agent_id: &str,
-        cwd: &str,
-        tools: Vec<ToolServer>,
-        instructions: Option<String>,
-        resume: Option<String>,
-    ) -> Result<AgentSession, String> {
+    /// Saludo ACP: devuelve lo que sabe hacer el agente.
+    async fn handshake(conn: &Connection) -> Result<AgentCapabilities, String> {
         let init = conn.request(
             "initialize",
             json!({
@@ -84,7 +110,94 @@ impl AgentRunnerImpl {
         )
         .await
         .map_err(|e| format!("El agente no respondió al iniciar: {e}"))?;
-        let capabilities = capabilities_of(&init);
+        Ok(capabilities_of(&init))
+    }
+
+    /// Lanza el proceso del agente, lo saluda y lo registra con `key`.
+    async fn spawn_process(
+        &self,
+        key: &str,
+        agent_id: &str,
+        launch: &AgentLaunch,
+        cwd: &str,
+    ) -> Result<(Arc<Connection>, AgentCapabilities), String> {
+        let mut child = Command::new(&launch.command)
+            .args(&launch.args)
+            .envs(&launch.env)
+            .current_dir(cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| format!("No se pudo lanzar el agente «{}»: {e}", launch.command))?;
+        let stdin = child.stdin.take().ok_or("Sin stdin del agente")?;
+        let stdout = child.stdout.take().ok_or("Sin stdout del agente")?;
+        if let Some(stderr) = child.stderr.take() {
+            let id = agent_id.to_string();
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    tracing::debug!(agent = %id, "{line}");
+                }
+            });
+        }
+        let generation = self.generation.fetch_add(1, Ordering::Relaxed);
+        let conn = Connection::spawn(stdout, stdin, self.sink.clone(), {
+            let runner = self.clone();
+            let key = key.to_string();
+            let agent = agent_id.to_string();
+            move || {
+                tokio::spawn(async move { runner.process_exited(&key, generation, &agent).await });
+            }
+        });
+        let capabilities = Self::handshake(&conn).await?;
+        self.processes.lock().await.insert(
+            key.to_string(),
+            AgentProcess {
+                conn: conn.clone(),
+                child: Some(child),
+                capabilities: capabilities.clone(),
+                sessions: HashSet::new(),
+                generation,
+            },
+        );
+        Ok((conn, capabilities))
+    }
+
+    /// El proceso terminó: sus conversaciones se cierran y la interfaz lo sabe.
+    async fn process_exited(&self, key: &str, generation: u64, agent_id: &str) {
+        let mut processes = self.processes.lock().await;
+        let Some(process) = processes.get(key).filter(|p| p.generation == generation) else {
+            return;
+        };
+        let ids: Vec<String> = process.sessions.iter().cloned().collect();
+        processes.remove(key);
+        drop(processes);
+        let mut sessions = self.sessions.lock().await;
+        for id in ids {
+            if sessions.remove(&id).is_some() {
+                (self.sink)(
+                    "acp://status",
+                    json!({"sessionId": id, "agentId": agent_id, "status": "stopped"}),
+                );
+            }
+        }
+    }
+
+    /// Abre (o retoma) una sesión sobre un proceso ya saludado.
+    #[allow(clippy::too_many_arguments)]
+    async fn open_session(
+        &self,
+        key: &str,
+        conn: Arc<Connection>,
+        capabilities: AgentCapabilities,
+        agent_id: &str,
+        cwd: &str,
+        tools: Vec<ToolServer>,
+        instructions: Option<String>,
+        resume: Option<String>,
+    ) -> Result<AgentSession, String> {
         let mcp_servers = mcp_servers_for(&tools, &capabilities);
         // Retomar: el agente repite el historial con `session/update` antes de responder; la
         // interfaz aún no conoce la sesión y descarta esos eventos (ya tiene su transcripción).
@@ -107,18 +220,18 @@ impl AgentRunnerImpl {
         let result = match loaded {
             Some(r) => r,
             None => conn
-            .request("session/new", json!({"cwd": cwd, "mcpServers": mcp_servers}))
-            .await
-            .map_err(|e| {
-                if e.to_ascii_lowercase().contains("auth") {
-                    format!(
-                        "El agente pide iniciar sesión ({e}). Inicia sesión desde su CLI en una terminal \
-                         (por ejemplo `agy` o `claude`) y vuelve a conectar."
-                    )
-                } else {
-                    format!("El agente no pudo abrir la sesión: {e}")
-                }
-            })?,
+                .request("session/new", json!({"cwd": cwd, "mcpServers": mcp_servers}))
+                .await
+                .map_err(|e| {
+                    if e.to_ascii_lowercase().contains("auth") {
+                        format!(
+                            "El agente pide iniciar sesión ({e}). Inicia sesión desde su CLI en una terminal \
+                             (por ejemplo `agy` o `claude`) y vuelve a conectar."
+                        )
+                    } else {
+                        format!("El agente no pudo abrir la sesión: {e}")
+                    }
+                })?,
         };
         let id = result
             .get("sessionId")
@@ -133,11 +246,14 @@ impl AgentRunnerImpl {
             "currentModelId",
             "modelId",
         );
+        if let Some(process) = self.processes.lock().await.get_mut(key) {
+            process.sessions.insert(id.clone());
+        }
         self.sessions.lock().await.insert(
             id.clone(),
-            RunningAgent {
+            RunningSession {
+                process_key: key.to_string(),
                 conn,
-                child,
                 capabilities: capabilities.clone(),
                 cwd: cwd.to_string(),
                 has_synapse_tools: tools.iter().any(|t| t.name == SYNAPSE_TOOLS),
@@ -159,6 +275,59 @@ impl AgentRunnerImpl {
         })
     }
 
+    /// Cierra el proceso si sigue sin sesiones pasado el tiempo de espera.
+    fn schedule_idle_shutdown(&self, key: String, generation: u64) {
+        let runner = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(runner.idle_shutdown).await;
+            let mut processes = runner.processes.lock().await;
+            let idle = processes
+                .get(&key)
+                .is_some_and(|p| p.generation == generation && p.sessions.is_empty());
+            if idle && let Some(mut process) = processes.remove(&key) {
+                drop(processes);
+                if let Some(child) = process.child.as_mut() {
+                    let _ = child.kill().await;
+                }
+            }
+        });
+    }
+
+    /// Procesos vivos (para las pruebas).
+    #[cfg(test)]
+    pub(super) async fn process_count(&self) -> usize {
+        self.processes.lock().await.len()
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_idle_shutdown(mut self, idle: Duration) -> Self {
+        self.idle_shutdown = idle;
+        self
+    }
+
+    /// Registra un agente ya conectado como si fuera el proceso de `key` (para las pruebas).
+    #[cfg(test)]
+    pub(super) async fn register_process(
+        &self,
+        key: &str,
+        reader: impl tokio::io::AsyncRead + Send + Unpin + 'static,
+        writer: impl tokio::io::AsyncWrite + Send + Unpin + 'static,
+    ) {
+        let conn = Connection::spawn(reader, writer, self.sink.clone(), || {});
+        let capabilities = Self::handshake(&conn).await.unwrap();
+        self.processes.lock().await.insert(
+            key.to_string(),
+            AgentProcess {
+                conn,
+                child: None,
+                capabilities,
+                sessions: HashSet::new(),
+                generation: 7,
+            },
+        );
+    }
+
+    /// Conecta con un agente ya establecido (sin proceso) y abre una sesión, para las pruebas.
     #[cfg(test)]
     pub(super) async fn open_with(
         &self,
@@ -167,8 +336,28 @@ impl AgentRunnerImpl {
         cwd: &str,
     ) -> Result<AgentSession, String> {
         let conn = Connection::spawn(reader, writer, self.sink.clone(), || {});
-        self.open(conn, None, "prueba", cwd, vec![], None, None)
-            .await
+        let capabilities = Self::handshake(&conn).await?;
+        self.processes.lock().await.insert(
+            "prueba".into(),
+            AgentProcess {
+                conn: conn.clone(),
+                child: None,
+                capabilities: capabilities.clone(),
+                sessions: HashSet::new(),
+                generation: u64::MAX,
+            },
+        );
+        self.open_session(
+            "prueba",
+            conn,
+            capabilities,
+            "prueba",
+            cwd,
+            vec![],
+            None,
+            None,
+        )
+        .await
     }
 }
 
@@ -182,58 +371,31 @@ impl AgentRunner for AgentRunnerImpl {
         instructions: Option<String>,
         resume: Option<String>,
     ) -> Result<AgentSession, String> {
-        let mut child = Command::new(&launch.command)
-            .args(&launch.args)
-            .envs(&launch.env)
-            .current_dir(cwd)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| format!("No se pudo lanzar el agente «{}»: {e}", launch.command))?;
-        let stdin = child.stdin.take().ok_or("Sin stdin del agente")?;
-        let stdout = child.stdout.take().ok_or("Sin stdout del agente")?;
-        if let Some(stderr) = child.stderr.take() {
-            let id = agent_id.to_string();
-            tokio::spawn(async move {
-                let mut lines = BufReader::new(stderr).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    tracing::debug!(agent = %id, "{line}");
-                }
-            });
-        }
-        let sink = self.sink.clone();
-        let sessions = self.sessions.clone();
-        let agent = agent_id.to_string();
-        // La sesión se conoce después del saludo; el cierre del proceso solo afecta a la suya
-        let slot: Arc<std::sync::OnceLock<String>> = Arc::default();
-        let closed = slot.clone();
-        let conn = Connection::spawn(stdout, stdin, self.sink.clone(), move || {
-            if let Some(id) = closed.get().cloned() {
-                tokio::spawn(async move {
-                    if sessions.lock().await.remove(&id).is_some() {
-                        sink(
-                            "acp://status",
-                            json!({"sessionId": id, "agentId": agent, "status": "stopped"}),
-                        );
-                    }
-                });
-            }
+        let base = process_key(agent_id, cwd, &launch);
+        // Otra conversación con el mismo agente: se reutiliza un proceso suyo con sitio libre
+        let existing = self.processes.lock().await.iter().find_map(|(k, p)| {
+            (k.starts_with(&base) && p.sessions.len() < MAX_SESSIONS_PER_PROCESS)
+                .then(|| (k.clone(), p.conn.clone(), p.capabilities.clone()))
         });
-        let session = self
-            .open(
-                conn,
-                Some(child),
-                agent_id,
-                cwd,
-                tools,
-                instructions,
-                resume,
-            )
-            .await?;
-        let _ = slot.set(session.id.clone());
-        Ok(session)
+        let (key, conn, capabilities) = match existing {
+            Some(found) => found,
+            None => {
+                let key = format!("{base}#{}", self.generation.load(Ordering::Relaxed));
+                let (conn, caps) = self.spawn_process(&key, agent_id, &launch, cwd).await?;
+                (key, conn, caps)
+            }
+        };
+        self.open_session(
+            &key,
+            conn,
+            capabilities,
+            agent_id,
+            cwd,
+            tools,
+            instructions,
+            resume,
+        )
+        .await
     }
 
     async fn prompt(&self, session_id: &str, blocks: Vec<PromptBlock>) -> Result<String, String> {
@@ -312,11 +474,22 @@ impl AgentRunner for AgentRunnerImpl {
             .map(|_| ())
     }
 
+    /// Cierra la conversación; el proceso sigue para las demás y se apaga cuando no queda ninguna.
     async fn stop(&self, session_id: &str) -> Result<(), String> {
-        if let Some(mut running) = self.sessions.lock().await.remove(session_id)
-            && let Some(child) = running.child.as_mut()
-        {
-            let _ = child.kill().await;
+        let Some(session) = self.sessions.lock().await.remove(session_id) else {
+            return Ok(());
+        };
+        // ACP no tiene un cierre de sesión estándar: se cancela por si estaba trabajando
+        let _ = session
+            .conn
+            .notify("session/cancel", json!({"sessionId": session_id}))
+            .await;
+        let mut processes = self.processes.lock().await;
+        if let Some(process) = processes.get_mut(&session.process_key) {
+            process.sessions.remove(session_id);
+            if process.sessions.is_empty() {
+                self.schedule_idle_shutdown(session.process_key.clone(), process.generation);
+            }
         }
         Ok(())
     }
@@ -570,6 +743,76 @@ mod tests {
             .unwrap();
         assert_eq!(perm.1["title"], "Editar nota.md");
         assert_eq!(perm.1["options"][0]["id"], "allow");
+    }
+
+    /// Agente falso que abre una sesión distinta por cada `session/new`.
+    async fn multi_session_agent(io: tokio::io::DuplexStream) {
+        let (r, mut w) = tokio::io::split(io);
+        let mut lines = BufReader::new(r).lines();
+        let mut n = 0;
+        while let Ok(Some(line)) = lines.next_line().await {
+            let msg: Value = serde_json::from_str(&line).unwrap();
+            let reply = match msg.get("method").and_then(Value::as_str) {
+                Some("initialize") => {
+                    json!({"jsonrpc":"2.0","id":msg["id"],"result":{"protocolVersion":1}})
+                }
+                Some("session/new") => {
+                    n += 1;
+                    json!({"jsonrpc":"2.0","id":msg["id"],"result":{"sessionId": format!("ses-{n}")}})
+                }
+                _ => continue,
+            };
+            w.write_all(format!("{reply}\n").as_bytes()).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn las_conversaciones_comparten_proceso_hasta_el_limite() {
+        let runner = AgentRunnerImpl::new(Arc::new(|_, _| {}))
+            .with_idle_shutdown(std::time::Duration::from_millis(50));
+        // Un comando que no existe: si el runner intentara lanzar otro proceso, fallaría
+        let launch = AgentLaunch {
+            command: "/no/existe/agente".into(),
+            ..Default::default()
+        };
+        let (client, agent) = duplex(64 * 1024);
+        tokio::spawn(multi_session_agent(agent));
+        let (r, w) = tokio::io::split(client);
+        let key = format!("{}#0", process_key("falso", "/b", &launch));
+        runner.register_process(&key, r, w).await;
+
+        let mut ids = vec![];
+        for _ in 0..MAX_SESSIONS_PER_PROCESS {
+            let s = runner
+                .start("falso", launch.clone(), "/b", vec![], None, None)
+                .await
+                .unwrap();
+            ids.push(s.id);
+        }
+        assert_eq!(ids, ["ses-1", "ses-2", "ses-3", "ses-4"]);
+        assert_eq!(runner.process_count().await, 1);
+        // La quinta ya no cabe: intenta lanzar otro proceso
+        let err = runner
+            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .await
+            .unwrap_err();
+        assert!(err.contains("No se pudo lanzar"), "{err}");
+
+        // Cerrar una deja sitio en el mismo proceso
+        runner.stop("ses-2").await.unwrap();
+        let s = runner
+            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .await
+            .unwrap();
+        assert_eq!(s.id, "ses-5");
+
+        // Sin conversaciones, el proceso se apaga tras la espera
+        for id in ["ses-1", "ses-3", "ses-4", "ses-5"] {
+            runner.stop(id).await.unwrap();
+        }
+        assert_eq!(runner.process_count().await, 1);
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        assert_eq!(runner.process_count().await, 0);
     }
 
     fn synapse_tools() -> Vec<ToolServer> {

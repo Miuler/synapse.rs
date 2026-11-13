@@ -15,6 +15,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => s?.close());
 
+const count = (sel: string) => s.browser.execute((q) => document.querySelectorAll(q).length, sel) as Promise<number>;
 const text = (sel: string) =>
   s.browser.execute((q) => [...document.querySelectorAll(q)].map((e) => e.textContent?.trim()), sel) as Promise<
     string[]
@@ -148,6 +149,11 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeout: 5_000,
     timeoutMsg: 'la imagen pegada no aparece como adjunto',
   });
+  // Al hacer clic en la miniatura se ve ampliada; Esc la cierra
+  await s.browser.$('.acp-composer .acp-chip.image .acp-image-btn').click();
+  await s.browser.$('.acp-lightbox img').waitForExist({ timeout: 5_000 });
+  await s.browser.keys('Escape');
+  await s.browser.waitUntil(async () => (await count('.acp-lightbox')) === 0, { timeout: 5_000, timeoutMsg: 'Esc no cerró la imagen' });
 
   // La conversación queda guardada en la bóveda y aparece en el historial
   const dir = join(s.vault, '.synapse/agent-sessions');
@@ -156,13 +162,15 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeoutMsg: 'no se guardó la conversación en la bóveda',
   });
   // Acordeón: «＋» abre otra conversación arriba; como mucho 2 desplegadas a la vez
-  const count = (sel: string) => s.browser.execute((q) => document.querySelectorAll(q).length, sel) as Promise<number>;
   await s.browser.$('button[aria-label="Nueva conversación"]').click();
   await s.browser.waitUntil(async () => (await count('.acp-section')) === 2, { timeout: 10_000, timeoutMsg: 'no se abrió la segunda conversación' });
   expect(await count('.acp-section.open')).toBe(2);
   await s.browser.$('button[aria-label="Nueva conversación"]').click();
   await s.browser.waitUntil(async () => (await count('.acp-section')) === 3, { timeout: 10_000, timeoutMsg: 'no se abrió la tercera conversación' });
   expect(await count('.acp-section.open')).toBe(2);
+  // Las tres conversaciones con el mismo agente comparten un solo proceso
+  const procs = Bun.spawnSync(['pgrep', '-fc', 'fake-acp-agent.ts']).stdout.toString().trim();
+  expect(procs).toBe('1');
 
   // Fijar la primera conversación al costado: sale del acordeón a su propia columna
   await s.browser.execute(() => {

@@ -1,4 +1,5 @@
 import { agentApi, listenAgentEvents } from '../api/agent.api';
+import { feedbackPrompt } from './feedback-prompt';
 import type {
   AgentCommand,
   AgentConnection,
@@ -203,13 +204,15 @@ export class Conversation {
     const session = this.session;
     if (!session || this.connection === 'busy' || !text.trim()) return;
     if (/(^|\s)@this\b/.test(text)) this.attachActiveNote();
+    // `/feedback [indicaciones]`: lo resuelve Synapse, no el agente
+    const feedback = this.#store.feedbackAvailable ? /^\/feedback(?:\s+([\s\S]*))?$/.exec(text.trim()) : null;
     const attachments = this.pendingAttachments;
     const blocks: PromptBlock[] = [];
     if (this.#replay) {
       blocks.push({ type: 'text', text: this.#replay });
       this.#replay = null;
     }
-    blocks.push({ type: 'text', text });
+    blocks.push({ type: 'text', text: feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text });
     for (const a of attachments) {
       blocks.push(
         a.kind === 'file'
@@ -320,6 +323,8 @@ class AgentStore {
   floating = $state(load(FLOATING_KEY) === '1');
   /** Modo feedback: el agente anota lo que le falta al MCP de Synapse (aplica a nuevas sesiones). */
   feedbackMode = $state(load(FEEDBACK_KEY) === '1');
+  /** Esta compilación trae el feedback del MCP (feature `develop`): habilita `/feedback`. */
+  feedbackAvailable = $state(false);
   /** Nota activa del editor; se adjunta sola salvo que el usuario la quite. */
   activeNote = $state<{ path: string; name: string } | null>(null);
   history = $state<AgentTranscriptSummary[]>([]);
@@ -426,6 +431,7 @@ class AgentStore {
     this.listError = null;
     try {
       this.agents = await agentApi.list();
+      this.feedbackAvailable = await agentApi.feedbackAvailable().catch(() => false);
     } catch (e) {
       this.listError = String(e);
     }

@@ -5,7 +5,10 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 const send = (msg: unknown) => process.stdout.write(JSON.stringify(msg) + '\n');
-const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 'ses-e2e', update: u } });
+/** Un mismo proceso atiende varias conversaciones: cada `session/new` abre una sesión distinta. */
+let opened = 0;
+let current = 'ses-e2e';
+const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: current, update: u } });
 let promptId: unknown = null;
 let mcp: string[] = [];
 let mcpTools = 'sin-probar';
@@ -60,6 +63,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { embeddedContext: true } } },
     });
   } else if (msg.method === 'session/new') {
+    current = `ses-e2e-${++opened}`;
     const servers = msg.params.mcpServers ?? [];
     mcp = servers.map((s: { name: string; command?: string }) => `${s.name}:${s.command ? 'stdio' : 'http'}`);
     const stdio = servers.find((s: { command?: string }) => s.command);
@@ -68,7 +72,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       jsonrpc: '2.0',
       id: msg.id,
       result: {
-        sessionId: 'ses-e2e',
+        sessionId: current,
         modes: { currentModeId: 'ask', availableModes: [{ id: 'ask', name: 'Preguntar' }, { id: 'code', name: 'Programar' }] },
       },
     });
@@ -77,6 +81,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     send({ jsonrpc: '2.0', id: msg.id, result: {} });
   } else if (msg.method === 'session/prompt') {
     promptId = msg.id;
+    current = msg.params.sessionId;
     const instr = msg.params.prompt[0]?.text?.includes('synapse_instance') ? 'instr:si' : 'instr:no';
     const blocks = msg.params.prompt.slice(instr === 'instr:si' ? 1 : 0).map((b: { type: string; uri?: string; resource?: { uri: string } }) =>
       b.type === 'resource_link' ? `link:${b.uri!.split('/').pop()}` : b.type === 'resource' ? `sel:${b.resource!.uri.split('/').pop()}` : b.type,
@@ -98,7 +103,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       id: 'perm-1',
       method: 'session/request_permission',
       params: {
-        sessionId: 'ses-e2e',
+        sessionId: current,
         toolCall: { toolCallId: 't1', title: 'Editar nota.md' },
         options: [
           { optionId: 'allow', name: 'Permitir', kind: 'allow_once' },

@@ -121,7 +121,18 @@
         }))];
     }
     if (slash !== null) {
-      return conv.commands
+      // `/feedback` es de Synapse (compilación `develop`): pide al agente feedback sobre el MCP
+      const own = agentStore.feedbackAvailable && 'feedback'.startsWith(slash)
+        ? [{
+            label: '/feedback',
+            detail: 'Synapse · el agente registra qué mejorar del MCP y del panel (puedes añadir indicaciones)',
+            pick: () => {
+              draft = '/feedback ';
+              tick().then(() => textarea?.focus());
+            },
+          }]
+        : [];
+      return [...own, ...conv.commands
         .filter((c) => c.name.toLowerCase().startsWith(slash))
         .slice(0, 8)
         .map((c) => ({
@@ -131,7 +142,7 @@
             draft = `/${c.name} `;
             tick().then(() => textarea?.focus());
           },
-        }));
+        }))];
     }
     return [];
   });
@@ -209,6 +220,20 @@
     }
   }
 
+  // Imagen ampliada (lightbox): fondo oscuro, la imagen centrada; Esc, clic fuera o ✕ la cierran
+  let zoomed = $state<Extract<Attachment, { kind: 'image' }> | null>(null);
+  $effect(() => {
+    if (!zoomed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        zoomed = null;
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
   function chipLabel(a: Attachment) {
     if (a.kind !== 'selection') return a.name;
     return a.startLine ? `${a.name} L${a.startLine}–${a.endLine}` : `${a.name} (fragmento)`;
@@ -244,6 +269,17 @@
 </script>
 
 <div class="acp-chat">
+  {#if zoomed}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="acp-lightbox" role="dialog" tabindex="-1" aria-modal="true" aria-label={zoomed.name} onclick={() => (zoomed = null)}>
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+      <figure onclick={(e) => e.stopPropagation()}>
+        <img src="data:{zoomed.mimeType};base64,{zoomed.data}" alt={zoomed.name} />
+        <figcaption>{zoomed.name}</figcaption>
+      </figure>
+      <button type="button" class="acp-lightbox-close" aria-label="Cerrar" onclick={() => (zoomed = null)}><X size={18} /></button>
+    </div>
+  {/if}
   {#if conv}
     <div class="acp-messages" bind:this={scroller}>
       {#if conv.connection === 'installing' || conv.connection === 'starting'}
@@ -277,7 +313,9 @@
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
                   {#if a.kind === 'image'}
-                    <img class="acp-sent-image" src="data:{a.mimeType};base64,{a.data}" alt={a.name} title={a.name} />
+                    <button type="button" class="acp-image-btn" title="Ver {a.name}" onclick={() => (zoomed = a)}>
+                      <img class="acp-sent-image" src="data:{a.mimeType};base64,{a.data}" alt={a.name} />
+                    </button>
                   {:else}
                     <span class="acp-chip" title={a.path}
                       >{#if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}{chipLabel(a)}</span
@@ -291,7 +329,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="acp-msg agent markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'thought'}
-          <details class="acp-thought"><summary>🧠 Razonamiento</summary>{item.text}</details>
+          <details class="acp-thought"><summary title="Razonamiento del agente" aria-label="Razonamiento">🧠<span class="acp-thought-label"> Razonamiento</span></summary>{item.text}</details>
         {:else if item.type === 'tool'}
           <details class="acp-tool" data-status={item.status ?? ''}>
             <summary>
@@ -404,7 +442,7 @@
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
-              {#if a.kind === 'image'}<img src="data:{a.mimeType};base64,{a.data}" alt="" /><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
+              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => (zoomed = a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
               <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>
@@ -717,6 +755,67 @@
     border-radius: 6px;
     border: 1px solid var(--border-primary);
     object-fit: cover;
+  }
+  .acp-thought:not([open]) {
+    align-self: flex-start;
+  }
+  .acp-thought:not([open]) .acp-thought-label {
+    display: none;
+  }
+  .acp-thought summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  .acp-thought summary::-webkit-details-marker {
+    display: none;
+  }
+  .acp-image-btn {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: zoom-in;
+  }
+  .acp-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    cursor: zoom-out;
+  }
+  .acp-lightbox figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+  }
+  .acp-lightbox img {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #fff;
+  }
+  .acp-lightbox figcaption {
+    color: #eee;
+    font-size: 12px;
+  }
+  .acp-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: inline-flex;
+    padding: 6px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    cursor: pointer;
   }
   .acp-brain {
     display: inline-block;
