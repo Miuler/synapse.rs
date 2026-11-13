@@ -115,6 +115,11 @@
   let settingsSection = $state<'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts'>('appearance');
   // Panel del agente de IA, acoplado a la derecha o flotante; empieza cerrado en cada arranque
   let isAgentPanelOpen = $state(false);
+  // Al cambiar de bóveda, el agente no sigue trabajando sobre la anterior
+  $effect(() => {
+    const vault = isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null);
+    untrack(() => agentStore.changeVault(vault));
+  });
   function setAgentPanelOpen(value: boolean) {
     isAgentPanelOpen = value;
   }
@@ -3052,7 +3057,7 @@
       },
       {
         id: "cmd-welcome-screen",
-        name: "Workspaces Recientes / Pantalla de Bienvenida",
+        name: "Bóvedas recientes / Pantalla de bienvenida",
         category: "Bóveda",
         action: () => {
           showWelcomeScreen = true;

@@ -116,7 +116,7 @@
   const shortcutGroups: { section: keyof ShortcutsConfig; title: string; labels: Record<string, string> }[] = [
     {
       section: 'workspace',
-      title: 'Espacio de trabajo',
+      title: 'General',
       labels: {
         quick_open: 'Abrir archivo rápido',
         command_palette: 'Paleta de comandos',
@@ -148,7 +148,7 @@
       section: 'welcome',
       title: 'Pantalla de bienvenida',
       labels: {
-        new_workspace: 'Nuevo espacio de trabajo',
+        new_workspace: 'Nueva bóveda',
         open_folder: 'Abrir carpeta',
         clone_git: 'Clonar repositorio git',
         search_workspaces: 'Buscar espacios de trabajo',

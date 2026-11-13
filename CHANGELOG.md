@@ -22,8 +22,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Editor de draw.io embebido**: los `.drawio` se abren en el editor de draw.io dentro de una pestaña y al guardar se escribe el XML del diagrama. Los `.drawio.png` se siguen viendo como imagen y se editan con **Abrir con draw.io** en el menú contextual del explorador o con el botón **draw.io** del visor de imágenes; al guardar se reescribe el PNG con el diagrama incrustado, que sigue siendo editable. Respeta el tema claro u oscuro. Se carga desde `embed.diagrams.net` (el diagrama no sale del equipo: viaja por `postMessage`); la dirección se puede cambiar con `drawioUrl` en los ajustes para usar un draw.io propio sin red.
 - **Los `.drawio.png` vuelven a abrirse como imagen**: el modo draw.io solo dura mientras la pestaña está abierta; abrir el archivo desde el explorador o la apertura rápida, o cerrar la pestaña, lo devuelve al visor de imágenes.
 
+### Cambiado
+
+- **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
+
 ### Corregido
 
+- **El agente ya no sigue en la bóveda anterior al cambiar de bóveda**: la conversación se cierra (queda guardada en su bóveda) y el panel vuelve a empezar sin agente elegido, con el historial de la bóveda nueva.
 - **`Shift+F6` vuelve a seleccionar todas las coincidencias en el editor de código**: había dos copias de CodeMirror y el atajo quedaba registrado en una que el editor no leía; ahora se usa una sola versión.
 - **La caché de la bóveda ya no se corrompe si la app se cierra mientras guarda**: `.synapse/cache.bin` se guarda con `object_store`, que escribe en un archivo temporal y lo renombra al terminar; si el guardado se interrumpe, queda la versión anterior.
 - **Volver a lectura conserva la posición**: al pasar de edición a lectura en una nota Markdown, la lectura se abre en la parte del documento que se estaba editando en lugar de volver al inicio.

@@ -423,6 +423,31 @@ class AgentStore {
     }
   }
 
+  /**
+   * La ventana abrió otra bóveda: se cierra la conversación (queda guardada en la bóveda anterior)
+   * y el panel vuelve a empezar sin agente elegido, con el historial de la nueva bóveda.
+   */
+  async changeVault(cwd: string | null) {
+    const current = this.session?.cwd ?? this.#cwd;
+    if (current === cwd) return;
+    if (this.session) await this.stop();
+    this.#cwd = cwd;
+    this.activeAgentId = null;
+    this.items = [];
+    this.plan = [];
+    this.commands = [];
+    this.usage = null;
+    this.attachments = [];
+    this.activeNote = null;
+    this.dismissedActiveNote = null;
+    this.transcriptId = null;
+    this.#replay = null;
+    this.#acpSessionId = null;
+    this.history = [];
+    this.connection = 'idle';
+    if (cwd) await this.loadHistory(cwd);
+  }
+
   async stop() {
     const session = this.session;
     if (session) {
