@@ -14,6 +14,24 @@ use std::sync::Arc;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+    // Puente stdio → HTTP hacia el MCP de la instancia de Synapse abierta (lo usan los agentes)
+    if let Some(i) = args.iter().position(|a| a == "--mcp-proxy") {
+        let Some(url) = args.get(i + 1) else {
+            eprintln!("Uso: synapsers --mcp-proxy <url>");
+            std::process::exit(2);
+        };
+        let stdin = io::stdin();
+        let stdout = io::stdout();
+        if let Err(e) = app_lib::infrastructure::entrypoint::mcp::stdio_http_bridge::run(
+            url,
+            stdin.lock(),
+            stdout.lock(),
+        ) {
+            eprintln!("[Synapse MCP proxy] {e}");
+        }
+        return;
+    }
+
     // Comprobar si se solicitó arrancar como servidor MCP
     let is_mcp_mode = args.iter().any(|arg| arg == "--mcp");
 

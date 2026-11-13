@@ -18,6 +18,7 @@ export const en: TranslationSchema = {
     files: 'File Explorer ({shortcut})',
     tags: 'Tags Explorer (#tags)',
     relations: 'Links & Backlinks Inspector',
+    agent: 'AI agent',
     quickOpen: 'Find file by name ({shortcut})',
     searchContent: 'Search in note contents ({shortcut})',
     newNote: 'Create new note',

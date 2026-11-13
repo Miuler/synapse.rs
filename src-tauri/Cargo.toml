@@ -11,6 +11,10 @@ build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+# Herramientas para desarrollar Synapse: el modo feedback del MCP (`report_feedback`).
+develop = []
+
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -75,6 +79,9 @@ similar = { version = "3.2.1", default-features = false, features = ["text"] }
 tauri-plugin-cli = "2.5.0"
 object_store = { version = "0.14.2", default-features = false, features = ["fs"] }
 futures-executor = "0.3.34"
+flate2 = "1.1"
+tar = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "process", "io-util", "sync", "time"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "2.3.0"

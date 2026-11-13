@@ -23,11 +23,40 @@ de las herramientas solo aparece en `infrastructure`; las capas internas hablan 
       lectura/escritura asíncrona línea por línea (JSON-RPC) y emisión de eventos Tauri (`acp://stream`,
       `acp://tool-call`, `acp://permission-request`, `acp://status`).
     - `infrastructure/integration/service/acp/agent_catalog_impl.rs` y `agent_installer_impl.rs`: catálogo verificado
-      (Antigravity, Claude) y descarga hacia el directorio de datos de la aplicación.
+      y descarga hacia el directorio de datos de la aplicación (ver «Catálogo e instalación»).
     - `infrastructure/repository/jsonc/agent_profile_repository_impl.rs`: perfiles personalizados en la configuración.
     - `infrastructure/entrypoint/controller/tauri/agent_controller.rs`: comandos `#[tauri::command]` que convierten la
       entrada en `Command`/`Query` y llaman al caso de uso.
     - `infrastructure/config/`: ensamblado de los casos de uso con sus implementaciones.
+
+### Catálogo e instalación (decisión)
+
+- **Fuente:** el registro público de ACP, el mismo que usa Zed:
+  `https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json`. Synapse solo ofrece como verificados los ids
+  de una lista blanca (`VERIFIED_AGENTS`); se agregan de a uno tras probarlos. Caché en memoria de 1 h y copia en disco
+  para trabajar sin red; si el registro falla, los agentes personalizados se siguen listando.
+- **Instalación:** se usa la distribución `binary` de la plataforma (`linux-x86_64`, `darwin-aarch64`…): se descarga el
+  archivo, se **verifica su `sha256`** del registro, se descomprime (`.zip`, `.tar.gz` o binario suelto) en
+  `<datos>/synapsers/agents/<id>/<versión>/` y se guarda cómo lanzarlo. Sin binario para la plataforma se recurre a la
+  distribución `npx` (requiere Node).
+- **Perfiles personalizados:** `~/.config/synapsers/agents.json`.
+- **Agentes verificados:** **Claude** (`claude-acp`) desde el registro. **Antigravity** se usa desde su CLI oficial ya
+  instalado: el subcomando `agy acp`, buscado en el PATH y en `~/.local/bin` (las apps gráficas no siempre heredan el
+  PATH), sin descarga; no se usa el paquete `antigravity-acp` del registro, que pasa un `--uid=` sin documentar. Si falta
+  el CLI se muestra su comando oficial de instalación. Usa las credenciales que ya guardó `agy`; si responde
+  «Authentication required» (`-32000`), se pide al usuario iniciar sesión desde el CLI.
+
+### MCP de la instancia (decisión)
+
+- Cada sesión recibe el MCP **de la ventana de Synapse abierta**, con el nombre `synapse_instance` para no confundirse
+  con un `synapse` configurado globalmente en el agente. Se arranca si estaba apagado.
+- Transporte: HTTP directo si el agente anuncia `mcpCapabilities.http`; si no, `synapsers --mcp-proxy <url>`, un puente
+  stdio→HTTP hacia la misma instancia (todos comparten índice y estado con la ventana).
+- ACP no tiene «system prompt»: las instrucciones de sesión viajan como un bloque de texto con el primer mensaje. Piden
+  usar `synapse_instance` y crear/editar/mover/borrar notas con sus herramientas, no con escritura directa de archivos.
+- Los agentes no están aislados: usan su configuración global (credenciales, ajustes y otros MCP); Synapse solo fija la
+  carpeta de trabajo, el MCP de la instancia y las variables de los agentes personalizados.
+- Modo feedback (solo con la feature de Cargo `develop`): herramienta MCP `report_feedback` → `~/.config/synapsers/feedback.md`.
 
 ## 2. Arquitectura Frontend (Svelte 5 + FSD)
 

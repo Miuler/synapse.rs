@@ -154,7 +154,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
     /// Retorna la lista de herramientas disponibles (Catálogo Unificado de 14 herramientas)
     pub fn list_tools(&self) -> McpToolsListResult {
-        McpToolsListResult {
+        let mut result = McpToolsListResult {
             tools: vec![
                 // 1. search_notes
                 McpTool {
@@ -704,6 +704,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["relative_path"]
                     }),
                 },
+                // 18. report_feedback
+                McpTool {
+                    name: "report_feedback".to_string(),
+                    description: "Deja una nota para los desarrolladores de Synapse cuando a este MCP le falta algo para completar la tarea (una herramienta, un parámetro, un formato). Se acumula en feedback.md de la configuración global; no toca la bóveda.".to_string(),
+                    annotations: Some(McpToolAnnotations::write(false, false)),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Resumen corto de lo que falta"
+                            },
+                            "details": {
+                                "type": "string",
+                                "description": "Qué intentabas hacer, qué te faltó y cómo lo resolviste mientras tanto"
+                            }
+                        },
+                        "required": ["title", "details"]
+                    }),
+                },
                 // 17. list_vault_tree (alias retrocompatible)
                 McpTool {
                     name: "list_vault_tree".to_string(),
@@ -720,7 +740,12 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     }),
                 },
             ],
+        };
+        // `report_feedback` solo existe en las compilaciones con la feature `develop`
+        if !cfg!(feature = "develop") {
+            result.tools.retain(|t| t.name != "report_feedback");
         }
+        result
     }
 
     /// Ejecuta una herramienta MCP por nombre
@@ -752,6 +777,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "get_vault_git_status" => self.execute_get_vault_git_status(),
             "read_pdf_document" => self.execute_read_pdf_document(&args),
             "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
+            "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
         }
     }
@@ -1613,6 +1639,48 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "shared_tags_neighbors": neighbors_json,
         });
         to_text(&payload, "Error al serializar: ")
+    }
+
+    /// Agrega una entrada a `~/.config/synapsers/feedback.md` con lo que le faltó al agente.
+    fn execute_report_feedback(&self, args: &Value) -> McpCallToolResult {
+        let text = |k: &str| {
+            args.get(k)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+        };
+        let (Some(title), Some(details)) = (text("title"), text("details")) else {
+            return McpCallToolResult::error("Los argumentos 'title' y 'details' son obligatorios");
+        };
+        let path = crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir()
+            .join("feedback.md");
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let entry = format!(
+            "\n## {title}\n\n- Fecha (unix): {secs}\n- Bóveda: {}\n\n{details}\n",
+            self.vault().display()
+        );
+        let result = (|| -> std::io::Result<()> {
+            use std::io::Write;
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            let new = !path.exists();
+            let mut f = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)?;
+            if new {
+                f.write_all(b"# Feedback de los agentes sobre el MCP de Synapse\n")?;
+            }
+            f.write_all(entry.as_bytes())
+        })();
+        match result {
+            Ok(()) => McpCallToolResult::text(format!("Feedback registrado en {}", path.display())),
+            Err(e) => McpCallToolResult::error(format!("No se pudo guardar el feedback: {e}")),
+        }
     }
 
     fn execute_get_vault_git_status(&self) -> McpCallToolResult {

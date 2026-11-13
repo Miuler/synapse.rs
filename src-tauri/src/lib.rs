@@ -173,7 +173,25 @@ pub fn run() {
             get_mcp_port_registry,
             toggle_mcp_server,
             start_mcp_server,
-            stop_mcp_server
+            stop_mcp_server,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_list,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_install,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_save_profile,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_profile,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_start_session,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_send_prompt,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_cancel_prompt,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_respond_permission,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_stop_session,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_mode,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_model,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_save_transcript,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_list_transcripts,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_load_transcript,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_transcript,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_all_transcripts,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_feedback_available,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript
         ])
         .setup(|app| {
             if let Ok(matches) = app.cli().matches() {
@@ -194,6 +212,16 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
+            {
+                // Agentes externos: sus eventos van a la interfaz
+                use tauri::Emitter;
+                let h = handle.clone();
+                app.manage(infrastructure::config::agent_state::AgentState::new(
+                    std::sync::Arc::new(move |name: &str, payload: serde_json::Value| {
+                        let _ = h.emit(name, payload);
+                    }),
+                ));
+            }
             let state = app.state::<AppState>();
             if let Ok(mut h) = state.app_handle.lock() {
                 *h = Some(handle.clone());

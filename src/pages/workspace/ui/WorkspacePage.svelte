@@ -10,6 +10,9 @@
   import {FullTextSearch} from "@widgets/full-text-search";
   import {EmptyWorkspace} from "@widgets/empty-workspace";
   import {SettingsPanel} from "@widgets/settings-panel";
+  import {AcpPanel} from "@widgets/acp-panel";
+  import {captureSelection} from "@features/acp-chat";
+  import {agentStore} from "@entities/acp-agent";
   import {WelcomeScreen} from "@widgets/welcome-screen";
   import {VaultExplorer} from "@features/vault-explorer";
   import {MarkdownViewer, HeadingOutline, splitNavigationTarget, extractHeadingTree, headingPathAt, type HeadingTarget} from "@features/markdown-editor";
@@ -109,6 +112,50 @@
   let ftsSearchQuery = $state("");
   let isPluginsModalOpen = $state(false);
   let isSettingsOpen = $state(false);
+  let settingsSection = $state<'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts'>('appearance');
+
+  // Panel del agente de IA, acoplado a la derecha o flotante; se recuerda si estaba abierto
+  let isAgentPanelOpen = $state((() => {
+    try { return localStorage.getItem('synapse.agent.open') === '1'; } catch { return false; }
+  })());
+  function setAgentPanelOpen(value: boolean) {
+    isAgentPanelOpen = value;
+    try { localStorage.setItem('synapse.agent.open', value ? '1' : '0'); } catch { /* sin almacenamiento */ }
+  }
+  const vaultAbs = (rel: string) => {
+    const root = appSettings.lastOpenedFolder;
+    return rel.startsWith('/') || !root ? rel : `${root.replace(/\/$/, '')}/${rel}`;
+  };
+
+  // La nota activa viaja como etiqueta en el próximo mensaje al agente (se puede quitar)
+  $effect(() => {
+    const rel = currentActiveNonGraphPath;
+    agentStore.setActiveNote(rel && !isStandaloneMode ? { path: vaultAbs(rel), name: rel.split('/').pop() || rel } : null);
+  });
+
+  /** Adjunta la selección del editor (o del texto renderizado) al próximo mensaje del agente. */
+  function sendSelectionToAgent() {
+    const sel = captureSelection();
+    const rel = currentActiveNonGraphPath;
+    if (!sel || !rel) {
+      setAgentPanelOpen(true);
+      return;
+    }
+    agentStore.attach({
+      kind: 'selection',
+      path: vaultAbs(rel),
+      name: rel.split('/').pop() || rel,
+      text: sel.text,
+      startLine: sel.startLine,
+      endLine: sel.endLine,
+    });
+    setAgentPanelOpen(true);
+  }
+
+  function openAgentSettings() {
+    settingsSection = 'agents';
+    isSettingsOpen = true;
+  }
 
   // Notificación toast rápida en Workspace
   let workspaceToastMessage = $state<string | null>(null);
@@ -2950,6 +2997,19 @@
   function registerWorkspaceCommands() {
     commandRegistry.registerMany([
       {
+        id: "cmd-agent-panel",
+        name: "Agente: mostrar u ocultar el panel",
+        category: "Agente",
+        action: () => setAgentPanelOpen(!isAgentPanelOpen),
+      },
+      {
+        id: "cmd-agent-send-selection",
+        name: "Agente: adjuntar la selección al mensaje",
+        category: "Agente",
+        shortcut: "Ctrl+Alt+A",
+        action: sendSelectionToAgent,
+      },
+      {
         id: "cmd-split-view",
         name: "Dividir panel verticalmente (Split View)",
         category: "Vista",
@@ -3651,6 +3711,8 @@
   function handleRibbonAction(actionId: string) {
     if (actionId === "command-palette") {
       isPaletteOpen = true;
+    } else if (actionId === "agent") {
+      setAgentPanelOpen(!isAgentPanelOpen);
     } else if (actionId === "plugins") {
       isPluginsModalOpen = true;
     } else if (actionId === "new-note") {
@@ -3827,7 +3889,17 @@
   }
 </script>
 
-<svelte:window onblur={handleWindowBlur} />
+<svelte:window
+  onblur={handleWindowBlur}
+  onkeydowncapture={(e) => {
+    // Ctrl+Alt+A: adjuntar la selección al agente (antes de que el editor consuma la tecla)
+    if (e.ctrlKey && e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      e.stopPropagation();
+      sendSelectionToAgent();
+    }
+  }}
+/>
 
 <div class="workspace-layout synapse-app" class:welcome-active={showWelcomeScreen && !isDetachedWindow}>
   {#if showWelcomeScreen && !isDetachedWindow}
@@ -4529,6 +4601,15 @@
     />
   </main>
 
+  {#if isAgentPanelOpen && !isDetachedWindow && !showWelcomeScreen}
+    <AcpPanel
+      cwd={isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null)}
+      onClose={() => setAgentPanelOpen(false)}
+      onOpenSettings={openAgentSettings}
+      onOpenNote={(path) => selectTab(path)}
+    />
+  {/if}
+
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
   <ShortcutsPanel bind:isOpen={isShortcutsPanelOpen}/>
@@ -4549,7 +4630,7 @@
     onSelectHit={handleSelectFullTextHit}
   />
 
-  <SettingsPanel bind:open={isSettingsOpen} />
+  <SettingsPanel bind:open={isSettingsOpen} bind:section={settingsSection} />
 
   <!-- 7. GESTOR Y EXPLORADOR DE PLUGINS DE LA COMUNIDAD DE OBSIDIAN -->
   <CommunityPluginsModal

@@ -1,0 +1,67 @@
+import { invokeTauri } from '@shared/api';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type {
+  AgentProfile,
+  AgentSession,
+  AgentTranscript,
+  AgentTranscriptSummary,
+  CommandsEvent,
+  ModeEvent,
+  PermissionRequestEvent,
+  PlanEvent,
+  PromptBlock,
+  UsageEvent,
+  StatusEvent,
+  StreamEvent,
+  ToolCallEvent,
+} from '../model/types';
+
+export const agentApi = {
+  list: () => invokeTauri<AgentProfile[]>('agent_list'),
+  install: (agentId: string) => invokeTauri<void>('agent_install', { agentId }),
+  saveProfile: (p: { id: string; name: string; command: string; args: string[]; env: Record<string, string> }) =>
+    invokeTauri<AgentProfile>('agent_save_profile', p),
+  deleteProfile: (id: string) => invokeTauri<void>('agent_delete_profile', { id }),
+  startSession: (agentId: string, cwd: string, feedback: boolean, resume: string | null = null) =>
+    invokeTauri<AgentSession>('agent_start_session', { agentId, cwd, feedback, resume }),
+  saveTranscript: (transcript: AgentTranscript) => invokeTauri<void>('agent_save_transcript', { transcript }),
+  listTranscripts: (cwd: string) => invokeTauri<AgentTranscriptSummary[]>('agent_list_transcripts', { cwd }),
+  loadTranscript: (cwd: string, id: string) => invokeTauri<AgentTranscript>('agent_load_transcript', { cwd, id }),
+  deleteTranscript: (cwd: string, id: string) => invokeTauri<void>('agent_delete_transcript', { cwd, id }),
+  deleteAllTranscripts: (cwd: string) => invokeTauri<void>('agent_delete_all_transcripts', { cwd }),
+  openTranscript: (cwd: string, id: string) => invokeTauri<void>('agent_open_transcript', { cwd, id }),
+  sendPrompt: (sessionId: string, blocks: PromptBlock[]) => invokeTauri<string>('agent_send_prompt', { sessionId, blocks }),
+  setMode: (sessionId: string, modeId: string) => invokeTauri<void>('agent_set_mode', { sessionId, modeId }),
+  setModel: (sessionId: string, modelId: string) => invokeTauri<void>('agent_set_model', { sessionId, modelId }),
+  cancelPrompt: (sessionId: string) => invokeTauri<void>('agent_cancel_prompt', { sessionId }),
+  respondPermission: (sessionId: string, requestId: string, optionId: string | null) =>
+    invokeTauri<void>('agent_respond_permission', { sessionId, requestId, optionId }),
+  feedbackAvailable: () => invokeTauri<boolean>('agent_feedback_available'),
+  stopSession: (sessionId: string) => invokeTauri<void>('agent_stop_session', { sessionId }),
+};
+
+export interface AgentEventHandlers {
+  onStream: (e: StreamEvent) => void;
+  onToolCall: (e: ToolCallEvent) => void;
+  onPermission: (e: PermissionRequestEvent) => void;
+  onStatus: (e: StatusEvent) => void;
+  onPlan: (e: PlanEvent) => void;
+  onCommands: (e: CommandsEvent) => void;
+  onUsage: (e: UsageEvent) => void;
+  onMode: (e: ModeEvent) => void;
+}
+
+/** Escucha los eventos de los agentes; devuelve la función para dejar de escuchar. */
+export async function listenAgentEvents(h: AgentEventHandlers): Promise<UnlistenFn> {
+  const offs = await Promise.all([
+    listen<StreamEvent>('acp://stream', (e) => h.onStream(e.payload)),
+    listen<ToolCallEvent>('acp://tool-call', (e) => h.onToolCall(e.payload)),
+    listen<PermissionRequestEvent>('acp://permission-request', (e) => h.onPermission(e.payload)),
+    listen<StatusEvent>('acp://status', (e) => h.onStatus(e.payload)),
+    listen<PlanEvent>('acp://plan', (e) => h.onPlan(e.payload)),
+    listen<CommandsEvent>('acp://commands', (e) => h.onCommands(e.payload)),
+    listen<UsageEvent>('acp://usage', (e) => h.onUsage(e.payload)),
+    listen<ModeEvent>('acp://mode', (e) => h.onMode(e.payload)),
+  ]);
+  return () => offs.forEach((off) => off());
+}

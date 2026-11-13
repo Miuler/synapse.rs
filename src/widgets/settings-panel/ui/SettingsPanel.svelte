@@ -13,21 +13,85 @@
   import { invokeTauri } from '@shared/repositories/tauri';
   import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
   import { convertFileSrc } from '@tauri-apps/api/core';
+  import { agentApi, agentStore } from '@entities/acp-agent';
+
+  // El modo feedback solo existe en compilaciones con la feature `develop`
+  let feedbackAvailable = $state(false);
+  agentApi
+    .feedbackAvailable()
+    .then((v) => (feedbackAvailable = v))
+    .catch(() => {});
+
+  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts';
 
   interface Props {
     open?: boolean;
+    section?: Section;
   }
 
-  let { open = $bindable(false) }: Props = $props();
+  let { open = $bindable(false), section = $bindable<Section>('appearance') }: Props = $props();
 
-  type Section = 'appearance' | 'editor' | 'diagrams' | 'shortcuts';
   const sections: { id: Section; label: string }[] = [
     { id: 'appearance', label: 'Apariencia' },
     { id: 'editor', label: 'Editor' },
     { id: 'diagrams', label: 'Diagramas' },
+    { id: 'agents', label: 'Agentes de IA' },
     { id: 'shortcuts', label: 'Atajos de teclado' },
   ];
-  let section = $state<Section>('appearance');
+
+  // Agentes de IA: catálogo verificado y personalizados
+  let installing = $state<string | null>(null);
+  let agentError = $state('');
+  let draftAgent = $state({ id: '', name: '', command: '', args: '', env: '' });
+
+  $effect(() => {
+    if (open && section === 'agents') agentStore.refresh();
+  });
+
+  async function installAgent(id: string) {
+    agentError = '';
+    installing = id;
+    try {
+      await agentApi.install(id);
+      await agentStore.refresh();
+    } catch (e) {
+      agentError = String(e);
+    } finally {
+      installing = null;
+    }
+  }
+
+  async function saveCustomAgent() {
+    agentError = '';
+    const env: Record<string, string> = {};
+    for (const line of draftAgent.env.split('\n')) {
+      const i = line.indexOf('=');
+      if (i > 0) env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    }
+    try {
+      await agentApi.saveProfile({
+        id: draftAgent.id,
+        name: draftAgent.name,
+        command: draftAgent.command.trim(),
+        args: draftAgent.args.split(/\s+/).filter(Boolean),
+        env,
+      });
+      draftAgent = { id: '', name: '', command: '', args: '', env: '' };
+      await agentStore.refresh();
+    } catch (e) {
+      agentError = String(e);
+    }
+  }
+
+  async function deleteCustomAgent(id: string) {
+    agentError = '';
+    try {
+      await agentApi.deleteProfile(id);
+      await agentStore.refresh();
+    } catch (e) {
+      agentError = String(e);
+    }
+  }
 
   // Carpetas de temas globales: la que se está escribiendo y el error del último guardado
   let newThemeDir = $state('');
@@ -340,6 +404,75 @@
             <span class="hint">El código de los diagramas PlantUML se envía a este servidor para dibujarlos.</span>
             {#if plantumlError}<span class="error">{plantumlError}</span>{/if}
           </div>
+        {:else if section === 'agents'}
+          <h3>Agentes de IA</h3>
+          <p class="hint">
+            Agentes compatibles con ACP (Agent Client Protocol). Los verificados se descargan del registro
+            público de ACP, el mismo que usa Zed, y se verifican con su sha256.
+          </p>
+          {#if agentStore.listError}<span class="error">{agentStore.listError}</span>{/if}
+          <p class="hint">
+            Cada conversación usa el MCP de esta ventana de Synapse (<code>synapse_instance</code>), y se le pide al
+            agente que cree y edite las notas con él en lugar de escribir los archivos directamente.
+          </p>
+          {#if feedbackAvailable}
+          <label class="row">
+            <span class="row-label">
+              Modo feedback del MCP
+              <span class="hint">El agente anota en <code>~/.config/synapsers/feedback.md</code> lo que le falte al MCP. Aplica a las conversaciones nuevas.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={agentStore.feedbackMode}
+              onchange={(e) => agentStore.setFeedbackMode(e.currentTarget.checked)}
+            />
+          </label>
+          {/if}
+          <h4 class="agents-subtitle">Verificados</h4>
+          {#each agentStore.agents.filter((a) => a.source === 'verified') as a (a.id)}
+            <div class="row agent-row">
+              <span class="row-label">
+                {a.name}
+                {#if a.version}<span class="hint">v{a.version}</span>{/if}
+              </span>
+              {#if a.installed}
+                <span class="hint">Instalado</span>
+              {:else}
+                <button type="button" disabled={installing !== null} onclick={() => installAgent(a.id)}>
+                  {installing === a.id ? 'Instalando…' : 'Instalar'}
+                </button>
+              {/if}
+            </div>
+          {:else}
+            <p class="hint">Sin agentes verificados disponibles.</p>
+          {/each}
+
+          <h4 class="agents-subtitle">Personalizados</h4>
+          {#each agentStore.agents.filter((a) => a.source === 'custom') as a (a.id)}
+            <div class="row agent-row">
+              <span class="row-label">
+                {a.name}
+                <span class="hint">{a.launch?.command} {a.launch?.args.join(' ')}</span>
+              </span>
+              <button type="button" onclick={() => deleteCustomAgent(a.id)}>Quitar</button>
+            </div>
+          {/each}
+          <form
+            class="agent-form"
+            onsubmit={(e) => {
+              e.preventDefault();
+              saveCustomAgent();
+            }}
+          >
+            <input placeholder="Identificador (mi-agente)" bind:value={draftAgent.id} required />
+            <input placeholder="Nombre" bind:value={draftAgent.name} required />
+            <input placeholder="Comando (ruta o nombre en el PATH)" bind:value={draftAgent.command} required />
+            <input placeholder="Argumentos separados por espacios" bind:value={draftAgent.args} />
+            <textarea placeholder="Variables de entorno, una por línea: CLAVE=valor" rows="2" bind:value={draftAgent.env}
+            ></textarea>
+            <button type="submit">Agregar agente</button>
+          </form>
+          {#if agentError}<span class="error">{agentError}</span>{/if}
         {:else}
           <h3>Atajos de teclado</h3>
           <p class="hint">
@@ -370,6 +503,31 @@
 </Dialog.Root>
 
 <style>
+  .agents-subtitle {
+    margin: 14px 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+  }
+  .agent-row .row-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .agent-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .agent-form textarea,
+  .agent-form button {
+    grid-column: 1 / -1;
+  }
+  .agent-form button {
+    justify-self: start;
+  }
   :global(.settings-backdrop) {
     position: fixed;
     inset: 0;

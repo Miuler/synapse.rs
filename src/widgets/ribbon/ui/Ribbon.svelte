@@ -16,6 +16,7 @@
     Tag,
     Link,
     Languages,
+    Bot,
   } from 'lucide-svelte';
   import { appSettings, shortcutsConfig } from '@entities/settings';
   import { t } from '@shared/lib/i18n';
@@ -53,6 +54,11 @@
       id: 'relations',
       label: t('ribbon.relations'),
       icon: 'link',
+    },
+    {
+      id: 'agent',
+      label: t('ribbon.agent'),
+      icon: 'bot',
     },
     {
       id: 'new-note',
@@ -127,6 +133,8 @@
                   <Command size={18} class="icon" />
                 {:else if tool.icon === 'plugins'}
                   <Boxes size={18} class="icon" />
+                {:else if tool.icon === 'bot'}
+                  <Bot size={18} class="icon" />
                 {:else if tool.icon === 'graph'}
                   <Network size={18} class="icon" />
                 {/if}

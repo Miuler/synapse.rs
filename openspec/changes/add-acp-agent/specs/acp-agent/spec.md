@@ -2,13 +2,15 @@
 
 ### Requirement: Catálogo verificado y agentes personalizados ACP
 
-El sistema SHALL ofrecer un catálogo verificado de agentes ACP que incluya **Antigravity** y **Claude**, con descarga
-automática de sus binarios cuando no estén presentes, además de permitir registrar agentes personalizados mediante
-comando, argumentos y variables de entorno.
+El sistema SHALL ofrecer un catálogo verificado de agentes ACP, tomado del registro público de ACP, con descarga
+automática de sus binarios cuando no estén presentes; cada binario descargado MUST verificarse con el `sha256` del
+registro. Además SHALL permitir registrar agentes personalizados mediante comando, argumentos y variables de entorno.
+El catálogo incluye **Claude** (`claude-acp`, descargado del registro) y **Antigravity**, que se usa desde su CLI `agy`
+ya instalado sin descargar nada.
 
 #### Scenario: Descarga automática de un agente verificado
 
-- **GIVEN** el usuario selecciona Antigravity o Claude por primera vez y su binario no existe en el directorio
+- **GIVEN** el usuario selecciona Claude por primera vez y su binario no existe en el directorio
   gestionado de Synapse
 - **WHEN** el usuario inicia o selecciona ese agente
 - **THEN** Synapse descarga e instala automáticamente el binario correspondiente y establece la conexión ACP por
