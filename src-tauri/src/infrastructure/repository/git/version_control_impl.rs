@@ -1365,11 +1365,13 @@ impl VersionControlImpl {
         // %ae: email
         // %aI: fecha estricta ISO-8601
         // %at: timestamp UNIX
+        // %D: refs del commit; con --decorate-refs solo los tags («tag: v1.0, tag: v2»)
         // %s: asunto / mensaje
         cmd.args([
             "log",
             "--follow",
-            "--format=%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%s",
+            "--decorate-refs=refs/tags/",
+            "--format=%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%D\x1f%s",
             "-n",
             &limit,
             "--",
@@ -1385,14 +1387,15 @@ impl VersionControlImpl {
             let stdout_str = String::from_utf8_lossy(&output.stdout);
             for line in stdout_str.lines() {
                 let parts: Vec<&str> = line.split('\x1f').collect();
-                if parts.len() >= 7 {
+                if parts.len() >= 8 {
                     let commit_hash = parts[0].trim().to_string();
                     let short_hash = parts[1].trim().to_string();
                     let author_name = parts[2].trim().to_string();
                     let author_email = parts[3].trim().to_string();
                     let date = parts[4].trim().to_string();
                     let timestamp = parts[5].trim().parse::<i64>().unwrap_or(0);
-                    let message = parts[6].trim().to_string();
+                    let tags = parse_tag_refs(parts[6]);
+                    let message = parts[7..].join("\x1f").trim().to_string();
 
                     commits.push(VersionEntry {
                         commit_hash,
@@ -1402,6 +1405,7 @@ impl VersionControlImpl {
                         date,
                         timestamp,
                         message,
+                        tags,
                     });
                 }
             }
@@ -2330,5 +2334,24 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&origin_dir);
         let _ = std::fs::remove_dir_all(&clone_dir);
+    }
+}
+
+/// Extrae los nombres de tag de la salida `%D` de `git log` («tag: v1.0, tag: v2» → `["v1.0", "v2"]`).
+fn parse_tag_refs(refs: &str) -> Vec<String> {
+    refs.split(", ")
+        .filter_map(|r| r.trim().strip_prefix("tag: "))
+        .map(|t| t.to_string())
+        .collect()
+}
+
+#[cfg(test)]
+mod tag_refs_tests {
+    use super::parse_tag_refs;
+
+    #[test]
+    fn extrae_los_tags() {
+        assert_eq!(parse_tag_refs("tag: v1.0, tag: v2"), vec!["v1.0", "v2"]);
+        assert!(parse_tag_refs("").is_empty());
     }
 }

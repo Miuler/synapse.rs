@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
   import {
+    Tag,
     History,
     Search,
     Loader2,
@@ -42,6 +43,62 @@
   let commits = $state<GitCommitLogItem[]>([]);
   let filterText = $state('');
   let copiedHash = $state<string | null>(null);
+
+  // Tamaño del diálogo: se cambia arrastrando bordes o esquinas y se recuerda para todos los archivos.
+  const SIZE_KEY = 'synapse.gitLogDialog.size';
+  const MIN_W = 560;
+  const MIN_H = 320;
+  function loadSize(): { w: number; h: number } {
+    try {
+      const v = JSON.parse(localStorage.getItem(SIZE_KEY) ?? 'null');
+      if (v && v.w > 0 && v.h > 0) return v;
+    } catch {
+      /* sin tamaño guardado */
+    }
+    return { w: 1200, h: 680 };
+  }
+  let size = $state(loadSize());
+  const clampW = (w: number) => Math.max(MIN_W, Math.min(window.innerWidth - 16, w));
+  const clampH = (h: number) => Math.max(MIN_H, Math.min(window.innerHeight - 16, h));
+
+  function startResize(e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const w0 = clampW(size.w);
+    const h0 = clampH(size.h);
+    // El diálogo está centrado: crece igual hacia ambos lados, por eso el desplazamiento cuenta doble
+    const move = (ev: PointerEvent) => {
+      size = {
+        w: dx ? clampW(w0 + 2 * dx * (ev.clientX - x0)) : w0,
+        h: dy ? clampH(h0 + 2 * dy * (ev.clientY - y0)) : h0,
+      };
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try {
+        localStorage.setItem(SIZE_KEY, JSON.stringify(size));
+      } catch {
+        /* sin almacenamiento */
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  const HANDLES: { cls: string; dx: -1 | 0 | 1; dy: -1 | 0 | 1 }[] = [
+    { cls: 'n', dx: 0, dy: -1 },
+    { cls: 's', dx: 0, dy: 1 },
+    { cls: 'e', dx: 1, dy: 0 },
+    { cls: 'w', dx: -1, dy: 0 },
+    { cls: 'ne', dx: 1, dy: -1 },
+    { cls: 'nw', dx: -1, dy: -1 },
+    { cls: 'se', dx: 1, dy: 1 },
+    { cls: 'sw', dx: -1, dy: 1 },
+  ];
 
   const fileName = $derived(filePath ? filePath.split('/').pop() || filePath : '');
 
@@ -154,7 +211,18 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="git-log-dialog-overlay" />
-    <Dialog.Content class="git-log-dialog synapse-dialog" onkeydown={handleKeyDown}>
+    <Dialog.Content
+      class="git-log-dialog synapse-dialog"
+      style="width: {size.w}px; height: {size.h}px;"
+      onkeydown={handleKeyDown}
+    >
+      {#each HANDLES as h (h.cls)}
+        <div
+          class="git-log-resize {h.cls}"
+          aria-hidden="true"
+          onpointerdown={(e) => startResize(e, h.dx, h.dy)}
+        ></div>
+      {/each}
       <!-- Cabecera -->
       <div class="git-log-dialog-header">
         <div class="git-log-dialog-icon-wrap">
@@ -279,7 +347,11 @@
 
                     <!-- Columna Mensaje -->
                     <td class="col-message" title={commit.message}>
-                      <span class="commit-message-text">{commit.message}</span>
+                      <span class="commit-message-text"
+                        >{#each commit.tags ?? [] as tag (tag)}<span class="commit-tag" title="Tag {tag}"
+                            ><Tag size={10} />{tag}</span
+                          >{/each}{commit.message}</span
+                      >
                     </td>
 
                     <!-- Columna Acciones -->
@@ -294,6 +366,7 @@
                           <Eye size={13} />
                           <span>Ver archivo</span>
                         </button>
+                        <div class="diff-stack">
                         {#if onPatchRevision}
                           <button
                             type="button"
@@ -314,6 +387,7 @@
                           <GitCompare size={13} />
                           <span>Diff con local</span>
                         </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -355,10 +429,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 920px;
-    height: 80vh;
-    max-height: 640px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
     background: var(--bg-primary, #ffffff);
     color: var(--text-primary, #1f2328);
     border: 1px solid var(--border-primary, #d0d7de);
@@ -371,6 +443,40 @@
     overflow: hidden;
     animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
+
+  .git-log-resize {
+    position: absolute;
+    z-index: 5;
+  }
+  .git-log-resize.n,
+  .git-log-resize.s {
+    left: 8px;
+    right: 8px;
+    height: 6px;
+    cursor: ns-resize;
+  }
+  .git-log-resize.n { top: 0; }
+  .git-log-resize.s { bottom: 0; }
+  .git-log-resize.e,
+  .git-log-resize.w {
+    top: 8px;
+    bottom: 8px;
+    width: 6px;
+    cursor: ew-resize;
+  }
+  .git-log-resize.e { right: 0; }
+  .git-log-resize.w { left: 0; }
+  .git-log-resize.ne,
+  .git-log-resize.nw,
+  .git-log-resize.se,
+  .git-log-resize.sw {
+    width: 12px;
+    height: 12px;
+  }
+  .git-log-resize.ne { top: 0; right: 0; cursor: nesw-resize; }
+  .git-log-resize.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+  .git-log-resize.nw { top: 0; left: 0; cursor: nwse-resize; }
+  .git-log-resize.se { bottom: 0; right: 0; cursor: nwse-resize; }
 
   @keyframes fadeIn {
     from { opacity: 0; }
@@ -660,20 +766,40 @@
 
   .col-message {
     min-width: 200px;
-    max-width: 320px;
   }
 
+  /* Hasta dos líneas de mensaje; el resto se ve en el tooltip */
   .commit-message-text {
-    display: block;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
     color: var(--text-primary, #1f2328);
     font-weight: 500;
   }
 
+  .commit-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    vertical-align: 1px;
+    color: var(--warning, #9a6700);
+    background: color-mix(in srgb, var(--warning, #9a6700) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning, #9a6700) 45%, transparent);
+  }
+
   .col-actions {
-    width: 215px;
+    width: 1%;
     text-align: right;
     white-space: nowrap;
   }
@@ -682,6 +808,14 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+  }
+
+  /* Los dos diffs, uno sobre otro, para dejarle ancho al mensaje */
+  .diff-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
   }
 
   .action-btn {

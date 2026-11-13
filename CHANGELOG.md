@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Historial de Git más ancho y redimensionable**: el diálogo se agranda arrastrando sus bordes o esquinas, como una ventana, y recuerda el tamaño para todos los archivos. Los dos botones de diff van uno sobre otro y el mensaje del commit ocupa hasta dos líneas. Los commits con tag muestran el nombre del tag como etiqueta junto al mensaje.
 - **Ver los cambios de un commit**: en el Historial de Git, «Ver cambios» abre el parche de ese commit para el archivo (contra su commit padre). Texto en Dividida, Unificada o Parche; imágenes, dibujos y diagramas con 2 Paneles y Diferencias.
 - **Diff píxel por píxel de diagramas**: Mermaid, D2 y PlantUML tienen el modo **Diferencias** en el diff de Git, en el stage, en el parche de un commit y al comparar dos archivos. Las dos versiones se renderizan y se comparan en memoria, sin escribir nada en disco.
 - **Comparar dos dibujos o diagramas**: «Comparar archivos» con dos Excalidraw o dos diagramas del mismo lenguaje ofrece 2 Paneles, Texto y Diferencias.

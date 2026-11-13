@@ -76,6 +76,9 @@ pub struct VersionEntry {
     pub date: String,
     pub timestamp: i64,
     pub message: String,
+    /// Tags que apuntan a este commit (p. ej. `v1.0.0`).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -68,6 +68,8 @@ export interface GitCommitLogItem {
   date: string;
   timestamp: number;
   message: string;
+  /** Tags que apuntan a este commit. */
+  tags?: string[];
 }
 
 export interface GitCommitFileItem {
