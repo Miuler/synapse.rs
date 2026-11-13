@@ -114,14 +114,15 @@
   let isSettingsOpen = $state(false);
   let settingsSection = $state<'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts'>('appearance');
   // Panel del agente de IA, acoplado a la derecha o flotante; empieza cerrado en cada arranque
-  let isAgentPanelOpen = $state(false);
+  // Abierto o cerrado se recuerda por bóveda (ver agentStore)
+  const isAgentPanelOpen = $derived(agentStore.panelOpen);
   // Al cambiar de bóveda, el agente no sigue trabajando sobre la anterior
   $effect(() => {
     const vault = isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null);
     untrack(() => agentStore.changeVault(vault));
   });
   function setAgentPanelOpen(value: boolean) {
-    isAgentPanelOpen = value;
+    agentStore.setPanelOpen(value);
   }
   const vaultAbs = (rel: string) => {
     const root = appSettings.lastOpenedFolder;

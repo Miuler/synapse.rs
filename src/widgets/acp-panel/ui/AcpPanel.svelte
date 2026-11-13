@@ -53,8 +53,10 @@
   );
   let confirmDeleteAll = $state(false);
 
-  onMount(() => {
-    agentStore.refresh();
+  // Al abrir el panel se restauran las conversaciones que la bóveda tenía abiertas
+  onMount(async () => {
+    await agentStore.refresh();
+    await agentStore.restoreVaultState();
   });
   $effect(() => {
     if (cwd) agentStore.loadHistory(cwd);

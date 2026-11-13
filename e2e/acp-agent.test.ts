@@ -215,3 +215,39 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeoutMsg: 'no se borraron las conversaciones',
   });
 }, 120_000);
+
+it('al reabrir la bóveda vuelve el panel con su agente y su última conversación', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  await input.setValue('segunda conversación');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Hola desde el agente')), {
+    timeout: 10_000,
+    timeoutMsg: 'no llegó la respuesta',
+  });
+  await s.browser.execute(() => {
+    const btn = [...document.querySelectorAll('.acp-permission-actions button')].find((b) => b.textContent?.trim() === 'Permitir');
+    (btn as HTMLButtonElement | undefined)?.click();
+  });
+  await s.browser.pause(1_000);
+
+  // Recargar la ventana equivale a volver a abrir la bóveda
+  await s.browser.refresh();
+  await s.browser.$('.synapse-agent-panel').waitForExist({ timeout: 30_000 });
+  await s.browser.waitUntil(async () => (await text('.acp-row-title')).some((t) => t?.includes('segunda conversación')), {
+    timeout: 15_000,
+    timeoutMsg: 'no se restauró la conversación de la bóveda',
+  });
+  expect((await text('.acp-row-title')).join(' ')).toContain('Agente falso');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Hola desde el agente')), {
+    timeout: 10_000,
+    timeoutMsg: 'la conversación restaurada no trae sus mensajes',
+  });
+
+  // Con el panel cerrado, la bóveda vuelve con el panel cerrado
+  await s.browser.$('.synapse-agent-panel button[title="Cerrar panel"]').click();
+  await s.browser.refresh();
+  await s.browser.$('.file-tree-item').waitForExist({ timeout: 30_000 });
+  await s.browser.pause(1_500);
+  expect(await count('.synapse-agent-panel')).toBe(0);
+}, 120_000);

@@ -336,6 +336,10 @@ class AgentStore {
   pinned = $state<string | null>(null);
   /** Último agente usado, para «＋ Nueva conversación». */
   lastAgentId = $state<string | null>(null);
+  /** Panel visible; se recuerda por bóveda junto con sus conversaciones. */
+  panelOpen = $state(false);
+  /** Estado guardado de la bóveda, pendiente de restaurar cuando se abra el panel. */
+  #toRestore: VaultAgentState | null = null;
 
   #cwd: string | null = null;
   #early = new Map<string, AgentCommand[]>();
@@ -427,6 +431,56 @@ class AgentStore {
     return this.#listening;
   }
 
+  /** Guarda el estado del panel de la bóveda actual (solo si esa bóveda ya usó agentes o abrió el panel). */
+  #saveVaultState() {
+    const cwd = this.#cwd;
+    if (!cwd || this.#toRestore) return;
+    const state: VaultAgentState = {
+      open: this.panelOpen,
+      lastAgentId: this.lastAgentId,
+      conversations: this.conversations.map((c) => c.id),
+      expanded: this.expanded,
+      pinned: this.pinned,
+    };
+    save(vaultKey(cwd), JSON.stringify(state));
+  }
+
+  setPanelOpen(open: boolean) {
+    this.panelOpen = open;
+    this.#saveVaultState();
+  }
+
+  /**
+   * Restaura las conversaciones que la bóveda tenía abiertas (y su agente). Si no queda ninguna
+   * guardada pero sí un último agente, abre una conversación nueva con él.
+   */
+  async restoreVaultState() {
+    const state = this.#toRestore;
+    const cwd = this.#cwd;
+    if (!state || !cwd || this.conversations.length) {
+      this.#toRestore = null;
+      return;
+    }
+    if (!this.agents.length) await this.refresh();
+    await this.loadHistory(cwd);
+    const saved = state.conversations.filter((id) => this.history.some((h) => h.id === id));
+    try {
+      for (const id of [...saved].reverse()) await this.openFromHistory(cwd, id);
+      if (!saved.length && state.lastAgentId && this.agents.some((a) => a.id === state.lastAgentId)) {
+        await this.newConversation(cwd, state.lastAgentId);
+      }
+      this.expanded = state.expanded.filter((id) => this.byId(id));
+      if (state.pinned && this.byId(state.pinned)) {
+        this.pinned = state.pinned;
+        this.collapse(state.pinned);
+      }
+      if (state.lastAgentId) this.lastAgentId = state.lastAgentId;
+    } finally {
+      this.#toRestore = null;
+      this.#saveVaultState();
+    }
+  }
+
   async refresh() {
     this.listError = null;
     try {
@@ -460,10 +514,12 @@ class AgentStore {
     this.expanded = [...rest, id];
     const c = this.byId(id);
     if (c) c.unseen = false;
+    this.#saveVaultState();
   }
 
   collapse(id: string) {
     this.expanded = this.expanded.filter((x) => x !== id);
+    this.#saveVaultState();
   }
 
   toggle(id: string) {
@@ -480,6 +536,7 @@ class AgentStore {
     }
     this.pinned = id;
     this.collapse(id);
+    this.#saveVaultState();
     const c = this.byId(id);
     if (c) c.unseen = false;
   }
@@ -547,6 +604,7 @@ class AgentStore {
     this.conversations = this.conversations.filter((x) => x.id !== id);
     this.collapse(id);
     if (this.pinned === id) this.pinned = null;
+    this.#saveVaultState();
     await c.stop();
     if (this.#cwd) this.loadHistory(this.#cwd);
   }
@@ -590,8 +648,15 @@ class AgentStore {
     this.history = [];
     this.lastAgentId = null;
     this.#cwd = cwd;
+    // Lo que la bóveda tenía: panel abierto o cerrado, último agente y conversaciones abiertas.
+    // Una bóveda que nunca usó agentes empieza con el panel cerrado y sin agente.
+    const saved = cwd ? loadVaultState(cwd) : null;
+    this.#toRestore = saved;
+    this.panelOpen = saved?.open ?? false;
+    this.lastAgentId = saved?.lastAgentId ?? null;
     await Promise.all(open.map((c) => c.stop()));
     if (cwd) await this.loadHistory(cwd);
+    if (saved?.open) await this.restoreVaultState();
   }
 }
 
@@ -605,6 +670,34 @@ function replayText(items: ChatItem[]): string {
   }
   const body = lines.join('\n\n').slice(-20000);
   return `Contexto: esta conversación continúa una anterior. Resumen de lo dicho hasta ahora:\n\n${body}\n\n— Fin del contexto anterior —`;
+}
+
+/** Estado del panel de agentes guardado por bóveda. */
+interface VaultAgentState {
+  open: boolean;
+  lastAgentId: string | null;
+  conversations: string[];
+  expanded: string[];
+  pinned: string | null;
+}
+
+const vaultKey = (cwd: string) => `synapse.agent.vault.${cwd}`;
+
+function loadVaultState(cwd: string): VaultAgentState | null {
+  try {
+    const raw = load(vaultKey(cwd));
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Partial<VaultAgentState>;
+    return {
+      open: !!s.open,
+      lastAgentId: s.lastAgentId ?? null,
+      conversations: Array.isArray(s.conversations) ? s.conversations : [],
+      expanded: Array.isArray(s.expanded) ? s.expanded : [],
+      pinned: s.pinned ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export type { AgentStore };
