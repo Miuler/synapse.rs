@@ -15,6 +15,7 @@
     ChevronRight,
     Pin,
     PinOff,
+    Ellipsis,
   } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -52,6 +53,14 @@
     loadJson(POS_KEY, { x: Math.max(16, window.innerWidth - 440), y: 80, w: 420, h: 560 }),
   );
   let confirmDeleteAll = $state(false);
+  /** Conversación con el menú ⋯ abierto. */
+  let menuFor = $state<string | null>(null);
+  $effect(() => {
+    if (!menuFor) return;
+    const close = () => (menuFor = null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  });
 
   // Al abrir el panel se restauran las conversaciones que la bóveda tenía abiertas
   onMount(async () => {
@@ -261,20 +270,41 @@
       {#if c.session.tool_servers.includes('synapse_instance')}
         <span class="acp-badge" title="El agente puede usar las herramientas MCP de Synapse (notas, búsqueda, Git…)">MCP Synapse</span>
       {/if}
-      <button
-        type="button"
-        class="acp-icon small"
-        title="Ver la conversación en crudo (JSON, se abre con la aplicación por defecto)"
-        aria-label="Ver conversación en crudo"
-        onclick={() => c.openRaw()}><FileJson size={13} /></button
-      >
-      <button
-        type="button"
-        class="acp-icon small"
-        title="Borrar esta conversación del historial"
-        aria-label="Borrar conversación"
-        onclick={() => cwd && agentStore.deleteTranscript(cwd, c.id)}><Trash2 size={13} /></button
-      >
+      <div class="acp-more">
+        <button
+          type="button"
+          class="acp-icon small"
+          title="Más acciones"
+          aria-label="Más acciones"
+          aria-haspopup="menu"
+          aria-expanded={menuFor === c.id}
+          onclick={(e) => {
+            e.stopPropagation();
+            menuFor = menuFor === c.id ? null : c.id;
+          }}><Ellipsis size={14} /></button
+        >
+        {#if menuFor === c.id}
+          <div class="acp-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              onclick={() => {
+                menuFor = null;
+                c.openRaw();
+              }}><FileJson size={13} /> Ver en crudo (JSON)</button
+            >
+            <button
+              type="button"
+              role="menuitem"
+              class="danger"
+              onclick={() => {
+                menuFor = null;
+                if (cwd) agentStore.deleteTranscript(cwd, c.id);
+              }}><Trash2 size={13} /> Borrar conversación</button
+            >
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
 {/snippet}
@@ -668,5 +698,46 @@
   .acp-error-text {
     color: var(--danger);
     font-size: 12px;
+  }
+  .acp-more {
+    position: relative;
+    margin-left: auto;
+  }
+  .acp-badge + .acp-more {
+    margin-left: 0;
+  }
+  .acp-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    box-shadow: var(--modal-shadow);
+  }
+  .acp-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+  }
+  .acp-menu button:hover {
+    background: var(--bg-tertiary);
+  }
+  .acp-menu button.danger {
+    color: var(--danger);
   }
 </style>

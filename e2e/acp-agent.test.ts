@@ -123,6 +123,21 @@ it('registra un agente personalizado y conversa con él', async () => {
   );
   expect(await text('.acp-permission-done')).toContain('Permitir');
 
+  // Contexto al 85 %: «Compactar» se ve resaltado; al compactar aparece la marca y el uso baja
+  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).some((t) => t?.includes('(85%)')), {
+    timeout: 5_000,
+    timeoutMsg: 'no se muestra el uso de contexto',
+  });
+  expect(await count('.acp-compact.shown.warn')).toBe(1);
+  await s.browser.$('.acp-compact').click();
+  await s.browser.$('.acp-compact-marker').waitForExist({ timeout: 10_000 });
+  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).some((t) => t?.includes('(10%)')), {
+    timeout: 10_000,
+    timeoutMsg: 'el uso no bajó al compactar',
+  });
+  expect((await text('.acp-msg.agent')).some((t) => t?.includes('Resumen compactado'))).toBe(true);
+  expect(await count('.acp-compact.shown')).toBe(0);
+
   // `@this` vuelve a adjuntar el archivo de la pestaña visible
   expect((await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md'))).toBe(false);
   await s.browser.$('.acp-input textarea').click();

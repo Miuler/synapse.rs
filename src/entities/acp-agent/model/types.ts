@@ -172,6 +172,8 @@ export type ChatItem =
       rawOutput?: unknown;
     }
   | { type: 'permission'; id: number; request: PermissionRequestEvent; answered: string | null }
-  | { type: 'error'; id: number; text: string };
+  | { type: 'error'; id: number; text: string }
+  /** El usuario compactó el contexto del agente (`/compact`): lo anterior ya no está en su memoria. */
+  | { type: 'compact'; id: number };
 
 export type AgentConnection = 'idle' | 'installing' | 'starting' | 'ready' | 'busy' | 'error';

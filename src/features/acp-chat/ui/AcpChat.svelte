@@ -17,6 +17,7 @@
     Circle,
     CircleCheck,
     CircleDot,
+    Shrink,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
   import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
@@ -388,6 +389,8 @@
           </div>
         {:else if item.type === 'error'}
           <div class="acp-msg error"><AlertCircle size={13} /> {item.text}</div>
+        {:else if item.type === 'compact'}
+          <div class="acp-compact-marker" role="separator">— contexto compactado —</div>
         {/if}
       {/each}
       {#if busy}
@@ -404,6 +407,20 @@
           Contexto {compact(conv.usage.used)} / {compact(conv.usage.size)} ({usagePct.toFixed(0)}%)
           {#if conv.usage.cost}· {formatCost(conv.usage.cost)}{/if}
         </span>
+        {#if conv.canCompact}
+          <button
+            type="button"
+            class="acp-compact"
+            class:shown={usagePct >= 60 || conv.compacting}
+            class:warn={usagePct >= 80}
+            title="Pide al agente que resuma su contexto (/compact) para liberar espacio"
+            disabled={conv.compacting || busy}
+            onclick={() => conv.compact()}
+          >
+            <Shrink size={11} />
+            {conv.compacting ? 'Compactando…' : 'Compactar'}
+          </button>
+        {/if}
       </div>
     {/if}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -946,6 +963,42 @@
   }
   .acp-usage.warn :global(.acp-usage-bar) {
     background: var(--warning, #9a6700);
+  }
+  .acp-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 2px;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+  .acp-compact.shown,
+  .acp-usage-row:hover .acp-compact {
+    visibility: visible;
+  }
+  .acp-compact:hover:not(:disabled) {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .acp-compact.warn {
+    color: var(--warning, #9a6700);
+  }
+  .acp-compact:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+  .acp-compact-marker {
+    align-self: stretch;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 4px 0;
   }
   .acp-usage-text {
     font-size: 10.5px;

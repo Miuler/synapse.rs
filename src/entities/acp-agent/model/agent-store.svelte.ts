@@ -1,5 +1,6 @@
 import { agentApi, listenAgentEvents } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
+import { replayText } from './replay-text';
 import type {
   AgentCommand,
   AgentConnection,
@@ -55,6 +56,8 @@ export class Conversation {
   dismissedActiveNote = $state<string | null>(null);
   /** Hay novedades que el usuario no vio (terminó o pide permiso estando plegada). */
   unseen = $state(false);
+  /** El agente está compactando su contexto (`/compact`). */
+  compacting = $state(false);
 
   readonly #store: AgentStore;
   readonly #cwd: string;
@@ -222,6 +225,12 @@ export class Conversation {
             : { type: 'selection', path: a.path, text: a.text, start_line: a.startLine, end_line: a.endLine },
       );
     }
+    // `/compact`: el agente resume su contexto; la marca separa lo que ya no recuerda en detalle
+    const compact = /^\/compact\b/.test(text.trim());
+    if (compact) {
+      this.push({ type: 'compact' });
+      this.compacting = true;
+    }
     this.push({ type: 'user', text, attachments });
     this.attachments = [];
     // Tras enviarla, la nota activa no se repite hasta que cambie
@@ -237,6 +246,7 @@ export class Conversation {
       this.error(e);
     } finally {
       if (this.session?.id === session.id) this.connection = 'ready';
+      if (compact) this.compacting = false;
       if (!this.#store.isVisible(this)) this.unseen = true;
       this.persist(true);
     }
@@ -281,6 +291,16 @@ export class Conversation {
     } catch (e) {
       this.error(e);
     }
+  }
+
+  /** Si el agente ofrece `/compact` (lo anuncia entre sus comandos). */
+  get canCompact(): boolean {
+    return this.commands.some((c) => c.name === 'compact');
+  }
+
+  /** Compacta el contexto del agente con su comando `/compact`. */
+  compact() {
+    return this.send('/compact');
   }
 
   /** Abre el archivo crudo (JSON) de la conversación con la aplicación por defecto. */
@@ -660,17 +680,6 @@ class AgentStore {
   }
 }
 
-/** Conversación anterior en texto, para un agente que no puede retomarla por sí mismo. */
-function replayText(items: ChatItem[]): string {
-  const lines: string[] = [];
-  for (const i of items) {
-    if (i.type === 'user') lines.push(`Usuario: ${i.text}`);
-    else if (i.type === 'agent') lines.push(`Agente: ${i.text}`);
-    else if (i.type === 'tool') lines.push(`(herramienta: ${i.title})`);
-  }
-  const body = lines.join('\n\n').slice(-20000);
-  return `Contexto: esta conversación continúa una anterior. Resumen de lo dicho hasta ahora:\n\n${body}\n\n— Fin del contexto anterior —`;
-}
 
 /** Estado del panel de agentes guardado por bóveda. */
 interface VaultAgentState {

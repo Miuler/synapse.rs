@@ -76,12 +76,20 @@ for await (const line of createInterface({ input: process.stdin })) {
         modes: { currentModeId: 'ask', availableModes: [{ id: 'ask', name: 'Preguntar' }, { id: 'code', name: 'Programar' }] },
       },
     });
-    update({ sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'resumir', description: 'Resume la nota' }] });
+    update({ sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'resumir', description: 'Resume la nota' }, { name: 'compact', description: 'Compacta el contexto' }] });
   } else if (msg.method === 'session/set_mode') {
     send({ jsonrpc: '2.0', id: msg.id, result: {} });
   } else if (msg.method === 'session/prompt') {
     promptId = msg.id;
     current = msg.params.sessionId;
+    // `/compact`: responde con su resumen y el uso de contexto baja
+    if (msg.params.prompt.some((b: { type: string; text?: string }) => b.type === 'text' && b.text?.trim().startsWith('/compact'))) {
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Resumen compactado: hablamos de la nota.' } });
+      update({ sessionUpdate: 'usage_update', used: 20_000, size: 200_000 });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
+    update({ sessionUpdate: 'usage_update', used: 170_000, size: 200_000 });
     const instr = msg.params.prompt[0]?.text?.includes('synapse_instance') ? 'instr:si' : 'instr:no';
     const blocks = msg.params.prompt.slice(instr === 'instr:si' ? 1 : 0).map((b: { type: string; uri?: string; resource?: { uri: string } }) =>
       b.type === 'resource_link' ? `link:${b.uri!.split('/').pop()}` : b.type === 'resource' ? `sel:${b.resource!.uri.split('/').pop()}` : b.type,
