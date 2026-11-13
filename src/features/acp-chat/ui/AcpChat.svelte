@@ -180,6 +180,15 @@
     starting: 'Iniciando el agente…',
   };
 
+  const compact = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  function formatCost(c: { amount: number; currency: string }) {
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: c.currency || 'USD', maximumFractionDigits: 4 }).format(c.amount);
+    } catch {
+      return `${c.amount} ${c.currency}`;
+    }
+  }
   const usagePct = $derived(agentStore.usage ? Math.min(100, (agentStore.usage.used / agentStore.usage.size) * 100) : 0);
 </script>
 
@@ -313,8 +322,14 @@
     </div>
 
     {#if agentStore.usage}
-      <div class="acp-usage" title="Contexto usado: {agentStore.usage.used.toLocaleString()} de {agentStore.usage.size.toLocaleString()} tokens">
-        <div class="acp-usage-bar" style="width: {usagePct}%"></div>
+      <div class="acp-usage-row" title="Ventana de contexto del modelo: {agentStore.usage.used.toLocaleString()} de {agentStore.usage.size.toLocaleString()} tokens usados">
+        <div class="acp-usage" class:warn={usagePct >= 80}>
+          <div class="acp-usage-bar" style="width: {usagePct}%"></div>
+        </div>
+        <span class="acp-usage-text">
+          Contexto {compact(agentStore.usage.used)} / {compact(agentStore.usage.size)} ({usagePct.toFixed(0)}%)
+          {#if agentStore.usage.cost}· {formatCost(agentStore.usage.cost)}{/if}
+        </span>
       </div>
     {/if}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -766,8 +781,27 @@
     color: var(--danger);
     background: var(--danger-bg);
   }
+  .acp-usage-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 10px;
+  }
+  .acp-usage-row .acp-usage {
+    flex: 1;
+  }
+  .acp-usage.warn :global(.acp-usage-bar) {
+    background: var(--warning, #9a6700);
+  }
+  .acp-usage-text {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
   .acp-usage {
-    height: 2px;
+    height: 4px;
+    border-radius: 2px;
+    overflow: hidden;
     background: var(--bg-tertiary);
   }
   .acp-usage-bar {

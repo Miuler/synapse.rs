@@ -250,6 +250,7 @@ fn update_events(params: &Value) -> Vec<(&'static str, Value)> {
                 "sessionId": session_id,
                 "used": update.get("used").cloned().unwrap_or(Value::Null),
                 "size": update.get("size").cloned().unwrap_or(Value::Null),
+                "cost": update.get("cost").cloned().unwrap_or(Value::Null),
             }),
         )],
         "current_mode_update" => vec![(

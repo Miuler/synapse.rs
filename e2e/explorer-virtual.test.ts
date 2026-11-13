@@ -47,11 +47,13 @@ it('ubicar archivo lleva a una nota que no estaba en el DOM', async () => {
   await s.browser.waitUntil(async () => !(await hasRow(target)), { timeout: 5_000 });
   // Abrir la nota con el Quick Open y ubicarla en el árbol (Alt+L).
   await s.browser.keys(['Control', 'o']);
-  const input = s.browser.$('.quick-open-command-root input');
+  // El diálogo, no el buscador en línea de la pestaña vacía (que comparte clases)
+  const dialog = '.quick-open-container:not(.is-inline)';
+  const input = s.browser.$(`${dialog} .quick-open-command-root input`);
   await input.waitForExist({ timeout: 10_000 });
   await input.setValue('nota-250');
   await s.browser.waitUntil(
-    async () => (await s.browser.$$('.quick-open-results-container [data-command-item]').length) > 0,
+    async () => (await s.browser.$$(`${dialog} .quick-open-results-container [data-command-item]`).length) > 0,
     { timeout: 10_000 },
   );
   await s.browser.keys(['Enter']);

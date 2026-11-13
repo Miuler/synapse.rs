@@ -172,7 +172,7 @@
     </button>
     <button type="button" class="acp-icon" title="Cerrar panel" onclick={onClose}><X size={14} /></button>
   </header>
-  {#if cwd && agentStore.activeAgent}
+  {#if cwd}
     <div class="acp-subbar acp-history">
       <History size={13} />
       <select

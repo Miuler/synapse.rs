@@ -68,7 +68,7 @@
     "three": "^0.186.1"
   },
   "overrides": {
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.13"
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15"
   }
 }

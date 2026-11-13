@@ -113,14 +113,10 @@
   let isPluginsModalOpen = $state(false);
   let isSettingsOpen = $state(false);
   let settingsSection = $state<'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts'>('appearance');
-
-  // Panel del agente de IA, acoplado a la derecha o flotante; se recuerda si estaba abierto
-  let isAgentPanelOpen = $state((() => {
-    try { return localStorage.getItem('synapse.agent.open') === '1'; } catch { return false; }
-  })());
+  // Panel del agente de IA, acoplado a la derecha o flotante; empieza cerrado en cada arranque
+  let isAgentPanelOpen = $state(false);
   function setAgentPanelOpen(value: boolean) {
     isAgentPanelOpen = value;
-    try { localStorage.setItem('synapse.agent.open', value ? '1' : '0'); } catch { /* sin almacenamiento */ }
   }
   const vaultAbs = (rel: string) => {
     const root = appSettings.lastOpenedFolder;

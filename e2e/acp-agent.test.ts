@@ -23,6 +23,8 @@ const text = (sel: string) =>
 it('registra un agente personalizado y conversa con él', async () => {
   await s.browser.$('button[aria-label="Agente de IA"]').click();
   await s.browser.$('.synapse-agent-panel').waitForExist({ timeout: 5_000 });
+  // Por defecto no hay ningún agente elegido
+  expect(await s.browser.execute(() => (document.querySelector('.acp-select') as HTMLSelectElement).value)).toBe('');
 
   // Ajustes → Agentes de IA → agregar el agente falso
   await s.browser.$('.synapse-agent-panel button[title="Ajustes de agentes"]').click();
@@ -131,6 +133,17 @@ it('registra un agente personalizado y conversa con él', async () => {
   // Nueva conversación: vacía; borrar todas deja el historial vacío
   await s.browser.$('button[aria-label="Nueva conversación"]').click();
   await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).length === 0, { timeout: 10_000 });
+  // Retomar desde el historial devuelve la conversación (y su agente)
+  await s.browser.execute(() => {
+    const sel = document.querySelector('.acp-history select') as HTMLSelectElement;
+    sel.value = [...sel.options].find((o) => o.value && o.value !== '__new__')!.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Hola desde el agente')), {
+    timeout: 10_000,
+    timeoutMsg: 'no se retomó la conversación del historial',
+  });
+  expect(await s.browser.execute(() => (document.querySelector('.acp-select') as HTMLSelectElement).value)).toBe('falso');
   await s.browser.$('button=Borrar todas').click();
   await s.browser.$('.acp-danger').click();
   await s.browser.waitUntil(async () => readdirSync(dir).filter((f) => f.endsWith('.json')).length === 0, {

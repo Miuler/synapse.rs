@@ -15,7 +15,6 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 type AgentCommandList = AgentCommand[];
 
-const ACTIVE_KEY = 'synapse.agent.active';
 const FLOATING_KEY = 'synapse.agent.floating';
 const FEEDBACK_KEY = 'synapse.agent.feedback';
 
@@ -39,7 +38,8 @@ function save(key: string, value: string | null) {
 /** Estado de la conversación con el agente activo. */
 class AgentStore {
   agents = $state<AgentProfile[]>([]);
-  activeAgentId = $state<string | null>(load(ACTIVE_KEY));
+  /** Ningún agente elegido al arrancar: el usuario lo elige, o lo fija la conversación que retoma. */
+  activeAgentId = $state<string | null>(null);
   session = $state<AgentSession | null>(null);
   connection = $state<AgentConnection>('idle');
   items = $state<ChatItem[]>([]);
@@ -51,7 +51,7 @@ class AgentStore {
   plan = $state<PlanEntry[]>([]);
   /** Comandos que anuncia el agente (para autocompletar con `/`). */
   commands = $state<AgentCommand[]>([]);
-  usage = $state<{ used: number; size: number } | null>(null);
+  usage = $state<{ used: number; size: number; cost: { amount: number; currency: string } | null } | null>(null);
   currentMode = $state<string | null>(null);
   currentModel = $state<string | null>(null);
   /** Etiquetas que acompañan al próximo mensaje. */
@@ -125,7 +125,7 @@ class AgentStore {
         else if (!this.session) this.#early.set(e.sessionId, e.commands);
       },
       onUsage: (e) => {
-        if (e.sessionId === this.session?.id && e.used != null && e.size) this.usage = { used: e.used, size: e.size };
+        if (e.sessionId === this.session?.id && e.used != null && e.size) this.usage = { used: e.used, size: e.size, cost: e.cost ?? null };
       },
       onMode: (e) => {
         if (e.sessionId === this.session?.id) this.currentMode = e.modeId;
@@ -199,7 +199,6 @@ class AgentStore {
   async select(agentId: string, cwd: string) {
     if (this.session) await this.stop();
     this.activeAgentId = agentId;
-    save(ACTIVE_KEY, agentId);
     await this.connectLatest(cwd);
   }
 
@@ -220,10 +219,11 @@ class AgentStore {
     if (resumeId) {
       try {
         const t = await agentApi.loadTranscript(cwd, resumeId);
-        if (t.agent_id !== this.activeAgentId && this.agents.some((a) => a.id === t.agent_id)) {
-          this.activeAgentId = t.agent_id;
-          save(ACTIVE_KEY, t.agent_id);
+        // La conversación recuerda su agente: retomarla cambia a ese agente
+        if (!this.agents.some((a) => a.id === t.agent_id)) {
+          throw new Error(`El agente «${t.agent_name || t.agent_id}» de esta conversación ya no está configurado.`);
         }
+        this.activeAgentId = t.agent_id;
         this.items = Array.isArray(t.items) ? t.items : [];
         this.#nextId = this.items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
         this.transcriptId = t.id;

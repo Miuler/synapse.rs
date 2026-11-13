@@ -137,6 +137,8 @@ export interface UsageEvent {
   sessionId: string;
   used: number | null;
   size: number | null;
+  /** Costo acumulado de la sesión, si el agente lo informa. */
+  cost?: { amount: number; currency: string } | null;
 }
 
 export interface ModeEvent {
