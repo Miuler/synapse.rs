@@ -3,7 +3,7 @@
 Comando (modo release, contra una bóveda real; solo lee la bóveda):
 
 ```bash
-SYNAPSE_BENCH_VAULT=/ruta/a/la/boveda cargo test --release --test baseline_measurements -- --ignored --nocapture
+SYNAPSE_BENCH_VAULT=/ruta/a/la/boveda cargo test --release --test integration baseline_measurements:: -- --ignored --nocapture
 ```
 
 Bóveda: MisNotas (6 053 notas indexadas). Valores = mediana.

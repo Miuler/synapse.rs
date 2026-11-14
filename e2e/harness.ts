@@ -18,10 +18,21 @@ setDefaultTimeout(60_000);
 const ROOT = resolve(import.meta.dir, '..');
 // E2E_APP permite usar otro binario, p. ej. el de producción (target/release/synapsers), que ya
 // trae el front incluido y no necesita Vite.
-// El binario de `bun run build:e2e` carga la interfaz desde VITE_PORT, no desde el 5173 de `tauri dev`,
-// que puede estar ocupado por otro proyecto.
-const VITE_PORT = 5301;
-const APP = process.env.E2E_APP ?? join(ROOT, 'src-tauri/target/e2e/debug/synapsers');
+// Las e2e usan el mismo binario de desarrollo (`target/debug`, el de `cargo build` o `tauri dev`), que carga
+// la interfaz desde el 5173: así no hace falta una segunda compilación completa. Si el 5173 ya está ocupado,
+// se reutiliza solo si es el Vite de Synapse (puede ser otro proyecto).
+const VITE_PORT = 5173;
+const APP = process.env.E2E_APP ?? join(ROOT, 'src-tauri/target/debug/synapsers');
+
+/** Lo que responde en el puerto es el Vite de este proyecto (y no el de otro). */
+async function servesSynapse(port: number): Promise<boolean> {
+  try {
+    const html = await (await fetch(`http://localhost:${port}/`)).text();
+    return html.includes('<title>synapse.rs</title>');
+  } catch {
+    return false;
+  }
+}
 const NEEDS_VITE = !process.env.E2E_APP;
 const DRIVER = join(process.env.HOME ?? '', '.cargo/bin/tauri-driver');
 
@@ -91,6 +102,9 @@ async function launch(base: string, vault: string): Promise<Session> {
   // Vite reenvía al terminal los avisos de la consola del webview (p. ej. de Svelte): se guardan
   // en vite.log para que las pruebas puedan revisarlos.
   const viteLog = join(base, 'vite.log');
+  if (NEEDS_VITE && (await isListening(VITE_PORT)) && !(await servesSynapse(VITE_PORT))) {
+    throw new Error(`El puerto ${VITE_PORT} lo ocupa otro proyecto, no el Vite de Synapse: ciérralo para correr las e2e.`);
+  }
   if (NEEDS_VITE && !(await isListening(VITE_PORT))) {
     const out = Bun.file(viteLog).writer();
     const vite = spawn('bun', ['x', 'vite', '--port', String(VITE_PORT), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });

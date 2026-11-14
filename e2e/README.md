@@ -14,7 +14,8 @@ cargo install tauri-driver --locked
 Ejecutar:
 
 ```bash
-bun run build:e2e   # binario propio en src-tauri/target/e2e; carga la interfaz desde el puerto 5301
+bun run build:e2e   # el binario de desarrollo (src-tauri/target/debug); carga la interfaz desde el 5173,
+                    # el mismo de `tauri dev` (si ya hay un Vite de Synapse ahí, se reutiliza)
 bun run test:e2e
 ```
 

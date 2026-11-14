@@ -113,14 +113,17 @@ Agregar una dependencia nueva que duplique una de esta lista requiere justificar
 
 ## 9. Pruebas
 
-- Unitarias junto al código (`#[cfg(test)]`); de integración en `tests/`.
+- Unitarias junto al código (`#[cfg(test)]`); de integración en `tests/integration/`, como módulos de un
+  **solo binario** (`tests/integration/main.rs`): cada archivo suelto en `tests/` sería otro enlazado completo del crate.
+  Un grupo se corre con `cargo test --test integration <módulo>::`.
 - Async con `#[tokio::test]`. Bases de datos reales en pruebas (SQLite en memoria o
   `testcontainers` para PostgreSQL/MinIO), nunca mocks de SQL.
 - Snapshots con `insta` cuando la salida es grande; propiedades con `proptest` para
   algoritmos (hashing, chunking, parsers).
 - Los servidores gRPC se prueban levantándolos en un puerto efímero y llamándolos con el
   cliente generado.
-- Linker: si `ld.lld` se cuelga enlazando muchos binarios de prueba, limitar con `cargo test -j 2`.
+- Linker: `mold` en Linux (`.cargo/config.toml`), que enlaza en paralelo. Perfiles `dev` y `test` con
+  `debug = "line-tables-only"` para binarios livianos. Si un enlazado se cuelga o falta memoria, limitar con `cargo test -j 2`.
 
 ## 10. Calidad y CI
 

@@ -352,7 +352,7 @@ fn mcp_tools_output_is_preserved() {
         fs::write(
             concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/tests/characterization/mcp_tools.txt"
+                "/tests/integration/characterization/mcp_tools.txt"
             ),
             &out,
         )
@@ -361,7 +361,7 @@ fn mcp_tools_output_is_preserved() {
     }
     let expected = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/characterization/mcp_tools.txt"
+        "/tests/integration/characterization/mcp_tools.txt"
     ))
     .unwrap();
     assert_eq!(
