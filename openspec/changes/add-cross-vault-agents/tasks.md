@@ -26,4 +26,4 @@
 
 - [ ] 4.1 e2e con dos instancias (dos bóvedas) y el agente falso.
 - [ ] 4.2 Prueba con Claude y Antigravity reales.
-- [ ] 4.3 CHANGELOG.
+- [x] 4.3 CHANGELOG.

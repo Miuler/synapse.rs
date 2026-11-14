@@ -64,7 +64,7 @@
 
 ## 3. Verificación
 
-- [ ] 3.1 Ejecutar `bun run check` (0 errores, 0 warnings).
+- [x] 3.1 Ejecutar `bun run check` (0 errores, 0 warnings).
 - [x] 3.2 Ejecutar `bun run build`.
 - [x] 3.3 Ejecutar `cargo test --manifest-path src-tauri/Cargo.toml`.
 - [x] 3.4 Actualizar `CHANGELOG.md` bajo `## [Sin publicar] (Unreleased)`.

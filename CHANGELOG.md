@@ -38,6 +38,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **`bun run check` sin errores ni advertencias**: el tipo de los píxeles en el diff de Excalidraw y el esquema de títulos, que tomaba a propósito solo el valor inicial.
 - **Abrir una conversación mientras la bóveda restaura las suyas ya no la repliega** al terminar la restauración.
 - **El agente ya no sigue en la bóveda anterior al cambiar de bóveda**: la conversación se cierra (queda guardada en su bóveda) y el panel vuelve a empezar sin agente elegido, con el historial de la bóveda nueva.
 - **`Shift+F6` vuelve a seleccionar todas las coincidencias en el editor de código**: había dos copias de CodeMirror y el atajo quedaba registrado en una que el editor no leía; ahora se usa una sola versión.

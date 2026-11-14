@@ -2,7 +2,7 @@
   // Índice de la nota: los encabezados en árbol, contraído por defecto (solo se ven los de primer
   // nivel), con botones para expandir y contraer todo. Abre desplegado hasta el título donde está la
   // vista, que se resalta, y arriba tiene una búsqueda rápida de títulos.
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search } from 'lucide-svelte';
   import { extractHeadingTree, flattenHeadings, headingPathAt, normalizeHeadingText, type HeadingNode } from '../lib/heading-anchor';
 
@@ -18,11 +18,14 @@
 
   let tree = $derived(extractHeadingTree(content));
   // Abre desplegado hasta el título actual (sus ancestros abiertos)
+  // Solo el valor inicial: después el usuario despliega y pliega a mano
   let expanded = $state<Record<number, boolean>>(
-    Object.fromEntries(
-      headingPathAt(extractHeadingTree(content), currentLine)
-        .slice(0, -1)
-        .map((h) => [h.line, true]),
+    untrack(() =>
+      Object.fromEntries(
+        headingPathAt(extractHeadingTree(content), currentLine)
+          .slice(0, -1)
+          .map((h) => [h.line, true]),
+      ),
     ),
   );
   let currentPath = $derived(new Set(headingPathAt(tree, currentLine).map((h) => h.line)));

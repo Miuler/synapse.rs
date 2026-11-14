@@ -75,7 +75,7 @@ export async function excalidrawPixelDiff(
   const out = document.createElement('canvas');
   out.width = outW;
   out.height = outH;
-  out.getContext('2d')!.putImageData(new ImageData(output, outW, outH), 0, 0);
+  out.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(output), outW, outH), 0, 0);
 
   const total = outW * outH;
   return {
