@@ -39,6 +39,9 @@ pub struct McpPortRegistryEntry {
     pub endpoint: String,
     #[serde(default)]
     pub updated_at: u64,
+    /// Secreto de la instancia para el canal entre instancias (`/peer`); solo lo leen tus procesos.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]

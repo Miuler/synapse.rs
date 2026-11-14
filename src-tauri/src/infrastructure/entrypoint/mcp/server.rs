@@ -464,6 +464,7 @@ impl McpBackgroundRuntime {
 
         // Leer cabeceras HTTP
         let mut content_length = 0usize;
+        let mut peer_token: Option<String> = None;
         loop {
             let mut line = String::new();
             if reader.read_line(&mut line)? == 0 || line == "\r\n" || line == "\n" {
@@ -472,6 +473,40 @@ impl McpBackgroundRuntime {
             if let Some(val) = line.to_lowercase().strip_prefix("content-length:") {
                 content_length = val.trim().parse().unwrap_or(0);
             }
+            if let Some((k, v)) = line.split_once(':')
+                && k.trim().eq_ignore_ascii_case("x-synapse-token")
+            {
+                peer_token = Some(v.trim().to_string());
+            }
+        }
+
+        // Canal entre instancias de Synapse: solo con el token de esta instancia
+        if method == "POST" && path == "/peer" {
+            let mut body = vec![0u8; content_length];
+            if content_length > 0 {
+                reader.read_exact(&mut body)?;
+            }
+            let authorized = peer_token.as_deref() == Some(super::port_registry::instance_token());
+            let (status, payload) = if !authorized {
+                ("403 Forbidden", json!({"error": "Token inválido"}))
+            } else {
+                let request: serde_json::Value =
+                    serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+                match provider.conversation_hub().map(|hub| hub.peer(request)) {
+                    Some(Ok(v)) => ("200 OK", json!({"result": v})),
+                    Some(Err(e)) => ("200 OK", json!({"error": e})),
+                    None => ("200 OK", json!({"error": "Sin ventana de Synapse"})),
+                }
+            };
+            let body = payload.to_string();
+            let header = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(body.as_bytes());
+            let _ = stream.flush();
+            return Ok(());
         }
 
         // Manejo de CORS Preflight

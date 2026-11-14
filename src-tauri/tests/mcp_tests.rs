@@ -891,3 +891,83 @@ A[Cliente ACP] --> B[Servidor MCP]
             .contains("- [ ] Tarea agregada automáticamente")
     );
 }
+
+/// Proveedor con una ventana simulada que atiende los pedidos de otras instancias.
+struct PeerMcpProvider {
+    vault: std::path::PathBuf,
+}
+
+struct EchoConversationHubImpl;
+
+impl app_lib::application::service::conversation_hub::ConversationHub for EchoConversationHubImpl {
+    fn list(&self, _caller: Option<&str>) -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!([]))
+    }
+    fn send(
+        &self,
+        _c: Option<&str>,
+        _to: &str,
+        _m: &str,
+        _r: bool,
+    ) -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({}))
+    }
+    fn peer(&self, request: serde_json::Value) -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({"echo": request}))
+    }
+}
+
+impl app_lib::infrastructure::entrypoint::mcp::server::McpContextProvider for PeerMcpProvider {
+    fn get_context(
+        &self,
+    ) -> (
+        Option<std::path::PathBuf>,
+        Option<std::sync::Arc<dyn app_lib::domain::search::full_text_index::FullTextIndex>>,
+    ) {
+        (Some(self.vault.clone()), None)
+    }
+    fn conversation_hub(
+        &self,
+    ) -> Option<std::sync::Arc<dyn app_lib::application::service::conversation_hub::ConversationHub>>
+    {
+        Some(std::sync::Arc::new(EchoConversationHubImpl))
+    }
+}
+
+#[test]
+fn el_canal_entre_instancias_exige_el_token() {
+    isolate_config();
+    use app_lib::infrastructure::entrypoint::mcp::port_registry::instance_token;
+    use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
+    use app_lib::infrastructure::entrypoint::mcp::stdio_http_bridge::post_with;
+    use std::time::Duration;
+
+    let temp_dir = tempdir().unwrap();
+    let runtime = McpBackgroundRuntime::new(std::sync::Arc::new(PeerMcpProvider {
+        vault: temp_dir.path().to_path_buf(),
+    }));
+    let port = runtime.start().expect("Debe iniciar runtime MCP").port;
+    let url = format!("http://127.0.0.1:{port}/peer");
+    let body = serde_json::json!({"action": "list"}).to_string();
+
+    // Sin token (o con otro) se rechaza
+    let denied = post_with(
+        &url,
+        &body,
+        &[("X-Synapse-Token", "otro")],
+        Duration::from_secs(5),
+    );
+    assert!(denied.unwrap_err().contains("403"));
+
+    // Con el token de la instancia, lo atiende la ventana
+    let ok = post_with(
+        &url,
+        &body,
+        &[("X-Synapse-Token", instance_token())],
+        Duration::from_secs(5),
+    )
+    .unwrap();
+    let reply: serde_json::Value = serde_json::from_str(&ok).unwrap();
+    assert_eq!(reply["result"]["echo"]["action"], "list");
+    let _ = runtime.stop();
+}

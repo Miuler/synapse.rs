@@ -14,4 +14,9 @@ pub trait ConversationHub: Send + Sync {
         message: &str,
         expects_reply: bool,
     ) -> Result<Value, String>;
+    /// Pedido de otra instancia de Synapse por el canal `/peer` (listar sus conversaciones,
+    /// entregar un mensaje o una respuesta). Lo resuelve la ventana.
+    fn peer(&self, _request: Value) -> Result<Value, String> {
+        Err("Esta instancia no atiende conversaciones de otras bóvedas".into())
+    }
 }

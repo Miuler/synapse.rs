@@ -70,3 +70,30 @@ pub fn mcp_conversations_reply(
 pub fn mcp_confirm_reply(state: State<'_, AppState>, request_id: String, allowed: bool) {
     state.user_prompter.resolve(&request_id, allowed);
 }
+
+/// Conversaciones de agentes de las otras instancias de Synapse abiertas.
+#[tauri::command(async)]
+pub fn peer_list(request: serde_json::Value) -> Vec<serde_json::Value> {
+    use crate::application::service::peer_instances::PeerInstances;
+    crate::infrastructure::integration::service::peer_instances_impl::PeerInstancesImpl
+        .broadcast(request)
+}
+
+/// Pedido a la instancia de otra bóveda (entregar un mensaje o una respuesta).
+#[tauri::command(async)]
+pub fn peer_send(vault: String, request: serde_json::Value) -> Result<serde_json::Value, String> {
+    use crate::application::service::peer_instances::PeerInstances;
+    crate::infrastructure::integration::service::peer_instances_impl::PeerInstancesImpl
+        .send(&vault, request)
+}
+
+/// Nombre y ruta de la bóveda de esta instancia (para presentarse ante las demás).
+#[tauri::command]
+pub fn peer_identity(state: State<'_, AppState>) -> Option<serde_json::Value> {
+    let path = state.active_vault_path.lock().ok()?.clone()?;
+    let path = path.canonicalize().unwrap_or(path);
+    Some(serde_json::json!({
+        "vault": path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        "path": path.to_string_lossy(),
+    }))
+}

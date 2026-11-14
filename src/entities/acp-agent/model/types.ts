@@ -162,7 +162,7 @@ export type ChatItem =
       text: string;
       attachments: Attachment[];
       /** Mensaje de otra conversación de agente (no del usuario). */
-      from?: { handle: string; agent: string; title: string };
+      from?: { handle: string; agent: string; title: string; vault?: string };
     }
   | { type: 'agent'; id: number; text: string }
   | { type: 'thought'; id: number; text: string }

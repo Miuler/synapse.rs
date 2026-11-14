@@ -285,12 +285,20 @@
 {#snippet row(c: Conversation, open: boolean, pinned: boolean)}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="acp-row" class:unseen={c.unseen} data-conversation={c.id} onclick={() => !pinned && agentStore.toggle(c.id)}>
-    <span class="acp-dot" data-status={c.status}></span>
+    {#if c.incoming}
+      <span class="acp-octopus" data-status={c.status} title="Abierta por otra bóveda de Synapse: {c.incoming.vault}{c.incoming.handle}">🐙</span>
+    {:else}
+      <span class="acp-dot" data-status={c.status}></span>
+    {/if}
     {#if !pinned}
       {#if open}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
     {/if}
     <span class="acp-handle" title="Número para nombrarla desde otra conversación">{c.handle}</span>
-    <span class="acp-row-title"><span class="agent">{c.agent?.name ?? c.agentId} ·</span> {titleOf(c)}</span>
+    <span class="acp-row-title"
+      >{#if c.incoming}<span class="acp-from-vault">⇠ {c.incoming.vault}{c.incoming.handle} ·</span>{/if}<span class="agent"
+        >{c.agent?.name ?? c.agentId} ·</span
+      > {titleOf(c)}</span
+    >
     {#if c.status === 'working'}<span class="acp-brain" title="Pensando">🧠</span>{/if}
     {#if c.inbox.length}<span class="acp-inbox" title="Mensajes de otras conversaciones esperando a que termine su turno">✉ {c.inbox.length}</span>{/if}
     {#if c.waitingFor.length}<span class="acp-waiting" title="Le preguntó a otra conversación y espera su respuesta">esperando a {c.waitingFor.join(', ')}</span>{/if}
@@ -733,5 +741,22 @@
     border-radius: 999px;
     color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .acp-octopus {
+    font-size: 12px;
+    line-height: 1;
+    flex: none;
+  }
+  .acp-octopus[data-status='working'] {
+    animation: acpOctopus 1.4s ease-in-out infinite;
+  }
+  @keyframes acpOctopus {
+    50% {
+      transform: translateY(-1px) rotate(-8deg);
+    }
+  }
+  .acp-from-vault {
+    color: var(--accent);
+    margin-right: 4px;
   }
 </style>

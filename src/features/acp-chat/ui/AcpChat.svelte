@@ -337,7 +337,9 @@
       {#each conv.items as item (item.id)}
         {#if item.type === 'user'}
           <div class="acp-msg user" class:from-agent={!!item.from}>
-            {#if item.from}<div class="acp-from">De {item.from.agent} · {item.from.handle}</div>{/if}
+            {#if item.from}<div class="acp-from">
+                {#if item.from.vault}🐙 {/if}De {item.from.agent} · {item.from.handle}
+              </div>{/if}
             {item.text}
             {#if item.attachments.length}
               <div class="acp-chips sent">

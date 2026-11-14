@@ -14,6 +14,66 @@ pub fn get_global_registry_path() -> PathBuf {
     WorkspaceRegistryRepositoryImpl::resolve_config_dir().join("mcp-ports.json")
 }
 
+/// Secreto aleatorio de esta instancia para el canal entre instancias (`/peer`). Se anota en el
+/// registro (en el HOME del usuario), así que solo los procesos del usuario pueden usarlo.
+pub fn instance_token() -> &'static str {
+    static TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TOKEN.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        let mut seed = [0u8; 32];
+        let random = std::fs::File::open("/dev/urandom")
+            .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut seed))
+            .is_ok();
+        let mut hasher = Sha256::new();
+        hasher.update(seed);
+        if !random {
+            hasher.update(format!(
+                "{}-{:?}",
+                std::process::id(),
+                std::time::SystemTime::now()
+            ));
+            hasher.update(format!("{:p}", &seed));
+        }
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    })
+}
+
+/// Otra instancia de Synapse viva, con su canal `/peer`.
+#[derive(Debug, Clone)]
+pub struct PeerInstance {
+    pub vault_path: String,
+    pub vault_name: String,
+    pub port: u16,
+    pub token: String,
+}
+
+/// Instancias de Synapse vivas distintas de esta (con token, para el canal entre instancias).
+pub fn live_peers() -> Vec<PeerInstance> {
+    let me = std::process::id();
+    read_global_registry()
+        .vaults
+        .into_values()
+        .filter(|e| e.running && e.pid.is_some_and(|p| p != me && is_process_alive(p)))
+        .filter_map(|e| {
+            let token = e.token?;
+            let vault_name = Path::new(&e.vault_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| e.vault_path.clone());
+            Some(PeerInstance {
+                vault_path: e.vault_path,
+                vault_name,
+                port: e.port,
+                token,
+            })
+        })
+        .collect()
+}
+
 /// Lee el registro global de puertos MCP desde disco, sin entradas fantasma (ver [`prune_registry`]).
 pub fn read_global_registry() -> McpPortRegistry {
     let mut registry = std::fs::read_to_string(get_global_registry_path())
@@ -279,6 +339,7 @@ pub fn record_mcp_started(vault_path: &Path, port: u16) {
             pid: Some(std::process::id()),
             endpoint,
             updated_at: current_timestamp_ms(),
+            token: Some(instance_token().to_string()),
         },
     );
     write_global_registry(&registry);
@@ -316,6 +377,7 @@ pub fn record_mcp_disabled(vault_path: &Path, port: u16) {
                 pid: None,
                 endpoint,
                 updated_at: current_timestamp_ms(),
+                token: None,
             },
         );
     }
@@ -359,6 +421,7 @@ mod tests {
             pid,
             endpoint: String::new(),
             updated_at: 0,
+            token: None,
         };
         let mut reg = McpPortRegistry::default();
         reg.vaults

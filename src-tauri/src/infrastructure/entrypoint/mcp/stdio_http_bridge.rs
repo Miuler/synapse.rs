@@ -22,13 +22,30 @@ fn split_url(url: &str) -> Result<(String, String), String> {
 
 /// Envía un mensaje JSON-RPC y devuelve el cuerpo de la respuesta (vacío para notificaciones).
 pub fn post(url: &str, body: &str) -> Result<String, String> {
+    post_with(url, body, &[], Duration::from_secs(300))
+}
+
+/// Como [`post`], con cabeceras extra y un tiempo máximo de espera.
+pub fn post_with(
+    url: &str,
+    body: &str,
+    headers: &[(&str, &str)],
+    timeout: Duration,
+) -> Result<String, String> {
     let (addr, path) = split_url(url)?;
-    let mut stream =
-        TcpStream::connect(&addr).map_err(|e| format!("Synapse no responde en {addr}: {e}"))?;
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(300)));
+    let socket = addr
+        .parse::<std::net::SocketAddr>()
+        .map_err(|e| format!("Dirección inválida {addr}: {e}"))?;
+    let mut stream = TcpStream::connect_timeout(&socket, Duration::from_secs(3))
+        .map_err(|e| format!("Synapse no responde en {addr}: {e}"))?;
+    let _ = stream.set_read_timeout(Some(timeout));
+    let extra: String = headers
+        .iter()
+        .map(|(k, v)| format!("{k}: {v}\r\n"))
+        .collect();
     let request = format!(
         "POST {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\n\
-         Accept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+         Accept: application/json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     stream

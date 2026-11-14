@@ -845,7 +845,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 20. list_conversations
                 McpTool {
                     name: "list_conversations".to_string(),
-                    description: "Lista las conversaciones con agentes abiertas en el panel de Synapse (pueden ser otros agentes: Claude, Gemini…): su número corto (#1, #2…), agente, título y estado. La tuya va marcada con `is_you`. Úsalo antes de send_to_conversation para elegir el destino.".to_string(),
+                    description: "Lista las conversaciones con agentes abiertas en el panel de Synapse (pueden ser otros agentes: Claude, Gemini…), las de esta ventana (#1, #2…) y las de otras bóvedas abiertas en otras ventanas (mainframe#1…, o mainframe#nueva si no tiene ninguna). La tuya va marcada con `is_you`. Úsalo antes de send_to_conversation para elegir el destino.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({"type": "object", "properties": {}}),
                 },
@@ -857,7 +857,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     input_schema: json!({
                         "type": "object",
                         "properties": {
-                            "to": {"type": "string", "description": "Destino: su número (#2), o parte de su título o del nombre del agente"},
+                            "to": {"type": "string", "description": "Destino: #2 (esta ventana), parte de su título o del agente; u otra bóveda: «mainframe» (su conversación para ti, o una nueva y limpia), «mainframe#1» (esa conversación) o «mainframe#nueva»"},
                             "message": {"type": "string", "description": "Lo que le dices o preguntas, con el contexto que necesite (no ve tu conversación)"},
                             "expects_reply": {"type": "boolean", "description": "true si es una pregunta y quieres su respuesta de vuelta", "default": false}
                         },

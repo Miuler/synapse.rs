@@ -1,7 +1,7 @@
 ## 1. Base
 
 - [x] 1.1 Limpieza del registro de puertos (bóvedas inexistentes, procesos muertos) y pruebas aisladas con `SYNAPSE_CONFIG_DIR`.
-- [ ] 1.2 Token por instancia en el registro y ruta `/peer` del servidor MCP que lo exige.
+- [x] 1.2 Token por instancia en el registro y ruta `/peer` del servidor MCP que lo exige.
 
 ## 2. Consultar otra bóveda (fase 1)
 
@@ -14,11 +14,11 @@
 
 ## 3. Preguntarle a otra bóveda (fase 2)
 
-- [ ] 3.1 `send_to_conversation` a otra bóveda por `/peer`, con nombres `bóveda#n`.
-- [ ] 3.2 Sesiones entrantes limpias, hilos por conversación de origen y reutilización explícita.
-- [ ] 3.3 Levantar agente en el destino (pedido → para entrantes → último usado) con permisos de ambos lados.
-- [ ] 3.4 Respuesta de vuelta al origen y límite de saltos entre instancias.
-- [ ] 3.5 Pulpo 🐙 en sesiones entrantes, sus mensajes e instancias sin ventana.
+- [x] 3.1 `send_to_conversation` a otra bóveda por `/peer`, con nombres `bóveda`, `bóveda#n` y `bóveda#nueva`; `list_conversations` incluye las de otras ventanas.
+- [x] 3.2 Sesiones entrantes limpias, hilos por conversación de origen y reutilización explícita.
+- [x] 3.3 Levantar agente en el destino (último usado → primer agente instalado); permiso del destino preguntado la primera vez. Pendiente: «agente para entrantes» configurable y abrir la ventana del destino si no está abierta.
+- [x] 3.4 Respuesta de vuelta al origen y límite de saltos entre instancias.
+- [x] 3.5 Pulpo 🐙 en sesiones entrantes y sus mensajes (las instancias sin ventana no existen: ver design).
 
 ## 4. Verificación
 

@@ -36,6 +36,13 @@ export const agentApi = {
   cancelPrompt: (sessionId: string) => invokeTauri<void>('agent_cancel_prompt', { sessionId }),
   respondPermission: (sessionId: string, requestId: string, optionId: string | null) =>
     invokeTauri<void>('agent_respond_permission', { sessionId, requestId, optionId }),
+  /** Conversaciones de las otras instancias de Synapse (otras bóvedas abiertas). */
+  peerList: (request: unknown) =>
+    invokeTauri<{ vault: string; path: string; result: unknown; error: string | null }[]>('peer_list', { request }),
+  /** Pedido a la instancia de otra bóveda (por nombre o ruta). */
+  peerSend: (vault: string, request: unknown) => invokeTauri<unknown>('peer_send', { vault, request }),
+  /** Bóveda de esta instancia, para presentarse ante las demás. */
+  peerIdentity: () => invokeTauri<{ vault: string; path: string } | null>('peer_identity'),
   feedbackAvailable: () => invokeTauri<boolean>('agent_feedback_available'),
   stopSession: (sessionId: string) => invokeTauri<void>('agent_stop_session', { sessionId }),
 };
@@ -73,15 +80,17 @@ export interface ConversationRequest {
   to?: string;
   message?: string;
   expectsReply?: boolean;
+  /** Pedido de otra instancia (`action: "peer"`). */
+  request?: unknown;
 }
 
 /** Atiende las peticiones del MCP sobre las conversaciones abiertas y devuelve el resultado al backend. */
 export function listenConversationRequests(handle: (req: ConversationRequest) => unknown): Promise<UnlistenFn> {
-  return listen<ConversationRequest>('mcp://conversations', ({ payload }) => {
+  return listen<ConversationRequest>('mcp://conversations', async ({ payload }) => {
     let result: unknown = null;
     let error: string | null = null;
     try {
-      result = handle(payload);
+      result = await handle(payload);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
