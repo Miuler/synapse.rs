@@ -75,6 +75,13 @@ fn main() {
         let git_service = Some(Arc::new(VersionControlImpl));
 
         let mcp_tool_handler = McpToolHandler::new(canonical_vault, note_repo, full_text_index, git_service, std::sync::Arc::new(app_lib::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(app_lib::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl));
+        // Sin ventana no hay a quién preguntar: solo se consultan las bóvedas ya autorizadas
+        let mcp_tool_handler = mcp_tool_handler.with_vaults(
+            Some(Arc::new(
+                app_lib::infrastructure::integration::service::vault_catalog_impl::VaultCatalogImpl,
+            )),
+            None,
+        );
         let mcp_server = McpStdioServer::new(mcp_tool_handler);
 
         let stdin = io::stdin();

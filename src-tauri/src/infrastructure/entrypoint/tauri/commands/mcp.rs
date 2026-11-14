@@ -64,3 +64,9 @@ pub fn mcp_conversations_reply(
     };
     state.conversation_hub.resolve(&request_id, outcome);
 }
+
+/// Respuesta del usuario a `mcp://confirm`.
+#[tauri::command]
+pub fn mcp_confirm_reply(state: State<'_, AppState>, request_id: String, allowed: bool) {
+    state.user_prompter.resolve(&request_id, allowed);
+}

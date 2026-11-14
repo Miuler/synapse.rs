@@ -23,6 +23,7 @@ use crate::application::dto::vault_item::search_folders_query::SearchFoldersQuer
 use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
 use crate::application::service::conversation_hub::ConversationHub;
 use crate::application::service::diagram_renderer::{DiagramRenderer, diagram_kind};
+use crate::application::service::vault_catalog::{UserPrompter, VaultCatalog, VaultRef};
 use crate::application::use_cases::note::append_to_note_use_case::AppendToNoteUseCase;
 use crate::application::use_cases::note::delete_note_use_case::DeleteNoteUseCase;
 use crate::application::use_cases::note::extract_note_diagrams_use_case::ExtractNoteDiagramsUseCase;
@@ -98,6 +99,57 @@ fn to_text<T: serde::Serialize + ?Sized>(payload: &T, error_prefix: &str) -> Mcp
     }
 }
 
+/// Bóveda por nombre (sin distinguir mayúsculas) o por ruta.
+fn resolve_vault(vaults: &[VaultRef], wanted: &str) -> Result<VaultRef, String> {
+    let w = wanted.trim();
+    let by_path = std::path::Path::new(w);
+    let found: Vec<&VaultRef> = vaults
+        .iter()
+        .filter(|v| v.name.eq_ignore_ascii_case(w) || v.path == by_path)
+        .collect();
+    match found.as_slice() {
+        [one] => Ok((*one).clone()),
+        [] => Err(format!(
+            "No hay una bóveda «{w}». Disponibles: {}",
+            vaults
+                .iter()
+                .map(|v| v.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+        many => Err(format!(
+            "Hay varias bóvedas «{w}»; usa su ruta: {}",
+            many.iter()
+                .map(|v| v.path.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+fn vault_access_path(vault: &std::path::Path) -> PathBuf {
+    vault.join(".synapse").join("vault-access.json")
+}
+
+/// Permisos de esta bóveda para consultar otras: ruta → permitido.
+fn read_vault_access(vault: &std::path::Path) -> std::collections::BTreeMap<String, bool> {
+    std::fs::read_to_string(vault_access_path(vault))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| serde_json::from_value(v["consult"].clone()).ok())
+        .unwrap_or_default()
+}
+
+fn write_vault_access(vault: &std::path::Path, access: &std::collections::BTreeMap<String, bool>) {
+    let path = vault_access_path(vault);
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(text) = serde_json::to_string_pretty(&json!({ "consult": access })) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
 /// Traduce las herramientas MCP (JSON-RPC) a casos de uso. No contiene reglas de negocio.
 pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> {
     vault_path: PathBuf,
@@ -111,7 +163,24 @@ pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: Versi
     /// Conversaciones con agentes abiertas en la ventana, y cuál es la que llama.
     conversation_hub: Option<Arc<dyn ConversationHub>>,
     caller: Option<String>,
+    /// Otras bóvedas del usuario que se pueden consultar (solo lectura) y a quién pedir permiso.
+    vault_catalog: Option<Arc<dyn VaultCatalog>>,
+    prompter: Option<Arc<dyn UserPrompter>>,
 }
+
+/// Herramientas de solo lectura que aceptan `vault` para consultar otra bóveda.
+pub const CROSS_VAULT_TOOLS: &[&str] = &[
+    "search_notes",
+    "full_text_search",
+    "search_in_note",
+    "read_note",
+    "list_folder_contents",
+    "search_folders",
+    "list_sibling_notes",
+    "get_backlinks_and_relations",
+    "read_pdf_document",
+    "extract_note_diagrams",
+];
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHandler<R, I, G> {
     pub fn new(
@@ -132,7 +201,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             diagram_renderer: None,
             conversation_hub: None,
             caller: None,
+            vault_catalog: None,
+            prompter: None,
         }
+    }
+
+    /// Permite consultar otras bóvedas (`list_vaults` y el parámetro `vault`); `prompter` pregunta
+    /// al usuario la primera vez que esta bóveda consulta otra (sin él, solo se permiten las ya autorizadas).
+    pub fn with_vaults(
+        mut self,
+        catalog: Option<Arc<dyn VaultCatalog>>,
+        prompter: Option<Arc<dyn UserPrompter>>,
+    ) -> Self {
+        self.vault_catalog = catalog;
+        self.prompter = prompter;
+        self
     }
 
     /// Permite hablar con otras conversaciones de agentes (`list_conversations`,
@@ -752,6 +835,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["title", "details"]
                     }),
                 },
+                // 22. list_vaults
+                McpTool {
+                    name: "list_vaults".to_string(),
+                    description: "Lista las otras bóvedas de Synapse del usuario (abiertas y recientes) que puedes consultar en solo lectura pasando `vault` (su nombre) a search_notes, full_text_search, read_note, list_folder_contents y demás herramientas de lectura. Úsalo cuando la información que necesitas está en otra bóveda (por ejemplo, documentación de otro sistema). La primera consulta a cada bóveda pide permiso al usuario.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({"type": "object", "properties": {}}),
+                },
                 // 20. list_conversations
                 McpTool {
                     name: "list_conversations".to_string(),
@@ -807,6 +897,23 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 },
             ],
         };
+        // Las herramientas de lectura aceptan `vault` para consultar otra bóveda
+        for tool in result
+            .tools
+            .iter_mut()
+            .filter(|t| CROSS_VAULT_TOOLS.contains(&t.name.as_str()))
+        {
+            if let Some(props) = tool
+                .input_schema
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
+                props.insert(
+                    "vault".into(),
+                    json!({"type": "string", "description": "Otra bóveda a consultar (su nombre, ver list_vaults); vacío = esta bóveda"}),
+                );
+            }
+        }
         // `report_feedback` solo existe en las compilaciones con la feature `develop`
         if !cfg!(feature = "develop") {
             result.tools.retain(|t| t.name != "report_feedback");
@@ -816,7 +923,16 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
     /// Ejecuta una herramienta MCP por nombre
     pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> McpCallToolResult {
-        let args = arguments.unwrap_or(Value::Object(serde_json::Map::new()));
+        let mut args = arguments.unwrap_or(Value::Object(serde_json::Map::new()));
+        // `vault`: la misma herramienta, en solo lectura, sobre otra bóveda
+        let target = args
+            .as_object_mut()
+            .and_then(|o| o.remove("vault"))
+            .and_then(|v| v.as_str().map(str::to_string))
+            .filter(|v| !v.trim().is_empty());
+        if let Some(vault) = target {
+            return self.call_in_other_vault(name, &vault, args);
+        }
         match name {
             "search_notes" => self.execute_search_notes(&args),
             "search_folders" => self.execute_search_folders(&args),
@@ -845,6 +961,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
             "render_diagram" => self.execute_render_diagram(&args),
             "list_conversations" => self.execute_list_conversations(),
+            "list_vaults" => self.execute_list_vaults(),
             "send_to_conversation" => self.execute_send_to_conversation(&args),
             "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
@@ -1245,6 +1362,120 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             );
         }
         to_text(&payload, "")
+    }
+
+    fn execute_list_vaults(&self) -> McpCallToolResult {
+        let Some(catalog) = &self.vault_catalog else {
+            return McpCallToolResult::error(
+                "Consultar otras bóvedas no está disponible en este modo",
+            );
+        };
+        let here = self.vault().canonicalize().unwrap_or_else(|_| self.vault());
+        let access = read_vault_access(&here);
+        let list: Vec<Value> = catalog
+            .list()
+            .into_iter()
+            .map(|v| {
+                let key = v.path.to_string_lossy().into_owned();
+                json!({
+                    "name": v.name,
+                    "path": key,
+                    "open": v.open,
+                    "is_this": v.path == here,
+                    "allowed": access.get(&key).copied(),
+                })
+            })
+            .collect();
+        to_text(&list, "")
+    }
+
+    /// Ejecuta una herramienta de lectura sobre otra bóveda, con el permiso de esta para consultarla.
+    fn call_in_other_vault(&self, name: &str, vault: &str, args: Value) -> McpCallToolResult {
+        let here = self.vault().canonicalize().unwrap_or_else(|_| self.vault());
+        let Some(catalog) = &self.vault_catalog else {
+            return McpCallToolResult::error(
+                "Consultar otras bóvedas no está disponible en este modo",
+            );
+        };
+        let vaults = catalog.list();
+        let target = match resolve_vault(&vaults, vault) {
+            Ok(v) => v,
+            Err(e) => return McpCallToolResult::error(e),
+        };
+        if target.path == here {
+            return self.call_tool(name, Some(args));
+        }
+        if !CROSS_VAULT_TOOLS.contains(&name) {
+            return McpCallToolResult::error(format!(
+                "'{name}' no se puede usar sobre otra bóveda: solo las de lectura ({})",
+                CROSS_VAULT_TOOLS.join(", ")
+            ));
+        }
+        if let Err(e) = self.ensure_vault_access(&here, &target) {
+            return McpCallToolResult::error(e);
+        }
+        let fts = crate::infrastructure::repository::tantivy::full_text_index_impl::FullTextIndexImpl::open_read_only(
+            &target.path.join(".synapse").join("fts"),
+        )
+        .ok()
+        .map(Arc::new);
+        let other = McpToolHandler::new(
+            target.path.clone(),
+            crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new(),
+            fts,
+            None::<Arc<crate::infrastructure::repository::git::version_control_impl::VersionControlImpl>>,
+            Arc::clone(&self.vault_item_repository),
+            Arc::clone(&self.pdf_document_repository),
+        );
+        let mut result = other.call_tool(name, Some(args));
+        result.content.insert(
+            0,
+            McpContentItem::text(format!("📚 Bóveda «{}» (solo lectura)", target.name)),
+        );
+        result
+    }
+
+    /// Permiso de esta bóveda para consultar `target`: guardado, o se pregunta al usuario la primera vez.
+    fn ensure_vault_access(&self, here: &std::path::Path, target: &VaultRef) -> Result<(), String> {
+        let key = target.path.to_string_lossy().into_owned();
+        let mut access = read_vault_access(here);
+        match access.get(&key) {
+            Some(true) => return Ok(()),
+            Some(false) => {
+                return Err(format!(
+                    "El usuario no permitió que esta bóveda consulte «{}».",
+                    target.name
+                ));
+            }
+            None => {}
+        }
+        let Some(prompter) = &self.prompter else {
+            return Err(format!(
+                "Consultar «{}» necesita el permiso del usuario; ábrelo desde Synapse con la ventana abierta.",
+                target.name
+            ));
+        };
+        let here_name = here
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let allowed = prompter.confirm(
+            "Consultar otra bóveda",
+            &format!(
+                "Un agente de «{here_name}» quiere leer las notas de «{}» (solo lectura). ¿Permitir?",
+                target.name
+            ),
+        )?;
+        access.insert(key, allowed);
+        write_vault_access(here, &access);
+        if allowed {
+            Ok(())
+        } else {
+            Err(format!(
+                "El usuario no permitió consultar «{}».",
+                target.name
+            ))
+        }
     }
 
     fn conversations(&self) -> Result<&Arc<dyn ConversationHub>, McpCallToolResult> {

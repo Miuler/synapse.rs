@@ -37,7 +37,8 @@ pub struct TantivyFields {
 pub struct FullTextIndexImpl {
     index: Index,
     reader: IndexReader,
-    writer: Mutex<IndexWriter>,
+    /// `None` en un índice de solo lectura (el de otra bóveda, que escribe su propia instancia).
+    writer: Option<Mutex<IndexWriter>>,
     fields: TantivyFields,
     in_memory: bool,
 }
@@ -160,10 +161,47 @@ impl FullTextIndexImpl {
         Ok(Self {
             index,
             reader,
-            writer: Mutex::new(writer),
+            writer: Some(Mutex::new(writer)),
             fields,
             in_memory: false,
         })
+    }
+
+    /// Abre el índice de otra bóveda solo para buscar: no lo crea ni lo recrea, no toma el
+    /// bloqueo de escritura (lo tiene la instancia de esa bóveda) y ve sus cambios al confirmarse.
+    pub fn open_read_only(dir: &Path) -> Result<Self, String> {
+        if !dir.join("SCHEMA_VERSION").exists() {
+            return Err(format!(
+                "La bóveda no tiene índice de búsqueda en {:?}",
+                dir
+            ));
+        }
+        let (_, fields) = Self::build_schema();
+        let mmap_dir = MmapDirectory::open(dir)
+            .map_err(|e| format!("Error abriendo MmapDirectory en {:?}: {}", dir, e))?;
+        let index =
+            Index::open(mmap_dir).map_err(|e| format!("Error abriendo índice tantivy: {}", e))?;
+        Self::register_tokenizers(&index);
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
+            .try_into()
+            .map_err(|e| format!("Error al crear IndexReader: {}", e))?;
+        Ok(Self {
+            index,
+            reader,
+            writer: None,
+            fields,
+            in_memory: false,
+        })
+    }
+
+    fn writer(&self) -> Result<std::sync::MutexGuard<'_, IndexWriter>, String> {
+        self.writer
+            .as_ref()
+            .ok_or_else(|| "Índice de solo lectura".to_string())?
+            .lock()
+            .map_err(|e| e.to_string())
     }
 
     /// Crea un índice en memoria RAM (ideal para tests o como fallback si el disco está bloqueado).
@@ -185,7 +223,7 @@ impl FullTextIndexImpl {
         Ok(Self {
             index,
             reader,
-            writer: Mutex::new(writer),
+            writer: Some(Mutex::new(writer)),
             fields,
             in_memory: true,
         })
@@ -359,7 +397,7 @@ impl FullTextIndexImpl {
 
 impl FullTextIndex for FullTextIndexImpl {
     fn upsert(&self, docs: Vec<FullTextDocument>) -> Result<(), String> {
-        let writer = self.writer.lock().map_err(|e| e.to_string())?;
+        let writer = self.writer()?;
 
         for doc in docs {
             let term = Term::from_field_text(self.fields.path_id, &doc.path);
@@ -384,7 +422,7 @@ impl FullTextIndex for FullTextIndexImpl {
     }
 
     fn delete(&self, paths: &[String]) -> Result<(), String> {
-        let writer = self.writer.lock().map_err(|e| e.to_string())?;
+        let writer = self.writer()?;
         for path in paths {
             let term = Term::from_field_text(self.fields.path_id, path);
             writer.delete_term(term);
@@ -393,7 +431,7 @@ impl FullTextIndex for FullTextIndexImpl {
     }
 
     fn delete_all(&self) -> Result<(), String> {
-        let writer = self.writer.lock().map_err(|e| e.to_string())?;
+        let writer = self.writer()?;
         writer
             .delete_all_documents()
             .map_err(|e| format!("Error eliminando documentos: {}", e))?;
@@ -401,7 +439,7 @@ impl FullTextIndex for FullTextIndexImpl {
     }
 
     fn commit(&self) -> Result<(), String> {
-        let mut writer = self.writer.lock().map_err(|e| e.to_string())?;
+        let mut writer = self.writer()?;
         writer
             .commit()
             .map_err(|e| format!("Error en commit de tantivy: {}", e))?;

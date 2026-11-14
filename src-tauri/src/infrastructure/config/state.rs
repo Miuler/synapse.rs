@@ -75,8 +75,11 @@ use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 
 use crate::application::service::conversation_hub::ConversationHub;
 use crate::application::service::diagram_renderer::DiagramRenderer;
+use crate::application::service::vault_catalog::{UserPrompter, VaultCatalog};
+use crate::infrastructure::integration::service::vault_catalog_impl::VaultCatalogImpl;
 use crate::infrastructure::integration::service::webview_conversation_hub_impl::WebviewConversationHubImpl;
 use crate::infrastructure::integration::service::webview_diagram_renderer_impl::WebviewDiagramRendererImpl;
+use crate::infrastructure::integration::service::webview_user_prompter_impl::WebviewUserPrompterImpl;
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -93,6 +96,7 @@ pub struct DynamicMcpContextProvider {
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
     pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
     pub conversation_hub: Arc<WebviewConversationHubImpl>,
+    pub user_prompter: Arc<WebviewUserPrompterImpl>,
 }
 
 impl McpContextProvider for DynamicMcpContextProvider {
@@ -111,6 +115,13 @@ impl McpContextProvider for DynamicMcpContextProvider {
 
     fn conversation_hub(&self) -> Option<Arc<dyn ConversationHub>> {
         Some(Arc::clone(&self.conversation_hub) as Arc<dyn ConversationHub>)
+    }
+
+    fn vault_access(&self) -> (Option<Arc<dyn VaultCatalog>>, Option<Arc<dyn UserPrompter>>) {
+        (
+            Some(Arc::new(VaultCatalogImpl) as Arc<dyn VaultCatalog>),
+            Some(Arc::clone(&self.user_prompter) as Arc<dyn UserPrompter>),
+        )
     }
 }
 
@@ -186,6 +197,8 @@ pub struct AppState {
     pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
     /// Conversaciones de agentes para el MCP: la ventana responde con `mcp_conversations_reply`.
     pub conversation_hub: Arc<WebviewConversationHubImpl>,
+    /// Preguntas al usuario desde el MCP: la ventana responde con `mcp_confirm_reply`.
+    pub user_prompter: Arc<WebviewUserPrompterImpl>,
 }
 
 pub fn open_vault_components(
@@ -269,7 +282,9 @@ impl AppState {
 
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
+        let user_prompter = Arc::new(WebviewUserPrompterImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            user_prompter: Arc::clone(&user_prompter),
             conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
@@ -408,6 +423,7 @@ impl AppState {
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
             conversation_hub,
+            user_prompter,
         }
     }
 
@@ -431,7 +447,9 @@ impl AppState {
 
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
+        let user_prompter = Arc::new(WebviewUserPrompterImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            user_prompter: Arc::clone(&user_prompter),
             conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
@@ -572,6 +590,7 @@ impl AppState {
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
             conversation_hub,
+            user_prompter,
         }
     }
 

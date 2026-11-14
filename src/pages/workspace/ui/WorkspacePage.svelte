@@ -11,6 +11,7 @@
   import {EmptyWorkspace} from "@widgets/empty-workspace";
   import {SettingsPanel} from "@widgets/settings-panel";
   import {AcpPanel} from "@widgets/acp-panel";
+  import {McpConfirm} from "@widgets/mcp-confirm";
   import {captureSelection} from "@features/acp-chat";
   import {agentStore} from "@entities/acp-agent";
   import {WelcomeScreen} from "@widgets/welcome-screen";
@@ -4624,6 +4625,9 @@
       onOpenNote={(path) => selectTab(path)}
     />
   {/if}
+
+  <!-- Permisos que pide el MCP (por ejemplo, consultar otra bóveda) -->
+  {#if !isDetachedWindow}<McpConfirm />{/if}
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>

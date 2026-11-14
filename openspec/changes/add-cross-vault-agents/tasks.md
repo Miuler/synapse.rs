@@ -5,11 +5,12 @@
 
 ## 2. Consultar otra bóveda (fase 1)
 
-- [ ] 2.1 `list_vaults`: bóvedas abiertas (con o sin ventana) y recientes.
-- [ ] 2.2 Parámetro `vault` en `search_notes`, `full_text_search`, `read_note`, `list_folder_contents` y `render_diagram`, reenviado por `/peer`.
-- [ ] 2.3 Instancias sin ventana para bóvedas cerradas, con apagado tras 5 minutos sin pedidos.
-- [ ] 2.4 Permiso «puede consultar a» por bóveda, preguntando la primera vez.
-- [ ] 2.5 Marca 📚 en la herramienta cuando lee otra bóveda.
+- [x] 2.1 `list_vaults`: bóvedas abiertas y recientes.
+- [x] 2.2 Parámetro `vault` en las herramientas de lectura (lectura directa de los archivos y del índice en solo lectura).
+- [x] 2.3 ~~Instancias sin ventana~~: no hacen falta para leer (ver design); se reconsidera en la fase 2 si hace falta.
+- [x] 2.4 Permiso «puede consultar a» por bóveda (`.synapse/vault-access.json`), preguntando la primera vez.
+- [x] 2.5 Marca 📚 en la respuesta cuando lee otra bóveda.
+- [ ] 2.6 e2e con dos bóvedas y el diálogo de permiso.
 
 ## 3. Preguntarle a otra bóveda (fase 2)
 

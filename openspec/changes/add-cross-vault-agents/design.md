@@ -19,9 +19,13 @@ muerto).
 
 ## Dos formas de usar otra bóveda
 
-1. **Consultar su conocimiento** (fase 1): `search_notes {vault}`, `read_note {vault}`, `render_diagram {vault}`…
-   Solo lectura, sin agente en el destino. Si la bóveda no está abierta, se lanza una instancia sin ventana que se
-   apaga sola tras 5 minutos sin pedidos.
+1. **Consultar su conocimiento** (fase 1): `search_notes {vault}`, `read_note {vault}`… Solo lectura, sin agente
+   en el destino. **Decisión de implementación:** la instancia del agente lee directamente los archivos de la otra
+   bóveda y su índice de búsqueda en solo lectura (`FullTextIndexImpl::open_read_only`, sin tomar el bloqueo de
+   escritura que tiene la instancia de esa bóveda). Así no hace falta levantar instancias sin ventana ni el canal
+   entre instancias para leer: funciona esté o no abierta la otra bóveda. `render_diagram` sobre otra bóveda queda
+   para la fase 2 (necesita la ventana que la tenga abierta). Los permisos se guardan en
+   `<bóveda>/.synapse/vault-access.json`; sin ventana (modo `--mcp`) solo se consultan las bóvedas ya autorizadas.
 2. **Preguntarle a su agente** (fase 2): `send_to_conversation {to: "mainframe"}`.
    - Por defecto, **sesión nueva y limpia** en el destino.
    - **Hilo**: las repreguntas de la misma conversación de origen van a la misma sesión entrante.

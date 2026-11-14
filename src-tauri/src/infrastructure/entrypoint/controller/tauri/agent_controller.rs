@@ -95,7 +95,10 @@ pub(crate) fn session_instructions(feedback: bool) -> String {
          - Usa la escritura directa de archivos solo si `{name}` no puede hacer lo que necesitas.\n\
          - En el panel puede haber otras conversaciones con agentes (#1, #2…). Si el usuario te pide \
          preguntarle o avisarle algo a otra, usa `list_conversations` y `send_to_conversation` de \
-         `{name}`; es asíncrono: si preguntas, su respuesta te llegará después como un mensaje nuevo."
+         `{name}`; es asíncrono: si preguntas, su respuesta te llegará después como un mensaje nuevo.\n\
+         - Si lo que necesitas está en otra bóveda del usuario (por ejemplo, documentación de otro \
+         sistema), usa `list_vaults` y pasa `vault` a las herramientas de lectura (`search_notes`, \
+         `read_note`…). Es solo lectura y la primera vez el usuario debe permitirlo."
     );
     if feedback {
         text.push_str(&format!(
