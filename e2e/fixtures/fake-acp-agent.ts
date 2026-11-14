@@ -15,6 +15,36 @@ let mcpTools = 'sin-probar';
 /** Resultado de pedir un diagrama como imagen al MCP (marca de read_note + render_diagram). */
 let diagramInfo = 'sin-probar';
 
+/** Servidor MCP (stdio) de cada sesión, para llamar herramientas en turnos posteriores. */
+const mcpBySession = new Map<string, { command: string; args: string[] }>();
+
+/** Llama una herramienta del MCP de la sesión y devuelve el texto de su respuesta. */
+async function callMcpTool(server: { command: string; args: string[] }, name: string, args: unknown): Promise<string> {
+  const child = spawn(server.command, server.args, { stdio: ['pipe', 'pipe', 'ignore'] });
+  const lines = createInterface({ input: child.stdout! });
+  const replies = new Map<number, (v: any) => void>();
+  lines.on('line', (l) => {
+    try {
+      const m = JSON.parse(l);
+      replies.get(m.id)?.(m);
+    } catch {
+      /* no es JSON */
+    }
+  });
+  const call = (id: number, method: string, params = {}) =>
+    new Promise<any>((resolve) => {
+      replies.set(id, resolve);
+      child.stdin!.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    });
+  try {
+    await call(1, 'initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'falso', version: '1' } });
+    const r = await call(2, 'tools/call', { name, arguments: args });
+    return `${r.result?.isError ? 'ERROR ' : ''}${r.result?.content?.[0]?.text ?? ''}`;
+  } finally {
+    child.kill();
+  }
+}
+
 /** Lanza el servidor MCP por stdio que pasó Synapse y cuenta sus herramientas (tools/list). */
 async function countMcpTools(server: { command: string; args: string[] }): Promise<string> {
   const child = spawn(server.command, server.args, { stdio: ['pipe', 'pipe', 'ignore'] });
@@ -68,6 +98,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     mcp = servers.map((s: { name: string; command?: string }) => `${s.name}:${s.command ? 'stdio' : 'http'}`);
     const stdio = servers.find((s: { command?: string }) => s.command);
     if (stdio) mcpTools = await countMcpTools(stdio);
+    if (stdio) mcpBySession.set(current, stdio);
     send({
       jsonrpc: '2.0',
       id: msg.id,
@@ -82,6 +113,24 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (msg.method === 'session/prompt') {
     promptId = msg.id;
     current = msg.params.sessionId;
+    const said: string = msg.params.prompt.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('\n');
+    // Mensaje de otra conversación: responde enseguida (sin pedir permiso)
+    if (said.includes('[Mensaje de otra conversación')) {
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Respuesta de ${current}: sí, tiene SignOn.` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
+    // «pregúntale a #N: …»: usa send_to_conversation del MCP de Synapse
+    const ask = /pregúntale a (#\d+): (.+)/.exec(said);
+    if (ask) {
+      const server = mcpBySession.get(current);
+      const out = server
+        ? await callMcpTool(server, 'send_to_conversation', { to: ask[1], message: ask[2], expects_reply: true })
+        : 'sin MCP';
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Enviado a ${ask[1]}: ${out}` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
     // `/compact`: responde con su resumen y el uso de contexto baja
     if (msg.params.prompt.some((b: { type: string; text?: string }) => b.type === 'text' && b.text?.trim().startsWith('/compact'))) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Resumen compactado: hablamos de la nota.' } });

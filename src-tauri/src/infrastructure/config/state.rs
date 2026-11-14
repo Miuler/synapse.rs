@@ -73,7 +73,9 @@ use crate::infrastructure::search::fts_indexer::FtsIndexer;
 use crate::infrastructure::service::http::community_plugin_downloader_impl::CommunityPluginDownloaderImpl;
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 
+use crate::application::service::conversation_hub::ConversationHub;
 use crate::application::service::diagram_renderer::DiagramRenderer;
+use crate::infrastructure::integration::service::webview_conversation_hub_impl::WebviewConversationHubImpl;
 use crate::infrastructure::integration::service::webview_diagram_renderer_impl::WebviewDiagramRendererImpl;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -90,6 +92,7 @@ pub struct DynamicMcpContextProvider {
     pub active_vault_path: Arc<Mutex<Option<PathBuf>>>,
     pub full_text: Arc<Mutex<Option<Arc<FullTextComponents>>>>,
     pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
+    pub conversation_hub: Arc<WebviewConversationHubImpl>,
 }
 
 impl McpContextProvider for DynamicMcpContextProvider {
@@ -104,6 +107,10 @@ impl McpContextProvider for DynamicMcpContextProvider {
 
     fn diagram_renderer(&self) -> Option<Arc<dyn DiagramRenderer>> {
         Some(Arc::clone(&self.diagram_renderer) as Arc<dyn DiagramRenderer>)
+    }
+
+    fn conversation_hub(&self) -> Option<Arc<dyn ConversationHub>> {
+        Some(Arc::clone(&self.conversation_hub) as Arc<dyn ConversationHub>)
     }
 }
 
@@ -177,6 +184,8 @@ pub struct AppState {
     pub diagram_split_ratios: Arc<DashMap<String, f32>>,
     /// Dibujo de diagramas para el MCP: la ventana responde con `mcp_diagram_rendered`.
     pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
+    /// Conversaciones de agentes para el MCP: la ventana responde con `mcp_conversations_reply`.
+    pub conversation_hub: Arc<WebviewConversationHubImpl>,
 }
 
 pub fn open_vault_components(
@@ -259,7 +268,9 @@ impl AppState {
         let app_handle: Arc<Mutex<Option<tauri::AppHandle>>> = Arc::new(Mutex::new(None));
 
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
+        let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
             full_text: Arc::clone(&full_text),
@@ -396,6 +407,7 @@ impl AppState {
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
+            conversation_hub,
         }
     }
 
@@ -418,7 +430,9 @@ impl AppState {
         let full_text = Arc::new(Mutex::new(Some(full_text_comps)));
 
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
+        let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
+            conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
             full_text: Arc::clone(&full_text),
@@ -557,6 +571,7 @@ impl AppState {
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
+            conversation_hub,
         }
     }
 

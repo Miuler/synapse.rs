@@ -14,12 +14,38 @@ pub fn get_global_registry_path() -> PathBuf {
     WorkspaceRegistryRepositoryImpl::resolve_config_dir().join("mcp-ports.json")
 }
 
-/// Lee el registro global de puertos MCP desde disco.
+/// Lee el registro global de puertos MCP desde disco, sin entradas fantasma (ver [`prune_registry`]).
 pub fn read_global_registry() -> McpPortRegistry {
-    std::fs::read_to_string(get_global_registry_path())
+    let mut registry = std::fs::read_to_string(get_global_registry_path())
         .ok()
         .and_then(|content| serde_json::from_str::<McpPortRegistry>(&content).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if prune_registry(&mut registry, |p| Path::new(p).is_dir(), is_process_alive) {
+        write_global_registry(&registry);
+    }
+    registry
+}
+
+/// Limpia el registro de entradas fantasma: quita las bóvedas que ya no existen (por ejemplo,
+/// las temporales de las pruebas) y marca como detenidas las de procesos que ya terminaron. Las
+/// bóvedas que existen conservan su puerto, para que el MCP vuelva a usar el mismo. Devuelve si cambió.
+pub fn prune_registry(
+    registry: &mut McpPortRegistry,
+    vault_exists: impl Fn(&str) -> bool,
+    process_alive: impl Fn(u32) -> bool,
+) -> bool {
+    let before = registry.vaults.len();
+    registry.vaults.retain(|_, e| vault_exists(&e.vault_path));
+    let mut changed = registry.vaults.len() != before;
+    for entry in registry.vaults.values_mut() {
+        let dead = entry.pid.is_none_or(|pid| !process_alive(pid));
+        if entry.running && dead {
+            entry.running = false;
+            entry.pid = None;
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Escribe el registro global de puertos MCP.
@@ -321,6 +347,40 @@ pub fn record_mcp_stopped(vault_path: &Path, port: u16) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn limpia_bovedas_inexistentes_y_procesos_muertos() {
+        use crate::domain::mcp::mcp::McpPortRegistryEntry;
+        let entry = |path: &str, pid: Option<u32>, running: bool| McpPortRegistryEntry {
+            vault_path: path.into(),
+            port: 27182,
+            enabled: true,
+            running,
+            pid,
+            endpoint: String::new(),
+            updated_at: 0,
+        };
+        let mut reg = McpPortRegistry::default();
+        reg.vaults
+            .insert("/viva".into(), entry("/viva", Some(10), true));
+        reg.vaults
+            .insert("/muerta".into(), entry("/muerta", Some(20), true));
+        reg.vaults
+            .insert("/tmp/borrada".into(), entry("/tmp/borrada", Some(10), true));
+        reg.vaults
+            .insert("/parada".into(), entry("/parada", None, false));
+        let exists = |p: &str| p != "/tmp/borrada";
+        let alive = |pid: u32| pid == 10;
+        assert!(prune_registry(&mut reg, exists, alive));
+        assert!(!reg.vaults.contains_key("/tmp/borrada"));
+        assert!(reg.vaults["/viva"].running);
+        assert!(!reg.vaults["/muerta"].running);
+        assert_eq!(reg.vaults["/muerta"].pid, None);
+        // La bóveda detenida conserva su puerto
+        assert_eq!(reg.vaults["/parada"].port, 27182);
+        assert!(!prune_registry(&mut reg, exists, alive));
+    }
+
     use super::*;
     use tempfile::tempdir;
 

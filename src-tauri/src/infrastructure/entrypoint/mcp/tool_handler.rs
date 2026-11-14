@@ -21,6 +21,7 @@ use crate::application::dto::vault_item::move_folder_contents_command::{
 use crate::application::dto::vault_item::move_notes_command::MoveNotesCommand;
 use crate::application::dto::vault_item::search_folders_query::SearchFoldersQuery;
 use crate::application::dto::version::get_vault_version_state_query::GetVaultVersionStateQuery;
+use crate::application::service::conversation_hub::ConversationHub;
 use crate::application::service::diagram_renderer::{DiagramRenderer, diagram_kind};
 use crate::application::use_cases::note::append_to_note_use_case::AppendToNoteUseCase;
 use crate::application::use_cases::note::delete_note_use_case::DeleteNoteUseCase;
@@ -107,6 +108,9 @@ pub struct McpToolHandler<R: NoteRepository, I: FullTextIndex + ?Sized, G: Versi
     pdf_document_repository: Arc<dyn PdfDocumentRepository>,
     /// Quién dibuja los diagramas como imagen (la ventana de Synapse); `None` sin ventana.
     diagram_renderer: Option<Arc<dyn DiagramRenderer>>,
+    /// Conversaciones con agentes abiertas en la ventana, y cuál es la que llama.
+    conversation_hub: Option<Arc<dyn ConversationHub>>,
+    caller: Option<String>,
 }
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHandler<R, I, G> {
@@ -126,7 +130,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             vault_item_repository,
             pdf_document_repository,
             diagram_renderer: None,
+            conversation_hub: None,
+            caller: None,
         }
+    }
+
+    /// Permite hablar con otras conversaciones de agentes (`list_conversations`,
+    /// `send_to_conversation`); `caller` es la conversación que usa este MCP.
+    pub fn with_conversations(
+        mut self,
+        hub: Option<Arc<dyn ConversationHub>>,
+        caller: Option<String>,
+    ) -> Self {
+        self.conversation_hub = hub;
+        self.caller = caller;
+        self
     }
 
     /// Permite devolver diagramas como imagen (`render_diagram`).
@@ -734,6 +752,28 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["title", "details"]
                     }),
                 },
+                // 20. list_conversations
+                McpTool {
+                    name: "list_conversations".to_string(),
+                    description: "Lista las conversaciones con agentes abiertas en el panel de Synapse (pueden ser otros agentes: Claude, Gemini…): su número corto (#1, #2…), agente, título y estado. La tuya va marcada con `is_you`. Úsalo antes de send_to_conversation para elegir el destino.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({"type": "object", "properties": {}}),
+                },
+                // 21. send_to_conversation
+                McpTool {
+                    name: "send_to_conversation".to_string(),
+                    description: "Deja un mensaje a otra conversación de agente del panel (por ejemplo, cuando el usuario dice «pregúntale a Gemini…» o «avísale a #2…»). Es asíncrono: si el destino está trabajando, el mensaje entra al terminar su turno. Con expects_reply=true, su respuesta te llegará después como un mensaje nuevo en esta conversación; no la esperes ni la inventes. Si dudas a cuál conversación se refiere el usuario, pregúntale.".to_string(),
+                    annotations: Some(McpToolAnnotations::write(false, false)),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "to": {"type": "string", "description": "Destino: su número (#2), o parte de su título o del nombre del agente"},
+                            "message": {"type": "string", "description": "Lo que le dices o preguntas, con el contexto que necesite (no ve tu conversación)"},
+                            "expects_reply": {"type": "boolean", "description": "true si es una pregunta y quieres su respuesta de vuelta", "default": false}
+                        },
+                        "required": ["to", "message"]
+                    }),
+                },
                 // 19. render_diagram
                 McpTool {
                     name: "render_diagram".to_string(),
@@ -804,6 +844,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "read_pdf_document" => self.execute_read_pdf_document(&args),
             "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
             "render_diagram" => self.execute_render_diagram(&args),
+            "list_conversations" => self.execute_list_conversations(),
+            "send_to_conversation" => self.execute_send_to_conversation(&args),
             "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
         }
@@ -1203,6 +1245,54 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             );
         }
         to_text(&payload, "")
+    }
+
+    fn conversations(&self) -> Result<&Arc<dyn ConversationHub>, McpCallToolResult> {
+        self.conversation_hub.as_ref().ok_or_else(|| {
+            McpCallToolResult::error(
+                "Hablar con otras conversaciones requiere la ventana de Synapse abierta (MCP de la instancia)",
+            )
+        })
+    }
+
+    fn execute_list_conversations(&self) -> McpCallToolResult {
+        let hub = match self.conversations() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        match hub.list(self.caller.as_deref()) {
+            Ok(list) => to_text(&list, ""),
+            Err(e) => McpCallToolResult::error(e),
+        }
+    }
+
+    fn execute_send_to_conversation(&self, args: &Value) -> McpCallToolResult {
+        let hub = match self.conversations() {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        let Some(to) = args
+            .get("to")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+        else {
+            return McpCallToolResult::error("El argumento 'to' es obligatorio");
+        };
+        let Some(message) = args
+            .get("message")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+        else {
+            return McpCallToolResult::error("El argumento 'message' es obligatorio");
+        };
+        let expects_reply = args
+            .get("expects_reply")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        match hub.send(self.caller.as_deref(), to, message, expects_reply) {
+            Ok(result) => to_text(&result, ""),
+            Err(e) => McpCallToolResult::error(e),
+        }
     }
 
     /// Dibuja un diagrama de la bóveda como imagen PNG, a través de la ventana de Synapse.

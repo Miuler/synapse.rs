@@ -22,8 +22,8 @@ export const agentApi = {
   saveProfile: (p: { id: string; name: string; command: string; args: string[]; env: Record<string, string> }) =>
     invokeTauri<AgentProfile>('agent_save_profile', p),
   deleteProfile: (id: string) => invokeTauri<void>('agent_delete_profile', { id }),
-  startSession: (agentId: string, cwd: string, feedback: boolean, resume: string | null = null) =>
-    invokeTauri<AgentSession>('agent_start_session', { agentId, cwd, feedback, resume }),
+  startSession: (agentId: string, cwd: string, feedback: boolean, resume: string | null = null, conversationId: string | null = null) =>
+    invokeTauri<AgentSession>('agent_start_session', { agentId, cwd, feedback, resume, conversationId }),
   saveTranscript: (transcript: AgentTranscript) => invokeTauri<void>('agent_save_transcript', { transcript }),
   listTranscripts: (cwd: string) => invokeTauri<AgentTranscriptSummary[]>('agent_list_transcripts', { cwd }),
   loadTranscript: (cwd: string, id: string) => invokeTauri<AgentTranscript>('agent_load_transcript', { cwd, id }),
@@ -64,4 +64,27 @@ export async function listenAgentEvents(h: AgentEventHandlers): Promise<Unlisten
     listen<ModeEvent>('acp://mode', (e) => h.onMode(e.payload)),
   ]);
   return () => offs.forEach((off) => off());
+}
+
+export interface ConversationRequest {
+  requestId: string;
+  action: string;
+  caller: string | null;
+  to?: string;
+  message?: string;
+  expectsReply?: boolean;
+}
+
+/** Atiende las peticiones del MCP sobre las conversaciones abiertas y devuelve el resultado al backend. */
+export function listenConversationRequests(handle: (req: ConversationRequest) => unknown): Promise<UnlistenFn> {
+  return listen<ConversationRequest>('mcp://conversations', ({ payload }) => {
+    let result: unknown = null;
+    let error: string | null = null;
+    try {
+      result = handle(payload);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+    invokeTauri('mcp_conversations_reply', { requestId: payload.requestId, result, error }).catch(() => {});
+  });
 }

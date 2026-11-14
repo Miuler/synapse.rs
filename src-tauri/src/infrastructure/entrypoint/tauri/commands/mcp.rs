@@ -48,3 +48,19 @@ pub fn mcp_diagram_rendered(
     };
     state.diagram_renderer.resolve(&request_id, result);
 }
+
+/// Respuesta de la ventana a `mcp://conversations`.
+#[tauri::command]
+pub fn mcp_conversations_reply(
+    state: State<'_, AppState>,
+    request_id: String,
+    result: Option<serde_json::Value>,
+    error: Option<String>,
+) {
+    let outcome = match (result, error) {
+        (_, Some(e)) => Err(e),
+        (Some(v), None) => Ok(v),
+        (None, None) => Err("La ventana no respondió".into()),
+    };
+    state.conversation_hub.resolve(&request_id, outcome);
+}

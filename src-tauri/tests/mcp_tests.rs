@@ -9,8 +9,21 @@ use std::io::Cursor;
 use std::sync::Arc;
 use tempfile::tempdir;
 
+/// Las pruebas no escriben en la configuración real del usuario (`~/.config/synapsers`, donde está
+/// el registro de puertos del MCP): usan una carpeta temporal propia para todo el binario.
+fn isolate_config() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let dir = std::env::temp_dir().join(format!("synapse-mcp-tests-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        // SAFETY: se fija una sola vez, antes de que las pruebas lean la variable
+        unsafe { std::env::set_var("SYNAPSE_CONFIG_DIR", &dir) };
+    });
+}
+
 #[test]
 fn test_mcp_server_initialize_tools_and_read_write_cycle() {
+    isolate_config();
     let temp = tempdir().unwrap();
     let vault_path = temp.path().to_path_buf();
 
@@ -355,6 +368,7 @@ impl app_lib::infrastructure::entrypoint::mcp::server::McpContextProvider for Du
 
 #[test]
 fn test_mcp_background_runtime_lifecycle_and_http() {
+    isolate_config();
     use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
     use std::io::{Read, Write};
     use std::net::TcpStream;
@@ -422,6 +436,7 @@ fn test_mcp_background_runtime_lifecycle_and_http() {
 
 #[test]
 fn test_mcp_workspace_reopen_auto_activation() {
+    isolate_config();
     use app_lib::domain::mcp::mcp_repository::McpConfigRepository;
     use app_lib::infrastructure::entrypoint::mcp::server::McpBackgroundRuntime;
     use app_lib::infrastructure::repository::file::mcp_repository_impl::McpConfigRepositoryImpl;
@@ -486,6 +501,7 @@ fn test_mcp_workspace_reopen_auto_activation() {
 
 #[test]
 fn test_mcp_evolved_tools_suite() {
+    isolate_config();
     use app_lib::domain::note::note::Note;
     use app_lib::domain::note::note_path::NoteRelativePath;
     use app_lib::domain::note::note_repository::NoteRepository;

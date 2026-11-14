@@ -1,4 +1,4 @@
-import { agentApi, listenAgentEvents } from '../api/agent.api';
+import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
 import { replayText } from './replay-text';
 import type {
@@ -17,6 +17,18 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 const FLOATING_KEY = 'synapse.agent.floating';
 const FEEDBACK_KEY = 'synapse.agent.feedback';
+/** Idas y vueltas seguidas entre agentes sin intervención del usuario. */
+export const MAX_AGENT_HOPS = 3;
+
+/** Mensaje de otra conversación esperando a que esta termine su turno. */
+interface InboxMessage {
+  from: Conversation;
+  text: string;
+  hops: number;
+  /** Conversación a la que vuelve la respuesta (si era una pregunta). */
+  replyTo: Conversation | null;
+}
+
 /** Conversaciones desplegadas a la vez en el acordeón. */
 export const MAX_EXPANDED = 2;
 
@@ -58,6 +70,14 @@ export class Conversation {
   unseen = $state(false);
   /** El agente está compactando su contexto (`/compact`). */
   compacting = $state(false);
+  /** Número corto (#1, #2…) para nombrarla desde otra conversación. */
+  number = 0;
+  /** Mensajes de otras conversaciones que esperan a que termine su turno. */
+  inbox = $state<InboxMessage[]>([]);
+  /** Conversaciones a las que preguntó y de las que espera respuesta (#2…). */
+  waitingFor = $state<string[]>([]);
+  /** Saltos entre agentes del turno en curso (0 si lo empezó el usuario). */
+  #turnHops = 0;
 
   readonly #store: AgentStore;
   readonly #cwd: string;
@@ -72,6 +92,10 @@ export class Conversation {
     this.agentId = agentId;
     this.#cwd = cwd;
     this.id = id;
+  }
+
+  get handle() {
+    return `#${this.number}`;
   }
 
   get cwd() {
@@ -154,7 +178,7 @@ export class Conversation {
         await this.#store.refresh();
       }
       this.connection = 'starting';
-      this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume);
+      this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume, this.id);
       if (resume && !this.session.resumed && this.items.length) this.#replay = replayText(this.items);
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
@@ -166,10 +190,33 @@ export class Conversation {
         await this.setModel(savedModel);
       }
       if (resume) this.persist(true);
+      this.deliverNext();
     } catch (e) {
       this.connection = 'error';
       this.error(e);
     }
+  }
+
+  /** Deja un mensaje de otra conversación; entra ya si está libre, o al terminar su turno. */
+  receive(msg: InboxMessage): 'delivered' | 'queued' {
+    this.inbox.push(msg);
+    const now = this.connection === 'ready';
+    this.deliverNext();
+    return now ? 'delivered' : 'queued';
+  }
+
+  /** Entrega el siguiente mensaje del buzón si la conversación está libre. */
+  deliverNext() {
+    if (this.connection !== 'ready' || !this.inbox.length) return;
+    const msg = this.inbox.shift()!;
+    const from = { handle: msg.from.handle, agent: msg.from.agent?.name ?? msg.from.agentId, title: msg.from.title };
+    const prompt =
+      `[Mensaje de otra conversación de agente: ${from.agent} (${from.handle}${from.title ? ` · ${from.title}` : ''})]\n` +
+      (msg.replyTo
+        ? 'Te hace una pregunta; tu respuesta se le enviará automáticamente, así que respóndela directamente.\n\n'
+        : 'Es un aviso; no hace falta que le respondas.\n\n') +
+      msg.text;
+    void this.send(msg.text, { prompt, from, hops: msg.hops, replyTo: msg.replyTo });
   }
 
   /** Etiquetas que viajarán con el próximo mensaje (incluida la nota activa si no se quitó). */
@@ -203,9 +250,19 @@ export class Conversation {
     this.attachments = this.attachments.filter((x) => x !== a);
   }
 
-  async send(text: string) {
+  async send(
+    text: string,
+    opts: {
+      prompt?: string;
+      from?: { handle: string; agent: string; title: string };
+      hops?: number;
+      replyTo?: Conversation | null;
+    } = {},
+  ) {
     const session = this.session;
     if (!session || this.connection === 'busy' || !text.trim()) return;
+    this.#turnHops = opts.hops ?? 0;
+    const turnStart = this.items.length;
     if (/(^|\s)@this\b/.test(text)) this.attachActiveNote();
     // `/feedback [indicaciones]`: lo resuelve Synapse, no el agente
     const feedback = this.#store.feedbackAvailable ? /^\/feedback(?:\s+([\s\S]*))?$/.exec(text.trim()) : null;
@@ -215,7 +272,7 @@ export class Conversation {
       blocks.push({ type: 'text', text: this.#replay });
       this.#replay = null;
     }
-    blocks.push({ type: 'text', text: feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text });
+    blocks.push({ type: 'text', text: opts.prompt ?? (feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text) });
     for (const a of attachments) {
       blocks.push(
         a.kind === 'file'
@@ -231,7 +288,7 @@ export class Conversation {
       this.push({ type: 'compact' });
       this.compacting = true;
     }
-    this.push({ type: 'user', text, attachments });
+    this.push(opts.from ? { type: 'user', text, attachments, from: opts.from } : { type: 'user', text, attachments });
     this.attachments = [];
     // Tras enviarla, la nota activa no se repite hasta que cambie
     const note = this.#store.activeNote;
@@ -249,7 +306,28 @@ export class Conversation {
       if (compact) this.compacting = false;
       if (!this.#store.isVisible(this)) this.unseen = true;
       this.persist(true);
+      // Era una pregunta de otra conversación: su respuesta vuelve sola
+      if (opts.replyTo) {
+        const answer = this.items
+          .slice(turnStart)
+          .filter((i) => i.type === 'agent')
+          .map((i) => ('text' in i ? i.text : ''))
+          .join('\n\n')
+          .trim();
+        const asker = opts.replyTo;
+        asker.waitingFor = asker.waitingFor.filter((h) => h !== this.handle);
+        if (this.#store.byId(asker.id)) {
+          asker.receive({ from: this, text: answer || '(no respondió nada)', hops: (opts.hops ?? 0) + 1, replyTo: null });
+        }
+      }
+      this.#turnHops = 0;
+      this.deliverNext();
     }
+  }
+
+  /** Saltos entre agentes que lleva el turno en curso. */
+  get turnHops() {
+    return this.#turnHops;
   }
 
   async setMode(modeId: string) {
@@ -362,6 +440,7 @@ class AgentStore {
   #toRestore: VaultAgentState | null = null;
 
   #cwd: string | null = null;
+  #nextNumber = 1;
   #early = new Map<string, AgentCommand[]>();
   #listening: Promise<unknown> | null = null;
 
@@ -388,7 +467,7 @@ class AgentStore {
   }
 
   #listen() {
-    this.#listening ??= listenAgentEvents({
+    this.#listening ??= (listenConversationRequests((req) => this.handleConversationRequest(req)), listenAgentEvents({
       onPlan: (e) => {
         const c = this.#bySession(e.sessionId);
         if (c) c.plan = e.entries;
@@ -447,7 +526,7 @@ class AgentStore {
         c.connection = 'idle';
         c.push({ type: 'error', text: 'El agente terminó.' });
       },
-    });
+    }));
     return this.#listening;
   }
 
@@ -489,7 +568,9 @@ class AgentStore {
       if (!saved.length && state.lastAgentId && this.agents.some((a) => a.id === state.lastAgentId)) {
         await this.newConversation(cwd, state.lastAgentId);
       }
-      this.expanded = state.expanded.filter((id) => this.byId(id));
+      // Lo desplegado al cerrar la bóveda, sin replegar lo que el usuario abrió mientras se restauraba
+      const opened = this.expanded.filter((id) => !saved.includes(id));
+      this.expanded = [...state.expanded.filter((id) => saved.includes(id) && this.byId(id)), ...opened].slice(-MAX_EXPANDED);
       if (state.pinned && this.byId(state.pinned)) {
         this.pinned = state.pinned;
         this.collapse(state.pinned);
@@ -499,6 +580,63 @@ class AgentStore {
       this.#toRestore = null;
       this.#saveVaultState();
     }
+  }
+
+  /** Peticiones del MCP (`list_conversations`, `send_to_conversation`) que atiende la ventana. */
+  handleConversationRequest(req: {
+    action: string;
+    caller: string | null;
+    to?: string;
+    message?: string;
+    expectsReply?: boolean;
+  }): unknown {
+    const caller = req.caller ? this.byId(req.caller) : null;
+    if (req.action === 'list') {
+      return this.conversations.map((c) => ({
+        handle: c.handle,
+        agent: c.agent?.name ?? c.agentId,
+        title: c.title || 'Conversación nueva',
+        status: c.status,
+        pending_messages: c.inbox.length,
+        is_you: c.id === caller?.id,
+      }));
+    }
+    if (req.action !== 'send') throw new Error(`Acción desconocida: ${req.action}`);
+    if (!caller) throw new Error('No se sabe desde qué conversación escribes; usa el MCP de tu conversación.');
+    const target = this.#resolveTarget(req.to ?? '', caller);
+    const hops = caller.turnHops + 1;
+    if (hops > MAX_AGENT_HOPS) {
+      throw new Error(
+        `Límite de ${MAX_AGENT_HOPS} mensajes seguidos entre agentes sin intervención del usuario. Resume lo que tengas y deja que el usuario decida.`,
+      );
+    }
+    const expectsReply = !!req.expectsReply;
+    if (expectsReply && !caller.waitingFor.includes(target.handle)) caller.waitingFor = [...caller.waitingFor, target.handle];
+    const status = target.receive({ from: caller, text: req.message ?? '', hops, replyTo: expectsReply ? caller : null });
+    return {
+      status,
+      to: `${target.handle} · ${target.agent?.name ?? target.agentId}`,
+      note:
+        (status === 'queued' ? 'Está trabajando: lo recibirá al terminar su turno. ' : 'Entregado. ') +
+        (expectsReply ? 'Su respuesta te llegará como un mensaje nuevo en esta conversación; no la esperes.' : ''),
+    };
+  }
+
+  /** Destino por número (#2), id, o parte de su título o del nombre del agente. */
+  #resolveTarget(to: string, caller: Conversation): Conversation {
+    const q = to.trim().toLowerCase();
+    const others = this.conversations.filter((c) => c.id !== caller.id);
+    const byNumber = /^#?(\d+)$/.exec(q);
+    const exact = byNumber ? others.find((c) => c.number === Number(byNumber[1])) : others.find((c) => c.id === to);
+    if (exact) return exact;
+    const matches = others.filter((c) => `${c.agent?.name ?? c.agentId} ${c.title}`.toLowerCase().includes(q));
+    if (matches.length === 1) return matches[0];
+    const list = others.map((c) => `${c.handle} ${c.agent?.name ?? c.agentId} · ${c.title || 'nueva'}`).join('; ');
+    throw new Error(
+      matches.length
+        ? `«${to}» coincide con varias conversaciones (${matches.map((c) => c.handle).join(', ')}); usa su número. Abiertas: ${list}`
+        : `No hay otra conversación «${to}». Abiertas: ${list || 'ninguna'}`,
+    );
   }
 
   async refresh() {
@@ -578,6 +716,7 @@ class AgentStore {
   }
 
   #add(c: Conversation) {
+    c.number = this.#nextNumber++;
     for (const a of this.#waiting.splice(0)) c.attach(a);
     this.conversations = [c, ...this.conversations];
     this.expand(c.id);

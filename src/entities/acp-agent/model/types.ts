@@ -156,7 +156,14 @@ export interface StatusEvent {
 
 /** Elemento de la conversación tal como se muestra. */
 export type ChatItem =
-  | { type: 'user'; id: number; text: string; attachments: Attachment[] }
+  | {
+      type: 'user';
+      id: number;
+      text: string;
+      attachments: Attachment[];
+      /** Mensaje de otra conversación de agente (no del usuario). */
+      from?: { handle: string; agent: string; title: string };
+    }
   | { type: 'agent'; id: number; text: string }
   | { type: 'thought'; id: number; text: string }
   | {

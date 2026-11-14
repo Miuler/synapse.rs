@@ -31,6 +31,13 @@ impl WorkspaceRegistryRepositoryImpl {
     }
 
     pub fn resolve_config_dir() -> PathBuf {
+        // Carpeta de configuración propia (pruebas, perfiles aislados): no toca la del usuario
+        if let Ok(dir) = std::env::var("SYNAPSE_CONFIG_DIR") {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                return PathBuf::from(trimmed);
+            }
+        }
         if let Ok(home) = std::env::var("HOME") {
             let trimmed = home.trim();
             if !trimmed.is_empty() {

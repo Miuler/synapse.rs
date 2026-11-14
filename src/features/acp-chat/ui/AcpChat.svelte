@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { agentStore, type Attachment, type Conversation, type ToolContent } from '@entities/acp-agent';
+  import { agentStore, modeBadge, shortModelLabels, type Attachment, type Conversation, type ToolContent } from '@entities/acp-agent';
   import { vaultItemStore } from '@entities/vault-item';
   import {
     Bot,
@@ -18,6 +18,7 @@
     CircleCheck,
     CircleDot,
     Shrink,
+    ChevronDown,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
   import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
@@ -266,6 +267,33 @@
       return `${c.amount} ${c.currency}`;
     }
   }
+  // Modelo y modo, en corto junto a la línea de contexto (nombres completos en el tooltip y el menú)
+  let optsOpen = $state(false);
+  $effect(() => {
+    if (!optsOpen) return;
+    const close = () => (optsOpen = false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  });
+  const currentModelName = $derived(
+    conv.session?.models.find((m) => m.id === conv.currentModel)?.name || conv.currentModel || '',
+  );
+  const modelShort = $derived.by(() => {
+    const models = conv.session?.models ?? [];
+    const i = models.findIndex((m) => m.id === conv.currentModel);
+    return i >= 0 ? shortModelLabels(models.map((m) => m.name || m.id))[i] : '';
+  });
+  const currentModeName = $derived(
+    conv.session?.modes.find((m) => m.id === conv.currentMode)?.name || conv.currentMode || '',
+  );
+  /** El modo solo se muestra si no es el de inicio del agente. */
+  const modeShown = $derived(
+    conv.currentMode && conv.currentMode !== conv.session?.current_mode ? modeBadge(conv.currentMode, currentModeName) : '',
+  );
+  const optsTitle = $derived(
+    [currentModelName && `Modelo: ${currentModelName}`, currentModeName && `Modo: ${currentModeName}`].filter(Boolean).join('\n'),
+  );
+
   const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
 </script>
 
@@ -308,7 +336,8 @@
 
       {#each conv.items as item (item.id)}
         {#if item.type === 'user'}
-          <div class="acp-msg user">
+          <div class="acp-msg user" class:from-agent={!!item.from}>
+            {#if item.from}<div class="acp-from">De {item.from.agent} · {item.from.handle}</div>{/if}
             {item.text}
             {#if item.attachments.length}
               <div class="acp-chips sent">
@@ -398,16 +427,76 @@
       {/if}
     </div>
 
-    {#if conv.usage}
-      <div class="acp-usage-row" title="Ventana de contexto del modelo: {conv.usage.used.toLocaleString()} de {conv.usage.size.toLocaleString()} tokens usados">
-        <div class="acp-usage" class:warn={usagePct >= 80}>
-          <div class="acp-usage-bar" style="width: {usagePct}%"></div>
-        </div>
-        <span class="acp-usage-text">
-          Contexto {compact(conv.usage.used)} / {compact(conv.usage.size)} ({usagePct.toFixed(0)}%)
-          {#if conv.usage.cost}· {formatCost(conv.usage.cost)}{/if}
-        </span>
-        {#if conv.canCompact}
+    {#if conv.session || conv.usage}
+      <div class="acp-usage-row">
+        {#if conv.session && (conv.session.models.length || conv.session.modes.length)}
+          <div class="acp-agent-opts">
+            <button
+              type="button"
+              class="acp-opts-btn"
+              title={optsTitle}
+              aria-label="Modelo y modo del agente"
+              aria-haspopup="menu"
+              aria-expanded={optsOpen}
+              onclick={(e) => {
+                e.stopPropagation();
+                optsOpen = !optsOpen;
+              }}
+            >
+              {#if modeShown}<span class="acp-mode-chip">{modeShown}</span>{/if}
+              {#if modelShort}<span class="acp-model-chip">{modelShort}</span>{/if}
+              <ChevronDown size={11} />
+            </button>
+            {#if optsOpen}
+              <div class="acp-opts-menu" role="menu">
+                {#if conv.session.models.length}
+                  <div class="acp-opts-head">Modelo</div>
+                  {#each conv.session.models as m (m.id)}
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={m.id === conv.currentModel}
+                      class:selected={m.id === conv.currentModel}
+                      onclick={() => {
+                        optsOpen = false;
+                        conv.setModel(m.id);
+                      }}>{m.name || m.id}</button
+                    >
+                  {/each}
+                {/if}
+                {#if conv.session.modes.length}
+                  <div class="acp-opts-head">Modo</div>
+                  {#each conv.session.modes as m (m.id)}
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={m.id === conv.currentMode}
+                      class:selected={m.id === conv.currentMode}
+                      title={m.description ?? ''}
+                      onclick={() => {
+                        optsOpen = false;
+                        conv.setMode(m.id);
+                      }}>{m.name || m.id}</button
+                    >
+                  {/each}
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
+        {#if conv.usage}
+          <div
+            class="acp-usage"
+            class:warn={usagePct >= 80}
+            title="Ventana de contexto del modelo: {conv.usage.used.toLocaleString()} de {conv.usage.size.toLocaleString()} tokens ({compact(conv.usage.used)} / {compact(conv.usage.size)}){conv.usage.cost ? ` · ${formatCost(conv.usage.cost)}` : ''}"
+          >
+            <div class="acp-usage-bar" style="width: {usagePct}%"></div>
+          </div>
+          <span class="acp-usage-text" title="{compact(conv.usage.used)} / {compact(conv.usage.size)} tokens">{usagePct.toFixed(0)}%</span>
+        {:else}
+          <span class="acp-usage-spacer"></span>
+        {/if}
+        {#if conv.canCompact && conv.usage}
           <button
             type="button"
             class="acp-compact"
@@ -834,6 +923,16 @@
     color: #fff;
     cursor: pointer;
   }
+  .acp-msg.user.from-agent {
+    align-self: flex-start;
+    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+    border-color: var(--border-primary);
+  }
+  .acp-from {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
   .acp-brain {
     display: inline-block;
     animation: acpBrain 1.4s ease-in-out infinite;
@@ -1042,5 +1141,83 @@
   .acp-send:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+  .acp-agent-opts {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 65%;
+  }
+  .acp-model-chip {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .acp-opts-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 0 3px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    font: inherit;
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .acp-opts-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+  .acp-mode-chip {
+    color: var(--accent);
+  }
+  .acp-opts-menu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 4px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-primary);
+    background: var(--bg-primary);
+    box-shadow: var(--modal-shadow);
+  }
+  .acp-opts-head {
+    padding: 4px 8px 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .acp-opts-menu button {
+    padding: 5px 8px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .acp-opts-menu button:hover {
+    background: var(--bg-tertiary);
+  }
+  .acp-opts-menu button.selected {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .acp-usage-spacer {
+    flex: 1;
   }
 </style>

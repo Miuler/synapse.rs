@@ -58,11 +58,29 @@ it('registra un agente personalizado y conversa con él', async () => {
   });
 
   // Modos que anuncia el agente
-  await s.browser.waitUntil(async () => (await text('.acp-subbar option')).includes('Programar'), {
+  // Modo y modelo van junto a la línea de contexto, en un menú ▾ hacia arriba
+  await s.browser.waitUntil(async () => (await count('.acp-opts-btn')) > 0, { timeout: 5_000, timeoutMsg: 'no aparece el selector de modo' });
+  expect(await count('.acp-subbar select[aria-label="Modo del agente"]')).toBe(0);
+  await s.browser.$('.acp-opts-btn').click();
+  await s.browser.waitUntil(async () => (await text('.acp-opts-menu button')).includes('Programar'), {
     timeout: 5_000,
     timeoutMsg: 'no aparecen los modos del agente',
   });
+  expect(await text('.acp-opts-head')).toEqual(['Modo']);
+  await s.browser.execute(() => {
+    const b = [...document.querySelectorAll('.acp-opts-menu button')].find((x) => x.textContent?.trim() === 'Programar');
+    (b as HTMLButtonElement).click();
+  });
+  // Un modo distinto del de inicio se ve en corto
+  await s.browser.waitUntil(async () => (await text('.acp-mode-chip')).some((t) => t?.includes('Programar')), {
+    timeout: 5_000,
+    timeoutMsg: 'no se muestra el modo elegido',
+  });
   expect(await text('.acp-badge')).toContain('MCP Synapse');
+  // «MCP Synapse» y ⋯ van en el título de la conversación; no hay barra aparte
+  expect(await count('.acp-row .acp-badge')).toBe(1);
+  expect(await count('.acp-row button[aria-label="Más acciones"]')).toBe(1);
+  expect(await count('.acp-section .acp-subbar')).toBe(0);
 
   // La nota activa viaja como etiqueta
   expect((await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md'))).toBe(true);
@@ -124,14 +142,14 @@ it('registra un agente personalizado y conversa con él', async () => {
   expect(await text('.acp-permission-done')).toContain('Permitir');
 
   // Contexto al 85 %: «Compactar» se ve resaltado; al compactar aparece la marca y el uso baja
-  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).some((t) => t?.includes('(85%)')), {
+  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).includes('85%'), {
     timeout: 5_000,
     timeoutMsg: 'no se muestra el uso de contexto',
   });
   expect(await count('.acp-compact.shown.warn')).toBe(1);
   await s.browser.$('.acp-compact').click();
   await s.browser.$('.acp-compact-marker').waitForExist({ timeout: 10_000 });
-  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).some((t) => t?.includes('(10%)')), {
+  await s.browser.waitUntil(async () => (await text('.acp-usage-text')).includes('10%'), {
     timeout: 10_000,
     timeoutMsg: 'el uso no bajó al compactar',
   });
@@ -265,4 +283,51 @@ it('al reabrir la bóveda vuelve el panel con su agente y su última conversaci�
   await s.browser.$('.file-tree-item').waitForExist({ timeout: 30_000 });
   await s.browser.pause(1_500);
   expect(await count('.synapse-agent-panel')).toBe(0);
+}, 120_000);
+
+it('un agente le pregunta a otra conversación y le vuelve la respuesta', async () => {
+  await s.browser.$('.editor-header .agent-toggle').click();
+  // Se restaura la conversación de la bóveda (#1) y se abre otra (#2)
+  await s.browser.waitUntil(async () => (await count('.acp-section')) >= 1, { timeout: 30_000, timeoutMsg: 'no se restauró el panel' });
+  await s.browser.waitUntil(async () => (await text('.acp-row-title')).some((t) => t?.includes('segunda conversación')), {
+    timeout: 20_000,
+    timeoutMsg: 'no terminó de restaurarse la conversación',
+  });
+  expect(await text('.acp-handle')).toEqual(['#1']);
+  await s.browser.$('button[aria-label="Nueva conversación"]').click();
+  await s.browser.waitUntil(async () => (await text('.acp-handle')).includes('#2'), {
+    timeout: 15_000,
+    timeoutMsg: 'no se abrió la conversación #2',
+  });
+  // El cuadro de texto de la conversación #2, cuando ya está conectada
+  const ready2 = () =>
+    s.browser.execute(() => {
+      const section = [...document.querySelectorAll('.acp-section')].find((x) => x.querySelector('.acp-handle')?.textContent === '#2');
+      const area = section?.querySelector('.acp-input textarea') as HTMLTextAreaElement | null;
+      if (!area || area.disabled) return false;
+      area.id = 'ask-input';
+      return true;
+    }) as Promise<boolean>;
+  await s.browser.waitUntil(ready2, { timeout: 45_000, timeoutMsg: 'la conversación #2 no quedó conectada' });
+  const input = s.browser.$('#ask-input');
+  await input.setValue('pregúntale a #1: ¿tiene SignOn el flujo?');
+  await s.browser.keys('Enter');
+
+  // #2 lo envía por el MCP; #1 lo recibe marcado como de otro agente y responde
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Enviado a #1')), {
+    timeout: 20_000,
+    timeoutMsg: 'el agente no envió el mensaje',
+  });
+  expect((await text('.acp-msg.agent')).join(' ')).not.toContain('ERROR');
+  await s.browser.waitUntil(async () => (await text('.acp-from')).some((t) => t?.includes('#2')), {
+    timeout: 15_000,
+    timeoutMsg: 'la conversación #1 no recibió el mensaje',
+  });
+  // La respuesta de #1 vuelve sola a #2
+  await s.browser.waitUntil(async () => (await text('.acp-from')).some((t) => t?.includes('#1')), {
+    timeout: 15_000,
+    timeoutMsg: 'la respuesta no volvió a #2',
+  });
+  expect((await text('.acp-msg.user.from-agent')).some((t) => t?.includes('Respuesta de'))).toBe(true);
+  expect(await count('.acp-waiting')).toBe(0);
 }, 120_000);

@@ -238,35 +238,8 @@
   {/if}
 {/snippet}
 
-{#snippet convBar(c: Conversation)}
+{#snippet convExtras(c: Conversation)}
   {#if c.session}
-    <div class="acp-subbar">
-      {#if c.session.modes.length}
-        <select
-          class="acp-mini-select"
-          aria-label="Modo del agente"
-          title="Modo del agente"
-          value={c.currentMode ?? ''}
-          onchange={(e) => c.setMode(e.currentTarget.value)}
-        >
-          {#each c.session.modes as m (m.id)}
-            <option value={m.id} title={m.description ?? ''}>{m.name || m.id}</option>
-          {/each}
-        </select>
-      {/if}
-      {#if c.session.models.length}
-        <select
-          class="acp-mini-select"
-          aria-label="Modelo"
-          title="Modelo"
-          value={c.currentModel ?? ''}
-          onchange={(e) => c.setModel(e.currentTarget.value)}
-        >
-          {#each c.session.models as m (m.id)}
-            <option value={m.id}>{m.name || m.id}</option>
-          {/each}
-        </select>
-      {/if}
       {#if c.session.tool_servers.includes('synapse_instance')}
         <span class="acp-badge" title="El agente puede usar las herramientas MCP de Synapse (notas, búsqueda, Git…)">MCP Synapse</span>
       {/if}
@@ -284,7 +257,8 @@
           }}><Ellipsis size={14} /></button
         >
         {#if menuFor === c.id}
-          <div class="acp-menu" role="menu">
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_interactive_supports_focus -->
+          <div class="acp-menu" role="menu" onclick={(e) => e.stopPropagation()}>
             <button
               type="button"
               role="menuitem"
@@ -305,7 +279,6 @@
           </div>
         {/if}
       </div>
-    </div>
   {/if}
 {/snippet}
 
@@ -316,9 +289,13 @@
     {#if !pinned}
       {#if open}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
     {/if}
+    <span class="acp-handle" title="Número para nombrarla desde otra conversación">{c.handle}</span>
     <span class="acp-row-title"><span class="agent">{c.agent?.name ?? c.agentId} ·</span> {titleOf(c)}</span>
     {#if c.status === 'working'}<span class="acp-brain" title="Pensando">🧠</span>{/if}
+    {#if c.inbox.length}<span class="acp-inbox" title="Mensajes de otras conversaciones esperando a que termine su turno">✉ {c.inbox.length}</span>{/if}
+    {#if c.waitingFor.length}<span class="acp-waiting" title="Le preguntó a otra conversación y espera su respuesta">esperando a {c.waitingFor.join(', ')}</span>{/if}
     {#if c.pendingPermissions}<span class="acp-perm-badge">permiso</span>{/if}
+    {@render convExtras(c)}
     <button
       type="button"
       class="acp-icon small"
@@ -373,7 +350,6 @@
         {@const c = agentStore.pinnedConversation}
         <section class="acp-pinned" aria-label="Conversación fijada">
           {@render row(c, true, true)}
-          {@render convBar(c)}
           {#key c.id}<AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />{/key}
         </section>
       {/if}
@@ -384,7 +360,6 @@
             {@render row(c, open, false)}
             {#if open}
               <div class="acp-section-body">
-                {@render convBar(c)}
                 <AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />
               </div>
             {/if}
@@ -706,6 +681,11 @@
   .acp-badge + .acp-more {
     margin-left: 0;
   }
+  .acp-row .acp-badge,
+  .acp-row .acp-more {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
   .acp-menu {
     position: absolute;
     right: 0;
@@ -739,5 +719,19 @@
   }
   .acp-menu button.danger {
     color: var(--danger);
+  }
+  .acp-handle {
+    font-size: 10.5px;
+    font-family: var(--mono, monospace);
+    color: var(--text-muted);
+  }
+  .acp-inbox,
+  .acp-waiting {
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 0 6px;
+    border-radius: 999px;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   }
 </style>

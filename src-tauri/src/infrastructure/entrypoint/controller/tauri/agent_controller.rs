@@ -49,7 +49,7 @@ pub fn agent_delete_profile(state: State<'_, AgentState>, id: String) -> Result<
 /// El MCP de Synapse para el agente: siempre el de la instancia abierta (comparte índice y estado
 /// con la ventana). Se arranca si estaba apagado. Los agentes con MCP por HTTP se conectan directo;
 /// los que solo usan stdio, a través de `synapsers --mcp-proxy <url>`, que reenvía a la misma instancia.
-fn synapse_tools(app: &AppState) -> Result<Vec<ToolServer>, String> {
+fn synapse_tools(app: &AppState, conversation: Option<&str>) -> Result<Vec<ToolServer>, String> {
     let status = app
         .mcp_runtime
         .start()
@@ -57,7 +57,13 @@ fn synapse_tools(app: &AppState) -> Result<Vec<ToolServer>, String> {
     if !status.running {
         return Err("No se pudo iniciar el MCP de Synapse".into());
     }
-    let url = status.endpoint;
+    // Cada conversación usa su propia URL del MCP, para saber quién habla con las demás
+    let url = match conversation
+        .filter(|c| c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-'))
+    {
+        Some(conv) => format!("{}?conv={conv}", status.endpoint),
+        None => status.endpoint,
+    };
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     Ok(vec![ToolServer {
         name: crate::infrastructure::integration::service::acp::agent_runner_impl::SYNAPSE_TOOLS
@@ -86,7 +92,10 @@ pub(crate) fn session_instructions(feedback: bool) -> String {
          - Para crear, editar, mover o borrar notas usa `write_note`, `patch_note`, \
          `append_to_note`, `update_note_metadata`, `move_notes` y `delete_note`, no la escritura \
          directa de archivos: así Synapse mantiene su índice, sus enlaces y sus metadatos al día.\n\
-         - Usa la escritura directa de archivos solo si `{name}` no puede hacer lo que necesitas."
+         - Usa la escritura directa de archivos solo si `{name}` no puede hacer lo que necesitas.\n\
+         - En el panel puede haber otras conversaciones con agentes (#1, #2…). Si el usuario te pide \
+         preguntarle o avisarle algo a otra, usa `list_conversations` y `send_to_conversation` de \
+         `{name}`; es asíncrono: si preguntas, su respuesta te llegará después como un mensaje nuevo."
     );
     if feedback {
         text.push_str(&format!(
@@ -106,8 +115,9 @@ pub async fn agent_start_session(
     cwd: String,
     feedback: Option<bool>,
     resume: Option<String>,
+    conversation_id: Option<String>,
 ) -> Result<AgentSession, String> {
-    let tools = synapse_tools(&app)?;
+    let tools = synapse_tools(&app, conversation_id.as_deref())?;
     let instructions = Some(session_instructions(
         feedback.unwrap_or(false) && cfg!(feature = "develop"),
     ));

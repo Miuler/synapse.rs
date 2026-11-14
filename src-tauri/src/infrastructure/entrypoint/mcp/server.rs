@@ -142,6 +142,12 @@ pub trait McpContextProvider: Send + Sync {
     ) -> Option<Arc<dyn crate::application::service::diagram_renderer::DiagramRenderer>> {
         None
     }
+    /// Las conversaciones de agentes de la ventana, si la hay.
+    fn conversation_hub(
+        &self,
+    ) -> Option<Arc<dyn crate::application::service::conversation_hub::ConversationHub>> {
+        None
+    }
 }
 
 /// Servidor MCP en segundo plano (HTTP Streamable / JSON-RPC) que corre en el mismo proceso de Synapse
@@ -499,6 +505,15 @@ impl McpBackgroundRuntime {
         }
 
         // Endpoint POST /mcp o POST /
+        // `?conv=<id>`: la conversación de agente que usa este MCP (para hablar con las demás)
+        let (path, query) = path.split_once('?').unwrap_or((path, ""));
+        let caller = query
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("conv="))
+            .filter(|c| {
+                !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+            })
+            .map(str::to_string);
         if method == "POST" && (path == "/mcp" || path == "/") {
             let mut body_bytes = vec![0u8; content_length];
             if content_length > 0 {
@@ -512,7 +527,8 @@ impl McpBackgroundRuntime {
             let git_service = Some(Arc::new(VersionControlImpl));
 
             let tool_handler = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl))
-                .with_diagram_renderer(provider.diagram_renderer());
+                .with_diagram_renderer(provider.diagram_renderer())
+                .with_conversations(provider.conversation_hub(), caller);
             let stdio_server = McpStdioServer::new(tool_handler);
 
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {
