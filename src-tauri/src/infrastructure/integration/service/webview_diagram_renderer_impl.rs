@@ -43,7 +43,7 @@ impl WebviewDiagramRendererImpl {
 }
 
 impl DiagramRenderer for WebviewDiagramRendererImpl {
-    fn render(&self, relative_path: &str) -> Result<RenderedImage, String> {
+    fn render(&self, relative_path: &str, content: Option<&str>) -> Result<RenderedImage, String> {
         let handle = self
             .app_handle
             .lock()
@@ -58,7 +58,7 @@ impl DiagramRenderer for WebviewDiagramRendererImpl {
             .insert(id.clone(), tx);
         let sent = handle.emit(
             "mcp://render-diagram",
-            serde_json::json!({"requestId": id, "relativePath": relative_path}),
+            serde_json::json!({"requestId": id, "relativePath": relative_path, "content": content}),
         );
         if let Err(e) = sent {
             self.resolve(&id, Err(e.to_string()));

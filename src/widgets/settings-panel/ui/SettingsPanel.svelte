@@ -415,6 +415,22 @@
             Cada conversación usa el MCP de esta ventana de Synapse (<code>synapse_instance</code>), y se le pide al
             agente que cree y edite las notas con él en lugar de escribir los archivos directamente.
           </p>
+          <label class="row">
+            <span class="row-label">
+              Agente para conversaciones de otras bóvedas
+              <span class="hint">🐙 Cuando un agente de otra bóveda abierta le escribe a esta, se abre una conversación con este agente. Se guarda para esta bóveda.</span>
+            </span>
+            <select
+              aria-label="Agente para conversaciones de otras bóvedas"
+              value={agentStore.incomingAgentId ?? ''}
+              onchange={(e) => agentStore.setIncomingAgent(e.currentTarget.value || null)}
+            >
+              <option value="">El último usado</option>
+              {#each agentStore.agents as a (a.id)}
+                <option value={a.id}>{a.name}</option>
+              {/each}
+            </select>
+          </label>
           {#if feedbackAvailable}
           <label class="row">
             <span class="row-label">

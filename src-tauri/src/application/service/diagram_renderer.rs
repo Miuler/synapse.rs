@@ -8,7 +8,8 @@ pub struct RenderedImage {
 /// Dibuja un diagrama de la bóveda (Excalidraw, Mermaid, D2, PlantUML…) como imagen. Lo hace la
 /// ventana de Synapse, que tiene los motores de dibujo; sin ventana no hay quien lo dibuje.
 pub trait DiagramRenderer: Send + Sync {
-    fn render(&self, relative_path: &str) -> Result<RenderedImage, String>;
+    /// Dibuja `relative_path` de la bóveda abierta, o `content` si se da (un diagrama de otra bóveda).
+    fn render(&self, relative_path: &str, content: Option<&str>) -> Result<RenderedImage, String>;
 }
 
 /// Extensiones de los diagramas que Synapse sabe dibujar.

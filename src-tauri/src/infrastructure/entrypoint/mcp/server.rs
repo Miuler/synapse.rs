@@ -412,7 +412,9 @@ impl McpBackgroundRuntime {
 
     /// Sincroniza el estado del servidor MCP con la configuración específica de la nueva bóveda
     pub fn sync_for_vault(&self, new_vault: &Path) {
-        let should_be_enabled = port_registry::is_vault_enabled(new_vault);
+        // `SYNAPSE_START_MCP`: ventana abierta por otra bóveda para conversar con ella
+        let should_be_enabled = port_registry::is_vault_enabled(new_vault)
+            || std::env::var_os("SYNAPSE_START_MCP").is_some();
         let currently_running = self.is_running.load(Ordering::SeqCst);
 
         let is_same_vault = if let Ok(guard) = self.current_vault.lock() {

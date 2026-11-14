@@ -216,3 +216,66 @@ fn el_indice_de_otra_boveda_se_abre_en_solo_lectura_aunque_este_en_uso() {
     drop(owner);
     assert!(FullTextIndexImpl::open_read_only(&tmp.path().join("no-existe")).is_err());
 }
+
+struct MockDiagramRendererImpl;
+impl app_lib::application::service::diagram_renderer::DiagramRenderer for MockDiagramRendererImpl {
+    fn render(
+        &self,
+        relative_path: &str,
+        content: Option<&str>,
+    ) -> Result<app_lib::application::service::diagram_renderer::RenderedImage, String> {
+        Ok(
+            app_lib::application::service::diagram_renderer::RenderedImage {
+                mime_type: "image/png".into(),
+                data_base64: format!("{relative_path}|{}", content.unwrap_or("SIN")),
+            },
+        )
+    }
+}
+
+#[test]
+fn dibuja_un_diagrama_de_otra_boveda_sin_salir_de_ella() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = vault(tmp.path(), "a");
+    let b = vault(tmp.path(), "b");
+    std::fs::write(b.join("flujo.d2"), "x -> y\n").unwrap();
+    std::fs::write(tmp.path().join("secreto.d2"), "no\n").unwrap();
+    let vaults = vec![
+        VaultRef {
+            name: "a".into(),
+            path: a.clone(),
+            open: true,
+        },
+        VaultRef {
+            name: "b".into(),
+            path: b.clone(),
+            open: false,
+        },
+    ];
+    let prompter = Arc::new(MockUserPrompterImpl {
+        answer: true,
+        asked: AtomicUsize::new(0),
+    });
+    let h = handler(&a, vaults, Some(prompter))
+        .with_diagram_renderer(Some(Arc::new(MockDiagramRendererImpl)));
+    let r = call(
+        &h,
+        "render_diagram",
+        json!({"vault": "b", "relative_path": "flujo.d2"}),
+    );
+    assert_eq!(r["isError"], false, "{r}");
+    assert!(
+        r["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("📚 Bóveda «b»")
+    );
+    // La ventana recibe el contenido leído de la otra bóveda
+    assert_eq!(r["content"][1]["data"], "flujo.d2|x -> y\n");
+    let out = call(
+        &h,
+        "render_diagram",
+        json!({"vault": "b", "relative_path": "../secreto.d2"}),
+    );
+    assert_eq!(out["isError"], true);
+}

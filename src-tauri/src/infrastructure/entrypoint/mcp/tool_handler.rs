@@ -875,6 +875,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "relative_path": {
                                 "type": "string",
                                 "description": "Ruta relativa del diagrama en la bóveda"
+                            },
+                            "vault": {
+                                "type": "string",
+                                "description": "Otra bóveda (ver list_vaults); vacío = esta bóveda"
                             }
                         },
                         "required": ["relative_path"]
@@ -1405,6 +1409,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if target.path == here {
             return self.call_tool(name, Some(args));
         }
+        if name == "render_diagram" {
+            return self.render_in_other_vault(&here, &target, &args);
+        }
         if !CROSS_VAULT_TOOLS.contains(&name) {
             return McpCallToolResult::error(format!(
                 "'{name}' no se puede usar sobre otra bóveda: solo las de lectura ({})",
@@ -1433,6 +1440,59 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             McpContentItem::text(format!("📚 Bóveda «{}» (solo lectura)", target.name)),
         );
         result
+    }
+
+    /// Dibuja un diagrama de otra bóveda con los motores de esta ventana (lee su archivo con permiso).
+    fn render_in_other_vault(
+        &self,
+        here: &std::path::Path,
+        target: &VaultRef,
+        args: &Value,
+    ) -> McpCallToolResult {
+        let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
+            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+        };
+        let Some(kind) = diagram_kind(rel) else {
+            return McpCallToolResult::error(format!(
+                "'{rel}' no es un diagrama que Synapse sepa dibujar"
+            ));
+        };
+        let Some(renderer) = &self.diagram_renderer else {
+            return McpCallToolResult::error(
+                "Dibujar diagramas requiere la ventana de Synapse abierta",
+            );
+        };
+        if let Err(e) = self.ensure_vault_access(here, target) {
+            return McpCallToolResult::error(e);
+        }
+        let file = target.path.join(rel);
+        let inside = file
+            .canonicalize()
+            .map(|f| f.starts_with(&target.path))
+            .unwrap_or(false);
+        if !inside {
+            return McpCallToolResult::error(format!(
+                "No existe el archivo '{rel}' en «{}»",
+                target.name
+            ));
+        }
+        let content = match std::fs::read_to_string(&file) {
+            Ok(c) => c,
+            Err(e) => return McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")),
+        };
+        match renderer.render(rel, Some(&content)) {
+            Ok(img) => McpCallToolResult {
+                content: vec![
+                    McpContentItem::text(format!(
+                        "📚 Bóveda «{}» · diagrama {kind} «{rel}» dibujado como imagen.",
+                        target.name
+                    )),
+                    McpContentItem::image(img.data_base64, img.mime_type),
+                ],
+                is_error: false,
+            },
+            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}': {e}")),
+        }
     }
 
     /// Permiso de esta bóveda para consultar `target`: guardado, o se pregunta al usuario la primera vez.
@@ -1544,7 +1604,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 "Dibujar diagramas requiere la ventana de Synapse abierta (usa el MCP de la instancia)",
             );
         };
-        match renderer.render(rel) {
+        match renderer.render(rel, None) {
             Ok(img) => McpCallToolResult {
                 content: vec![
                     McpContentItem::text(format!("Diagrama {kind} «{rel}» dibujado como imagen.")),

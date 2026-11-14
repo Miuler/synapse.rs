@@ -39,7 +39,8 @@ async function callMcpTool(server: { command: string; args: string[] }, name: st
   try {
     await call(1, 'initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'falso', version: '1' } });
     const r = await call(2, 'tools/call', { name, arguments: args });
-    return `${r.result?.isError ? 'ERROR ' : ''}${r.result?.content?.[0]?.text ?? ''}`;
+    const texts = (r.result?.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ');
+    return `${r.result?.isError ? 'ERROR ' : ''}${texts}`;
   } finally {
     child.kill();
   }
@@ -117,6 +118,15 @@ for await (const line of createInterface({ input: process.stdin })) {
     // Mensaje de otra conversación: responde enseguida (sin pedir permiso)
     if (said.includes('[Mensaje de otra conversación')) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Respuesta de ${current}: sí, tiene SignOn.` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
+    // «consulta en <bóveda>: <ruta>»: lee una nota de otra bóveda con el MCP de Synapse
+    const consult = /consulta en (\S+): (\S+)/.exec(said);
+    if (consult) {
+      const server = mcpBySession.get(current);
+      const out = server ? await callMcpTool(server, 'read_note', { vault: consult[1], relative_path: consult[2] }) : 'sin MCP';
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Consulta: ${out}` } });
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }

@@ -2,7 +2,7 @@
 // nota activa y `@` como adjuntos, comandos `/`, modos, MCP de Synapse inyectado, plan, diff y permisos.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { join } from 'node:path';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { startApp, type Session } from './harness';
 
 let s: Session;
@@ -330,4 +330,37 @@ it('un agente le pregunta a otra conversación y le vuelve la respuesta', async 
   });
   expect((await text('.acp-msg.user.from-agent')).some((t) => t?.includes('Respuesta de'))).toBe(true);
   expect(await count('.acp-waiting')).toBe(0);
+}, 120_000);
+
+it('un agente consulta otra bóveda con permiso del usuario', async () => {
+  // Otra bóveda del usuario, en sus recientes
+  const otra = join(s.vault, '..', 'mainframe');
+  mkdirSync(join(otra, '.synapse'), { recursive: true });
+  writeFileSync(join(otra, 'copybook.md'), '# Copybook TRX01\nCampos de la transferencia.\n');
+  const recents = join(s.home, '.config/synapsers/workspaces.json');
+  const reg = existsSync(recents) ? JSON.parse(readFileSync(recents, 'utf8')) : { workspaces: [] };
+  reg.workspaces.push({ path: otra, display_path: otra, name: 'mainframe', last_opened_ms: 1 });
+  writeFileSync(recents, JSON.stringify(reg));
+
+  const area = () =>
+    s.browser.execute(() => {
+      const t = document.querySelector('.acp-section.open .acp-input textarea') as HTMLTextAreaElement | null;
+      if (!t || t.disabled) return false;
+      t.id = 'consult-input';
+      return true;
+    }) as Promise<boolean>;
+  await s.browser.waitUntil(area, { timeout: 30_000, timeoutMsg: 'no hay una conversación lista' });
+  await s.browser.$('#consult-input').setValue('consulta en mainframe: copybook.md');
+  await s.browser.keys('Enter');
+
+  // La primera vez Synapse pregunta si esta bóveda puede leer la otra
+  await s.browser.$('.mcp-confirm').waitForExist({ timeout: 15_000 });
+  expect((await text('.mcp-confirm p')).some((t) => t?.includes('«mainframe»'))).toBe(true);
+  await s.browser.$('button=Permitir').click();
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Copybook TRX01')), {
+    timeout: 15_000,
+    timeoutMsg: 'el agente no leyó la otra bóveda',
+  });
+  expect((await text('.acp-msg.agent')).some((t) => t?.includes('📚 Bóveda «mainframe»'))).toBe(true);
+  expect(existsSync(join(s.vault, '.synapse/vault-access.json'))).toBe(true);
 }, 120_000);

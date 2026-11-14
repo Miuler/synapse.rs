@@ -2370,9 +2370,11 @@
   }
 
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
-  // El MCP pide diagramas como imagen (`render_diagram`); los dibuja la ventana principal
+  // El MCP pide diagramas como imagen (`render_diagram`); los dibuja la ventana principal.
+  // También se atienden desde el arranque los pedidos de otras bóvedas, aunque no haya conversaciones.
   onMount(() => {
     if (isDetachedWindow) return;
+    void agentStore.startListening();
     const off = listenDiagramRenderRequests();
     return () => { off.then((f) => f()); };
   });

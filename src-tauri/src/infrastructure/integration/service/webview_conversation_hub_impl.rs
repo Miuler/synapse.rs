@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::Emitter;
 
-/// La ventana responde enseguida (encola si hace falta): no se espera al otro agente.
-const TIMEOUT: Duration = Duration::from_secs(10);
+/// La ventana no espera al otro agente (encola), pero puede tener que abrir la ventana de otra
+/// bóveda y esperar a que arranque.
+const TIMEOUT: Duration = Duration::from_secs(60);
 
 type Pending = Arc<Mutex<HashMap<String, mpsc::Sender<Result<Value, String>>>>>;
 

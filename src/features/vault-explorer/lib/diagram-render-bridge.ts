@@ -14,9 +14,9 @@ function toBase64(bytes: Uint8Array): string {
  * ventana y devuelve el PNG al backend.
  */
 export function listenDiagramRenderRequests(): Promise<UnlistenFn> {
-  return listen<{ requestId: string; relativePath: string }>('mcp://render-diagram', async ({ payload }) => {
+  return listen<{ requestId: string; relativePath: string; content?: string | null }>('mcp://render-diagram', async ({ payload }) => {
     try {
-      const bytes = await renderDiagram(payload.relativePath, 'png');
+      const bytes = await renderDiagram(payload.relativePath, 'png', payload.content);
       await invokeTauri('mcp_diagram_rendered', {
         requestId: payload.requestId,
         data: toBase64(bytes),

@@ -27,9 +27,10 @@ export function exportPathFor(path: string, format: DiagramExportFormat): string
 }
 
 /** Dibuja el diagrama de la bóveda y devuelve los bytes (PNG o SVG), con el tema actual de la app. */
-export async function renderDiagram(path: string, format: DiagramExportFormat): Promise<Uint8Array> {
+export async function renderDiagram(path: string, format: DiagramExportFormat, content?: string | null): Promise<Uint8Array> {
   if (!isExportableDiagram(path)) throw new Error('No es un diagrama que Synapse sepa dibujar');
-  const note = await vaultRepository.readNote(path);
+  // `content`: un diagrama de otra bóveda, que ya leyó el backend
+  const note = content != null ? { content } : await vaultRepository.readNote(path);
   if (!note?.content?.trim()) throw new Error('El diagrama está vacío');
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   return isDrawingFile(path)

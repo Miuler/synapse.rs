@@ -12,10 +12,13 @@ use std::sync::Arc;
 struct MockDiagramRendererImpl;
 
 impl DiagramRenderer for MockDiagramRendererImpl {
-    fn render(&self, relative_path: &str) -> Result<RenderedImage, String> {
+    fn render(&self, relative_path: &str, content: Option<&str>) -> Result<RenderedImage, String> {
         Ok(RenderedImage {
             mime_type: "image/png".into(),
-            data_base64: format!("PNG:{relative_path}"),
+            data_base64: match content {
+                Some(c) => format!("PNG:{relative_path}:{}", c.len()),
+                None => format!("PNG:{relative_path}"),
+            },
         })
     }
 }

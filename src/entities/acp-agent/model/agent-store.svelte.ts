@@ -18,6 +18,9 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 const FLOATING_KEY = 'synapse.agent.floating';
 const FEEDBACK_KEY = 'synapse.agent.feedback';
+/** Espera de un permiso no de lectura en una conversación entrante antes de rechazarlo. */
+const INCOMING_PERMISSION_TIMEOUT = 120_000;
+
 /** Idas y vueltas seguidas entre agentes sin intervención del usuario. */
 export const MAX_AGENT_HOPS = 3;
 
@@ -479,6 +482,8 @@ class AgentStore {
   pinned = $state<string | null>(null);
   /** Último agente usado, para «＋ Nueva conversación». */
   lastAgentId = $state<string | null>(null);
+  /** Agente que atiende las conversaciones que llegan de otra bóveda (por bóveda; `null` = el último usado). */
+  incomingAgentId = $state<string | null>(null);
   /** Panel visible; se recuerda por bóveda junto con sus conversaciones. */
   panelOpen = $state(false);
   /** Estado guardado de la bóveda, pendiente de restaurar cuando se abra el panel. */
@@ -564,7 +569,9 @@ class AgentStore {
         const c = this.#bySession(e.sessionId);
         if (!c) return;
         c.push({ type: 'permission', request: e, answered: null });
+        const item = c.items.at(-1)!;
         if (!this.isVisible(c)) c.unseen = true;
+        if (c.incoming) this.#incomingPermission(c, item.id, e);
       },
       onStatus: (e) => {
         const c = this.#bySession(e.sessionId);
@@ -589,6 +596,16 @@ class AgentStore {
       pinned: this.pinned,
     };
     save(vaultKey(cwd), JSON.stringify(state));
+  }
+
+  setIncomingAgent(agentId: string | null) {
+    this.incomingAgentId = agentId;
+    if (this.#cwd) save(`synapse.agent.incoming.${this.#cwd}`, agentId);
+  }
+
+  /** Empieza a atender los eventos de los agentes y los pedidos del MCP y de otras bóvedas. */
+  startListening() {
+    return this.#listen();
   }
 
   setPanelOpen(open: boolean) {
@@ -800,12 +817,35 @@ class AgentStore {
     return { status, to: `${me?.vault ?? ''}${c.handle}` };
   }
 
+  /**
+   * Permisos en una conversación abierta por otra bóveda, donde quizá nadie está mirando: las
+   * lecturas se permiten solas; lo demás espera al usuario y, sin respuesta, se rechaza.
+   */
+  #incomingPermission(c: Conversation, itemId: number, e: { toolCallId?: string | null; options: { id: string; kind: string }[] }) {
+    const tool = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
+    const kind = tool && tool.type === 'tool' ? (tool.kind ?? '') : '';
+    const allow = e.options.find((o) => o.kind === 'allow_once') ?? e.options.find((o) => o.kind.startsWith('allow'));
+    const reject = e.options.find((o) => o.kind === 'reject_once') ?? e.options.find((o) => o.kind.startsWith('reject'));
+    if (['read', 'search', 'fetch', 'think'].includes(kind) && allow) {
+      void c.answer(itemId, allow.id);
+      return;
+    }
+    setTimeout(() => {
+      const item = c.items.find((i) => i.id === itemId);
+      if (item && item.type === 'permission' && item.answered === null) {
+        c.push({ type: 'error', text: 'Nadie respondió el permiso en 2 minutos: se rechazó.' });
+        void c.answer(itemId, reject?.id ?? null);
+      }
+    }, INCOMING_PERMISSION_TIMEOUT);
+  }
+
   /** Permiso de esta bóveda para conversar con `from` (se pregunta la primera vez y se recuerda). */
   async #acceptsFrom(cwd: string, from: PeerFrom): Promise<boolean> {
     const key = `synapse.agent.accept.${cwd}`;
     const saved = JSON.parse(load(key) ?? '{}') as Record<string, boolean>;
     if (from.path in saved) return saved[from.path];
-    const agent = this.lastAgentId ? (this.agents.find((a) => a.id === this.lastAgentId)?.name ?? '') : '';
+    const agentId = this.incomingAgentId ?? this.lastAgentId;
+    const agent = agentId ? (this.agents.find((a) => a.id === agentId)?.name ?? '') : '';
     const allowed = await askConfirm(
       '🐙 Conversación desde otra bóveda',
       `Un agente de «${from.vault}» quiere conversar con un agente de esta bóveda` +
@@ -839,7 +879,8 @@ class AgentStore {
       }
     }
     if (!this.agents.length) await this.refresh();
-    const agentId = this.lastAgentId ?? this.agents.find((a) => a.installed)?.id;
+    const configured = this.incomingAgentId && this.agents.some((a) => a.id === this.incomingAgentId) ? this.incomingAgentId : null;
+    const agentId = configured ?? this.lastAgentId ?? this.agents.find((a) => a.installed)?.id;
     if (!agentId) throw new Error('Esa bóveda no tiene un agente configurado para atender conversaciones.');
     const c = new Conversation(this, agentId, cwd);
     c.incoming = { vault: from.vault, handle: from.handle, title: from.title };
@@ -1042,6 +1083,7 @@ class AgentStore {
     const saved = cwd ? loadVaultState(cwd) : null;
     this.#toRestore = saved;
     this.panelOpen = saved?.open ?? false;
+    this.incomingAgentId = cwd ? load(`synapse.agent.incoming.${cwd}`) : null;
     this.lastAgentId = saved?.lastAgentId ?? null;
     await Promise.all(open.map((c) => c.stop()));
     if (cwd) await this.loadHistory(cwd);

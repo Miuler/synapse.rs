@@ -20,6 +20,31 @@ fn call(peer: &PeerInstance, request: &Value, timeout: Duration) -> Result<Value
     }
 }
 
+/** Ruta de una bóveda reciente por nombre o ruta. */
+fn recent_vault(wanted: &str) -> Option<std::path::PathBuf> {
+    use crate::application::service::vault_catalog::VaultCatalog;
+    super::vault_catalog_impl::VaultCatalogImpl
+        .list()
+        .into_iter()
+        .find(|v| v.name.eq_ignore_ascii_case(wanted) || v.path.to_string_lossy() == wanted)
+        .map(|v| v.path)
+}
+
+/// Abre la bóveda en otra ventana (otro proceso de Synapse) con su MCP encendido.
+fn open_window(path: &std::path::Path) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    std::process::Command::new(exe)
+        .arg("--vault")
+        .arg(path)
+        .env("SYNAPSE_START_MCP", "1")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("No se pudo abrir la bóveda en otra ventana: {e}"))
+}
+
 impl PeerInstances for PeerInstancesImpl {
     fn broadcast(&self, request: Value) -> Vec<Value> {
         port_registry::live_peers()
@@ -37,25 +62,41 @@ impl PeerInstances for PeerInstancesImpl {
     }
 
     fn send(&self, vault: &str, request: Value) -> Result<Value, String> {
-        let peers = port_registry::live_peers();
         let wanted = vault.trim();
-        let peer = peers
-            .iter()
-            .find(|p| p.vault_path == wanted || p.vault_name.eq_ignore_ascii_case(wanted))
-            .ok_or_else(|| {
-                format!(
-                    "La bóveda «{wanted}» no está abierta en otra ventana de Synapse. Abiertas: {}",
-                    if peers.is_empty() {
-                        "ninguna".to_string()
-                    } else {
-                        peers
-                            .iter()
-                            .map(|p| p.vault_name.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    }
-                )
-            })?;
-        call(peer, &request, Duration::from_secs(15))
+        let matches =
+            |p: &PeerInstance| p.vault_path == wanted || p.vault_name.eq_ignore_ascii_case(wanted);
+        let mut peers = port_registry::live_peers();
+        // Si la bóveda está entre los recientes pero no abierta, se abre su ventana y se espera su MCP
+        if !peers.iter().any(matches)
+            && request.get("action").and_then(Value::as_str) == Some("send")
+            && let Some(path) = recent_vault(wanted)
+        {
+            open_window(&path)?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            while std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(500));
+                peers = port_registry::live_peers();
+                if peers.iter().any(matches) {
+                    // Que la ventana termine de cargar su panel antes del pedido
+                    std::thread::sleep(Duration::from_secs(2));
+                    break;
+                }
+            }
+        }
+        let peer = peers.iter().find(|p| matches(p)).ok_or_else(|| {
+            format!(
+                "La bóveda «{wanted}» no está abierta en otra ventana de Synapse. Abiertas: {}",
+                if peers.is_empty() {
+                    "ninguna".to_string()
+                } else {
+                    peers
+                        .iter()
+                        .map(|p| p.vault_name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            )
+        })?;
+        call(peer, &request, Duration::from_secs(20))
     }
 }
