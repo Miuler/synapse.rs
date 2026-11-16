@@ -702,10 +702,14 @@ impl VersionControlImpl {
         let mut diff = String::new();
 
         if let Some(rev) = revision {
-            // Diff contra una revisión histórica específica: rev vs Worktree
+            // Diff contra una revisión histórica específica: rev vs Worktree. Si el archivo se
+            // renombró después de esa revisión, se compara con el nombre que tenía entonces.
+            let rev_path = Self::path_at_revision(work_dir, rev, &repo_rel_path)
+                .unwrap_or_else(|| repo_rel_path.clone());
+            let renamed = rev_path != repo_rel_path;
             let mut show_cmd = std::process::Command::new("git");
             show_cmd.current_dir(work_dir);
-            show_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            show_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
             if let Ok(out) = show_cmd.output() {
                 if out.status.success() {
                     let resolved = Self::resolve_git_lfs_bytes_if_needed(
@@ -723,11 +727,22 @@ impl VersionControlImpl {
                 }
             }
 
-            let mut diff_cmd = std::process::Command::new("git");
-            diff_cmd.current_dir(work_dir);
-            diff_cmd.args(["diff", rev, "-u", "--", &repo_rel_path]);
-            if let Ok(out) = diff_cmd.output() {
-                diff = String::from_utf8_lossy(&out.stdout).to_string();
+            if renamed {
+                // `git diff rev -- ruta` no ve el archivo con su nombre viejo: se arma el diff a mano
+                let unified = similar::TextDiff::from_lines(&old_content, &new_content)
+                    .unified_diff()
+                    .header(&format!("a/{rev_path}"), &format!("b/{repo_rel_path}"))
+                    .to_string();
+                if !unified.is_empty() {
+                    diff = format!("diff --git a/{rev_path} b/{repo_rel_path}\n{unified}");
+                }
+            } else {
+                let mut diff_cmd = std::process::Command::new("git");
+                diff_cmd.current_dir(work_dir);
+                diff_cmd.args(["diff", rev, "-u", "--", &repo_rel_path]);
+                if let Ok(out) = diff_cmd.output() {
+                    diff = String::from_utf8_lossy(&out.stdout).to_string();
+                }
             }
 
             // Si diff está vacío pero el archivo local es nuevo o no existe en esa revisión
@@ -943,6 +958,55 @@ impl VersionControlImpl {
         raw_bytes.to_vec()
     }
 
+    /// Nombres que tuvo el archivo en su historial (siguiendo renombres), sin el actual.
+    fn historical_names(work_dir: &Path, repo_rel_path: &str) -> Vec<String> {
+        let out = std::process::Command::new("git")
+            .current_dir(work_dir)
+            .args([
+                "log",
+                "--follow",
+                "--name-status",
+                "--format=",
+                "--",
+                repo_rel_path,
+            ])
+            .output();
+        let Ok(out) = out else { return vec![] };
+        let mut names: Vec<String> = Vec::new();
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            // «M\truta», «A\truta» o «R100\tvieja\tnueva»
+            for name in line.split('\t').skip(1) {
+                let name = name.trim();
+                if !name.is_empty() && name != repo_rel_path && !names.iter().any(|n| n == name) {
+                    names.push(name.to_string());
+                }
+            }
+        }
+        names
+    }
+
+    /// Ruta del archivo en `revision`: la actual si existe ahí, o el nombre que tenía entonces
+    /// (si se renombró después). `None` si no existía en esa revisión con ningún nombre.
+    pub fn path_at_revision(
+        work_dir: &Path,
+        revision: &str,
+        repo_rel_path: &str,
+    ) -> Option<String> {
+        let exists = |p: &str| {
+            std::process::Command::new("git")
+                .current_dir(work_dir)
+                .args(["cat-file", "-e", &format!("{revision}:{p}")])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        };
+        if exists(repo_rel_path) {
+            return Some(repo_rel_path.to_string());
+        }
+        Self::historical_names(work_dir, repo_rel_path)
+            .into_iter()
+            .find(|name| exists(name))
+    }
+
     pub fn get_file_revision(
         &self,
         vault_path: &Path,
@@ -996,10 +1060,34 @@ impl VersionControlImpl {
         cmd.current_dir(work_dir);
         cmd.args(["show", &git_target]);
 
-        let output = match cmd.output() {
+        let mut output = match cmd.output() {
             Ok(out) => out,
             Err(e) => return Err(format!("Error ejecutando git show: {}", e)),
         };
+
+        // ¿Se renombró después? En esa revisión el archivo tenía otro nombre (como en `git log --follow`)
+        let is_commit = !(revision == "staged"
+            || revision == ":staged"
+            || revision == ":"
+            || revision.ends_with(':'));
+        if !output.status.success() && is_commit {
+            let rev = if revision.is_empty() {
+                "HEAD"
+            } else {
+                revision
+            };
+            if let Some(old) = Self::path_at_revision(work_dir, rev, &repo_rel_path)
+                .filter(|p| *p != repo_rel_path)
+            {
+                if let Ok(out) = std::process::Command::new("git")
+                    .current_dir(work_dir)
+                    .args(["show", &format!("{rev}:{old}")])
+                    .output()
+                {
+                    output = out;
+                }
+            }
+        }
 
         if !output.status.success() {
             return Ok(FileRevision {
@@ -1121,9 +1209,12 @@ impl VersionControlImpl {
         // 1. Obtener bytes de la imagen base / histórica (HEAD con fallback a index si no hay HEAD, o revisión explícita)
         let mut old_bytes = Vec::new();
         if let Some(rev) = revision {
+            // Con el nombre que tenía el archivo en esa revisión (por si se renombró después)
+            let rev_path = Self::path_at_revision(work_dir, rev, &repo_rel_path)
+                .unwrap_or_else(|| repo_rel_path.clone());
             let mut rev_cmd = std::process::Command::new("git");
             rev_cmd.current_dir(work_dir);
-            rev_cmd.args(["show", &format!("{}:{}", rev, repo_rel_path)]);
+            rev_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
             if let Ok(out) = rev_cmd.output() {
                 if out.status.success() {
                     old_bytes = out.stdout;
@@ -2347,6 +2438,74 @@ fn parse_tag_refs(refs: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tag_refs_tests {
+
+    /// Repositorio temporal donde `nota.md` se llamaba `viejo/nota.md` antes de un renombre.
+    fn renamed_repo() -> (tempfile::TempDir, String, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            let ok = std::process::Command::new("git")
+                .current_dir(dir.path())
+                .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        let rev = |args: &[&str]| {
+            String::from_utf8(
+                std::process::Command::new("git")
+                    .current_dir(dir.path())
+                    .args(args)
+                    .output()
+                    .unwrap()
+                    .stdout,
+            )
+            .unwrap()
+            .trim()
+            .to_string()
+        };
+        git(&["init", "-q"]);
+        std::fs::create_dir_all(dir.path().join("viejo")).unwrap();
+        std::fs::write(dir.path().join("viejo/nota.md"), "uno\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-qm", "primera"]);
+        let first = rev(&["rev-parse", "HEAD"]);
+        std::fs::create_dir_all(dir.path().join("nuevo")).unwrap();
+        git(&["mv", "viejo/nota.md", "nuevo/nota.md"]);
+        git(&["commit", "-qm", "mover"]);
+        std::fs::write(dir.path().join("nuevo/nota.md"), "uno\ndos\n").unwrap();
+        git(&["commit", "-qam", "editar"]);
+        let renamed = rev(&["rev-parse", "HEAD~1"]);
+        (dir, first, renamed)
+    }
+
+    #[test]
+    fn lee_la_revision_con_el_nombre_que_tenia_antes_del_renombre() {
+        let (dir, first, renamed) = renamed_repo();
+        let vc = super::VersionControlImpl;
+        // En el primer commit el archivo se llamaba viejo/nota.md
+        let rev = vc
+            .get_file_revision(dir.path(), "nuevo/nota.md", &first)
+            .unwrap();
+        assert!(rev.exists);
+        assert_eq!(rev.content.as_deref(), Some("uno\n"));
+        // En el commit del renombre ya tenía el nombre nuevo
+        assert!(
+            vc.get_file_revision(dir.path(), "nuevo/nota.md", &renamed)
+                .unwrap()
+                .exists
+        );
+        // Diff con local contra el commit viejo: compara con su contenido, no como archivo nuevo
+        let diff = vc
+            .git_diff(dir.path(), "nuevo/nota.md", false, Some(&first))
+            .unwrap();
+        assert_eq!(diff.old_content, "uno\n");
+        assert!(diff.diff.contains("+dos"), "{}", diff.diff);
+        assert!(!diff.diff.contains("+uno"), "{}", diff.diff);
+    }
+
     use super::parse_tag_refs;
 
     #[test]
