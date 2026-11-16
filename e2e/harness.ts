@@ -94,6 +94,17 @@ export async function startAppOnVault(vault: string): Promise<Session> {
   return launch(base, vault);
 }
 
+/** Escala de texto de GNOME del usuario (1 si no hay GNOME o no se puede leer). */
+function gnomeTextScale(): number {
+  try {
+    const out = Bun.spawnSync(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor']).stdout.toString();
+    const n = Number.parseFloat(out);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+
 async function launch(base: string, vault: string): Promise<Session> {
   const home = join(base, 'home');
   mkdirSync(home, { recursive: true });
@@ -127,6 +138,9 @@ async function launch(base: string, vault: string): Promise<Session> {
     XDG_CONFIG_HOME: join(home, '.config'),
     XDG_CACHE_HOME: join(home, '.cache'),
     XDG_STATE_HOME: join(home, '.local/state'),
+    // Con la escala de texto de GNOME (p. ej. 1,25), WebKit agranda la página y WebKitWebDriver
+    // hace clic en coordenadas sin escalar (cae en otro elemento): se compensa a escala 1.
+    GDK_DPI_SCALE: process.env.E2E_GDK_DPI_SCALE ?? String(1 / gnomeTextScale()),
   };
   const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'] });
   children.push(driver);

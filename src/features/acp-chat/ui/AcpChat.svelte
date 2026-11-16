@@ -181,7 +181,9 @@
         pickIndex = (pickIndex + d + suggestions.length) % suggestions.length;
         return;
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      // Enter con el comando ya escrito completo lo envía (no vuelve a elegir la misma sugerencia)
+      const complete = e.key === 'Enter' && suggestions[pickIndex].label === draft.trim();
+      if ((e.key === 'Enter' || e.key === 'Tab') && !complete) {
         e.preventDefault();
         suggestions[pickIndex].pick();
         return;

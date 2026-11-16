@@ -160,8 +160,7 @@ it('registra un agente personalizado y conversa con él', async () => {
 
   // `/usage` lo responde Synapse en el chat, sin pasar por el agente
   await s.browser.$('.acp-input textarea').setValue('/usage');
-  await s.browser.keys('Escape');
-  await s.browser.execute(() => (document.querySelector('.acp-input textarea') as HTMLTextAreaElement).focus());
+  await s.browser.waitUntil(async () => (await text('.acp-suggest-label')).includes('/usage'), { timeout: 5_000 });
   await s.browser.keys('Enter');
   await s.browser.waitUntil(async () => (await text('.acp-msg.info')).some((t) => t?.includes('Uso de esta conversación')), {
     timeout: 5_000,
