@@ -12,7 +12,7 @@
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
   import { measured } from '@shared/lib/perf-probe';
@@ -39,6 +39,11 @@
     onResizeMove?: (e: PointerEvent) => void;
     onResizeEnd?: (e: PointerEvent) => void;
     onCollapse?: () => void;
+    /** Fijado: ocupa su espacio al lado del editor. Sin fijar: flota encima del editor. */
+    pinned?: boolean;
+    onTogglePin?: () => void;
+    /** Pide ocultar el explorador flotante (clic fuera, Esc). */
+    onDismiss?: () => void;
     onRefreshGit?: () => Promise<void> | void;
     onGitRestore?: (paths: string[]) => Promise<void> | void;
     onReloadItems?: (paths: string[], reloadedFiles?: string[]) => Promise<void> | void;
@@ -76,6 +81,9 @@
     onResizeMove,
     onResizeEnd,
     onCollapse,
+    pinned = true,
+    onTogglePin,
+    onDismiss,
     onRefreshGit,
     onGitRestore,
     onReloadItems,
@@ -583,6 +591,27 @@
     });
   }
 
+  /**
+   * Deja el foco del teclado en el árbol, sobre el archivo abierto si se ve (o el primero), para
+   * moverse con las flechas y abrir con Enter.
+   */
+  export async function focusTree() {
+    await tick();
+    const visible = getVisibleNodes(displayTreeNodes);
+    const current = lastFocusedPath && visible.some((n) => n.relativePath === lastFocusedPath) ? lastFocusedPath : null;
+    const active = activeTabPath && visible.some((n) => n.relativePath === activeTabPath) ? activeTabPath : null;
+    const target = current ?? active ?? visible[0]?.relativePath ?? null;
+    if (target) {
+      selectedPaths = [target];
+      lastFocusedPath = target;
+      anchorPath = target;
+      scrollPathIntoView(target);
+    }
+    sidebarPanelEl?.focus();
+    // Al aparecer el panel, el editor se reacomoda y puede recuperar el foco: se vuelve a dar después
+    setTimeout(() => sidebarPanelEl?.focus(), 80);
+  }
+
   export async function locateActiveFile(targetPath?: string) {
     const pathToLocate = targetPath || activeTabPath;
     if (!pathToLocate || pathToLocate.startsWith('empty:')) {
@@ -871,8 +900,39 @@
     contextMenuNode = node;
   }
 
+  // Explorador sin fijar: flota encima del editor, pegado a la barra lateral, y se oculta solo
+  const floating = $derived(!pinned && activeRibbonTab === 'files');
+  let floatingLeft = $state(0);
+  $effect(() => {
+    if (!floating) return;
+    const measure = () => {
+      const ribbon = document.querySelector('.synapse-ribbon') as HTMLElement | null;
+      const layout = sidebarPanelEl?.offsetParent as HTMLElement | null;
+      floatingLeft = ribbon ? ribbon.getBoundingClientRect().right - (layout?.getBoundingClientRect().left ?? 0) : 48;
+    };
+    measure();
+    // Clic fuera del explorador (y fuera de la barra lateral, menús y diálogos) lo oculta
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || sidebarPanelEl?.contains(t)) return;
+      if (t.closest('.synapse-ribbon, [role="menu"], [role="dialog"], [role="alertdialog"], [data-context-menu-content]')) return;
+      onDismiss?.();
+    };
+    window.addEventListener('resize', measure);
+    window.addEventListener('pointerdown', outside, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('pointerdown', outside, true);
+    };
+  });
+
   function handleKeyDown(e: KeyboardEvent) {
     if (itemsToDelete.length > 0 || isContextMenuOpen) return;
+    if (floating && e.key === 'Escape') {
+      e.preventDefault();
+      onDismiss?.();
+      return;
+    }
 
     const target = e.target as HTMLElement;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
@@ -1997,7 +2057,8 @@
         class="sidebar-panel synapse-sidebar synapse-explorer"
         class:is-resizing={isResizingSidebar}
         class:is-hidden={activeRibbonTab !== 'files'}
-        style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;"
+        class:is-floating={floating}
+        style="{props.style ? props.style + ';' : ''} width: {sidebarWidth}px; min-width: {sidebarWidth}px; max-width: {sidebarWidth}px;{floating ? ` left: ${floatingLeft}px;` : ''}"
         tabindex="0"
         onkeydown={handleKeyDown}
       >
@@ -2106,6 +2167,21 @@
               >
                 <Crosshair size={14} />
               </button>
+              {#if onTogglePin}
+                <button
+                  type="button"
+                  class="sidebar-action-btn sidebar-pin-btn"
+                  class:active={pinned}
+                  aria-pressed={pinned}
+                  onclick={onTogglePin}
+                  title={pinned
+                    ? 'Soltar: el explorador flota sobre el editor y no le quita espacio'
+                    : 'Fijar: el explorador ocupa su espacio al lado del editor'}
+                  aria-label={pinned ? 'Soltar explorador' : 'Fijar explorador'}
+                >
+                  {#if pinned}<Pin size={13} />{:else}<PinOff size={13} />{/if}
+                </button>
+              {/if}
               {#if onCollapse}
                 <button
                   type="button"
@@ -2779,6 +2855,15 @@
 
   .sidebar-panel.is-hidden {
     display: none !important;
+  }
+
+  /* Sin fijar: encima del editor, sin desplazarlo */
+  .sidebar-panel.is-floating {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 900;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.18);
   }
 
   .sidebar-panel:focus {

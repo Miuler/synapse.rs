@@ -85,6 +85,35 @@
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
+  // Explorador fijado (ocupa espacio) o suelto (flota sobre el editor); se recuerda
+  let explorerPinned = $state((() => {
+    try { return localStorage.getItem('synapse.explorer.pinned') !== '0'; } catch { return true; }
+  })());
+  function toggleExplorerPinned() {
+    explorerPinned = !explorerPinned;
+    try { localStorage.setItem('synapse.explorer.pinned', explorerPinned ? '1' : '0'); } catch { /* sin almacenamiento */ }
+  }
+  // Orden en que se abrieron los paneles laterales, para que Shift+Escape cierre el último
+  // («left»: explorador u otro panel de la barra izquierda; «agent»: el panel del agente)
+  let panelOrder: ('left' | 'agent')[] = [];
+  function notePanel(panel: 'left' | 'agent', open: boolean) {
+    panelOrder = panelOrder.filter((p) => p !== panel);
+    if (open) panelOrder.push(panel);
+  }
+  $effect(() => notePanel('left', !!activeRibbonTab));
+  $effect(() => notePanel('agent', agentStore.panelOpen));
+  /** Cierra el último panel lateral abierto que siga abierto; devuelve si cerró alguno. */
+  function closeLastPanel(): boolean {
+    const last = panelOrder.at(-1);
+    if (last === 'agent') agentStore.setPanelOpen(false);
+    else if (last === 'left') activeRibbonTab = '';
+    else return false;
+    return true;
+  }
+
+  function dismissFloatingExplorer() {
+    if (!explorerPinned && activeRibbonTab === 'files') activeRibbonTab = '';
+  }
   /** Pestañas `.drawio.png` abiertas en el editor de draw.io en vez de en el visor de imágenes.
    *  Solo dura mientras la pestaña está abierta: abrir el archivo de la forma normal (explorador,
    *  apertura rápida…) o cerrar la pestaña lo devuelve al visor de imágenes. */
@@ -1719,6 +1748,8 @@
 
   function handleSelectTabFromExplorer(path: string, viewerPreference?: ExcalidrawViewerType) {
     drawioPngTabs.delete(path);
+    // El explorador suelto se oculta al abrir un archivo, para dejar ver el editor
+    dismissFloatingExplorer();
     if (activeFocusedPane === 'right' && isSplit) {
       selectSplitTab(path, viewerPreference);
     } else {
@@ -3869,6 +3900,8 @@
         layoutState.setSidebarWidth(240);
       }
       activeRibbonTab = 'files';
+      // Con el teclado: el árbol recibe el foco para moverse con flechas y abrir con Enter
+      void tick().then(() => vaultExplorerRef?.focusTree());
     }
   }
 
@@ -3904,6 +3937,14 @@
 <svelte:window
   onblur={handleWindowBlur}
   onkeydowncapture={(e) => {
+    // Shift+Escape: cierra el último panel lateral que se abrió (explorador o agente)
+    if (e.key === 'Escape' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (closeLastPanel()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
     // Ctrl+Alt+A: adjuntar la selección al agente (antes de que el editor consuma la tecla)
     if (e.ctrlKey && e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
@@ -3951,6 +3992,9 @@
       onMoveItems={handleMoveItems}
       onResizeStart={handleSidebarResizeStart}
       onCollapse={toggleSidebar}
+      pinned={explorerPinned}
+      onTogglePin={toggleExplorerPinned}
+      onDismiss={dismissFloatingExplorer}
       onRefreshGit={refreshGitStatus}
       onGitRestore={handleGitRestoreFiles}
       onReloadItems={handleReloadItems}
