@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Duplicar pestaña en vista dividida**: en el menú de cada pestaña, «Duplicar en vista dividida» abre esa misma pestaña en el otro panel (creando la división si no la hay), sin quitarla de donde estaba.
+- **El visor de diff recuerda las vistas ya calculadas**: «2 Paneles», «Diferencias» (píxel a píxel) y texto se calculan la primera vez que los eliges y quedan en memoria hasta cerrar la pestaña, así cambiar entre ellos es inmediato.
 - **`Shift+Escape` cierra el último panel lateral que abriste**: el explorador (u otro panel de la barra izquierda) o el del agente, el que hayas abierto más recientemente; si lo vuelves a pulsar, cierra el anterior.
 - **Mostrar el explorador con el teclado le da el foco**: `Alt+1` / `Ctrl+B` (además de «ubicar», `Ctrl+Alt+1`) dejan el foco en el árbol, sobre el archivo abierto o el primero, para moverse con las flechas y abrir con Enter.
 - **Explorador fijado o suelto**: una chincheta en la cabecera del explorador. Fijado (como siempre) ocupa su espacio al lado del editor; suelto, el editor usa todo el ancho y el explorador flota encima, pegado a la barra lateral, cuando lo abres desde ella. Se oculta al abrir un archivo, con Esc o al hacer clic fuera. La elección se recuerda.

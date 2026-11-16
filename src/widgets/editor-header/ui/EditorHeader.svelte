@@ -65,6 +65,8 @@
     onToggleView?: () => void;
     onChangeMarkdownView?: (mode: MarkdownViewMode) => void;
     onSplitView?: (path?: string) => void;
+    /** Duplica la pestaña en el otro panel (vista dividida). */
+    onDuplicateTab?: (path: string) => void;
     onOpenCommandPalette?: () => void;
     /** Muestra u oculta el panel del agente de IA. */
     onToggleAgent?: () => void;
@@ -106,6 +108,7 @@
     onToggleView,
     onChangeMarkdownView,
     onSplitView,
+    onDuplicateTab,
     onOpenCommandPalette,
     onToggleAgent,
     isAgentOpen = false,
@@ -675,6 +678,13 @@
                   >
                     <ExternalLink size={14} class="context-menu-item-icon" />
                     <span>Mover a nueva ventana</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Separator class="context-menu-divider" />
+                {/if}
+                {#if onDuplicateTab && !tab.path.startsWith('empty:')}
+                  <ContextMenu.Item class="context-menu-item tab-duplicate" onSelect={() => onDuplicateTab(tab.path)}>
+                    <Copy size={14} class="context-menu-item-icon" />
+                    <span>Duplicar en vista dividida</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                 {/if}

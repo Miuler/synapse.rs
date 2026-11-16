@@ -42,6 +42,8 @@
     onNewFile?: () => void;
     onOpenQuickOpen?: () => void;
     onSplitView?: () => void;
+    /** Duplica la pestaña en el otro panel. */
+    onDuplicateTab?: (path: string) => void;
     onToggleView?: () => void;
     onSave?: () => void;
     onOpenCommandPalette?: () => void;
@@ -90,6 +92,7 @@
     onNewFile,
     onOpenQuickOpen,
     onSplitView,
+    onDuplicateTab,
     onToggleView,
     onSave,
     onOpenCommandPalette,
@@ -141,6 +144,7 @@
     {onNewFile}
     {onOpenQuickOpen}
     {onSplitView}
+    {onDuplicateTab}
     onAction={handleAction}
     {onToggleView}
     {onSave}

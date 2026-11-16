@@ -90,6 +90,13 @@
     return workspaceDiffSettings.visualTab;
   });
 
+  // Vistas ya mostradas: se mantienen montadas para no recalcularlas al volver a ellas
+  let visited = $state<Record<DiffVisualTab, boolean>>({ text: false, side_by_side: false, highlight: false });
+  $effect(() => {
+    const tab = activeVisualTab;
+    if (!visited[tab]) visited[tab] = true;
+  });
+
   const viewMode = $derived(
     workspaceDiffSettings.textMode === 'unified'
       ? DiffModeEnum.Unified
@@ -380,11 +387,20 @@
 
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
-    {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
-      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} />
-    {:else if hasPixelDiff && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} {fromRevision} />
-    {:else if loading}
+    <!-- Cada vista se calcula la primera vez que se elige y queda en memoria (oculta) hasta cerrar la pestaña -->
+    {#if isVisualCandidate && visited.side_by_side}
+      <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'side_by_side'}>
+        <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} />
+      </div>
+    {/if}
+    {#if hasPixelDiff && visited.highlight}
+      <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'highlight'}>
+        <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} {fromRevision} />
+      </div>
+    {/if}
+    {#if visited.text}
+    <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'text'}>
+    {#if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
         <p class="diff-state-text">Cargando diferencias de Git...</p>
@@ -435,10 +451,21 @@
         </div>
       {/if}
     {/if}
+    </div>
+    {/if}
   </main>
 </div>
 
 <style>
+  .diff-mode-pane {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .diff-mode-pane.hidden {
+    display: none;
+  }
+
   .diff-viewer-wrapper {
     display: flex;
     flex-direction: column;

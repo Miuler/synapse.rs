@@ -1702,6 +1702,24 @@
     }
   }
 
+  /**
+   * Duplica la pestaña en el otro panel (lo crea si no hay vista dividida): el mismo archivo queda
+   * abierto a la vez en los dos lados, sin quitarlo de donde estaba.
+   */
+  function duplicateTabToOtherPane(path: string, from: 'left' | 'right') {
+    if (!path) return;
+    if (from === 'left') {
+      if (!splitTabPaths.includes(path)) splitTabPaths = [...splitTabPaths, path];
+      activeSplitTabPath = path;
+      activeFocusedPane = 'right';
+    } else {
+      if (!openTabPaths.includes(path)) openTabPaths = [...openTabPaths, path];
+      activeTabPath = path;
+      activeFocusedPane = 'left';
+    }
+    if (!isSyntheticTab(path)) ensureContentLoaded(path);
+  }
+
   function receiveTabFromSplitOrWindow(path: string, isTargetRight: boolean, targetIndex?: number, sourceWindow?: string) {
     if (isTargetRight) {
       if (openTabPaths.includes(path)) {
@@ -4495,6 +4513,7 @@
         onNewFile={() => createNewVaultItem()}
         onOpenQuickOpen={openQuickOpenModal}
         onSplitView={handleSplitView}
+        onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'left')}
         onToggleView={toggleViewMode}
         onSave={() => {
           if (activeTabPath && currentVaultItem.relative_path) {
@@ -4556,6 +4575,7 @@
           onNewFile={() => createNewVaultItem()}
           onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
+          onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'left')}
           onToggleView={toggleViewMode}
           onSave={() => {
             if (activeTabPath && currentVaultItem.relative_path) {
@@ -4623,6 +4643,7 @@
           onNewFile={() => createNewVaultItem()}
           onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
+          onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'right')}
           onToggleView={toggleSplitViewMode}
           onSave={() => {
             if (activeSplitTabPath && currentSplitVaultItem.relative_path) {
