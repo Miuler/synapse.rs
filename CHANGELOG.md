@@ -47,6 +47,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Zoom y arrastre de diagramas e imágenes**: en los diagramas (Mermaid, D2, PlantUML) arrastrar ya mueve el diagrama lo mismo que el mouse con cualquier zoom (antes, con zoom, se desfasaba), y la rueda hace zoom con el cursor como ancla. El zoom del diff de imágenes y del visor de Excalidraw también se ancla ahora en el cursor, como ya hacía el visor de imágenes.
 - **`bun run check` sin errores ni advertencias**: el tipo de los píxeles en el diff de Excalidraw y el esquema de títulos, que tomaba a propósito solo el valor inicial.
 - **Abrir una conversación mientras la bóveda restaura las suyas ya no la repliega** al terminar la restauración.
 - **El agente ya no sigue en la bóveda anterior al cambiar de bóveda**: la conversación se cierra (queda guardada en su bóveda) y el panel vuelve a empezar sin agente elegido, con el historial de la bóveda nueva.

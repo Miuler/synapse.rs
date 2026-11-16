@@ -72,11 +72,14 @@
   let codeEditorRef = $state<any>(null);
 
   let scale = $state(1);
+  /** Desplazamiento del centro de la vista, en unidades del viewBox del diagrama. */
   let panX = $state(0);
   let panY = $state(0);
   let isDragging = $state(false);
   let startX = $state(0);
   let startY = $state(0);
+  let startPanX = 0;
+  let startPanY = 0;
 
   // Modo Puntero Láser
   let isLaserMode = $state(false);
@@ -154,12 +157,8 @@
         const newW = w / curScale;
         const newH = h / curScale;
 
-        const rect = containerRef.getBoundingClientRect();
-        const factorX = rect.width ? w / rect.width : 1;
-        const factorY = rect.height ? h / rect.height : 1;
-
-        const newX = x + (w - newW) / 2 - px * factorX;
-        const newY = y + (h - newH) / 2 - py * factorY;
+        const newX = x + (w - newW) / 2 + px;
+        const newY = y + (h - newH) / 2 + py;
 
         svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
       }
@@ -287,11 +286,34 @@
     });
   }
 
+  /**
+   * Unidades del viewBox por píxel de pantalla con el zoom `s`. El SVG se ajusta al contenedor
+   * conservando la proporción (como `xMidYMid meet`): manda el lado que más se ajusta.
+   */
+  function unitsPerPx(s: number): number {
+    if (!containerRef || !baseViewBox) return 1;
+    const rect = containerRef.getBoundingClientRect();
+    if (!rect.width || !rect.height) return 1;
+    const curScale = Math.max(0.1, s);
+    return Math.max(baseViewBox.w / curScale / rect.width, baseViewBox.h / curScale / rect.height);
+  }
+
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     const zoomSensitivity = 0.002;
     const delta = -e.deltaY * zoomSensitivity;
-    scale = Math.max(0.1, Math.min(scale * Math.exp(delta), 10));
+    const next = Math.max(0.1, Math.min(scale * Math.exp(delta), 10));
+    // El punto del diagrama bajo el cursor se queda quieto
+    if (containerRef) {
+      const rect = containerRef.getBoundingClientRect();
+      const mx = e.clientX - (rect.left + rect.width / 2);
+      const my = e.clientY - (rect.top + rect.height / 2);
+      const before = unitsPerPx(scale);
+      const after = unitsPerPx(next);
+      panX += mx * (before - after);
+      panY += my * (before - after);
+    }
+    scale = next;
   }
 
   function handlePointerDown(e: PointerEvent) {
@@ -301,8 +323,10 @@
       laserStrokes.push(activeStroke);
       addLaserPoint(e.clientX, e.clientY);
     } else {
-      startX = e.clientX - panX;
-      startY = e.clientY - panY;
+      startX = e.clientX;
+      startY = e.clientY;
+      startPanX = panX;
+      startPanY = panY;
     }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
@@ -312,8 +336,10 @@
       if (isLaserMode) {
         addLaserPoint(e.clientX, e.clientY);
       } else {
-        panX = e.clientX - startX;
-        panY = e.clientY - startY;
+        // El diagrama sigue al mouse 1 a 1, con cualquier zoom
+        const upp = unitsPerPx(scale);
+        panX = startPanX - (e.clientX - startX) * upp;
+        panY = startPanY - (e.clientY - startY) * upp;
       }
     }
   }

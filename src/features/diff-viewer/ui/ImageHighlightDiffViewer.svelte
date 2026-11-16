@@ -85,7 +85,14 @@
   function handleWheel(e: WheelEvent) {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-    scale = Math.max(0.1, Math.min(10, scale * zoomFactor));
+    const next = Math.max(0.1, Math.min(10, scale * zoomFactor));
+    // El punto bajo el cursor se queda quieto (el contenido está centrado en el contenedor)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const mx = e.clientX - (rect.left + rect.width / 2);
+    const my = e.clientY - (rect.top + rect.height / 2);
+    panX = mx - ((mx - panX) * next) / scale;
+    panY = my - ((my - panY) * next) / scale;
+    scale = next;
   }
 
   function handleMouseDown(e: MouseEvent) {

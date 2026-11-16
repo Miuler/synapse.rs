@@ -265,7 +265,14 @@
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 0.1 : -0.1;
-      zoom = Math.min(Math.max(zoom + delta, 0.3), 3);
+      const next = Math.min(Math.max(zoom + delta, 0.3), 3);
+      // El punto bajo el cursor se queda quieto (el dibujo está centrado en el contenedor)
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const mx = e.clientX - (rect.left + rect.width / 2);
+      const my = e.clientY - (rect.top + rect.height / 2);
+      panX = mx - ((mx - panX) * next) / zoom;
+      panY = my - ((my - panY) * next) / zoom;
+      zoom = next;
     }
   }
 
