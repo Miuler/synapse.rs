@@ -117,6 +117,9 @@
     onAction
   }: Props = $props();
 
+  /** Se eligió «Renombrar archivo» en el menú de una pestaña (el foco debe ir al campo del nombre). */
+  let renamingFromMenu = false;
+
   function isSyntheticTab(p?: string | null): boolean {
     if (!p) return false;
     return (
@@ -659,7 +662,17 @@
               {/snippet}
             </ContextMenu.Trigger>
             <ContextMenu.Portal>
-              <ContextMenu.Content class="tab-context-menu">
+              <ContextMenu.Content
+                class="tab-context-menu"
+                onCloseAutoFocus={(e) => {
+                  // Al renombrar, el foco va al campo del nombre: no se devuelve a la pestaña
+                  // (si lo hiciera, el campo lo perdería y la edición se cerraría al instante)
+                  if (renamingFromMenu) {
+                    renamingFromMenu = false;
+                    e.preventDefault();
+                  }
+                }}
+              >
                 {#if !isSyntheticTab(tab.path)}
                   <ContextMenu.Item
                     class="context-menu-item"
@@ -735,7 +748,13 @@
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                   {#if onRenameTab}
-                    <ContextMenu.Item class="context-menu-item tab-rename" onSelect={() => onRenameTab(tab.path)}>
+                    <ContextMenu.Item
+                      class="context-menu-item tab-rename"
+                      onSelect={() => {
+                        renamingFromMenu = true;
+                        onRenameTab(tab.path);
+                      }}
+                    >
                       <Edit2 size={14} class="context-menu-item-icon" />
                       <span>Renombrar archivo</span>
                     </ContextMenu.Item>

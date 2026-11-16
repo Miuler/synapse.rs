@@ -51,6 +51,8 @@
     if (!containerRef || !isActive) return;
     const activeEl = document.activeElement;
     if (activeEl && (containerRef.contains(activeEl) || activeEl.closest('[role="dialog"]'))) return;
+    // No quitarle el foco a un campo donde el usuario está escribiendo (p. ej. renombrar en el breadcrumb)
+    if (activeEl?.matches('input, textarea, select')) return;
     containerRef.focus({ preventScroll: true });
   }
 

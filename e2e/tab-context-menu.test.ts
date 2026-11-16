@@ -31,7 +31,13 @@ it('el menú de la pestaña tiene renombrar y copiar rutas, y renombra la pesta�
   const input = s.browser.$('.breadcrumb-edit-wrapper input');
   await input.waitForDisplayed({ timeout: 5_000 });
   expect(await input.getValue()).toBe('uno.md');
-  await input.setValue('renombrada.md');
+  // El nuevo nombre se escribe sin sacar el foco del campo (setValue de WebDriver lo vacía con un
+  // «clear» que le quita el foco, y al perderlo la edición se confirma y se cierra); Enter de verdad
+  await s.browser.execute(() => {
+    const el = document.querySelector('.breadcrumb-edit-wrapper input') as HTMLInputElement;
+    el.value = 'renombrada.md';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await s.browser.keys('Enter');
   await s.browser.waitUntil(() => existsSync(join(s.vault, 'renombrada.md')), {
     timeout: 5_000,
