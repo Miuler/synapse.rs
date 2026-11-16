@@ -32,6 +32,9 @@ impl ConversationHub for InMemoryConversationHubImpl {
         );
         Ok(json!({"status": "queued"}))
     }
+    fn replies(&self) -> Result<Value, String> {
+        Ok(json!([{"from": "#1 · Claude", "text": "sí"}]))
+    }
 }
 
 type Handler = McpToolHandler<NoteRepositoryImpl, dyn FullTextIndex, VersionControlImpl>;
@@ -89,5 +92,26 @@ fn sin_ventana_explica_que_falta() {
             .as_str()
             .unwrap()
             .contains("ventana")
+    );
+}
+
+#[test]
+fn un_cliente_externo_escribe_y_recoge_respuestas() {
+    let hub = Arc::new(InMemoryConversationHubImpl::default());
+    // Sin conversación propia (sin `?conv=`)
+    let h = handler(Some(hub.clone()), None);
+    let sent = call(
+        &h,
+        "send_to_conversation",
+        json!({"to": "#1", "message": "¿hola?", "expects_reply": true}),
+    );
+    assert_eq!(sent["isError"], false);
+    assert_eq!(hub.sent.lock().unwrap()[0]["caller"], Value::Null);
+    let replies = call(&h, "read_replies", json!({}));
+    assert!(
+        replies["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"sí\"")
     );
 }

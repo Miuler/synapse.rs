@@ -92,6 +92,10 @@ impl ConversationHub for WebviewConversationHubImpl {
         }))
     }
 
+    fn replies(&self) -> Result<Value, String> {
+        self.ask(json!({"action": "replies"}))
+    }
+
     fn peer(&self, request: Value) -> Result<Value, String> {
         self.ask(json!({"action": "peer", "request": request}))
     }

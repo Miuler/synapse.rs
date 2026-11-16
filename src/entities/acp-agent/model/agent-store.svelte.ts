@@ -18,6 +18,9 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 const FLOATING_KEY = 'synapse.agent.floating';
 const FEEDBACK_KEY = 'synapse.agent.feedback';
+const LIMITS_KEY = 'synapse.agent.processLimits';
+/** Conversaciones por proceso si el usuario no eligió otro número. */
+export const DEFAULT_PROCESS_LIMIT = 4;
 /** Espera de un permiso no de lectura en una conversación entrante antes de rechazarlo. */
 const INCOMING_PERMISSION_TIMEOUT = 120_000;
 
@@ -41,7 +44,7 @@ interface RemoteRef {
 }
 
 /** Adónde vuelve la respuesta de una pregunta. */
-type ReplyTarget = { local: Conversation } | { remote: RemoteRef };
+type ReplyTarget = { local: Conversation } | { remote: RemoteRef } | { external: true };
 
 interface InboxMessage {
   from: Sender;
@@ -293,6 +296,33 @@ export class Conversation {
     this.attachments = this.attachments.filter((x) => x !== a);
   }
 
+  /** Resumen de uso de la conversación (`/usage`), en markdown. */
+  usageReport(): string {
+    const fmt = (n: number) => n.toLocaleString();
+    const u = this.usage;
+    const model = this.session?.models.find((m) => m.id === this.currentModel)?.name ?? this.currentModel;
+    const mode = this.session?.modes.find((m) => m.id === this.currentMode)?.name ?? this.currentMode;
+    const users = this.items.filter((i) => i.type === 'user').length;
+    const replies = this.items.filter((i) => i.type === 'agent').length;
+    const tools = this.items.filter((i) => i.type === 'tool');
+    const byKind = new Map<string, number>();
+    for (const t of tools) if (t.type === 'tool') byKind.set(t.kind ?? 'otra', (byKind.get(t.kind ?? 'otra') ?? 0) + 1);
+    const compacts = this.items.filter((i) => i.type === 'compact').length;
+    const minutes = Math.round((Date.now() - this.#createdAt) / 60_000);
+    const rows = [
+      ['Agente', this.agent?.name ?? this.agentId],
+      ['Modelo', model ?? '—'],
+      ['Modo', mode ?? '—'],
+      ['Contexto', u ? `${fmt(u.used)} de ${fmt(u.size)} tokens (${((u.used / u.size) * 100).toFixed(1)} %)` : 'el agente no lo informó'],
+      ['Costo', u?.cost ? `${u.cost.amount} ${u.cost.currency}` : 'el agente no lo informó'],
+      ['Mensajes', `${users} tuyos · ${replies} del agente`],
+      ['Herramientas', tools.length ? `${tools.length} (${[...byKind].map(([k, n]) => `${k}: ${n}`).join(', ')})` : 'ninguna'],
+      ['Compactado', compacts ? `${compacts} vez/veces` : 'nunca'],
+      ['Duración', minutes < 1 ? 'menos de un minuto' : `${minutes} min`],
+    ];
+    return `**Uso de esta conversación** (Synapse)\n\n| | |\n|---|---|\n${rows.map(([k, v]) => `| ${k} | ${v} |`).join('\n')}`;
+  }
+
   async send(
     text: string,
     opts: {
@@ -304,6 +334,12 @@ export class Conversation {
   ) {
     const session = this.session;
     if (!session || this.connection === 'busy' || !text.trim()) return;
+    // `/usage` lo responde Synapse (salvo que el agente tenga su propio `/usage`)
+    if (/^\/usage\s*$/.test(text.trim()) && !this.commands.some((c) => c.name === 'usage')) {
+      this.push({ type: 'user', text, attachments: [] });
+      this.push({ type: 'info', text: this.usageReport() });
+      return;
+    }
     this.#turnHops = opts.hops ?? 0;
     const turnStart = this.items.length;
     if (/(^|\s)@this\b/.test(text)) this.attachActiveNote();
@@ -364,8 +400,11 @@ export class Conversation {
           const asker = target.local;
           asker.waitingFor = asker.waitingFor.filter((h) => h !== this.handle);
           if (this.#store.byId(asker.id)) asker.receive({ from: this.#store.senderOf(this), text, hops, replyTo: null });
-        } else {
+        } else if ('remote' in target) {
           void this.#store.replyRemote(target.remote, this, text, hops);
+        } else {
+          // Un cliente MCP externo la recoge con `read_replies`
+          this.#store.externalReplies.push({ from: `${this.handle} · ${this.agent?.name ?? this.agentId}`, text, at: Date.now() });
         }
       }
       this.#turnHops = 0;
@@ -484,6 +523,8 @@ class AgentStore {
   lastAgentId = $state<string | null>(null);
   /** Agente que atiende las conversaciones que llegan de otra bóveda (por bóveda; `null` = el último usado). */
   incomingAgentId = $state<string | null>(null);
+  /** Conversaciones por proceso de cada agente (Ajustes); sin valor, el del backend (4). */
+  processLimits = $state<Record<string, number>>(JSON.parse(load(LIMITS_KEY) ?? '{}'));
   /** Panel visible; se recuerda por bóveda junto con sus conversaciones. */
   panelOpen = $state(false);
   /** Estado guardado de la bóveda, pendiente de restaurar cuando se abra el panel. */
@@ -491,6 +532,8 @@ class AgentStore {
 
   #cwd: string | null = null;
   #nextNumber = 1;
+  /** Respuestas para clientes MCP externos (sin conversación en el panel), hasta que las recojan. */
+  externalReplies: { from: string; text: string; at: number }[] = [];
   /** Bóveda de esta instancia, para presentarse ante otras. */
   #identity: { vault: string; path: string } | null = null;
   #early = new Map<string, AgentCommand[]>();
@@ -598,6 +641,13 @@ class AgentStore {
     save(vaultKey(cwd), JSON.stringify(state));
   }
 
+  /** Cuántas conversaciones comparte un proceso del agente (1 si atiende una a la vez). */
+  setProcessLimit(agentId: string, limit: number) {
+    this.processLimits = { ...this.processLimits, [agentId]: limit };
+    save(LIMITS_KEY, JSON.stringify(this.processLimits));
+    void agentApi.setProcessLimit(agentId, limit).catch(() => {});
+  }
+
   setIncomingAgent(agentId: string | null) {
     this.incomingAgentId = agentId;
     if (this.#cwd) save(`synapse.agent.incoming.${this.#cwd}`, agentId);
@@ -685,8 +735,9 @@ class AgentStore {
           .map((p) => ({ handle: `${p.vault}#nueva`, vault: p.vault, window: 'otra ventana', note: 'Bóveda abierta sin conversaciones: escribirle abre una nueva' })),
       ];
     }
+    if (req.action === 'replies') return this.externalReplies.splice(0);
     if (req.action !== 'send') throw new Error(`Acción desconocida: ${req.action}`);
-    if (!caller) throw new Error('No se sabe desde qué conversación escribes; usa el MCP de tu conversación.');
+    if (!caller) return this.#sendFromExternal(req.to ?? '', req.message ?? '', !!req.expectsReply);
     const to = (req.to ?? '').trim();
     const hops = caller.turnHops + 1;
     if (hops > MAX_AGENT_HOPS) {
@@ -715,10 +766,32 @@ class AgentStore {
     };
   }
 
+  /**
+   * Mensaje de un cliente MCP externo (por ejemplo, Claude Code usando el MCP de Synapse): solo a
+   * conversaciones de esta ventana; si pregunta, la respuesta queda para `read_replies`.
+   */
+  #sendFromExternal(to: string, message: string, expectsReply: boolean) {
+    const target = this.#resolveTarget(to.trim(), null);
+    const status = target.receive({
+      from: { handle: 'externo', agent: 'Cliente MCP externo', title: '' },
+      text: message,
+      hops: 1,
+      replyTo: expectsReply ? { external: true } : null,
+    });
+    return {
+      status,
+      to: `${target.handle} · ${target.agent?.name ?? target.agentId}`,
+      note:
+        (status === 'queued' ? 'Está trabajando: lo recibirá al terminar su turno. ' : 'Entregado. ') +
+        (expectsReply ? 'Cuando responda, recoge su respuesta con la herramienta read_replies.' : ''),
+    };
+  }
+
   #localSummaries(caller: Conversation | null) {
     return this.conversations.map((c) => ({
       handle: c.handle,
       agent: c.agent?.name ?? c.agentId,
+      model: c.session?.models.find((m) => m.id === c.currentModel)?.name ?? c.currentModel ?? undefined,
       title: c.title || 'Conversación nueva',
       status: c.status,
       pending_messages: c.inbox.length,
@@ -894,9 +967,9 @@ class AgentStore {
   }
 
   /** Destino por número (#2), id, o parte de su título o del nombre del agente. */
-  #resolveTarget(to: string, caller: Conversation): Conversation {
+  #resolveTarget(to: string, caller: Conversation | null): Conversation {
     const q = to.trim().toLowerCase();
-    const others = this.conversations.filter((c) => c.id !== caller.id);
+    const others = this.conversations.filter((c) => c.id !== caller?.id);
     const byNumber = /^#?(\d+)$/.exec(q);
     const exact = byNumber ? others.find((c) => c.number === Number(byNumber[1])) : others.find((c) => c.id === to);
     if (exact) return exact;
@@ -915,6 +988,8 @@ class AgentStore {
     try {
       this.agents = await agentApi.list();
       this.feedbackAvailable = await agentApi.feedbackAvailable().catch(() => false);
+      // El backend no recuerda los límites: se le aplican al arrancar
+      for (const [id, n] of Object.entries(this.processLimits)) void agentApi.setProcessLimit(id, n).catch(() => {});
     } catch (e) {
       this.listError = String(e);
     }

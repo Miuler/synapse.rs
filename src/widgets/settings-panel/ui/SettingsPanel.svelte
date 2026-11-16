@@ -13,7 +13,7 @@
   import { invokeTauri } from '@shared/repositories/tauri';
   import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
   import { convertFileSrc } from '@tauri-apps/api/core';
-  import { agentApi, agentStore } from '@entities/acp-agent';
+  import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT } from '@entities/acp-agent';
 
   // El modo feedback solo existe en compilaciones con la feature `develop`
   let feedbackAvailable = $state(false);
@@ -451,6 +451,17 @@
                 {a.name}
                 {#if a.version}<span class="hint">v{a.version}</span>{/if}
               </span>
+              <select
+                class="process-limit"
+                title="Conversaciones que comparte un mismo proceso del agente; con más, se lanza otro. Usa 1 si el agente atiende una conversación a la vez."
+                aria-label="Conversaciones por proceso de {a.name}"
+                value={String(agentStore.processLimits[a.id] ?? DEFAULT_PROCESS_LIMIT)}
+                onchange={(e) => agentStore.setProcessLimit(a.id, Number(e.currentTarget.value))}
+              >
+                {#each [1, 2, 3, 4, 6, 8] as n (n)}
+                  <option value={String(n)}>{n} por proceso</option>
+                {/each}
+              </select>
               {#if a.installed}
                 <span class="hint">Instalado</span>
               {:else}
@@ -470,6 +481,17 @@
                 {a.name}
                 <span class="hint">{a.launch?.command} {a.launch?.args.join(' ')}</span>
               </span>
+              <select
+                class="process-limit"
+                title="Conversaciones que comparte un mismo proceso del agente; con más, se lanza otro. Usa 1 si el agente atiende una conversación a la vez."
+                aria-label="Conversaciones por proceso de {a.name}"
+                value={String(agentStore.processLimits[a.id] ?? DEFAULT_PROCESS_LIMIT)}
+                onchange={(e) => agentStore.setProcessLimit(a.id, Number(e.currentTarget.value))}
+              >
+                {#each [1, 2, 3, 4, 6, 8] as n (n)}
+                  <option value={String(n)}>{n} por proceso</option>
+                {/each}
+              </select>
               <button type="button" onclick={() => deleteCustomAgent(a.id)}>Quitar</button>
             </div>
           {/each}
@@ -525,6 +547,11 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--text-secondary);
+  }
+  .process-limit {
+    margin-left: auto;
+    margin-right: 8px;
+    font-size: 11px;
   }
   .agent-row .row-label {
     display: flex;

@@ -16,6 +16,10 @@ pub trait ConversationHub: Send + Sync {
     ) -> Result<Value, String>;
     /// Pedido de otra instancia de Synapse por el canal `/peer` (listar sus conversaciones,
     /// entregar un mensaje o una respuesta). Lo resuelve la ventana.
+    /// Respuestas pendientes para un cliente MCP externo (se entregan una sola vez).
+    fn replies(&self) -> Result<Value, String> {
+        Err("Esta instancia no guarda respuestas para clientes externos".into())
+    }
     fn peer(&self, _request: Value) -> Result<Value, String> {
         Err("Esta instancia no atiende conversaciones de otras bóvedas".into())
     }

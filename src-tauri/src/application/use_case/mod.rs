@@ -15,6 +15,7 @@ pub mod respond_permission_use_case;
 pub mod save_agent_profile_use_case;
 pub mod save_agent_transcript_use_case;
 pub mod send_agent_prompt_use_case;
+pub mod set_agent_process_limit_use_case;
 pub mod start_agent_session_use_case;
 pub mod stop_agent_session_use_case;
 

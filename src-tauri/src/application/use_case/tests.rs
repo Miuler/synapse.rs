@@ -100,6 +100,7 @@ impl AgentRunner for MockAgentRunnerImpl {
     async fn stop(&self, _session_id: &str) -> Result<(), String> {
         Ok(())
     }
+    fn set_process_limit(&self, _agent_id: &str, _limit: usize) {}
 }
 
 fn custom(id: &str) -> SaveAgentProfileCommand {

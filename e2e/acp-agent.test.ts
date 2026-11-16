@@ -39,6 +39,8 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeout: 5_000,
     timeoutMsg: 'el agente personalizado no aparece en Ajustes',
   });
+  // Cada agente tiene su límite de conversaciones por proceso
+  expect(await count('select[aria-label="Conversaciones por proceso de Agente falso"]')).toBe(1);
   await s.browser.keys('Escape');
 
   // Elegir el agente en la cabecera del panel: abre la sesión
@@ -155,6 +157,17 @@ it('registra un agente personalizado y conversa con él', async () => {
   });
   expect((await text('.acp-msg.agent')).some((t) => t?.includes('Resumen compactado'))).toBe(true);
   expect(await count('.acp-compact.shown')).toBe(0);
+
+  // `/usage` lo responde Synapse en el chat, sin pasar por el agente
+  await s.browser.$('.acp-input textarea').setValue('/usage');
+  await s.browser.keys('Escape');
+  await s.browser.execute(() => (document.querySelector('.acp-input textarea') as HTMLTextAreaElement).focus());
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.info')).some((t) => t?.includes('Uso de esta conversación')), {
+    timeout: 5_000,
+    timeoutMsg: '/usage no mostró el resumen',
+  });
+  expect((await text('.acp-msg.info')).join(' ')).toContain('10.0 %');
 
   // `@this` vuelve a adjuntar el archivo de la pestaña visible
   expect((await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md'))).toBe(false);

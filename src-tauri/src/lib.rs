@@ -198,6 +198,7 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_transcript,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_all_transcripts,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_feedback_available,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_process_limit,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript
         ])
         .setup(|app| {

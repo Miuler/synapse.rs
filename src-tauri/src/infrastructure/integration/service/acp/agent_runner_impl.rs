@@ -54,6 +54,8 @@ pub struct AgentRunnerImpl {
     sessions: Arc<Mutex<HashMap<String, RunningSession>>>,
     generation: Arc<AtomicU64>,
     idle_shutdown: Duration,
+    /// Conversaciones por proceso de cada agente (si no está, [`MAX_SESSIONS_PER_PROCESS`]).
+    limits: Arc<std::sync::Mutex<HashMap<String, usize>>>,
 }
 
 /// Clave del proceso: el mismo agente, en la misma bóveda y lanzado igual.
@@ -73,6 +75,7 @@ impl AgentRunnerImpl {
             sessions: Arc::default(),
             generation: Arc::default(),
             idle_shutdown: IDLE_SHUTDOWN,
+            limits: Arc::default(),
         }
     }
 
@@ -373,8 +376,15 @@ impl AgentRunner for AgentRunnerImpl {
     ) -> Result<AgentSession, String> {
         let base = process_key(agent_id, cwd, &launch);
         // Otra conversación con el mismo agente: se reutiliza un proceso suyo con sitio libre
+        let limit = self
+            .limits
+            .lock()
+            .ok()
+            .and_then(|l| l.get(agent_id).copied())
+            .unwrap_or(MAX_SESSIONS_PER_PROCESS)
+            .max(1);
         let existing = self.processes.lock().await.iter().find_map(|(k, p)| {
-            (k.starts_with(&base) && p.sessions.len() < MAX_SESSIONS_PER_PROCESS)
+            (k.starts_with(&base) && p.sessions.len() < limit)
                 .then(|| (k.clone(), p.conn.clone(), p.capabilities.clone()))
         });
         let (key, conn, capabilities) = match existing {
@@ -472,6 +482,12 @@ impl AgentRunner for AgentRunnerImpl {
             )
             .await
             .map(|_| ())
+    }
+
+    fn set_process_limit(&self, agent_id: &str, limit: usize) {
+        if let Ok(mut l) = self.limits.lock() {
+            l.insert(agent_id.to_string(), limit.max(1));
+        }
     }
 
     /// Cierra la conversación; el proceso sigue para las demás y se apaga cuando no queda ninguna.
@@ -797,6 +813,15 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("No se pudo lanzar"), "{err}");
+
+        // Con límite 1 por proceso, la siguiente conversación ya no cabe en el proceso existente
+        runner.set_process_limit("falso", 1);
+        let err = runner
+            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .await
+            .unwrap_err();
+        assert!(err.contains("No se pudo lanzar"), "{err}");
+        runner.set_process_limit("falso", MAX_SESSIONS_PER_PROCESS);
 
         // Cerrar una deja sitio en el mismo proceso
         runner.stop("ses-2").await.unwrap();

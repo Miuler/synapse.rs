@@ -43,6 +43,7 @@ export const agentApi = {
   peerSend: (vault: string, request: unknown) => invokeTauri<unknown>('peer_send', { vault, request }),
   /** Bóveda de esta instancia, para presentarse ante las demás. */
   peerIdentity: () => invokeTauri<{ vault: string; path: string } | null>('peer_identity'),
+  setProcessLimit: (agentId: string, limit: number) => invokeTauri<void>('agent_set_process_limit', { agentId, limit }),
   feedbackAvailable: () => invokeTauri<boolean>('agent_feedback_available'),
   stopSession: (sessionId: string) => invokeTauri<void>('agent_stop_session', { sessionId }),
 };

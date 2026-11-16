@@ -181,6 +181,8 @@ export type ChatItem =
   | { type: 'permission'; id: number; request: PermissionRequestEvent; answered: string | null }
   | { type: 'error'; id: number; text: string }
   /** El usuario compactó el contexto del agente (`/compact`): lo anterior ya no está en su memoria. */
-  | { type: 'compact'; id: number };
+  | { type: 'compact'; id: number }
+  /** Información de Synapse en el chat (no la escribe el agente), por ejemplo `/usage`. */
+  | { type: 'info'; id: number; text: string };
 
 export type AgentConnection = 'idle' | 'installing' | 'starting' | 'ready' | 'busy' | 'error';

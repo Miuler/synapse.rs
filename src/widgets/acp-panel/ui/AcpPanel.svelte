@@ -1,6 +1,7 @@
 <script lang="ts">
   import { agentStore, type Conversation } from '@entities/acp-agent';
   import { AcpChat } from '@features/acp-chat';
+  import { OctopusIcon } from '@shared/ui/icons';
   import {
     Bot,
     Settings,
@@ -286,7 +287,9 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="acp-row" class:unseen={c.unseen} data-conversation={c.id} onclick={() => !pinned && agentStore.toggle(c.id)}>
     {#if c.incoming}
-      <span class="acp-octopus" data-status={c.status} title="Abierta por otra bóveda de Synapse: {c.incoming.vault}{c.incoming.handle}">🐙</span>
+      <span class="acp-octopus" data-status={c.status} title="Abierta por otra bóveda de Synapse: {c.incoming.vault}{c.incoming.handle}"
+        ><OctopusIcon size={14} /></span
+      >
     {:else}
       <span class="acp-dot" data-status={c.status}></span>
     {/if}
@@ -743,9 +746,10 @@
     border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   }
   .acp-octopus {
-    font-size: 12px;
+    display: inline-flex;
     line-height: 1;
     flex: none;
+    color: var(--accent);
   }
   .acp-octopus[data-status='working'] {
     animation: acpOctopus 1.4s ease-in-out infinite;

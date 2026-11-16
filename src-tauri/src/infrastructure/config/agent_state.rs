@@ -15,6 +15,7 @@ use crate::application::use_case::respond_permission_use_case::RespondPermission
 use crate::application::use_case::save_agent_profile_use_case::SaveAgentProfileUseCase;
 use crate::application::use_case::save_agent_transcript_use_case::SaveAgentTranscriptUseCase;
 use crate::application::use_case::send_agent_prompt_use_case::SendAgentPromptUseCase;
+use crate::application::use_case::set_agent_process_limit_use_case::SetAgentProcessLimitUseCase;
 use crate::application::use_case::start_agent_session_use_case::StartAgentSessionUseCase;
 use crate::application::use_case::stop_agent_session_use_case::StopAgentSessionUseCase;
 use crate::infrastructure::integration::service::acp::registry::RegistryClient;
@@ -38,6 +39,7 @@ pub struct AgentState {
     pub change_agent_mode: ChangeAgentModeUseCase<AgentRunnerImpl>,
     pub change_agent_model: ChangeAgentModelUseCase<AgentRunnerImpl>,
     pub stop_agent_session: StopAgentSessionUseCase<AgentRunnerImpl>,
+    pub set_agent_process_limit: SetAgentProcessLimitUseCase<AgentRunnerImpl>,
     pub save_agent_transcript: SaveAgentTranscriptUseCase<AgentTranscriptRepositoryImpl>,
     pub list_agent_transcripts: ListAgentTranscriptsUseCase<AgentTranscriptRepositoryImpl>,
     pub load_agent_transcript: LoadAgentTranscriptUseCase<AgentTranscriptRepositoryImpl>,
@@ -67,6 +69,7 @@ impl AgentState {
             respond_permission: RespondPermissionUseCase::new(runner.clone()),
             change_agent_mode: ChangeAgentModeUseCase::new(runner.clone()),
             change_agent_model: ChangeAgentModelUseCase::new(runner.clone()),
+            set_agent_process_limit: SetAgentProcessLimitUseCase::new(runner.clone()),
             stop_agent_session: StopAgentSessionUseCase::new(runner),
             save_agent_transcript: SaveAgentTranscriptUseCase::new(transcripts.clone()),
             list_agent_transcripts: ListAgentTranscriptsUseCase::new(transcripts.clone()),

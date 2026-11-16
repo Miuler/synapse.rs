@@ -21,6 +21,7 @@
     ChevronDown,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
+  import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
 
   interface Props {
@@ -134,6 +135,17 @@
             },
           }]
         : [];
+      // `/usage` también es de Synapse, salvo que el agente traiga el suyo
+      if ('usage'.startsWith(slash) && !conv.commands.some((c) => c.name === 'usage')) {
+        own.push({
+          label: '/usage',
+          detail: 'Synapse · resumen de uso de esta conversación (contexto, costo, herramientas)',
+          pick: () => {
+            draft = '/usage';
+            tick().then(() => textarea?.focus());
+          },
+        });
+      }
       return [...own, ...conv.commands
         .filter((c) => c.name.toLowerCase().startsWith(slash))
         .slice(0, 8)
@@ -338,7 +350,8 @@
         {#if item.type === 'user'}
           <div class="acp-msg user" class:from-agent={!!item.from}>
             {#if item.from}<div class="acp-from">
-                {#if item.from.vault}🐙 {/if}De {item.from.agent} · {item.from.handle}
+                {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
+                De {item.from.agent} · {item.from.handle}
               </div>{/if}
             {item.text}
             {#if item.attachments.length}
@@ -420,6 +433,9 @@
           </div>
         {:else if item.type === 'error'}
           <div class="acp-msg error"><AlertCircle size={13} /> {item.text}</div>
+        {:else if item.type === 'info'}
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div class="acp-msg info markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'compact'}
           <div class="acp-compact-marker" role="separator">— contexto compactado —</div>
         {/if}
@@ -953,6 +969,11 @@
   }
   .acp-tool[open] summary .acp-tool-title {
     white-space: normal;
+  }
+  .acp-msg.info {
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-primary));
+    border: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
+    font-size: 12px;
   }
   .acp-msg.markdown {
     white-space: normal;

@@ -84,3 +84,8 @@ pub struct OpenAgentTranscriptCommand {
 pub struct DeleteAllAgentTranscriptsCommand {
     pub cwd: String,
 }
+
+pub struct SetAgentProcessLimitCommand {
+    pub agent_id: String,
+    pub limit: usize,
+}

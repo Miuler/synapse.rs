@@ -290,3 +290,11 @@ pub fn agent_delete_all_transcripts(
 pub fn agent_feedback_available() -> bool {
     cfg!(feature = "develop")
 }
+
+/// Conversaciones que comparte un proceso del agente (Ajustes → Agentes de IA).
+#[tauri::command]
+pub fn agent_set_process_limit(state: State<'_, AgentState>, agent_id: String, limit: usize) {
+    state
+        .set_agent_process_limit
+        .execute(SetAgentProcessLimitCommand { agent_id, limit });
+}

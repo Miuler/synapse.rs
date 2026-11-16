@@ -835,6 +835,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["title", "details"]
                     }),
                 },
+                // 23. read_replies
+                McpTool {
+                    name: "read_replies".to_string(),
+                    description: "Para clientes MCP externos (que no son una conversación del panel de Synapse, como Claude Code): recoge las respuestas de las conversaciones a las que preguntaste con send_to_conversation (expects_reply=true). Cada respuesta se entrega una sola vez; si aún no hay, vuelve a llamar más tarde.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({"type": "object", "properties": {}}),
+                },
                 // 22. list_vaults
                 McpTool {
                     name: "list_vaults".to_string(),
@@ -966,6 +973,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "render_diagram" => self.execute_render_diagram(&args),
             "list_conversations" => self.execute_list_conversations(),
             "list_vaults" => self.execute_list_vaults(),
+            "read_replies" => match self.conversations() {
+                Ok(hub) => match hub.replies() {
+                    Ok(v) => to_text(&v, ""),
+                    Err(e) => McpCallToolResult::error(e),
+                },
+                Err(e) => e,
+            },
             "send_to_conversation" => self.execute_send_to_conversation(&args),
             "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
@@ -2113,10 +2127,47 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let entry = format!(
-            "\n## {title}\n\n- Fecha (unix): {secs}\n- Bóveda: {}\n\n{details}\n",
+        // De qué conversación sale: agente, modelo y título (si la ventana lo sabe)
+        let origin = self
+            .conversation_hub
+            .as_ref()
+            .zip(self.caller.as_deref())
+            .and_then(|(hub, caller)| hub.list(Some(caller)).ok())
+            .and_then(|list| {
+                list.as_array()?
+                    .iter()
+                    .find(|c| c["is_you"] == true)
+                    .cloned()
+            });
+        let field = |k: &str| {
+            origin
+                .as_ref()
+                .and_then(|o| o[k].as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        let mut meta = format!(
+            "- Fecha (unix): {secs}\n- Bóveda: {}\n",
             self.vault().display()
         );
+        if let Some(agent) = field("agent") {
+            meta.push_str(&format!("- Agente: {agent}\n"));
+        }
+        if let Some(model) = field("model") {
+            meta.push_str(&format!("- Modelo: {model}\n"));
+        }
+        if let (Some(handle), title) = (field("handle"), field("title")) {
+            meta.push_str(&format!(
+                "- Conversación: {handle}{}\n",
+                title.map(|t| format!(" · {t}")).unwrap_or_default()
+            ));
+        }
+        if let Some(caller) = &self.caller {
+            meta.push_str(&format!(
+                "- Historial: .synapse/agent-sessions/{caller}.json\n"
+            ));
+        }
+        let entry = format!("\n## {title}\n\n{meta}\n{details}\n");
         let result = (|| -> std::io::Result<()> {
             use std::io::Write;
             if let Some(dir) = path.parent() {

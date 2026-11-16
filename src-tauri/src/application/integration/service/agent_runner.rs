@@ -49,4 +49,7 @@ pub trait AgentRunner: Send + Sync {
     ) -> impl Future<Output = Result<(), String>> + Send;
 
     fn stop(&self, session_id: &str) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Conversaciones que comparte un mismo proceso de `agent_id` (con más, se lanza otro).
+    fn set_process_limit(&self, agent_id: &str, limit: usize);
 }
