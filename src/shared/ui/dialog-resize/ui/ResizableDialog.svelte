@@ -1,6 +1,7 @@
 <!--
-  Diálogo modal redimensionable: marco, cabecera (icono, título, insignia, descripción y cerrar),
-  cuerpo y pie opcional. El tamaño se cambia arrastrando bordes o esquinas y se recuerda por `sizeKey`.
+  Diálogo modal redimensionable y movible: marco, cabecera (icono, título, insignia, descripción y
+  cerrar), cuerpo y pie opcional. El tamaño se cambia arrastrando bordes o esquinas y se recuerda por
+  `sizeKey`; el diálogo se mueve arrastrando la cabecera (doble clic lo vuelve a centrar).
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -8,6 +9,7 @@
   import { X } from 'lucide-svelte';
   import DialogResizeHandles from './DialogResizeHandles.svelte';
   import { persistedDialogSize, type DialogSize } from '../lib/dialog-size.svelte';
+  import { dialogOffset } from '../lib/dialog-offset.svelte';
 
   interface Props {
     open: boolean;
@@ -57,6 +59,8 @@
 
   // svelte-ignore state_referenced_locally
   const dialogSize = persistedDialogSize(sizeKey, defaultSize, minSize);
+  // svelte-ignore state_referenced_locally
+  const offset = dialogOffset(sizeKey);
 
   function requestClose() {
     if (!busy) onClose();
@@ -73,13 +77,21 @@
     <Dialog.Overlay class="resizable-dialog-overlay" />
     <Dialog.Content
       class="resizable-dialog synapse-dialog {extraClass}"
-      style="{dialogSize.style} --dialog-tone: {tone};"
+      style="{dialogSize.style} --dialog-tone: {tone}; {offset.style(dialogSize.size)}"
       {onkeydown}
       {onOpenAutoFocus}
     >
       <DialogResizeHandles onStart={dialogSize.startResize} />
 
-      <div class="resizable-dialog-header">
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="resizable-dialog-header"
+        title="Arrastra para mover; doble clic para centrar"
+        onpointerdown={(e) => offset.startDrag(e, dialogSize.size)}
+        ondblclick={(e) => {
+          if (!(e.target as HTMLElement).closest('button, input, select, textarea, a')) offset.reset();
+        }}
+      >
         <div class="resizable-dialog-icon">{@render icon()}</div>
         <div class="resizable-dialog-titles">
           <div class="resizable-dialog-title-row">
@@ -159,6 +171,8 @@
   }
 
   .resizable-dialog-header {
+    cursor: move;
+    user-select: none;
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -206,6 +220,7 @@
   }
 
   .resizable-dialog-close {
+    cursor: pointer;
     border: none;
     background: none;
     color: var(--text-secondary, #656d76);

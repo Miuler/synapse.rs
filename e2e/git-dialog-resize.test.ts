@@ -97,3 +97,43 @@ for (const [name, menu, dialog] of [
     await s.browser.$(dialog).waitForExist({ timeout: 5_000, reverse: true });
   });
 }
+
+it('el historial de Git se mueve arrastrando la cabecera y vuelve al centro con doble clic', async () => {
+  const dialog = '.git-log-dialog';
+  await openFromMenu('Historial de Git', dialog);
+  const pos = () =>
+    s.browser.execute((d: string) => {
+      const r = document.querySelector(d)!.getBoundingClientRect();
+      return { x: Math.round(r.left), y: Math.round(r.top) };
+    }, dialog) as Promise<{ x: number; y: number }>;
+  const before = await pos();
+  // Arrastrar la cabecera 60 px a la izquierda y 40 px hacia abajo
+  await s.browser.execute((d: string) => {
+    const header = document.querySelector(`${d} .resizable-dialog-header`) as HTMLElement;
+    const r = header.getBoundingClientRect();
+    const x = r.left + 200;
+    const y = r.top + r.height / 2;
+    header.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: y }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: x - 60, clientY: y + 40 }));
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: x - 60, clientY: y + 40 }));
+  }, dialog);
+  await Bun.sleep(100);
+  const moved = await pos();
+  expect(moved.x - before.x).toBe(-60);
+  expect(moved.y - before.y).toBe(40);
+
+  // Al volver a abrirlo sigue donde se dejó
+  await s.browser.keys('Escape');
+  await s.browser.$(dialog).waitForExist({ timeout: 5_000, reverse: true });
+  await openFromMenu('Historial de Git', dialog);
+  expect(await pos()).toEqual(moved);
+
+  // Doble clic en la cabecera: vuelve al centro
+  await s.browser.execute((d: string) => {
+    const title = document.querySelector(`${d} .resizable-dialog-title`) as HTMLElement;
+    title.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+  }, dialog);
+  await Bun.sleep(100);
+  expect(await pos()).toEqual(before);
+  await s.browser.keys('Escape');
+});
