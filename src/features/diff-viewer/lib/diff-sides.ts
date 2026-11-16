@@ -24,6 +24,8 @@ export interface DiffTarget {
   compareWith?: string;
   /** Parche de un commit: el archivo en ese commit contra su commit padre. */
   commitRevision?: string;
+  /** Con `commitRevision`: compara contra esta revisión en vez del commit padre (dos versiones). */
+  fromRevision?: string;
 }
 
 const short = (rev: string) => (/^[0-9a-f]{8,}$/i.test(rev) ? rev.slice(0, 7) : rev);
@@ -37,6 +39,14 @@ export function diffSides(t: DiffTarget): DiffSides {
       after: { kind: 'disk', path },
       beforeLabel: nameOf(t.compareWith),
       afterLabel: nameOf(path),
+    };
+  }
+  if (t.commitRevision && t.fromRevision) {
+    return {
+      before: { kind: 'rev', path, rev: t.fromRevision },
+      after: { kind: 'rev', path, rev: t.commitRevision },
+      beforeLabel: `Versión ${short(t.fromRevision)}`,
+      afterLabel: `Versión ${short(t.commitRevision)}`,
     };
   }
   if (t.commitRevision) {

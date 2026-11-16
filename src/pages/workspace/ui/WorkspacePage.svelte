@@ -4035,13 +4035,15 @@
         {:else if tabPath.startsWith("diff-commit:")}
           {@const rest = tabPath.slice("diff-commit:".length)}
           {@const sep = rest.indexOf(":")}
+          {@const revs = rest.slice(0, sep).split("..")}
           <div
             class="tab-pane full-pane"
             class:hidden={tabPath !== activePath}
           >
             <DiffViewer
               filePath={rest.slice(sep + 1)}
-              commitRevision={rest.slice(0, sep)}
+              commitRevision={revs.at(-1)}
+              fromRevision={revs.length === 2 ? revs[0] : undefined}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
@@ -4681,6 +4683,7 @@
     onViewRevision={(p, rev) => selectTab(`rev:${rev}:${p}`)}
     onDiffRevision={(p, rev) => selectTab(`diff-rev:${rev}:${p}`)}
     onPatchRevision={(p, rev) => selectTab(`diff-commit:${rev}:${p}`)}
+    onCompareRevisions={(p, from, to) => selectTab(`diff-commit:${from}..${to}:${p}`)}
   />
 
   {#if workspaceToastMessage}

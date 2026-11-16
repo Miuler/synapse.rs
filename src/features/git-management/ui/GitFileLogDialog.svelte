@@ -26,6 +26,8 @@
     onDiffRevision?: (filePath: string, commitHash: string) => void;
     /** Abre el parche del commit: el archivo en ese commit contra su commit padre. */
     onPatchRevision?: (filePath: string, commitHash: string) => void;
+    /** Diff entre dos versiones elegidas del archivo (`from` la más antigua). */
+    onCompareRevisions?: (filePath: string, from: string, to: string) => void;
     onClose?: () => void;
   }
 
@@ -35,8 +37,31 @@
     onViewRevision,
     onDiffRevision,
     onPatchRevision,
+    onCompareRevisions,
     onClose,
   }: GitFileLogDialogProps = $props();
+
+  // Modo «Diff entre versiones»: en vez de las acciones, casillas para elegir exactamente 2 commits
+  let compareMode = $state(false);
+  let selected = $state<string[]>([]);
+
+  function toggleCompareMode() {
+    compareMode = !compareMode;
+    selected = [];
+  }
+
+  function toggleSelected(hash: string) {
+    if (selected.includes(hash)) selected = selected.filter((h) => h !== hash);
+    else if (selected.length < 2) selected = [...selected, hash];
+  }
+
+  function handleCompare() {
+    if (!filePath || selected.length !== 2) return;
+    // De la versión más antigua a la más nueva (el log viene de la más nueva a la más antigua)
+    const [to, from] = commits.filter((c) => selected.includes(c.commit_hash)).map((c) => c.commit_hash);
+    open = false;
+    onCompareRevisions?.(filePath, from, to);
+  }
 
   let loading = $state(false);
   let error = $state<string | null>(null);
@@ -81,6 +106,8 @@
   $effect(() => {
     if (open && filePath) {
       filterText = '';
+      compareMode = false;
+      selected = [];
       loadLog();
     }
   });
@@ -166,6 +193,21 @@
     </span>
   {/snippet}
   {#snippet footer()}
+    {#if compareMode}
+      <span class="git-log-compare-info" aria-live="polite">
+        {selected.length} de 2 versiones elegidas{selected.length < 2 ? ' — marca dos para comparar' : ''}
+      </span>
+      <button
+        type="button"
+        class="compare-go-btn"
+        disabled={selected.length !== 2}
+        onclick={handleCompare}
+        title="Abrir el diff entre las dos versiones elegidas (de la más antigua a la más nueva)"
+      >
+        <GitCompare size={13} />
+        Comparar
+      </button>
+    {/if}
     <span class="git-log-count-info">
       {filteredCommits.length} {filteredCommits.length === 1 ? 'revisión' : 'revisiones'}
       {#if filterText && filteredCommits.length !== commits.length}
@@ -194,6 +236,19 @@
             title="Limpiar búsqueda"
           >
             <X size={12} />
+          </button>
+        {/if}
+        {#if onCompareRevisions && commits.length >= 2}
+          <button
+            type="button"
+            class="compare-toggle"
+            class:active={compareMode}
+            aria-pressed={compareMode}
+            onclick={toggleCompareMode}
+            title={compareMode ? 'Volver a las acciones de cada commit' : 'Elegir dos versiones del archivo y ver sus diferencias'}
+          >
+            <GitCompare size={13} />
+            Diff entre versiones
           </button>
         {/if}
       </div>
@@ -232,12 +287,16 @@
                   <th class="col-date">Fecha</th>
                   <th class="col-author">Autor</th>
                   <th class="col-message">Mensaje</th>
-                  <th class="col-actions">Acciones</th>
+                  {#if compareMode}
+                    <th class="col-select">Comparar</th>
+                  {:else}
+                    <th class="col-actions">Acciones</th>
+                  {/if}
                 </tr>
               </thead>
               <tbody>
                 {#each filteredCommits as commit (commit.commit_hash)}
-                  <tr class="git-log-row">
+                  <tr class="git-log-row" class:selected={compareMode && selected.includes(commit.commit_hash)}>
                     <!-- Columna Hash -->
                     <td class="col-hash">
                       <div class="hash-wrap">
@@ -278,6 +337,19 @@
                       >
                     </td>
 
+                    {#if compareMode}
+                      <!-- Columna de selección (modo «Diff entre versiones») -->
+                      <td class="col-select">
+                        <input
+                          type="checkbox"
+                          class="compare-check"
+                          aria-label="Comparar la versión {commit.short_hash}"
+                          checked={selected.includes(commit.commit_hash)}
+                          disabled={!selected.includes(commit.commit_hash) && selected.length >= 2}
+                          onchange={() => toggleSelected(commit.commit_hash)}
+                        />
+                      </td>
+                    {:else}
                     <!-- Columna Acciones -->
                     <td class="col-actions">
                       <div class="actions-group">
@@ -314,6 +386,7 @@
                         </div>
                       </div>
                     </td>
+                    {/if}
                   </tr>
                 {/each}
               </tbody>
@@ -651,5 +724,69 @@
   @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+  .compare-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 8px;
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #fff);
+    color: var(--text-secondary, #656d76);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .compare-toggle:hover {
+    color: var(--text-primary, #1f2328);
+    border-color: var(--accent, #0969da);
+  }
+  .compare-toggle.active {
+    color: var(--accent, #0969da);
+    border-color: var(--accent, #0969da);
+    background: color-mix(in srgb, var(--accent, #0969da) 10%, transparent);
+  }
+  .col-select {
+    width: 90px;
+    text-align: center;
+  }
+  .compare-check {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent, #0969da);
+  }
+  .compare-check:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  .git-log-row.selected {
+    background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
+  }
+  .git-log-compare-info {
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+    margin-right: auto;
+  }
+  .compare-go-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--accent, #0969da);
+    background: var(--accent, #0969da);
+    color: var(--accent-contrast, #fff);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .compare-go-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 </style>

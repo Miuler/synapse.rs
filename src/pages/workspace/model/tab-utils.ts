@@ -60,6 +60,8 @@ export function getTabDisplayTitle(path: string | null | undefined, fallbackTitl
     const parts = path.slice('diff-commit:'.length).split(':');
     const rev = parts[0] || '';
     const f = parts.slice(1).join(':').split('/').pop() || parts.slice(1).join(':');
+    const [from, to] = rev.split('..');
+    if (to) return `Diff (${from.slice(0, 7)}…${to.slice(0, 7)}): ${f}`;
     return `Cambios (${rev.slice(0, 7)}): ${f}`;
   }
   if (path.startsWith('diff:')) {

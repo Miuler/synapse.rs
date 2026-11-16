@@ -18,6 +18,8 @@
     onDiffRevision?: (filePath: string, commitHash: string) => void;
     /** Abre el parche del commit: el archivo en ese commit contra su commit padre. */
     onPatchRevision?: (filePath: string, commitHash: string) => void;
+    /** Diff entre dos versiones del archivo (`from` la más antigua). */
+    onCompareRevisions?: (filePath: string, from: string, to: string) => void;
     onToast?: (message: string) => void;
   }
 
@@ -29,6 +31,7 @@
     onViewRevision,
     onDiffRevision,
     onPatchRevision,
+    onCompareRevisions,
     onToast,
   }: Props = $props();
 
@@ -124,4 +127,5 @@
   onViewRevision={onViewRevision}
   onDiffRevision={onDiffRevision}
   {onPatchRevision}
+  {onCompareRevisions}
 />

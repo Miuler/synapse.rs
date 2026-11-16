@@ -31,11 +31,12 @@
     compareWith?: string;
     /** Parche de un commit: el archivo en ese commit contra su commit padre. */
     commitRevision?: string;
+    fromRevision?: string;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision }: Props = $props();
   // Panel izquierdo = «después», panel derecho = «antes»
-  const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision }));
+  const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision }));
   /** Solo se puede editar el panel izquierdo cuando es el archivo en disco. */
   const afterIsDisk = $derived(sides.after.kind === 'disk');
 
@@ -110,6 +111,7 @@
     const _r = baseRevision;
     const _c = compareWith;
     const _k = commitRevision;
+    const _f = fromRevision;
     loadData();
   });
 

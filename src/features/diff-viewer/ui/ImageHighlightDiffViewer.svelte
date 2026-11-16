@@ -18,6 +18,7 @@
     compareWith?: string;
     /** Parche de un commit: el archivo en ese commit contra su commit padre. */
     commitRevision?: string;
+    fromRevision?: string;
   }
 
   let {
@@ -28,6 +29,7 @@
     isDiagram = false,
     compareWith,
     commitRevision,
+    fromRevision,
   }: Props = $props();
 
   let loading = $state(true);
@@ -48,7 +50,7 @@
     error = null;
     try {
       // Antes y después según el tipo de diff (disco/Git, stage/HEAD, parche de un commit o dos archivos)
-      const sides = diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision });
+      const sides = diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision });
       const binary = !isDrawing && !isDiagram;
       const [before, after] = await Promise.all([loadSide(sides.before, binary), loadSide(sides.after, binary)]);
       if (!before.exists || !after.exists) {
@@ -76,6 +78,7 @@
     const _r = baseRevision;
     const _c = compareWith;
     const _k = commitRevision;
+    const _f = fromRevision;
     loadDiff();
   });
 

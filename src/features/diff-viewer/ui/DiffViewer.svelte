@@ -41,10 +41,12 @@
     compareWith?: string;
     /** Parche de un commit: el archivo en ese commit contra su commit padre. */
     commitRevision?: string;
+    /** Con `commitRevision`: la otra versión a comparar (en vez del commit padre). */
+    fromRevision?: string;
     onClose?: () => void;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, onClose }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, onClose }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -107,7 +109,7 @@
       const data = compareWith
         ? await vaultRepository.diffVaultFiles(compareWith, filePath)
         : commitRevision
-          ? await vaultRepository.diffGitRevisions(filePath, `${commitRevision}^`, commitRevision)
+          ? await vaultRepository.diffGitRevisions(filePath, fromRevision ?? `${commitRevision}^`, commitRevision)
           : await vaultRepository.getGitFileDiff(filePath, isStaged, baseRevision);
       diffData = data;
     } catch (err: unknown) {
@@ -123,6 +125,7 @@
     const _p = filePath;
     const _s = isStaged;
     const _r = baseRevision;
+    const _f = fromRevision;
     const _k = commitRevision;
     const _c = compareWith;
     fetchDiff();
@@ -209,11 +212,14 @@
         class="diff-file-badge"
         class:is-staged={isStaged && !baseRevision}
         class:is-revision={Boolean(baseRevision || commitRevision)}
-        title={compareWith ? 'Comparación de dos archivos' : commitRevision ? `Cambios del commit ${commitRevision}` : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
+        title={compareWith ? 'Comparación de dos archivos' : commitRevision && fromRevision ? `Diferencias entre las versiones ${fromRevision} y ${commitRevision}` : commitRevision ? `Cambios del commit ${commitRevision}` : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
       >
         {#if compareWith}
           <GitCompare size={14} class="badge-icon" />
           <span>ARCHIVOS</span>
+        {:else if commitRevision && fromRevision}
+          <GitCompare size={14} class="badge-icon" />
+          <span>VERSIONES: {fromRevision.slice(0, 7)} → {commitRevision.slice(0, 7)}</span>
         {:else if commitRevision}
           <History size={14} class="badge-icon" />
           <span>COMMIT: {commitRevision.slice(0, 7)}</span>
@@ -375,9 +381,9 @@
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
     {#if isVisualCandidate && activeVisualTab === 'side_by_side'}
-      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} />
+      <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} />
     {:else if hasPixelDiff && activeVisualTab === 'highlight'}
-      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} />
+      <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} {fromRevision} />
     {:else if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
