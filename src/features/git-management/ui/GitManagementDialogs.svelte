@@ -20,7 +20,7 @@
     onPatchRevision?: (filePath: string, commitHash: string) => void;
     /** Diff entre dos versiones del archivo (`from` la más antigua). */
     onCompareRevisions?: (filePath: string, from: string, to: string) => void;
-    onAskAgent?: (filePath: string, from: string, to: string) => void;
+    onAskAgent?: (filePath: string, from: string, to: string, message?: string) => void;
     onToast?: (message: string) => void;
   }
 

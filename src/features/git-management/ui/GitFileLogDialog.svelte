@@ -30,7 +30,8 @@
     /** Diff entre dos versiones elegidas del archivo (`from` la más antigua). */
     onCompareRevisions?: (filePath: string, from: string, to: string) => void;
     /** Prepara en el panel del agente la pregunta «qué cambió» entre dos versiones. */
-    onAskAgent?: (filePath: string, from: string, to: string) => void;
+    /** `message`: el del commit, cuando se pregunta por un solo commit (`from` = su padre). */
+    onAskAgent?: (filePath: string, from: string, to: string, message?: string) => void;
     onClose?: () => void;
   }
 
@@ -122,11 +123,17 @@
     }
   }
 
+  /** Con 2 commits: qué cambió entre ellos. Con 1: qué cambió en ese commit (contra su padre). */
   function askAgentPicked() {
-    if (!filePath || pickedInOrder.length !== 2) return;
-    const [to, from] = pickedInOrder.map((c) => c.commit_hash);
+    if (!filePath || pickedInOrder.length < 1 || pickedInOrder.length > 2) return;
     rowMenu = null;
     open = false;
+    if (pickedInOrder.length === 1) {
+      const c = pickedInOrder[0];
+      onAskAgent?.(filePath, `${c.commit_hash}^`, c.commit_hash, c.message);
+      return;
+    }
+    const [to, from] = pickedInOrder.map((c) => c.commit_hash);
     onAskAgent?.(filePath, from, to);
   }
 
@@ -329,11 +336,14 @@
             <button
               type="button"
               role="menuitem"
-              disabled={pickedInOrder.length !== 2}
-              title={pickedInOrder.length === 2 ? 'Abre el panel del agente con el archivo adjunto y la pregunta escrita' : 'Elige exactamente 2 versiones (Ctrl+clic)'}
+              disabled={pickedInOrder.length > 2}
+              title={pickedInOrder.length <= 2
+                ? 'Abre el panel del agente con el archivo adjunto y la pregunta escrita'
+                : 'Elige 1 commit (qué cambió en él) o 2 (qué cambió entre ellos)'}
               onclick={askAgentPicked}
             >
-              <Bot size={13} /> Preguntar al agente qué cambió
+              <Bot size={13} />
+              {pickedInOrder.length === 1 ? 'Preguntar al agente qué cambió en este commit' : 'Preguntar al agente qué cambió'}
             </button>
           {/if}
           <button type="button" role="menuitem" onclick={() => copyPicked(false)}>

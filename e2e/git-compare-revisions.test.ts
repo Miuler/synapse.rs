@@ -153,6 +153,16 @@ it('Ctrl+clic y Shift+clic eligen commits; el clic derecho compara dos o copia s
   await menuItem('hashes cortos').click();
   expect(await s.browser.execute(() => (window as any).__copied)).toBe(hashes.map((h) => h.slice(0, 7)).join(','));
 
+  // Con una sola elegida se pregunta por ese commit
+  await cell(0).click();
+  await s.browser.execute(() => {
+    const r = document.querySelectorAll('.git-log-dialog .git-log-row')[0];
+    const { x, y } = r.getBoundingClientRect();
+    r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 200, clientY: y + 10 }));
+  });
+  expect(await menuItem('en este commit').isEnabled()).toBe(true);
+  expect(await menuItem('Diff entre').isEnabled()).toBe(false);
+
   // «Preguntar al agente qué cambió» con dos elegidas: abre el panel del agente
   await cell(0).click();
   await s.browser.performActions([{ type: 'key', id: 'kb3', actions: [{ type: 'keyDown', value: '\uE009' }] }]);

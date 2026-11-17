@@ -462,8 +462,13 @@
     height: 100%;
     position: relative;
   }
+  /* Oculto sin salir del layout: con display:none WebKit descarta las imágenes decodificadas y los
+     lienzos quedan en 0×0, y al volver la vista se veía cargar otra vez */
   .diff-mode-pane.hidden {
-    display: none;
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .diff-viewer-wrapper {

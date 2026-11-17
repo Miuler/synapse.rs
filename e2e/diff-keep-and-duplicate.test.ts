@@ -95,7 +95,7 @@ it('las vistas del diff ya calculadas se mantienen al cambiar de modo', async ()
   expect(await s.browser.execute(() => document.querySelector('.visual-diff-root')?.getAttribute('data-marca'))).toBe('calculado');
   // Solo se ve la vista activa
   const visibles = await s.browser.execute(() =>
-    [...document.querySelectorAll('.diff-mode-pane')].filter((p) => getComputedStyle(p).display !== 'none').length,
+    [...document.querySelectorAll('.diff-mode-pane')].filter((p) => getComputedStyle(p).visibility !== 'hidden').length,
   );
   expect(visibles).toBe(1);
 });

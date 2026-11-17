@@ -1061,14 +1061,18 @@ class AgentStore {
    * Prepara una pregunta al agente sobre lo que cambió en un archivo entre dos commits: abre el
    * panel, adjunta el archivo y deja la pregunta escrita para que el usuario la revise y la envíe.
    */
-  askAboutRevisions(file: { path: string; name: string }, from: string, to: string) {
+  askAboutRevisions(file: { path: string; name: string }, from: string, to: string, message?: string) {
     this.setPanelOpen(true);
     this.attach({ kind: 'file', path: file.path, name: file.name });
     const s = (h: string) => h.slice(0, 7);
-    this.pendingDraft =
-      `¿Qué cambió en ${file.name} entre los commits ${s(from)} y ${s(to)}? ` +
+    const how =
       `Usa git_diff_revisions (from: ${from}, to: ${to}) y, si es una imagen o un diagrama, ` +
       `render_diagram con revision en cada versión.`;
+    // Un solo commit: `from` es su padre (`<hash>^`); si el archivo nació en él, el diff es contra vacío
+    this.pendingDraft =
+      from === `${to}^`
+        ? `¿Qué cambió en ${file.name} en el commit ${s(to)}${message ? ` («${message}»)` : ''}? ${how}`
+        : `¿Qué cambió en ${file.name} entre los commits ${s(from)} y ${s(to)}? ${how}`;
   }
 
   /** Adjunta (por ejemplo, la selección del editor) a la conversación enfocada. */
