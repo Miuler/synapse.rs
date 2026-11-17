@@ -67,6 +67,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Shift+F6 (cambiar todas las coincidencias) no hacía nada si la ventana no tenía el foco del sistema**: el atajo comprobaba `hasFocus`, que en WebKit depende de `document.hasFocus()`; ahora basta con que la tecla llegue al editor.
 - **Pestañas de una versión o de un diff en una ventana nueva**: «Abrir en nueva ventana», «Mover a nueva ventana» y el botón de la cabecera ahora también funcionan con la pestaña de «Ver archivo» de un commit y con las de diff (antes solo con archivos); la ventana nueva muestra la misma versión.
 - **Fondo por defecto de la pestaña vacía en blanco**: los fondos claro y oscuro venían en AVIF, que el WebView de algunos Linux (WebKitGTK sin soporte AVIF) no decodifica; por eso se veía en blanco al abrir la app y al quitar un fondo propio. Ahora van en WebP.
 - **«Renombrar archivo» desde el menú de una pestaña**: la edición del nombre ya no se cierra sola. Al activarse la pestaña, su vista de lectura tomaba el foco, el campo del nombre lo perdía y la edición se confirmaba sin cambios; ahora la vista de lectura no le quita el foco a un campo de texto, y el menú no devuelve el foco a la pestaña al elegir renombrar.

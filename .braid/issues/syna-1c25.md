@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-1c25
 title: 'Arreglar e2e que fallan: rename-occurrences, document-words, content-zoom y compare-files-git (intermitente)'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - e2e
 - pruebas
 owner: null
 created_at: 2026-11-17T16:57:10.584955138Z
+completed_at: 2026-11-17T18:46:07.206639868Z
 acceptance:
 - Las cuatro pasan de forma estable al correr la suite completa
 ---

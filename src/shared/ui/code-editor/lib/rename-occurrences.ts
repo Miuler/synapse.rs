@@ -30,9 +30,12 @@ export function occurrenceSelection(state: EditorState): EditorSelection | null 
   return ranges.length ? EditorSelection.create(ranges, main) : null;
 }
 
-/** Shift+F6: como renombrar en JetBrains, pero textual: lo que se escribe cambia todas las coincidencias. */
+/**
+ * Shift+F6: como renombrar en JetBrains, pero textual: lo que se escribe cambia todas las coincidencias.
+ * No mira `view.hasFocus`: un atajo del editor solo corre si la tecla llegó al editor, y `hasFocus`
+ * usa `document.hasFocus()`, que es falso si la ventana no tiene el foco del sistema.
+ */
 export function selectOccurrences(view: EditorView): boolean {
-  if (!view.hasFocus) return false;
   const selection = occurrenceSelection(view.state);
   if (!selection) return false;
   view.dispatch({ selection, scrollIntoView: true, userEvent: 'select' });

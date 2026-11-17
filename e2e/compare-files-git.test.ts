@@ -43,6 +43,12 @@ it('«Diff» con dos archivos seleccionados compara uno contra el otro', async (
     );
     await s.browser.pause(600);
   }
+  // El menú se arma con la selección del momento: esperar a que los dos estén elegidos
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => document.querySelectorAll('.file-tree-item.selected').length)) === 2,
+    { timeout: 5_000, timeoutMsg: 'no quedaron los dos archivos seleccionados' },
+  );
   await s.browser.execute(() => {
     const el = document.querySelector('.file-tree-item[data-path="README.md"]')!;
     const { x, y } = el.getBoundingClientRect();
