@@ -1,4 +1,5 @@
 use crate::application::dto::vault_item::copy_vault_items_command::CopyVaultItemsCommand;
+use crate::application::dto::vault_item::import_external_items_command::ImportExternalItemsCommand;
 use crate::application::dto::vault_item::create_folder_command::CreateFolderCommand;
 use crate::application::dto::vault_item::delete_vault_item_command::DeleteVaultItemCommand;
 use crate::application::dto::vault_item::move_vault_items_command::MoveVaultItemsCommand;
@@ -142,6 +143,74 @@ pub fn copy_vault_items(
     }
 
     Ok(created)
+}
+
+/// Pega en `dest_dir` archivos o carpetas de fuera de la bóveda (rutas absolutas).
+/// Retorna las rutas relativas de los nuevos elementos creados.
+#[tauri::command]
+pub fn import_external_items(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    dest_dir: String,
+) -> Result<Vec<String>, String> {
+    let vault_path = {
+        let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
+        match *guard {
+            Some(ref p) => p.clone(),
+            None => return Err("No hay ninguna bóveda abierta".to_string()),
+        }
+    };
+
+    let created = state
+        .import_external_items_use_case
+        .execute(ImportExternalItemsCommand {
+            vault_path,
+            paths: paths.into_iter().map(std::path::PathBuf::from).collect(),
+            dest_dir,
+        })?;
+
+    if let Ok(guard) = state.navigation_engine.lock() {
+        if let Some(ref engine) = *guard {
+            let _ = engine.reload_paths(&created);
+        }
+    }
+
+    Ok(created)
+}
+
+/// Pone archivos (rutas absolutas) en el portapapeles del sistema, como un explorador de archivos:
+/// se pueden pegar en otra instancia, en el explorador del sistema o en otras aplicaciones.
+// async: fuera del hilo principal (en X11 leer el portapapeles puede esperar a su dueño)
+#[tauri::command(async)]
+pub fn copy_files_to_system_clipboard(paths: Vec<String>) -> Result<(), String> {
+    let mut guard = system_clipboard()?;
+    let clipboard = guard.as_mut().ok_or("Portapapeles del sistema no disponible")?;
+    clipboard.set().file_list(&paths).map_err(|e| e.to_string())
+}
+
+/// Archivos (rutas absolutas) que hay en el portapapeles del sistema; vacío si no hay archivos.
+// async: fuera del hilo principal (en X11 leer el portapapeles puede esperar a su dueño)
+#[tauri::command(async)]
+pub fn read_system_clipboard_files() -> Result<Vec<String>, String> {
+    let mut guard = system_clipboard()?;
+    let Some(clipboard) = guard.as_mut() else {
+        return Ok(Vec::new());
+    };
+    Ok(clipboard
+        .get()
+        .file_list()
+        .map(|files| files.into_iter().map(|p| p.to_string_lossy().into_owned()).collect())
+        .unwrap_or_default())
+}
+
+/// El portapapeles se conserva vivo: en Linux lo copiado solo existe mientras su dueño exista.
+fn system_clipboard() -> Result<std::sync::MutexGuard<'static, Option<arboard::Clipboard>>, String> {
+    static CLIPBOARD: std::sync::OnceLock<std::sync::Mutex<Option<arboard::Clipboard>>> =
+        std::sync::OnceLock::new();
+    CLIPBOARD
+        .get_or_init(|| std::sync::Mutex::new(arboard::Clipboard::new().ok()))
+        .lock()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

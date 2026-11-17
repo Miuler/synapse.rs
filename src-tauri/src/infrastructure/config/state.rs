@@ -28,6 +28,7 @@ use crate::application::use_cases::session::set_note_view_mode_use_case::SetNote
 use crate::application::use_cases::system::open_file_with_default_app_use_case::OpenFileWithDefaultAppUseCase;
 use crate::application::use_cases::system::show_item_in_folder_use_case::ShowItemInFolderUseCase;
 use crate::application::use_cases::vault_item::copy_vault_items_use_case::CopyVaultItemsUseCase;
+use crate::application::use_cases::vault_item::import_external_items_use_case::ImportExternalItemsUseCase;
 use crate::application::use_cases::vault_item::create_folder_use_case::CreateFolderUseCase;
 use crate::application::use_cases::vault_item::delete_vault_item_use_case::DeleteVaultItemUseCase;
 use crate::application::use_cases::vault_item::move_vault_items_use_case::MoveVaultItemsUseCase;
@@ -140,6 +141,7 @@ pub struct AppState {
     pub move_vault_items_use_case:
         MoveVaultItemsUseCase<VaultItemRepositoryImpl, VersionControlImpl>,
     pub copy_vault_items_use_case: CopyVaultItemsUseCase<VaultItemRepositoryImpl>,
+    pub import_external_items_use_case: ImportExternalItemsUseCase<VaultItemRepositoryImpl>,
     pub read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase<VaultItemRepositoryImpl>,
     pub write_binary_vault_item_use_case: WriteBinaryVaultItemUseCase<VaultItemRepositoryImpl>,
     pub create_folder_use_case: CreateFolderUseCase<VaultItemRepositoryImpl>,
@@ -367,6 +369,7 @@ impl AppState {
                 VersionControlImpl,
             ),
             copy_vault_items_use_case: CopyVaultItemsUseCase::new(VaultItemRepositoryImpl),
+            import_external_items_use_case: ImportExternalItemsUseCase::new(VaultItemRepositoryImpl),
             read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase::new(
                 VaultItemRepositoryImpl,
             ),
@@ -534,6 +537,7 @@ impl AppState {
                 VersionControlImpl,
             ),
             copy_vault_items_use_case: CopyVaultItemsUseCase::new(VaultItemRepositoryImpl),
+            import_external_items_use_case: ImportExternalItemsUseCase::new(VaultItemRepositoryImpl),
             read_binary_vault_item_use_case: ReadBinaryVaultItemUseCase::new(
                 VaultItemRepositoryImpl,
             ),

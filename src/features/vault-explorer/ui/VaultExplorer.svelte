@@ -892,6 +892,7 @@
 
   function handleItemContextMenu(e: MouseEvent, node: VaultTreeNode) {
     sidebarPanelEl?.focus();
+    void refreshExternalClipboard();
     if (!selectedPaths.includes(node.relativePath)) {
       selectedPaths = [node.relativePath];
       lastFocusedPath = node.relativePath;
@@ -1157,6 +1158,16 @@
   // 'cut' mueve al pegar; 'copy' duplica
   let clipboardMode = $state<'copy' | 'cut'>('copy');
   let isPasting = $state(false);
+  // Lo que esta instancia puso en el portapapeles del sistema al copiar: si al pegar el
+  // portapapeles trae otros archivos, vienen de fuera (otra instancia, el explorador del sistema…)
+  let systemClipboardFiles: string[] = [];
+  // Archivos de fuera en el portapapeles del sistema (se consulta al abrir el menú, para «Pegar»)
+  let externalClipboardFiles = $state<string[]>([]);
+  async function refreshExternalClipboard() {
+    const files = await vaultApi.readSystemClipboardFiles();
+    externalClipboardFiles =
+      files.length !== systemClipboardFiles.length || files.some((f, i) => f !== systemClipboardFiles[i]) ? files : [];
+  }
 
 
   function isFolderPath(path: string): boolean {
@@ -1450,7 +1461,18 @@
       anchorPath = node.relativePath;
     }
     e.dataTransfer.setData(DRAG_MIME, JSON.stringify(selectedPaths));
-    e.dataTransfer.effectAllowed = 'move';
+    // Como un explorador de archivos: al soltarlo en otra aplicación (Telegram, el gestor de
+    // archivos…) recibe los archivos. Dentro del árbol sigue siendo mover.
+    const uris = selectedPaths.map((p) => fileUri(getFullAbsolutePath(p)));
+    e.dataTransfer.setData('text/uri-list', uris.join('\r\n'));
+    e.dataTransfer.effectAllowed = 'copyMove';
+  }
+
+  /** `file://` de una ruta absoluta, con cada segmento codificado (espacios, acentos…). */
+  function fileUri(absPath: string): string {
+    const normalized = absPath.replace(/\\/g, '/');
+    const encoded = normalized.split('/').map(encodeURIComponent).join('/');
+    return `file://${normalized.startsWith('/') ? '' : '/'}${encoded}`;
   }
 
   function dropDirFor(node: VaultTreeNode | null): string {
@@ -1486,6 +1508,10 @@
     if (paths.length === 0) return;
     copiedPaths = [...paths];
     clipboardMode = 'copy';
+    systemClipboardFiles = paths.map((p) => getFullAbsolutePath(p));
+    vaultApi.copyFilesToSystemClipboard(systemClipboardFiles).catch((err) =>
+      console.warn('No se pudo copiar al portapapeles del sistema:', err),
+    );
     showToast(
       paths.length > 1
         ? `${paths.length} elementos listos para pegar`
@@ -1494,8 +1520,17 @@
   }
 
   async function handlePaste(fromKeyboard = false) {
-    if (copiedPaths.length === 0 || isPasting) return;
+    if (isPasting) return;
     const destDir = getPasteDestination(fromKeyboard);
+    const external = await vaultApi.readSystemClipboardFiles();
+    const fromOutside =
+      external.length > 0 &&
+      (external.length !== systemClipboardFiles.length || external.some((f, i) => f !== systemClipboardFiles[i]));
+    if (fromOutside) {
+      await pasteCreated(() => vaultApi.importExternalItems(external, destDir), destDir);
+      return;
+    }
+    if (copiedPaths.length === 0) return;
     isPasting = true;
     if (clipboardMode === 'cut') {
       try {
@@ -1507,8 +1542,15 @@
       }
       return;
     }
+    isPasting = false;
+    await pasteCreated(() => vaultApi.copyItems(copiedPaths, destDir), destDir);
+  }
+
+  /** Pega con `paste` y selecciona lo creado. */
+  async function pasteCreated(paste: () => Promise<string[]>, destDir: string) {
+    isPasting = true;
     try {
-      const created = await vaultApi.copyItems(copiedPaths, destDir);
+      const created = await paste();
       if (destDir && !expandedFolders[destDir]) {
         expandedFolders[destDir] = true;
         persistExpandedFolders();
@@ -2081,6 +2123,7 @@
                 data-tauri-drag-region="false"
                 onclick={onOpenVaultFolder}
                 oncontextmenu={(e) => {
+                  void refreshExternalClipboard();
                   contextMenuNode = null;
                   selectedPaths = [""]; //RAIZ DEL VAULT
                 }}
@@ -2225,6 +2268,7 @@
             }}
             oncontextmenu={(e) => {
               sidebarPanelEl?.focus();
+              void refreshExternalClipboard();
               if (!(e.target as HTMLElement).closest('.file-tree-item')) {
                 contextMenuNode = null;
                 selectedPaths = [];
@@ -2571,11 +2615,17 @@
 
         <ContextMenu.Item
           class="context-menu-item"
-          disabled={copiedPaths.length === 0 || isPasting}
+          disabled={(copiedPaths.length === 0 && externalClipboardFiles.length === 0) || isPasting}
           onSelect={() => handlePaste(false)}
         >
           <ClipboardPaste class="context-menu-item-icon" />
-          <span>{copiedPaths.length > 1 ? `Pegar (${copiedPaths.length} elementos)` : 'Pegar'}</span>
+          <span
+            >{externalClipboardFiles.length > 0
+              ? `Pegar (${externalClipboardFiles.length} ${externalClipboardFiles.length > 1 ? 'archivos' : 'archivo'} de fuera)`
+              : copiedPaths.length > 1
+                ? `Pegar (${copiedPaths.length} elementos)`
+                : 'Pegar'}</span
+          >
           <span class="context-menu-shortcut">Ctrl+V</span>
         </ContextMenu.Item>
 

@@ -89,17 +89,50 @@ impl VaultItemRepositoryImpl {
             return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
         }
 
+        Self::copy_into(vault_path, &canonical_source, &dest_dir, &canonical_dest)
+    }
+
+    /// Copia a la carpeta destino de la bóveda un archivo o carpeta de fuera (`source_abs`, ruta
+    /// absoluta: p. ej. lo copiado en otra instancia o en el explorador de archivos del sistema).
+    pub fn import_item(
+        vault_path: &Path,
+        source_abs: &Path,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
+        let dest_dir = Self::resolve(vault_path, dest_dir_rel)?;
+        if !source_abs.is_absolute() || !source_abs.exists() {
+            return Err(format!("El elemento '{}' no existe", source_abs.display()));
+        }
+        if !dest_dir.is_dir() {
+            return Err(format!("La carpeta destino '{}' no existe", dest_dir_rel));
+        }
+        let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_source = source_abs.canonicalize().map_err(|e| e.to_string())?;
+        let canonical_dest = dest_dir.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical_dest.starts_with(&canonical_vault) {
+            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+        }
+        Self::copy_into(vault_path, &canonical_source, &dest_dir, &canonical_dest)
+    }
+
+    /// Copia `canonical_source` dentro de `dest_dir` sin pisar nada (si el nombre existe, «copia»).
+    fn copy_into(
+        vault_path: &Path,
+        canonical_source: &Path,
+        dest_dir: &Path,
+        canonical_dest: &Path,
+    ) -> Result<String, String> {
         let is_folder = canonical_source.is_dir();
-        if is_folder && canonical_dest.starts_with(&canonical_source) {
+        if is_folder && canonical_dest.starts_with(canonical_source) {
             return Err("No se puede copiar una carpeta dentro de sí misma".to_string());
         }
 
-        let name = source
+        let name = canonical_source
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .ok_or_else(|| "Nombre de elemento inválido".to_string())?;
 
-        let same_folder = canonical_source.parent() == Some(canonical_dest.as_path());
+        let same_folder = canonical_source.parent() == Some(canonical_dest);
         let final_name = if same_folder || dest_dir.join(&name).exists() {
             FileName::next_available_copy_name(&name, is_folder, |n| dest_dir.join(n).exists())
         } else {
@@ -108,10 +141,10 @@ impl VaultItemRepositoryImpl {
         let target = dest_dir.join(&final_name);
 
         if is_folder {
-            Self::copy_dir_recursive(&canonical_source, &target)
+            Self::copy_dir_recursive(canonical_source, &target)
                 .map_err(|e| format!("Error al copiar carpeta: {}", e))?;
         } else {
-            fs::copy(&canonical_source, &target)
+            fs::copy(canonical_source, &target)
                 .map_err(|e| format!("Error al copiar archivo: {}", e))?;
         }
 
@@ -351,6 +384,15 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
         Self::copy_item(vault_path, source_rel, dest_dir_rel)
     }
 
+    fn import_item(
+        &self,
+        vault_path: &Path,
+        source_abs: &Path,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
+        Self::import_item(vault_path, source_abs, dest_dir_rel)
+    }
+
     fn write_binary_item(
         &self,
         vault_path: &Path,
@@ -490,6 +532,21 @@ mod tests {
         let rel = VaultItemRepositoryImpl::copy_item(&vault, "nota.md", "sub").unwrap();
         assert_eq!(rel, "sub/nota.md");
         let _ = fs::remove_dir_all(&vault);
+    }
+
+    #[test]
+    fn import_external_file_into_folder() {
+        let vault = temp_vault("import");
+        let outside = temp_vault("import_src");
+        fs::write(outside.join("foto.png"), "png").unwrap();
+        let rel = VaultItemRepositoryImpl::import_item(&vault, &outside.join("foto.png"), "sub").unwrap();
+        assert_eq!(rel, "sub/foto.png");
+        // Si ya existe, no se pisa
+        let rel2 = VaultItemRepositoryImpl::import_item(&vault, &outside.join("foto.png"), "sub").unwrap();
+        assert_eq!(rel2, "sub/foto.copy.png");
+        assert!(VaultItemRepositoryImpl::import_item(&vault, Path::new("relativa.md"), "").is_err());
+        let _ = fs::remove_dir_all(&vault);
+        let _ = fs::remove_dir_all(&outside);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 // Visor de diff: las vistas ya calculadas («2 Paneles», «Diferencias», texto) quedan en memoria al
-// cambiar de modo. Pestañas: «Duplicar en vista dividida» abre la misma pestaña en el otro panel.
+// cambiar de modo. Pestañas: «Duplicar pestaña» abre otra pestaña igual en el mismo panel.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -64,7 +64,9 @@ afterAll(async () => {
 
 const clickMode = (label: string) =>
   s.browser.execute((l: string) => {
-    ([...document.querySelectorAll('.diff-toolbar .toggle-btn')].find((b) => b.textContent?.trim() === l) as HTMLElement).click();
+    // El de la pestaña visible (las ocultas siguen montadas)
+    const bar = [...document.querySelectorAll('.diff-toolbar')].find((b) => (b as HTMLElement).offsetParent !== null)!;
+    ([...bar.querySelectorAll('.toggle-btn')].find((b) => b.textContent?.trim() === l) as HTMLElement).click();
   }, label);
 
 it('las vistas del diff ya calculadas se mantienen al cambiar de modo', async () => {
@@ -100,53 +102,61 @@ it('las vistas del diff ya calculadas se mantienen al cambiar de modo', async ()
   expect(visibles).toBe(1);
 });
 
-it('un diff duplicado tiene su propio modo en cada panel', async () => {
-  const diffPath = (await s.browser.execute(() =>
-    [...document.querySelectorAll('.tab-title-container')].map((t) => t.getAttribute('data-path')).find((p) => p?.startsWith('diff')),
-  )) as string;
-  await s.browser.execute((p: string) => {
+const openTabMenu = (path: string) =>
+  s.browser.execute((p: string) => {
     const el = document.querySelector(`.tab-title-container[data-path="${p}"]`)!;
     const { x, y } = el.getBoundingClientRect();
     el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
-  }, diffPath);
+  }, path);
+const clickTab = (path: string) =>
+  s.browser.execute((p: string) => (document.querySelector(`.tab-title-container[data-path="${p}"]`) as HTMLElement).click(), path);
+/** Modo activo del diff visible. */
+const visibleMode = () =>
+  s.browser.execute(() => {
+    const bar = [...document.querySelectorAll('.diff-toolbar')].find((b) => (b as HTMLElement).offsetParent !== null);
+    return bar?.querySelector('.toggle-btn.active')?.textContent?.trim();
+  });
+
+it('un diff duplicado se abre en otra pestaña del mismo panel con su propio modo', async () => {
+  const diffPath = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-title-container')].map((t) => t.getAttribute('data-path')).find((p) => p?.startsWith('diff')),
+  )) as string;
+  await openTabMenu(diffPath);
   await s.browser.$('.tab-duplicate').waitForExist({ timeout: 5_000 });
   await s.browser.execute(() => (document.querySelector('.tab-duplicate') as HTMLElement).click());
-  await s.browser.waitUntil(async () => (await s.browser.$$('.synapse-pane .diff-toolbar').length) === 2, {
-    timeout: 10_000,
-    timeoutMsg: 'el diff no se duplicó en el otro panel',
+  const copyPath = `copy:2:${diffPath}`;
+  await s.browser.$(`.tab-title-container[data-path="${copyPath}"]`).waitForExist({ timeout: 10_000 });
+  // Sin dividir la vista
+  expect(await s.browser.$$('.synapse-pane').length).toBe(1);
+
+  // La copia en «2 Paneles», la original en «Diferencias»
+  await clickMode('2 Paneles');
+  expect(await visibleMode()).toBe('2 Paneles');
+  await clickTab(diffPath);
+  await s.browser.waitUntil(async () => (await visibleMode()) !== undefined, { timeout: 5_000 });
+  await clickMode('Diferencias');
+  expect(await visibleMode()).toBe('Diferencias');
+  await clickTab(copyPath);
+  await s.browser.waitUntil(async () => (await visibleMode()) === '2 Paneles', {
+    timeout: 5_000,
+    timeoutMsg: 'la copia perdió su modo',
   });
-  // Panel izquierdo: «Diferencias»; derecho: «2 Paneles»
-  const pick = (pane: number, label: string) =>
-    s.browser.execute(
-      (i: number, l: string) => {
-        const bar = document.querySelectorAll('.synapse-pane .diff-toolbar')[i];
-        ([...bar.querySelectorAll('.toggle-btn')].find((b) => b.textContent?.trim() === l) as HTMLElement).click();
-      },
-      pane,
-      label,
-    );
-  await pick(0, 'Diferencias');
-  await pick(1, '2 Paneles');
-  const active = await s.browser.execute(() =>
-    [...document.querySelectorAll('.synapse-pane .diff-toolbar')].map((b) => b.querySelector('.toggle-btn.active')?.textContent?.trim()),
-  );
-  expect(active).toEqual(['Diferencias', '2 Paneles']);
 });
 
-it('duplicar una pestaña la abre también en el otro panel', async () => {
+it('duplicar una nota abre otra pestaña con el mismo archivo', async () => {
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
   await s.browser.$('.tab-title-container[data-path="nota.md"]').waitForExist({ timeout: 10_000 });
-  await s.browser.execute(() => {
-    const el = document.querySelector('.tab-title-container[data-path="nota.md"]')!;
-    const { x, y } = el.getBoundingClientRect();
-    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
-  });
+  await openTabMenu('nota.md');
   await s.browser.$('.tab-duplicate').waitForExist({ timeout: 5_000 });
   await s.browser.execute(() => (document.querySelector('.tab-duplicate') as HTMLElement).click());
-  // La misma pestaña en los dos paneles
+  await s.browser.$('.tab-title-container[data-path="copy:2:nota.md"]').waitForExist({ timeout: 10_000 });
+  expect(await s.browser.$$('.synapse-pane').length).toBe(1);
+  // La copia muestra el contenido de la nota
   await s.browser.waitUntil(
-    async () => (await s.browser.$$('.tab-title-container[data-path="nota.md"]').length) === 2,
-    { timeout: 10_000, timeoutMsg: 'la pestaña no se duplicó en el otro panel' },
+    async () =>
+      (await s.browser.execute(() =>
+        [...document.querySelectorAll('.tab-pane')].some((p) => (p as HTMLElement).offsetParent !== null && p.textContent?.includes('contenido')),
+      )) as boolean,
+    { timeout: 10_000, timeoutMsg: 'la copia de la nota no muestra su contenido' },
   );
-  expect(await s.browser.$$('.synapse-pane').length).toBe(2);
 });

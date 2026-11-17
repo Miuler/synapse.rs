@@ -1,4 +1,5 @@
 pub mod copy_vault_items_command;
+pub mod import_external_items_command;
 pub mod create_folder_command;
 pub mod delete_vault_item_command;
 pub mod list_folder_contents_query;

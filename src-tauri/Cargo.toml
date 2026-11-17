@@ -46,6 +46,7 @@ indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 rfd = "0.18"
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control"] }
 encoding_rs = "0.8.44"
 chardetng = "1.0.0"
 base64 = "0.23.1"

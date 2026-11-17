@@ -21,6 +21,13 @@ pub trait VaultItemRepository: Send + Sync {
         source_rel: &str,
         dest_dir_rel: &str,
     ) -> Result<String, String>;
+    /// Copia dentro de la bóveda un elemento de fuera (ruta absoluta).
+    fn import_item(
+        &self,
+        vault_path: &Path,
+        source_abs: &Path,
+        dest_dir_rel: &str,
+    ) -> Result<String, String>;
     fn write_binary_item(
         &self,
         vault_path: &Path,
@@ -97,6 +104,15 @@ impl<T: VaultItemRepository + ?Sized> VaultItemRepository for &T {
         dest_dir_rel: &str,
     ) -> Result<String, String> {
         (**self).copy_item(vault_path, source_rel, dest_dir_rel)
+    }
+
+    fn import_item(
+        &self,
+        vault_path: &Path,
+        source_abs: &Path,
+        dest_dir_rel: &str,
+    ) -> Result<String, String> {
+        (**self).import_item(vault_path, source_abs, dest_dir_rel)
     }
 
     fn write_binary_item(

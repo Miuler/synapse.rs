@@ -67,6 +67,9 @@
   import { Check, ListTree } from "lucide-svelte";
   import {
     isSyntheticTab,
+    isTabCopy,
+    baseTabPath,
+    newTabCopyId,
     isDrawingTab,
     cleanTabTitle,
     getTabDisplayTitle,
@@ -801,6 +804,7 @@
   }
 
   async function ensureContentLoaded(path: string) {
+    if (isTabCopy(path)) return ensureContentLoaded(baseTabPath(path));
     if (!path || isSyntheticTab(path)) return;
     if (openedNotes[path] && openedNotes[path].isLoaded && !openedNotes[path].isLoading) return;
 
@@ -1706,18 +1710,26 @@
    * Duplica la pestaña en el otro panel (lo crea si no hay vista dividida): el mismo archivo queda
    * abierto a la vez en los dos lados, sin quitarlo de donde estaba.
    */
-  function duplicateTabToOtherPane(path: string, from: 'left' | 'right') {
+  /** Abre otra pestaña con lo mismo, junto a la original y en el mismo panel; cada una tiene su
+   *  propia vista (modo del diff, zoom, desplazamiento…). */
+  function duplicateTab(path: string, pane: 'left' | 'right') {
     if (!path) return;
-    if (from === 'left') {
-      if (!splitTabPaths.includes(path)) splitTabPaths = [...splitTabPaths, path];
-      activeSplitTabPath = path;
-      activeFocusedPane = 'right';
-    } else {
-      if (!openTabPaths.includes(path)) openTabPaths = [...openTabPaths, path];
-      activeTabPath = path;
+    const tabs = pane === 'left' ? openTabPaths : splitTabPaths;
+    const copy = newTabCopyId(path, tabs);
+    const at = tabs.indexOf(path);
+    const next = [...tabs];
+    next.splice(at === -1 ? next.length : at + 1, 0, copy);
+    if (pane === 'left') {
+      openTabPaths = next;
+      activeTabPath = copy;
       activeFocusedPane = 'left';
+    } else {
+      splitTabPaths = next;
+      activeSplitTabPath = copy;
+      activeFocusedPane = 'right';
     }
-    if (!isSyntheticTab(path)) ensureContentLoaded(path);
+    const base = baseTabPath(path);
+    if (!isSyntheticTab(base)) ensureContentLoaded(base);
   }
 
   function receiveTabFromSplitOrWindow(path: string, isTargetRight: boolean, targetIndex?: number, sourceWindow?: string) {
@@ -1995,61 +2007,44 @@
     )
   );
 
-  let tabsInfo = $derived(
-    openTabPaths.map((path) => {
-      if (isSyntheticTab(path)) {
-        return {
-          path,
-          title: getTabDisplayTitle(path, "Pestaña"),
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      const vaultItem = vaultItemStore.get(path);
-      const isDirty = isTabDirty(path);
-      const isLocked = lockedFiles.has(path);
-      const note = openedNotes[path];
-      const isDrawing = isDrawingTab(path, note?.content);
-      const rawTitle = note?.title || vaultItem?.title || path;
-      const displayTitle = cleanTabTitle(rawTitle, path);
+  function tabInfo(path: string): TabInfoItem {
+    // Copia de otra pestaña: lo mismo que la original, con su propio id
+    if (isTabCopy(path)) return { ...tabInfo(baseTabPath(path)), path };
+    if (isSyntheticTab(path)) {
       return {
         path,
-        abs_path: note?.abs_path || vaultItem?.abs_path,
-        title: displayTitle,
-        isDirty,
-        isLocked,
-        kind: isDrawing ? ('excalidraw' as const) : undefined,
+        title: getTabDisplayTitle(path, "Pestaña"),
+        abs_path: undefined,
+        isDirty: false,
       };
-    })
-  );
+    }
+    const vaultItem = vaultItemStore.get(path);
+    const isDirty = isTabDirty(path);
+    const isLocked = lockedFiles.has(path);
+    const note = openedNotes[path];
+    const isDrawing = isDrawingTab(path, note?.content);
+    const rawTitle = note?.title || vaultItem?.title || path;
+    const displayTitle = cleanTabTitle(rawTitle, path);
+    return {
+      path,
+      abs_path: note?.abs_path || vaultItem?.abs_path,
+      title: displayTitle,
+      isDirty,
+      isLocked,
+      kind: isDrawing ? ('excalidraw' as const) : undefined,
+    };
+  }
+  type TabInfoItem = {
+    path: string;
+    title: string;
+    abs_path: string | undefined;
+    isDirty: boolean;
+    isLocked?: boolean;
+    kind?: 'excalidraw';
+  };
 
-  let rightTabsInfo = $derived(
-    splitTabPaths.map((path) => {
-      if (isSyntheticTab(path)) {
-        return {
-          path,
-          title: getTabDisplayTitle(path, "Pestaña"),
-          abs_path: undefined,
-          isDirty: false,
-        };
-      }
-      const vaultItem = vaultItemStore.get(path);
-      const isDirty = isTabDirty(path);
-      const isLocked = lockedFiles.has(path);
-      const note = openedNotes[path];
-      const isDrawing = isDrawingTab(path, note?.content);
-      const rawTitle = note?.title || vaultItem?.title || path;
-      const displayTitle = cleanTabTitle(rawTitle, path);
-      return {
-        path,
-        abs_path: note?.abs_path || vaultItem?.abs_path,
-        title: displayTitle,
-        isDirty,
-        isLocked,
-        kind: isDrawing ? ('excalidraw' as const) : undefined,
-      };
-    })
-  );
+  let tabsInfo = $derived(openTabPaths.map(tabInfo));
+  let rightTabsInfo = $derived(splitTabPaths.map(tabInfo));
 
   // Selección activa actual
   let currentSelection = $derived<SelectionInfo>(
@@ -4065,10 +4060,12 @@
       />
     {:else}
       {#each paneTabs as tabPath (tabPath)}
+        <!-- Una copia de pestaña (`copy:<n>:…`) muestra el mismo archivo con su propia vista -->
+        {@const tabFile = baseTabPath(tabPath)}
         <!-- Una pestaña se monta la primera vez que se activa y luego se conserva oculta: montar
              todas al restaurar la sesión bloqueaba el arranque (~150 ms por pestaña). -->
         {#if tabPath === activePath || mountedTabs.has(tabPath)}
-        {#if tabPath.startsWith("empty:")}
+        {#if tabFile.startsWith("empty:")}
           <div
             class="tab-pane"
             class:hidden={tabPath !== activePath}
@@ -4082,8 +4079,8 @@
               onRevealFolder={handleBreadcrumbNavigateFolder}
             />
           </div>
-        {:else if tabPath.startsWith("diff-files:")}
-          {@const [oldFile, newFile] = tabPath.slice("diff-files:".length).split("\n")}
+        {:else if tabFile.startsWith("diff-files:")}
+          {@const [oldFile, newFile] = tabFile.slice("diff-files:".length).split("\n")}
           <div
             class="tab-pane full-pane"
             class:hidden={tabPath !== activePath}
@@ -4094,8 +4091,8 @@
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
-        {:else if tabPath.startsWith("diff-commit:")}
-          {@const rest = tabPath.slice("diff-commit:".length)}
+        {:else if tabFile.startsWith("diff-commit:")}
+          {@const rest = tabFile.slice("diff-commit:".length)}
           {@const sep = rest.indexOf(":")}
           {@const revs = rest.slice(0, sep).split("..")}
           <div
@@ -4109,8 +4106,8 @@
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
-        {:else if tabPath.startsWith("diff-rev:")}
-          {@const rest = tabPath.slice("diff-rev:".length)}
+        {:else if tabFile.startsWith("diff-rev:")}
+          {@const rest = tabFile.slice("diff-rev:".length)}
           {@const firstColonIdx = rest.indexOf(":")}
           {@const rev = firstColonIdx !== -1 ? rest.slice(0, firstColonIdx) : ""}
           {@const fPath = firstColonIdx !== -1 ? rest.slice(firstColonIdx + 1) : rest}
@@ -4125,19 +4122,19 @@
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
-        {:else if tabPath.startsWith("diff:") || tabPath.startsWith("diff-staged:")}
+        {:else if tabFile.startsWith("diff:") || tabFile.startsWith("diff-staged:")}
           <div
             class="tab-pane full-pane"
             class:hidden={tabPath !== activePath}
           >
             <DiffViewer
-              filePath={tabPath.startsWith("diff-staged:") ? tabPath.slice("diff-staged:".length) : tabPath.slice("diff:".length)}
-              isStaged={tabPath.startsWith("diff-staged:")}
+              filePath={tabFile.startsWith("diff-staged:") ? tabFile.slice("diff-staged:".length) : tabFile.slice("diff:".length)}
+              isStaged={tabFile.startsWith("diff-staged:")}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
-        {:else if tabPath.startsWith("rev:")}
-          {@const rest = tabPath.slice("rev:".length)}
+        {:else if tabFile.startsWith("rev:")}
+          {@const rest = tabFile.slice("rev:".length)}
           {@const firstColonIdx = rest.indexOf(":")}
           {@const rev = firstColonIdx !== -1 ? rest.slice(0, firstColonIdx) : ""}
           {@const fPath = firstColonIdx !== -1 ? rest.slice(firstColonIdx + 1) : rest}
@@ -4152,40 +4149,40 @@
             />
           </div>
         {:else}
-          {@const vaultItem = vaultItemStore.get(tabPath) || {
+          {@const vaultItem = vaultItemStore.get(tabFile) || {
             id: "0",
-            title: openedNotes[tabPath]?.title || tabPath,
-            relative_path: tabPath,
-            abs_path: openedNotes[tabPath]?.abs_path,
+            title: openedNotes[tabFile]?.title || tabFile,
+            relative_path: tabFile,
+            abs_path: openedNotes[tabFile]?.abs_path,
           }}
-          {@const note = openedNotes[tabPath]}
+          {@const note = openedNotes[tabFile]}
           {@const content = note?.content ?? ""}
           {@const isLoading = note?.isLoading ?? false}
           {@const isVisibleTab = tabPath === activePath}
           {@const hiddenViewMode = (note?.viewMode ?? 'reading') as MarkdownViewMode}
           {@const paneEditing = !isVisibleTab ? hiddenViewMode !== 'reading' : isRight ? isSplitEditing : isEditing}
           {@const paneViewMode = !isVisibleTab ? hiddenViewMode : isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
-          {@const isDrawing = isDrawingTab(tabPath, content)}
+          {@const isDrawing = isDrawingTab(tabFile, content)}
           <div
             class="tab-pane"
             class:hidden={tabPath !== activePath}
-            class:full-pane={isDiagramFile(tabPath) ||
-              isImageFile(tabPath) ||
+            class:full-pane={isDiagramFile(tabFile) ||
+              isImageFile(tabFile) ||
               isDrawing ||
-              isDrawioFile(tabPath) ||
-              isPdfFile(tabPath) ||
-              tabPath.startsWith('synapse://')}
+              isDrawioFile(tabFile) ||
+              isPdfFile(tabFile) ||
+              tabFile.startsWith('synapse://')}
           >
-            {#if !tabPath.startsWith('synapse://')}
+            {#if !tabFile.startsWith('synapse://')}
               <BreadCrumb
                 path={isStandaloneMode ? (tabPath.split(/[\\/]/).pop() || tabPath) : tabPath}
-                fullPath={isStandaloneMode || !appSettings.lastOpenedFolder ? tabPath : `${appSettings.lastOpenedFolder.replace(/[\\/]+$/, '')}/${tabPath}`}
+                fullPath={isStandaloneMode || !appSettings.lastOpenedFolder ? tabFile : `${appSettings.lastOpenedFolder.replace(/[\\/]+$/, '')}/${tabFile}`}
                 readOnly={isStandaloneMode}
                 {isGitRepo}
                 {gitStatuses}
                 onNavigateFolder={handleBreadcrumbNavigateFolder}
                 {renameRequest}
-                onRenameFile={(newName) => handleRenameItem(tabPath, newName)}
+                onRenameFile={(newName) => handleRenameItem(tabFile, newName)}
                 onOpenFileWithDefaultApp={(p) => systemApi.openFileWithDefaultApp(p)}
                 onShowItemInFolder={(p) => systemApi.showItemInFolder(p)}
                 onOpenInNewWindow={handleOpenInNewWindow}
@@ -4201,51 +4198,51 @@
               </div>
             {:else}
               {#key note?.lastReloaded}
-                {#if isDrawioFile(tabPath)}
+                {#if isDrawioFile(tabFile)}
                   <DrawioViewer
-                    filePath={tabPath}
+                    filePath={tabFile}
                     format="xml"
                     {content}
                     onSaveXml={(xml) => {
-                      if (openedNotes[tabPath]) {
-                        openedNotes[tabPath].content = xml;
+                      if (openedNotes[tabFile]) {
+                        openedNotes[tabFile].content = xml;
                       }
-                      cancelPendingSave(tabPath);
+                      cancelPendingSave(tabFile);
                       persistVaultItemToRust(vaultItem);
                     }}
                   />
-                {:else if isDrawioPngFile(tabPath) && drawioPngTabs.has(tabPath)}
+                {:else if isDrawioPngFile(tabFile) && drawioPngTabs.has(tabPath)}
                   <DrawioViewer
-                    filePath={tabPath}
+                    filePath={tabFile}
                     format="xmlpng"
                     onExit={() => drawioPngTabs.delete(tabPath)}
                   />
-                {:else if isDiagramFile(tabPath)}
-                  {#if isD2File(tabPath)}
+                {:else if isDiagramFile(tabFile)}
+                  {#if isD2File(tabFile)}
                     <D2Viewer
                       {content}
                       isActive={tabPath === activePath}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                     />
-                  {:else if isPlantUmlFile(tabPath)}
+                  {:else if isPlantUmlFile(tabFile)}
                     <PlantUmlViewer
                       {content}
                       isActive={tabPath === activePath}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
@@ -4255,12 +4252,12 @@
                     <MermaidViewer
                       {content}
                       isActive={tabPath === activePath}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
@@ -4270,12 +4267,12 @@
                     <MermanViewer
                       {content}
                       isActive={tabPath === activePath}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
@@ -4287,20 +4284,20 @@
                     <ObsidianExcalidrawViewer
                       bind:this={excalidrawViewers[tabPath]}
                       {content}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       {synapseApp}
                       onSwitchToNative={() => switchExcalidrawViewerForTab(tabPath, 'native')}
                       onNavigate={handleNavigateLink}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
                       onSave={(savedContent) => {
-                        if (savedContent && openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = savedContent;
+                        if (savedContent && openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = savedContent;
                         }
                         persistVaultItemToRust(vaultItem);
                       }}
@@ -4309,24 +4306,24 @@
                     <ExcalidrawViewer
                       bind:this={excalidrawViewers[tabPath]}
                       {content}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       onSwitchToObsidian={() => switchExcalidrawViewerForTab(tabPath, 'obsidian')}
                       onChange={(updatedContent) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedContent;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedContent;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
                       onSave={(savedContent) => {
-                        if (savedContent && openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = savedContent;
+                        if (savedContent && openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = savedContent;
                         }
                         persistVaultItemToRust(vaultItem);
                       }}
                     />
                   {/if}
-                {:else if isMarkdownFile(tabPath)}
+                {:else if isMarkdownFile(tabFile)}
                   <div class="editor-title-row synapse-note-title">
                   <!-- El campo toma el ancho de su texto para que la ruta de títulos quede a continuación -->
                   <span class="editor-title-sizer" data-value={vaultItem.title || 'Título del archivo...'}>
@@ -4391,7 +4388,7 @@
                       bind:this={markdownViewers[tabPath]}
                       onHeadingLineChange={(line) => (headingLines[tabPath] = line)}
                       {content}
-                      filePath={tabPath}
+                      filePath={tabFile}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       viewMode={paneViewMode}
@@ -4400,8 +4397,8 @@
                       scrollToHeading={pendingScrollHeadings[tabPath]}
                       onNavigate={handleNavigateLink}
                       onChange={(updatedMarkdown: string) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedMarkdown;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedMarkdown;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
@@ -4410,23 +4407,23 @@
                       isMarkdown={true}
                     />
                   </div>
-                {:else if tabPath.startsWith("synapse://graph")}
-                  {@const targetFocus = tabPath.slice("synapse://graph".length).replace(/^:/, "") || currentActiveNonGraphPath}
+                {:else if tabFile.startsWith("synapse://graph")}
+                  {@const targetFocus = tabFile.slice("synapse://graph".length).replace(/^:/, "") || currentActiveNonGraphPath}
                   <GraphViewer
                     activeNotePath={targetFocus}
                     onSelectNote={(notePath: string) => selectTab(notePath)}
                   />
-                {:else if isImageFile(tabPath)}
+                {:else if isImageFile(tabFile)}
                   <ImageViewer
                     src={note?.abs_path || tabPath}
                     alt={vaultItem.title || tabPath}
                     {content}
                     onEditWithDrawio={() => drawioPngTabs.add(tabPath)}
                   />
-                {:else if isPdfFile(tabPath)}
+                {:else if isPdfFile(tabFile)}
                   <PdfViewer
                     bind:this={pdfViewers[tabPath]}
-                    src={tabPath}
+                    src={tabFile}
                     reloadKey={note?.lastReloaded || 0}
                     onDirtyChange={(dirty) => {
                       if (dirty) {
@@ -4437,7 +4434,7 @@
                       syncState = "synced";
                     }}
                   />
-                {:else if isCodeFile(tabPath)}
+                {:else if isCodeFile(tabFile)}
                   <div class="editor-main-content">
                     <CodeEditor
                       {content}
@@ -4445,8 +4442,8 @@
                       vimMode={isVimMode}
                       mode="markdown"
                       onChange={(updatedCode) => {
-                        if (openedNotes[tabPath]) {
-                          openedNotes[tabPath].content = updatedCode;
+                        if (openedNotes[tabFile]) {
+                          openedNotes[tabFile].content = updatedCode;
                         }
                         debouncedPersistVaultItemToRust(vaultItem);
                       }}
@@ -4513,7 +4510,7 @@
         onNewFile={() => createNewVaultItem()}
         onOpenQuickOpen={openQuickOpenModal}
         onSplitView={handleSplitView}
-        onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'left')}
+        onDuplicateTab={(p) => duplicateTab(p, 'left')}
         onToggleView={toggleViewMode}
         onSave={() => {
           if (activeTabPath && currentVaultItem.relative_path) {
@@ -4575,7 +4572,7 @@
           onNewFile={() => createNewVaultItem()}
           onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
-          onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'left')}
+          onDuplicateTab={(p) => duplicateTab(p, 'left')}
           onToggleView={toggleViewMode}
           onSave={() => {
             if (activeTabPath && currentVaultItem.relative_path) {
@@ -4643,7 +4640,7 @@
           onNewFile={() => createNewVaultItem()}
           onOpenQuickOpen={openQuickOpenModal}
           onSplitView={handleSplitView}
-          onDuplicateTab={(p) => duplicateTabToOtherPane(p, 'right')}
+          onDuplicateTab={(p) => duplicateTab(p, 'right')}
           onToggleView={toggleSplitViewMode}
           onSave={() => {
             if (activeSplitTabPath && currentSplitVaultItem.relative_path) {

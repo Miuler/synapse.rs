@@ -123,6 +123,7 @@
   function isSyntheticTab(p?: string | null): boolean {
     if (!p) return false;
     return (
+      /^copy:\d+:/.test(p) ||
       p.startsWith('empty:') ||
       p.startsWith('diff:') ||
       p.startsWith('diff-staged:') ||
@@ -697,7 +698,7 @@
                 {#if onDuplicateTab && !tab.path.startsWith('empty:')}
                   <ContextMenu.Item class="context-menu-item tab-duplicate" onSelect={() => onDuplicateTab(tab.path)}>
                     <Copy size={14} class="context-menu-item-icon" />
-                    <span>Duplicar en vista dividida</span>
+                    <span>Duplicar pestaña</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                 {/if}

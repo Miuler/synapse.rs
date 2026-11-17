@@ -107,6 +107,21 @@ export const vaultApi = {
     return await invokeTauri<string[]>('copy_vault_items', { paths, destDir });
   },
 
+  /** Pega en `destDir` archivos o carpetas de fuera de la bóveda (rutas absolutas). */
+  async importExternalItems(paths: string[], destDir: string): Promise<string[]> {
+    return await invokeTauri<string[]>('import_external_items', { paths, destDir });
+  },
+
+  /** Pone archivos (rutas absolutas) en el portapapeles del sistema, como un explorador de archivos. */
+  async copyFilesToSystemClipboard(paths: string[]): Promise<void> {
+    await invokeTauri('copy_files_to_system_clipboard', { paths });
+  },
+
+  /** Archivos (rutas absolutas) del portapapeles del sistema; vacío si no hay. */
+  async readSystemClipboardFiles(): Promise<string[]> {
+    return await invokeTauri<string[]>('read_system_clipboard_files').catch(() => []);
+  },
+
   async moveItems(paths: string[], destDir: string): Promise<{ from: string; to: string }[]> {
     return await invokeTauri<{ from: string; to: string }[]>('move_vault_items', { paths, destDir });
   },

@@ -1,4 +1,5 @@
 pub mod copy_vault_items_use_case;
+pub mod import_external_items_use_case;
 pub mod create_folder_use_case;
 pub mod delete_vault_item_use_case;
 pub mod list_folder_contents_use_case;

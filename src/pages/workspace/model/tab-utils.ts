@@ -1,9 +1,30 @@
 import { isDrawingFile } from '@entities/file-type';
 import { isExcalidrawMarkdown } from '@shared/obsidian-api';
 
+/** Copia de una pestaña en el mismo panel: `copy:<n>:<pestaña original>`. */
+export function isTabCopy(p: string | null | undefined): boolean {
+  return !!p && /^copy:\d+:/.test(p);
+}
+
+/** La pestaña original de una copia (o la misma, si no es copia). */
+export function baseTabPath(p: string): string {
+  let path = p;
+  while (isTabCopy(path)) path = path.slice(path.indexOf(':', 'copy:'.length) + 1);
+  return path;
+}
+
+/** Id para una copia nueva de `path` que no choque con las pestañas abiertas. */
+export function newTabCopyId(path: string, open: string[]): string {
+  const base = baseTabPath(path);
+  let n = 2;
+  while (open.includes(`copy:${n}:${base}`)) n++;
+  return `copy:${n}:${base}`;
+}
+
 export function isSyntheticTab(p: string | null | undefined): boolean {
   if (!p) return false;
   return (
+    isTabCopy(p) ||
     p.startsWith('empty:') ||
     p.startsWith('diff:') ||
     p.startsWith('diff-staged:') ||
