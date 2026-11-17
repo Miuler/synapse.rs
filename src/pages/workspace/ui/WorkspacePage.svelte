@@ -152,6 +152,13 @@
     if (p && isDrawioImage(baseTabPath(p))) isSplitEditing = drawioPngTabs.has(p);
   });
 
+  /** Cierra el editor de draw.io de la pestaña; el visor vuelve a leer la imagen con lo guardado. */
+  function closeDrawioEditor(tabPath: string) {
+    drawioPngTabs.delete(tabPath);
+    const file = baseTabPath(tabPath);
+    if (openedNotes[file]) openedNotes[file] = { ...openedNotes[file], lastReloaded: Date.now() };
+  }
+
   function openWithDrawio(path: string) {
     handleSelectTabFromExplorer(path);
     drawioPngTabs.add(path);
@@ -812,7 +819,7 @@
 
   function toggleViewMode() {
     if (activeTabPath && isDrawioImage(baseTabPath(activeTabPath))) {
-      if (drawioPngTabs.has(activeTabPath)) drawioPngTabs.delete(activeTabPath);
+      if (drawioPngTabs.has(activeTabPath)) closeDrawioEditor(activeTabPath);
       else drawioPngTabs.add(activeTabPath);
       return;
     }
@@ -1845,7 +1852,7 @@
 
   function toggleSplitViewMode() {
     if (activeSplitTabPath && isDrawioImage(baseTabPath(activeSplitTabPath))) {
-      if (drawioPngTabs.has(activeSplitTabPath)) drawioPngTabs.delete(activeSplitTabPath);
+      if (drawioPngTabs.has(activeSplitTabPath)) closeDrawioEditor(activeSplitTabPath);
       else drawioPngTabs.add(activeSplitTabPath);
       return;
     }
@@ -2594,6 +2601,11 @@
             // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
             const lastSave = recentSaveTimestamps[matchedOpenPath] || recentSaveTimestamps[changedPath] || 0;
             if (Date.now() - lastSave < 2500) {
+              continue;
+            }
+            // Imagen abierta en el editor de draw.io: él tiene la versión al día (y su guardado
+            // reescribe el archivo); recargarla volvería a montar el editor y lo redibujaría
+            if (drawioPngTabs.has(matchedOpenPath)) {
               continue;
             }
 
@@ -4264,7 +4276,8 @@
                   <DrawioViewer
                     filePath={tabFile}
                     format={tabFile.toLowerCase().endsWith(".svg") ? "xmlsvg" : "xmlpng"}
-                    onExit={() => drawioPngTabs.delete(tabPath)}
+                    onSavedPng={() => (recentSaveTimestamps[tabFile] = Date.now())}
+                    onExit={() => closeDrawioEditor(tabPath)}
                   />
                 {:else if isDiagramFile(tabFile)}
                   {#if isD2File(tabFile)}

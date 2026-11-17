@@ -144,6 +144,12 @@ it('el visor de imágenes ofrece editar un .drawio.png con draw.io', async () =>
     timeout: 15_000,
     timeoutMsg: 'no se reescribió el PNG',
   });
+  // El cambio en disco que deja su propio guardado no vuelve a montar (redibujar) el editor
+  const viewer = '.drawio-viewer[data-drawio-path="visor.drawio.png"]';
+  await s.browser.execute((sel: string) => document.querySelector(sel)?.setAttribute('data-marca', 'mismo'), viewer);
+  // Comprobación de que algo NO pasa: se da tiempo al vigilante de archivos para que avise
+  await s.browser.pause(2_000);
+  expect(await s.browser.execute((sel: string) => document.querySelector(sel)?.getAttribute('data-marca') ?? null, viewer)).toBe('mismo');
 }, 60_000);
 
 it('un PNG con un diagrama de draw.io dentro se edita con el botón Lectura/Edición, aunque no se llame .drawio.png', async () => {
