@@ -63,3 +63,39 @@ it('«Ver archivo» de un commit anterior al renombre muestra el contenido de en
   const body = (await s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden)')?.textContent ?? '')) as string;
   expect(body).not.toContain('no existía');
 });
+
+it('la pestaña de una versión se puede mover a una ventana nueva y allí muestra la misma versión', async () => {
+  const revTab = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-title-container')].map((t) => t.getAttribute('data-path')).find((p) => p?.startsWith('rev:')),
+  )) as string;
+  expect(revTab).toBeTruthy();
+  await s.browser.execute((p: string) => {
+    const el = document.querySelector(`.tab-title-container[data-path="${p}"]`)!;
+    const { x, y } = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
+  }, revTab);
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  const labels = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.context-menu-item')].map((i) => i.textContent?.trim()),
+  )) as string[];
+  expect(labels).toContain('Abrir en nueva ventana');
+  expect(labels).toContain('Mover a nueva ventana');
+  const main = await s.browser.getWindowHandle();
+  await s.browser.execute(() => {
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.trim() === 'Mover a nueva ventana') as HTMLElement).click();
+  });
+  // Se cierra aquí y aparece la ventana nueva con la misma versión
+  await s.browser.waitUntil(async () => (await s.browser.getWindowHandles()).length === 2, {
+    timeout: 15_000,
+    timeoutMsg: 'no se abrió la ventana nueva',
+  });
+  expect(await s.browser.$(`.tab-title-container[data-path="${revTab}"]`).isExisting()).toBe(false);
+  const other = (await s.browser.getWindowHandles()).find((h) => h !== main)!;
+  await s.browser.switchToWindow(other);
+  await s.browser.waitUntil(
+    async () => ((await s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden)')?.textContent ?? '')) as string).includes('versión antigua'),
+    { timeout: 20_000, timeoutMsg: 'la ventana nueva no mostró la versión' },
+  );
+  await s.browser.closeWindow();
+  await s.browser.switchToWindow(main);
+}, 60_000);

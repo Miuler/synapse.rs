@@ -674,7 +674,8 @@
                   }
                 }}
               >
-                {#if !isSyntheticTab(tab.path)}
+                <!-- También las de una versión del historial o de un diff: la ventana nueva abre la misma pestaña -->
+                {#if !tab.path.startsWith('empty:')}
                   <ContextMenu.Item
                     class="context-menu-item"
                     onSelect={() => {
@@ -1017,7 +1018,7 @@
       <Columns2 size={14} class="icon" />
     </button>
 
-    {#if activeTabPath && !isSyntheticTab(activeTabPath)}
+    {#if activeTabPath && !activeTabPath.startsWith('empty:')}
       <button
         type="button"
         class="icon-btn"

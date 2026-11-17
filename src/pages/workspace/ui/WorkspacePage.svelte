@@ -1458,10 +1458,13 @@
   }
 
   async function handleOpenInNewWindow(path: string, moveTab = false) {
-    if (!path || isSyntheticTab(path)) return;
-    const vItem = vaultItemStore.get(path);
-    const title = vItem?.title || path.split('/').pop() || path;
-    await systemApi.openTabInNewWindow(path, title);
+    if (!path || path.startsWith('empty:')) return;
+    // Una copia de pestaña se abre como su original; las de versión o diff, con su propio id
+    const target = baseTabPath(path);
+    const title = isSyntheticTab(target)
+      ? getTabDisplayTitle(target, 'Pestaña')
+      : vaultItemStore.get(target)?.title || target.split('/').pop() || target;
+    await systemApi.openTabInNewWindow(target, title);
     if (moveTab) {
       closeTab(path);
     }
