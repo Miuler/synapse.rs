@@ -2671,7 +2671,9 @@
         for (const changedPath of paths) {
           const cleanChanged = changedPath.replace(/^\.\//, '').replace(/\\/g, '/');
           const allOpen = Array.from(new Set([...openTabPaths, ...splitTabPaths]));
-          const matchedOpenPath = allOpen.find((p) => p.replace(/^\.\//, '').replace(/\\/g, '/') === cleanChanged);
+          // Las copias (`copy:<n>:<ruta>`) cuentan como su archivo: comparten `openedNotes[<ruta>]`
+          const matchedTab = allOpen.find((p) => baseTabPath(p).replace(/^\.\//, '').replace(/\\/g, '/') === cleanChanged);
+          const matchedOpenPath = matchedTab ? baseTabPath(matchedTab) : undefined;
 
           if (matchedOpenPath) {
             // Ignorar eventos generados por nuestro propio guardado reciente (evita bucles reactivos y re-renders)
@@ -2681,7 +2683,7 @@
             }
             // Imagen abierta en el editor de draw.io: él tiene la versión al día (y su guardado
             // reescribe el archivo); recargarla volvería a montar el editor y lo redibujaría
-            if (drawioPngTabs.has(matchedOpenPath)) {
+            if ([...drawioPngTabs].some((t) => baseTabPath(t) === matchedOpenPath)) {
               continue;
             }
 

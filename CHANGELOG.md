@@ -69,8 +69,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
-
 - **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.
+- **Una imagen abierta se refresca cuando el archivo cambia en disco**, también en sus copias de pestaña; antes el webview seguía mostrando la versión en caché.
 - **Guardar en draw.io una imagen (PNG/SVG) ya no redibuja el editor**: el archivo que reescribe su propio guardado se tomaba como un cambio externo y el editor se volvía a montar. Ahora, mientras la imagen está en el editor, un cambio en disco no la recarga, y al salir del editor el visor muestra lo guardado.
 - **Pruebas e2e más robustas (en curso, `syna-7qa9`)**: si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su tiempo límite; el arranque espera a que el WebDriver anterior libere el puerto 4444 (causa probable de las caídas en cadena con ECONNREFUSED); varias pruebas cambian pausas fijas por esperas de la condición real.
 - **Shift+F6 (cambiar todas las coincidencias) no hacía nada si la ventana no tenía el foco del sistema**: el atajo comprobaba `hasFocus`, que en WebKit depende de `document.hasFocus()`; ahora basta con que la tecla llegue al editor.

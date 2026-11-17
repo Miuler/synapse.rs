@@ -20,6 +20,9 @@
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
   let resolvedSrc = $state('');
+  /** Cada montaje pide la imagen de nuevo (la versión es la hora de montaje). */
+  const mountedAt = Date.now();
+  const withCacheBuster = (url: string) => `${url}${url.includes('?') ? '&' : '?'}v=${mountedAt}`;
   let isLoading = $state(true);
   let hasLoaded = $state(false);
   let hasError = $state(false);
@@ -53,7 +56,9 @@
         .then(async (absPath) => {
           if (!isCurrent) return;
           if (absPath) {
-            resolvedSrc = vaultRepository.resolveAssetUrl(absPath);
+            // El webview guarda en caché la URL del asset: sin esto, al volver a montar el visor tras
+            // un cambio en disco seguiría mostrando la imagen vieja
+            resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(absPath));
             isLoading = false;
             hasError = false;
             return;
@@ -67,7 +72,7 @@
           isLoading = false;
         });
     } else {
-      resolvedSrc = vaultRepository.resolveAssetUrl(currentSrc);
+      resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(currentSrc));
       isLoading = false;
     }
 
