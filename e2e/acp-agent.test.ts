@@ -322,8 +322,26 @@ it('un agente le pregunta a otra conversación y le vuelve la respuesta', async 
     }) as Promise<boolean>;
   await s.browser.waitUntil(ready2, { timeout: 45_000, timeoutMsg: 'la conversación #2 no quedó conectada' });
   const input = s.browser.$('#ask-input');
-  await input.setValue('pregúntale a #1: ¿tiene SignOn el flujo?');
+  // `#` sugiere las otras conversaciones de esta ventana, con su título
+  await input.setValue('pregúntale a ');
+  await s.browser.keys('#');
+  await s.browser.waitUntil(async () => (await text('.acp-suggest button')).some((t) => t?.includes('#1') && t.includes('segunda conversación')), {
+    timeout: 5_000,
+    timeoutMsg: '«#» no sugirió la conversación #1',
+  });
   await s.browser.keys('Enter');
+  // La mención se inserta con un espacio detrás; se quita para escribir «#1: …»
+  await s.browser.keys('Backspace');
+  await s.browser.keys(': tiene SignOn el flujo?'.split(''));
+  await s.browser.keys('Enter');
+  // En el mensaje enviado, la mención se ve como chip y su tooltip dice a quién apunta
+  await s.browser.waitUntil(async () => (await count('.acp-msg.user .acp-mention')) > 0, {
+    timeout: 5_000,
+    timeoutMsg: 'la mención no quedó marcada en el mensaje',
+  });
+  expect(
+    await s.browser.execute(() => document.querySelector('.acp-msg.user .acp-mention')?.getAttribute('title') ?? ''),
+  ).toContain('segunda conversación');
 
   // #2 lo envía por el MCP; #1 lo recibe marcado como de otro agente y responde
   await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Enviado a #1')), {

@@ -1,5 +1,16 @@
 <script lang="ts">
-  import { agentStore, modeBadge, shortModelLabels, type Attachment, type Conversation, type ToolContent } from '@entities/acp-agent';
+  import {
+    agentStore,
+    agentApi,
+    modeBadge,
+    shortModelLabels,
+    type Attachment,
+    type Conversation,
+    type ConversationSummary,
+    type Mention,
+    type ToolContent,
+  } from '@entities/acp-agent';
+  import { settingsApi } from '@entities/settings';
   import { vaultItemStore } from '@entities/vault-item';
   import {
     Bot,
@@ -24,6 +35,17 @@
   import { tick } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
+  import {
+    ago,
+    conversationTooltip,
+    mentionsPrompt,
+    mergeVaults,
+    splitMentions,
+    STATUS_ICON,
+    VAULT_ICON,
+    vaultToken,
+    type VaultCandidate,
+  } from '../lib/mentions';
 
   interface Props {
     /** Carpeta de trabajo del agente (la bóveda abierta). */
@@ -91,6 +113,68 @@
     return m ? { query: m[2].toLowerCase(), start: caret - m[2].length - 1 } : null;
   });
   const slash = $derived(/^\/(\S*)$/.exec(draft)?.[1]?.toLowerCase() ?? null);
+  // `#2`: otra conversación de esta ventana
+  const hash = $derived.by(() => {
+    const m = /(^|\s)#([^\s#@]*)$/.exec(draft.slice(0, caret));
+    return m ? { query: m[2].toLowerCase(), start: caret - m[2].length - 1 } : null;
+  });
+
+  // Menciones elegidas en el borrador (se explican al agente al enviar)
+  let pickedMentions = $state<Mention[]>([]);
+  // Otras bóvedas de Synapse: abiertas (🟢/🟡) y conocidas apagadas (⚪); se consultan al escribir `@`
+  let vaults = $state<VaultCandidate[]>([]);
+  // Bóvedas que se están encendiendo: esperan a responder antes de enviar
+  const starting = new Map<string, Promise<boolean>>();
+  let startingPaths = $state<string[]>([]);
+  // Una consulta cada vez que se empieza a escribir una mención, no en cada tecla
+  const mentionOpen = $derived(mention !== null);
+  $effect(() => {
+    if (!mentionOpen) return;
+    Promise.all([agentStore.openVaults(), settingsApi.getRecentWorkspaces().catch(() => [])])
+      .then(([open, known]) => (vaults = mergeVaults(open, known, cwd)))
+      .catch(() => {});
+  });
+
+  /** Reemplaza lo escrito desde `start` hasta el cursor por `token` y recuerda la mención. */
+  function insertMention(start: number, mentionItem: Mention) {
+    const insert = `${mentionItem.token} `;
+    draft = draft.slice(0, start) + insert + draft.slice(caret);
+    if (!pickedMentions.some((m) => m.token === mentionItem.token)) pickedMentions = [...pickedMentions, mentionItem];
+    const at = start + insert.length;
+    tick().then(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(at, at);
+      caret = at;
+    });
+  }
+
+  const conversationRow = (c: ConversationSummary, token: string, to: string, where: string, start: number): Suggestion => ({
+    label: `${STATUS_ICON[c.status] ?? ''} ${token}  ${c.title}`,
+    detail: `${c.agent}${c.last_activity ? ` · ${ago(c.last_activity)}` : ''}`,
+    tooltip: conversationTooltip(c),
+    pick: () => insertMention(start, { token, to, title: `la conversación «${c.title}» (${c.agent}) ${where}` }),
+  });
+
+  /** Enciende una bóveda apagada (otra ventana) y espera a que responda. */
+  function startVault(v: VaultCandidate) {
+    if (starting.has(v.path)) return;
+    startingPaths = [...startingPaths, v.path];
+    const ready = (async () => {
+      await settingsApi.openWorkspaceInNewWindow(v.path);
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const peers = await agentApi.peerList({ action: 'ping' }).catch(() => []);
+        if (peers.some((p) => p.path.replace(/\/+$/, '') === v.path.replace(/\/+$/, ''))) return true;
+      }
+      return false;
+    })()
+      .catch(() => false)
+      .finally(() => {
+        startingPaths = startingPaths.filter((p) => p !== v.path);
+        vaults = vaults.map((x) => (x.path === v.path ? { ...x, state: 'active' } : x));
+      });
+    starting.set(v.path, ready);
+  }
 
   function fuzzy(text: string, q: string): boolean {
     let i = 0;
@@ -98,7 +182,57 @@
     return i === q.length;
   }
 
-  const suggestions = $derived.by((): { label: string; detail: string; pick: () => void }[] => {
+  type Suggestion = { label: string; detail: string; tooltip?: string; pick: () => void };
+  const suggestions = $derived.by((): Suggestion[] => {
+    if (hash) {
+      const h = hash;
+      return agentStore.conversations
+        .filter((c) => c.id !== conv.id)
+        .filter((c) => `${c.number} ${c.title} ${c.agent?.name ?? c.agentId}`.toLowerCase().includes(h.query))
+        .slice(0, 8)
+        .map((c) =>
+          conversationRow(
+            {
+              handle: c.handle,
+              agent: c.agent?.name ?? c.agentId,
+              title: c.title || 'Conversación nueva',
+              status: c.status,
+              last_reply: c.lastText('agent'),
+              last_question: c.lastText('user'),
+              last_activity: c.lastActivity,
+            },
+            c.handle,
+            c.handle,
+            'de esta ventana',
+            h.start,
+          ),
+        );
+    }
+    if (mention && mention.query.includes('#')) {
+      // `@Bóveda#…`: conversaciones de otra bóveda
+      const m = mention;
+      const [vq, cq] = m.query.split('#');
+      const v = vaults.find((x) => vaultToken(x.name).slice(1).toLowerCase() === vq);
+      if (!v) return [];
+      const rows = v.conversations
+        .filter((c) => `${c.number ?? ''} ${c.title} ${c.agent}`.toLowerCase().includes(cq))
+        .slice(0, 8)
+        .map((c) => {
+          const n = c.number ?? c.handle.replace(/^#/, '');
+          return conversationRow(c, `${vaultToken(v.name)}#${n}`, `${v.name}#${n}`, `de la bóveda «${v.name}»`, m.start);
+        });
+      if ('nueva'.startsWith(cq)) {
+        rows.push({
+          label: `${vaultToken(v.name)}#nueva`,
+          detail: 'Abre una conversación nueva en esa bóveda',
+          pick: () => {
+            if (v.state === 'off') startVault(v);
+            insertMention(m.start, { token: `${vaultToken(v.name)}#nueva`, to: `${v.name}#nueva`, title: `una conversación nueva en la bóveda «${v.name}»` });
+          },
+        });
+      }
+      return rows;
+    }
     if (mention) {
       // `@this`: el archivo de la pestaña que se está viendo
       const note = agentStore.activeNote;
@@ -121,9 +255,30 @@
               },
             ]
           : [];
+      const m = mention;
+      const vaultRows: Suggestion[] = vaults
+        .filter((v) => fuzzy(v.name.toLowerCase(), m.query))
+        .slice(0, 5)
+        .map((v) => ({
+          label: `${VAULT_ICON[v.state]} ${vaultToken(v.name)}`,
+          detail: startingPaths.includes(v.path)
+            ? 'encendiendo…'
+            : v.state === 'off'
+              ? 'Bóveda de Synapse apagada · elegirla la abre'
+              : `Bóveda de Synapse · ${v.conversations.length} conversaciones · escribe # para elegir una`,
+          tooltip: v.path,
+          pick: () => {
+            if (v.state === 'off') startVault(v);
+            insertMention(m.start, {
+              token: vaultToken(v.name),
+              to: v.name,
+              title: `la bóveda de Synapse «${v.name}» (otra ventana; su conversación de este hilo o una nueva)`,
+            });
+          },
+        }));
       return [...self, ...vaultItemStore.items
         .filter((it) => fuzzy(it.relative_path.toLowerCase(), mention.query))
-        .slice(0, 8)
+        .slice(0, vaultRows.length ? 6 : 8)
         .map((it) => ({
           label: it.title || nameOf(it.relative_path),
           detail: it.relative_path,
@@ -137,7 +292,7 @@
               caret = m.start;
             });
           },
-        }))];
+        })), ...vaultRows];
     }
     if (slash !== null) {
       // `/feedback` es de Synapse (compilación `develop`): pide al agente feedback sobre el MCP
@@ -182,11 +337,19 @@
     pickIndex = 0;
   });
 
-  function submit() {
+  async function submit() {
     const text = draft.trim();
     if (!text || !ready || busy) return;
     draft = '';
-    conv.send(text);
+    const { prompt, used } = mentionsPrompt(text, pickedMentions);
+    pickedMentions = [];
+    // Si se mencionó una bóveda que se está encendiendo, se espera a que responda
+    const waiting = used.flatMap((m) => {
+      const v = vaults.find((x) => m.to === x.name || m.to.startsWith(`${x.name}#`));
+      return v && starting.has(v.path) ? [starting.get(v.path)!] : [];
+    });
+    if (waiting.length) await Promise.all(waiting);
+    conv.send(text, used.length ? { prompt, mentions: used } : {});
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -385,7 +548,7 @@
                 {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
                 De {item.from.agent} · {item.from.handle}
               </div>{/if}
-            {item.text}
+            {#each splitMentions(item.text, item.mentions) as part, i (i)}{#if 'mention' in part}<span class="acp-mention" title={part.mention.title}>{part.mention.token}</span>{:else}{part.text}{/if}{/each}
             {#if item.attachments.length}
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
@@ -583,6 +746,7 @@
               role="option"
               aria-selected={i === pickIndex}
               class:active={i === pickIndex}
+              title={sug.tooltip}
               onmousedown={(e) => {
                 e.preventDefault();
                 sug.pick();
@@ -977,6 +1141,13 @@
     align-self: flex-start;
     background: color-mix(in srgb, var(--text-muted) 12%, transparent);
     border-color: var(--border-primary);
+  }
+  .acp-mention {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent-primary, #6366f1) 18%, transparent);
+    font-weight: 500;
+    cursor: help;
   }
   .acp-incoming > summary {
     cursor: pointer;

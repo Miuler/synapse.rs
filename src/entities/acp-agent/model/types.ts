@@ -154,6 +154,29 @@ export interface StatusEvent {
   status: 'stopped';
 }
 
+/** Resumen de una conversación abierta (propia o de otra bóveda, por `/peer`). */
+export interface ConversationSummary {
+  handle: string;
+  agent: string;
+  model?: string;
+  title: string;
+  status: 'working' | 'permission' | 'idle' | 'error';
+  pending_messages?: number;
+  number?: number;
+  last_reply?: string;
+  last_question?: string;
+  last_activity?: number;
+}
+
+/** Mención en un mensaje: `#2` (conversación de esta ventana), `@Bóveda` o `@Bóveda#2`. */
+export interface Mention {
+  token: string;
+  /** Qué es, para el tooltip y para explicárselo al agente. */
+  title: string;
+  /** Valor de `to` para `send_to_conversation`. */
+  to: string;
+}
+
 /** Elemento de la conversación tal como se muestra. */
 export type ChatItem =
   | {
@@ -163,6 +186,8 @@ export type ChatItem =
       attachments: Attachment[];
       /** Mensaje de otra conversación de agente (no del usuario). */
       from?: { handle: string; agent: string; title: string; vault?: string };
+      /** Menciones a otras conversaciones o bóvedas (`#2`, `@Bóveda`), con lo que eran al enviarlas. */
+      mentions?: Mention[];
     }
   | { type: 'agent'; id: number; text: string }
   | { type: 'thought'; id: number; text: string }

@@ -11,6 +11,8 @@ import type {
   AgentTranscriptSummary,
   Attachment,
   ChatItem,
+  ConversationSummary,
+  Mention,
   PlanEntry,
   PromptBlock,
 } from './types';
@@ -131,6 +133,8 @@ export class Conversation {
   readonly #cwd: string;
   #nextId = 1;
   #createdAt = Date.now();
+  /** Último mensaje, para la lista de menciones. */
+  lastActivity = $state(Date.now());
   #acpSessionId: string | null = null;
   #replay: string | null = null;
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -160,6 +164,15 @@ export class Conversation {
     return this.items.filter((i) => i.type === 'permission' && i.answered === null).length;
   }
   /** Estado resumido para el punto de color de la fila. */
+  /** Primeras líneas del último mensaje del agente (`agent`) o del usuario (`user`). */
+  lastText(kind: 'agent' | 'user'): string {
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const it = this.items[i];
+      if (it.type === kind && !(it.type === 'user' && it.from)) return it.text.trim().slice(0, 200);
+    }
+    return '';
+  }
+
   get status(): 'working' | 'permission' | 'idle' | 'error' {
     if (this.pendingPermissions) return 'permission';
     if (this.connection === 'busy' || this.connection === 'starting' || this.connection === 'installing') return 'working';
@@ -169,6 +182,7 @@ export class Conversation {
 
   push(item: DistributiveOmit<ChatItem, 'id'>) {
     this.items.push({ ...item, id: this.#nextId++ } as ChatItem);
+    this.lastActivity = Date.now();
   }
 
   error(e: unknown) {
@@ -211,6 +225,7 @@ export class Conversation {
     this.items = Array.isArray(t.items) ? t.items : [];
     this.#nextId = this.items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
     this.#createdAt = t.created_at;
+    this.lastActivity = t.updated_at ?? t.created_at;
     this.#acpSessionId = t.acp_session_id;
     return t.acp_session_id;
   }
@@ -333,6 +348,7 @@ export class Conversation {
       from?: Sender;
       hops?: number;
       replyTo?: ReplyTarget | null;
+      mentions?: Mention[];
     } = {},
   ) {
     const session = this.session;
@@ -370,7 +386,11 @@ export class Conversation {
       this.push({ type: 'compact' });
       this.compacting = true;
     }
-    this.push(opts.from ? { type: 'user', text, attachments, from: opts.from } : { type: 'user', text, attachments });
+    this.push(
+      opts.from
+        ? { type: 'user', text, attachments, from: opts.from }
+        : { type: 'user', text, attachments, ...(opts.mentions?.length ? { mentions: opts.mentions } : {}) },
+    );
     this.attachments = [];
     // Tras enviarla, la nota activa no se repite hasta que cambie
     const note = this.#store.activeNote;
@@ -830,7 +850,20 @@ class AgentStore {
       pending_messages: c.inbox.length,
       is_you: c.id === caller?.id,
       incoming_from: c.incoming ? `${c.incoming.vault}${c.incoming.handle}` : undefined,
+      number: c.number,
+      last_reply: c.lastText('agent'),
+      last_question: c.lastText('user'),
+      last_activity: c.lastActivity,
     }));
+  }
+
+  /** Bóvedas de Synapse abiertas en otras ventanas, con sus conversaciones (menciones `@`). */
+  async openVaults(): Promise<{ vault: string; path: string; conversations: ConversationSummary[] }[]> {
+    const me = await this.#me();
+    const peers = await agentApi.peerList({ action: 'list' }).catch(() => []);
+    return peers
+      .filter((p) => !p.error && p.path !== me?.path)
+      .map((p) => ({ vault: p.vault, path: p.path, conversations: Array.isArray(p.result) ? (p.result as ConversationSummary[]) : [] }));
   }
 
   /** `to` apunta a otra bóveda abierta: su nombre, con `#n` o `#nueva` opcional. */
