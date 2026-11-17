@@ -180,10 +180,10 @@
     <button
       type="button"
       class="acp-icon"
-      title="Nueva conversación con el último agente"
+      title="Nueva conversación con el último agente (o el agente por defecto)"
       aria-label="Nueva conversación"
-      disabled={!cwd || !agentStore.lastAgentId}
-      onclick={() => agentStore.lastAgentId && startWith(agentStore.lastAgentId)}><Plus size={15} /></button
+      disabled={!cwd || !agentStore.fallbackAgentId}
+      onclick={() => agentStore.fallbackAgentId && startWith(agentStore.fallbackAgentId)}><Plus size={15} /></button
     >
     <button
       type="button"

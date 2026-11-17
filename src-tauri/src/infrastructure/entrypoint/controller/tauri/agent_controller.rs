@@ -294,6 +294,14 @@ pub fn agent_feedback_available() -> bool {
     cfg!(feature = "develop")
 }
 
+/// Registro de depuración de ACP (Ajustes → Agentes de IA): activa o desactiva y devuelve el archivo.
+#[tauri::command]
+pub fn agent_set_debug_log(enabled: bool) -> String {
+    use crate::infrastructure::integration::service::acp::debug_log;
+    debug_log::set_enabled(enabled);
+    debug_log::path().to_string_lossy().into_owned()
+}
+
 /// Conversaciones que comparte un proceso del agente (Ajustes → Agentes de IA).
 #[tauri::command]
 pub fn agent_set_process_limit(state: State<'_, AgentState>, agent_id: String, limit: usize) {

@@ -114,6 +114,25 @@ pub async fn save_shortcut(
     )
 }
 
+/// Pide la atención del usuario cuando Synapse espera una respuesta (un permiso, una pregunta) y la
+/// ventana no está al frente: la marca como urgente en la barra de tareas y avisa con una
+/// notificación del sistema. No le quita el foco a lo que el usuario esté haciendo.
+#[tauri::command]
+pub fn request_attention(window: tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+    if window.is_focused().unwrap_or(false) {
+        return Ok(());
+    }
+    let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+    use tauri_plugin_notification::NotificationExt;
+    window
+        .notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())
+}
+
 /// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.
 #[tauri::command]
 pub async fn pick_image_file() -> Result<Option<String>, String> {

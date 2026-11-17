@@ -418,6 +418,22 @@
           </p>
           <label class="row">
             <span class="row-label">
+              Agente por defecto
+              <span class="hint">Para todas las bóvedas: el que se usa en una bóveda que todavía no usó ninguno (por ejemplo, cuando otra bóveda le escribe por primera vez) y el de «＋ Nueva conversación». Si no está instalado, se descarga al usarlo.</span>
+            </span>
+            <select
+              aria-label="Agente por defecto"
+              value={agentStore.defaultAgentId ?? ''}
+              onchange={(e) => agentStore.setDefaultAgent(e.currentTarget.value || null)}
+            >
+              <option value="">El primero instalado</option>
+              {#each agentStore.agents as a (a.id)}
+                <option value={a.id}>{a.name}{a.installed ? '' : ' (se descargará)'}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="row">
+            <span class="row-label">
               Agente para conversaciones de otras bóvedas
               <span class="hint">🐙 Cuando un agente de otra bóveda abierta le escribe a esta, se abre una conversación con este agente. Se guarda para esta bóveda.</span>
             </span>
@@ -426,12 +442,31 @@
               value={agentStore.incomingAgentId ?? ''}
               onchange={(e) => agentStore.setIncomingAgent(e.currentTarget.value || null)}
             >
-              <option value="">El último usado</option>
+              <option value="">El último usado o el agente por defecto</option>
               {#each agentStore.agents as a (a.id)}
                 <option value={a.id}>{a.name}</option>
               {/each}
             </select>
           </label>
+          <label class="row">
+            <span class="row-label">
+              Registro de depuración de ACP
+              <span class="hint">Guarda, sin filtrar, cada mensaje que entra y sale de los agentes (herramientas con su resultado incluido, si el agente lo manda){#if agentStore.debugLogPath} en <code>{agentStore.debugLogPath}</code>{/if}. Útil para ver qué envía cada agente; puede crecer rápido.</span>
+            </span>
+            <input
+              type="checkbox"
+              aria-label="Registro de depuración de ACP"
+              checked={agentStore.debugLog}
+              onchange={(e) => agentStore.setDebugLog(e.currentTarget.checked)}
+            />
+          </label>
+          {#if agentStore.debugLogPath}
+            <button
+              type="button"
+              class="link-btn"
+              onclick={() => invokeTauri('show_item_in_folder', { path: agentStore.debugLogPath }).catch(() => {})}
+            >Mostrar el registro en su carpeta</button>
+          {/if}
           {#if feedbackAvailable}
           <label class="row">
             <span class="row-label">

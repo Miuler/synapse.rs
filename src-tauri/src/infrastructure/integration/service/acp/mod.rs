@@ -7,6 +7,7 @@ pub mod agent_catalog_impl;
 pub mod agent_installer_impl;
 pub mod agent_runner_impl;
 mod connection;
+pub mod debug_log;
 mod local_cli;
 pub mod registry;
 

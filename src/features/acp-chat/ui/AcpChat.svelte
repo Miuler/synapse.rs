@@ -19,6 +19,7 @@
     CircleDot,
     Shrink,
     ChevronDown,
+    Copy,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
@@ -37,6 +38,12 @@
   let { cwd, onOpenSettings, onOpenNote, conv }: Props = $props();
 
   // Enlaces en las respuestas: notas de la bóveda se abren en Synapse; el resto, fuera
+  /** Tamaño del mensaje de otro agente, para el resumen cerrado. */
+  const incomingSize = (text: string) => {
+    const bytes = new TextEncoder().encode(text).length;
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1).replace('.', ',')} KB`;
+  };
+
   function onMessageClick(e: MouseEvent) {
     const a = (e.target as HTMLElement).closest('a');
     if (!a) return;
@@ -358,7 +365,21 @@
       {/if}
 
       {#each conv.items as item (item.id)}
-        {#if item.type === 'user'}
+        {#if item.type === 'user' && item.from}
+          <!-- Mensaje de otro agente: cerrado; al abrirlo se ve renderizado (tu agente ya lo resume) -->
+          <details class="acp-msg user from-agent acp-incoming">
+            <summary class="acp-from">
+              {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
+              De {item.from.agent} · {item.from.handle}
+              <span class="acp-incoming-size">{incomingSize(item.text)}</span>
+            </summary>
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <div class="markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
+            <button type="button" class="acp-incoming-copy" title="Copiar el texto tal como llegó" onclick={() => navigator.clipboard?.writeText(item.text)}>
+              <Copy size={11} /> Copiar texto
+            </button>
+          </details>
+        {:else if item.type === 'user'}
           <div class="acp-msg user" class:from-agent={!!item.from}>
             {#if item.from}<div class="acp-from">
                 {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
@@ -956,6 +977,31 @@
     align-self: flex-start;
     background: color-mix(in srgb, var(--text-muted) 12%, transparent);
     border-color: var(--border-primary);
+  }
+  .acp-incoming > summary {
+    cursor: pointer;
+    list-style: revert;
+    margin-bottom: 0;
+  }
+  .acp-incoming[open] > summary {
+    margin-bottom: 6px;
+  }
+  .acp-incoming-size {
+    margin-left: 4px;
+    opacity: 0.8;
+  }
+  .acp-incoming-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 2px 6px;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    cursor: pointer;
   }
   .acp-from {
     font-size: 10.5px;

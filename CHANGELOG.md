@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Agente por defecto**: en Ajustes → Agentes de IA se elige un agente para todas las bóvedas. Se usa en una bóveda que todavía no usó ninguno (por ejemplo, cuando otra bóveda le escribe por primera vez) y en «＋ Nueva conversación»; si no hay ninguno elegido ni instalado, se usa el primero de la lista y se descarga solo. Antes, una bóveda nueva no podía atender conversaciones de otra.
+- **Synapse pide atención cuando espera tu respuesta**: con un permiso del agente o una pregunta (por ejemplo, otra bóveda que quiere conversar), si la ventana no está al frente se marca como urgente en la barra de tareas y aparece una notificación del sistema. No le quita el foco a lo que estés haciendo.
+- **Los mensajes de otro agente llegan cerrados**: «De Agente · #2 · 2,3 KB ▸»; al abrirlos se ven renderizados (no en crudo), con un botón para copiar el texto tal como llegó. Tu agente los recibe completos igual.
+- **Registro de depuración de ACP**: en Ajustes → Agentes de IA, guarda sin filtrar cada mensaje que entra y sale de los agentes en `acp-debug.jsonl` de la configuración, para ver qué manda cada agente (por ejemplo, si incluye el resultado de sus herramientas).
 - **Alt+2 abre y cierra el panel del agente**: nueva acción «Mostrar / ocultar el agente» (`toggle_agent`) en los atajos configurables, que también aparece en la paleta de comandos, en el panel de atajos y en el tooltip del botón de la barra lateral.
 - **Copiar y pegar archivos con otras aplicaciones**: «Copiar» en el explorador deja los archivos en el portapapeles del sistema, como un explorador de archivos, así se pegan en otra instancia de Synapse, en el gestor de archivos o en otra aplicación; «Pegar» trae lo copiado fuera (otra instancia, el gestor de archivos) a la carpeta elegida («Pegar (N archivos de fuera)»).
 - **Arrastrar archivos del explorador a otras aplicaciones**: soltarlos en Telegram, el gestor de archivos u otra aplicación los adjunta o copia, como desde un explorador de archivos; dentro del árbol arrastrar sigue moviendo.

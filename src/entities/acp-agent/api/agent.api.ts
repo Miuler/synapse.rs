@@ -45,6 +45,8 @@ export const agentApi = {
   peerIdentity: () => invokeTauri<{ vault: string; path: string } | null>('peer_identity'),
   setProcessLimit: (agentId: string, limit: number) => invokeTauri<void>('agent_set_process_limit', { agentId, limit }),
   feedbackAvailable: () => invokeTauri<boolean>('agent_feedback_available'),
+  /** Activa o desactiva el registro de depuración de ACP; devuelve la ruta del archivo. */
+  setDebugLog: (enabled: boolean) => invokeTauri<string>('agent_set_debug_log', { enabled }),
   stopSession: (sessionId: string) => invokeTauri<void>('agent_stop_session', { sessionId }),
 };
 

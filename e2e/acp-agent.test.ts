@@ -342,6 +342,16 @@ it('un agente le pregunta a otra conversación y le vuelve la respuesta', async 
   });
   expect((await text('.acp-msg.user.from-agent')).some((t) => t?.includes('Respuesta de'))).toBe(true);
   expect(await count('.acp-waiting')).toBe(0);
+  // El mensaje de otro agente llega cerrado; al abrirlo se ve renderizado
+  const incoming = (await s.browser.execute(() =>
+    [...document.querySelectorAll('details.acp-incoming')].map((d) => ({
+      open: (d as HTMLDetailsElement).open,
+      rendered: !!d.querySelector('.markdown p, .markdown li, .markdown code'),
+    })),
+  )) as { open: boolean; rendered: boolean }[];
+  expect(incoming.length).toBeGreaterThan(0);
+  expect(incoming.every((d) => !d.open)).toBe(true);
+  expect(incoming.some((d) => d.rendered)).toBe(true);
 }, 120_000);
 
 it('un agente consulta otra bóveda con permiso del usuario', async () => {

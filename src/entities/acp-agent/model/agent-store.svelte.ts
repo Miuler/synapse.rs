@@ -1,3 +1,4 @@
+import { requestAttention } from '@shared/lib/attention';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
 import { replayText } from './replay-text';
@@ -19,6 +20,8 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 const FLOATING_KEY = 'synapse.agent.floating';
 const FEEDBACK_KEY = 'synapse.agent.feedback';
 const LIMITS_KEY = 'synapse.agent.processLimits';
+const DEFAULT_AGENT_KEY = 'synapse.agent.default';
+const DEBUG_LOG_KEY = 'synapse.agent.debugLog';
 /** Conversaciones por proceso si el usuario no eligió otro número. */
 export const DEFAULT_PROCESS_LIMIT = 4;
 /** Espera de un permiso no de lectura en una conversación entrante antes de rechazarlo. */
@@ -508,6 +511,9 @@ class AgentStore {
   floating = $state(load(FLOATING_KEY) === '1');
   /** Modo feedback: el agente anota lo que le falta al MCP de Synapse (aplica a nuevas sesiones). */
   feedbackMode = $state(load(FEEDBACK_KEY) === '1');
+  /** Registro de depuración: cada mensaje ACP crudo en un archivo (Ajustes). */
+  debugLog = $state(load(DEBUG_LOG_KEY) === '1');
+  debugLogPath = $state<string | null>(null);
   /** Esta compilación trae el feedback del MCP (feature `develop`): habilita `/feedback`. */
   feedbackAvailable = $state(false);
   /** Nota activa del editor; se adjunta sola salvo que el usuario la quite. */
@@ -523,6 +529,9 @@ class AgentStore {
   lastAgentId = $state<string | null>(null);
   /** Agente que atiende las conversaciones que llegan de otra bóveda (por bóveda; `null` = el último usado). */
   incomingAgentId = $state<string | null>(null);
+  /** Agente por defecto de todas las bóvedas: el de una bóveda que nunca usó ninguno (p. ej. cuando
+   *  otra bóveda le escribe por primera vez) y el de «＋ Nueva conversación». */
+  defaultAgentId = $state<string | null>(load(DEFAULT_AGENT_KEY));
   /** Conversaciones por proceso de cada agente (Ajustes); sin valor, el del backend (4). */
   processLimits = $state<Record<string, number>>(JSON.parse(load(LIMITS_KEY) ?? '{}'));
   /** Panel visible; se recuerda por bóveda junto con sus conversaciones. */
@@ -615,6 +624,11 @@ class AgentStore {
         const item = c.items.at(-1)!;
         if (!this.isVisible(c)) c.unseen = true;
         if (c.incoming) this.#incomingPermission(c, item.id, e);
+        const tool = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
+        requestAttention(
+          `${c.agent?.name ?? 'El agente'} pide permiso`,
+          `${c.handle}${tool && tool.type === 'tool' ? ` · ${tool.title}` : ''}`,
+        );
       },
       onStatus: (e) => {
         const c = this.#bySession(e.sessionId);
@@ -648,6 +662,24 @@ class AgentStore {
     void agentApi.setProcessLimit(agentId, limit).catch(() => {});
   }
 
+  setDefaultAgent(agentId: string | null) {
+    this.defaultAgentId = agentId;
+    save(DEFAULT_AGENT_KEY, agentId);
+  }
+
+  /** Agente para abrir una conversación sin elegirlo: el último usado en la bóveda, el agente por
+   *  defecto, el primero instalado o, si no hay ninguno, el primero de la lista (se descarga solo). */
+  get fallbackAgentId(): string | null {
+    const known = (id: string | null) => (id && this.agents.some((a) => a.id === id) ? id : null);
+    return (
+      known(this.lastAgentId) ??
+      known(this.defaultAgentId) ??
+      this.agents.find((a) => a.installed)?.id ??
+      this.agents[0]?.id ??
+      null
+    );
+  }
+
   setIncomingAgent(agentId: string | null) {
     this.incomingAgentId = agentId;
     if (this.#cwd) save(`synapse.agent.incoming.${this.#cwd}`, agentId);
@@ -655,6 +687,7 @@ class AgentStore {
 
   /** Empieza a atender los eventos de los agentes y los pedidos del MCP y de otras bóvedas. */
   startListening() {
+    this.setDebugLog(this.debugLog);
     return this.#listen();
   }
 
@@ -917,7 +950,8 @@ class AgentStore {
     const key = `synapse.agent.accept.${cwd}`;
     const saved = JSON.parse(load(key) ?? '{}') as Record<string, boolean>;
     if (from.path in saved) return saved[from.path];
-    const agentId = this.incomingAgentId ?? this.lastAgentId;
+    if (!this.agents.length) await this.refresh();
+    const agentId = this.incomingAgentId ?? this.fallbackAgentId;
     const agent = agentId ? (this.agents.find((a) => a.id === agentId)?.name ?? '') : '';
     const allowed = await askConfirm(
       '🐙 Conversación desde otra bóveda',
@@ -953,8 +987,8 @@ class AgentStore {
     }
     if (!this.agents.length) await this.refresh();
     const configured = this.incomingAgentId && this.agents.some((a) => a.id === this.incomingAgentId) ? this.incomingAgentId : null;
-    const agentId = configured ?? this.lastAgentId ?? this.agents.find((a) => a.installed)?.id;
-    if (!agentId) throw new Error('Esa bóveda no tiene un agente configurado para atender conversaciones.');
+    const agentId = configured ?? this.fallbackAgentId;
+    if (!agentId) throw new Error('Esa ventana de Synapse no tiene ningún agente disponible para atender conversaciones.');
     const c = new Conversation(this, agentId, cwd);
     c.incoming = { vault: from.vault, handle: from.handle, title: from.title };
     this.#add(c);
@@ -993,6 +1027,15 @@ class AgentStore {
     } catch (e) {
       this.listError = String(e);
     }
+  }
+
+  setDebugLog(value: boolean) {
+    this.debugLog = value;
+    save(DEBUG_LOG_KEY, value ? '1' : null);
+    void agentApi
+      .setDebugLog(value)
+      .then((p) => (this.debugLogPath = p))
+      .catch(() => {});
   }
 
   setFeedbackMode(value: boolean) {

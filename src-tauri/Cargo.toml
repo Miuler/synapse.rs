@@ -78,6 +78,7 @@ serde_yaml = "0.9.34"
 sha2 = "0.11"
 similar = { version = "3.2.1", default-features = false, features = ["text"] }
 tauri-plugin-cli = "2.5.0"
+tauri-plugin-notification = "2"
 object_store = { version = "0.14.2", default-features = false, features = ["fs"] }
 futures-executor = "0.3.34"
 flate2 = "1.1"

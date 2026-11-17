@@ -1,3 +1,5 @@
+import { requestAttention } from '@shared/lib/attention';
+
 /** Pregunta pendiente al usuario (permisos entre bóvedas, por ejemplo). */
 export interface ConfirmAsk {
   id: number;
@@ -14,6 +16,7 @@ class ConfirmQueue {
   ask(title: string, message: string): Promise<boolean> {
     return new Promise((resolve) => {
       this.items.push({ id: this.#next++, title, message, resolve });
+      requestAttention(title, message);
     });
   }
 

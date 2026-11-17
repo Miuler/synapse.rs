@@ -36,6 +36,7 @@ impl Connection {
         tokio::spawn(async move {
             let mut lines = BufReader::new(reader).lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                super::debug_log::log("in", &line);
                 let Ok(msg) = serde_json::from_str::<Value>(line.trim()) else {
                     tracing::debug!("ACP: línea que no es JSON: {line}");
                     continue;
@@ -98,6 +99,9 @@ impl Connection {
 
     async fn write(&self, msg: Value) -> Result<(), String> {
         let mut line = serde_json::to_vec(&msg).map_err(|e| e.to_string())?;
+        if super::debug_log::is_enabled() {
+            super::debug_log::log("out", &String::from_utf8_lossy(&line));
+        }
         line.push(b'\n');
         let mut w = self.writer.lock().await;
         w.write_all(&line)

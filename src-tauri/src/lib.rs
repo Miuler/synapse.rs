@@ -21,7 +21,7 @@ use infrastructure::entrypoint::tauri::commands::{
     install_community_plugin, list_global_themes, list_vault_directory, mcp_confirm_reply,
     mcp_conversations_reply, mcp_diagram_rendered, move_vault_items, open_file_with_default_app,
     open_tab_in_new_window, open_workspace_in_new_window, parse_startup_args, peer_identity,
-    peer_list, peer_send, pick_image_file, read_asset_data_url, read_binary_file,
+    peer_list, peer_send, pick_image_file, request_attention, read_asset_data_url, read_binary_file,
     read_note_content, rebuild_full_text_index, record_note_opened, reload_vault_items,
     remove_recent_workspace, rename_vault_item, render_markdown_wikilinks, resolve_asset_file_path,
     resolve_vault_link, resolve_vault_links, save_binary_asset, save_note_content,
@@ -63,7 +63,9 @@ pub fn run() {
     let mut builder =
         tauri::Builder::default().plugin(tauri_plugin_updater::Builder::new().build());
 
-    builder = builder.plugin(tauri_plugin_cli::init());
+    builder = builder
+        .plugin(tauri_plugin_cli::init())
+        .plugin(tauri_plugin_notification::init());
 
     if cfg!(debug_assertions) {
         builder = builder.plugin(
@@ -110,6 +112,7 @@ pub fn run() {
             delete_vault_item,
             rename_vault_item,
             copy_vault_items,
+            request_attention,
             import_external_items,
             copy_files_to_system_clipboard,
             read_system_clipboard_files,
@@ -201,6 +204,7 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_transcript,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_delete_all_transcripts,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_feedback_available,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_debug_log,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_process_limit,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript
         ])
