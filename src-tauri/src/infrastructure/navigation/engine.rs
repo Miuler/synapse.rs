@@ -78,7 +78,20 @@ impl NavigationEngine {
         let nucleo_threads = std::thread::available_parallelism().map(|n| n.get()).ok();
         let mut nucleo_inst = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), nucleo_threads, 1);
 
-        let notes_map = if cache_path.exists() {
+        // Caché anterior (`cache.bin`, sin `is_drawio`): se importa una vez para no perder pestañas
+        let legacy_path = cache_path.with_file_name("cache.bin");
+        let notes_map = if !cache_path.exists() && legacy_path.exists() {
+            match storage::load_legacy_cache_from_disk(&legacy_path, &vault_path) {
+                Ok(loaded) => {
+                    populate_nucleo_from_dashmap(&loaded, &mut nucleo_inst);
+                    loaded
+                }
+                Err(err) => {
+                    eprintln!("[NavigationEngine] Warning: no se pudo importar {legacy_path:?}: {err}");
+                    DashMap::new()
+                }
+            }
+        } else if cache_path.exists() {
             match storage::load_cache_from_disk(&cache_path) {
                 Ok(loaded) => {
                     populate_nucleo_from_dashmap(&loaded, &mut nucleo_inst);
@@ -438,6 +451,7 @@ impl NavigationEngine {
                         is_active_tab: prev_is_active,
                         view_mode: prev_view_mode,
                         sync_state: prev_sync_state,
+                        is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
                     };
 
                     self.notes.insert(existing_id, note_meta);
@@ -493,6 +507,7 @@ impl NavigationEngine {
                     is_active_tab: false,
                     view_mode: Some(CompactString::new("reading")),
                     sync_state: NoteSyncState::Local,
+                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
                 };
 
                 self.path_index.insert(compact_path.clone(), new_id);
@@ -776,6 +791,7 @@ impl NavigationEngine {
                     },
                     view_mode: meta.view_mode.as_ref().map(|s| s.to_string()),
                     sync_state: Some(meta.sync_state.as_str().to_string()),
+                    is_drawio: meta.is_drawio,
                 });
             }
         }
@@ -1328,6 +1344,7 @@ impl NavigationEngine {
                     is_active_tab: prev_is_active,
                     view_mode: prev_view_mode,
                     sync_state: prev_sync_state,
+                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
                 },
             )
         } else {
@@ -1349,6 +1366,7 @@ impl NavigationEngine {
                     is_active_tab: false,
                     view_mode: Some(CompactString::new("reading")),
                     sync_state: NoteSyncState::Local,
+                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
                 },
             )
         };
@@ -1933,6 +1951,7 @@ impl Serialize for VaultFilesStream {
                 },
                 view_mode: meta.view_mode.as_deref(),
                 sync_state: Some(meta.sync_state.as_str()),
+                is_drawio: meta.is_drawio,
             };
             seq.serialize_element(&file_ref)?;
         }

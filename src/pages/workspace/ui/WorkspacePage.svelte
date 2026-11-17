@@ -123,16 +123,19 @@
    *  apertura rápida…) o cerrar la pestaña lo devuelve al visor de imágenes. */
   const drawioPngTabs = new SvelteSet<string>();
 
-  // PNG con un diagrama de draw.io dentro aunque no se llame `.drawio.png` (se mira su contenido)
+  // PNG o SVG con un diagrama de draw.io dentro aunque no se llame `.drawio.png` / `.drawio.svg`
+  // (se mira su contenido)
   const drawioImages = new SvelteMap<string, boolean>();
+  const isDrawioByName = (path: string) => isDrawioPngFile(path) || path.toLowerCase().endsWith('.drawio.svg');
   function isDrawioImage(path: string | null | undefined): boolean {
     if (!path) return false;
-    return isDrawioPngFile(path) || drawioImages.get(path) === true;
+    // La marca del índice (dashmap) y, si aún no llegó, la consulta directa al archivo
+    return isDrawioByName(path) || vaultItemStore.get(path)?.is_drawio === true || drawioImages.get(path) === true;
   }
   $effect(() => {
     for (const p of [activeTabPath, activeSplitTabPath]) {
       const file = p ? baseTabPath(p) : null;
-      if (!file || isSyntheticTab(file) || drawioImages.has(file) || !file.toLowerCase().endsWith('.png') || isDrawioPngFile(file)) continue;
+      if (!file || isSyntheticTab(file) || drawioImages.has(file) || !/\.(png|svg)$/i.test(file) || isDrawioImage(file)) continue;
       drawioImages.set(file, false);
       invokeTauri<boolean>('is_drawio_image', { relativePath: file })
         .then((yes) => drawioImages.set(file, yes))
@@ -4257,7 +4260,7 @@
                 {:else if isDrawioImage(tabFile) && drawioPngTabs.has(tabPath)}
                   <DrawioViewer
                     filePath={tabFile}
-                    format="xmlpng"
+                    format={tabFile.toLowerCase().endsWith(".svg") ? "xmlsvg" : "xmlpng"}
                     onExit={() => drawioPngTabs.delete(tabPath)}
                   />
                 {:else if isDiagramFile(tabFile)}

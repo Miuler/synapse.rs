@@ -243,10 +243,12 @@ pub fn read_binary_file(
         })
 }
 
-/// ¿La imagen `relative_path` lleva un diagrama de draw.io (aunque no se llame `.drawio.png`)?
+/// ¿La imagen `relative_path` (PNG o SVG) lleva un diagrama de draw.io, aunque no se llame `.drawio.png` / `.drawio.svg`?
 #[tauri::command(async)]
 pub fn is_drawio_image(state: State<'_, AppState>, relative_path: String) -> bool {
-    if !relative_path.to_lowercase().ends_with(".png") {
+    let lower = relative_path.to_lowercase();
+    let svg = lower.ends_with(".svg");
+    if !svg && !lower.ends_with(".png") {
         return false;
     }
     let Ok(guard) = state.active_vault_path.lock() else {
@@ -262,7 +264,10 @@ pub fn is_drawio_image(state: State<'_, AppState>, relative_path: String) -> boo
             vault_path,
             relative_path,
         })
-        .map(|bytes| crate::domain::vault::drawio_image::png_has_drawio_diagram(&bytes))
+        .map(|bytes| {
+            use crate::domain::vault::drawio_image::{png_has_drawio_diagram, svg_has_drawio_diagram};
+            if svg { svg_has_drawio_diagram(&bytes) } else { png_has_drawio_diagram(&bytes) }
+        })
         .unwrap_or(false)
 }
 

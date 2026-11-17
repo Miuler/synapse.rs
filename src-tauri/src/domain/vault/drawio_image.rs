@@ -1,6 +1,7 @@
-//! ¿Una imagen lleva un diagrama de draw.io? draw.io guarda el diagrama dentro del PNG que exporta
-//! («incluir una copia del diagrama»), en un bloque de texto con la clave `mxfile`, así que se
-//! puede editar aunque el archivo no se llame `.drawio.png`.
+//! ¿Una imagen lleva un diagrama de draw.io? draw.io guarda el diagrama dentro de la imagen que
+//! exporta («incluir una copia del diagrama»): en un PNG, un bloque de texto con la clave `mxfile`;
+//! en un SVG, el atributo `content` de la etiqueta `<svg>`. Así se puede editar aunque el archivo no
+//! se llame `.drawio.png` / `.drawio.svg`.
 
 const PNG_SIGNATURE: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -34,9 +35,31 @@ pub fn png_has_drawio_diagram(bytes: &[u8]) -> bool {
     false
 }
 
+/// `true` si la etiqueta `<svg>` tiene un atributo `content` con un `mxfile` (escapado o no).
+pub fn svg_has_drawio_diagram(bytes: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(&bytes[..bytes.len().min(256 * 1024)]);
+    let Some(start) = text.find("<svg") else {
+        return false;
+    };
+    let tag = &text[start..text[start..].find('>').map_or(text.len(), |e| start + e)];
+    tag.find("content=").is_some_and(|i| {
+        let value = &tag[i..];
+        value.contains("mxfile") || value.contains("mxGraphModel")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detecta_el_diagrama_en_un_svg() {
+        let drawio = br#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" content="&lt;mxfile host=&quot;app.diagrams.net&quot;&gt;&lt;/mxfile&gt;" width="10"><rect/></svg>"#;
+        assert!(svg_has_drawio_diagram(drawio));
+        let normal = br#"<svg xmlns="http://www.w3.org/2000/svg"><text>mxfile</text></svg>"#;
+        assert!(!svg_has_drawio_diagram(normal));
+        assert!(!svg_has_drawio_diagram(b"no es un svg"));
+    }
 
     fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
         let mut c = (data.len() as u32).to_be_bytes().to_vec();

@@ -14,15 +14,15 @@
   interface Props {
     /** Ruta relativa en la bóveda. */
     filePath: string;
-    /** `xml` para `.drawio` (texto), `xmlpng` para `.drawio.png` (PNG con el diagrama incrustado). */
+    /** `xml` para `.drawio` (texto), `xmlpng` / `xmlsvg` para un PNG o SVG con el diagrama incrustado. */
     format: DrawioFormat;
     /** Contenido de texto (solo `xml`). */
     content?: string;
     /** Guardado del XML (solo `xml`): la página lo escribe en disco. */
     onSaveXml?: (xml: string) => void;
-    /** Tras reescribir el PNG (solo `xmlpng`). */
+    /** Tras reescribir la imagen (`xmlpng` / `xmlsvg`). */
     onSavedPng?: () => void;
-    /** El usuario cerró el editor (solo `xmlpng`: vuelve al visor de imagen). */
+    /** El usuario cerró el editor (imágenes: vuelve al visor de imagen). */
     onExit?: () => void;
   }
 
@@ -34,7 +34,8 @@
 
   // El tema y la URL se fijan al abrir: recargar el iframe perdería los cambios sin guardar.
   const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
-  const src = buildDrawioUrl(appSettings.settings.drawioUrl, isDark, appSettings.settings.locale ?? 'es', untrack(() => format === 'xmlpng'));
+  const isImage = untrack(() => format !== 'xml');
+  const src = buildDrawioUrl(appSettings.settings.drawioUrl, isDark, appSettings.settings.locale ?? 'es', isImage);
   const origin = new URL(src).origin;
 
   function post(msg: Record<string, unknown>) {
@@ -46,6 +47,10 @@
       if (format === 'xmlpng') {
         const buffer = await vaultRepository.readBinary(filePath);
         post({ action: 'load', xmlpng: bytesToDataUrl(new Uint8Array(buffer)), autosave: 0, title: filePath.split('/').pop() });
+      } else if (format === 'xmlsvg') {
+        // draw.io lee el diagrama del atributo `content` del SVG
+        const svg = new TextDecoder().decode(new Uint8Array(await vaultRepository.readBinary(filePath)));
+        post({ action: 'load', xml: svg, autosave: 0, title: filePath.split('/').pop() });
       } else {
         post({ action: 'load', xml: content.trim() ? content : EMPTY_DRAWIO_XML, autosave: 0, title: filePath.split('/').pop() });
       }
@@ -55,7 +60,7 @@
     }
   }
 
-  async function writePng(dataUrl: string) {
+  async function writeImage(dataUrl: string) {
     try {
       await vaultRepository.writeBinary(filePath, dataUrlToBytes(dataUrl));
       post({ action: 'status', modified: false, message: '' });
@@ -63,7 +68,7 @@
       onSavedPng?.();
     } catch (err) {
       status = 'error';
-      errorMessage = `No se pudo guardar el PNG: ${err}`;
+      errorMessage = `No se pudo guardar la imagen: ${err}`;
     }
   }
 
@@ -79,16 +84,16 @@
         status = 'ready';
         break;
       case 'save':
-        if (format === 'xmlpng') {
+        if (isImage) {
           status = 'saving';
-          post({ action: 'export', format: 'xmlpng', spinKey: 'saving' });
+          post({ action: 'export', format, spinKey: 'saving' });
         } else if (typeof msg.xml === 'string') {
           onSaveXml?.(msg.xml);
           post({ action: 'status', modified: false, message: '' });
         }
         break;
       case 'export':
-        if (format === 'xmlpng' && typeof msg.data === 'string') void writePng(msg.data);
+        if (isImage && typeof msg.data === 'string') void writeImage(msg.data);
         break;
       case 'exit':
         onExit?.();

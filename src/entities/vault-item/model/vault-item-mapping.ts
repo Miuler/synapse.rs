@@ -16,6 +16,7 @@ export function toVaultItem(n: VaultNote, index: number): VaultItem {
     abs_path: n.abs_path,
     view_mode: n.view_mode,
     stat: typeof n.mtime === 'number' ? { ctime: n.ctime ?? null, mtime: n.mtime, size: n.size ?? 0 } : undefined,
+    ...(n.is_drawio ? { is_drawio: true } : {}),
   };
 }
 

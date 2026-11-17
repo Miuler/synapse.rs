@@ -10,6 +10,8 @@ pub enum DocumentKind {
     Excalidraw,
     Pdf,
     Word,
+    /// Diagrama de draw.io: `.drawio` o una imagen (PNG/SVG) con el diagrama dentro.
+    Drawio,
 }
 
 impl DocumentKind {
@@ -22,6 +24,7 @@ impl DocumentKind {
             DocumentKind::Excalidraw => "excalidraw",
             DocumentKind::Pdf => "pdf",
             DocumentKind::Word => "word",
+            DocumentKind::Drawio => "drawio",
         }
     }
 
@@ -33,6 +36,7 @@ impl DocumentKind {
             "excalidraw" => Some(DocumentKind::Excalidraw),
             "pdf" => Some(DocumentKind::Pdf),
             "word" => Some(DocumentKind::Word),
+            "drawio" => Some(DocumentKind::Drawio),
             _ => None,
         }
     }

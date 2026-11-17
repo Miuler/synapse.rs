@@ -26,6 +26,9 @@ pub struct VaultEntryDto {
     pub ctime: Option<u128>,
     pub mtime: u128,
     pub size: u64,
+    /// Imagen con un diagrama de draw.io dentro (solo se envía si es `true`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_drawio: bool,
 }
 
 impl VaultEntryDto {
@@ -51,6 +54,7 @@ impl VaultEntryDto {
                 ctime: meta.created_nanos.map(|value| value / 1_000_000),
                 mtime: meta.mtime_nanos / 1_000_000,
                 size: meta.size_bytes,
+                is_drawio: meta.is_drawio,
             });
         }
         entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));

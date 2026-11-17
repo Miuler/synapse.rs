@@ -108,6 +108,8 @@ export interface VaultItem {
   sync_state?: VaultSyncState;
   /** Metadatos de archivo (milisegundos y bytes); los usa la fachada de Obsidian (`TFile.stat`). */
   stat?: { ctime: number | null; mtime: number; size: number };
+  /** Imagen (PNG/SVG) con un diagrama de draw.io dentro, marcada al indexar. */
+  is_drawio?: boolean;
 }
 
 export interface TabItem {

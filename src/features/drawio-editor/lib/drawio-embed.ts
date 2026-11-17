@@ -4,7 +4,8 @@
  * `exit`, `autosave`. Acciones que recibe: `load`, `export`, `status`, `configure`.
  */
 
-export type DrawioFormat = 'xml' | 'xmlpng';
+/** `xml`: `.drawio` (texto); `xmlpng` / `xmlsvg`: imagen con el diagrama dentro. */
+export type DrawioFormat = 'xml' | 'xmlpng' | 'xmlsvg';
 
 export interface DrawioEvent {
   event: 'init' | 'load' | 'save' | 'export' | 'exit' | 'autosave' | 'configure' | string;
@@ -54,7 +55,12 @@ export function bytesToDataUrl(bytes: Uint8Array, mime = 'image/png'): string {
 }
 
 export function dataUrlToBytes(dataUrl: string): Uint8Array {
-  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const comma = dataUrl.indexOf(',');
+  // draw.io a veces devuelve el SVG como texto (`data:image/svg+xml;utf8,…`) en vez de base64
+  if (!/;base64$/i.test(dataUrl.slice(0, comma))) {
+    return new TextEncoder().encode(decodeURIComponent(dataUrl.slice(comma + 1)));
+  }
+  const base64 = dataUrl.slice(comma + 1);
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

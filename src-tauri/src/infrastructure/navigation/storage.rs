@@ -1,4 +1,4 @@
-//! Persistencia de la caché de metadatos de notas (`.synapse/cache.bin`).
+//! Persistencia de la caché de metadatos de notas (`.synapse/cache-v2.bin`; antes `cache.bin`).
 //!
 //! `postcard` convierte el `DashMap` en bytes y `object_store` los guarda. Con el backend local,
 //! `put` escribe en un archivo temporal y luego lo renombra: si la app se cae a mitad de un
@@ -45,6 +45,57 @@ pub fn load_cache_from_disk(cache_path: &Path) -> CacheResult<DashMap<NoteId, No
     Ok(map)
 }
 
+/// `NoteMeta` como se guardaba en `cache.bin`, antes de `is_drawio`. `postcard` no admite agregar
+/// campos, así que la caché nueva va en `cache-v2.bin` y la vieja se importa una vez.
+#[derive(serde::Deserialize)]
+struct NoteMetaV1 {
+    id: NoteId,
+    path: compact_str::CompactString,
+    title: compact_str::CompactString,
+    tags: Vec<compact_str::CompactString>,
+    mtime_nanos: u128,
+    size_bytes: u64,
+    created_nanos: Option<u128>,
+    last_opened_nanos: Option<u128>,
+    is_open: bool,
+    tab_order: Option<u32>,
+    is_active_tab: bool,
+    view_mode: Option<compact_str::CompactString>,
+    sync_state: super::model::NoteSyncState,
+}
+
+/// Carga la caché anterior (`cache.bin`) y calcula `is_drawio` de sus imágenes (`vault`: la bóveda).
+pub fn load_legacy_cache_from_disk(legacy_path: &Path, vault: &Path) -> CacheResult<DashMap<NoteId, NoteMeta>> {
+    let (store, key) = open_store(legacy_path)?;
+    let bytes = futures_executor::block_on(async { store.get(&key).await?.bytes().await })?;
+    let old: DashMap<NoteId, NoteMetaV1> = postcard::from_bytes(&bytes)?;
+    Ok(old
+        .into_iter()
+        .map(|(id, m)| {
+            let is_drawio = crate::infrastructure::search::drawio_extractor::file_has_drawio(&vault.join(m.path.as_str()));
+            (
+                id,
+                NoteMeta {
+                    id: m.id,
+                    path: m.path,
+                    title: m.title,
+                    tags: m.tags,
+                    mtime_nanos: m.mtime_nanos,
+                    size_bytes: m.size_bytes,
+                    created_nanos: m.created_nanos,
+                    last_opened_nanos: m.last_opened_nanos,
+                    is_open: m.is_open,
+                    tab_order: m.tab_order,
+                    is_active_tab: m.is_active_tab,
+                    view_mode: m.view_mode,
+                    sync_state: m.sync_state,
+                    is_drawio,
+                },
+            )
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,6 +117,7 @@ mod tests {
             is_active_tab: false,
             view_mode: None,
             sync_state: Default::default(),
+            is_drawio: false,
         };
         map.insert(1, meta);
         map

@@ -41,6 +41,11 @@ function pngWithText(text: string, key = 'mxfile'): Buffer {
 
 const savedPng = `data:image/png;base64,${pngWithText('diagrama-editado').toString('base64')}`;
 
+/** SVG con el diagrama en `content`, como exporta draw.io en el formato xmlsvg. */
+const svgWithText = (text: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" content="&lt;mxfile&gt;${text}&lt;/mxfile&gt;" width="10" height="10"><rect width="10" height="10"/></svg>`;
+const savedSvg = `data:image/svg+xml;base64,${Buffer.from(svgWithText('diagrama-editado')).toString('base64')}`;
+
 const fakePage = `<!doctype html><html><body><script>
 let mode = null, xml = '', pngOk = false;
 const send = (m) => parent.postMessage(JSON.stringify(m), '*');
@@ -48,11 +53,12 @@ window.addEventListener('message', (e) => {
   const m = JSON.parse(e.data);
   if (m.action === 'load') {
     if (m.xmlpng) { mode = 'png'; pngOk = m.xmlpng.startsWith('data:image/png;base64,'); }
+    else if (m.xml.includes('<svg')) { mode = 'svg'; pngOk = m.xml.includes('mxfile'); }
     else { mode = 'xml'; xml = m.xml; }
     send({ event: 'load' });
     setTimeout(() => send({ event: 'save', xml: mode === 'xml' ? xml.replace('</root>', '<mxCell id="editado" parent="1"/></root>') : '' }), 300);
   }
-  if (m.action === 'export') send({ event: 'export', format: 'xmlpng', data: pngOk ? ${JSON.stringify(savedPng)} : 'data:,' });
+  if (m.action === 'export') send({ event: 'export', format: m.format, data: !pngOk ? 'data:,' : m.format === 'xmlsvg' ? ${JSON.stringify(savedSvg)} : ${JSON.stringify(savedPng)} });
 });
 send({ event: 'init' });
 </script></body></html>`;
@@ -66,7 +72,19 @@ const XML =
   '<mxfile><diagram name="P"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 beforeAll(async () => {
-  s = await startApp({ 'flujo.drawio': XML, 'menu.drawio.png': 'x', 'visor.drawio.png': 'x', 'disfrazado.png': 'x', 'normal.png': 'x' });
+  s = await startApp({
+    'flujo.drawio': XML,
+    'menu.drawio.png': 'x',
+    'visor.drawio.png': 'x',
+    'disfrazado.png': 'x',
+    'normal.png': 'x',
+    'plano.svg': svgWithText('original'),
+    'arquitectura.png': 'x',
+  });
+  // PNG con un diagrama de draw.io real (codificado como lo hace draw.io) para la búsqueda
+  const model =
+    '<mxfile><diagram name="Arquitectura"><mxGraphModel><root><mxCell id="0"/><mxCell id="2" value="Pasarela Quetzalcoatl" vertex="1"/></root></mxGraphModel></diagram></mxfile>';
+  writeFileSync(join(s.vault, 'arquitectura.png'), pngWithText(encodeURIComponent(model)));
   for (const f of ['menu.drawio.png', 'visor.drawio.png', 'disfrazado.png']) writeFileSync(join(s.vault, f), pngWithText('original'));
   writeFileSync(join(s.vault, 'normal.png'), pngWithText('GIMP', 'Software'));
   await s.browser.$('.file-tree-item[data-path="flujo.drawio"]').waitForExist({ timeout: 30_000 });
@@ -147,4 +165,32 @@ it('un PNG con un diagrama de draw.io dentro se edita con el botón Lectura/Edic
     timeout: 15_000,
     timeoutMsg: 'no se reescribió el PNG',
   });
+}, 60_000);
+
+it('un SVG con un diagrama de draw.io dentro se edita y se guarda como SVG', async () => {
+  const toggle = () => s.browser.$('.editor-header .view-toggle-btn');
+  await s.browser.$('.file-tree-item[data-path="plano.svg"]').click();
+  await toggle().waitForExist({ timeout: 10_000 });
+  await toggle().click();
+  await s.browser.$('.drawio-viewer[data-drawio-path="plano.svg"]').waitForExist({ timeout: 10_000 });
+  await s.browser.waitUntil(async () => readFileSync(join(s.vault, 'plano.svg'), 'utf8').includes('diagrama-editado'), {
+    timeout: 15_000,
+    timeoutMsg: 'no se reescribió el SVG',
+  });
+  expect(readFileSync(join(s.vault, 'plano.svg'), 'utf8').startsWith('<svg')).toBe(true);
+}, 60_000);
+
+it('el texto de un diagrama de draw.io dentro de un PNG se encuentra con la búsqueda de texto completo', async () => {
+  const search = () =>
+    s.browser.execute(async () => {
+      const r = await (window as any).__TAURI_INTERNALS__.invoke('full_text_search', { query: 'Quetzalcoatl', limit: 10 });
+      return (r.hits as { note_path: string; kind: string }[]).map((h) => `${h.note_path}:${h.kind}`);
+    }) as Promise<string[]>;
+  await s.browser.waitUntil(async () => (await search()).includes('arquitectura.png:drawio'), {
+    timeout: 30_000,
+    timeoutMsg: 'la búsqueda no encontró el texto del diagrama',
+  });
+  // Y la imagen queda marcada como de draw.io al indexar: la cabecera ofrece Lectura/Edición
+  await s.browser.$('.file-tree-item[data-path="arquitectura.png"]').click();
+  await s.browser.$('.editor-header .view-toggle-btn').waitForExist({ timeout: 10_000 });
 }, 60_000);

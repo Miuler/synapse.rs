@@ -33,6 +33,8 @@ pub struct ParsedFileMeta {
     pub mtime_nanos: u128,
     pub size_bytes: u64,
     pub created_nanos: Option<u128>,
+    /// Imagen (PNG/SVG) con un diagrama de draw.io dentro.
+    pub is_drawio: bool,
 }
 
 use crate::domain::config::config::IgnoredConfig;
@@ -253,6 +255,7 @@ pub fn process_paths_batch(
                 mtime_nanos,
                 size_bytes,
                 created_nanos,
+                is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&abs_path),
             })
         })
         .collect();
@@ -299,6 +302,7 @@ pub fn process_paths_batch(
                 is_active_tab: prev_is_active,
                 view_mode: prev_view_mode,
                 sync_state: prev_sync_state,
+                is_drawio: item.is_drawio,
             };
 
             notes.insert(existing_id, updated_meta);
@@ -344,6 +348,7 @@ pub fn process_paths_batch(
                 is_active_tab: false,
                 view_mode: Some(CompactString::new("reading")),
                 sync_state: NoteSyncState::Local,
+                is_drawio: item.is_drawio,
             };
 
             path_index.insert(item.compact_path.clone(), new_id);

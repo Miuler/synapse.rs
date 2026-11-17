@@ -208,7 +208,7 @@ pub fn open_vault_components(
     file_types: SupportedFileTypes,
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 ) -> (Arc<NavigationEngine>, Arc<FullTextComponents>) {
-    let cache_path = vault_path.join(".synapse").join("cache.bin");
+    let cache_path = vault_path.join(".synapse").join("cache-v2.bin");
     let engine =
         NavigationEngine::start_with_file_types(vault_path.clone(), cache_path, file_types.clone());
 

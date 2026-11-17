@@ -48,6 +48,8 @@ pub struct NoteMeta {
     pub view_mode: Option<CompactString>, // Modo del archivo ("reading", "live", "source")
     #[serde(default)]
     pub sync_state: NoteSyncState, // Estado de sincronización (Local por defecto)
+    #[serde(default)]
+    pub is_drawio: bool, // Imagen (PNG/SVG) con un diagrama de draw.io dentro
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +71,9 @@ pub struct VaultFileDto {
     pub view_mode: Option<String>,
     #[serde(default)]
     pub sync_state: Option<String>,
+    /// Imagen con un diagrama de draw.io dentro.
+    #[serde(default)]
+    pub is_drawio: bool,
 }
 
 #[derive(Serialize)]
@@ -88,4 +93,7 @@ pub struct VaultFileRef<'a> {
     pub stat: VaultFileStatRef,
     pub view_mode: Option<&'a str>,
     pub sync_state: Option<&'a str>,
+    /// Imagen con un diagrama de draw.io dentro (solo se envía si es `true`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_drawio: bool,
 }

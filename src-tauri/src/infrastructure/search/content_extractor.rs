@@ -42,6 +42,27 @@ pub fn extract_with_config(
         .and_then(|s| s.to_str())
         .unwrap_or(file_name);
 
+    // 0. Diagramas de draw.io: `.drawio` (XML) o una imagen PNG/SVG con el diagrama dentro; se
+    // indexan los textos de sus figuras. Una imagen sin diagrama no se indexa.
+    let drawio_xml = if lower_name.ends_with(".drawio") {
+        Some(String::from_utf8_lossy(bytes).into_owned())
+    } else if lower_name.ends_with(".png") {
+        super::drawio_extractor::png_mxfile(bytes)
+    } else if lower_name.ends_with(".svg") {
+        super::drawio_extractor::svg_mxfile(bytes)
+    } else {
+        None
+    };
+    if let Some(xml) = drawio_xml {
+        let mut text = super::drawio_extractor::mxfile_text(&xml);
+        truncate_safe(&mut text, indexing.max_extracted_chars);
+        let title = file_stem.trim_end_matches(".drawio").to_string();
+        return Some((DocumentKind::Drawio, title, text, String::new()));
+    }
+    if lower_name.ends_with(".png") || lower_name.ends_with(".svg") {
+        return None;
+    }
+
     // 1. Documentos PDF
     if file_types.is_pdf_file(&lower_name) || lower_name.ends_with(".pdf") {
         if bytes.len() > indexing.max_pdf_file_size {

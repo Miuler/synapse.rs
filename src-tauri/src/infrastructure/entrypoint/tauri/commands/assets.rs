@@ -240,7 +240,7 @@ mod tests {
         *state.active_vault_path.lock().unwrap() = Some(vault_path.clone());
         let engine = Arc::new(NavigationEngine::new(
             vault_path.clone(),
-            vault_path.join(".synapse/cache.bin"),
+            vault_path.join(".synapse/cache-v2.bin"),
         ));
         engine.reconcile_sync();
         *state.navigation_engine.lock().unwrap() = Some(engine);

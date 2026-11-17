@@ -183,7 +183,10 @@ impl FtsIndexer {
                                     return None;
                                 }
 
-                                if ft.is_image_file(&rel_str) {
+                                // De las imágenes solo pasan las que llevan un diagrama de draw.io
+                                if ft.is_image_file(&rel_str)
+                                    && !super::drawio_extractor::file_has_drawio(&abs)
+                                {
                                     return None;
                                 }
 
@@ -512,7 +515,8 @@ fn perform_full_sync(
 
         if file_name.starts_with('.')
             || !file_types.is_supported_file(file_name)
-            || file_types.is_image_file(file_name)
+            || (file_types.is_image_file(file_name)
+                && !super::drawio_extractor::file_has_drawio(&abs_path))
         {
             continue;
         }

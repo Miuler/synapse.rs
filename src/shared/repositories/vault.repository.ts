@@ -13,6 +13,8 @@ export interface VaultNote {
   ctime?: number | null;
   mtime?: number;
   size?: number;
+  /** Imagen con un diagrama de draw.io dentro (marcada al indexar). */
+  is_drawio?: boolean;
 }
 
 export interface VaultFileStat {
