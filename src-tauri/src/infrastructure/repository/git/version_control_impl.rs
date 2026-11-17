@@ -1459,26 +1459,29 @@ impl VersionControlImpl {
 
         let limit = max_count.unwrap_or(100).to_string();
 
+        // Historial con el grafo: sin `--follow` (que no reescribe los padres) pero con todos los
+        // nombres que tuvo el archivo; `--full-history --simplify-merges` conserva las ramas que
+        // también lo tocaron y las fusiones que las unen.
+        let mut paths = vec![repo_rel_path.clone()];
+        paths.extend(Self::historical_names(work_dir, &repo_rel_path));
         let mut cmd = std::process::Command::new("git");
         cmd.current_dir(work_dir);
-        // %H: commit hash completo
-        // %h: commit hash corto
-        // %an: autor
-        // %ae: email
-        // %aI: fecha estricta ISO-8601
-        // %at: timestamp UNIX
-        // %D: refs del commit; con --decorate-refs solo los tags («tag: v1.0, tag: v2»)
-        // %s: asunto / mensaje
+        // \x1e separa commits; tras el formato vienen las líneas de --name-status del commit.
+        // %H %h %an %ae %aI %at, %D: tags (por --decorate-refs), %P: padres reescritos, %s: asunto
         cmd.args([
             "log",
-            "--follow",
+            "--full-history",
+            "--simplify-merges",
+            "--parents",
+            "--name-status",
+            "--find-renames",
             "--decorate-refs=refs/tags/",
-            "--format=%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%D\x1f%s",
+            "--format=\x1e%H\x1f%h\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%D\x1f%P\x1f%s",
             "-n",
             &limit,
             "--",
-            &repo_rel_path,
         ]);
+        cmd.args(&paths);
 
         let output = cmd
             .output()
@@ -1487,29 +1490,45 @@ impl VersionControlImpl {
         let mut commits = Vec::new();
         if output.status.success() {
             let stdout_str = String::from_utf8_lossy(&output.stdout);
-            for line in stdout_str.lines() {
-                let parts: Vec<&str> = line.split('\x1f').collect();
-                if parts.len() >= 8 {
-                    let commit_hash = parts[0].trim().to_string();
-                    let short_hash = parts[1].trim().to_string();
-                    let author_name = parts[2].trim().to_string();
-                    let author_email = parts[3].trim().to_string();
-                    let date = parts[4].trim().to_string();
-                    let timestamp = parts[5].trim().parse::<i64>().unwrap_or(0);
-                    let tags = parse_tag_refs(parts[6]);
-                    let message = parts[7..].join("\x1f").trim().to_string();
-
-                    commits.push(VersionEntry {
-                        commit_hash,
-                        short_hash,
-                        author_name,
-                        author_email,
-                        date,
-                        timestamp,
-                        message,
-                        tags,
-                    });
+            for block in stdout_str.split('\x1e').filter(|b| !b.trim().is_empty()) {
+                let mut lines = block.lines();
+                let Some(header) = lines.next() else { continue };
+                let parts: Vec<&str> = header.split('\x1f').collect();
+                if parts.len() < 9 {
+                    continue;
                 }
+                // Cambio sobre alguno de los nombres del archivo («M\truta», «R090\tvieja\tnueva»)
+                let mut change = None;
+                let mut previous_path = None;
+                for line in lines {
+                    let cols: Vec<&str> = line.split('\t').collect();
+                    if cols.len() < 2 || !cols[1..].iter().any(|c| paths.iter().any(|p| p == c)) {
+                        continue;
+                    }
+                    let kind = &cols[0][..1];
+                    if kind == "R" && cols.len() >= 3 {
+                        let strip = |p: &str| match &prefix_from_workdir {
+                            Some(prefix) => p.strip_prefix(&format!("{prefix}/")).unwrap_or(p).to_string(),
+                            None => p.to_string(),
+                        };
+                        previous_path = Some(strip(cols[1]));
+                    }
+                    change = Some(kind.to_string());
+                    break;
+                }
+                commits.push(VersionEntry {
+                    commit_hash: parts[0].trim().to_string(),
+                    short_hash: parts[1].trim().to_string(),
+                    author_name: parts[2].trim().to_string(),
+                    author_email: parts[3].trim().to_string(),
+                    date: parts[4].trim().to_string(),
+                    timestamp: parts[5].trim().parse::<i64>().unwrap_or(0),
+                    tags: parse_tag_refs(parts[6]),
+                    parents: parts[7].split_whitespace().map(str::to_string).collect(),
+                    message: parts[8..].join("\x1f").trim().to_string(),
+                    change,
+                    previous_path,
+                });
             }
         }
 

@@ -70,6 +70,12 @@ export interface GitCommitLogItem {
   message: string;
   /** Tags que apuntan a este commit. */
   tags?: string[];
+  /** Padres dentro del historial del archivo (para el grafo de ramas). */
+  parents?: string[];
+  /** Qué le pasó al archivo: `A` agregado, `M`, `D` borrado, `R` renombrado; nada en una fusión. */
+  change?: string | null;
+  /** Con `R`: la ruta que tenía antes. */
+  previous_path?: string | null;
 }
 
 export interface GitCommitFileItem {

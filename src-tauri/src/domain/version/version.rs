@@ -79,6 +79,17 @@ pub struct VersionEntry {
     /// Tags que apuntan a este commit (p. ej. `v1.0.0`).
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Padres dentro del historial del archivo (commits de esta misma lista o que la lista no
+    /// alcanzó a traer): con ellos se dibuja el grafo de ramas.
+    #[serde(default)]
+    pub parents: Vec<String>,
+    /// Qué le pasó al archivo en este commit: `A` (agregado), `M`, `D` (borrado), `R` (renombrado).
+    /// `None` en una fusión.
+    #[serde(default)]
+    pub change: Option<String>,
+    /// Con `R`: la ruta que tenía antes.
+    #[serde(default)]
+    pub previous_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

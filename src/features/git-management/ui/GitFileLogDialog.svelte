@@ -19,6 +19,7 @@
     vaultRepository,
     type GitCommitLogItem,
   } from '@shared/repositories';
+  import { buildFileLogGraph, type GraphRow } from '../lib/file-log-graph';
 
   export interface GitFileLogDialogProps {
     open?: boolean;
@@ -158,6 +159,18 @@
 
 
   const fileName = $derived(filePath ? filePath.split('/').pop() || filePath : '');
+
+  // Grafo de ramas: solo con la lista completa (al filtrar, las líneas no tendrían sentido)
+  const GRAPH_LANE = 14;
+  const GRAPH_COLORS = ['#378add', '#ba7517', '#1d9e75', '#d4537e', '#7f77dd', '#d85a30'];
+  const graphColor = (i: number) => GRAPH_COLORS[i % GRAPH_COLORS.length];
+  const graph = $derived.by(() => {
+    const rows = buildFileLogGraph(commits);
+    return new Map<string, GraphRow>(commits.map((c, i) => [c.commit_hash, rows[i]]));
+  });
+  const showGraph = $derived(!filterText.trim() && [...graph.values()].some((r) => r.width > 1 || r.segments.length > 0));
+  const graphWidth = $derived(Math.max(1, ...[...graph.values()].map((r) => r.width)) * GRAPH_LANE);
+  const laneX = (j: number) => j * GRAPH_LANE + GRAPH_LANE / 2;
 
   const filteredCommits = $derived.by(() => {
     const q = filterText.trim().toLowerCase();
@@ -421,6 +434,7 @@
             <table class="git-log-table">
               <thead>
                 <tr>
+                  {#if showGraph}<th class="col-graph" aria-label="Ramas"></th>{/if}
                   <th class="col-hash">Hash</th>
                   <th class="col-date">Fecha</th>
                   <th class="col-author">Autor</th>
@@ -442,6 +456,31 @@
                     onclick={(e) => handleRowClick(e, commit.commit_hash)}
                     oncontextmenu={(e) => handleRowContextMenu(e, commit.commit_hash)}
                   >
+                    {#if showGraph}
+                      {@const g = graph.get(commit.commit_hash)}
+                      <td class="col-graph" style="width: {graphWidth}px; min-width: {graphWidth}px">
+                        {#if g}
+                          <svg class="graph-lines" viewBox="0 0 {graphWidth} 100" preserveAspectRatio="none" aria-hidden="true">
+                            {#each g.segments as seg, k (k)}
+                              <line
+                                x1={laneX(seg.from)}
+                                y1={seg.half === 'top' ? 0 : 50}
+                                x2={laneX(seg.to)}
+                                y2={seg.half === 'top' ? 50 : 100}
+                                stroke={graphColor(seg.color)}
+                                stroke-width="2"
+                                vector-effect="non-scaling-stroke"
+                              />
+                            {/each}
+                          </svg>
+                          <span
+                            class="graph-dot"
+                            class:origin={commit.change === 'A'}
+                            style="left: {laneX(g.col)}px; --dot: {graphColor(g.color)}"
+                          ></span>
+                        {/if}
+                      </td>
+                    {/if}
                     <!-- Columna Hash -->
                     <td class="col-hash">
                       <div class="hash-wrap">
@@ -478,7 +517,12 @@
                       <span class="commit-message-text"
                         >{#each commit.tags ?? [] as tag (tag)}<span class="commit-tag" title="Tag {tag}"
                             ><Tag size={10} />{tag}</span
-                          >{/each}{commit.message}</span
+                          >{/each}{#if commit.change === 'A'}<span class="change-badge added" title="Este commit creó el archivo: no hay versión anterior en su rama">nuevo</span
+                          >{:else if commit.change === 'D'}<span class="change-badge deleted" title="Este commit borró el archivo">borrado</span
+                          >{:else if commit.change === 'R'}<span class="change-badge renamed" title="Antes: {commit.previous_path}">renombrado</span
+                          >{:else if (commit.parents?.length ?? 0) > 1}<span class="change-badge merge" title="Fusión de ramas que tocaron el archivo">fusión</span
+                          >{/if}{#if showGraph && (graph.get(commit.commit_hash)?.col ?? 0) > 0}<span class="change-badge branch" title="Viene de otra rama: no es la versión anterior del commit de arriba">otra rama</span
+                          >{/if}{commit.message}</span
                       >
                     </td>
 
@@ -498,6 +542,7 @@
                     <!-- Columna Acciones -->
                     <td class="col-actions">
                       <div class="actions-group">
+                        {#if commit.change !== 'D'}
                         <button
                           type="button"
                           class="action-btn view-btn"
@@ -507,8 +552,9 @@
                           <Eye size={13} />
                           <span>Ver archivo</span>
                         </button>
+                        {/if}
                         <div class="diff-stack">
-                        {#if onPatchRevision}
+                        {#if onPatchRevision && commit.change !== 'A'}
                           <button
                             type="button"
                             class="action-btn diff-btn patch-btn"
@@ -765,6 +811,51 @@
     color: var(--text-primary, #1f2328);
     font-weight: 500;
   }
+
+  .git-log-table th.col-graph,
+  .git-log-table td.col-graph {
+    position: relative;
+    padding: 0;
+  }
+  .graph-lines {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: calc(100% + 1px);
+    overflow: visible;
+  }
+  .graph-dot {
+    position: absolute;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--dot);
+    transform: translate(-50%, -50%);
+  }
+  /* Origen del archivo en su rama: punto hueco */
+  .graph-dot.origin {
+    width: 11px;
+    height: 11px;
+    background: var(--bg-primary, #fff);
+    border: 2.5px solid var(--dot);
+    box-sizing: border-box;
+  }
+  .change-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    vertical-align: 1px;
+  }
+  .change-badge.added { color: #1a7f37; background: rgba(26, 127, 55, 0.12); }
+  .change-badge.deleted { color: #cf222e; background: rgba(207, 34, 46, 0.12); }
+  .change-badge.renamed, .change-badge.merge { color: #6639ba; background: rgba(102, 57, 186, 0.12); }
+  .change-badge.branch { color: #9a6700; background: rgba(154, 103, 0, 0.14); }
 
   .commit-tag {
     display: inline-flex;
