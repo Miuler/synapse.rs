@@ -322,6 +322,17 @@ it('un agente le pregunta a otra conversación y le vuelve la respuesta', async 
     }) as Promise<boolean>;
   await s.browser.waitUntil(ready2, { timeout: 45_000, timeoutMsg: 'la conversación #2 no quedó conectada' });
   const input = s.browser.$('#ask-input');
+  // `@a:` filtra solo agentes (aquí, la conversación #1) y `@f:` solo archivos
+  const suggestionLabels = () => text('.acp-suggest button .acp-suggest-label');
+  await input.setValue('@a:');
+  await s.browser.waitUntil(async () => (await suggestionLabels()).some((t) => t?.includes('#1')), {
+    timeout: 5_000,
+    timeoutMsg: '«@a:» no sugirió la conversación #1',
+  });
+  expect((await suggestionLabels()).every((t) => t?.includes('#') || t?.startsWith('🟢') || t?.startsWith('🟡') || t?.startsWith('⚪'))).toBe(true);
+  await input.setValue('@f:');
+  await s.browser.waitUntil(async () => (await suggestionLabels()).length > 0, { timeout: 5_000, timeoutMsg: '«@f:» no sugirió archivos' });
+  expect((await suggestionLabels()).some((t) => t?.includes('#1'))).toBe(false);
   // `#` sugiere las otras conversaciones de esta ventana, con su título
   await input.setValue('pregúntale a ');
   await s.browser.keys('#');

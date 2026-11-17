@@ -182,68 +182,76 @@
     return i === q.length;
   }
 
-  type Suggestion = { label: string; detail: string; tooltip?: string; pick: () => void };
-  const suggestions = $derived.by((): Suggestion[] => {
-    if (hash) {
-      const h = hash;
-      return agentStore.conversations
-        .filter((c) => c.id !== conv.id)
-        .filter((c) => `${c.number} ${c.title} ${c.agent?.name ?? c.agentId}`.toLowerCase().includes(h.query))
-        .slice(0, 8)
-        .map((c) =>
-          conversationRow(
-            {
-              handle: c.handle,
-              agent: c.agent?.name ?? c.agentId,
-              title: c.title || 'Conversación nueva',
-              status: c.status,
-              last_reply: c.lastText('agent'),
-              last_question: c.lastText('user'),
-              last_activity: c.lastActivity,
-            },
-            c.handle,
-            c.handle,
-            'de esta ventana',
-            h.start,
-          ),
-        );
-    }
-    if (mention && mention.query.includes('#')) {
-      // `@Bóveda#…`: conversaciones de otra bóveda
-      const m = mention;
-      const [vq, cq] = m.query.split('#');
-      const v = vaults.find((x) => vaultToken(x.name).slice(1).toLowerCase() === vq);
-      if (!v) return [];
-      const rows = v.conversations
-        .filter((c) => `${c.number ?? ''} ${c.title} ${c.agent}`.toLowerCase().includes(cq))
-        .slice(0, 8)
-        .map((c) => {
-          const n = c.number ?? c.handle.replace(/^#/, '');
-          return conversationRow(c, `${vaultToken(v.name)}#${n}`, `${v.name}#${n}`, `de la bóveda «${v.name}»`, m.start);
-        });
-      if ('nueva'.startsWith(cq)) {
-        rows.push({
-          label: `${vaultToken(v.name)}#nueva`,
-          detail: 'Abre una conversación nueva en esa bóveda',
-          pick: () => {
-            if (v.state === 'off') startVault(v);
-            insertMention(m.start, { token: `${vaultToken(v.name)}#nueva`, to: `${v.name}#nueva`, title: `una conversación nueva en la bóveda «${v.name}»` });
+  type Suggestion = { label: string; detail: string; tooltip?: string; header?: string; pick: () => void };
+
+  /** Conversaciones de esta ventana (`#2`) que coinciden con `query`. */
+  function localConversationRows(query: string, start: number): Suggestion[] {
+    return agentStore.conversations
+      .filter((c) => c.id !== conv.id)
+      .filter((c) => `${c.number} ${c.title} ${c.agent?.name ?? c.agentId}`.toLowerCase().includes(query))
+      .slice(0, 8)
+      .map((c) =>
+        conversationRow(
+          {
+            handle: c.handle,
+            agent: c.agent?.name ?? c.agentId,
+            title: c.title || 'Conversación nueva',
+            status: c.status,
+            last_reply: c.lastText('agent'),
+            last_question: c.lastText('user'),
+            last_activity: c.lastActivity,
           },
-        });
-      }
-      return rows;
+          c.handle,
+          c.handle,
+          'de esta ventana',
+          start,
+        ),
+      );
+  }
+
+  /** `Bóveda#…`: conversaciones de otra bóveda, o una nueva. */
+  function remoteConversationRows(query: string, start: number): Suggestion[] {
+    const [vq, cq] = query.split('#');
+    const v = vaults.find((x) => vaultToken(x.name).slice(1).toLowerCase() === vq);
+    if (!v) return [];
+    const rows = v.conversations
+      .filter((c) => `${c.number ?? ''} ${c.title} ${c.agent}`.toLowerCase().includes(cq))
+      .slice(0, 8)
+      .map((c) => {
+        const n = c.number ?? c.handle.replace(/^#/, '');
+        return conversationRow(c, `${vaultToken(v.name)}#${n}`, `${v.name}#${n}`, `de la bóveda «${v.name}»`, start);
+      });
+    if ('nueva'.startsWith(cq)) {
+      rows.push({
+        label: `${vaultToken(v.name)}#nueva`,
+        detail: 'Abre una conversación nueva en esa bóveda',
+        pick: () => {
+          if (v.state === 'off') startVault(v);
+          insertMention(start, { token: `${vaultToken(v.name)}#nueva`, to: `${v.name}#nueva`, title: `una conversación nueva en la bóveda «${v.name}»` });
+        },
+      });
     }
+    return rows;
+  }
+  const suggestions = $derived.by((): Suggestion[] => {
+    if (hash) return localConversationRows(hash.query, hash.start);
     if (mention) {
+      // Filtro opcional: `@agent:` / `@a:` solo agentes (bóvedas y conversaciones), `@file:` / `@f:` solo
+      // archivos. El prefijo solo filtra: al elegir se inserta la mención sin él.
+      const m = mention;
+      const scoped = /^(agents?|a|files?|f):(.*)$/.exec(m.query);
+      const scope = scoped ? (scoped[1].startsWith('a') ? 'agents' : 'files') : null;
+      const q = scoped ? scoped[2] : m.query;
+      if (q.includes('#') && scope !== 'files') return remoteConversationRows(q, m.start);
       // `@this`: el archivo de la pestaña que se está viendo
       const note = agentStore.activeNote;
-      const self =
-        note && 'this'.startsWith(mention.query)
+      const self: Suggestion[] =
+        scope !== 'agents' && note && 'this'.startsWith(q)
           ? [
               {
                 label: '@this',
                 detail: `Archivo actual · ${relOf(note.path)}`,
                 pick: () => {
-                  const m = mention;
                   draft = draft.slice(0, m.start) + draft.slice(caret);
                   conv.attachActiveNote();
                   tick().then(() => {
@@ -255,44 +263,60 @@
               },
             ]
           : [];
-      const m = mention;
-      const vaultRows: Suggestion[] = vaults
-        .filter((v) => fuzzy(v.name.toLowerCase(), m.query))
-        .slice(0, 5)
-        .map((v) => ({
-          label: `${VAULT_ICON[v.state]} ${vaultToken(v.name)}`,
-          detail: startingPaths.includes(v.path)
-            ? 'encendiendo…'
-            : v.state === 'off'
-              ? 'Bóveda de Synapse apagada · elegirla la abre'
-              : `Bóveda de Synapse · ${v.conversations.length} conversaciones · escribe # para elegir una`,
-          tooltip: v.path,
-          pick: () => {
-            if (v.state === 'off') startVault(v);
-            insertMention(m.start, {
-              token: vaultToken(v.name),
-              to: v.name,
-              title: `la bóveda de Synapse «${v.name}» (otra ventana; su conversación de este hilo o una nueva)`,
-            });
-          },
-        }));
-      return [...self, ...vaultItemStore.items
-        .filter((it) => fuzzy(it.relative_path.toLowerCase(), mention.query))
-        .slice(0, vaultRows.length ? 6 : 8)
-        .map((it) => ({
-          label: it.title || nameOf(it.relative_path),
-          detail: it.relative_path,
-          pick: () => {
-            const m = mention;
-            draft = draft.slice(0, m.start) + draft.slice(caret);
-            conv.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
-            tick().then(() => {
-              textarea?.focus();
-              textarea?.setSelectionRange(m.start, m.start);
-              caret = m.start;
-            });
-          },
-        })), ...vaultRows];
+      const vaultRows: Suggestion[] =
+        scope === 'files'
+          ? []
+          : vaults
+              .filter((v) => fuzzy(v.name.toLowerCase(), q))
+              .slice(0, scope ? 8 : 5)
+              .map((v) => ({
+                label: `${VAULT_ICON[v.state]} ${vaultToken(v.name)}`,
+                detail: startingPaths.includes(v.path)
+                  ? 'encendiendo…'
+                  : v.state === 'off'
+                    ? 'Bóveda de Synapse apagada · elegirla la abre'
+                    : `Bóveda de Synapse · ${v.conversations.length} conversaciones · escribe # para elegir una`,
+                tooltip: v.path,
+                pick: () => {
+                  if (v.state === 'off') startVault(v);
+                  insertMention(m.start, {
+                    token: vaultToken(v.name),
+                    to: v.name,
+                    title: `la bóveda de Synapse «${v.name}» (otra ventana; su conversación de este hilo o una nueva)`,
+                  });
+                },
+              }));
+      // Con `@a:` también las conversaciones de esta ventana (`#2`)
+      const localRows = scope === 'agents' ? localConversationRows(q, m.start) : [];
+      const fileRows: Suggestion[] =
+        scope === 'agents'
+          ? []
+          : vaultItemStore.items
+              .filter((it) => fuzzy(it.relative_path.toLowerCase(), q))
+              .slice(0, scope ? 10 : vaultRows.length ? 6 : 8)
+              .map((it) => ({
+                label: it.title || nameOf(it.relative_path),
+                detail: it.relative_path,
+                pick: () => {
+                  draft = draft.slice(0, m.start) + draft.slice(caret);
+                  conv.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
+                  tick().then(() => {
+                    textarea?.focus();
+                    textarea?.setSelectionRange(m.start, m.start);
+                    caret = m.start;
+                  });
+                },
+              }));
+      const files = [...self, ...fileRows];
+      const agents = [...vaultRows, ...localRows];
+      // Encabezados con el atajo, solo cuando se ven los dos grupos
+      if (!scope && files.length && agents.length) {
+        files[0] = { ...files[0], header: 'Archivos · @f: para ver solo estos' };
+        agents[0] = { ...agents[0], header: 'Bóvedas de Synapse · @a: para ver solo estas' };
+      }
+      // Si lo escrito es el comienzo del nombre de una bóveda, las bóvedas van primero
+      const vaultFirst = !!q && vaults.some((v) => v.name.toLowerCase().startsWith(q) || vaultToken(v.name).slice(1).toLowerCase().startsWith(q));
+      return vaultFirst ? [...agents, ...files] : [...files, ...agents];
     }
     if (slash !== null) {
       // `/feedback` es de Synapse (compilación `develop`): pide al agente feedback sobre el MCP
@@ -741,6 +765,7 @@
       {#if suggestions.length}
         <div class="acp-suggest" role="listbox">
           {#each suggestions as sug, i (sug.detail + sug.label)}
+            {#if sug.header}<div class="acp-suggest-header">{sug.header}</div>{/if}
             <button
               type="button"
               role="option"
@@ -1024,6 +1049,12 @@
   }
   .acp-suggest button.active {
     background: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+  .acp-suggest-header {
+    padding: 4px 8px 2px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    text-transform: none;
   }
   .acp-suggest-detail {
     font-size: 11px;
