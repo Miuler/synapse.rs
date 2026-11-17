@@ -52,6 +52,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Fondo por defecto de la pestaña vacía en blanco**: los fondos claro y oscuro venían en AVIF, que el WebView de algunos Linux (WebKitGTK sin soporte AVIF) no decodifica; por eso se veía en blanco al abrir la app y al quitar un fondo propio. Ahora van en WebP.
 - **«Renombrar archivo» desde el menú de una pestaña**: la edición del nombre ya no se cierra sola. Al activarse la pestaña, su vista de lectura tomaba el foco, el campo del nombre lo perdía y la edición se confirmaba sin cambios; ahora la vista de lectura no le quita el foco a un campo de texto, y el menú no devuelve el foco a la pestaña al elegir renombrar.
 - **Historial de Git de archivos renombrados**: «Ver archivo», «Ver cambios», «Diff con local» y el diff entre versiones de un commit anterior a un renombre o a mover el archivo de carpeta ya muestran su contenido, en vez de «El archivo no existía en la revisión». En esa revisión se busca el nombre que tenía entonces, igual que el historial sigue al archivo.
 - **Zoom y arrastre de diagramas e imágenes**: en los diagramas (Mermaid, D2, PlantUML) arrastrar ya mueve el diagrama lo mismo que el mouse con cualquier zoom (antes, con zoom, se desfasaba), y la rueda hace zoom con el cursor como ancla. El zoom del diff de imágenes y del visor de Excalidraw también se ancla ahora en el cursor, como ya hacía el visor de imágenes.

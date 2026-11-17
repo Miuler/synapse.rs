@@ -6,8 +6,8 @@
   import { QuickOpen } from '@widgets/quick-open';
   import { invokeTauri } from '@shared/repositories/tauri';
   // Fondos por defecto según el tema; Vite los empaqueta y van dentro del binario
-  import defaultWallpaperDark from '@shared/assets/synapsers_w_dark.avif';
-  import defaultWallpaperLight from '@shared/assets/synapsers_w_light.avif';
+  import defaultWallpaperDark from '@shared/assets/synapsers_w_dark.webp';
+  import defaultWallpaperLight from '@shared/assets/synapsers_w_light.webp';
 
   interface Props {
     hasVaultItems?: boolean;
