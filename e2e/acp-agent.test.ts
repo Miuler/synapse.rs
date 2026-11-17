@@ -274,7 +274,11 @@ it('al reabrir la bóveda vuelve el panel con su agente y su última conversaci�
     const btn = [...document.querySelectorAll('.acp-permission-actions button')].find((b) => b.textContent?.trim() === 'Permitir');
     (btn as HTMLButtonElement | undefined)?.click();
   });
-  await s.browser.pause(1_000);
+  // Respondido el permiso, el agente termina su turno (y la conversación se guarda)
+  await s.browser.waitUntil(async () => (await count('.acp-permission-actions button')) === 0, {
+    timeout: 10_000,
+    timeoutMsg: 'el permiso no quedó respondido',
+  });
 
   // Recargar la ventana equivale a volver a abrir la bóveda
   await s.browser.refresh();

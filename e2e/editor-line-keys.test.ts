@@ -1,7 +1,7 @@
 // Atajos del editor de código: F2 alterna vista previa y edición, Ctrl+E/Ctrl+Y desplazan la
 // pantalla una línea y Ctrl+D duplica la línea, con y sin Vim.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 const DOC = Array.from({ length: 200 }, (_, i) => `nodo${i} -> nodo${i + 1}`).join('\n') + '\n';
 
@@ -14,7 +14,7 @@ async function openEditor() {
   const item = s.browser.$('.file-tree-item[data-path="grafo.d2"]');
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const content = s.browser.$('.cm-editor .cm-content');
   // Los diagramas se abren en vista previa: F2 muestra el editor.
   if (!(await content.isExisting())) await s.browser.keys(['F2']);

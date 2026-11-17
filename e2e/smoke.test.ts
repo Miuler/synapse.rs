@@ -16,7 +16,7 @@ afterAll(async () => {
 });
 
 it('arranca la app con la bóveda de prueba', async () => {
-  await s.browser.pause(4000);
+  await s.browser.$('.file-tree-item').waitForExist({ timeout: 30_000 });
   await s.browser.saveScreenshot(process.env.E2E_SHOTS ? `${process.env.E2E_SHOTS}/smoke.png` : '/tmp/synapse-e2e-smoke.png');
   const title = await s.browser.getTitle();
   console.log('título de la ventana:', title);

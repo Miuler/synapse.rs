@@ -1,6 +1,6 @@
 // Tab inserta 4 espacios sin perder el foco, en los editores de código y Markdown, y respeta los modos de Vim.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
 const state = () =>
@@ -14,7 +14,7 @@ const state = () =>
 
 async function open(path: string) {
   await s.browser.$(`.file-tree-item[data-path="${path}"]`).click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const shown = () =>
     s.browser.execute(() => [...document.querySelectorAll('.cm-content')].some((c) => c.getClientRects().length > 0)) as Promise<boolean>;
   if (!(await shown())) await s.browser.keys(['F2']);

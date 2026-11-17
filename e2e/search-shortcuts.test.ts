@@ -2,7 +2,7 @@
 // Las propiedades de la nota muestran las listas en línea.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { Key } from 'webdriverio';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
 const focusedName = () => s.browser.execute(() => (document.activeElement as HTMLInputElement)?.name ?? '') as Promise<string>;
@@ -35,7 +35,7 @@ it('Ctrl+Shift+F abre la búsqueda en el contenido con una nota abierta', async 
 
 it('Ctrl+R en un editor abre reemplazar y el contenido no se recarga', async () => {
   await s.browser.$('.file-tree-item[data-path="grafo.d2"]').click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const shown = () => s.browser.execute(() => [...document.querySelectorAll('.cm-content')].some((c) => c.getClientRects().length > 0)) as Promise<boolean>;
   if (!(await shown())) await s.browser.keys(['F2']);
   await s.browser.waitUntil(shown, { timeout: 10_000 });

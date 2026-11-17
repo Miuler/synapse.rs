@@ -1,6 +1,6 @@
 // En el editor de D2 con Vim, `u` deshace y Ctrl+R rehace (no recarga el archivo).
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
 const text = () =>
@@ -14,7 +14,7 @@ beforeAll(async () => {
   await s.browser.refresh();
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const content = s.browser.$('.cm-editor .cm-content');
   if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });

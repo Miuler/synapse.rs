@@ -1,7 +1,7 @@
 // Shift+F6 en el editor de código de D2: selecciona la palabra bajo el cursor y sus coincidencias
 // exactas, y lo que se escribe las cambia todas (como renombrar en JetBrains).
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 const DOC = 'server -> db\nservers: x\nclient -> server\n';
 
@@ -14,7 +14,7 @@ async function openEditor() {
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
   const content = s.browser.$('.cm-editor .cm-content');
-  await s.browser.pause(500);
+  await paneReady(s);
   if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
 }

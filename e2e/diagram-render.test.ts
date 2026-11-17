@@ -3,7 +3,7 @@
 // Con E2E_D2=/ruta/diagrama.d2 se prueba con un diagrama propio en vez del generado.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 function talaD2(): string {
   const parts = ['direction: right', 'vars: {', '  d2-config: {', '    layout-engine: tala', '  }', '}', ''];
@@ -36,7 +36,7 @@ beforeAll(async () => {
   const item = s.browser.$('.file-tree-item[data-path="complejo.d2"]');
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const content = s.browser.$('.cm-editor .cm-content');
   if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
@@ -78,7 +78,7 @@ it('Ctrl+Enter fuerza el redibujado', async () => {
 
 it('en Mermaid también se ve el estado y Ctrl+Enter redibuja', async () => {
   await s.browser.$('.file-tree-item[data-path="flujo.mmd"]').click();
-  await s.browser.pause(500);
+  await paneReady(s);
   const content = s.browser.$('.cm-editor .cm-content');
   const visible = () =>
     s.browser.execute(() => !![...document.querySelectorAll('.cm-content')].find((e) => (e as HTMLElement).offsetParent)) as Promise<boolean>;

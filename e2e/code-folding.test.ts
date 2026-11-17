@@ -1,7 +1,7 @@
 // Plegado entre llaves en el editor de código de D2: el margen ofrece plegar el bloque y al
 // hacerlo sus líneas se ocultan tras el marcador.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
 const visibleLines = () =>
@@ -50,7 +50,7 @@ it('los atajos de Vim zc, zo, zR y zM pliegan y despliegan', async () => {
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
   const content = s.browser.$('.cm-editor .cm-content');
-  await s.browser.pause(500);
+  await paneReady(s);
   if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
   await content.click();

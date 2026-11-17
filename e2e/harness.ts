@@ -58,6 +58,15 @@ async function waitForPort(port: number, timeoutMs: number): Promise<void> {
   throw new Error(`El puerto ${port} no respondió en ${timeoutMs} ms`);
 }
 
+/** Espera a que nadie escuche en `port` (el WebDriver del archivo anterior tarda en cerrarse). */
+async function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (await isListening(port)) {
+    if (Date.now() > deadline) throw new Error(`El puerto ${port} sigue ocupado (¿quedó un WebDriver de otra corrida?)`);
+    await Bun.sleep(100);
+  }
+}
+
 async function isListening(port: number): Promise<boolean> {
   try {
     await fetch(`http://localhost:${port}`);
@@ -105,6 +114,41 @@ function gnomeTextScale(): number {
   }
 }
 
+/** Errores que significan que la sesión de WebDriver ya no existe. */
+const DEAD_SESSION = /ECONNREFUSED|ECONNRESET|socket hang up|invalid session id|session deleted|Failed to fetch|fetch failed/i;
+
+/**
+ * Envuelve el navegador: si la sesión murió (el WebDriver terminó o una llamada falló por conexión),
+ * cualquier uso posterior falla enseguida con el motivo, sin esperar el timeout de cada prueba.
+ */
+function guardBrowser(
+  browser: Browser,
+  deadReason: () => string | null,
+  markDead: (why: string) => void,
+): Browser {
+  return new Proxy(browser, {
+    get(target, prop, receiver) {
+      const why = deadReason();
+      if (why && prop !== 'deleteSession' && prop !== 'then') {
+        throw new Error(`Sesión de WebDriver perdida (${why}); se omiten las pruebas que quedan.`);
+      }
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        const out = value.apply(target, args);
+        if (out && typeof (out as Promise<unknown>).catch === 'function' && prop !== '$' && prop !== '$$') {
+          return (out as Promise<unknown>).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (DEAD_SESSION.test(msg)) markDead(msg.split('\n')[0]);
+            throw e;
+          });
+        }
+        return out;
+      };
+    },
+  });
+}
+
 async function launch(base: string, vault: string): Promise<Session> {
   const home = join(base, 'home');
   mkdirSync(home, { recursive: true });
@@ -142,19 +186,29 @@ async function launch(base: string, vault: string): Promise<Session> {
     // hace clic en coordenadas sin escalar (cae en otro elemento): se compensa a escala 1.
     GDK_DPI_SCALE: process.env.E2E_GDK_DPI_SCALE ?? String(1 / gnomeTextScale()),
   };
+  // Si el puerto sigue tomado por el WebDriver anterior, conectarse a él fallaría a mitad de la prueba
+  await waitForPortFree(4444, 10_000);
   const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'] });
   children.push(driver);
+  // Si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su timeout
+  let dead: string | null = null;
+  driver.on('exit', (code) => (dead ??= `el WebDriver terminó (código ${code})`));
   await waitForPort(4444, 15_000);
 
-  const browser = await remote({
+  const raw = await remote({
     hostname: '127.0.0.1',
     port: 4444,
     logLevel: 'warn',
+    // Sin reintentos: con la conexión rota, cada pedido reintentaba 3 veces con 2 min de espera
+    connectionRetryCount: 0,
+    connectionRetryTimeout: 30_000,
     capabilities: {
       // @ts-expect-error capacidad propia de tauri-driver
       'tauri:options': { application: APP, args: ['--vault', vault] },
     },
   });
+
+  const browser = guardBrowser(raw, () => dead, (why) => (dead ??= why));
 
   return {
     browser,
@@ -167,9 +221,25 @@ async function launch(base: string, vault: string): Promise<Session> {
     async close() {
       await browser.deleteSession().catch(() => {});
       for (const c of children.reverse()) c.kill();
+      await waitForPortFree(4444, 10_000).catch(() => {});
       // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
       spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
       rmSync(base, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * Espera a que la pestaña visible termine de montar su visor (editor de código, diagrama o
+ * lectura): en lugar de una pausa fija antes de decidir si hace falta F2 para ver el editor.
+ */
+export async function paneReady(s: Session, timeout = 10_000): Promise<void> {
+  await s.browser.waitUntil(
+    () =>
+      s.browser.execute(() => {
+        const pane = document.querySelector('.tab-pane:not(.hidden)');
+        return !!pane?.querySelector('.diagram-viewer-container, .cm-content, .markdown-body');
+      }) as Promise<boolean>,
+    { timeout, timeoutMsg: 'la pestaña no terminó de mostrar su contenido' },
+  );
 }

@@ -1,7 +1,7 @@
 // Al cambiar de pestaña y volver, el editor conserva el cursor y recupera el foco; y si el archivo
 // cambia en disco, el contenido nuevo se aplica sin mandar el cursor al inicio.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type Session } from './harness';
 
@@ -25,6 +25,7 @@ function longMermaid(): string {
 }
 
 let s: Session;
+const SELF_SAVE_WINDOW_MS = 2_600;
 
 beforeAll(async () => {
   s = await startApp({
@@ -48,9 +49,26 @@ const visibleText = () =>
     return content ? [...content.querySelectorAll('.cm-line')].map((l) => l.textContent).join('\n') : '';
   }) as Promise<string>;
 
+const activeTab = (path: string) =>
+  s.browser.$(`.tab-title-container.active[data-path="${path}"]`).waitForExist({ timeout: 10_000 });
+
 async function openTab(path: string) {
   await s.browser.$(`.file-tree-item[data-path="${path}"]`).click();
-  await s.browser.pause(600);
+  await activeTab(path);
+}
+
+/** Vuelve a la pestaña y espera a que su editor recupere el foco. */
+async function backTo(path: string) {
+  await s.browser.$(`.tab-title-container[data-path="${path}"]`).click();
+  await activeTab(path);
+  await s.browser.waitUntil(
+    () =>
+      s.browser.execute(() => {
+        const c = document.activeElement?.closest('.cm-content') as HTMLElement | null;
+        return !!c && !!c.offsetParent;
+      }) as Promise<boolean>,
+    { timeout: 5_000, timeoutMsg: 'el editor no recuperó el foco' },
+  );
 }
 
 async function editAtEnd(path: string) {
@@ -63,7 +81,7 @@ async function editAtEnd(path: string) {
   await s.browser.$(content).click();
   await s.browser.keys(['Control', 'End']);
   await s.browser.keys(['x']);
-  await s.browser.pause(300);
+  await s.browser.waitUntil(async () => (await visibleText()).includes('x'), { timeout: 5_000 });
 }
 
 for (const path of ['uno.md', 'grafo.d2']) {
@@ -71,9 +89,7 @@ for (const path of ['uno.md', 'grafo.d2']) {
     await editAtEnd(path);
     expect(await visibleText()).toContain('x');
     await openTab('dos.md');
-    await s.browser.pause(1000);
-    await s.browser.$(`.tab-title-container[data-path="${path}"]`).click();
-    await s.browser.pause(800);
+    await backTo(path);
     // Lo que se escribe al volver, sin hacer clic en el editor, sigue a la `x`.
     await s.browser.keys(['y']);
     await s.browser.waitUntil(async () => (await visibleText()).includes('y'), { timeout: 5_000 });
@@ -83,7 +99,12 @@ for (const path of ['uno.md', 'grafo.d2']) {
 
 it('un cambio en disco se aplica sin mover el cursor al inicio', async () => {
   await s.browser.keys(['Control', 's']);
-  await s.browser.pause(3000);
+  await s.browser.waitUntil(() => readFileSync(join(s.vault, 'grafo.d2'), 'utf8').includes('xy'), {
+    timeout: 10_000,
+    timeoutMsg: 'no se guardó el diagrama',
+  });
+  // La app ignora 2,5 s los cambios de disco que siguen a su propio guardado (recentSaveTimestamps)
+  await s.browser.pause(SELF_SAVE_WINDOW_MS);
   // Otro programa cambia la primera línea del diagrama (la pestaña está guardada, se recarga).
   writeFileSync(join(s.vault, 'grafo.d2'), 'z -> b\nb -> c\nc -> d\nxy');
   await s.browser.waitUntil(async () => (await visibleText()).startsWith('z -> b'), { timeout: 15_000 });
@@ -118,16 +139,17 @@ for (const path of ['largo.d2', 'flujo.mmd']) {
     // Una tecla por llamada: WebDriver junta las repetidas dentro de una misma secuencia.
     for (let i = 0; i < 200; i++) await s.browser.keys(['ArrowDown']);
     await s.browser.keys(['End', 'x']);
-    await s.browser.pause(300);
+    await s.browser.waitUntil(async () => (await scrollTop()) > 500, { timeout: 5_000, timeoutMsg: 'el editor no se desplazó' });
     const scrolled = await scrollTop();
 
     expect(scrolled).toBeGreaterThan(500);
 
     await openTab('dos.md');
-    await s.browser.pause(1000);
-    await s.browser.$(`.tab-title-container[data-path="${path}"]`).click();
-    await s.browser.pause(800);
-    expect(Math.abs((await scrollTop()) - scrolled)).toBeLessThan(40);
+    await backTo(path);
+    await s.browser.waitUntil(async () => Math.abs((await scrollTop()) - scrolled) < 40, {
+      timeout: 5_000,
+      timeoutMsg: 'no se recuperó el desplazamiento',
+    });
     await s.browser.keys(['y']);
     await s.browser.waitUntil(async () => (await visibleText()).includes('xy'), { timeout: 5_000 });
     expect((await visibleText()).startsWith('y')).toBe(false);

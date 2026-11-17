@@ -1,7 +1,7 @@
 // El cursor del editor de código (D2/Mermaid) debe verse en tema oscuro: su color no puede ser
 // el negro por defecto de CodeMirror sobre el fondo oscuro.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { startApp, type Session } from './harness';
+import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
 
@@ -17,7 +17,7 @@ beforeAll(async () => {
   await item.click();
   await s.browser.$('.tab-title-container[data-path="diagrama.d2"]').waitForExist({ timeout: 10_000 });
   const content = s.browser.$('.cm-editor .cm-content');
-  await s.browser.pause(500);
+  await paneReady(s);
   if (!(await content.isExisting())) await s.browser.keys(['F2']);
   await content.waitForExist({ timeout: 10_000 });
   await content.click();
