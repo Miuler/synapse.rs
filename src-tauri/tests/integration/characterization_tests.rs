@@ -37,6 +37,7 @@ fn note(
         is_active_tab: false,
         view_mode: None,
         sync_state: NoteSyncState::Local,
+        is_drawio: false,
     }
 }
 

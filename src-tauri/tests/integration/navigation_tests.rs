@@ -35,6 +35,7 @@ fn test_note_meta_compact_str_and_postcard_roundtrip() {
             is_active_tab: true,
             view_mode: Some(CompactString::new("reading")),
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     map.insert(
@@ -53,6 +54,7 @@ fn test_note_meta_compact_str_and_postcard_roundtrip() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
 
@@ -119,6 +121,7 @@ fn test_populate_nucleo_and_matching() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     map.insert(
@@ -137,6 +140,7 @@ fn test_populate_nucleo_and_matching() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
 
@@ -188,6 +192,7 @@ fn test_cold_start_hydration_timing_sub_10ms() {
                 is_active_tab: false,
                 view_mode: None,
                 sync_state: NoteSyncState::Local,
+                is_drawio: false,
             },
         );
     }
@@ -332,6 +337,7 @@ fn test_debounce_persistence_worker() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine.mark_dirty();
@@ -383,6 +389,7 @@ fn test_dashmap_directory_children_resolution() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine.notes.insert(
@@ -401,6 +408,7 @@ fn test_dashmap_directory_children_resolution() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine.notes.insert(
@@ -419,6 +427,7 @@ fn test_dashmap_directory_children_resolution() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
 
@@ -664,6 +673,7 @@ fn test_search_large_vault_over_5000_notes() {
                 is_active_tab: false,
                 view_mode: None,
                 sync_state: NoteSyncState::Local,
+                is_drawio: false,
             },
         );
     }
@@ -1216,6 +1226,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine.path_index.insert(
@@ -1239,6 +1250,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine.notes.insert(
@@ -1257,6 +1269,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine
@@ -1334,6 +1347,7 @@ fn test_duplicate_filenames_proximity_resolution() {
                 is_active_tab: false,
                 view_mode: None,
                 sync_state: NoteSyncState::Local,
+                is_drawio: false,
             },
         );
         engine.path_index.insert(CompactString::new(*p), id);
@@ -1376,6 +1390,7 @@ fn test_duplicate_filenames_proximity_resolution() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
             id: 1,
         },
     );
@@ -1398,6 +1413,7 @@ fn test_duplicate_filenames_proximity_resolution() {
             is_active_tab: false,
             view_mode: None,
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
             id: 2,
         },
     );
@@ -1438,6 +1454,7 @@ fn test_get_note_meta_o1_and_streaming_files() {
             is_active_tab: false,
             view_mode: Some(CompactString::new("live")),
             sync_state: NoteSyncState::Local,
+            is_drawio: false,
         },
     );
     engine
