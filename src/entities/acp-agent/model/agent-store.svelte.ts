@@ -1054,6 +1054,23 @@ class AgentStore {
   /** Adjuntos que llegan sin conversación abierta: viajan con la próxima que se abra. */
   #waiting: Attachment[] = [];
 
+  /** Texto que se deja escrito (sin enviar) en la conversación enfocada, o en la próxima que se abra. */
+  pendingDraft = $state<string | null>(null);
+
+  /**
+   * Prepara una pregunta al agente sobre lo que cambió en un archivo entre dos commits: abre el
+   * panel, adjunta el archivo y deja la pregunta escrita para que el usuario la revise y la envíe.
+   */
+  askAboutRevisions(file: { path: string; name: string }, from: string, to: string) {
+    this.setPanelOpen(true);
+    this.attach({ kind: 'file', path: file.path, name: file.name });
+    const s = (h: string) => h.slice(0, 7);
+    this.pendingDraft =
+      `¿Qué cambió en ${file.name} entre los commits ${s(from)} y ${s(to)}? ` +
+      `Usa git_diff_revisions (from: ${from}, to: ${to}) y, si es una imagen o un diagrama, ` +
+      `render_diagram con revision en cada versión.`;
+  }
+
   /** Adjunta (por ejemplo, la selección del editor) a la conversación enfocada. */
   attach(a: Attachment) {
     const c = this.focused;

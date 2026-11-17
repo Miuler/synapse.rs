@@ -4749,6 +4749,7 @@
     onDiffRevision={(p, rev) => selectTab(`diff-rev:${rev}:${p}`)}
     onPatchRevision={(p, rev) => selectTab(`diff-commit:${rev}:${p}`)}
     onCompareRevisions={(p, from, to) => selectTab(`diff-commit:${from}..${to}:${p}`)}
+    onAskAgent={(p, from, to) => agentStore.askAboutRevisions({ path: vaultAbs(p), name: p.split('/').pop() || p }, from, to)}
   />
 
   {#if workspaceToastMessage}

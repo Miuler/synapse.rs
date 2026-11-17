@@ -98,7 +98,10 @@ pub(crate) fn session_instructions(feedback: bool) -> String {
          `{name}`; es asíncrono: si preguntas, su respuesta te llegará después como un mensaje nuevo.\n\
          - Si lo que necesitas está en otra bóveda del usuario (por ejemplo, documentación de otro \
          sistema), usa `list_vaults` y pasa `vault` a las herramientas de lectura (`search_notes`, \
-         `read_note`…). Es solo lectura y la primera vez el usuario debe permitirlo."
+         `read_note`…). Es solo lectura y la primera vez el usuario debe permitirlo.\n\
+         - Para el historial de Git de un archivo usa `git_file_history`; para saber qué cambió \
+         entre dos commits, `git_diff_revisions` (y `render_diagram` con `revision` si es una \
+         imagen o un diagrama); para leerlo como era en un commit, `git_read_revision`."
     );
     if feedback {
         text.push_str(&format!(

@@ -13,6 +13,7 @@
     X,
     FileText,
     GitCommitHorizontal,
+    Bot,
   } from 'lucide-svelte';
   import {
     vaultRepository,
@@ -28,6 +29,8 @@
     onPatchRevision?: (filePath: string, commitHash: string) => void;
     /** Diff entre dos versiones elegidas del archivo (`from` la más antigua). */
     onCompareRevisions?: (filePath: string, from: string, to: string) => void;
+    /** Prepara en el panel del agente la pregunta «qué cambió» entre dos versiones. */
+    onAskAgent?: (filePath: string, from: string, to: string) => void;
     onClose?: () => void;
   }
 
@@ -38,6 +41,7 @@
     onDiffRevision,
     onPatchRevision,
     onCompareRevisions,
+    onAskAgent,
     onClose,
   }: GitFileLogDialogProps = $props();
 
@@ -116,6 +120,14 @@
     } catch (err) {
       console.error('Error al copiar hashes:', err);
     }
+  }
+
+  function askAgentPicked() {
+    if (!filePath || pickedInOrder.length !== 2) return;
+    const [to, from] = pickedInOrder.map((c) => c.commit_hash);
+    rowMenu = null;
+    open = false;
+    onAskAgent?.(filePath, from, to);
   }
 
   function comparePicked() {
@@ -311,6 +323,17 @@
               onclick={comparePicked}
             >
               <GitCompare size={13} /> Diff entre estas 2 versiones
+            </button>
+          {/if}
+          {#if onAskAgent}
+            <button
+              type="button"
+              role="menuitem"
+              disabled={pickedInOrder.length !== 2}
+              title={pickedInOrder.length === 2 ? 'Abre el panel del agente con el archivo adjunto y la pregunta escrita' : 'Elige exactamente 2 versiones (Ctrl+clic)'}
+              onclick={askAgentPicked}
+            >
+              <Bot size={13} /> Preguntar al agente qué cambió
             </button>
           {/if}
           <button type="button" role="menuitem" onclick={() => copyPicked(false)}>

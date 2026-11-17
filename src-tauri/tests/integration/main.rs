@@ -10,6 +10,7 @@ mod full_text_tests;
 mod mcp_characterization_tests;
 mod mcp_conversations_tests;
 mod mcp_cross_vault_tests;
+mod mcp_git_tools_tests;
 mod mcp_render_diagram_tests;
 mod mcp_tests;
 mod navigation_tests;

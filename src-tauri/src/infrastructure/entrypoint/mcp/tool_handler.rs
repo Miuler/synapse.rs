@@ -180,7 +180,13 @@ pub const CROSS_VAULT_TOOLS: &[&str] = &[
     "get_backlinks_and_relations",
     "read_pdf_document",
     "extract_note_diagrams",
+    "git_file_history",
+    "git_diff_revisions",
+    "git_read_revision",
 ];
+
+/// Líneas máximas de un diff o de un archivo histórico devueltas al agente de una vez.
+const GIT_MAX_LINES: usize = 1500;
 
 impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHandler<R, I, G> {
     pub fn new(
@@ -835,6 +841,51 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "required": ["title", "details"]
                     }),
                 },
+                // 24. git_file_history
+                McpTool {
+                    name: "git_file_history".to_string(),
+                    description: "Historial de Git de un archivo de la bóveda (siguiendo renombres): hash, hash corto, fecha, autor, mensaje y tags de cada commit, del más nuevo al más antiguo. Úsalo para elegir los commits a comparar con git_diff_revisions.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo"},
+                            "limit": {"type": "integer", "description": "Commits como máximo (por defecto 20)", "default": 20}
+                        },
+                        "required": ["relative_path"]
+                    }),
+                },
+                // 25. git_diff_revisions
+                McpTool {
+                    name: "git_diff_revisions".to_string(),
+                    description: "Qué cambió en un archivo entre dos commits: diff unificado (de `from` a `to`; sin `to`, contra la versión local), con líneas agregadas y quitadas. Si el archivo se renombró entre medio, se usa el nombre que tenía en cada commit. Para imágenes y diagramas binarios usa render_diagram con `revision` en cada versión.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo (la actual)"},
+                            "from": {"type": "string", "description": "Commit de partida (hash, hash corto, HEAD~2…)"},
+                            "to": {"type": "string", "description": "Commit de llegada; vacío = la versión local del disco"}
+                        },
+                        "required": ["relative_path", "from"]
+                    }),
+                },
+                // 26. git_read_revision
+                McpTool {
+                    name: "git_read_revision".to_string(),
+                    description: "Contenido de un archivo en un commit (con el nombre que tenía entonces si se renombró). Devuelve un tramo de líneas; usa start_line y line_count para archivos largos.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo (la actual)"},
+                            "revision": {"type": "string", "description": "Commit (hash, hash corto, HEAD~1…)"},
+                            "start_line": {"type": "integer", "description": "Primera línea (desde 1)", "default": 1},
+                            "line_count": {"type": "integer", "description": "Líneas a devolver (por defecto 300)", "default": 300}
+                        },
+                        "required": ["relative_path", "revision"]
+                    }),
+                },
                 // 23. read_replies
                 McpTool {
                     name: "read_replies".to_string(),
@@ -886,6 +937,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "vault": {
                                 "type": "string",
                                 "description": "Otra bóveda (ver list_vaults); vacío = esta bóveda"
+                            },
+                            "revision": {
+                                "type": "string",
+                                "description": "Commit de Git (hash, HEAD~1…): el diagrama o la imagen (p. ej. un .drawio.png) tal como era entonces"
                             }
                         },
                         "required": ["relative_path"]
@@ -973,6 +1028,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "render_diagram" => self.execute_render_diagram(&args),
             "list_conversations" => self.execute_list_conversations(),
             "list_vaults" => self.execute_list_vaults(),
+            "git_file_history" => self.execute_git_file_history(&args),
+            "git_diff_revisions" => self.execute_git_diff_revisions(&args),
+            "git_read_revision" => self.execute_git_read_revision(&args),
             "read_replies" => match self.conversations() {
                 Ok(hub) => match hub.replies() {
                     Ok(v) => to_text(&v, ""),
@@ -1382,6 +1440,187 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         to_text(&payload, "")
     }
 
+    fn git(&self) -> Result<&Arc<G>, McpCallToolResult> {
+        self.git_service
+            .as_ref()
+            .ok_or_else(|| McpCallToolResult::error("Git no está disponible en este modo"))
+    }
+
+    fn execute_git_file_history(&self, args: &Value) -> McpCallToolResult {
+        let git = match self.git() {
+            Ok(g) => g,
+            Err(e) => return e,
+        };
+        let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
+            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+        };
+        let limit = args
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(20)
+            .clamp(1, 200) as usize;
+        match git.get_file_log(&self.vault(), rel, Some(limit)) {
+            Ok(log) if log.commits.is_empty() => {
+                McpCallToolResult::error(format!("'{rel}' no tiene commits en el historial de Git"))
+            }
+            Ok(log) => to_text(
+                &json!({
+                    "relative_path": rel,
+                    "commits": log.commits.iter().map(|c| json!({
+                        "hash": c.commit_hash,
+                        "short_hash": c.short_hash,
+                        "date": c.date,
+                        "author": c.author_name,
+                        "message": c.message,
+                        "tags": c.tags,
+                    })).collect::<Vec<_>>(),
+                }),
+                "",
+            ),
+            Err(e) => McpCallToolResult::error(e),
+        }
+    }
+
+    fn execute_git_diff_revisions(&self, args: &Value) -> McpCallToolResult {
+        let git = match self.git() {
+            Ok(g) => g,
+            Err(e) => return e,
+        };
+        let text = |k: &str| {
+            args.get(k)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        };
+        let (Some(rel), Some(from)) = (text("relative_path"), text("from")) else {
+            return McpCallToolResult::error(
+                "Los argumentos 'relative_path' y 'from' son obligatorios",
+            );
+        };
+        let to = text("to");
+        let vault = self.vault();
+        // De `from` a `to` (o a la versión local)
+        let (old, new, old_path, new_path) = match to {
+            None => match git.diff(&vault, rel, false, Some(from)) {
+                Ok(d) => (
+                    d.old_content,
+                    d.new_content,
+                    format!("{from}"),
+                    "local".to_string(),
+                ),
+                Err(e) => return McpCallToolResult::error(e),
+            },
+            Some(to) => {
+                let read = |rev: &str| git.get_file_revision(&vault, rel, rev);
+                match (read(from), read(to)) {
+                    (Ok(a), Ok(b)) => {
+                        if !a.exists && !b.exists {
+                            return McpCallToolResult::error(format!(
+                                "'{rel}' no existía en {from} ni en {to}"
+                            ));
+                        }
+                        if a.is_binary || b.is_binary {
+                            return McpCallToolResult::error(format!(
+                                "'{rel}' es binario: compáralo visualmente con render_diagram y `revision` en cada versión"
+                            ));
+                        }
+                        (
+                            a.content.unwrap_or_default(),
+                            b.content.unwrap_or_default(),
+                            from.to_string(),
+                            to.to_string(),
+                        )
+                    }
+                    (Err(e), _) | (_, Err(e)) => return McpCallToolResult::error(e),
+                }
+            }
+        };
+        let diff = similar::TextDiff::from_lines(&old, &new);
+        let (mut added, mut removed) = (0usize, 0usize);
+        for change in diff.iter_all_changes() {
+            match change.tag() {
+                similar::ChangeTag::Insert => added += 1,
+                similar::ChangeTag::Delete => removed += 1,
+                similar::ChangeTag::Equal => {}
+            }
+        }
+        let unified = diff
+            .unified_diff()
+            .header(
+                &format!("{rel} @ {old_path}"),
+                &format!("{rel} @ {new_path}"),
+            )
+            .to_string();
+        let lines: Vec<&str> = unified.lines().collect();
+        let truncated = lines.len() > GIT_MAX_LINES;
+        to_text(
+            &json!({
+                "relative_path": rel,
+                "from": old_path,
+                "to": new_path,
+                "lines_added": added,
+                "lines_removed": removed,
+                "identical": added == 0 && removed == 0,
+                "truncated": truncated,
+                "diff": lines[..lines.len().min(GIT_MAX_LINES)].join("\n"),
+            }),
+            "",
+        )
+    }
+
+    fn execute_git_read_revision(&self, args: &Value) -> McpCallToolResult {
+        let git = match self.git() {
+            Ok(g) => g,
+            Err(e) => return e,
+        };
+        let text = |k: &str| {
+            args.get(k)
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        };
+        let (Some(rel), Some(rev)) = (text("relative_path"), text("revision")) else {
+            return McpCallToolResult::error(
+                "Los argumentos 'relative_path' y 'revision' son obligatorios",
+            );
+        };
+        let start = args
+            .get("start_line")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1)
+            .max(1) as usize;
+        let count = (args
+            .get("line_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(300) as usize)
+            .clamp(1, GIT_MAX_LINES);
+        match git.get_file_revision(&self.vault(), rel, rev) {
+            Ok(r) if !r.exists => McpCallToolResult::error(format!("'{rel}' no existía en {rev}")),
+            Ok(r) if r.is_binary => McpCallToolResult::error(format!(
+                "'{rel}' es binario en {rev}: si es un diagrama, usa render_diagram con `revision`"
+            )),
+            Ok(r) => {
+                let content = r.content.unwrap_or_default();
+                let lines: Vec<&str> = content.lines().collect();
+                let from = (start - 1).min(lines.len());
+                let to = (from + count).min(lines.len());
+                to_text(
+                    &json!({
+                        "relative_path": rel,
+                        "revision": rev,
+                        "path_at_revision": r.path,
+                        "total_lines": lines.len(),
+                        "start_line": from + 1,
+                        "end_line": to,
+                        "content": lines[from..to].join("\n"),
+                    }),
+                    "",
+                )
+            }
+            Err(e) => McpCallToolResult::error(e),
+        }
+    }
+
     fn execute_list_vaults(&self) -> McpCallToolResult {
         let Some(catalog) = &self.vault_catalog else {
             return McpCallToolResult::error(
@@ -1442,9 +1681,12 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         .map(Arc::new);
         let other = McpToolHandler::new(
             target.path.clone(),
-            crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new(),
+            crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new(
+            ),
             fts,
-            None::<Arc<crate::infrastructure::repository::git::version_control_impl::VersionControlImpl>>,
+            Some(Arc::new(
+                crate::infrastructure::repository::git::version_control_impl::VersionControlImpl,
+            )),
             Arc::clone(&self.vault_item_repository),
             Arc::clone(&self.pdf_document_repository),
         );
@@ -1454,6 +1696,64 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             McpContentItem::text(format!("📚 Bóveda «{}» (solo lectura)", target.name)),
         );
         result
+    }
+
+    /// El diagrama (o la imagen, como un `.drawio.png`) tal como era en un commit de Git.
+    fn render_at_revision(&self, rel: &str, rev: &str) -> McpCallToolResult {
+        let git = match self.git() {
+            Ok(g) => g,
+            Err(e) => return e,
+        };
+        let r = match git.get_file_revision(&self.vault(), rel, rev) {
+            Ok(r) if r.exists => r,
+            Ok(_) => return McpCallToolResult::error(format!("'{rel}' no existía en {rev}")),
+            Err(e) => return McpCallToolResult::error(e),
+        };
+        let header = format!("«{rel}» en {rev} (archivo en el commit: {})", r.path);
+        // Imágenes (png, jpg, svg… incluido un `.drawio.png`): se devuelven tal cual
+        if let Some(data_url) = r
+            .data_url
+            .as_deref()
+            .filter(|u| u.starts_with("data:image/"))
+        {
+            if r.is_binary || diagram_kind(rel).is_none() {
+                if let Some((meta, data)) = data_url.split_once(',') {
+                    let mime = meta
+                        .trim_start_matches("data:")
+                        .trim_end_matches(";base64")
+                        .to_string();
+                    return McpCallToolResult {
+                        content: vec![
+                            McpContentItem::text(format!("Imagen {header}.")),
+                            McpContentItem::image(data.to_string(), mime),
+                        ],
+                        is_error: false,
+                    };
+                }
+            }
+        }
+        let Some(kind) = diagram_kind(rel) else {
+            return McpCallToolResult::error(format!(
+                "'{rel}' no es una imagen ni un diagrama que Synapse sepa dibujar; léelo con git_read_revision"
+            ));
+        };
+        let Some(renderer) = &self.diagram_renderer else {
+            return McpCallToolResult::error(
+                "Dibujar diagramas requiere la ventana de Synapse abierta",
+            );
+        };
+        match renderer.render(rel, r.content.as_deref()) {
+            Ok(img) => McpCallToolResult {
+                content: vec![
+                    McpContentItem::text(format!(
+                        "Diagrama {kind} {header}, dibujado como imagen."
+                    )),
+                    McpContentItem::image(img.data_base64, img.mime_type),
+                ],
+                is_error: false,
+            },
+            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}' en {rev}: {e}")),
+        }
     }
 
     /// Dibuja un diagrama de otra bóveda con los motores de esta ventana (lee su archivo con permiso).
@@ -1605,6 +1905,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
             return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
         };
+        if let Some(rev) = args
+            .get("revision")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            return self.render_at_revision(rel, rev);
+        }
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
                 "'{rel}' no es un diagrama que Synapse sepa dibujar (Excalidraw, Mermaid, D2 o PlantUML)"

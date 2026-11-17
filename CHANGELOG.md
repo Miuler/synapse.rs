@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **El agente entiende el historial de Git de un archivo**: herramientas nuevas del MCP `git_file_history` (commits del archivo, siguiendo renombres), `git_diff_revisions` (qué cambió entre dos commits, o contra la versión local, con líneas agregadas y quitadas) y `git_read_revision` (el archivo como era en un commit); `render_diagram` acepta `revision` para ver un diagrama o una imagen (p. ej. un `.drawio.png`) tal como era. En el Historial de Git, con dos commits elegidos, «Preguntar al agente qué cambió» abre el panel con el archivo adjunto y la pregunta escrita.
 - **Elegir commits en el Historial de Git**: clic elige un commit, `Ctrl`+clic suma o quita otros y `Shift`+clic elige el rango desde el último clic. Con el clic derecho: «Diff entre estas 2 versiones» (con exactamente dos elegidas) y copiar sus hashes, completos o cortos, separados por coma.
 - **Duplicar pestaña en vista dividida**: en el menú de cada pestaña, «Duplicar en vista dividida» abre esa misma pestaña en el otro panel (creando la división si no la hay), sin quitarla de donde estaba.
 - **El visor de diff recuerda las vistas ya calculadas**: «2 Paneles», «Diferencias» (píxel a píxel) y texto se calculan la primera vez que los eliges y quedan en memoria hasta cerrar la pestaña, así cambiar entre ellos es inmediato.

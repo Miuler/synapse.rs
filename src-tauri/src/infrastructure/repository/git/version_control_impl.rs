@@ -1065,6 +1065,8 @@ impl VersionControlImpl {
             Err(e) => return Err(format!("Error ejecutando git show: {}", e)),
         };
 
+        // Ruta (relativa a la bóveda) con la que se leyó el archivo en esa revisión
+        let mut shown_path = clean_path.to_string();
         // ¿Se renombró después? En esa revisión el archivo tenía otro nombre (como en `git log --follow`)
         let is_commit = !(revision == "staged"
             || revision == ":staged"
@@ -1084,6 +1086,15 @@ impl VersionControlImpl {
                     .args(["show", &format!("{rev}:{old}")])
                     .output()
                 {
+                    if out.status.success() {
+                        shown_path = match &prefix_from_workdir {
+                            Some(prefix) => old
+                                .strip_prefix(&format!("{prefix}/"))
+                                .unwrap_or(&old)
+                                .to_string(),
+                            None => old.clone(),
+                        };
+                    }
                     output = out;
                 }
             }
@@ -1156,7 +1167,7 @@ impl VersionControlImpl {
         };
 
         Ok(FileRevision {
-            path: clean_path.to_string(),
+            path: shown_path,
             revision: revision.to_string(),
             content,
             data_url,

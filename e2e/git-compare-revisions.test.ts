@@ -128,9 +128,10 @@ it('Ctrl+clic y Shift+clic eligen commits; el clic derecho compara dos o copia s
     r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 200, clientY: y + 10 }));
   });
   await s.browser.$('.git-log-row-menu').waitForExist({ timeout: 5_000 });
-  const menuButtons = await s.browser.$$('.git-log-row-menu button');
-  expect(await menuButtons[0].isEnabled()).toBe(true);
-  await menuButtons[1].click();
+  const menuItem = (text: string) => s.browser.$('.git-log-row-menu').$(`button*=${text}`);
+  expect(await menuItem('Diff entre').isEnabled()).toBe(true);
+  expect(await menuItem('Preguntar al agente').isEnabled()).toBe(true);
+  await menuItem('separados por coma').click();
   expect(await s.browser.execute(() => (window as any).__copied)).toBe(`${hashes[0]},${hashes[2]}`);
 
   // Shift+clic: el rango completo (3 commits)
@@ -148,8 +149,21 @@ it('Ctrl+clic y Shift+clic eligen commits; el clic derecho compara dos o copia s
   });
   await s.browser.$('.git-log-row-menu').waitForExist({ timeout: 5_000 });
   // Con tres elegidas, el diff (que es entre dos) no se puede
-  expect(await (await s.browser.$$('.git-log-row-menu button'))[0].isEnabled()).toBe(false);
-  await (await s.browser.$$('.git-log-row-menu button'))[2].click();
+  expect(await menuItem('Diff entre').isEnabled()).toBe(false);
+  await menuItem('hashes cortos').click();
   expect(await s.browser.execute(() => (window as any).__copied)).toBe(hashes.map((h) => h.slice(0, 7)).join(','));
-  await s.browser.keys('Escape');
+
+  // «Preguntar al agente qué cambió» con dos elegidas: abre el panel del agente
+  await cell(0).click();
+  await s.browser.performActions([{ type: 'key', id: 'kb3', actions: [{ type: 'keyDown', value: '\uE009' }] }]);
+  await cell(1).click();
+  await s.browser.releaseActions();
+  await s.browser.execute(() => {
+    const r = document.querySelectorAll('.git-log-dialog .git-log-row')[1];
+    const { x, y } = r.getBoundingClientRect();
+    r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 200, clientY: y + 10 }));
+  });
+  await menuItem('Preguntar al agente').click();
+  await s.browser.$('.synapse-agent-panel').waitForExist({ timeout: 5_000 });
+  expect(await count('.git-log-dialog')).toBe(0);
 });

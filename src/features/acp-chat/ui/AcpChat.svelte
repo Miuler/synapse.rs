@@ -48,6 +48,15 @@
   }
 
   let draft = $state('');
+  // Pregunta preparada desde otra parte de la app (p. ej. el Historial de Git): se escribe aquí si
+  // esta es la conversación enfocada, sin enviarla
+  $effect(() => {
+    const pending = agentStore.pendingDraft;
+    if (!pending || agentStore.focused !== conv) return;
+    draft = pending;
+    agentStore.pendingDraft = null;
+    tick().then(() => textarea?.focus());
+  });
   let scroller = $state<HTMLDivElement | null>(null);
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let dragOver = $state(false);
