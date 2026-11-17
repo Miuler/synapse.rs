@@ -118,9 +118,9 @@
   function dismissFloatingExplorer() {
     if (!explorerPinned && activeRibbonTab === 'files') activeRibbonTab = '';
   }
-  /** Pestañas `.drawio.png` abiertas en el editor de draw.io en vez de en el visor de imágenes.
-   *  Solo dura mientras la pestaña está abierta: abrir el archivo de la forma normal (explorador,
-   *  apertura rápida…) o cerrar la pestaña lo devuelve al visor de imágenes. */
+  /** Pestañas de imágenes de draw.io abiertas en su editor en vez de en el visor de imágenes.
+   *  Dura mientras la pestaña está abierta: volver a abrir el archivo desde el explorador solo
+   *  activa la pestaña; Lectura o «Salir» lo devuelven al visor. */
   const drawioPngTabs = new SvelteSet<string>();
 
   // PNG o SVG con un diagrama de draw.io dentro aunque no se llame `.drawio.png` / `.drawio.svg`
@@ -151,6 +151,55 @@
     const p = activeSplitTabPath;
     if (p && isDrawioImage(baseTabPath(p))) isSplitEditing = drawioPngTabs.has(p);
   });
+
+  /** Recargas del visor de imagen por archivo (tras cada guardado desde draw.io en otra pestaña). */
+  const imageReloads = new SvelteMap<string, number>();
+  /** Modo Lectura/Edición de cada copia de pestaña (`copy:n:…`): independiente del original. */
+  const copyModes = new SvelteMap<string, MarkdownViewMode>();
+  /** Modo guardado de una pestaña: el de la copia, o el del archivo. */
+  function modeOfTab(tabPath: string): MarkdownViewMode {
+    if (isTabCopy(tabPath)) return copyModes.get(tabPath) ?? 'reading';
+    return (openedNotes[tabPath]?.viewMode ?? 'reading') as MarkdownViewMode;
+  }
+  /** Guarda el modo de una pestaña: en la copia solo en memoria; en el archivo, persistido. */
+  function storeModeOfTab(tabPath: string, mode: MarkdownViewMode) {
+    if (isTabCopy(tabPath)) {
+      copyModes.set(tabPath, mode);
+      return;
+    }
+    if (openedNotes[tabPath]) openedNotes[tabPath].viewMode = mode;
+    vaultItemStore.patch(tabPath, { view_mode: mode });
+    vaultRepository.setNoteViewMode(tabPath, mode);
+    persistTabsState();
+  }
+
+  /** Dibujos (Excalidraw, draw.io): una sola pestaña los edita a la vez para no pisarse al guardar. */
+  function isSingleEditorFile(file: string): boolean {
+    return isDrawioImage(file) || isDrawioFile(file) || isDrawingTab(file, openedNotes[file]?.content);
+  }
+  /** ¿La pestaña está en edición? (la visible de cada panel, por el estado del panel) */
+  function tabIsEditing(tabPath: string): boolean {
+    if (isDrawioImage(baseTabPath(tabPath))) return drawioPngTabs.has(tabPath);
+    if (tabPath === activeTabPath) return isEditing;
+    if (tabPath === activeSplitTabPath) return isSplitEditing;
+    return modeOfTab(tabPath) !== 'reading';
+  }
+  /** Otra pestaña del mismo dibujo que ya lo está editando, si hay. */
+  function otherEditorTab(tabPath: string): string | null {
+    const file = baseTabPath(tabPath);
+    if (!isSingleEditorFile(file)) return null;
+    return [...openTabPaths, ...splitTabPaths].find((t) => t !== tabPath && baseTabPath(t) === file && tabIsEditing(t)) ?? null;
+  }
+  /** Activa la pestaña en el panel donde está. */
+  function focusTab(tabPath: string) {
+    if (openTabPaths.includes(tabPath)) {
+      activeFocusedPane = 'left';
+      selectTab(tabPath);
+    } else {
+      activeFocusedPane = 'right';
+      selectSplitTab(tabPath);
+    }
+  }
 
   /** Cierra el editor de draw.io de la pestaña; el visor vuelve a leer la imagen con lo guardado. */
   function closeDrawioEditor(tabPath: string) {
@@ -791,13 +840,8 @@
   function handleChangeMarkdownView(newMode: MarkdownViewMode) {
     markdownViewMode = newMode;
     isEditing = newMode !== "reading";
-    if (activeTabPath && !isSyntheticTab(activeTabPath)) {
-      if (openedNotes[activeTabPath]) {
-        openedNotes[activeTabPath].viewMode = newMode;
-      }
-      vaultItemStore.patch(activeTabPath, { view_mode: newMode });
-      vaultRepository.setNoteViewMode(activeTabPath, newMode);
-      persistTabsState();
+    if (activeTabPath && (!isSyntheticTab(activeTabPath) || isTabCopy(activeTabPath))) {
+      storeModeOfTab(activeTabPath, newMode);
     }
     tick().then(() => {
       requestAnimationFrame(() => {
@@ -818,14 +862,24 @@
   }
 
   function toggleViewMode() {
-    if (activeTabPath && isDrawioImage(baseTabPath(activeTabPath))) {
-      if (drawioPngTabs.has(activeTabPath)) closeDrawioEditor(activeTabPath);
-      else drawioPngTabs.add(activeTabPath);
+    const tab = activeTabPath;
+    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab))) return;
+    // Dibujos: una sola pestaña edita a la vez; si ya hay otra, se va a ella
+    if (!tabIsEditing(tab)) {
+      const editor = otherEditorTab(tab);
+      if (editor) {
+        focusTab(editor);
+        return;
+      }
+    }
+    const file = baseTabPath(tab);
+    if (isDrawioImage(file)) {
+      if (drawioPngTabs.has(tab)) closeDrawioEditor(tab);
+      else drawioPngTabs.add(tab);
       return;
     }
-    if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
 
-    if (isMarkdownFile(activeTabPath) && !isDrawingTab(activeTabPath, activeContent)) {
+    if (isMarkdownFile(file) && !isDrawingTab(file, openedNotes[file]?.content)) {
       if (!isEditing) {
         handleChangeMarkdownView(markdownViewMode === "reading" ? "live" : markdownViewMode);
       } else {
@@ -836,12 +890,7 @@
       isEditing = nextEditing;
       const nextMode: MarkdownViewMode = nextEditing ? "live" : "reading";
       markdownViewMode = nextMode;
-      if (openedNotes[activeTabPath]) {
-        openedNotes[activeTabPath].viewMode = nextMode;
-      }
-      vaultItemStore.patch(activeTabPath, { view_mode: nextMode });
-      vaultRepository.setNoteViewMode(activeTabPath, nextMode);
-      persistTabsState();
+      storeModeOfTab(tab, nextMode);
     }
   }
 
@@ -1085,6 +1134,11 @@
       }
     }
     activeTabPath = path;
+    // Una copia vuelve con su propio modo (por defecto, lectura)
+    if (isTabCopy(path)) {
+      markdownViewMode = modeOfTab(path);
+      isEditing = markdownViewMode !== "reading";
+    }
     if (!isSyntheticTab(path)) {
       lastActiveDocumentPath = path;
       const vItem = vaultItemStore.get(path);
@@ -1570,6 +1624,10 @@
       splitTabPaths = [...splitTabPaths, path];
     }
     activeSplitTabPath = path;
+    if (isTabCopy(path)) {
+      splitMarkdownViewMode = modeOfTab(path);
+      isSplitEditing = splitMarkdownViewMode !== "reading";
+    }
     if (!isSyntheticTab(path)) {
       ensureContentLoaded(path);
       const vItem = vaultItemStore.get(path);
@@ -1757,6 +1815,12 @@
    */
   /** Abre otra pestaña con lo mismo, junto a la original y en el mismo panel; cada una tiene su
    *  propia vista (modo del diff, zoom, desplazamiento…). */
+  /** Desde el explorador: otra pestaña del archivo ya abierto, en lectura, en el panel enfocado. */
+  function openReadOnlyCopy(path: string) {
+    const pane = activeFocusedPane === 'right' && isSplit && splitTabPaths.includes(path) ? 'right' : openTabPaths.includes(path) ? 'left' : 'right';
+    duplicateTab(path, pane);
+  }
+
   function duplicateTab(path: string, pane: 'left' | 'right') {
     if (!path) return;
     const tabs = pane === 'left' ? openTabPaths : splitTabPaths;
@@ -1764,14 +1828,20 @@
     const at = tabs.indexOf(path);
     const next = [...tabs];
     next.splice(at === -1 ? next.length : at + 1, 0, copy);
+    // La copia empieza en lectura con su propio modo (los dibujos solo se editan en una pestaña)
+    copyModes.set(copy, 'reading');
     if (pane === 'left') {
       openTabPaths = next;
       activeTabPath = copy;
       activeFocusedPane = 'left';
+      markdownViewMode = 'reading';
+      isEditing = false;
     } else {
       splitTabPaths = next;
       activeSplitTabPath = copy;
       activeFocusedPane = 'right';
+      splitMarkdownViewMode = 'reading';
+      isSplitEditing = false;
     }
     const base = baseTabPath(path);
     if (!isSyntheticTab(base)) ensureContentLoaded(base);
@@ -1822,7 +1892,7 @@
   }
 
   function handleSelectTabFromExplorer(path: string, viewerPreference?: ExcalidrawViewerType) {
-    drawioPngTabs.delete(path);
+    // Si la imagen está abierta en draw.io, solo se va a esa pestaña (sin cerrar ni redibujar el editor)
     // El explorador suelto se oculta al abrir un archivo, para dejar ver el editor
     dismissFloatingExplorer();
     if (activeFocusedPane === 'right' && isSplit) {
@@ -1835,13 +1905,8 @@
   function handleChangeSplitMarkdownView(newMode: MarkdownViewMode) {
     splitMarkdownViewMode = newMode;
     isSplitEditing = newMode !== "reading";
-    if (activeSplitTabPath && !isSyntheticTab(activeSplitTabPath)) {
-      if (openedNotes[activeSplitTabPath]) {
-        openedNotes[activeSplitTabPath].viewMode = newMode;
-      }
-      vaultItemStore.patch(activeSplitTabPath, { view_mode: newMode });
-      vaultRepository.setNoteViewMode(activeSplitTabPath, newMode);
-      persistTabsState();
+    if (activeSplitTabPath && (!isSyntheticTab(activeSplitTabPath) || isTabCopy(activeSplitTabPath))) {
+      storeModeOfTab(activeSplitTabPath, newMode);
     }
     tick().then(() => {
       requestAnimationFrame(() => {
@@ -1851,14 +1916,24 @@
   }
 
   function toggleSplitViewMode() {
-    if (activeSplitTabPath && isDrawioImage(baseTabPath(activeSplitTabPath))) {
-      if (drawioPngTabs.has(activeSplitTabPath)) closeDrawioEditor(activeSplitTabPath);
-      else drawioPngTabs.add(activeSplitTabPath);
+    const tab = activeSplitTabPath;
+    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab))) return;
+    // Dibujos: una sola pestaña edita a la vez; si ya hay otra, se va a ella
+    if (!tabIsEditing(tab)) {
+      const editor = otherEditorTab(tab);
+      if (editor) {
+        focusTab(editor);
+        return;
+      }
+    }
+    const file = baseTabPath(tab);
+    if (isDrawioImage(file)) {
+      if (drawioPngTabs.has(tab)) closeDrawioEditor(tab);
+      else drawioPngTabs.add(tab);
       return;
     }
-    if (!activeSplitTabPath || isSyntheticTab(activeSplitTabPath)) return;
 
-    if (isMarkdownFile(activeSplitTabPath) && !isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content)) {
+    if (isMarkdownFile(file) && !isDrawingTab(file, openedNotes[file]?.content)) {
       if (!isSplitEditing) {
         handleChangeSplitMarkdownView(splitMarkdownViewMode === "reading" ? "live" : splitMarkdownViewMode);
       } else {
@@ -1869,12 +1944,7 @@
       isSplitEditing = nextEditing;
       const nextMode: MarkdownViewMode = nextEditing ? "live" : "reading";
       splitMarkdownViewMode = nextMode;
-      if (openedNotes[activeSplitTabPath]) {
-        openedNotes[activeSplitTabPath].viewMode = nextMode;
-      }
-      vaultItemStore.patch(activeSplitTabPath, { view_mode: nextMode });
-      vaultRepository.setNoteViewMode(activeSplitTabPath, nextMode);
-      persistTabsState();
+      storeModeOfTab(tab, nextMode);
     }
   }
 
@@ -2033,27 +2103,33 @@
     )
   );
 
+  // Una copia de pestaña (`copy:n:…`) cuenta como su archivo
+  let activeFile = $derived(activeTabPath ? baseTabPath(activeTabPath) : null);
+  let activeSplitFile = $derived(activeSplitTabPath ? baseTabPath(activeSplitTabPath) : null);
+
   let hasActiveContent = $derived(
     Boolean(
       activeTabPath &&
-      !isSyntheticTab(activeTabPath) &&
+      activeFile &&
+      !isSyntheticTab(activeFile) &&
       openTabPaths.includes(activeTabPath) &&
-      !isImageFile(activeTabPath) &&
-      !isPdfFile(activeTabPath) &&
-      activeNote &&
-      !activeNote.isLoading
+      !isImageFile(activeFile) &&
+      !isPdfFile(activeFile) &&
+      openedNotes[activeFile] &&
+      !openedNotes[activeFile].isLoading
     )
   );
 
   let hasActiveSplitContent = $derived(
     Boolean(
       activeSplitTabPath &&
-      !isSyntheticTab(activeSplitTabPath) &&
+      activeSplitFile &&
+      !isSyntheticTab(activeSplitFile) &&
       splitTabPaths.includes(activeSplitTabPath) &&
-      !isImageFile(activeSplitTabPath) &&
-      !isPdfFile(activeSplitTabPath) &&
-      openedNotes[activeSplitTabPath] &&
-      !openedNotes[activeSplitTabPath]?.isLoading
+      !isImageFile(activeSplitFile) &&
+      !isPdfFile(activeSplitFile) &&
+      openedNotes[activeSplitFile] &&
+      !openedNotes[activeSplitFile]?.isLoading
     )
   );
 
@@ -4059,6 +4135,8 @@
       {lockedFiles}
       onToggleLockFile={handleToggleLockFile}
       onSelectTab={handleSelectTabFromExplorer}
+      isOpenInTab={(p) => openTabPaths.includes(p) || splitTabPaths.includes(p)}
+      onOpenReadOnlyCopy={openReadOnlyCopy}
       onOpenVaultFolder={handleOpenVaultFolder}
       onDeleteItem={handleDeleteItem}
       onDeleteItems={handleDeleteItems}
@@ -4220,7 +4298,7 @@
           {@const content = note?.content ?? ""}
           {@const isLoading = note?.isLoading ?? false}
           {@const isVisibleTab = tabPath === activePath}
-          {@const hiddenViewMode = (note?.viewMode ?? 'reading') as MarkdownViewMode}
+          {@const hiddenViewMode = isTabCopy(tabPath) ? modeOfTab(tabPath) : ((note?.viewMode ?? 'reading') as MarkdownViewMode)}
           {@const paneEditing = !isVisibleTab ? hiddenViewMode !== 'reading' : isRight ? isSplitEditing : isEditing}
           {@const paneViewMode = !isVisibleTab ? hiddenViewMode : isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
           {@const isDrawing = isDrawingTab(tabFile, content)}
@@ -4276,7 +4354,11 @@
                   <DrawioViewer
                     filePath={tabFile}
                     format={tabFile.toLowerCase().endsWith(".svg") ? "xmlsvg" : "xmlpng"}
-                    onSavedPng={() => (recentSaveTimestamps[tabFile] = Date.now())}
+                    onSavedPng={() => {
+                      recentSaveTimestamps[tabFile] = Date.now();
+                      // Las otras pestañas de la imagen (en lectura) muestran lo recién guardado
+                      imageReloads.set(tabFile, Date.now());
+                    }}
                     onExit={() => closeDrawioEditor(tabPath)}
                   />
                 {:else if isDiagramFile(tabFile)}
@@ -4476,13 +4558,19 @@
                     onSelectNote={(notePath: string) => selectTab(notePath)}
                   />
                 {:else if isImageFile(tabFile)}
+                  {#key imageReloads.get(tabFile)}
                   <ImageViewer
                     src={note?.abs_path || tabPath}
                     alt={vaultItem.title || tabPath}
                     {content}
                     drawio={isDrawioImage(tabFile)}
-                    onEditWithDrawio={() => drawioPngTabs.add(tabPath)}
+                    onEditWithDrawio={() => {
+                      const editor = otherEditorTab(tabPath);
+                      if (editor) focusTab(editor);
+                      else drawioPngTabs.add(tabPath);
+                    }}
                   />
+                  {/key}
                 {:else if isPdfFile(tabFile)}
                   <PdfViewer
                     bind:this={pdfViewers[tabPath]}
@@ -4542,7 +4630,7 @@
         onNavigateBack={navigateBack}
         onNavigateForward={navigateForward}
         isMarkdownFile={isMarkdownTab}
-        showViewToggle={(hasActiveContent && !isSyntheticTab(activeTabPath)) || isDrawioImage(activeTabPath ? baseTabPath(activeTabPath) : null)}
+        showViewToggle={hasActiveContent || isDrawioImage(activeFile)}
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -4606,7 +4694,7 @@
           onNavigateBack={navigateBack}
           onNavigateForward={navigateForward}
           isMarkdownFile={isMarkdownTab}
-          showViewToggle={(hasActiveContent && !isSyntheticTab(activeTabPath)) || isDrawioImage(activeTabPath ? baseTabPath(activeTabPath) : null)}
+          showViewToggle={hasActiveContent || isDrawioImage(activeFile)}
           markdownViewMode={!isEditing ? "reading" : markdownViewMode}
           onChangeMarkdownView={handleChangeMarkdownView}
           title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -4674,7 +4762,7 @@
           canGoBack={false}
           canGoForward={false}
           isMarkdownFile={isMarkdownSplitTab}
-          showViewToggle={(hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)) || isDrawioImage(activeSplitTabPath ? baseTabPath(activeSplitTabPath) : null)}
+          showViewToggle={hasActiveSplitContent || isDrawioImage(activeSplitFile)}
           markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
           onChangeMarkdownView={handleChangeSplitMarkdownView}
           title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}

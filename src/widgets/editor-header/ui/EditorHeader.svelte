@@ -172,7 +172,8 @@
   }
 
   function handleTabDragStart(e: DragEvent, tab: TabItem) {
-    if (isSyntheticTab(tab.path)) return;
+    // Todas se arrastran (también versión, diff y copias, a otra ventana) salvo la pestaña vacía
+    if (tab.path.startsWith('empty:')) return;
     draggingTabPath = tab.path;
     const payload: SynapseTabDragData = {
       path: tab.path,
@@ -620,7 +621,7 @@
                   class:drag-target-right={dropIndicator?.path === tab.path && dropIndicator?.position === 'right'}
                   data-path={tab.path}
                   data-tauri-drag-region="false"
-                  draggable={!isSyntheticTab(tab.path)}
+                  draggable={!tab.path.startsWith('empty:')}
                   title={tab.abs_path || tab.path}
                   onclick={() => { if (onSelectTab) onSelectTab(tab.path); }}
                   onauxclick={(e) => handleTabAuxClick(e, tab.path)}

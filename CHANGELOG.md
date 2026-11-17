@@ -9,6 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Copias de pestaña con modo propio y un solo editor por dibujo**: cada copia de una pestaña (`Duplicar pestaña`) tiene su propio botón Lectura/Edición, así una nota puede estar en edición en una pestaña y en lectura en la otra. Los dibujos (Excalidraw y draw.io) solo se editan en una pestaña a la vez, para no pisarse al guardar: pasar a edición en otra copia lleva a la pestaña que ya lo edita; al cerrarla o pasarla a lectura, cualquier copia puede editar. Las copias de una imagen de draw.io se actualizan con cada guardado del editor.
+- **«Abrir en otra pestaña (solo lectura)»** en el menú contextual del explorador, cuando el archivo ya está abierto: abre una copia en lectura junto a la original.
+- **Arrastrar a otra ventana también las pestañas de una versión, de un diff y las copias** (antes solo las de archivos).
 - **La búsqueda de texto completo encuentra el texto de los diagramas de draw.io**: los `.drawio` y las imágenes PNG/SVG con un diagrama dentro se indexan con los textos de sus figuras y los nombres de sus páginas (también los diagramas comprimidos), como documentos de tipo `drawio`. Las imágenes sin diagrama siguen sin indexarse; para saberlo se leen solo las cabeceras del PNG.
 - **Las imágenes de draw.io se marcan al indexar**: el índice de la bóveda guarda si cada PNG/SVG lleva un diagrama, así el botón Lectura/Edición aparece al abrirla sin leer el archivo otra vez. La caché pasa a `.synapse/cache-v2.bin`; la anterior (`cache.bin`) se importa sola la primera vez, sin perder las pestañas abiertas.
 - **Imágenes de draw.io: botón Lectura/Edición y detección por contenido**: en una imagen de draw.io, el botón Lectura/Edición de la cabecera abre el editor de draw.io (Edición) o vuelve a la imagen (Lectura), como con las notas; el botón del visor ahora dice «Abrir en draw.io». Un PNG cuenta como de draw.io por su nombre (`.drawio.png`) o porque lleva el diagrama dentro (el bloque `mxfile` que draw.io guarda al exportar con «incluir una copia del diagrama»), aunque se llame `foto.png`. Lo mismo con los SVG: un `.drawio.svg`, o cualquier SVG con el diagrama en su atributo `content`, se edita en draw.io y se guarda como SVG (formato `xmlsvg`).
@@ -67,6 +70,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.
 - **Guardar en draw.io una imagen (PNG/SVG) ya no redibuja el editor**: el archivo que reescribe su propio guardado se tomaba como un cambio externo y el editor se volvía a montar. Ahora, mientras la imagen está en el editor, un cambio en disco no la recarga, y al salir del editor el visor muestra lo guardado.
 - **Pruebas e2e más robustas (en curso, `syna-7qa9`)**: si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su tiempo límite; el arranque espera a que el WebDriver anterior libere el puerto 4444 (causa probable de las caídas en cadena con ECONNREFUSED); varias pruebas cambian pausas fijas por esperas de la condición real.
 - **Shift+F6 (cambiar todas las coincidencias) no hacía nada si la ventana no tenía el foco del sistema**: el atajo comprobaba `hasFocus`, que en WebKit depende de `document.hasFocus()`; ahora basta con que la tecla llegue al editor.

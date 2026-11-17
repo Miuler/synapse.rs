@@ -160,3 +160,24 @@ it('duplicar una nota abre otra pestaña con el mismo archivo', async () => {
     { timeout: 10_000, timeoutMsg: 'la copia de la nota no muestra su contenido' },
   );
 });
+
+it('cada copia de una nota tiene su propio modo Lectura/Edición', async () => {
+  const toggle = () => s.browser.$('.editor-header .view-toggle-btn');
+  const mode = async () => (await toggle().getText()).trim();
+  // La copia (activa) muestra el botón y empieza en lectura
+  await toggle().waitForExist({ timeout: 5_000 });
+  expect(await mode()).toContain('Lectura');
+  // El original pasa a edición…
+  await s.browser.$('.tab-title-container[data-path="nota.md"]').click();
+  await s.browser.$('.tab-title-container.active[data-path="nota.md"]').waitForExist({ timeout: 5_000 });
+  if ((await mode()).includes('Lectura')) await toggle().click();
+  await s.browser.waitUntil(async () => (await mode()).includes('Edición'), { timeout: 5_000, timeoutMsg: 'el original no pasó a edición' });
+  // …y la copia sigue en lectura
+  await s.browser.$('.tab-title-container[data-path="copy:2:nota.md"]').click();
+  await s.browser.$('.tab-title-container.active[data-path="copy:2:nota.md"]').waitForExist({ timeout: 5_000 });
+  await s.browser.waitUntil(async () => (await mode()).includes('Lectura'), { timeout: 5_000, timeoutMsg: 'la copia siguió el modo del original' });
+  // Y al volver, el original sigue en edición
+  await s.browser.$('.tab-title-container[data-path="nota.md"]').click();
+  await s.browser.$('.tab-title-container.active[data-path="nota.md"]').waitForExist({ timeout: 5_000 });
+  await s.browser.waitUntil(async () => (await mode()).includes('Edición'), { timeout: 5_000, timeoutMsg: 'el original perdió su modo' });
+});

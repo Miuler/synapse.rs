@@ -52,6 +52,10 @@
     onOpenDiffWithRevision?: (path: string, revision: string) => void;
     onCompareFiles?: (oldPath: string, newPath: string) => void;
     onOpenInNewWindow?: (path: string) => void;
+    /** El archivo ya está abierto en alguna pestaña (para ofrecer una copia de solo lectura). */
+    isOpenInTab?: (path: string) => boolean;
+    /** Abre otra pestaña del archivo ya abierto, en modo lectura. */
+    onOpenReadOnlyCopy?: (path: string) => void;
     /** Abre un `.drawio.png` en el editor de draw.io en vez de en el visor de imágenes. */
     onOpenWithDrawio?: (path: string) => void;
     lockedFiles?: Set<string>;
@@ -93,6 +97,8 @@
     onCompareFiles,
     onOpenInNewWindow,
     onOpenWithDrawio,
+    isOpenInTab,
+    onOpenReadOnlyCopy,
   }: Props = $props();
 
   // Elementos de la bóveda desde el store de la entidad (fuente única)
@@ -2388,6 +2394,16 @@
 
         {#if contextMenuNode && !contextMenuNode.isFolder}
           <ContextMenu.Separator class="context-menu-divider" />
+
+          {#if onOpenReadOnlyCopy && isOpenInTab?.(contextMenuNode.relativePath)}
+            <ContextMenu.Item
+              class="context-menu-item open-readonly-copy"
+              onSelect={() => contextMenuNode && onOpenReadOnlyCopy?.(contextMenuNode.relativePath)}
+            >
+              <Eye class="context-menu-item-icon" />
+              <span>Abrir en otra pestaña (solo lectura)</span>
+            </ContextMenu.Item>
+          {/if}
 
           <ContextMenu.Item
             class="context-menu-item"

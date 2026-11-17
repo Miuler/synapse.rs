@@ -126,12 +126,18 @@ it('un .drawio.png se ve como imagen y se edita desde el menú contextual', asyn
   });
   expect(pngText('menu.drawio.png').startsWith('\x89PNG')).toBe(true);
 
-  // Abrirlo de nuevo de la forma normal lo muestra otra vez como imagen
+  // Volver a abrirlo desde el explorador solo activa la pestaña: el editor sigue, sin redibujarse
+  const viewer = '.drawio-viewer[data-drawio-path="menu.drawio.png"]';
+  await s.browser.execute((sel: string) => document.querySelector(sel)?.setAttribute('data-marca', 'mismo'), viewer);
   await s.browser.$('.file-tree-item[data-path="menu.drawio.png"]').click();
-  await s.browser.waitUntil(
-    async () => !(await s.browser.$('.drawio-viewer[data-drawio-path="menu.drawio.png"]').isExisting()),
-    { timeout: 5_000, timeoutMsg: 'siguió abierto en draw.io' },
-  );
+  await s.browser.$('.tab-title-container.active[data-path="menu.drawio.png"]').waitForExist({ timeout: 5_000 });
+  expect(await s.browser.execute((sel: string) => document.querySelector(sel)?.getAttribute('data-marca') ?? null, viewer)).toBe('mismo');
+  // Lectura (cabecera) lo devuelve al visor de imagen
+  await s.browser.$('.editor-header .view-toggle-btn').click();
+  await s.browser.waitUntil(async () => !(await s.browser.$(viewer).isExisting()), {
+    timeout: 5_000,
+    timeoutMsg: 'siguió abierto en draw.io',
+  });
   await s.browser.$('.tab-pane:not(.hidden) .drawio-edit-btn').waitForExist({ timeout: 5_000 });
 }, 60_000);
 
@@ -199,4 +205,22 @@ it('el texto de un diagrama de draw.io dentro de un PNG se encuentra con la bús
   // Y la imagen queda marcada como de draw.io al indexar: la cabecera ofrece Lectura/Edición
   await s.browser.$('.file-tree-item[data-path="arquitectura.png"]').click();
   await s.browser.$('.editor-header .view-toggle-btn').waitForExist({ timeout: 10_000 });
+}, 60_000);
+
+it('una copia de solo lectura de una imagen en draw.io no se puede editar a la vez: lleva al editor', async () => {
+  const toggle = () => s.browser.$('.editor-header .view-toggle-btn');
+  // disfrazado.png quedó abierto en el editor de draw.io; desde el explorador, una copia de lectura
+  await s.browser.execute(() => {
+    const el = document.querySelector('.file-tree-item[data-path="disfrazado.png"]')!;
+    const { x, y } = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
+  });
+  await s.browser.$('.open-readonly-copy').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => (document.querySelector('.open-readonly-copy') as HTMLElement).click());
+  await s.browser.$('.tab-title-container.active[data-path="copy:2:disfrazado.png"]').waitForExist({ timeout: 10_000 });
+  expect(await toggle().getText()).toContain('Lectura');
+  // Pasar a edición en la copia lleva a la pestaña que ya edita la imagen
+  await toggle().click();
+  await s.browser.$('.tab-title-container.active[data-path="disfrazado.png"]').waitForExist({ timeout: 5_000 });
+  expect(await s.browser.$$('.drawio-viewer[data-drawio-path="disfrazado.png"]').length).toBe(1);
 }, 60_000);
