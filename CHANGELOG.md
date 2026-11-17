@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Imágenes de draw.io: botón Lectura/Edición y detección por contenido**: en una imagen de draw.io, el botón Lectura/Edición de la cabecera abre el editor de draw.io (Edición) o vuelve a la imagen (Lectura), como con las notas; el botón del visor ahora dice «Abrir en draw.io». Un PNG cuenta como de draw.io por su nombre (`.drawio.png`) o porque lleva el diagrama dentro (el bloque `mxfile` que draw.io guarda al exportar con «incluir una copia del diagrama»), aunque se llame `foto.png`.
 - **Revisar las bóvedas que pueden conversar con esta**: en Ajustes → Agentes de IA se ve qué bóvedas se aceptaron (✅) o rechazaron (🚫) y se puede quitar cada una; la próxima vez se vuelve a preguntar.
 - **El registro de depuración incluye el canal entre Synapses**: además de los mensajes ACP, anota los pedidos `/peer` que salen y llegan (`peer-out`, `peer-reply`, `peer-in`, `peer-answer`), sin los `ping`.
 - **Documentación de la comunicación entre Synapses** (`docs/comunicacion_entre_synapses.md`): quién le escribe a quién, el canal `/peer`, los permisos y los límites.

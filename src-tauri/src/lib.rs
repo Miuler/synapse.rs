@@ -6,7 +6,7 @@ pub mod version;
 use domain::vault::file_types::SupportedFileTypes;
 use infrastructure::entrypoint::tauri::commands::{
     AppState, check_community_plugin_updates, check_vault_path_exists, clone_git_workspace,
-    copy_vault_items, import_external_items, copy_files_to_system_clipboard, read_system_clipboard_files, create_new_workspace, create_vault_folder, delete_vault_item,
+    copy_vault_items, is_drawio_image, import_external_items, copy_files_to_system_clipboard, read_system_clipboard_files, create_new_workspace, create_vault_folder, delete_vault_item,
     diff_git_revisions, diff_vault_files, fetch_community_plugins, fetch_plantuml_svg,
     full_text_search, get_active_vault_path, get_app_version, get_default_theme_dir,
     get_detached_window_tab, get_diagram_split_ratio, get_full_text_index_status, get_git_branches,
@@ -112,6 +112,7 @@ pub fn run() {
             delete_vault_item,
             rename_vault_item,
             copy_vault_items,
+            is_drawio_image,
             request_attention,
             import_external_items,
             copy_files_to_system_clipboard,

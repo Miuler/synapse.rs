@@ -243,6 +243,29 @@ pub fn read_binary_file(
         })
 }
 
+/// ¿La imagen `relative_path` lleva un diagrama de draw.io (aunque no se llame `.drawio.png`)?
+#[tauri::command(async)]
+pub fn is_drawio_image(state: State<'_, AppState>, relative_path: String) -> bool {
+    if !relative_path.to_lowercase().ends_with(".png") {
+        return false;
+    }
+    let Ok(guard) = state.active_vault_path.lock() else {
+        return false;
+    };
+    let Some(vault_path) = guard.clone() else {
+        return false;
+    };
+    drop(guard);
+    state
+        .read_binary_vault_item_use_case
+        .execute(ReadBinaryVaultItemQuery {
+            vault_path,
+            relative_path,
+        })
+        .map(|bytes| crate::domain::vault::drawio_image::png_has_drawio_diagram(&bytes))
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn write_binary_file(
     state: State<'_, AppState>,

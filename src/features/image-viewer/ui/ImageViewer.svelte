@@ -10,10 +10,12 @@
     content?: string;
     /** Si el archivo es un `.drawio.png`, muestra un botón para editarlo en draw.io. */
     onEditWithDrawio?: () => void;
+    /** Lleva un diagrama de draw.io (detectado por su contenido); sin valor, por la extensión. */
+    drawio?: boolean;
   }
 
-  let { src, alt = 'Imagen', content, onEditWithDrawio }: Props = $props();
-  const isDrawioPng = $derived(isDrawioPngFile(src));
+  let { src, alt = 'Imagen', content, onEditWithDrawio, drawio }: Props = $props();
+  const isDrawioPng = $derived(drawio ?? isDrawioPngFile(src));
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
@@ -326,7 +328,7 @@
       {#if isDrawioPng && onEditWithDrawio}
         <Separator.Root class="divider" orientation="vertical" />
         <Toolbar.Button class="ctrl-btn text-btn drawio-edit-btn" onclick={onEditWithDrawio} aria-label="Editar con draw.io">
-          <PenTool size={16} /> draw.io
+          <PenTool size={16} /> Abrir en draw.io
         </Toolbar.Button>
       {/if}
     </Toolbar.Root>

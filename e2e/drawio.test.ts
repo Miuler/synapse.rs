@@ -28,12 +28,12 @@ function chunk(type: string, data: Buffer): Buffer {
 }
 
 /** PNG de 1×1 con un texto `mxfile` incrustado, como hace draw.io en el formato xmlpng. */
-function pngWithText(text: string): Buffer {
+function pngWithText(text: string, key = 'mxfile'): Buffer {
   const ihdr = Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]);
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
-    chunk('tEXt', Buffer.from(`mxfile\0${text}`, 'latin1')),
+    chunk('tEXt', Buffer.from(`${key}\0${text}`, 'latin1')),
     chunk('IDAT', deflateSync(Buffer.from([0, 255, 255, 255]))),
     chunk('IEND', Buffer.alloc(0)),
   ]);
@@ -66,8 +66,9 @@ const XML =
   '<mxfile><diagram name="P"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 beforeAll(async () => {
-  s = await startApp({ 'flujo.drawio': XML, 'menu.drawio.png': 'x', 'visor.drawio.png': 'x' });
-  for (const f of ['menu.drawio.png', 'visor.drawio.png']) writeFileSync(join(s.vault, f), pngWithText('original'));
+  s = await startApp({ 'flujo.drawio': XML, 'menu.drawio.png': 'x', 'visor.drawio.png': 'x', 'disfrazado.png': 'x', 'normal.png': 'x' });
+  for (const f of ['menu.drawio.png', 'visor.drawio.png', 'disfrazado.png']) writeFileSync(join(s.vault, f), pngWithText('original'));
+  writeFileSync(join(s.vault, 'normal.png'), pngWithText('GIMP', 'Software'));
   await s.browser.$('.file-tree-item[data-path="flujo.drawio"]').waitForExist({ timeout: 30_000 });
   await s.browser.execute((url) => {
     localStorage.setItem('synapse_settings', JSON.stringify({ drawioUrl: url }));
@@ -122,6 +123,27 @@ it('el visor de imágenes ofrece editar un .drawio.png con draw.io', async () =>
   await btn.waitForExist({ timeout: 15_000 });
   await btn.click();
   await s.browser.waitUntil(async () => pngText('visor.drawio.png').includes('diagrama-editado'), {
+    timeout: 15_000,
+    timeoutMsg: 'no se reescribió el PNG',
+  });
+}, 60_000);
+
+it('un PNG con un diagrama de draw.io dentro se edita con el botón Lectura/Edición, aunque no se llame .drawio.png', async () => {
+  const toggle = () => s.browser.$('.editor-header .view-toggle-btn');
+  // Un PNG normal no ofrece editar
+  await s.browser.$('.file-tree-item[data-path="normal.png"]').click();
+  await s.browser.$('.tab-title-container[data-path="normal.png"]').waitForExist({ timeout: 10_000 });
+  await s.browser.pause(800);
+  expect(await toggle().isExisting()).toBe(false);
+  // El que lleva `mxfile` sí: el botón muestra «Lectura» y al pulsarlo abre draw.io
+  await s.browser.$('.file-tree-item[data-path="disfrazado.png"]').click();
+  await toggle().waitForExist({ timeout: 10_000 });
+  expect(await toggle().getText()).toContain('Lectura');
+  await s.browser.$('.tab-pane:not(.hidden) .drawio-edit-btn').waitForExist({ timeout: 10_000 });
+  await toggle().click();
+  await s.browser.$('.drawio-viewer[data-drawio-path="disfrazado.png"]').waitForExist({ timeout: 10_000 });
+  expect(await toggle().getText()).toContain('Edición');
+  await s.browser.waitUntil(async () => pngText('disfrazado.png').includes('diagrama-editado'), {
     timeout: 15_000,
     timeoutMsg: 'no se reescribió el PNG',
   });

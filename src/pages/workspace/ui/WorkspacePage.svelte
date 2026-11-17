@@ -54,7 +54,8 @@
   } from "@entities/file-type";
   import {vaultApi, vaultItemStore, toVaultItem, toVaultFile, type VaultItem, type OpenedNote, type MarkdownViewMode} from "@entities/vault-item";
   import { measured } from '@shared/lib/perf-probe';
-  import { SvelteSet } from 'svelte/reactivity';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+  import { invokeTauri } from '@shared/repositories/tauri';
   import {gitApi} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
@@ -121,6 +122,32 @@
    *  Solo dura mientras la pestaña está abierta: abrir el archivo de la forma normal (explorador,
    *  apertura rápida…) o cerrar la pestaña lo devuelve al visor de imágenes. */
   const drawioPngTabs = new SvelteSet<string>();
+
+  // PNG con un diagrama de draw.io dentro aunque no se llame `.drawio.png` (se mira su contenido)
+  const drawioImages = new SvelteMap<string, boolean>();
+  function isDrawioImage(path: string | null | undefined): boolean {
+    if (!path) return false;
+    return isDrawioPngFile(path) || drawioImages.get(path) === true;
+  }
+  $effect(() => {
+    for (const p of [activeTabPath, activeSplitTabPath]) {
+      const file = p ? baseTabPath(p) : null;
+      if (!file || isSyntheticTab(file) || drawioImages.has(file) || !file.toLowerCase().endsWith('.png') || isDrawioPngFile(file)) continue;
+      drawioImages.set(file, false);
+      invokeTauri<boolean>('is_drawio_image', { relativePath: file })
+        .then((yes) => drawioImages.set(file, yes))
+        .catch(() => {});
+    }
+  });
+  // En una imagen de draw.io, el botón Lectura/Edición de la cabecera abre o cierra el editor
+  $effect(() => {
+    const p = activeTabPath;
+    if (p && isDrawioImage(baseTabPath(p))) isEditing = drawioPngTabs.has(p);
+  });
+  $effect(() => {
+    const p = activeSplitTabPath;
+    if (p && isDrawioImage(baseTabPath(p))) isSplitEditing = drawioPngTabs.has(p);
+  });
 
   function openWithDrawio(path: string) {
     handleSelectTabFromExplorer(path);
@@ -781,6 +808,11 @@
   }
 
   function toggleViewMode() {
+    if (activeTabPath && isDrawioImage(baseTabPath(activeTabPath))) {
+      if (drawioPngTabs.has(activeTabPath)) drawioPngTabs.delete(activeTabPath);
+      else drawioPngTabs.add(activeTabPath);
+      return;
+    }
     if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
 
     if (isMarkdownFile(activeTabPath) && !isDrawingTab(activeTabPath, activeContent)) {
@@ -1806,6 +1838,11 @@
   }
 
   function toggleSplitViewMode() {
+    if (activeSplitTabPath && isDrawioImage(baseTabPath(activeSplitTabPath))) {
+      if (drawioPngTabs.has(activeSplitTabPath)) drawioPngTabs.delete(activeSplitTabPath);
+      else drawioPngTabs.add(activeSplitTabPath);
+      return;
+    }
     if (!activeSplitTabPath || isSyntheticTab(activeSplitTabPath)) return;
 
     if (isMarkdownFile(activeSplitTabPath) && !isDrawingTab(activeSplitTabPath, openedNotes[activeSplitTabPath]?.content)) {
@@ -4217,7 +4254,7 @@
                       persistVaultItemToRust(vaultItem);
                     }}
                   />
-                {:else if isDrawioPngFile(tabFile) && drawioPngTabs.has(tabPath)}
+                {:else if isDrawioImage(tabFile) && drawioPngTabs.has(tabPath)}
                   <DrawioViewer
                     filePath={tabFile}
                     format="xmlpng"
@@ -4424,6 +4461,7 @@
                     src={note?.abs_path || tabPath}
                     alt={vaultItem.title || tabPath}
                     {content}
+                    drawio={isDrawioImage(tabFile)}
                     onEditWithDrawio={() => drawioPngTabs.add(tabPath)}
                   />
                 {:else if isPdfFile(tabFile)}
@@ -4485,7 +4523,7 @@
         onNavigateBack={navigateBack}
         onNavigateForward={navigateForward}
         isMarkdownFile={isMarkdownTab}
-        showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
+        showViewToggle={(hasActiveContent && !isSyntheticTab(activeTabPath)) || isDrawioImage(activeTabPath ? baseTabPath(activeTabPath) : null)}
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -4549,7 +4587,7 @@
           onNavigateBack={navigateBack}
           onNavigateForward={navigateForward}
           isMarkdownFile={isMarkdownTab}
-          showViewToggle={hasActiveContent && !isSyntheticTab(activeTabPath)}
+          showViewToggle={(hasActiveContent && !isSyntheticTab(activeTabPath)) || isDrawioImage(activeTabPath ? baseTabPath(activeTabPath) : null)}
           markdownViewMode={!isEditing ? "reading" : markdownViewMode}
           onChangeMarkdownView={handleChangeMarkdownView}
           title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -4617,7 +4655,7 @@
           canGoBack={false}
           canGoForward={false}
           isMarkdownFile={isMarkdownSplitTab}
-          showViewToggle={hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)}
+          showViewToggle={(hasActiveSplitContent && !isSyntheticTab(activeSplitTabPath)) || isDrawioImage(activeSplitTabPath ? baseTabPath(activeSplitTabPath) : null)}
           markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
           onChangeMarkdownView={handleChangeSplitMarkdownView}
           title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}

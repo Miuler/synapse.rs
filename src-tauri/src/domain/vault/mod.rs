@@ -1,3 +1,4 @@
+pub mod drawio_image;
 pub mod file_name;
 pub mod file_types;
 pub mod folder;
