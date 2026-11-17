@@ -1,5 +1,6 @@
 //! Registro de depuración de ACP: cada línea JSON-RPC que entra y sale de los agentes, sin filtrar,
-//! en `<configuración>/acp-debug.jsonl`. Se activa en Ajustes; apagado no cuesta nada.
+//! y los pedidos del canal `/peer` entre instancias de Synapse, en `<configuración>/acp-debug.jsonl`.
+//! Se activa en Ajustes; apagado no cuesta nada.
 
 use serde_json::{Value, json};
 use std::io::Write;
@@ -30,6 +31,15 @@ pub(super) fn log(dir: &str, line: &str) {
         return;
     }
     let msg = serde_json::from_str::<Value>(line.trim()).unwrap_or_else(|_| Value::String(line.to_string()));
+    log_value(dir, msg);
+}
+
+/// Anota un mensaje ya interpretado (p. ej. un pedido `/peer`: `peer-in`, `peer-out`, `peer-reply`).
+/// Los `ping` (saber qué instancias están abiertas) no se anotan: son ruido.
+pub fn log_value(dir: &str, msg: Value) {
+    if !is_enabled() || msg.get("action").and_then(Value::as_str) == Some("ping") {
+        return;
+    }
     let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)

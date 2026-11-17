@@ -15,6 +15,9 @@
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT } from '@entities/acp-agent';
 
+  // Bóvedas aceptadas o rechazadas por esta (se leen al abrir Ajustes)
+  let peerDecisions = $state(agentStore.peers.decisions());
+
   // El modo feedback solo existe en compilaciones con la feature `develop`
   let feedbackAvailable = $state(false);
   agentApi
@@ -448,6 +451,31 @@
               {/each}
             </select>
           </label>
+          <div class="row peer-decisions">
+            <span class="row-label">
+              Bóvedas que pueden conversar con esta
+              <span class="hint">🐙 Lo que respondiste cuando un agente de otra bóveda quiso conversar con esta. Al quitar una, se vuelve a preguntar la próxima vez.</span>
+            </span>
+            {#if peerDecisions.length}
+              <ul>
+                {#each peerDecisions as d (d.path)}
+                  <li title={d.path}>
+                    <span>{d.allowed ? '✅' : '🚫'} {d.vault}</span>
+                    <button
+                      type="button"
+                      aria-label="Quitar {d.vault}"
+                      onclick={() => {
+                        agentStore.peers.forget(d.path);
+                        peerDecisions = agentStore.peers.decisions();
+                      }}>Quitar</button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <span class="hint">Ninguna todavía.</span>
+            {/if}
+          </div>
           <label class="row">
             <span class="row-label">
               Registro de depuración de ACP
@@ -818,5 +846,20 @@
     .shortcut-input {
       width: 160px;
     }
+  }
+  .peer-decisions ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 200px;
+  }
+  .peer-decisions li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 </style>

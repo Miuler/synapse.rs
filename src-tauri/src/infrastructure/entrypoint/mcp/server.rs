@@ -494,11 +494,20 @@ impl McpBackgroundRuntime {
             } else {
                 let request: serde_json::Value =
                     serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
-                match provider.conversation_hub().map(|hub| hub.peer(request)) {
+                use crate::infrastructure::integration::service::acp::debug_log;
+                let ping = request.get("action").and_then(serde_json::Value::as_str) == Some("ping");
+                if !ping {
+                    debug_log::log_value("peer-in", json!({"request": request}));
+                }
+                let answer = match provider.conversation_hub().map(|hub| hub.peer(request)) {
                     Some(Ok(v)) => ("200 OK", json!({"result": v})),
                     Some(Err(e)) => ("200 OK", json!({"error": e})),
                     None => ("200 OK", json!({"error": "Sin ventana de Synapse"})),
+                };
+                if !ping {
+                    debug_log::log_value("peer-answer", answer.1.clone());
                 }
+                answer
             };
             let body = payload.to_string();
             let header = format!(

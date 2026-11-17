@@ -9,11 +9,19 @@ use std::time::Duration;
 pub struct PeerInstancesImpl;
 
 fn call(peer: &PeerInstance, request: &Value, timeout: Duration) -> Result<Value, String> {
+    use super::acp::debug_log;
+    let ping = request.get("action").and_then(Value::as_str) == Some("ping");
+    if !ping {
+        debug_log::log_value("peer-out", json!({"to": peer.vault_name, "request": request}));
+    }
     let body = request.to_string();
     let url = format!("http://127.0.0.1:{}/peer", peer.port);
     let raw = post_with(&url, &body, &[("X-Synapse-Token", &peer.token)], timeout)?;
     let reply: Value =
         serde_json::from_str(&raw).map_err(|e| format!("Respuesta inválida: {e}"))?;
+    if !ping {
+        debug_log::log_value("peer-reply", json!({"from": peer.vault_name, "reply": reply}));
+    }
     match reply.get("error").and_then(Value::as_str) {
         Some(e) => Err(e.to_string()),
         None => Ok(reply.get("result").cloned().unwrap_or(Value::Null)),

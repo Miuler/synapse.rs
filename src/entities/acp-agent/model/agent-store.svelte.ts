@@ -1,8 +1,9 @@
 import { requestAttention } from '@shared/lib/attention';
+import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
+import { load, save } from './storage';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
 import { replayText } from './replay-text';
-import { askConfirm } from '@shared/lib/confirm';
 import type {
   AgentCommand,
   AgentConnection,
@@ -26,32 +27,23 @@ const DEFAULT_AGENT_KEY = 'synapse.agent.default';
 const DEBUG_LOG_KEY = 'synapse.agent.debugLog';
 /** Conversaciones por proceso si el usuario no eligió otro número. */
 export const DEFAULT_PROCESS_LIMIT = 4;
-/** Espera de un permiso no de lectura en una conversación entrante antes de rechazarlo. */
-const INCOMING_PERMISSION_TIMEOUT = 120_000;
-
 /** Idas y vueltas seguidas entre agentes sin intervención del usuario. */
 export const MAX_AGENT_HOPS = 3;
 
 /** Mensaje de otra conversación esperando a que esta termine su turno. */
 /** Quien escribe: otra conversación de esta ventana, o de otra bóveda (`vault`). */
-interface Sender {
+export interface Sender {
   handle: string;
   agent: string;
   title: string;
   vault?: string;
 }
 
-/** Bóveda remota y conversación a la que vuelve una respuesta. */
-interface RemoteRef {
-  vault: string;
-  path: string;
-  convId: string;
-}
 
 /** Adónde vuelve la respuesta de una pregunta. */
-type ReplyTarget = { local: Conversation } | { remote: RemoteRef } | { external: true };
+export type ReplyTarget = { local: Conversation } | { remote: RemoteRef } | { external: true };
 
-interface InboxMessage {
+export interface InboxMessage {
   from: Sender;
   text: string;
   hops: number;
@@ -59,43 +51,10 @@ interface InboxMessage {
   replyTo: ReplyTarget | null;
 }
 
-/** Origen de un pedido de otra instancia. */
-interface PeerFrom extends Sender {
-  vault: string;
-  path: string;
-  convId: string;
-}
 
-/** Pedido que llega de otra instancia de Synapse por su canal `/peer`. */
-interface PeerRequest {
-  action: 'ping' | 'list' | 'send' | 'deliver';
-  from: PeerFrom;
-  to: number | string | null;
-  fresh?: boolean;
-  message: string;
-  expectsReply?: boolean;
-  hops: number;
-}
 
 /** Conversaciones desplegadas a la vez en el acordeón. */
 export const MAX_EXPANDED = 2;
-
-function load(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function save(key: string, value: string | null) {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    /* sin almacenamiento */
-  }
-}
 
 type Usage = { used: number; size: number; cost: { amount: number; currency: string } | null };
 
@@ -424,7 +383,7 @@ export class Conversation {
           asker.waitingFor = asker.waitingFor.filter((h) => h !== this.handle);
           if (this.#store.byId(asker.id)) asker.receive({ from: this.#store.senderOf(this), text, hops, replyTo: null });
         } else if ('remote' in target) {
-          void this.#store.replyRemote(target.remote, this, text, hops);
+          void this.#store.peers.replyRemote(target.remote, this, text, hops);
         } else {
           // Un cliente MCP externo la recoge con `read_replies`
           this.#store.externalReplies.push({ from: `${this.handle} · ${this.agent?.name ?? this.agentId}`, text, at: Date.now() });
@@ -525,7 +484,7 @@ export class Conversation {
 }
 
 /** Conversaciones abiertas con los agentes, en un acordeón (como mucho {@link MAX_EXPANDED} desplegadas) y una fijada al costado. */
-class AgentStore {
+export class AgentStore {
   agents = $state<AgentProfile[]>([]);
   listError = $state<string | null>(null);
   floating = $state(load(FLOATING_KEY) === '1');
@@ -564,13 +523,19 @@ class AgentStore {
   /** Respuestas para clientes MCP externos (sin conversación en el panel), hasta que las recojan. */
   externalReplies: { from: string; text: string; at: number }[] = [];
   /** Bóveda de esta instancia, para presentarse ante otras. */
-  #identity: { vault: string; path: string } | null = null;
+  /** Conversaciones con otras bóvedas de Synapse (canal `/peer`). */
+  readonly peers = new PeerLink(this);
   #early = new Map<string, AgentCommand[]>();
   #listening: Promise<unknown> | null = null;
 
   pinnedConversation = $derived(this.conversations.find((c) => c.id === this.pinned) ?? null);
   pendingPermissions = $derived(this.conversations.reduce((n, c) => n + c.pendingPermissions, 0));
   working = $derived(this.conversations.filter((c) => c.status === 'working').length);
+
+  /** Bóveda abierta en esta ventana. */
+  get cwd(): string | null {
+    return this.#cwd;
+  }
 
   byId(id: string) {
     return this.conversations.find((c) => c.id === id) ?? null;
@@ -643,7 +608,7 @@ class AgentStore {
         c.push({ type: 'permission', request: e, answered: null });
         const item = c.items.at(-1)!;
         if (!this.isVisible(c)) c.unseen = true;
-        if (c.incoming) this.#incomingPermission(c, item.id, e);
+        if (c.incoming) this.peers.incomingPermission(c, item.id, e);
         const tool = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
         requestAttention(
           `${c.agent?.name ?? 'El agente'} pide permiso`,
@@ -754,10 +719,6 @@ class AgentStore {
     return { handle: c.handle, agent: c.agent?.name ?? c.agentId, title: c.title };
   }
 
-  async #me() {
-    this.#identity ??= await agentApi.peerIdentity().catch(() => null);
-    return this.#identity;
-  }
 
   /** Peticiones del MCP (`list_conversations`, `send_to_conversation`) y de otras instancias (`peer`). */
   async handleConversationRequest(req: {
@@ -768,10 +729,10 @@ class AgentStore {
     expectsReply?: boolean;
     request?: unknown;
   }): Promise<unknown> {
-    if (req.action === 'peer') return this.#handlePeer(req.request as PeerRequest);
+    if (req.action === 'peer') return this.peers.handlePeer(req.request as PeerRequest);
     const caller = req.caller ? this.byId(req.caller) : null;
     if (req.action === 'list') {
-      const local = this.#localSummaries(caller);
+      const local = this.localSummaries(caller);
       // Las conversaciones de las otras bóvedas abiertas, con el nombre de su bóveda delante
       const peers = await agentApi.peerList({ action: 'list' }).catch(() => []);
       const remote = peers.flatMap((p) =>
@@ -779,7 +740,7 @@ class AgentStore {
           ? (p.result as { handle: string }[]).map((c) => ({ ...c, handle: `${p.vault}${c.handle}`, vault: p.vault, window: 'otra ventana' }))
           : [],
       );
-      const me = await this.#me();
+      const me = await this.peers.me();
       return [
         ...local.map((c) => ({ ...c, vault: me?.vault ?? null, window: 'esta ventana' })),
         ...remote,
@@ -800,8 +761,8 @@ class AgentStore {
     }
     const expectsReply = !!req.expectsReply;
     // «mainframe», «mainframe#2» o «mainframe#nueva»: otra bóveda
-    const remote = await this.#remoteTarget(to);
-    if (remote) return this.#sendRemote(caller, remote, req.message ?? '', expectsReply, hops);
+    const remote = await this.peers.remoteTarget(to);
+    if (remote) return this.peers.sendRemote(caller, remote, req.message ?? '', expectsReply, hops);
     const target = this.#resolveTarget(to, caller);
     if (expectsReply && !caller.waitingFor.includes(target.handle)) caller.waitingFor = [...caller.waitingFor, target.handle];
     const status = target.receive({
@@ -840,7 +801,8 @@ class AgentStore {
     };
   }
 
-  #localSummaries(caller: Conversation | null) {
+  /** Resumen de las conversaciones abiertas (para `list_conversations` y para otras bóvedas). */
+  localSummaries(caller: Conversation | null) {
     return this.conversations.map((c) => ({
       handle: c.handle,
       agent: c.agent?.name ?? c.agentId,
@@ -857,181 +819,13 @@ class AgentStore {
     }));
   }
 
-  /** Bóvedas de Synapse abiertas en otras ventanas, con sus conversaciones (menciones `@`). */
-  async openVaults(): Promise<{ vault: string; path: string; conversations: ConversationSummary[] }[]> {
-    const me = await this.#me();
-    const peers = await agentApi.peerList({ action: 'list' }).catch(() => []);
-    return peers
-      .filter((p) => !p.error && p.path !== me?.path)
-      .map((p) => ({ vault: p.vault, path: p.path, conversations: Array.isArray(p.result) ? (p.result as ConversationSummary[]) : [] }));
-  }
 
-  /** `to` apunta a otra bóveda abierta: su nombre, con `#n` o `#nueva` opcional. */
-  async #remoteTarget(to: string): Promise<{ vault: string; number: number | null; fresh: boolean } | null> {
-    const m = /^(.*?)#(\d+|nueva)?$/i.exec(to) ?? [to, to, undefined];
-    const vault = (m[1] ?? '').trim();
-    if (!vault) return null;
-    const me = await this.#me();
-    if (me && vault.toLowerCase() === me.vault.toLowerCase()) return null;
-    const peers = await agentApi.peerList({ action: 'ping' }).catch(() => []);
-    const peer = peers.find((p) => p.vault.toLowerCase() === vault.toLowerCase() || p.path === vault);
-    if (!peer) {
-      // Sin «#» puede ser el título de una conversación local; con «#» es una bóveda que no está abierta
-      if (to.includes('#')) throw new Error(`La bóveda «${vault}» no está abierta en otra ventana de Synapse.`);
-      return null;
-    }
-    const n = m[2];
-    return { vault: peer.path, number: n && /^\d+$/.test(n) ? Number(n) : null, fresh: /^nueva$/i.test(n ?? '') };
-  }
 
-  async #sendRemote(
-    caller: Conversation,
-    target: { vault: string; number: number | null; fresh: boolean },
-    message: string,
-    expectsReply: boolean,
-    hops: number,
-  ) {
-    const me = await this.#me();
-    if (!me) throw new Error('Esta ventana no tiene una bóveda abierta.');
-    const result = (await agentApi.peerSend(target.vault, {
-      action: 'send',
-      from: { ...this.senderOf(caller), vault: me.vault, path: me.path, convId: caller.id },
-      to: target.number,
-      fresh: target.fresh,
-      message,
-      expectsReply,
-      hops,
-    })) as { status: string; to: string };
-    if (expectsReply && !caller.waitingFor.includes(result.to)) caller.waitingFor = [...caller.waitingFor, result.to];
-    return {
-      ...result,
-      note:
-        `Enviado a la bóveda de otra ventana (${result.to}). ` +
-        (expectsReply ? 'Su respuesta te llegará como un mensaje nuevo en esta conversación; no la esperes.' : ''),
-    };
-  }
 
-  /** Devuelve la respuesta a la conversación de otra bóveda que preguntó. */
-  async replyRemote(remote: RemoteRef, from: Conversation, text: string, hops: number) {
-    const me = await this.#me();
-    try {
-      await agentApi.peerSend(remote.path, {
-        action: 'deliver',
-        to: remote.convId,
-        from: { ...this.senderOf(from), vault: me?.vault ?? '', path: me?.path ?? '' },
-        message: text,
-        hops,
-      });
-    } catch (e) {
-      from.error(`No se pudo devolver la respuesta a «${remote.vault}»: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
 
-  /** Pedidos de otra instancia: listar, recibir un mensaje (en una conversación entrante) o una respuesta. */
-  async #handlePeer(req: PeerRequest): Promise<unknown> {
-    if (!req || req.action === 'ping') return [];
-    if (req.action === 'list') return this.#localSummaries(null);
-    const cwd = this.#cwd;
-    if (!cwd) throw new Error('Esa ventana de Synapse no tiene una bóveda abierta.');
-    const from = req.from;
-    if (req.hops > MAX_AGENT_HOPS) throw new Error(`Límite de ${MAX_AGENT_HOPS} mensajes seguidos entre agentes.`);
-    const sender: Sender = { handle: `${from.vault}${from.handle}`, agent: from.agent, title: from.title, vault: from.vault };
-    if (req.action === 'deliver') {
-      const c = this.byId(req.to as string);
-      if (!c) throw new Error('La conversación que preguntó ya no está abierta.');
-      c.waitingFor = c.waitingFor.filter((h) => !h.startsWith(from.vault));
-      c.receive({ from: sender, text: req.message, hops: req.hops, replyTo: null });
-      return { status: 'delivered' };
-    }
-    if (req.action !== 'send') throw new Error(`Pedido desconocido: ${req.action}`);
-    if (!(await this.#acceptsFrom(cwd, from))) throw new Error(`La bóveda «${(await this.#me())?.vault}» no aceptó la conversación.`);
-    const c = await this.#incomingConversation(cwd, req);
-    const me = await this.#me();
-    const status = c.receive({
-      from: sender,
-      text: req.message,
-      hops: req.hops,
-      replyTo: req.expectsReply ? { remote: { vault: from.vault, path: from.path, convId: from.convId } } : null,
-    });
-    return { status, to: `${me?.vault ?? ''}${c.handle}` };
-  }
 
-  /**
-   * Permisos en una conversación abierta por otra bóveda, donde quizá nadie está mirando: las
-   * lecturas se permiten solas; lo demás espera al usuario y, sin respuesta, se rechaza.
-   */
-  #incomingPermission(c: Conversation, itemId: number, e: { toolCallId?: string | null; options: { id: string; kind: string }[] }) {
-    const tool = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
-    const kind = tool && tool.type === 'tool' ? (tool.kind ?? '') : '';
-    const allow = e.options.find((o) => o.kind === 'allow_once') ?? e.options.find((o) => o.kind.startsWith('allow'));
-    const reject = e.options.find((o) => o.kind === 'reject_once') ?? e.options.find((o) => o.kind.startsWith('reject'));
-    if (['read', 'search', 'fetch', 'think'].includes(kind) && allow) {
-      void c.answer(itemId, allow.id);
-      return;
-    }
-    setTimeout(() => {
-      const item = c.items.find((i) => i.id === itemId);
-      if (item && item.type === 'permission' && item.answered === null) {
-        c.push({ type: 'error', text: 'Nadie respondió el permiso en 2 minutos: se rechazó.' });
-        void c.answer(itemId, reject?.id ?? null);
-      }
-    }, INCOMING_PERMISSION_TIMEOUT);
-  }
 
-  /** Permiso de esta bóveda para conversar con `from` (se pregunta la primera vez y se recuerda). */
-  async #acceptsFrom(cwd: string, from: PeerFrom): Promise<boolean> {
-    const key = `synapse.agent.accept.${cwd}`;
-    const saved = JSON.parse(load(key) ?? '{}') as Record<string, boolean>;
-    if (from.path in saved) return saved[from.path];
-    if (!this.agents.length) await this.refresh();
-    const agentId = this.incomingAgentId ?? this.fallbackAgentId;
-    const agent = agentId ? (this.agents.find((a) => a.id === agentId)?.name ?? '') : '';
-    const allowed = await askConfirm(
-      '🐙 Conversación desde otra bóveda',
-      `Un agente de «${from.vault}» quiere conversar con un agente de esta bóveda` +
-        (agent ? ` (se usará ${agent})` : '') +
-        '. Si no hay una conversación abierta para él, se abrirá una nueva. ¿Permitir?',
-    );
-    saved[from.path] = allowed;
-    save(key, JSON.stringify(saved));
-    return allowed;
-  }
 
-  /** Conversación que atiende a `from`: la pedida, la de su hilo, o una nueva y limpia. */
-  async #incomingConversation(cwd: string, req: PeerRequest): Promise<Conversation> {
-    const from = req.from;
-    if (typeof req.to === 'number') {
-      const c = this.conversations.find((x) => x.number === req.to);
-      if (!c) throw new Error(`No hay una conversación #${req.to} en esa bóveda.`);
-      return c;
-    }
-    const threadsKey = `synapse.agent.threads.${cwd}`;
-    const threads = JSON.parse(load(threadsKey) ?? '{}') as Record<string, string>;
-    const thread = `${from.path}|${from.convId}`;
-    const known = req.fresh ? null : threads[thread];
-    if (known) {
-      const open = this.byId(known);
-      if (open) return open;
-      if (this.history.some((h) => h.id === known)) {
-        const c = await this.openFromHistory(cwd, known);
-        c.incoming = { vault: from.vault, handle: from.handle, title: from.title };
-        return c;
-      }
-    }
-    if (!this.agents.length) await this.refresh();
-    const configured = this.incomingAgentId && this.agents.some((a) => a.id === this.incomingAgentId) ? this.incomingAgentId : null;
-    const agentId = configured ?? this.fallbackAgentId;
-    if (!agentId) throw new Error('Esa ventana de Synapse no tiene ningún agente disponible para atender conversaciones.');
-    const c = new Conversation(this, agentId, cwd);
-    c.incoming = { vault: from.vault, handle: from.handle, title: from.title };
-    this.#add(c);
-    this.panelOpen = true;
-    await c.connect();
-    threads[thread] = c.id;
-    save(threadsKey, JSON.stringify(threads));
-    this.loadHistory(cwd);
-    return c;
-  }
 
   /** Destino por número (#2), id, o parte de su título o del nombre del agente. */
   #resolveTarget(to: string, caller: Conversation | null): Conversation {
@@ -1158,7 +952,7 @@ class AgentStore {
     else this.#waiting.push(a);
   }
 
-  #add(c: Conversation) {
+  addConversation(c: Conversation) {
     c.number = this.#nextNumber++;
     for (const a of this.#waiting.splice(0)) c.attach(a);
     this.conversations = [c, ...this.conversations];
@@ -1171,7 +965,7 @@ class AgentStore {
     this.#cwd = cwd;
     this.lastAgentId = agentId;
     const c = new Conversation(this, agentId, cwd);
-    this.#add(c);
+    this.addConversation(c);
     await c.connect();
     this.loadHistory(cwd);
     return c;
@@ -1188,7 +982,7 @@ class AgentStore {
     this.#cwd = cwd;
     const summary = this.history.find((h) => h.id === transcriptId);
     const c = new Conversation(this, summary?.agent_id ?? '', cwd, transcriptId);
-    this.#add(c);
+    this.addConversation(c);
     try {
       const resume = await c.restore(transcriptId);
       this.lastAgentId = c.agentId;
@@ -1292,5 +1086,4 @@ function loadVaultState(cwd: string): VaultAgentState | null {
   }
 }
 
-export type { AgentStore };
 export const agentStore = new AgentStore();

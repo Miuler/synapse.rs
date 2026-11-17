@@ -130,7 +130,7 @@
   const mentionOpen = $derived(mention !== null);
   $effect(() => {
     if (!mentionOpen) return;
-    Promise.all([agentStore.openVaults(), settingsApi.getRecentWorkspaces().catch(() => [])])
+    Promise.all([agentStore.peers.openVaults(), settingsApi.getRecentWorkspaces().catch(() => [])])
       .then(([open, known]) => (vaults = mergeVaults(open, known, cwd)))
       .catch(() => {});
   });
