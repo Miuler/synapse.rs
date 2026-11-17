@@ -16,7 +16,7 @@ export const es = {
     files: 'Explorador de archivos ({shortcut})',
     tags: 'Explorador de etiquetas (#tags)',
     relations: 'Inspector de enlaces y backlinks',
-    agent: 'Agente de IA',
+    agent: 'Agente de IA ({shortcut})',
     quickOpen: 'Buscar archivo por nombre ({shortcut})',
     searchContent: 'Buscar en el contenido de las notas ({shortcut})',
     newNote: 'Crear nueva nota',

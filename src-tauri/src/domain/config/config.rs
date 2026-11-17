@@ -123,6 +123,8 @@ pub struct WorkspaceShortcutsConfig {
     pub split_view: String,
     #[serde(default = "default_ws_toggle_sidebar")]
     pub toggle_sidebar: String,
+    #[serde(default = "default_ws_toggle_agent")]
+    pub toggle_agent: String,
     #[serde(default = "default_ws_locate_active_file")]
     pub locate_active_file: String,
     #[serde(default = "default_ws_search_fulltext")]
@@ -180,6 +182,9 @@ fn default_ws_split_view() -> String {
 }
 fn default_ws_toggle_sidebar() -> String {
     "Alt+1, Ctrl+B".to_string()
+}
+fn default_ws_toggle_agent() -> String {
+    "Alt+2".to_string()
 }
 fn default_ws_locate_active_file() -> String {
     "Ctrl+Alt+1, Alt+L".to_string()
@@ -242,6 +247,7 @@ impl Default for WorkspaceShortcutsConfig {
             close_tab: default_ws_close_tab(),
             split_view: default_ws_split_view(),
             toggle_sidebar: default_ws_toggle_sidebar(),
+            toggle_agent: default_ws_toggle_agent(),
             locate_active_file: default_ws_locate_active_file(),
             search_fulltext: default_ws_search_fulltext(),
             open_vault_folder: default_ws_open_vault_folder(),

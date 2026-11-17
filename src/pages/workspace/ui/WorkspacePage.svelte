@@ -3056,6 +3056,7 @@
         id: "cmd-agent-panel",
         name: "Agente: mostrar u ocultar el panel",
         category: "Agente",
+        shortcut: shortcutsConfig.workspace.toggle_agent,
         action: () => setAgentPanelOpen(!isAgentPanelOpen),
       },
       {
@@ -3588,6 +3589,11 @@
       if (matchesShortcut(e, ws.toggle_sidebar)) {
         stopEvent();
         toggleExplorer();
+        return;
+      }
+      if (matchesShortcut(e, ws.toggle_agent)) {
+        stopEvent();
+        setAgentPanelOpen(!isAgentPanelOpen);
         return;
       }
       if (matchesShortcut(e, ws.nav_back)) {

@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Alt+2 abre y cierra el panel del agente**: nueva acción «Mostrar / ocultar el agente» (`toggle_agent`) en los atajos configurables, que también aparece en la paleta de comandos, en el panel de atajos y en el tooltip del botón de la barra lateral.
 - **Copiar y pegar archivos con otras aplicaciones**: «Copiar» en el explorador deja los archivos en el portapapeles del sistema, como un explorador de archivos, así se pegan en otra instancia de Synapse, en el gestor de archivos o en otra aplicación; «Pegar» trae lo copiado fuera (otra instancia, el gestor de archivos) a la carpeta elegida («Pegar (N archivos de fuera)»).
 - **Arrastrar archivos del explorador a otras aplicaciones**: soltarlos en Telegram, el gestor de archivos u otra aplicación los adjunta o copia, como desde un explorador de archivos; dentro del árbol arrastrar sigue moviendo.
 - **El Historial de Git de un archivo dibuja sus ramas**: una columna a la izquierda muestra el grafo (como `git log --graph`), con las fusiones que unen ramas que también tocaron el archivo. Cada commit se marca «nuevo» (creó el archivo: punto hueco y sin «Ver cambios», porque no hay versión anterior en su rama), «borrado», «renombrado», «fusión» u «otra rama» (no es la versión anterior del commit de arriba).

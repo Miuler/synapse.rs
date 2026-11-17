@@ -130,6 +130,7 @@
         split_view: 'Vista dividida',
         toggle_edit_mode: 'Alternar edición / lectura',
         toggle_sidebar: 'Mostrar / ocultar barra lateral',
+        toggle_agent: 'Mostrar / ocultar el agente',
         locate_active_file: 'Localizar archivo activo',
         open_vault_folder: 'Abrir carpeta de la bóveda',
         nav_back: 'Atrás',

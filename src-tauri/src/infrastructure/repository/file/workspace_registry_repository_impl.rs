@@ -207,6 +207,8 @@ impl WorkspaceRegistryRepositoryImpl {
     "split_view": "Ctrl+\\",
     // Mostrar u ocultar el explorador lateral de archivos
     "toggle_sidebar": "Alt+1, Ctrl+B",
+    // Mostrar u ocultar el panel del agente
+    "toggle_agent": "Alt+2",
     // Ubicar el archivo activo en el árbol del explorador
     "locate_active_file": "Ctrl+Alt+1, Alt+L",
     // Buscar en el contenido de las notas (Full-Text Search)

@@ -47,6 +47,7 @@
           { label: 'Atrás', shortcut: ws.nav_back },
           { label: 'Adelante', shortcut: ws.nav_forward },
           { label: 'Mostrar / ocultar barra lateral', shortcut: ws.toggle_sidebar },
+          { label: 'Mostrar / ocultar el agente', shortcut: ws.toggle_agent },
           { label: 'Localizar archivo activo', shortcut: ws.locate_active_file },
           { label: 'Abrir carpeta de la bóveda', shortcut: ws.open_vault_folder },
           { label: 'Atajos de teclado', shortcut: 'F1' },

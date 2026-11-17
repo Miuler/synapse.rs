@@ -1,4 +1,4 @@
-// Con el teclado: el atajo del explorador lo muestra con el foco en el árbol, las flechas mueven la
+// Con el teclado: Alt+2 abre y cierra el agente; el atajo del explorador lo muestra con el foco en el árbol, las flechas mueven la
 // selección y Enter abre el archivo. Vale para «ubicar» (Ctrl+Alt+1) y para mostrarlo (Alt+1).
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { startApp, type Session } from './harness';
@@ -86,4 +86,18 @@ it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
   expect(await agentOpen()).toBe(true);
   await shiftEsc();
   expect(await agentOpen()).toBe(false);
+});
+
+it('Alt+2 abre y cierra el panel del agente', async () => {
+  const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel')) as Promise<boolean>;
+  if (await agentOpen()) {
+    await s.browser.$('.editor-header .agent-toggle').click();
+    await s.browser.waitUntil(async () => !(await agentOpen()), { timeout: 5_000 });
+  }
+  await focusOutside();
+  await s.browser.keys(['Alt', '2']);
+  await s.browser.waitUntil(agentOpen, { timeout: 5_000, timeoutMsg: 'Alt+2 no abrió el agente' });
+  // Con el foco dentro del panel también lo cierra
+  await s.browser.keys(['Alt', '2']);
+  await s.browser.waitUntil(async () => !(await agentOpen()), { timeout: 5_000, timeoutMsg: 'Alt+2 no cerró el agente' });
 });

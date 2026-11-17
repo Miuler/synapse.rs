@@ -16,6 +16,7 @@ export interface WorkspaceShortcutsConfig {
   close_tab: string;
   split_view: string;
   toggle_sidebar: string;
+  toggle_agent: string;
   locate_active_file: string;
   search_fulltext: string;
   open_vault_folder: string;
@@ -55,6 +56,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     close_tab: 'Ctrl+W, Ctrl+F4',
     split_view: 'Ctrl+\\',
     toggle_sidebar: 'Alt+1, Ctrl+B',
+    toggle_agent: 'Alt+2',
     locate_active_file: 'Ctrl+Alt+1, Alt+L',
     search_fulltext: 'Ctrl+Shift+F',
     open_vault_folder: 'Ctrl+Shift+O',

@@ -57,7 +57,7 @@
     },
     {
       id: 'agent',
-      label: t('ribbon.agent'),
+      label: t('ribbon.agent', { shortcut: primaryShortcutText(shortcutsConfig.workspace.toggle_agent) }),
       icon: 'bot',
     },
     {
