@@ -100,6 +100,39 @@ it('las vistas del diff ya calculadas se mantienen al cambiar de modo', async ()
   expect(visibles).toBe(1);
 });
 
+it('un diff duplicado tiene su propio modo en cada panel', async () => {
+  const diffPath = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-title-container')].map((t) => t.getAttribute('data-path')).find((p) => p?.startsWith('diff')),
+  )) as string;
+  await s.browser.execute((p: string) => {
+    const el = document.querySelector(`.tab-title-container[data-path="${p}"]`)!;
+    const { x, y } = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
+  }, diffPath);
+  await s.browser.$('.tab-duplicate').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => (document.querySelector('.tab-duplicate') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await s.browser.$$('.synapse-pane .diff-toolbar').length) === 2, {
+    timeout: 10_000,
+    timeoutMsg: 'el diff no se duplicó en el otro panel',
+  });
+  // Panel izquierdo: «Diferencias»; derecho: «2 Paneles»
+  const pick = (pane: number, label: string) =>
+    s.browser.execute(
+      (i: number, l: string) => {
+        const bar = document.querySelectorAll('.synapse-pane .diff-toolbar')[i];
+        ([...bar.querySelectorAll('.toggle-btn')].find((b) => b.textContent?.trim() === l) as HTMLElement).click();
+      },
+      pane,
+      label,
+    );
+  await pick(0, 'Diferencias');
+  await pick(1, '2 Paneles');
+  const active = await s.browser.execute(() =>
+    [...document.querySelectorAll('.synapse-pane .diff-toolbar')].map((b) => b.querySelector('.toggle-btn.active')?.textContent?.trim()),
+  );
+  expect(active).toEqual(['Diferencias', '2 Paneles']);
+});
+
 it('duplicar una pestaña la abre también en el otro panel', async () => {
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
   await s.browser.$('.tab-title-container[data-path="nota.md"]').waitForExist({ timeout: 10_000 });
