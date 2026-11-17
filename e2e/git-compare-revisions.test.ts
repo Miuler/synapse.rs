@@ -86,3 +86,70 @@ it('elige dos versiones y abre su diff', async () => {
     { timeout: 10_000, timeoutMsg: 'el diff no muestra las dos versiones' },
   );
 });
+
+it('Ctrl+clic y Shift+clic eligen commits; el clic derecho compara dos o copia sus hashes', async () => {
+  // Reabrir el historial de la nota
+  await s.browser.execute(() => {
+    const el = document.querySelector('.file-tree-item[data-path="nota.md"]')!;
+    const { x, y } = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 5, clientY: y + 5 }));
+  });
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => {
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.includes('Historial de Git')) as HTMLElement).click();
+  });
+  await s.browser.$('.git-log-dialog .git-log-row').waitForExist({ timeout: 10_000 });
+  // El portapapeles de la página se intercepta para leer lo copiado
+  await s.browser.execute(() => {
+    (window as any).__copied = null;
+    navigator.clipboard.writeText = async (t: string) => {
+      (window as any).__copied = t;
+    };
+  });
+  const hashes = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.git-log-dialog .git-log-row')].map((r) => r.getAttribute('data-hash')),
+  )) as string[];
+  const rows = await s.browser.$$('.git-log-dialog .git-log-row');
+  const cell = (i: number) => rows[i].$('.col-message');
+
+  // Clic en la primera y Ctrl+clic en la tercera: dos elegidas
+  await cell(0).click();
+  await s.browser.performActions([
+    { type: 'key', id: 'kb', actions: [{ type: 'keyDown', value: '' }] },
+  ]);
+  await cell(2).click();
+  await s.browser.releaseActions();
+  expect(await count('.git-log-dialog .git-log-row.picked')).toBe(2);
+
+  // Clic derecho: copiar los dos hashes separados por coma
+  await s.browser.execute(() => {
+    const r = document.querySelectorAll('.git-log-dialog .git-log-row')[2];
+    const { x, y } = r.getBoundingClientRect();
+    r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 200, clientY: y + 10 }));
+  });
+  await s.browser.$('.git-log-row-menu').waitForExist({ timeout: 5_000 });
+  const menuButtons = await s.browser.$$('.git-log-row-menu button');
+  expect(await menuButtons[0].isEnabled()).toBe(true);
+  await menuButtons[1].click();
+  expect(await s.browser.execute(() => (window as any).__copied)).toBe(`${hashes[0]},${hashes[2]}`);
+
+  // Shift+clic: el rango completo (3 commits)
+  await cell(0).click();
+  await s.browser.performActions([
+    { type: 'key', id: 'kb2', actions: [{ type: 'keyDown', value: '' }] },
+  ]);
+  await cell(2).click();
+  await s.browser.releaseActions();
+  expect(await count('.git-log-dialog .git-log-row.picked')).toBe(3);
+  await s.browser.execute(() => {
+    const r = document.querySelectorAll('.git-log-dialog .git-log-row')[1];
+    const { x, y } = r.getBoundingClientRect();
+    r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: x + 200, clientY: y + 10 }));
+  });
+  await s.browser.$('.git-log-row-menu').waitForExist({ timeout: 5_000 });
+  // Con tres elegidas, el diff (que es entre dos) no se puede
+  expect(await (await s.browser.$$('.git-log-row-menu button'))[0].isEnabled()).toBe(false);
+  await (await s.browser.$$('.git-log-row-menu button'))[2].click();
+  expect(await s.browser.execute(() => (window as any).__copied)).toBe(hashes.map((h) => h.slice(0, 7)).join(','));
+  await s.browser.keys('Escape');
+});

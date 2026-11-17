@@ -69,6 +69,74 @@
   let filterText = $state('');
   let copiedHash = $state<string | null>(null);
 
+  // Selección de commits en la tabla: clic, Ctrl+clic (sumar/quitar) y Shift+clic (rango)
+  let picked = $state<string[]>([]);
+  let anchor: string | null = null;
+  let rowMenu = $state<{ x: number; y: number } | null>(null);
+  let copiedNotice = $state<string | null>(null);
+
+  function handleRowClick(e: MouseEvent, hash: string) {
+    if ((e.target as HTMLElement).closest('button, input, a')) return;
+    if (e.ctrlKey || e.metaKey) {
+      picked = picked.includes(hash) ? picked.filter((h) => h !== hash) : [...picked, hash];
+      anchor = hash;
+    } else if (e.shiftKey && anchor) {
+      const hashes = filteredCommits.map((c) => c.commit_hash);
+      const a = hashes.indexOf(anchor);
+      const b = hashes.indexOf(hash);
+      if (a !== -1 && b !== -1) picked = hashes.slice(Math.min(a, b), Math.max(a, b) + 1);
+    } else {
+      picked = [hash];
+      anchor = hash;
+    }
+  }
+
+  function handleRowContextMenu(e: MouseEvent, hash: string) {
+    e.preventDefault();
+    if (!picked.includes(hash)) {
+      picked = [hash];
+      anchor = hash;
+    }
+    // El diálogo está centrado con `transform`: el menú se ubica relativo a él
+    const dialogEl = (e.currentTarget as HTMLElement).closest('.git-log-dialog') as HTMLElement | null;
+    const r = dialogEl?.getBoundingClientRect() ?? { left: 0, top: 0 };
+    rowMenu = { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  /** Commits elegidos en el orden de la lista (del más nuevo al más antiguo). */
+  const pickedInOrder = $derived(commits.filter((c) => picked.includes(c.commit_hash)));
+
+  async function copyPicked(short: boolean) {
+    const text = pickedInOrder.map((c) => (short ? c.short_hash : c.commit_hash)).join(',');
+    rowMenu = null;
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedNotice = pickedInOrder.length === 1 ? 'Hash copiado' : `${pickedInOrder.length} hashes copiados`;
+      setTimeout(() => (copiedNotice = null), 2000);
+    } catch (err) {
+      console.error('Error al copiar hashes:', err);
+    }
+  }
+
+  function comparePicked() {
+    if (!filePath || pickedInOrder.length !== 2) return;
+    // De la versión más antigua a la más nueva
+    const [to, from] = pickedInOrder.map((c) => c.commit_hash);
+    rowMenu = null;
+    open = false;
+    onCompareRevisions?.(filePath, from, to);
+  }
+
+  $effect(() => {
+    if (!rowMenu) return;
+    const close = (e: PointerEvent) => {
+      if (!(e.target as HTMLElement).closest('.git-log-row-menu')) rowMenu = null;
+    };
+    window.addEventListener('pointerdown', close, true);
+    return () => window.removeEventListener('pointerdown', close, true);
+  });
+
+
 
   const fileName = $derived(filePath ? filePath.split('/').pop() || filePath : '');
 
@@ -108,6 +176,9 @@
       filterText = '';
       compareMode = false;
       selected = [];
+      picked = [];
+      anchor = null;
+      rowMenu = null;
       loadLog();
     }
   });
@@ -166,6 +237,11 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && rowMenu) {
+      e.preventDefault();
+      rowMenu = null;
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       handleClose();
@@ -208,6 +284,11 @@
         Comparar
       </button>
     {/if}
+    {#if copiedNotice}
+      <span class="git-log-copied" aria-live="polite"><Check size={12} /> {copiedNotice}</span>
+    {:else if !compareMode && picked.length > 1}
+      <span class="git-log-picked-info">{picked.length} seleccionados · clic derecho para comparar o copiar</span>
+    {/if}
     <span class="git-log-count-info">
       {filteredCommits.length} {filteredCommits.length === 1 ? 'revisión' : 'revisiones'}
       {#if filterText && filteredCommits.length !== commits.length}
@@ -218,6 +299,30 @@
       Cerrar
     </button>
   {/snippet}
+
+      {#if rowMenu}
+        <div class="git-log-row-menu" role="menu" style="left: {rowMenu.x}px; top: {rowMenu.y}px;">
+          {#if onCompareRevisions}
+            <button
+              type="button"
+              role="menuitem"
+              disabled={pickedInOrder.length !== 2}
+              title={pickedInOrder.length === 2 ? 'Abrir el diff de la versión más antigua a la más nueva' : 'Elige exactamente 2 versiones (Ctrl+clic)'}
+              onclick={comparePicked}
+            >
+              <GitCompare size={13} /> Diff entre estas 2 versiones
+            </button>
+          {/if}
+          <button type="button" role="menuitem" onclick={() => copyPicked(false)}>
+            <Copy size={13} />
+            {pickedInOrder.length === 1 ? 'Copiar hash' : `Copiar ${pickedInOrder.length} hashes (separados por coma)`}
+          </button>
+          <button type="button" role="menuitem" onclick={() => copyPicked(true)}>
+            <Copy size={13} />
+            {pickedInOrder.length === 1 ? 'Copiar hash corto' : `Copiar ${pickedInOrder.length} hashes cortos`}
+          </button>
+        </div>
+      {/if}
 
       <!-- Barra de Filtro / Búsqueda -->
       <div class="git-log-search-bar">
@@ -296,7 +401,14 @@
               </thead>
               <tbody>
                 {#each filteredCommits as commit (commit.commit_hash)}
-                  <tr class="git-log-row" class:selected={compareMode && selected.includes(commit.commit_hash)}>
+                  <tr
+                    class="git-log-row"
+                    class:selected={compareMode && selected.includes(commit.commit_hash)}
+                    class:picked={!compareMode && picked.includes(commit.commit_hash)}
+                    data-hash={commit.commit_hash}
+                    onclick={(e) => handleRowClick(e, commit.commit_hash)}
+                    oncontextmenu={(e) => handleRowContextMenu(e, commit.commit_hash)}
+                  >
                     <!-- Columna Hash -->
                     <td class="col-hash">
                       <div class="hash-wrap">
@@ -788,5 +900,53 @@
   .compare-go-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+  .git-log-row {
+    cursor: default;
+  }
+  .git-log-row.picked {
+    background: color-mix(in srgb, var(--accent, #0969da) 12%, transparent);
+  }
+  .git-log-row-menu {
+    position: absolute;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    min-width: 240px;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #fff);
+    box-shadow: var(--modal-shadow, 0 8px 24px rgba(0, 0, 0, 0.2));
+  }
+  .git-log-row-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--text-primary, #1f2328);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .git-log-row-menu button:hover:not(:disabled) {
+    background: var(--bg-tertiary, #eaeef2);
+  }
+  .git-log-row-menu button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .git-log-picked-info,
+  .git-log-copied {
+    font-size: 12px;
+    color: var(--text-secondary, #656d76);
+    margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 </style>

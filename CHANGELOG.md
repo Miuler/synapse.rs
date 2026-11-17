@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Elegir commits en el Historial de Git**: clic elige un commit, `Ctrl`+clic suma o quita otros y `Shift`+clic elige el rango desde el último clic. Con el clic derecho: «Diff entre estas 2 versiones» (con exactamente dos elegidas) y copiar sus hashes, completos o cortos, separados por coma.
 - **Duplicar pestaña en vista dividida**: en el menú de cada pestaña, «Duplicar en vista dividida» abre esa misma pestaña en el otro panel (creando la división si no la hay), sin quitarla de donde estaba.
 - **El visor de diff recuerda las vistas ya calculadas**: «2 Paneles», «Diferencias» (píxel a píxel) y texto se calculan la primera vez que los eliges y quedan en memoria hasta cerrar la pestaña, así cambiar entre ellos es inmediato.
 - **`Shift+Escape` cierra el último panel lateral que abriste**: el explorador (u otro panel de la barra izquierda) o el del agente, el que hayas abierto más recientemente; si lo vuelves a pulsar, cierra el anterior.
