@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { keepTextEditorSharp } from '../lib/sharp-text-editor';
   import React from 'react';
   import { createRoot, type Root } from 'react-dom/client';
   import { Excalidraw, getSceneVersion } from '@excalidraw/excalidraw';
@@ -366,14 +367,18 @@
     }
   }
 
+  let stopSharpText: (() => void) | null = null;
+
   onMount(() => {
     window.addEventListener('blur', flushPendingChange);
     lastKnownScene = content;
     lastReadOnly = readOnly;
     renderReactApp(content, readOnly, true);
+    if (containerRef) stopSharpText = keepTextEditorSharp(containerRef);
   });
 
   onDestroy(() => {
+    stopSharpText?.();
     window.removeEventListener('blur', flushPendingChange);
     if (onChangeDebounceTimer) {
       clearTimeout(onChangeDebounceTimer);
