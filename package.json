@@ -49,6 +49,7 @@
     "@git-diff-view/svelte": "^0.1.8",
     "@mermanjs/web": "^0.7.0",
     "@replit/codemirror-vim": "^6.4.0",
+    "@scalar/api-reference": "^1.80.0",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-cli": "^2.5.0",
     "@tauri-apps/plugin-log": "^2.10.1",

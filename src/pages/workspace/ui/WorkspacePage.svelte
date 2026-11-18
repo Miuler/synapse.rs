@@ -25,6 +25,7 @@
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
+  import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
@@ -4586,6 +4587,11 @@
                       syncState = "synced";
                     }}
                   />
+                {:else if !paneEditing && isOpenApiContent(tabFile, content)}
+                  <!-- OpenAPI/Swagger: Scalar en Lectura; en Edición cae en el editor de código -->
+                  <div class="editor-main-content openapi-pane">
+                    <OpenApiViewer {content} />
+                  </div>
                 {:else if isCodeFile(tabFile)}
                   <div class="editor-main-content">
                     <CodeEditor
