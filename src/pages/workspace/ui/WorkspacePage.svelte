@@ -4598,7 +4598,7 @@
                       {content}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
-                      mode="markdown"
+                      mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : 'markdown'}
                       onChange={(updatedCode) => {
                         if (openedNotes[tabFile]) {
                           openedNotes[tabFile].content = updatedCode;

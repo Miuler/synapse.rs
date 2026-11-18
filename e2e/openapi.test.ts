@@ -52,6 +52,29 @@ it('en Lectura muestra el visor Scalar', async () => {
   expect(external).toEqual([]);
 }, 60_000);
 
+it('Scalar usa los colores del tema de la app en claro y en oscuro', async () => {
+  const colors = () =>
+    s.browser.execute(() => {
+      const app = document.querySelector('.tab-pane:not(.hidden) .openapi-pane .scalar-app') as HTMLElement;
+      const probe = document.createElement('div');
+      probe.style.background = 'var(--bg-primary)';
+      document.body.appendChild(probe);
+      const expected = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return { scalar: getComputedStyle(app).getPropertyValue('--scalar-background-1').trim(), resolved: getComputedStyle(app).backgroundColor, expected,
+        dark: document.body.classList.contains('dark-mode') };
+    });
+  const original = await s.browser.execute(() => document.documentElement.getAttribute('data-theme'));
+  for (const theme of ['light', 'dark']) {
+    await s.browser.execute((t) => document.documentElement.setAttribute('data-theme', t), theme);
+    await s.browser.waitUntil(async () => (await colors()).dark === (theme === 'dark'), { timeout: 5_000, timeoutMsg: `Scalar no pasó a ${theme}` });
+    const c = await colors();
+    expect(c.scalar).not.toBe('');
+    expect(c.resolved).toBe(c.expected);
+  }
+  await s.browser.execute((t) => document.documentElement.setAttribute('data-theme', t ?? 'light'), original);
+}, 60_000);
+
 it('al cambiar el archivo en disco el visor se actualiza', async () => {
   writeFileSync(join(vault, 'openapi.yaml'), SPEC.replace('API de Prueba Synapse', 'API Renombrada'));
   await s.browser.waitUntil(async () => (await paneText()).includes('API Renombrada'), { timeout: 20_000, timeoutMsg: 'el visor no recargó' });
@@ -64,5 +87,10 @@ it('en Edición muestra el YAML en el editor de código', async () => {
   await s.browser.$('.tab-pane:not(.hidden) .cm-content').waitForExist({ timeout: 10_000 });
   const code = await s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .cm-content')?.textContent ?? '');
   expect(code).toContain('openapi: 3.0.3');
+  // Resaltado YAML: la clave `openapi` va en su propio span con estilo
+  const keySpans = await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .cm-line span')].filter((e) => e.textContent === 'openapi').length,
+  );
+  expect(keySpans).toBeGreaterThan(0);
   expect(await s.browser.$('.tab-pane:not(.hidden) .openapi-pane').isExisting()).toBe(false);
 }, 60_000);

@@ -9,7 +9,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
-- **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Sigue el tema claro/oscuro de la app y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
+- **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Toma los colores del tema activo de la app (también al cambiar entre claro y oscuro) y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
+
+- **Resaltado de sintaxis YAML y JSON** en el editor de código para `.yaml`, `.yml` y `.json` (antes se coloreaban como Markdown).
 
 ## [1.0.0-beta.2] - 2026-11-17
 

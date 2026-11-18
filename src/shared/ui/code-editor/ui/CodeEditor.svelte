@@ -4,6 +4,8 @@
   import { EditorView, keymap, tooltips } from '@codemirror/view';
   import { EditorState, Compartment, Prec } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
+  import { yaml } from '@codemirror/lang-yaml';
+  import { json } from '@codemirror/lang-json';
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
   import { searchKeymap, search, openSearchPanel } from '@codemirror/search';
@@ -51,7 +53,7 @@
     isActive?: boolean;
     /** Ctrl+Enter: acción del editor (en los diagramas, redibujar ya). */
     onRun?: () => void;
-    mode?: 'markdown' | 'mermaid' | 'd2' | 'plantuml';
+    mode?: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'yaml' | 'json';
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
@@ -197,6 +199,9 @@
     { tag: tags.number, color: 'var(--syntax-number, #0550ae)' },
     { tag: tags.operator, color: 'var(--syntax-number, #0550ae)', fontWeight: 'bold' },
     { tag: tags.meta, color: 'var(--text-secondary, #8c959f)' },
+    // Claves de YAML/JSON y literales
+    { tag: [tags.propertyName, tags.definition(tags.propertyName)], color: 'var(--syntax-variable, #953800)' },
+    { tag: [tags.bool, tags.null, tags.atom], color: 'var(--syntax-keyword, #cf222e)' },
   ]);
 
   function buildDiagnostics(view: any, diagList: EditorDiagnostic[]): Diagnostic[] {
@@ -342,7 +347,11 @@
           ? [withCommentTokens(mermaidLanguage, { line: '%%' }), braceFolding({ lineComment: '%%' })]
           : mode === 'plantuml'
             ? [withCommentTokens(plantumlLanguage, { line: "'" }), braceFolding({ lineComment: "'" })]
-            : markdown();
+            : mode === 'yaml'
+              ? yaml()
+              : mode === 'json'
+                ? json()
+                : markdown();
 
     const autocompleteExtension =
       mode === 'd2'
