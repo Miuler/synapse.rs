@@ -13,10 +13,15 @@ beforeAll(async () => {
   await item.waitForExist({ timeout: 30_000 });
   await item.click();
   await s.browser.$('.markdown-body p').waitForExist({ timeout: 30_000 });
-  await s.browser.pause(500);
-  await s.browser.keys(['Control', 'f']);
-  await s.browser.keys(['Control']);
-  await input().waitForExist({ timeout: 5_000 });
+  // Ctrl+F solo abre la búsqueda cuando la vista de lectura ya se registró: se reintenta
+  await s.browser.waitUntil(
+    async () => {
+      await s.browser.keys(['Control', 'f']);
+      await s.browser.keys(['Control']);
+      return input().isExisting();
+    },
+    { timeout: 10_000, interval: 300, timeoutMsg: 'Ctrl+F no abrió la búsqueda' },
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -39,6 +44,7 @@ it('escribir no bloquea la interfaz y resalta el resultado final', async () => {
   await s.browser.waitUntil(async () => (await marks()) > 300, { timeout: 60_000, timeoutMsg: 'sin resaltados' });
   await s.browser.keys(['r']);
   await s.browser.waitUntil(async () => (await marks()) === 900, { timeout: 60_000, timeoutMsg: 'resultado final incorrecto' });
+  // Justificada: medir también los 300 ms que siguen al resultado final
   await s.browser.pause(300);
   const maxGap = (await s.browser.execute(() => {
     clearInterval((window as any).__gapTimer);

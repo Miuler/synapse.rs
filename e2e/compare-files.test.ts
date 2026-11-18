@@ -4,7 +4,10 @@ import { startApp, type Session } from './harness';
 
 let s: Session;
 
-// Con pausas: abrir el primer archivo lo localiza en el árbol y eso reinicia la selección.
+// Abrir el primer archivo lo localiza en el árbol y eso reinicia la selección: se espera a que su
+// pestaña esté activa y a que la selección tenga los archivos pedidos hasta ese momento.
+const selected = () =>
+  s.browser.execute(() => [...document.querySelectorAll('.file-tree-item.selected')].map((e) => e.getAttribute('data-path')).sort()) as Promise<string[]>;
 async function select(paths: string[]) {
   for (const [i, p] of paths.entries()) {
     await s.browser.execute(
@@ -15,7 +18,12 @@ async function select(paths: string[]) {
       p,
       i > 0,
     );
-    await s.browser.pause(600);
+    if (i === 0) await s.browser.$(`.tab-title-container.active[data-path="${p}"]`).waitForExist({ timeout: 10_000 });
+    const want = paths.slice(0, i + 1).sort().join(',');
+    await s.browser.waitUntil(async () => (await selected()).join(',') === want, {
+      timeout: 5_000,
+      timeoutMsg: `la selección no quedó en ${want}`,
+    });
   }
 }
 
@@ -29,7 +37,6 @@ async function menuHasCompare(path: string): Promise<boolean> {
     );
   }, path);
   await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
-  await s.browser.pause(200);
   const found = (await s.browser.execute(() =>
     [...document.querySelectorAll('.context-menu-item')].some((i) => i.textContent?.includes('Comparar archivos')),
   )) as boolean;
@@ -69,14 +76,13 @@ it('con dos archivos abre el diff entre ellos', async () => {
     ) as HTMLElement;
     item.click();
   });
-  await s.browser.waitUntil(
-    () => s.browser.execute(() => !!document.querySelector('.diff-viewer-wrapper')) as Promise<boolean>,
-    { timeout: 10_000 },
-  );
-  await s.browser.pause(800);
-  const text = (await s.browser.execute(
-    () => [...document.querySelectorAll('.diff-viewer-wrapper')].map((e) => e.textContent).join('\n'),
-  )) as string;
+  const diffText = () =>
+    s.browser.execute(() => [...document.querySelectorAll('.diff-viewer-wrapper')].map((e) => e.textContent).join('\n')) as Promise<string>;
+  await s.browser.waitUntil(async () => /viejo/.test(await diffText()) && /nuevo/.test(await diffText()), {
+    timeout: 10_000,
+    timeoutMsg: 'el diff no mostró los dos archivos',
+  });
+  const text = await diffText();
   expect(text).toContain('viejo');
   expect(text).toContain('nuevo');
   expect(text).toContain('a.txt → b.txt');

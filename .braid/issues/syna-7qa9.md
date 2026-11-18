@@ -31,9 +31,11 @@ HECHO (commit «test(e2e): corte rápido…»):
    - paneReady(s): espera a que la pestaña visible monte su visor (.diagram-viewer-container, .cm-content o .markdown-body).
 2. Pausas fijas → esperas reales, sin pause: content-zoom, smoke, editor-line-keys, editor-cursor, code-folding, diagram-render, search-shortcuts, rename-occurrences. tab-cursor: de 8 a 1 (2,6 s justificada: la app ignora 2,5 s los cambios de disco tras su propio guardado, recentSaveTimestamps en WorkspacePage). acp-agent: el pause tras el permiso se cambió por esperar que no queden botones de permiso.
    Todos los archivos tocados pasan por separado.
+   Después: compare-files sin pausas (espera la selección real del árbol y el texto del diff); 2/2 pasan.
+   Luego: explorer-pin sin pausas (espera que el explorador flote o se fije) y reading-search con 1 (Ctrl+F se reintenta hasta que abre la búsqueda); 3/3 pasan.
 
 PENDIENTE:
-- Pausas en: compare-files (3), diagram-pan-zoom (3), compare-files-git (2), compare-diagrams (2), explorer-pin (2), reading-search (2), compare-images, drawio, explorer-system-clipboard, explorer-keyboard-focus, y 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada). perf-open y real-vault se dejan.
+- Pausas en: diagram-pan-zoom (3), compare-files-git (2), compare-diagrams (2), compare-images, drawio, explorer-system-clipboard, explorer-keyboard-focus, y 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada), reading-search (1 justificada: mide los 300 ms tras el resultado). perf-open y real-vault se dejan.
 - Punto 3: agrupar archivos pequeños con bóvedas parecidas (pestañas, explorador) reutilizando la app y reiniciando estado entre pruebas.
 - Punto 4: scripts test:e2e:quick (smoke + áreas tocadas) y test:e2e (completa); mover a unitarias la lógica simple.
 - Correr la suite completa y medir tiempo; verificar el corte rápido con una sesión que se cae de verdad (no probado).

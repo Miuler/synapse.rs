@@ -36,7 +36,7 @@ it('fijado ocupa espacio; suelto flota sobre el editor y se oculta al abrir un a
 
   // Soltarlo: el editor ocupa el espacio y el explorador flota pegado a la barra lateral
   await s.browser.$('.sidebar-pin-btn').click();
-  await s.browser.pause(200);
+  await s.browser.waitUntil(async () => (await rects()).floating, { timeout: 5_000, timeoutMsg: 'no se soltó' });
   r = await rects();
   expect(r.floating).toBe(true);
   expect(r.visible).toBe(true);
@@ -65,7 +65,7 @@ it('fijado ocupa espacio; suelto flota sobre el editor y se oculta al abrir un a
   await s.browser.$(filesButton).click();
   await s.browser.waitUntil(async () => (await rects()).visible, { timeout: 5_000 });
   await s.browser.$('.sidebar-pin-btn').click();
-  await s.browser.pause(200);
+  await s.browser.waitUntil(async () => !(await rects()).floating, { timeout: 5_000, timeoutMsg: 'no se fijó' });
   r = await rects();
   expect(r.floating).toBe(false);
   expect(r.main).toBeGreaterThanOrEqual(r.sideRight - 2);
