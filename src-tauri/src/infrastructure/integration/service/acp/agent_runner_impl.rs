@@ -542,11 +542,26 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
     if notes.is_empty() {
         return None;
     }
+    // Imágenes y diagramas adjuntos (también un `.drawio.png`): no se leen con read_note
+    let visual = |n: &String| {
+        let l = n.to_lowercase();
+        [".png`", ".jpg`", ".jpeg`", ".gif`", ".webp`", ".svg`", ".drawio`", ".excalidraw`", ".d2`", ".mmd`", ".puml`"]
+            .iter()
+            .any(|ext| l.contains(ext))
+    };
+    let visual_hint = if notes.iter().any(visual) {
+        " Para ver una imagen o un diagrama adjunto (.png, .svg, .drawio.png, .excalidraw, .d2, .mmd…) usa \
+         `render_diagram` con `relative_path`; para el texto y la estructura (contenedores y \
+         conexiones) de un draw.io, `extract_note_diagrams`."
+            .to_string()
+    } else {
+        String::new()
+    };
     Some(format!(
         "[Contexto de Synapse] Las notas adjuntas están en la bóveda abierta en Synapse: {}. \
          Léelas con la herramienta MCP `read_note` del servidor `{SYNAPSE_TOOLS}` usando `relative_path`; \
          para notas largas pide primero `mode: \"outline_only\"` y luego `mode: \"section\"` o \
-         `\"chunk\"` (`start_line`, `line_count`) en lugar de leer el archivo completo. El servidor \
+         `\"chunk\"` (`start_line`, `line_count`) en lugar de leer el archivo completo.{visual_hint} El servidor \
          `{SYNAPSE_TOOLS}` también ofrece búsqueda, enlaces, backlinks y Git sobre la bóveda.",
         notes.join(", ")
     ))

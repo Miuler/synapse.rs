@@ -9,6 +9,8 @@ pub struct SearchNotesFullTextQuery {
     /// Carpeta en minúsculas, sin `/` en los extremos.
     pub folder: Option<String>,
     pub tags: Vec<String>,
+    /// Extensiones permitidas en minúsculas, sin punto (`archimate`, `md`…); vacío = todas.
+    pub extensions: Vec<String>,
 }
 
 pub struct FullTextNoteHit {

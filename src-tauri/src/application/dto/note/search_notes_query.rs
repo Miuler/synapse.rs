@@ -7,6 +7,8 @@ pub struct SearchNotesQuery {
     pub limit: usize,
     /// Todas deben coincidir (de forma jerárquica).
     pub tags: Vec<String>,
+    /// Extensiones a recorrer en minúsculas, sin punto; vacío = solo Markdown.
+    pub extensions: Vec<String>,
 }
 
 pub struct NoteSearchHit {

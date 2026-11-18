@@ -91,6 +91,48 @@ fn string_list(value: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Fecha legible de un instante unix: la hora local (con `date`, en Linux/macOS) o, si no se
+/// puede, en UTC (`2026-11-18 14:05:09 UTC`).
+fn readable_date(secs: u64) -> String {
+    #[cfg(unix)]
+    if let Ok(out) = std::process::Command::new("date")
+        .args(["-d", &format!("@{secs}"), "+%Y-%m-%d %H:%M:%S %Z"])
+        .output()
+        && out.status.success()
+    {
+        let local = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !local.is_empty() {
+            return local;
+        }
+    }
+    utc_date(secs)
+}
+
+/// `AAAA-MM-DD hh:mm:ss UTC` sin librerías de fechas (algoritmo de días civiles de H. Hinnant).
+fn utc_date(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let rem = secs % 86_400;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} UTC", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
+/// Extensiones en minúsculas y sin punto (`.ArchiMate` → `archimate`).
+fn extension_list(value: Option<&Value>) -> Vec<String> {
+    string_list(value)
+        .into_iter()
+        .map(|e| e.trim().trim_start_matches('.').to_lowercase())
+        .filter(|e| !e.is_empty())
+        .collect()
+}
+
 /// Respuesta de texto con el JSON formateado; si falla la serialización, error con el prefijo.
 fn to_text<T: serde::Serialize + ?Sized>(payload: &T, error_prefix: &str) -> McpCallToolResult {
     match serde_json::to_string_pretty(payload) {
@@ -180,6 +222,7 @@ pub const CROSS_VAULT_TOOLS: &[&str] = &[
     "get_backlinks_and_relations",
     "read_pdf_document",
     "extract_note_diagrams",
+    "inspect_archimate_element",
     "git_file_history",
     "git_diff_revisions",
     "git_read_revision",
@@ -276,7 +319,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 1. search_notes
                 McpTool {
                     name: "search_notes".to_string(),
-                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets.".to_string(),
+                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets. Por defecto solo Markdown; con 'extensions' busca otros archivos (p. ej. [\"archimate\"], [\"d2\", \"mmd\"]).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -294,6 +337,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "limit": {
                                 "type": "number",
                                 "description": "Número máximo de resultados a devolver (por defecto 20)"
+                            },
+                            "extensions": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Extensiones de archivo a recorrer, sin punto (p. ej. [\"archimate\"] o [\"md\", \"d2\"]). Por defecto solo Markdown."
                             }
                         }
                     }),
@@ -301,7 +349,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados, con filtros por carpeta, tags y telemetría de tokens.".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— y modelos ArchiMate .archimate), con filtros por carpeta, extensión, tags y telemetría de tokens.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -322,6 +370,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "limit": {
                                 "type": "number",
                                 "description": "Número máximo de resultados (por defecto 20)"
+                            },
+                            "extensions": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Solo archivos con estas extensiones, sin punto (p. ej. [\"archimate\"])"
                             }
                         },
                         "required": ["query"]
@@ -347,6 +400,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                                 "type": "number",
                                 "default": 2,
                                 "description": "Número de líneas antes y después de cada coincidencia (máximo 10, por defecto 2)"
+                            },
+                            "max_matches": {
+                                "type": "number",
+                                "description": "Máximo de coincidencias a devolver (por defecto todas); total_matches dice cuántas hay"
                             }
                         },
                         "required": ["relative_path", "query"]
@@ -802,14 +859,18 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 16. extract_note_diagrams
                 McpTool {
                     name: "extract_note_diagrams".to_string(),
-                    description: "Extrae todos los bloques de código de diagramas (Mermaid, D2lang) de una nota con números de línea o lee archivos .d2 / .mmd.".to_string(),
+                    description: "Extrae todos los bloques de código de diagramas (Mermaid, D2lang) de una nota con números de línea o lee archivos .d2 / .mmd. Con un diagrama de draw.io (.drawio, o una imagen .drawio.png/.drawio.svg con el diagrama dentro) devuelve por página sus contenedores con las figuras de cada uno, las figuras sueltas y las conexiones (desde → hasta, con su texto); con `revision`, tal como era en ese commit.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota Markdown o archivo .d2 / .mmd"
+                                "description": "Ruta relativa de la nota Markdown, archivo .d2 / .mmd o diagrama de draw.io (.drawio, .drawio.png, .drawio.svg)"
+                            },
+                            "revision": {
+                                "type": "string",
+                                "description": "Solo draw.io: commit de Git (hash, HEAD~1…) para ver el diagrama como era entonces"
                             },
                             "diagram_type": {
                                 "type": "string",
@@ -819,6 +880,30 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             }
                         },
                         "required": ["relative_path"]
+                    }),
+                },
+                // Modelos ArchiMate (`.archimate` de Archi)
+                McpTool {
+                    name: "inspect_archimate_element".to_string(),
+                    description: "Busca elementos en un modelo ArchiMate (.archimate) por id exacto o parte del nombre y devuelve, en una sola respuesta, su tipo, línea, documentación, propiedades (p. ej. UNIQUECODE), sus relaciones entrantes y salientes con el nombre y tipo del elemento del otro extremo, y las vistas (ArchimateDiagramModel) donde aparece. Para el índice de carpetas y vistas usa read_note con mode \"outline_only\".".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "relative_path": {
+                                "type": "string",
+                                "description": "Ruta relativa del modelo .archimate"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "Id del elemento (id-…) o parte de su nombre, sin distinguir mayúsculas"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Máximo de elementos a devolver (por defecto 5)"
+                            }
+                        },
+                        "required": ["relative_path", "query"]
                     }),
                 },
                 // 18. report_feedback
@@ -925,7 +1010,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 19. render_diagram
                 McpTool {
                     name: "render_diagram".to_string(),
-                    description: "Devuelve un diagrama de la bóveda (Excalidraw, Mermaid, D2, PlantUML) dibujado como imagen PNG, tal como lo ve el usuario en Synapse. Úsalo cuando read_note indique `diagram.render_tool` y necesites ver el diagrama, no solo su código. Requiere la ventana de Synapse abierta.".to_string(),
+                    description: "Devuelve un diagrama o imagen de la bóveda como imagen, tal como lo ve el usuario en Synapse: Excalidraw, Mermaid, D2 y PlantUML (dibujados como PNG), draw.io (.drawio.png, .drawio.svg) e imágenes (.png, .jpg, .svg, .webp…). Úsalo para ver un diagrama o una imagen adjunta, o cuando read_note indique `diagram.render_tool`. Para el texto y la estructura de un draw.io, extract_note_diagrams. Requiere la ventana de Synapse abierta.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -1025,6 +1110,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "get_vault_git_status" => self.execute_get_vault_git_status(),
             "read_pdf_document" => self.execute_read_pdf_document(&args),
             "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
+            "inspect_archimate_element" => self.execute_inspect_archimate(&args),
             "render_diagram" => self.execute_render_diagram(&args),
             "list_conversations" => self.execute_list_conversations(),
             "list_vaults" => self.execute_list_vaults(),
@@ -1066,6 +1152,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             query,
             limit,
             tags,
+            extensions: extension_list(args.get("extensions")),
         }) {
             Ok(hits) => {
                 let filtered: Vec<_> = hits
@@ -1205,6 +1292,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .and_then(|v| v.as_str())
                 .map(|f| f.trim_matches('/').to_lowercase()),
             tags: string_list(args.get("tags")),
+            extensions: extension_list(args.get("extensions")),
         };
         match SearchNotesFullTextUseCase::new(&**fts, &self.note_repository).execute(query) {
             Ok(result) => {
@@ -1259,16 +1347,64 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 Ok(m) => m,
                 Err(e) => return McpCallToolResult::error(e),
             };
+        let total = matches.len();
+        let max = args.get("max_matches").and_then(|v| v.as_u64()).map(|m| m as usize).unwrap_or(usize::MAX);
         let matches: Vec<_> = matches
             .into_iter()
+            .take(max)
             .map(|m| json!({ "line_number": m.line_number, "matched_line": m.matched_line, "context": m.context }))
             .collect();
         let payload = json!({
             "relative_path": rel_path_str,
-            "total_matches": matches.len(),
+            "total_matches": total,
+            "returned_matches": matches.len(),
             "matches": matches,
         });
         to_text(&payload, "Error al serializar: ")
+    }
+
+    /// XML (`mxfile`) del diagrama de draw.io de `rel`: un `.drawio`, o un PNG/SVG con el diagrama
+    /// dentro. `Ok(None)` si no es de draw.io. Con `revision`, tal como estaba en ese commit.
+    fn drawio_source(&self, rel: &str, revision: Option<&str>) -> Result<Option<String>, McpCallToolResult> {
+        use crate::infrastructure::search::drawio_extractor::{png_mxfile, svg_mxfile};
+        let lower = rel.to_lowercase();
+        let kind = if lower.ends_with(".drawio") {
+            "xml"
+        } else if lower.ends_with(".png") {
+            "png"
+        } else if lower.ends_with(".svg") {
+            "svg"
+        } else {
+            return Ok(None);
+        };
+        let bytes: Vec<u8> = match revision {
+            Some(rev) => {
+                let git = self.git()?;
+                let r = git.get_file_revision(&self.vault(), rel, rev).map_err(McpCallToolResult::error)?;
+                if !r.exists {
+                    return Err(McpCallToolResult::error(format!("'{rel}' no existía en {rev}")));
+                }
+                match (r.content, r.data_url) {
+                    (Some(text), _) if !r.is_binary => text.into_bytes(),
+                    (_, Some(url)) => {
+                        use base64::Engine;
+                        let data = url.split_once(',').map(|(_, d)| d).unwrap_or_default();
+                        base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| McpCallToolResult::error(e.to_string()))?
+                    }
+                    _ => return Ok(None),
+                }
+            }
+            None => {
+                let rel_path = crate::domain::note::NoteRelativePath::new(rel).map_err(McpCallToolResult::error)?;
+                std::fs::read(self.vault().join(rel_path.as_str()))
+                    .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?
+            }
+        };
+        Ok(match kind {
+            "xml" => Some(String::from_utf8_lossy(&bytes).into_owned()),
+            "png" => png_mxfile(&bytes),
+            _ => svg_mxfile(&bytes),
+        })
     }
 
     fn execute_read_note(&self, args: &Value) -> McpCallToolResult {
@@ -1276,6 +1412,50 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
+        // Modelo ArchiMate: el índice son sus carpetas y vistas, no encabezados Markdown
+        let wants_outline = args.get("mode").and_then(|v| v.as_str()) == Some("outline_only")
+            || args.get("outline_only").and_then(|v| v.as_bool()).unwrap_or(false);
+        if wants_outline && rel_path_str.to_lowercase().ends_with(".archimate") {
+            return match self.read_archimate(rel_path_str) {
+                Err(e) => e,
+                Ok(xml) => to_text(
+                    &json!({
+                        "relative_path": rel_path_str,
+                        "total_lines": xml.lines().count(),
+                        "toc": crate::infrastructure::search::archimate_extractor::archimate_outline(&xml),
+                        "note": "Modelo ArchiMate: carpetas y vistas con su línea. Para un elemento (propiedades, relaciones y vistas donde aparece) usa inspect_archimate_element; para leer un tramo, read_note con mode \"chunk\".",
+                    }),
+                    "",
+                ),
+            };
+        }
+        // Diagramas de draw.io (también dentro de un PNG/SVG) e imágenes: no son texto que leer
+        // por líneas. Se devuelve el texto del diagrama y se indica qué herramienta usar.
+        let lower = rel_path_str.to_lowercase();
+        if lower.ends_with(".drawio") || lower.ends_with(".png") || lower.ends_with(".svg") || lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".webp") || lower.ends_with(".gif") {
+            return match self.drawio_source(rel_path_str, None) {
+                Err(e) => e,
+                Ok(Some(xml)) => to_text(
+                    &json!({
+                        "relative_path": rel_path_str,
+                        "diagram": {
+                            "type": "drawio",
+                            "text": crate::infrastructure::search::drawio_extractor::mxfile_text(&xml),
+                            "render_tool": "render_diagram",
+                            "structure_tool": "extract_note_diagrams",
+                        },
+                        "note": "Diagrama de draw.io: `text` son los textos de sus figuras y páginas. Para verlo como imagen usa render_diagram; para sus contenedores y conexiones, extract_note_diagrams.",
+                    }),
+                    "",
+                ),
+                Ok(None) if lower.ends_with(".svg") => McpCallToolResult::error(
+                    "Es una imagen SVG: para verla usa render_diagram con el mismo relative_path.",
+                ),
+                Ok(None) => McpCallToolResult::error(
+                    "Es una imagen, no una nota de texto: para verla usa render_diagram con el mismo relative_path.",
+                ),
+            };
+        }
         let mut mode = args.get("mode").and_then(|v| v.as_str()).unwrap_or("full");
         let start_line = args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
         let line_count = (args
@@ -1913,6 +2093,30 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         {
             return self.render_at_revision(rel, rev);
         }
+        // Imágenes (incluido un `.drawio.png` o `.drawio.svg`): se devuelven tal cual
+        let lower = rel.to_lowercase();
+        let image_mime = [("png", "image/png"), ("jpg", "image/jpeg"), ("jpeg", "image/jpeg"), ("gif", "image/gif"), ("webp", "image/webp"), ("svg", "image/svg+xml")]
+            .into_iter()
+            .find(|(ext, _)| lower.ends_with(&format!(".{ext}")))
+            .map(|(_, mime)| mime);
+        if let Some(mime) = image_mime {
+            let Ok(rel_path) = crate::domain::note::NoteRelativePath::new(rel) else {
+                return McpCallToolResult::error(format!("Ruta inválida: '{rel}'"));
+            };
+            return match std::fs::read(self.vault().join(rel_path.as_str())) {
+                Ok(bytes) => {
+                    use base64::Engine;
+                    McpCallToolResult {
+                        content: vec![
+                            McpContentItem::text(format!("Imagen «{rel}».")),
+                            McpContentItem::image(base64::engine::general_purpose::STANDARD.encode(&bytes), mime.to_string()),
+                        ],
+                        is_error: false,
+                    }
+                }
+                Err(e) => McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")),
+            };
+        }
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
                 "'{rel}' no es un diagrama que Synapse sepa dibujar (Excalidraw, Mermaid, D2 o PlantUML)"
@@ -2455,7 +2659,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .map(str::to_string)
         };
         let mut meta = format!(
-            "- Fecha (unix): {secs}\n- Bóveda: {}\n",
+            "- Fecha: {}\n- Fecha (unix): {secs}\n- Bóveda: {}\n",
+            readable_date(secs),
             self.vault().display()
         );
         if let Some(agent) = field("agent") {
@@ -2559,11 +2764,66 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         to_text(&payload, "")
     }
 
+    /// Texto de un modelo `.archimate` de la bóveda.
+    fn read_archimate(&self, rel: &str) -> Result<String, McpCallToolResult> {
+        let rel_path = crate::domain::note::NoteRelativePath::new(rel).map_err(McpCallToolResult::error)?;
+        let bytes = std::fs::read(self.vault().join(rel_path.as_str()))
+            .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    fn execute_inspect_archimate(&self, args: &Value) -> McpCallToolResult {
+        let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
+            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+        };
+        let Some(query) = args.get("query").and_then(|v| v.as_str()).filter(|q| !q.trim().is_empty()) else {
+            return McpCallToolResult::error("El argumento 'query' es obligatorio");
+        };
+        if !rel.to_lowercase().ends_with(".archimate") {
+            return McpCallToolResult::error("inspect_archimate_element solo lee modelos ArchiMate (.archimate)");
+        }
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5).clamp(1, 50) as usize;
+        let xml = match self.read_archimate(rel) {
+            Ok(x) => x,
+            Err(e) => return e,
+        };
+        let found = crate::infrastructure::search::archimate_extractor::inspect_archimate(&xml, query, limit);
+        to_text(
+            &json!({
+                "relative_path": rel,
+                "query": query,
+                "returned": found.len(),
+                "elements": found,
+            }),
+            "Error al serializar el modelo: ",
+        )
+    }
+
     fn execute_extract_note_diagrams(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
             None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
         };
+        // draw.io (`.drawio`, o un PNG/SVG con el diagrama dentro): contenedores, figuras y conexiones
+        let revision = args.get("revision").and_then(|v| v.as_str()).filter(|r| !r.trim().is_empty());
+        let lower = rel_path_str.to_lowercase();
+        if lower.ends_with(".drawio") || lower.ends_with(".png") || lower.ends_with(".svg") {
+            return match self.drawio_source(rel_path_str, revision) {
+                Err(e) => e,
+                Ok(Some(xml)) => to_text(
+                    &json!({
+                        "relative_path": rel_path_str,
+                        "revision": revision,
+                        "diagram_type": "drawio",
+                        "pages": crate::infrastructure::search::drawio_extractor::mxfile_structure(&xml),
+                    }),
+                    "Error al serializar el diagrama: ",
+                ),
+                Ok(None) => McpCallToolResult::error(
+                    "La imagen no lleva un diagrama de draw.io dentro: para verla usa render_diagram.",
+                ),
+            };
+        }
         let query = ExtractNoteDiagramsQuery {
             vault_path: self.vault(),
             relative_path: rel_path_str.to_string(),
@@ -2731,5 +2991,18 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             }),
             other => Err(format!("Prompt desconocido: '{}'", other)),
         }
+    }
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::utc_date;
+
+    #[test]
+    fn fecha_utc_legible() {
+        assert_eq!(utc_date(0), "1970-01-01 00:00:00 UTC");
+        assert_eq!(utc_date(1_794_989_944), "2026-11-18 08:19:04 UTC");
+        // 29 de febrero de un año bisiesto
+        assert_eq!(utc_date(951_782_400), "2000-02-29 00:00:00 UTC");
     }
 }

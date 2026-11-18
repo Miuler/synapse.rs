@@ -125,6 +125,238 @@ pub fn mxfile_text(xml: &str) -> String {
     out.join("\n")
 }
 
+/// Una página de un diagrama de draw.io, ordenada para leerla: contenedores con sus figuras,
+/// figuras sueltas y conexiones.
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct DrawioPage {
+    pub name: String,
+    pub containers: Vec<DrawioContainer>,
+    /// Figuras con texto que no están dentro de un contenedor.
+    pub labels: Vec<String>,
+    pub edges: Vec<DrawioEdge>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct DrawioContainer {
+    pub title: String,
+    pub labels: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct DrawioEdge {
+    pub from: String,
+    pub to: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub label: String,
+}
+
+/// Estructura de cada página de un `mxfile`: qué figura está dentro de qué contenedor y qué
+/// conecta con qué (las conexiones se nombran con el texto de sus extremos).
+pub fn mxfile_structure(xml: &str) -> Vec<DrawioPage> {
+    let mut pages = Vec::new();
+    for (name, model) in diagram_models(xml) {
+        pages.push(page_structure(name, &model));
+    }
+    pages
+}
+
+#[derive(Default)]
+struct Cell {
+    label: String,
+    parent: String,
+    source: String,
+    target: String,
+    edge: bool,
+    /// x, y, ancho, alto (relativos a su padre)
+    geometry: Option<(f64, f64, f64, f64)>,
+}
+
+/// `(nombre, XML del modelo)` de cada `<diagram>`, descomprimido si hace falta.
+fn diagram_models(xml: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut reader = Reader::from_str(xml);
+    let mut current: Option<(String, usize)> = None;
+    let mut text = String::new();
+    loop {
+        let pos = reader.buffer_position() as usize;
+        match reader.read_event() {
+            Ok(Event::Start(e)) if e.name().as_ref() == "diagram" => {
+                let name = attr_of(&e, "name").unwrap_or_default();
+                current = Some((name, reader.buffer_position() as usize));
+                text.clear();
+            }
+            Ok(Event::Text(t)) if current.is_some() => {
+                let s: &str = &t;
+                text.push_str(s);
+            }
+            Ok(Event::End(e)) if e.name().as_ref() == "diagram" => {
+                if let Some((name, start)) = current.take() {
+                    let inner = &xml[start..pos];
+                    let model = if inner.contains("<mxGraphModel") {
+                        Some(inner.to_string())
+                    } else {
+                        decompress_diagram(text.trim())
+                    };
+                    if let Some(m) = model {
+                        out.push((name, m));
+                    }
+                }
+            }
+            Ok(Event::Eof) | Err(_) => break,
+            _ => {}
+        }
+    }
+    out
+}
+
+fn page_structure(name: String, model: &str) -> DrawioPage {
+    let mut cells: Vec<(String, Cell)> = Vec::new();
+    let mut reader = Reader::from_str(model);
+    // `<object label=…>` envuelve al `<mxCell>` que tiene parent/source/target
+    let mut object: Option<(String, String)> = None;
+    // `<mxGeometry>` va dentro del `<mxCell>` abierto
+    let mut open_cell: Option<usize> = None;
+    loop {
+        match reader.read_event() {
+            Ok(Event::End(e)) if e.name().as_ref() == "mxCell" => open_cell = None,
+            Ok(ev @ Event::Start(_)) | Ok(ev @ Event::Empty(_)) => {
+                let is_start = matches!(ev, Event::Start(_));
+                let (Event::Start(e) | Event::Empty(e)) = ev else { continue };
+                let tag = e.name();
+                match tag.as_ref() {
+                    "mxGeometry" => {
+                        if let Some(i) = open_cell {
+                            let num = |k: &str| attr_of(&e, k).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+                            cells[i].1.geometry = Some((num("x"), num("y"), num("width"), num("height")));
+                        }
+                    }
+                    "object" | "UserObject" => {
+                        object = Some((
+                            attr_of(&e, "id").unwrap_or_default(),
+                            attr_of(&e, "label").map(|l| strip_html(&l)).unwrap_or_default(),
+                        ));
+                    }
+                    "mxCell" => {
+                        let (id, label) = match object.take() {
+                            Some((id, label)) => (id, label),
+                            None => (
+                                attr_of(&e, "id").unwrap_or_default(),
+                                attr_of(&e, "value").map(|v| strip_html(&v)).unwrap_or_default(),
+                            ),
+                        };
+                        cells.push((
+                            id,
+                            Cell {
+                                label,
+                                parent: attr_of(&e, "parent").unwrap_or_default(),
+                                source: attr_of(&e, "source").unwrap_or_default(),
+                                target: attr_of(&e, "target").unwrap_or_default(),
+                                edge: attr_of(&e, "edge").as_deref() == Some("1"),
+                                geometry: None,
+                            },
+                        ));
+                        if is_start {
+                            open_cell = Some(cells.len() - 1);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(Event::Eof) | Err(_) => break,
+            _ => {}
+        }
+    }
+    let index: std::collections::HashMap<&str, usize> = cells.iter().enumerate().map(|(i, (id, _))| (id.as_str(), i)).collect();
+    // Texto de una figura; si no tiene, el de su primer hijo con texto (p. ej. una caja con rótulo aparte)
+    let label_of = |id: &str| -> String {
+        let Some(&i) = index.get(id) else { return String::new() };
+        if !cells[i].1.label.is_empty() {
+            return cells[i].1.label.clone();
+        }
+        cells.iter().find(|(_, c)| c.parent == id && !c.edge && !c.label.is_empty()).map(|(_, c)| c.label.clone()).unwrap_or_default()
+    };
+    // Caja absoluta: la geometría es relativa al padre
+    let absolute = |i: usize| -> Option<(f64, f64, f64, f64)> {
+        let (mut x, mut y, w, h) = cells[i].1.geometry?;
+        let mut parent = cells[i].1.parent.as_str();
+        for _ in 0..20 {
+            let Some(&p) = index.get(parent) else { break };
+            let Some((px, py, _, _)) = cells[p].1.geometry else { break };
+            x += px;
+            y += py;
+            parent = cells[p].1.parent.as_str();
+        }
+        Some((x, y, w, h))
+    };
+    let shapes: Vec<(usize, (f64, f64, f64, f64))> = cells
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, c))| !c.edge && !c.label.is_empty())
+        .filter(|(_, (_, c))| !index.get(c.parent.as_str()).is_some_and(|&p| cells[p].1.edge))
+        .filter_map(|(i, _)| absolute(i).filter(|g| g.2 > 0.0 && g.3 > 0.0).map(|g| (i, g)))
+        .collect();
+    let inside = |a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)| {
+        a.0 >= b.0 && a.1 >= b.1 && a.0 + a.2 <= b.0 + b.2 && a.1 + a.3 <= b.1 + b.3 && a.2 * a.3 < b.2 * b.3
+    };
+    // Contenedor de cada figura: la caja con texto más chica que la contiene
+    let container_of = |i: usize, g: (f64, f64, f64, f64)| -> Option<usize> {
+        shapes
+            .iter()
+            .filter(|(j, h)| *j != i && inside(g, *h))
+            .min_by(|(_, h1), (_, h2)| (h1.2 * h1.3).total_cmp(&(h2.2 * h2.3)))
+            .map(|(j, _)| *j)
+    };
+    let mut containers: Vec<DrawioContainer> = Vec::new();
+    let mut labels = Vec::new();
+    let container_ids: std::collections::HashSet<usize> = shapes.iter().filter_map(|(i, g)| container_of(*i, *g)).collect();
+    for (i, g) in &shapes {
+        if container_ids.contains(i) {
+            continue;
+        }
+        let label = cells[*i].1.label.clone();
+        match container_of(*i, *g) {
+            Some(k) => {
+                let title = cells[k].1.label.clone();
+                match containers.iter_mut().find(|c| c.title == title) {
+                    Some(c) => c.labels.push(label),
+                    None => containers.push(DrawioContainer { title, labels: vec![label] }),
+                }
+            }
+            None => labels.push(label),
+        }
+    }
+    // Figuras con texto sin geometría (raro): sueltas
+    for (i, (_, c)) in cells.iter().enumerate() {
+        if !c.edge && !c.label.is_empty() && !shapes.iter().any(|(j, _)| *j == i) && !index.get(c.parent.as_str()).is_some_and(|&p| cells[p].1.edge) {
+            labels.push(c.label.clone());
+        }
+    }
+    let edges: Vec<DrawioEdge> = cells
+        .iter()
+        .filter(|(_, c)| c.edge)
+        .map(|(id, c)| DrawioEdge {
+            from: label_of(&c.source),
+            to: label_of(&c.target),
+            // El texto de una conexión puede estar en una figura hija de la propia conexión
+            label: if c.label.is_empty() {
+                cells.iter().find(|(_, x)| x.parent == *id && !x.label.is_empty()).map(|(_, x)| x.label.clone()).unwrap_or_default()
+            } else {
+                c.label.clone()
+            },
+        })
+        .filter(|e| !e.from.is_empty() || !e.to.is_empty())
+        .collect();
+    DrawioPage { name, containers, labels, edges }
+}
+
+#[allow(deprecated)] // `normalized_value` pide la versión de XML; aquí basta con deshacer las entidades
+fn attr_of(e: &quick_xml::events::BytesStart, key: &str) -> Option<String> {
+    e.attributes()
+        .flatten()
+        .find(|a| a.key.as_ref() == key)
+        .and_then(|a| a.unescape_value().ok().map(|v| v.into_owned()))
+}
+
 fn collect(xml: &str, out: &mut Vec<String>, depth: u8) {
     if depth > 2 {
         return;
@@ -276,6 +508,28 @@ mod tests {
         png.extend(png_chunk(b"IDAT", &[1]));
         let xml = png_mxfile(&png).expect("mxfile");
         assert_eq!(mxfile_text(&xml), "Flujo\nServicio Pagos\nBase de datos");
+    }
+
+    #[test]
+    fn estructura_con_contenedores_y_conexiones() {
+        let xml = r#"<mxfile><diagram name="Flujo"><mxGraphModel><root>
+            <mxCell id="0"/><mxCell id="1" parent="0"/>
+            <mxCell id="g" value="ACH Operation - Receptor" vertex="1" parent="1"><mxGeometry x="0" y="0" width="400" height="300" as="geometry"/></mxCell>
+            <mxCell id="a" value="Controller QTI1" vertex="1" parent="g"><mxGeometry x="10" y="10" width="100" height="40" as="geometry"/></mxCell>
+            <object id="b" label="&lt;b&gt;DB ACH&lt;/b&gt;"><mxCell vertex="1" parent="1"><mxGeometry x="200" y="100" width="100" height="40" as="geometry"/></mxCell></object>
+            <mxCell id="c" value="Kafka" vertex="1" parent="1"><mxGeometry x="500" y="0" width="80" height="40" as="geometry"/></mxCell>
+            <mxCell id="e" value="JDBC" edge="1" parent="1" source="a" target="b"/>
+            <mxCell id="f" edge="1" parent="1" source="b" target="c"/>
+            <mxCell id="fl" value="publica" vertex="1" parent="f"/>
+        </root></mxGraphModel></diagram></mxfile>"#;
+        let pages = mxfile_structure(xml);
+        assert_eq!(pages.len(), 1);
+        let p = &pages[0];
+        assert_eq!(p.name, "Flujo");
+        assert_eq!(p.containers, vec![DrawioContainer { title: "ACH Operation - Receptor".into(), labels: vec!["Controller QTI1".into(), "DB ACH".into()] }]);
+        assert_eq!(p.labels, vec!["Kafka".to_string()]);
+        assert_eq!(p.edges[0], DrawioEdge { from: "Controller QTI1".into(), to: "DB ACH".into(), label: "JDBC".into() });
+        assert_eq!(p.edges[1], DrawioEdge { from: "DB ACH".into(), to: "Kafka".into(), label: "publica".into() });
     }
 
     #[test]

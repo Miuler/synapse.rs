@@ -14,7 +14,11 @@ impl<N: NoteRepository> SearchNotesUseCase<N> {
     }
 
     pub fn execute(&self, query: SearchNotesQuery) -> Result<Vec<NoteSearchHit>, String> {
-        let extensions = vec!["md".to_string(), "markdown".to_string()];
+        let extensions = if query.extensions.is_empty() {
+            vec!["md".to_string(), "markdown".to_string()]
+        } else {
+            query.extensions.clone()
+        };
         let notes = self
             .note_repository
             .list_notes(&query.vault_path, &extensions)

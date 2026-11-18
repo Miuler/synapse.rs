@@ -12,6 +12,8 @@ pub enum DocumentKind {
     Word,
     /// Diagrama de draw.io: `.drawio` o una imagen (PNG/SVG) con el diagrama dentro.
     Drawio,
+    /// Modelo ArchiMate (`.archimate`): nombres, documentación y propiedades de sus elementos.
+    Archimate,
 }
 
 impl DocumentKind {
@@ -25,6 +27,7 @@ impl DocumentKind {
             DocumentKind::Pdf => "pdf",
             DocumentKind::Word => "word",
             DocumentKind::Drawio => "drawio",
+            DocumentKind::Archimate => "archimate",
         }
     }
 
@@ -37,6 +40,7 @@ impl DocumentKind {
             "pdf" => Some(DocumentKind::Pdf),
             "word" => Some(DocumentKind::Word),
             "drawio" => Some(DocumentKind::Drawio),
+            "archimate" => Some(DocumentKind::Archimate),
             _ => None,
         }
     }

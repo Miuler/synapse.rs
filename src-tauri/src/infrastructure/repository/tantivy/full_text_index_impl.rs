@@ -21,7 +21,8 @@ use tantivy::{
     DocSet, Index, IndexReader, IndexWriter, ReloadPolicy, TERMINATED, TantivyDocument, Term, doc,
 };
 
-pub const SCHEMA_VERSION: &str = "3";
+/// Subirla obliga a reconstruir el índice (4: extractores de draw.io y ArchiMate).
+pub const SCHEMA_VERSION: &str = "4";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {

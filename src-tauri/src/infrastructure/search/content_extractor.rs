@@ -7,6 +7,8 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::path::Path;
 
 const MAX_INDEXABLE_SIZE: usize = 5 * 1024 * 1024; // 5 MB
+/// Texto máximo indexado de un modelo ArchiMate (ya sin el XML de los diagramas).
+const ARCHIMATE_MAX_CHARS: usize = 2_000_000;
 
 fn truncate_safe(s: &mut String, max_chars: usize) {
     if s.len() > max_chars {
@@ -61,6 +63,19 @@ pub fn extract_with_config(
     }
     if lower_name.ends_with(".png") || lower_name.ends_with(".svg") {
         return None;
+    }
+
+    // 0b. Modelos ArchiMate: el XML crudo pesa megas (se cortaba al límite y se perdían los
+    // nombres); se indexan los nombres, la documentación y las propiedades de sus elementos.
+    if lower_name.ends_with(".archimate") {
+        if bytes.len() > 64 * 1024 * 1024 {
+            return None;
+        }
+        let (_, decoded) = detect_and_decode(bytes);
+        let mut text = super::archimate_extractor::archimate_text(&decoded);
+        // Ya es solo texto útil (un modelo de 3 MB deja ~300 mil caracteres): tope propio más alto
+        truncate_safe(&mut text, indexing.max_extracted_chars.max(ARCHIMATE_MAX_CHARS));
+        return Some((DocumentKind::Archimate, file_stem.to_string(), text, String::new()));
     }
 
     // 1. Documentos PDF

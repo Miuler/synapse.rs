@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Modelos ArchiMate (`.archimate`) en el MCP**: `read_note` con `mode: "outline_only"` devuelve el índice del modelo (carpetas y vistas con su línea), y la herramienta nueva `inspect_archimate_element` busca un elemento por id o nombre y devuelve en una respuesta su tipo, documentación, propiedades (p. ej. `UNIQUECODE`), relaciones entrantes y salientes con el nombre del otro extremo, y las vistas donde aparece. La búsqueda de texto completo indexa sus nombres, documentación y propiedades (antes, el XML crudo se cortaba y se perdían).
+- **Estructura de los diagramas de draw.io en el MCP**: `extract_note_diagrams` sobre un `.drawio`, `.drawio.png` o `.drawio.svg` (también con `revision`) devuelve por página los contenedores con sus figuras, las figuras sueltas y las conexiones (desde → hasta, con su texto); `read_note` devuelve el texto del diagrama, y sobre una imagen indica usar `render_diagram`, que ahora también devuelve imágenes (.png, .jpg, .svg…).
+- **Filtros en las búsquedas del MCP**: `search_notes` y `full_text_search` aceptan `extensions` (p. ej. `["archimate"]`); por defecto `search_notes` sigue buscando solo Markdown. `search_in_note` acepta `max_matches`.
+- **Fecha legible en `feedback.md`**: cada entrada lleva la fecha y hora además de la fecha unix.
 - **Varios repositorios Git en una bóveda**: las subcarpetas que son repositorios muestran su rama junto al nombre (con un punto si tienen cambios), y sus archivos tienen estado de git, diff e historial como los de la raíz. La cabecera del explorador muestra la rama del repositorio del archivo activo. Los diálogos de commit y de ramas tienen un selector de repositorio, y el menú de la carpeta-repositorio ofrece Ramas, Commit y Push de ese repositorio. Un commit nunca mezcla repositorios. Las herramientas MCP de git (`get_vault_git_status`, `git_file_history`, `git_diff_revisions`, `git_read_revision`) usan el repositorio más cercano que contiene el archivo. Los repositorios se consultan en paralelo y la lista se reutiliza unos segundos.
 
 - **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Toma los colores del tema activo de la app (también al cambiar entre claro y oscuro) y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
@@ -83,7 +87,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
-- **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
+-- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
+- **El contexto de los adjuntos pedía leer imágenes con `read_note`**: ahora, si se adjunta una imagen o un diagrama, indica `render_diagram` para verlo y `extract_note_diagrams` para la estructura de un draw.io.
+- **El índice de texto completo se reconstruye una vez** (versión 4) para pasar los `.drawio` y `.archimate` ya indexados por los extractores nuevos.
+ **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
 - **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
 - **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
 
