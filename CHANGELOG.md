@@ -91,6 +91,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
+- **Una imagen PNG guardada desde draw.io sale nítida**: se exporta a escala 2 en lugar de 1, que se veía pixelada al ampliarla.
 - **El texto que se edita en Excalidraw con zoom ya no se ve borroso**: el cuadro de edición se amplía con su tamaño de letra real y no con una escala, que WebKitGTK (con DMABUF) dibujaba a baja resolución y estiraba.
 -- **«Diff» comparaba con HEAD en vez de con el stage**: como `git diff`, ahora compara lo local con lo que está en stage, también en imágenes y diagramas (2 Paneles y Diferencias), y el lado «antes» se llama «Stage / Index». Si todos los cambios ya están en stage, ya no muestra en silencio el diff contra HEAD: avisa «Sin cambios fuera de stage» con un botón para abrir «Diff --staged».
 - **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.

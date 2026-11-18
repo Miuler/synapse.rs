@@ -11,6 +11,9 @@
     type DrawioFormat,
   } from '../lib/drawio-embed';
 
+  /** Escala del PNG que se guarda al editar una imagen con draw.io. */
+  const PNG_EXPORT_SCALE = 2;
+
   interface Props {
     /** Ruta relativa en la bóveda. */
     filePath: string;
@@ -86,7 +89,9 @@
       case 'save':
         if (isImage) {
           status = 'saving';
-          post({ action: 'export', format, spinKey: 'saving' });
+          // draw.io exporta el PNG a escala 1 (un píxel por unidad del diagrama): se ve pixelado al
+          // ampliarlo o en pantallas HiDPI. A escala 2 queda nítido; el SVG es vectorial y no la necesita.
+          post({ action: 'export', format, spinKey: 'saving', ...(format === 'xmlpng' ? { scale: PNG_EXPORT_SCALE } : {}) });
         } else if (typeof msg.xml === 'string') {
           onSaveXml?.(msg.xml);
           post({ action: 'status', modified: false, message: '' });
