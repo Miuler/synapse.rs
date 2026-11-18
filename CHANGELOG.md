@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.2] - 2026-11-17
+
 ### Añadido
 
 - **Los archivos `.xml` se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
@@ -930,6 +932,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.2]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.1
 [1.0.0-alpha.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.5
 [1.0.0-alpha.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.4
