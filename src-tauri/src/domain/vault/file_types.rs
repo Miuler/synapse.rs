@@ -262,5 +262,6 @@ mod tests {
         assert!(types.is_supported_file("program.cbl"));
         assert!(types.is_supported_file("payroll.CBL"));
         assert!(types.is_supported_file("pom.xml"));
+        assert!(types.is_supported_file("modelo.archimate"));
     }
 }

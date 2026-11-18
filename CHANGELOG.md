@@ -13,7 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **El release también compila para macOS** (Apple Silicon e Intel) en un job aparte que corre después de publicar: sube `synapsers-darwin-*.app.tar.gz` firmados para el actualizador y suma las plataformas a `latest.json`. Sin firma de Apple, macOS pide abrirlo con clic derecho → Abrir.
 
-- **Los archivos `.xml` se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
+- **Los archivos `.xml` y `.archimate` (modelos de Archi) se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
 
 - **Copias de pestaña con modo propio y un solo editor por dibujo**: cada copia de una pestaña (`Duplicar pestaña`) tiene su propio botón Lectura/Edición, así una nota puede estar en edición en una pestaña y en lectura en la otra. Los dibujos (Excalidraw y draw.io) solo se editan en una pestaña a la vez, para no pisarse al guardar: pasar a edición en otra copia lleva a la pestaña que ya lo edita; al cerrarla o pasarla a lectura, cualquier copia puede editar. Las copias de una imagen de draw.io se actualizan con cada guardado del editor.
 - **«Abrir en otra pestaña (solo lectura)»** en el menú contextual del explorador, cuando el archivo ya está abierto: abre una copia en lectura junto a la original.
@@ -75,6 +75,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
+- **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
 
 - **La publicación de versiones vuelve a compilar en Linux**: el flujo de release instala `mold`, el enlazador que usa `src-tauri/.cargo/config.toml` (faltaba en el runner y fallaba con «cannot find ld»).
 - **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.

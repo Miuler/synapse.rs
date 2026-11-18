@@ -74,6 +74,8 @@
   let isInternalUpdate = false;
   const vimCompartment = new Compartment();
   const lintCompartment = new Compartment();
+  // Lectura/Edición cambia sin volver a crear el editor
+  const editableCompartment = new Compartment();
 
   let lastContent = $state(untrack(() => content));
 
@@ -378,7 +380,7 @@
         renameOccurrencesKeymap(),
         lineKeymap(),
         Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => (onRun ? (onRun(), true) : false) }])),
-        EditorView.editable.of(!readOnly),
+        editableCompartment.of(EditorView.editable.of(!readOnly)),
         updateListener,
         theme,
       ],
@@ -397,6 +399,11 @@
         editorView = null;
       }
     };
+  });
+
+  $effect(() => {
+    const editable = !readOnly;
+    editorView?.dispatch({ effects: editableCompartment.reconfigure(EditorView.editable.of(editable)) });
   });
 
   $effect(() => {
