@@ -78,6 +78,8 @@ export interface GitDiffResponse {
   old_content: string;
   new_content: string;
   diff: string;
+  /** Diff de trabajo vacío porque todos los cambios ya están en stage (ver el diff de stage). */
+  only_staged?: boolean;
 }
 
 export interface GitFileRevisionResult {

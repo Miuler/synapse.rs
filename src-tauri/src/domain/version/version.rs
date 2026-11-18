@@ -37,6 +37,10 @@ pub struct FileDiff {
     pub old_content: String,
     pub new_content: String,
     pub diff: String,
+    /// Diff de trabajo (local contra stage) vacío porque todos los cambios ya están en stage:
+    /// se ven con el diff de stage.
+    #[serde(default)]
+    pub only_staged: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

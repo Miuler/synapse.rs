@@ -247,6 +247,7 @@ fn build_files_diff(
         format!("diff --git a/{} b/{}\n{}", old_path, new_path, unified)
     };
     FileDiff {
+        only_staged: false,
         path: new_path.clone(),
         is_staged: false,
         old_file_name: old_path,

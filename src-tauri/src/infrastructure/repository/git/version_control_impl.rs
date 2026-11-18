@@ -803,6 +803,7 @@ impl VersionControlImpl {
         let mut old_content = String::new();
         let mut new_content = String::new();
         let mut diff = String::new();
+        let mut only_staged = false;
 
         if let Some(rev) = revision {
             // Diff contra una revisión histórica específica: rev vs Worktree. Si el archivo se
@@ -948,16 +949,14 @@ impl VersionControlImpl {
                 diff = String::from_utf8_lossy(&out.stdout).to_string();
             }
 
-            // Si diff está vacío contra el index, comprobar si hay diferencias contra HEAD
+            // Como `git diff`: local contra stage. Si no hay nada fuera de stage pero sí en stage, no
+            // se cae a HEAD en silencio: se marca para que el visor ofrezca el diff de stage.
             if diff.is_empty() {
-                let mut head_diff_cmd = std::process::Command::new("git");
-                head_diff_cmd.current_dir(work_dir);
-                head_diff_cmd.args(["diff", "HEAD", "-u", "--", &repo_rel_path]);
-                if let Ok(out) = head_diff_cmd.output() {
-                    let head_diff = String::from_utf8_lossy(&out.stdout).to_string();
-                    if !head_diff.is_empty() {
-                        diff = head_diff;
-                    }
+                let mut staged_cmd = std::process::Command::new("git");
+                staged_cmd.current_dir(work_dir);
+                staged_cmd.args(["diff", "--staged", "--quiet", "--", &repo_rel_path]);
+                if let Ok(out) = staged_cmd.output() {
+                    only_staged = out.status.code() == Some(1);
                 }
             }
 
@@ -992,6 +991,7 @@ impl VersionControlImpl {
             old_content,
             new_content,
             diff,
+            only_staged,
         })
     }
 
@@ -2156,6 +2156,20 @@ mod tests {
         assert_eq!(diff_staged.old_content, "line 1\nline 2\n");
         assert_eq!(diff_staged.new_content, "line 1\nline 2 mod\nline 3\n");
         assert!(diff_staged.diff.contains("+line 2 mod"));
+
+        // 4. Todo está en stage: el diff de trabajo (local contra stage) queda vacío y lo marca,
+        //    en vez de caer en silencio al diff contra HEAD
+        let diff_work = git_service.git_diff(&temp_dir, "file_a.txt", false, None).unwrap();
+        assert!(diff_work.diff.is_empty(), "{}", diff_work.diff);
+        assert!(diff_work.only_staged);
+
+        // 5. Otro cambio local encima del stage: el diff de trabajo es solo ese cambio
+        std::fs::write(temp_dir.join("file_a.txt"), "line 1\nline 2 mod\nline 3\nline 4\n").unwrap();
+        let diff_work = git_service.git_diff(&temp_dir, "file_a.txt", false, None).unwrap();
+        assert_eq!(diff_work.old_content, "line 1\nline 2 mod\nline 3\n", "el antes es el stage");
+        assert!(diff_work.diff.contains("+line 4"));
+        assert!(!diff_work.diff.contains("+line 2 mod"), "lo que ya está en stage no se repite");
+        assert!(!diff_work.only_staged);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

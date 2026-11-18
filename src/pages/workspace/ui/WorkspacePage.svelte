@@ -4278,6 +4278,7 @@
               filePath={tabFile.startsWith("diff-staged:") ? tabFile.slice("diff-staged:".length) : tabFile.slice("diff:".length)}
               isStaged={tabFile.startsWith("diff-staged:")}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
+              onOpenStaged={() => selectTab(`diff-staged:${tabFile.slice("diff:".length)}`)}
             />
           </div>
         {:else if tabFile.startsWith("rev:")}

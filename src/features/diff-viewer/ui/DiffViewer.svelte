@@ -45,9 +45,11 @@
     /** Con `commitRevision`: la otra versión a comparar (en vez del commit padre). */
     fromRevision?: string;
     onClose?: () => void;
+    /** Abre el diff de stage del archivo (cuando todos sus cambios ya están en stage). */
+    onOpenStaged?: () => void;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, onClose }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, onClose, onOpenStaged }: Props = $props();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -409,6 +411,16 @@
     </div>
   </header>
 
+  {#if diffData?.only_staged && !isStaged && !baseRevision && !compareWith && !commitRevision}
+    <!-- Como `git diff`: local contra stage. Todo está en stage: los cambios se ven en el diff de stage -->
+    <div class="diff-only-staged" role="status">
+      <span>Sin cambios fuera de stage: todos los cambios de <strong>{fileName}</strong> ya están en stage.</span>
+      {#if onOpenStaged}
+        <button type="button" class="diff-only-staged-btn" onclick={onOpenStaged}>Ver Diff --staged</button>
+      {/if}
+    </div>
+  {/if}
+
   <!-- CONTENIDO PRINCIPAL -->
   <main class="diff-body">
     <!-- Cada vista se calcula la primera vez que se elige y queda en memoria (oculta) hasta cerrar la pestaña -->
@@ -481,6 +493,26 @@
 </div>
 
 <style>
+  .diff-only-staged {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: var(--git-staged-bg);
+    color: var(--git-staged);
+    border-bottom: 1px solid var(--git-staged-border);
+  }
+  .diff-only-staged-btn {
+    padding: 2px 8px;
+    border: 1px solid var(--git-staged-border);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
   .diff-mode-pane {
     width: 100%;
     height: 100%;

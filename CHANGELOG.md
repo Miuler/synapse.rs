@@ -89,7 +89,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
--- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
+-- **«Diff» comparaba con HEAD en vez de con el stage**: como `git diff`, ahora compara lo local con lo que está en stage, también en imágenes y diagramas (2 Paneles y Diferencias), y el lado «antes» se llama «Stage / Index». Si todos los cambios ya están en stage, ya no muestra en silencio el diff contra HEAD: avisa «Sin cambios fuera de stage» con un botón para abrir «Diff --staged».
+- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
 - **El contexto de los adjuntos pedía leer imágenes con `read_note`**: ahora, si se adjunta una imagen o un diagrama, indica `render_diagram` para verlo y `extract_note_diagrams` para la estructura de un draw.io.
 - **El índice de texto completo se reconstruye una vez** (versión 4) para pasar los `.drawio` y `.archimate` ya indexados por los extractores nuevos.
  **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.

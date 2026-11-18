@@ -66,11 +66,19 @@ export function diffSides(t: DiffTarget): DiffSides {
       afterLabel: 'Stage / Index',
     };
   }
-  const rev = t.baseRevision || 'HEAD';
+  if (t.baseRevision) {
+    return {
+      before: { kind: 'rev', path, rev: t.baseRevision },
+      after: { kind: 'disk', path },
+      beforeLabel: `REV: ${short(t.baseRevision)}`,
+      afterLabel: 'Disco Duro (Local)',
+    };
+  }
+  // Como `git diff`: lo local contra el stage (si no hay nada en stage, el stage es igual a HEAD)
   return {
-    before: { kind: 'rev', path, rev },
+    before: { kind: 'staged', path },
     after: { kind: 'disk', path },
-    beforeLabel: t.baseRevision ? `REV: ${short(rev)}` : 'HEAD (Último commit)',
+    beforeLabel: 'Stage / Index',
     afterLabel: 'Disco Duro (Local)',
   };
 }
