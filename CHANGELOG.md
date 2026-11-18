@@ -73,6 +73,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
+
+- **La publicación de versiones vuelve a compilar en Linux**: el flujo de release instala `mold`, el enlazador que usa `src-tauri/.cargo/config.toml` (faltaba en el runner y fallaba con «cannot find ld»).
 - **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.
 - **Una imagen abierta se refresca cuando el archivo cambia en disco**, también en sus copias de pestaña; antes el webview seguía mostrando la versión en caché.
 - **Guardar en draw.io una imagen (PNG/SVG) ya no redibuja el editor**: el archivo que reescribe su propio guardado se tomaba como un cambio externo y el editor se volvía a montar. Ahora, mientras la imagen está en el editor, un cambio en disco no la recarga, y al salir del editor el visor muestra lo guardado.
