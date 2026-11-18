@@ -5,6 +5,7 @@
     type GitFileRevisionResult,
   } from '@shared/repositories';
   import { diffSides, loadSide } from '../lib/diff-sides';
+  import { renderSideToImage } from '../lib/render-to-image';
   import { appSettings } from '@entities/settings';
   import {
     isImageFile,
@@ -32,9 +33,11 @@
     /** Parche de un commit: el archivo en ese commit contra su commit padre. */
     commitRevision?: string;
     fromRevision?: string;
+    /** Muestra cada lado convertido en imagen (tipos distintos o draw.io). */
+    renderToImage?: boolean;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, renderToImage = false }: Props = $props();
   // Panel izquierdo = «después», panel derecho = «antes»
   const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision }));
   /** Solo se puede editar el panel izquierdo cuando es el archivo en disco. */
@@ -76,15 +79,22 @@
       }
     }, 600);
   }
-  const isDrawing = $derived(isDrawingFile(filePath));
-  const isDiagram = $derived(isDiagramFile(filePath));
-  const isPdf = $derived(isPdfFile(filePath));
-  const isImage = $derived(isImageFile(filePath) && !isDrawing);
+  const isDrawing = $derived(!renderToImage && isDrawingFile(filePath));
+  const isDiagram = $derived(!renderToImage && isDiagramFile(filePath));
+  const isPdf = $derived(!renderToImage && isPdfFile(filePath));
+  const isImage = $derived(renderToImage || (isImageFile(filePath) && !isDrawing));
 
   async function loadData() {
     loading = true;
     error = null;
     try {
+      if (renderToImage) {
+        const [before, after] = await Promise.all([renderSideToImage(sides.before), renderSideToImage(sides.after)]);
+        gitRevision = { path: sides.before.path, revision: '', content: null, data_url: before, is_binary: true, exists: before !== null };
+        localContent = '';
+        localDataUrl = after;
+        return;
+      }
       const binary = isImage || isPdf;
       const [before, after] = await Promise.all([loadSide(sides.before, binary), loadSide(sides.after, binary)]);
       gitRevision = {
@@ -112,6 +122,7 @@
     const _c = compareWith;
     const _k = commitRevision;
     const _f = fromRevision;
+    const _i = renderToImage;
     loadData();
   });
 

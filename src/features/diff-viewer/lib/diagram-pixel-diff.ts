@@ -7,7 +7,7 @@ import { appSettings } from '@entities/settings';
 import { isD2File, isPlantUmlFile } from '@entities/file-type';
 import { imagePixelDiff } from './image-pixel-diff';
 
-async function renderSvg(path: string, code: string): Promise<string> {
+export async function renderSvg(path: string, code: string): Promise<string> {
   if (!code.trim()) throw new Error('Una de las versiones del diagrama está vacía');
   let result: { svg: string | null; error: string | null };
   if (isD2File(path)) {
@@ -24,7 +24,7 @@ async function renderSvg(path: string, code: string): Promise<string> {
 }
 
 /** SVG como data URL con tamaño explícito: sin él WebKit lo dibuja a 300×150. */
-function svgDataUrl(svgText: string): string {
+export function svgDataUrl(svgText: string): string {
   const svg = new DOMParser().parseFromString(svgText, 'image/svg+xml').documentElement;
   const viewBox = svg.getAttribute('viewBox')?.split(/[\s,]+/).map(Number);
   let width = parseFloat(svg.getAttribute('width') ?? '');

@@ -16,6 +16,8 @@
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
   import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
+  import { renderKindOf } from '../lib/render-to-image';
+  import { needsRenderedPixelDiff } from '../lib/render-kind';
   import { workspaceDiffSettings, type DiffVisualTab } from '../model/diff-settings.svelte';
   import {
     GitCompare,
@@ -61,10 +63,6 @@
   const isPdf = $derived(isPdfFile(filePath));
   const isSvg = $derived(isSvgFile(filePath));
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
-  const isPureBinary = $derived((isImage && !isSvg) || isPdf);
-  // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
-  // y diagramas (renderizados a SVG y rasterizados en memoria)
-  const hasPixelDiff = $derived((isImage && !isSvg) || isDrawing || isDiagram);
   // Al comparar dos archivos, el modo visual solo tiene sentido si los dos son del mismo tipo
   const sameKind = $derived(
     !compareWith ||
@@ -76,7 +74,20 @@
         isPlantUmlFile(compareWith) === isPlantUmlFile(filePath) &&
         isSvgFile(compareWith) === isSvg,
   );
-  const isVisualCandidate = $derived(sameKind && (isImage || isPdf || isDrawing || isDiagram));
+  // Tipos distintos que se pueden dibujar (imagen contra Excalidraw, Mermaid contra D2…) o draw.io:
+  // cada lado se convierte en imagen y se comparan con los visores de imágenes
+  const renderToImage = $derived(
+    needsRenderedPixelDiff(renderKindOf(compareWith ?? filePath), renderKindOf(filePath), sameKind),
+  );
+  // Al comparar con otro tipo, si el otro es una imagen raster el diff de texto tampoco sirve
+  const compareIsRaster = $derived(
+    renderToImage && !!compareWith && isImageFile(compareWith) && !isSvgFile(compareWith) && !isDrawingFile(compareWith),
+  );
+  const isVisualCandidate = $derived(renderToImage || (sameKind && (isImage || isPdf || isDrawing || isDiagram)));
+  const isPureBinary = $derived((isImage && !isSvg) || isPdf || compareIsRaster);
+  // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
+  // y diagramas (renderizados a SVG y rasterizados en memoria)
+  const hasPixelDiff = $derived(renderToImage || (isImage && !isSvg) || isDrawing || isDiagram);
 
   $effect(() => {
     workspaceDiffSettings.initFromWorkspace();
@@ -426,12 +437,12 @@
     <!-- Cada vista se calcula la primera vez que se elige y queda en memoria (oculta) hasta cerrar la pestaña -->
     {#if isVisualCandidate && visited.side_by_side}
       <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'side_by_side'}>
-        <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} />
+        <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} {renderToImage} />
       </div>
     {/if}
     {#if hasPixelDiff && visited.highlight}
       <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'highlight'}>
-        <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} {fromRevision} />
+        <ImageHighlightDiffViewer {filePath} {isStaged} {baseRevision} {isDrawing} {isDiagram} {compareWith} {commitRevision} {fromRevision} {renderToImage} />
       </div>
     {/if}
     {#if visited.text}
