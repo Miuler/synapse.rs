@@ -1,4 +1,4 @@
-// Archivos de código (xml, json, …): el botón Lectura/Edición cambia si el editor deja escribir.
+// Archivos de código (xml, json, …): Lectura no deja escribir pero sí buscar (Ctrl+F); Edición deja escribir.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,20 +21,36 @@ afterAll(async () => {
   rmSync(base, { recursive: true, force: true });
 });
 
-const editable = () =>
-  s.browser.execute(() => {
-    const pane = [...document.querySelectorAll('.tab-pane')].find((p) => (p as HTMLElement).offsetParent !== null);
-    return pane?.querySelector('.cm-content')?.getAttribute('contenteditable');
-  });
+const text = () => s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .cm-content')?.textContent ?? '');
+/** Escribe una «Z» al inicio del editor y dice si el texto cambió. */
+async function typingChanges(): Promise<boolean> {
+  const before = await text();
+  await s.browser.$('.tab-pane:not(.hidden) .cm-content').click();
+  await s.browser.keys(['Control', 'Home']);
+  await s.browser.keys('Z');
+  await s.browser.pause(200);
+  const after = await text();
+  if (after !== before) await s.browser.keys(['Backspace']);
+  return after !== before;
+}
 
-it('pasar a Edición deja escribir en un archivo de código, y volver a Lectura no', async () => {
+it('en Lectura no se escribe pero Ctrl+F abre el buscador', async () => {
   await s.browser.$('.file-tree-item[data-path="datos.xml"]').click();
   await s.browser.$('.tab-title-container.active[data-path="datos.xml"]').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.tab-pane:not(.hidden) .cm-content').waitForExist({ timeout: 10_000 });
+  expect(await s.browser.$('.editor-header .view-toggle-btn').getText()).toContain('Lectura');
+  expect(await typingChanges()).toBe(false);
+  await s.browser.keys(['Control', 'f']);
+  await s.browser.$('.tab-pane:not(.hidden) .cm-search').waitForExist({ timeout: 5_000, timeoutMsg: 'Ctrl+F no abrió el buscador en lectura' });
+  await s.browser.keys(['Escape']);
+}, 60_000);
+
+it('al pasar a Edición se puede escribir, y al volver a Lectura no', async () => {
   const toggle = s.browser.$('.editor-header .view-toggle-btn');
-  await s.browser.waitUntil(async () => (await editable()) === 'false', { timeout: 10_000, timeoutMsg: 'en lectura se puede escribir' });
   await toggle.click();
-  await s.browser.waitUntil(async () => (await editable()) === 'true', { timeout: 5_000, timeoutMsg: 'en edición no se puede escribir' });
+  await s.browser.waitUntil(async () => (await toggle.getText()).includes('Edición'), { timeout: 5_000 });
+  expect(await typingChanges()).toBe(true);
   await toggle.click();
-  await s.browser.waitUntil(async () => (await editable()) === 'false', { timeout: 5_000, timeoutMsg: 'volvió a lectura pero sigue editable' });
-  expect(await toggle.getText()).toContain('Lectura');
+  await s.browser.waitUntil(async () => (await toggle.getText()).includes('Lectura'), { timeout: 5_000 });
+  expect(await typingChanges()).toBe(false);
 }, 60_000);

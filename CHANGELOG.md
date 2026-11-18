@@ -76,6 +76,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 - **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
+- **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
 
 - **La publicación de versiones vuelve a compilar en Linux**: el flujo de release instala `mold`, el enlazador que usa `src-tauri/.cargo/config.toml` (faltaba en el runner y fallaba con «cannot find ld»).
 - **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.

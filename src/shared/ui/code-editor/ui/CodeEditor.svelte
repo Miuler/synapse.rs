@@ -74,7 +74,8 @@
   let isInternalUpdate = false;
   const vimCompartment = new Compartment();
   const lintCompartment = new Compartment();
-  // Lectura/Edición cambia sin volver a crear el editor
+  // Lectura/Edición cambia sin volver a crear el editor. En lectura se usa `readOnly` y no
+  // `editable`: el editor sigue recibiendo el foco, con cursor, selección y Ctrl+F para buscar.
   const editableCompartment = new Compartment();
 
   let lastContent = $state(untrack(() => content));
@@ -380,7 +381,7 @@
         renameOccurrencesKeymap(),
         lineKeymap(),
         Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => (onRun ? (onRun(), true) : false) }])),
-        editableCompartment.of(EditorView.editable.of(!readOnly)),
+        editableCompartment.of(EditorState.readOnly.of(readOnly)),
         updateListener,
         theme,
       ],
@@ -402,8 +403,8 @@
   });
 
   $effect(() => {
-    const editable = !readOnly;
-    editorView?.dispatch({ effects: editableCompartment.reconfigure(EditorView.editable.of(editable)) });
+    const ro = readOnly;
+    editorView?.dispatch({ effects: editableCompartment.reconfigure(EditorState.readOnly.of(ro)) });
   });
 
   $effect(() => {
