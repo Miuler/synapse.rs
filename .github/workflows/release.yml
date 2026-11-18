@@ -158,3 +158,79 @@ jobs:
             dist-release/synapsers-windows-x86_64.zip \
             dist-release/synapsers-windows-x86_64.zip.sig \
             dist-release/latest.json
+
+  # macOS: se compila aparte y después de la publicación, para que un fallo en Mac no bloquee
+  # Linux ni Windows. Sube sus archivos al release ya creado y suma las plataformas a latest.json.
+  # Sin firma de Apple (no hay cuenta de desarrollador): macOS pedirá abrirlo con clic derecho → Abrir.
+  release-macos:
+    name: Build macOS
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          shared-key: "synapse-release-macos-cache"
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Build macOS (Apple Silicon e Intel)
+        run: |
+          bun tauri build --bundles app --target aarch64-apple-darwin
+          bun tauri build --bundles app --target x86_64-apple-darwin
+
+      - name: Package, sign and upload
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          mkdir -p dist-macos
+          for pair in aarch64-apple-darwin:darwin-aarch64 x86_64-apple-darwin:darwin-x86_64; do
+            target="${pair%%:*}"
+            platform="${pair##*:}"
+            app_dir="src-tauri/target/$target/release/bundle/macos"
+            app="$(basename "$(ls -d "$app_dir"/*.app | head -n1)")"
+            out="dist-macos/synapsers-$platform.app.tar.gz"
+            tar -czf "$out" -C "$app_dir" "$app"
+            bun tauri signer sign "$out" --app-version "$VERSION"
+          done
+
+          # Sumar las plataformas de Mac al latest.json que dejó el job principal
+          gh release download "$TAG" --pattern latest.json --dir dist-macos --clobber
+          python3 - <<PY
+          import json, os
+          tag = os.environ["TAG"]
+          repo = os.environ.get("GITHUB_REPOSITORY")
+          p = "dist-macos/latest.json"
+          data = json.load(open(p))
+          for platform in ("darwin-aarch64", "darwin-x86_64"):
+              name = f"synapsers-{platform}.app.tar.gz"
+              data["platforms"][platform] = {
+                  "signature": open(f"dist-macos/{name}.sig").read().strip(),
+                  "url": f"https://github.com/{repo}/releases/download/{tag}/{name}",
+              }
+          json.dump(data, open(p, "w"), indent=2)
+          PY
+
+          gh release upload "$TAG" --clobber dist-macos/*.app.tar.gz dist-macos/*.sig dist-macos/latest.json
