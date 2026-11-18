@@ -52,9 +52,14 @@ pub fn run() {
 
     #[cfg(target_os = "linux")]
     {
-        // SAFETY: se ejecuta al inicio de `run`, antes de crear hilos propios ni inicializar WebKit
-        unsafe {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // El renderizador DMABUF de WebKitGTK es el rápido (draw.io, por ejemplo, va mucho más fluido)
+        // y queda activo. Si con algún driver deja la ventana en blanco o parpadea, `SYNAPSE_DMABUF=0`
+        // lo apaga y vuelve al modo seguro y lento.
+        if std::env::var("SYNAPSE_DMABUF").is_ok_and(|v| v == "0") {
+            // SAFETY: se ejecuta al inicio de `run`, antes de crear hilos propios ni inicializar WebKit
+            unsafe {
+                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+            }
         }
         let options = ApplyWorkaroundOptions::default().force_disable_nv_explicit_sync(true);
         apply_workaround_with_options(options);

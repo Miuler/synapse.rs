@@ -85,6 +85,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- **En Linux, la interfaz usa el renderizado rápido de WebKitGTK (DMABUF)**: draw.io y el resto de la app van más fluidos. Si con algún driver la ventana sale en blanco o parpadea, `SYNAPSE_DMABUF=0` vuelve al modo anterior.
 - **Pruebas más rápidas**: las pruebas de integración de Rust van en un solo binario (`src-tauri/tests/integration/`; un grupo se corre con `cargo test --test integration <módulo>::`), los perfiles `dev` y `test` guardan menos información de depuración y se enlaza con `mold`. Recompilar las pruebas tras un cambio pasa de minutos a unos segundos. Las e2e usan el mismo binario de desarrollo (`target/debug`, Vite en el 5173) en lugar de una compilación aparte en `target/e2e`.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
