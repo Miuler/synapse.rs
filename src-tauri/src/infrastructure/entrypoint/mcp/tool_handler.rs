@@ -1416,13 +1416,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let wants_outline = args.get("mode").and_then(|v| v.as_str()) == Some("outline_only")
             || args.get("outline_only").and_then(|v| v.as_bool()).unwrap_or(false);
         if wants_outline && rel_path_str.to_lowercase().ends_with(".archimate") {
-            return match self.read_archimate(rel_path_str) {
+            return match self.archimate_model(rel_path_str) {
                 Err(e) => e,
-                Ok(xml) => to_text(
+                Ok(model) => to_text(
                     &json!({
                         "relative_path": rel_path_str,
-                        "total_lines": xml.lines().count(),
-                        "toc": crate::infrastructure::search::archimate_extractor::archimate_outline(&xml),
+                        "total_lines": model.lines(),
+                        "toc": model.outline(),
                         "note": "Modelo ArchiMate: carpetas y vistas con su línea. Para un elemento (propiedades, relaciones y vistas donde aparece) usa inspect_archimate_element; para leer un tramo, read_note con mode \"chunk\".",
                     }),
                     "",
@@ -2764,12 +2764,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         to_text(&payload, "")
     }
 
-    /// Texto de un modelo `.archimate` de la bóveda.
-    fn read_archimate(&self, rel: &str) -> Result<String, McpCallToolResult> {
+    /// Modelo `.archimate` de la bóveda ya recorrido. Se guarda en la caché de análisis: recorrer
+    /// el XML es lo costoso, y el agente suele hacer varias consultas seguidas al mismo modelo.
+    fn archimate_model(
+        &self,
+        rel: &str,
+    ) -> Result<Arc<crate::infrastructure::search::archimate_extractor::ArchimateModel>, McpCallToolResult> {
+        use super::analysis_cache::{AnalysisCache, Analyzed};
         let rel_path = crate::domain::note::NoteRelativePath::new(rel).map_err(McpCallToolResult::error)?;
-        let bytes = std::fs::read(self.vault().join(rel_path.as_str()))
-            .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?;
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        let path = self.vault().join(rel_path.as_str());
+        AnalysisCache::global().get_or_analyze(&path, "archimate", || {
+            let bytes = std::fs::read(&path)
+                .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?;
+            let model = crate::infrastructure::search::archimate_extractor::parse_archimate(&String::from_utf8_lossy(&bytes));
+            Ok(Analyzed { bytes: model.approx_bytes(), value: model })
+        })
     }
 
     fn execute_inspect_archimate(&self, args: &Value) -> McpCallToolResult {
@@ -2783,11 +2792,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             return McpCallToolResult::error("inspect_archimate_element solo lee modelos ArchiMate (.archimate)");
         }
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5).clamp(1, 50) as usize;
-        let xml = match self.read_archimate(rel) {
-            Ok(x) => x,
+        let model = match self.archimate_model(rel) {
+            Ok(m) => m,
             Err(e) => return e,
         };
-        let found = crate::infrastructure::search::archimate_extractor::inspect_archimate(&xml, query, limit);
+        let found = model.inspect(query, limit);
         to_text(
             &json!({
                 "relative_path": rel,

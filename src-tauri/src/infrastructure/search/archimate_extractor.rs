@@ -34,7 +34,9 @@ pub fn archimate_text(xml: &str) -> String {
                 }
                 if let Some(name) = attr(&e, "name").filter(|n| !n.trim().is_empty()) {
                     match attr(&e, "xsi:type") {
-                        Some(t) => out.push(format!("{name} ({})", t.trim_start_matches("archimate:"))),
+                        Some(t) => {
+                            out.push(format!("{name} ({})", t.trim_start_matches("archimate:")))
+                        }
                         None => out.push(name),
                     }
                 }
@@ -92,7 +94,9 @@ pub fn archimate_outline(xml: &str) -> Vec<ArchimateOutlineEntry> {
         match reader.read_event() {
             Ok(ev @ Event::Start(_)) | Ok(ev @ Event::Empty(_)) => {
                 let is_start = matches!(ev, Event::Start(_));
-                let (Event::Start(e) | Event::Empty(e)) = ev else { continue };
+                let (Event::Start(e) | Event::Empty(e)) = ev else {
+                    continue;
+                };
                 let tag = e.name();
                 if tag.as_ref() == "folder" {
                     out.push(ArchimateOutlineEntry {
@@ -104,7 +108,9 @@ pub fn archimate_outline(xml: &str) -> Vec<ArchimateOutlineEntry> {
                     if is_start {
                         depth += 1;
                     }
-                } else if tag.as_ref() == "element" && attr(&e, "xsi:type").as_deref() == Some("archimate:ArchimateDiagramModel") {
+                } else if tag.as_ref() == "element"
+                    && attr(&e, "xsi:type").as_deref() == Some("archimate:ArchimateDiagramModel")
+                {
                     out.push(ArchimateOutlineEntry {
                         level: depth,
                         kind: "view",
@@ -167,6 +173,21 @@ struct Element {
 /// Elementos que coinciden con `query` (su id exacto, o parte de su nombre sin distinguir
 /// mayúsculas), hasta `limit`, con sus relaciones y vistas resueltas.
 pub fn inspect_archimate(xml: &str, query: &str, limit: usize) -> Vec<ArchimateElementReport> {
+    parse_archimate(xml).inspect(query, limit)
+}
+
+/// Modelo ya recorrido: elementos, dónde aparece cada uno e índice. Recorrer el XML es lo costoso;
+/// consultarlo después es barato, así que es lo que se guarda en la caché del MCP.
+pub struct ArchimateModel {
+    elements: Vec<Element>,
+    /// (vista, id del elemento dibujado en ella)
+    appearances: Vec<(String, String)>,
+    outline: Vec<ArchimateOutlineEntry>,
+    lines: usize,
+}
+
+/// Recorre el modelo una vez.
+pub fn parse_archimate(xml: &str) -> ArchimateModel {
     let mut elements: Vec<Element> = Vec::new();
     // vista → ids de los elementos dibujados en ella
     let mut appearances: Vec<(String, String)> = Vec::new();
@@ -183,11 +204,16 @@ pub fn inspect_archimate(xml: &str, query: &str, limit: usize) -> Vec<ArchimateE
         match reader.read_event() {
             Ok(ev @ Event::Start(_)) | Ok(ev @ Event::Empty(_)) => {
                 let is_start = matches!(ev, Event::Start(_));
-                let (Event::Start(e) | Event::Empty(e)) = ev else { continue };
+                let (Event::Start(e) | Event::Empty(e)) = ev else {
+                    continue;
+                };
                 let tag = e.name();
                 match tag.as_ref() {
                     "element" => {
-                        let kind = attr(&e, "xsi:type").unwrap_or_default().trim_start_matches("archimate:").to_string();
+                        let kind = attr(&e, "xsi:type")
+                            .unwrap_or_default()
+                            .trim_start_matches("archimate:")
+                            .to_string();
                         let el = Element {
                             id: attr(&e, "id").unwrap_or_default(),
                             name: attr(&e, "name").unwrap_or_default(),
@@ -208,7 +234,9 @@ pub fn inspect_archimate(xml: &str, query: &str, limit: usize) -> Vec<ArchimateE
                     }
                     "property" => {
                         if let (Some(Some(i)), Some(k)) = (open.last(), attr(&e, "key")) {
-                            elements[*i].properties.push((k, attr(&e, "value").unwrap_or_default()));
+                            elements[*i]
+                                .properties
+                                .push((k, attr(&e, "value").unwrap_or_default()));
                         }
                     }
                     "documentation" => {
@@ -260,39 +288,104 @@ pub fn inspect_archimate(xml: &str, query: &str, limit: usize) -> Vec<ArchimateE
         }
     }
 
-    let q = query.trim().to_lowercase();
-    let by_id: std::collections::HashMap<&str, &Element> = elements.iter().map(|e| (e.id.as_str(), e)).collect();
-    let related = |rel: &Element, other_id: &str| -> ArchimateRelation {
-        let other = by_id.get(other_id);
-        ArchimateRelation {
-            relation: rel.kind.clone(),
-            relation_name: rel.name.clone(),
-            id: other_id.to_string(),
-            name: other.map(|o| o.name.clone()).unwrap_or_default(),
-            kind: other.map(|o| o.kind.clone()).unwrap_or_default(),
-        }
-    };
-    elements
-        .iter()
-        .filter(|e| e.source.is_empty() && e.kind != "ArchimateDiagramModel")
-        .filter(|e| e.id.to_lowercase() == q || (!q.is_empty() && e.name.to_lowercase().contains(&q)))
-        .take(limit)
-        .map(|e| {
-            let mut views: Vec<String> = appearances.iter().filter(|(_, id)| *id == e.id).map(|(v, _)| v.clone()).collect();
-            views.dedup();
-            ArchimateElementReport {
-                id: e.id.clone(),
-                name: e.name.clone(),
-                kind: e.kind.clone(),
-                line: e.line,
-                documentation: e.documentation.clone(),
-                properties: e.properties.clone(),
-                outgoing: elements.iter().filter(|r| r.source == e.id).map(|r| related(r, &r.target)).collect(),
-                incoming: elements.iter().filter(|r| r.target == e.id).map(|r| related(r, &r.source)).collect(),
-                views,
+    ArchimateModel {
+        elements,
+        appearances,
+        outline: archimate_outline(xml),
+        lines: xml.lines().count(),
+    }
+}
+
+impl ArchimateModel {
+    pub fn outline(&self) -> &[ArchimateOutlineEntry] {
+        &self.outline
+    }
+
+    /// Líneas del archivo.
+    pub fn lines(&self) -> usize {
+        self.lines
+    }
+
+    /// Memoria aproximada que ocupa (para el límite de la caché).
+    pub fn approx_bytes(&self) -> usize {
+        let el: usize = self
+            .elements
+            .iter()
+            .map(|e| {
+                64 + e.id.len()
+                    + e.name.len()
+                    + e.kind.len()
+                    + e.documentation.len()
+                    + e.source.len()
+                    + e.target.len()
+                    + e.properties
+                        .iter()
+                        .map(|(k, v)| 48 + k.len() + v.len())
+                        .sum::<usize>()
+            })
+            .sum();
+        let ap: usize = self
+            .appearances
+            .iter()
+            .map(|(v, id)| 48 + v.len() + id.len())
+            .sum();
+        let ol: usize = self.outline.iter().map(|o| 48 + o.text.len()).sum();
+        el + ap + ol
+    }
+
+    /// Elementos que coinciden con `query` (id exacto o parte del nombre), hasta `limit`.
+    pub fn inspect(&self, query: &str, limit: usize) -> Vec<ArchimateElementReport> {
+        let elements = &self.elements;
+        let appearances = &self.appearances;
+        let q = query.trim().to_lowercase();
+        let by_id: std::collections::HashMap<&str, &Element> =
+            elements.iter().map(|e| (e.id.as_str(), e)).collect();
+        let related = |rel: &Element, other_id: &str| -> ArchimateRelation {
+            let other = by_id.get(other_id);
+            ArchimateRelation {
+                relation: rel.kind.clone(),
+                relation_name: rel.name.clone(),
+                id: other_id.to_string(),
+                name: other.map(|o| o.name.clone()).unwrap_or_default(),
+                kind: other.map(|o| o.kind.clone()).unwrap_or_default(),
             }
-        })
-        .collect()
+        };
+        elements
+            .iter()
+            .filter(|e| e.source.is_empty() && e.kind != "ArchimateDiagramModel")
+            .filter(|e| {
+                e.id.to_lowercase() == q || (!q.is_empty() && e.name.to_lowercase().contains(&q))
+            })
+            .take(limit)
+            .map(|e| {
+                let mut views: Vec<String> = appearances
+                    .iter()
+                    .filter(|(_, id)| *id == e.id)
+                    .map(|(v, _)| v.clone())
+                    .collect();
+                views.dedup();
+                ArchimateElementReport {
+                    id: e.id.clone(),
+                    name: e.name.clone(),
+                    kind: e.kind.clone(),
+                    line: e.line,
+                    documentation: e.documentation.clone(),
+                    properties: e.properties.clone(),
+                    outgoing: elements
+                        .iter()
+                        .filter(|r| r.source == e.id)
+                        .map(|r| related(r, &r.target))
+                        .collect(),
+                    incoming: elements
+                        .iter()
+                        .filter(|r| r.target == e.id)
+                        .map(|r| related(r, &r.source))
+                        .collect(),
+                    views,
+                }
+            })
+            .collect()
+    }
 }
 
 /// Número de línea de una posición, contando de forma incremental (las posiciones crecen).
@@ -311,18 +404,24 @@ impl LineCounter {
         }
         // La etiqueta empieza después de los espacios/saltos que el lector consumió antes
         let start = text[pos..].find('<').map_or(pos, |o| pos + o);
-        self.line += text.as_bytes()[self.pos..start].iter().filter(|b| **b == b'\n').count();
+        self.line += text.as_bytes()[self.pos..start]
+            .iter()
+            .filter(|b| **b == b'\n')
+            .count();
         self.pos = start;
         self.line + 1
     }
 }
 
-#[allow(deprecated)] // `normalized_value` pide la versión de XML; aquí basta con deshacer las entidades
 fn attr(e: &BytesStart, key: &str) -> Option<String> {
     e.attributes()
         .flatten()
         .find(|a| a.key.as_ref() == key)
-        .and_then(|a| a.unescape_value().ok().map(|v| v.into_owned()))
+        .and_then(|a| {
+            quick_xml::escape::unescape(&a.value)
+                .ok()
+                .map(|v| v.into_owned())
+        })
 }
 
 #[cfg(test)]
@@ -349,8 +448,18 @@ mod tests {
     #[test]
     fn indice_de_carpetas_y_vistas() {
         let outline = archimate_outline(MODEL);
-        let texts: Vec<_> = outline.iter().map(|e| (e.level, e.kind, e.text.as_str(), e.line)).collect();
-        assert_eq!(texts, vec![(0, "folder", "Application", 3), (0, "folder", "Views", 9), (1, "view", "Vista general", 10)]);
+        let texts: Vec<_> = outline
+            .iter()
+            .map(|e| (e.level, e.kind, e.text.as_str(), e.line))
+            .collect();
+        assert_eq!(
+            texts,
+            vec![
+                (0, "folder", "Application", 3),
+                (0, "folder", "Views", 9),
+                (1, "view", "Vista general", 10)
+            ]
+        );
     }
 
     #[test]
@@ -368,9 +477,15 @@ mod tests {
         let found = inspect_archimate(&model, "maintenance outbound", 5);
         assert_eq!(found.len(), 1);
         let e = &found[0];
-        assert_eq!((e.id.as_str(), e.kind.as_str(), e.line), ("id-3", "ApplicationComponent", 4));
+        assert_eq!(
+            (e.id.as_str(), e.kind.as_str(), e.line),
+            ("id-3", "ApplicationComponent", 4)
+        );
         assert_eq!(e.documentation, "Mantiene las operaciones & reintentos");
-        assert_eq!(e.properties, vec![("UNIQUECODE".to_string(), "CUD-0042".to_string())]);
+        assert_eq!(
+            e.properties,
+            vec![("UNIQUECODE".to_string(), "CUD-0042".to_string())]
+        );
         assert_eq!(e.outgoing[0].name, "Servicio de pagos");
         assert_eq!(e.outgoing[0].relation, "ServingRelationship");
         assert_eq!(e.incoming[0].name, "Servidor");

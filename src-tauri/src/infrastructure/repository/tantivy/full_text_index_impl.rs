@@ -15,14 +15,15 @@ use tantivy::schema::{
 };
 use tantivy::snippet::SnippetGenerator;
 use tantivy::tokenizer::{
-    AsciiFoldingFilter, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer,
+    AsciiFoldingFilter, LowerCaser, RemoveLongFilter, Stemmer, TextAnalyzer,
 };
 use tantivy::{
     DocSet, Index, IndexReader, IndexWriter, ReloadPolicy, TERMINATED, TantivyDocument, Term, doc,
 };
 
-/// Subirla obliga a reconstruir el índice (4: extractores de draw.io y ArchiMate).
-pub const SCHEMA_VERSION: &str = "4";
+/// Subirla obliga a reconstruir el índice (4: extractores de draw.io y ArchiMate; 5: XML genérico
+/// e identificadores partidos).
+pub const SCHEMA_VERSION: &str = "5";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {
@@ -103,7 +104,8 @@ impl FullTextIndexImpl {
     }
 
     fn register_tokenizers(index: &Index) {
-        let es_fold = TextAnalyzer::builder(SimpleTokenizer::default())
+        // Identificadores (camelCase, letras+números) también se indexan por partes
+        let es_fold = TextAnalyzer::builder(super::identifier_tokenizer::IdentifierTokenizer::default())
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
             .filter(Stemmer::new(tantivy::tokenizer::Language::Spanish))
@@ -722,6 +724,30 @@ fn expand_field_aliases(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identificadores_se_encuentran_enteros_y_por_partes() {
+        let index = FullTextIndexImpl::in_memory().unwrap();
+        index
+            .upsert(vec![FullTextDocument {
+                path: "servicio.java".to_string(),
+                title: "servicio.java".to_string(),
+                body: "public class AchOperationCrService { void sendTransferRequest() {} }".to_string(),
+                headings: String::new(),
+                kind: DocumentKind::Code,
+                mtime_nanos: 1,
+            }])
+            .unwrap();
+        index.commit().unwrap();
+        let found = |text: &str| {
+            let q = FullTextQuery { text: text.to_string(), limit: 5, prefix_last_term: false };
+            index.search(&q).unwrap().0.iter().any(|h| h.note_path == "servicio.java")
+        };
+        assert!(found("AchOperationCrService"), "el identificador entero");
+        assert!(found("operation"), "una parte");
+        assert!(found("transfer request"), "dos partes de otro identificador");
+        assert!(!found("pagos"));
+    }
 
     #[test]
     fn test_tantivy_index_upsert_and_search() {

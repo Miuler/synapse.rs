@@ -143,3 +143,29 @@ fn search_notes_con_extensiones_y_search_in_note_con_tope() {
     assert_eq!(capped["total_matches"], 3);
     assert_eq!(capped["returned_matches"], 2);
 }
+
+#[test]
+fn inspecciones_seguidas_usan_la_cache_y_se_actualizan_si_cambia_el_modelo() {
+    use app_lib::infrastructure::entrypoint::mcp::analysis_cache::AnalysisCache;
+    let dir = vault();
+    let h = handler(dir.path());
+    let rel = "src/soluciones/grande.archimate";
+    // Más de 1 MB (se guarda en la caché aunque se analice rápido)
+    let padding = format!("<documentation>{}</documentation>", "relleno ".repeat(140_000));
+    let big = ARCHIMATE.replace("<property key=\"UNIQUECODE\" value=\"CUD-7\"/>", &format!("<property key=\"UNIQUECODE\" value=\"CUD-7\"/>{padding}"));
+    std::fs::write(dir.path().join(rel), &big).unwrap();
+    let path = dir.path().join(rel);
+    let inspect = || text_json(&call(&h, "inspect_archimate_element", json!({ "relative_path": rel, "query": "id-3" })));
+
+    let first = inspect();
+    let (entries_after_first, _) = AnalysisCache::global().stats();
+    let second = inspect();
+    assert_eq!(first, second);
+    assert_eq!(AnalysisCache::global().stats().0, entries_after_first, "la segunda no agrega otra entrada");
+    assert!(AnalysisCache::global().stats().1 > 0);
+
+    // El modelo cambia: la clave (tamaño/fecha) ya no coincide y se vuelve a analizar
+    std::fs::write(&path, big.replace("CUD-7", "CUD-8000")).unwrap();
+    let changed = inspect();
+    assert_eq!(changed["elements"][0]["properties"][0], json!(["UNIQUECODE", "CUD-8000"]));
+}

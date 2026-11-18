@@ -101,6 +101,19 @@ pub fn extract_with_config(
         ));
     }
 
+    // 1b. Planillas (Excel, OpenDocument): hojas y filas
+    if file_types.is_excel_file(&lower_name) || lower_name.ends_with(".ods") {
+        if bytes.len() > indexing.max_docx_file_size {
+            return None;
+        }
+        let mut text = super::spreadsheet_extractor::spreadsheet_text(bytes, indexing.max_extracted_chars).ok()?;
+        if text.trim().is_empty() {
+            return None;
+        }
+        truncate_safe(&mut text, indexing.max_extracted_chars);
+        return Some((DocumentKind::Excel, file_stem.to_string(), text, String::new()));
+    }
+
     // 2. Documentos Microsoft Word (.docx)
     if lower_name.ends_with(".docx") {
         if bytes.len() > indexing.max_docx_file_size {
@@ -207,6 +220,33 @@ pub fn extract_with_config(
         .code
         .iter()
         .any(|ext| lower_name.ends_with(&format!(".{}", ext.to_lowercase())));
+
+    // JSON y YAML: cada valor con su ruta de claves (si no se pueden interpretar, como código)
+    let structured = if lower_name.ends_with(".json") {
+        Some(super::structured_extractor::json_text as fn(&str) -> Option<String>)
+    } else if lower_name.ends_with(".yaml") || lower_name.ends_with(".yml") {
+        Some(super::structured_extractor::yaml_text as fn(&str) -> Option<String>)
+    } else {
+        None
+    };
+    if let Some(extract) = structured {
+        let (_, decoded) = detect_and_decode(bytes);
+        if let Some(mut text) = extract(&decoded).filter(|t| !t.trim().is_empty()) {
+            truncate_safe(&mut text, indexing.max_extracted_chars);
+            return Some((DocumentKind::Code, file_name.to_string(), text, String::new()));
+        }
+    }
+
+    // XML (también XSD, WSDL, BPMN, XSL): solo lo legible, no las etiquetas ni ids o coordenadas
+    let is_xml = [".xml", ".xsd", ".wsdl", ".bpmn", ".xsl", ".xslt"].iter().any(|e| lower_name.ends_with(e));
+    if is_xml {
+        let (_, decoded) = detect_and_decode(bytes);
+        let mut text = super::xml_extractor::xml_text(&decoded);
+        if !text.trim().is_empty() {
+            truncate_safe(&mut text, indexing.max_extracted_chars);
+            return Some((DocumentKind::Code, file_name.to_string(), text, String::new()));
+        }
+    }
 
     if is_code {
         let (_, mut decoded) = detect_and_decode(bytes);

@@ -1,6 +1,6 @@
 import { invokeTauri, isTauriEnvironment } from './tauri';
 
-export type DocumentKind = 'markdown' | 'mermaid' | 'code' | 'excalidraw' | 'pdf' | 'word' | 'drawio' | 'archimate';
+export type DocumentKind = 'markdown' | 'mermaid' | 'code' | 'excalidraw' | 'pdf' | 'word' | 'drawio' | 'archimate' | 'excel';
 
 export interface HighlightSegment {
   text: string;

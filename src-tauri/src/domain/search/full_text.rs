@@ -14,6 +14,8 @@ pub enum DocumentKind {
     Drawio,
     /// Modelo ArchiMate (`.archimate`): nombres, documentación y propiedades de sus elementos.
     Archimate,
+    /// Planilla (Excel, OpenDocument): hojas y filas.
+    Excel,
 }
 
 impl DocumentKind {
@@ -28,6 +30,7 @@ impl DocumentKind {
             DocumentKind::Word => "word",
             DocumentKind::Drawio => "drawio",
             DocumentKind::Archimate => "archimate",
+            DocumentKind::Excel => "excel",
         }
     }
 
@@ -41,6 +44,7 @@ impl DocumentKind {
             "word" => Some(DocumentKind::Word),
             "drawio" => Some(DocumentKind::Drawio),
             "archimate" => Some(DocumentKind::Archimate),
+            "excel" => Some(DocumentKind::Excel),
             _ => None,
         }
     }

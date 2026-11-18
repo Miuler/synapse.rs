@@ -2,5 +2,8 @@ pub mod archimate_extractor;
 pub mod content_extractor;
 pub mod docx_extractor;
 pub mod drawio_extractor;
+pub mod xml_extractor;
 pub mod fts_indexer;
 pub mod pdf_extractor;
+pub mod spreadsheet_extractor;
+pub mod structured_extractor;

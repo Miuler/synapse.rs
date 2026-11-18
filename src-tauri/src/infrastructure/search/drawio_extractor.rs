@@ -349,12 +349,11 @@ fn page_structure(name: String, model: &str) -> DrawioPage {
     DrawioPage { name, containers, labels, edges }
 }
 
-#[allow(deprecated)] // `normalized_value` pide la versión de XML; aquí basta con deshacer las entidades
 fn attr_of(e: &quick_xml::events::BytesStart, key: &str) -> Option<String> {
     e.attributes()
         .flatten()
         .find(|a| a.key.as_ref() == key)
-        .and_then(|a| a.unescape_value().ok().map(|v| v.into_owned()))
+        .and_then(|a| quick_xml::escape::unescape(&a.value).ok().map(|v| v.into_owned()))
 }
 
 fn collect(xml: &str, out: &mut Vec<String>, depth: u8) {
@@ -374,8 +373,7 @@ fn collect(xml: &str, out: &mut Vec<String>, depth: u8) {
                     if !wanted {
                         continue;
                     }
-                    #[allow(deprecated)] // `normalized_value` pide la versión de XML; aquí basta con deshacer las entidades
-                    if let Ok(v) = attr.unescape_value() {
+                    if let Ok(v) = quick_xml::escape::unescape(&attr.value) {
                         let clean = strip_html(&v);
                         if !clean.is_empty() {
                             out.push(clean);
