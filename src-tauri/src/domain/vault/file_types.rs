@@ -261,5 +261,6 @@ mod tests {
         assert!(all.contains(&"cbl".to_string()));
         assert!(types.is_supported_file("program.cbl"));
         assert!(types.is_supported_file("payroll.CBL"));
+        assert!(types.is_supported_file("pom.xml"));
     }
 }

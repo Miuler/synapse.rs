@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Los archivos `.xml` se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
+
 - **Copias de pestaña con modo propio y un solo editor por dibujo**: cada copia de una pestaña (`Duplicar pestaña`) tiene su propio botón Lectura/Edición, así una nota puede estar en edición en una pestaña y en lectura en la otra. Los dibujos (Excalidraw y draw.io) solo se editan en una pestaña a la vez, para no pisarse al guardar: pasar a edición en otra copia lleva a la pestaña que ya lo edita; al cerrarla o pasarla a lectura, cualquier copia puede editar. Las copias de una imagen de draw.io se actualizan con cada guardado del editor.
 - **«Abrir en otra pestaña (solo lectura)»** en el menú contextual del explorador, cuando el archivo ya está abierto: abre una copia en lectura junto a la original.
 - **Arrastrar a otra ventana también las pestañas de una versión, de un diff y las copias** (antes solo las de archivos).
