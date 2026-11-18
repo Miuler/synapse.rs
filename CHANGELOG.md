@@ -75,6 +75,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
+- **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
 - **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
 - **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
 

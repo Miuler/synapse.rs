@@ -224,3 +224,52 @@ it('una copia de solo lectura de una imagen en draw.io no se puede editar a la v
   await s.browser.$('.tab-title-container.active[data-path="disfrazado.png"]').waitForExist({ timeout: 5_000 });
   expect(await s.browser.$$('.drawio-viewer[data-drawio-path="disfrazado.png"]').length).toBe(1);
 }, 60_000);
+
+it('al guardar en draw.io, otra pestaña con la imagen se recarga sin perder el zoom ni la posición', async () => {
+  const toggle = () => s.browser.$('.editor-header .view-toggle-btn');
+  const copy = 'copy:2:disfrazado.png';
+  const view = () =>
+    s.browser.execute(() => {
+      const pane = [...document.querySelectorAll('.tab-pane')].find((p) => (p as HTMLElement).offsetParent !== null)!;
+      const img = pane.querySelector('img') as HTMLImageElement | null;
+      return {
+        zoom: pane.querySelector('.zoom-level-btn')?.textContent?.trim(),
+        transform: (pane.querySelector('.image-viewport') as HTMLElement | null)?.style.transform,
+        src: img?.getAttribute('src'),
+      };
+    });
+  // En la copia (visor de imagen): acercar y desplazar
+  await s.browser.$(`.tab-title-container[data-path="${copy}"]`).click();
+  await s.browser.$(`.tab-title-container.active[data-path="${copy}"]`).waitForExist({ timeout: 5_000 });
+  await s.browser.$('.tab-pane:not(.hidden) .zoom-level-btn').waitForExist({ timeout: 10_000 });
+  await s.browser.execute(() => {
+    const pane = document.querySelector('.tab-pane:not(.hidden)')!;
+    const zoomIn = pane.querySelector('[aria-label^="Acercar"]') as HTMLElement;
+    zoomIn.click();
+    zoomIn.click();
+    pane.querySelector('.image-viewer-container')?.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true, cancelable: true }));
+  });
+  await s.browser.pause(300);
+  const before = await view();
+  // El original sale y vuelve a entrar al editor: el draw.io falso guarda al cargar
+  await s.browser.$('.tab-title-container[data-path="disfrazado.png"]').click();
+  await s.browser.$('.tab-title-container.active[data-path="disfrazado.png"]').waitForExist({ timeout: 5_000 });
+  await toggle().click();
+  await s.browser.waitUntil(async () => (await toggle().getText()).includes('Lectura'), { timeout: 5_000 });
+  await s.browser.$(`.tab-title-container[data-path="${copy}"]`).click();
+  await s.browser.$(`.tab-title-container.active[data-path="${copy}"]`).waitForExist({ timeout: 5_000 });
+  const afterClose = await view();
+  expect(afterClose.zoom).toBe(before.zoom);
+  expect(afterClose.transform).toBe(before.transform);
+  await s.browser.$('.tab-title-container[data-path="disfrazado.png"]').click();
+  await s.browser.$('.tab-title-container.active[data-path="disfrazado.png"]').waitForExist({ timeout: 5_000 });
+  await toggle().click();
+  await s.browser.$('.drawio-viewer[data-drawio-path="disfrazado.png"]').waitForExist({ timeout: 10_000 });
+  await s.browser.pause(2_000); // el draw.io falso guarda a los 300 ms de cargar
+  await s.browser.$(`.tab-title-container[data-path="${copy}"]`).click();
+  await s.browser.$(`.tab-title-container.active[data-path="${copy}"]`).waitForExist({ timeout: 5_000 });
+  const after = await view();
+  expect(after.src).not.toBe(afterClose.src); // releyó la imagen guardada
+  expect(after.zoom).toBe(before.zoom);
+  expect(after.transform).toBe(before.transform);
+}, 90_000);

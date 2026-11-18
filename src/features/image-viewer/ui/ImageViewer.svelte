@@ -12,17 +12,21 @@
     onEditWithDrawio?: () => void;
     /** Lleva un diagrama de draw.io (detectado por su contenido); sin valor, por la extensión. */
     drawio?: boolean;
+    /** Al cambiar, vuelve a leer la imagen del disco conservando el zoom y la posición. */
+    reloadKey?: number;
   }
 
-  let { src, alt = 'Imagen', content, onEditWithDrawio, drawio }: Props = $props();
+  let { src, alt = 'Imagen', content, onEditWithDrawio, drawio, reloadKey }: Props = $props();
   const isDrawioPng = $derived(drawio ?? isDrawioPngFile(src));
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let imgRef = $state<HTMLImageElement | null>(null);
   let resolvedSrc = $state('');
-  /** Cada montaje pide la imagen de nuevo (la versión es la hora de montaje). */
+  /** Cada montaje, y cada `reloadKey`, pide la imagen de nuevo (la versión es la hora de montaje). */
   const mountedAt = Date.now();
-  const withCacheBuster = (url: string) => `${url}${url.includes('?') ? '&' : '?'}v=${mountedAt}`;
+  const withCacheBuster = (url: string, version: number) => `${url}${url.includes('?') ? '&' : '?'}v=${version}`;
+  /** `src` de la imagen ya mostrada: si se recarga la misma, se conservan zoom y posición. */
+  let shownSrc = '';
   let isLoading = $state(true);
   let hasLoaded = $state(false);
   let hasError = $state(false);
@@ -30,6 +34,7 @@
   $effect(() => {
     let isCurrent = true;
     const currentSrc = src;
+    const version = reloadKey ?? mountedAt;
     if (!currentSrc) {
       resolvedSrc = '';
       isLoading = false;
@@ -58,7 +63,7 @@
           if (absPath) {
             // El webview guarda en caché la URL del asset: sin esto, al volver a montar el visor tras
             // un cambio en disco seguiría mostrando la imagen vieja
-            resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(absPath));
+            resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(absPath), version);
             isLoading = false;
             hasError = false;
             return;
@@ -72,7 +77,7 @@
           isLoading = false;
         });
     } else {
-      resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(currentSrc));
+      resolvedSrc = withCacheBuster(vaultRepository.resolveAssetUrl(currentSrc), version);
       isLoading = false;
     }
 
@@ -128,9 +133,12 @@
     }
 
     fitZoom = calculateFitZoom();
-    zoom = fitZoom;
-    panX = 0;
-    panY = 0;
+    if (shownSrc !== src) {
+      zoom = fitZoom;
+      panX = 0;
+      panY = 0;
+    }
+    shownSrc = src;
     hasLoaded = true;
     hasError = false;
     isLoading = false;
@@ -173,7 +181,7 @@
 
   // Reiniciar cuando cambia la imagen resuelta
   $effect(() => {
-    if (resolvedSrc) {
+    if (resolvedSrc && src !== shownSrc) {
       naturalWidth = 0;
       naturalHeight = 0;
       zoom = 1;

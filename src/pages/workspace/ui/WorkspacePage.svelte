@@ -204,8 +204,8 @@
   /** Cierra el editor de draw.io de la pestaña; el visor vuelve a leer la imagen con lo guardado. */
   function closeDrawioEditor(tabPath: string) {
     drawioPngTabs.delete(tabPath);
-    const file = baseTabPath(tabPath);
-    if (openedNotes[file]) openedNotes[file] = { ...openedNotes[file], lastReloaded: Date.now() };
+    // Los visores de esta imagen (en otras pestañas o copias) releen lo guardado sin perder el zoom
+    imageReloads.set(baseTabPath(tabPath), Date.now());
   }
 
   function openWithDrawio(path: string) {
@@ -4560,8 +4560,8 @@
                     onSelectNote={(notePath: string) => selectTab(notePath)}
                   />
                 {:else if isImageFile(tabFile)}
-                  {#key imageReloads.get(tabFile)}
                   <ImageViewer
+                    reloadKey={imageReloads.get(tabFile)}
                     src={note?.abs_path || tabPath}
                     alt={vaultItem.title || tabPath}
                     {content}
@@ -4572,7 +4572,6 @@
                       else drawioPngTabs.add(tabPath);
                     }}
                   />
-                  {/key}
                 {:else if isPdfFile(tabFile)}
                   <PdfViewer
                     bind:this={pdfViewers[tabPath]}
