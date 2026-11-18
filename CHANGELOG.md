@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Varios repositorios Git en una bóveda**: las subcarpetas que son repositorios muestran su rama junto al nombre (con un punto si tienen cambios), y sus archivos tienen estado de git, diff e historial como los de la raíz. La cabecera del explorador muestra la rama del repositorio del archivo activo. Los diálogos de commit y de ramas tienen un selector de repositorio, y el menú de la carpeta-repositorio ofrece Ramas, Commit y Push de ese repositorio. Un commit nunca mezcla repositorios. Las herramientas MCP de git (`get_vault_git_status`, `git_file_history`, `git_diff_revisions`, `git_read_revision`) usan el repositorio más cercano que contiene el archivo. Los repositorios se consultan en paralelo y la lista se reutiliza unos segundos.
+
 - **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Toma los colores del tema activo de la app (también al cambiar entre claro y oscuro) y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
 
 - **Resaltado de sintaxis YAML y JSON** en el editor de código para `.yaml`, `.yml` y `.json` (antes se coloreaban como Markdown).

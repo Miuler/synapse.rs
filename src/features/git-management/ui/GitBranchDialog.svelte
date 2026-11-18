@@ -18,6 +18,8 @@
     type GitBranchItem,
     type GitBranchesResult,
   } from '@shared/repositories';
+  import { gitDialogState } from '@entities/git';
+  import GitRepoSelect from './GitRepoSelect.svelte';
 
   export interface GitBranchDialogProps {
     open?: boolean;
@@ -46,9 +48,11 @@
   let createInputEl = $state<HTMLInputElement | null>(null);
   let searchInputEl = $state<HTMLInputElement | null>(null);
 
-  // Cargar ramas al abrir el modal
+  // Cargar ramas al abrir el modal o al cambiar de repositorio
   $effect(() => {
+    void gitDialogState.repo;
     if (open) {
+      createFromBranch = '';
       errorMessage = null;
       actionSuccessMessage = null;
       searchQuery = '';
@@ -65,7 +69,7 @@
     isLoading = true;
     errorMessage = null;
     try {
-      const result = await vaultRepository.getGitBranches();
+      const result = await vaultRepository.getGitBranches(gitDialogState.repo);
       branchesResult = result;
       if (!createFromBranch && result.current_branch) {
         createFromBranch = result.current_branch;
@@ -102,7 +106,7 @@
     actionSuccessMessage = null;
 
     try {
-      const res = await vaultRepository.gitCheckout(branch.name);
+      const res = await vaultRepository.gitCheckout(branch.name, gitDialogState.repo);
       actionSuccessMessage = res;
       await fetchBranches();
       if (onBranchChanged) {
@@ -143,6 +147,7 @@
         newBranch: trimmed,
         baseBranch: createFromBranch || undefined,
         checkout: switchAfterCreate,
+        repo: gitDialogState.repo,
       });
 
       actionSuccessMessage = res;
@@ -201,6 +206,7 @@
 >
   {#snippet icon()}<GitBranch size={20} />{/snippet}
   {#snippet badge()}
+    <GitRepoSelect disabled={isActionLoading} />
     {#if currentBranchName}
       <span class="git-current-badge" title="Rama activa actual">
         <Check size={11} />

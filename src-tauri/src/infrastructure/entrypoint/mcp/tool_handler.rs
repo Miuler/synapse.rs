@@ -758,7 +758,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 14. get_vault_git_status
                 McpTool {
                     name: "get_vault_git_status".to_string(),
-                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, index, worktree, stash).".to_string(),
+                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, index, worktree, stash). Si hay repositorios en subcarpetas, `repos` lista cada uno (carpeta, rama, cambios) y las rutas de `statuses` siguen siendo relativas a la bóveda.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -844,7 +844,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 24. git_file_history
                 McpTool {
                     name: "git_file_history".to_string(),
-                    description: "Historial de Git de un archivo de la bóveda (siguiendo renombres): hash, hash corto, fecha, autor, mensaje y tags de cada commit, del más nuevo al más antiguo. Úsalo para elegir los commits a comparar con git_diff_revisions.".to_string(),
+                    description: "Historial de Git de un archivo de la bóveda (siguiendo renombres; se usa el repositorio más cercano que lo contiene, también en subcarpetas): hash, hash corto, fecha, autor, mensaje y tags de cada commit, del más nuevo al más antiguo. Úsalo para elegir los commits a comparar con git_diff_revisions.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",

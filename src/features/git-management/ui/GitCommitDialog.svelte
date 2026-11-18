@@ -8,6 +8,7 @@
     Search,
     Trash2,
   } from 'lucide-svelte';
+  import GitRepoSelect from './GitRepoSelect.svelte';
 
   export interface GitCommitFileItem {
     path: string;
@@ -193,6 +194,7 @@
 >
   {#snippet icon()}<GitCommitHorizontal size={20} />{/snippet}
   {#snippet badge()}
+    <GitRepoSelect disabled={loading} />
     {#if branchName}
       <span class="git-commit-branch-badge" title="Rama actual: {branchName}">
         <GitBranch size={11} />

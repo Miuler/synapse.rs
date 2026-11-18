@@ -6,10 +6,20 @@ export interface GitFileStatus {
 
 export type GitFileStatusKind = GitFileStatus;
 
+/** Repositorio Git de la bóveda: `path` vacío es la raíz; si no, una subcarpeta. */
+export interface GitRepoInfo {
+  path: string;
+  branch?: string | null;
+  /** Archivos con cambios sin confirmar. */
+  changes: number;
+}
+
 export interface VaultGitStatus {
   is_repo: boolean;
   branch?: string | null;
   statuses: Record<string, GitFileStatus>;
+  /** Todos los repositorios: la raíz y los de subcarpetas. */
+  repos?: GitRepoInfo[];
 }
 
 export interface GitDiffResponse {

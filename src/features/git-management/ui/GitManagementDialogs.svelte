@@ -5,6 +5,7 @@
   import {
     gitDialogState,
     gitApi,
+    repoOf,
     type GitCommitFileItem,
     type GitFileStatusKind,
   } from '@entities/git';
@@ -44,8 +45,11 @@
     if (allFiles) return allFiles;
     if (!gitStatuses) return [];
     const list: GitCommitFileItem[] = [];
+    const repos = gitDialogState.repos;
     for (const [path, status] of Object.entries(gitStatuses)) {
       if (!status) continue;
+      // Con varios repositorios, el commit es del repositorio elegido
+      if (repos.length > 1 && repoOf(path, repos) !== gitDialogState.repo) continue;
       const index = typeof status.index === 'string' ? status.index : null;
       const worktree = typeof status.worktree === 'string' ? status.worktree : null;
 
@@ -109,7 +113,9 @@
   bind:open={gitDialogState.isCommitDialogOpen}
   paths={gitDialogState.commitPaths}
   allFiles={computedAllFiles}
-  branchName={gitBranch}
+  branchName={gitDialogState.repos.length > 1
+    ? (gitDialogState.repos.find((r) => r.path === gitDialogState.repo)?.branch ?? null)
+    : gitBranch}
   loading={isCommitting}
   errorMessage={commitErrorMessage}
   onConfirm={handleConfirmCommit}

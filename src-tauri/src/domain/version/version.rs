@@ -8,11 +8,24 @@ pub struct FileVersionState {
     pub is_stashed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VaultVersionState {
     pub is_repo: bool,
     pub branch: Option<String>,
     pub statuses: HashMap<String, FileVersionState>,
+    /// Repositorios de la bóveda: el de la raíz (`path` vacío) y los de subcarpetas.
+    #[serde(default)]
+    pub repos: Vec<RepoInfo>,
+}
+
+/// Un repositorio Git dentro de la bóveda.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RepoInfo {
+    /// Carpeta del repositorio relativa a la bóveda (`""` si es la propia bóveda o la contiene).
+    pub path: String,
+    pub branch: Option<String>,
+    /// Archivos con cambios (sin confirmar) en ese repositorio.
+    pub changes: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

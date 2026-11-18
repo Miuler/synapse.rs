@@ -2,32 +2,46 @@ pub use crate::domain::version::version::{
     Branch, BranchList, FileDiff, FileRevision, FileVersionHistory, FileVersionState, ImageDiff,
     VaultVersionState, VersionEntry,
 };
+use crate::domain::version::version::RepoInfo;
 use crate::domain::version::version_control::VersionControl;
+use super::repo_routing as routing;
 use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Clone, Copy, Default)]
 pub struct VersionControlImpl;
 
+/// Cada ruta va al repositorio más cercano que la contiene (la bóveda puede tener repositorios
+/// en subcarpetas); las rutas que se devuelven vuelven a ser relativas a la bóveda.
 impl VersionControl for VersionControlImpl {
     fn is_tracked(&self, vault_path: &Path, relative_path: &str) -> bool {
-        VersionControlImpl::is_tracked(self, vault_path, relative_path)
+        let r = routing::route(vault_path, relative_path);
+        VersionControlImpl::is_tracked(self, &r.root(vault_path), &r.inner)
     }
 
     fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
-        self.get_vault_status(vault_path)
+        self.get_multi_repo_status(vault_path)
     }
 
     fn track(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
-        self.git_add(vault_path, paths)
+        for (prefix, inner) in routing::group(vault_path, paths) {
+            self.git_add(&repo_root(vault_path, &prefix), &inner)?;
+        }
+        Ok(())
     }
 
     fn revert(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
-        self.git_restore(vault_path, paths)
+        for (prefix, inner) in routing::group(vault_path, paths) {
+            self.git_restore(&repo_root(vault_path, &prefix), &inner)?;
+        }
+        Ok(())
     }
 
     fn untrack(&self, vault_path: &Path, paths: &[String]) -> Result<(), String> {
-        self.git_restore_staged(vault_path, paths)
+        for (prefix, inner) in routing::group(vault_path, paths) {
+            self.git_restore_staged(&repo_root(vault_path, &prefix), &inner)?;
+        }
+        Ok(())
     }
 
     fn save_version(
@@ -36,7 +50,13 @@ impl VersionControl for VersionControlImpl {
         paths: &[String],
         message: &str,
     ) -> Result<String, String> {
-        self.git_commit(vault_path, paths, message)
+        // Un commit por repositorio: git no puede confirmar en varios a la vez.
+        let mut out = Vec::new();
+        for (prefix, inner) in routing::group(vault_path, paths) {
+            let res = self.git_commit(&repo_root(vault_path, &prefix), &inner, message)?;
+            out.push(if prefix.is_empty() { res } else { format!("[{prefix}] {res}") });
+        }
+        Ok(out.join("\n"))
     }
 
     fn diff(
@@ -46,7 +66,10 @@ impl VersionControl for VersionControlImpl {
         staged: bool,
         revision: Option<&str>,
     ) -> Result<FileDiff, String> {
-        self.git_diff(vault_path, path, staged, revision)
+        let r = routing::route(vault_path, path);
+        let mut d = self.git_diff(&r.root(vault_path), &r.inner, staged, revision)?;
+        d.path = routing::prefixed(&r.prefix, &d.path);
+        Ok(d)
     }
 
     fn get_file_revision(
@@ -55,7 +78,10 @@ impl VersionControl for VersionControlImpl {
         path: &str,
         revision: &str,
     ) -> Result<FileRevision, String> {
-        self.get_file_revision(vault_path, path, revision)
+        let r = routing::route(vault_path, path);
+        let mut rev = self.get_file_revision(&r.root(vault_path), &r.inner, revision)?;
+        rev.path = routing::prefixed(&r.prefix, &rev.path);
+        Ok(rev)
     }
 
     fn get_image_diff(
@@ -65,7 +91,10 @@ impl VersionControl for VersionControlImpl {
         staged: bool,
         revision: Option<&str>,
     ) -> Result<ImageDiff, String> {
-        self.get_image_diff(vault_path, path, staged, revision)
+        let r = routing::route(vault_path, path);
+        let mut d = self.get_image_diff(&r.root(vault_path), &r.inner, staged, revision)?;
+        d.path = routing::prefixed(&r.prefix, &d.path);
+        Ok(d)
     }
 
     fn get_file_log(
@@ -74,9 +103,18 @@ impl VersionControl for VersionControlImpl {
         path: &str,
         max_count: Option<usize>,
     ) -> Result<FileVersionHistory, String> {
-        self.get_file_log(vault_path, path, max_count)
+        let r = routing::route(vault_path, path);
+        let mut h = self.get_file_log(&r.root(vault_path), &r.inner, max_count)?;
+        h.path = routing::prefixed(&r.prefix, &h.path);
+        for c in &mut h.commits {
+            if let Some(p) = c.previous_path.take() {
+                c.previous_path = Some(routing::prefixed(&r.prefix, &p));
+            }
+        }
+        Ok(h)
     }
 
+    // Ramas y push: `vault_path` ya es la carpeta del repositorio elegido.
     fn get_branches(&self, vault_path: &Path) -> Result<BranchList, String> {
         self.get_branches(vault_path)
     }
@@ -101,6 +139,68 @@ impl VersionControl for VersionControlImpl {
 
     fn push(&self, vault_path: &Path) -> Result<String, String> {
         self.git_push(vault_path)
+    }
+}
+
+fn repo_root(vault: &Path, prefix: &str) -> std::path::PathBuf {
+    if prefix.is_empty() {
+        vault.to_path_buf()
+    } else {
+        vault.join(prefix)
+    }
+}
+
+impl VersionControlImpl {
+    /// Estado de todos los repositorios de la bóveda (raíz y subcarpetas), con las rutas
+    /// relativas a la bóveda. Los repositorios se consultan en paralelo.
+    pub fn get_multi_repo_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
+        use rayon::prelude::*;
+        let nested = routing::nested_repos(vault_path);
+        let mut prefixes = vec![String::new()];
+        prefixes.extend(nested.iter().cloned());
+        let results: Vec<(String, Result<VaultVersionState, String>)> = prefixes
+            .into_par_iter()
+            .map(|prefix| {
+                let st = self.get_vault_status(&repo_root(vault_path, &prefix));
+                (prefix, st)
+            })
+            .collect();
+
+        let mut out = VaultVersionState::default();
+        for (prefix, res) in results {
+            let st = match res {
+                Ok(st) => st,
+                // La raíz puede no ser un repositorio; un fallo en una subcarpeta no tumba el resto.
+                Err(e) if prefix.is_empty() => return Err(e),
+                Err(e) => {
+                    log::warn!("[git] estado de {prefix}: {e}");
+                    continue;
+                }
+            };
+            if !st.is_repo {
+                continue;
+            }
+            // Lo que la raíz ve dentro de un repositorio anidado lo informa ese repositorio.
+            let inside_nested = |key: &str| {
+                prefix.is_empty()
+                    && nested.iter().any(|n| key == n || key.starts_with(&format!("{n}/")))
+            };
+            let mut changes = 0;
+            for (k, v) in st.statuses {
+                let k = k.trim_end_matches('/').to_string();
+                if inside_nested(&k) {
+                    continue;
+                }
+                changes += 1;
+                out.statuses.insert(routing::prefixed(&prefix, &k), v);
+            }
+            if prefix.is_empty() {
+                out.branch = st.branch.clone();
+            }
+            out.is_repo = true;
+            out.repos.push(RepoInfo { path: prefix, branch: st.branch, changes });
+        }
+        Ok(out)
     }
 }
 
@@ -235,6 +335,7 @@ impl VersionControlImpl {
                     is_repo: false,
                     branch: None,
                     statuses: HashMap::new(),
+                    repos: Vec::new(),
                 });
             }
         };
@@ -246,6 +347,7 @@ impl VersionControlImpl {
                     is_repo: false,
                     branch: None,
                     statuses: HashMap::new(),
+                    repos: Vec::new(),
                 });
             }
         };
@@ -346,6 +448,7 @@ impl VersionControlImpl {
             is_repo: true,
             branch,
             statuses,
+            repos: Vec::new(),
         })
     }
 

@@ -7,7 +7,7 @@
   import { systemApi } from '@shared/api';
   import type { GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu } from 'bits-ui';
-  import { gitDialogState, gitApi, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
+  import { gitDialogState, gitApi, repoOf, repoLabel, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
@@ -29,6 +29,8 @@
     isGitRepo?: boolean;
     gitBranch?: string | null;
     isStandalone?: boolean;
+    /** `git push` del repositorio dado (`''` = la raíz de la bóveda). */
+    onGitPush?: (repo: string) => void;
     onSelectTab: (path: string, viewerPreference?: 'native' | 'obsidian') => void;
     onOpenVaultFolder: () => void;
     onDeleteItem?: (relativePath: string, isFolder: boolean) => Promise<void> | void;
@@ -73,6 +75,7 @@
     isGitRepo = false,
     gitBranch = null,
     isStandalone = false,
+    onGitPush,
     lockedFiles,
     onToggleLockFile,
     onSelectTab,
@@ -2091,8 +2094,12 @@
   }
 
   function handleOpenBranchDialog() {
-    gitDialogState.openBranchDialog();
+    gitDialogState.openBranchDialog(activeGitRepo);
   }
+
+  // Repositorios en subcarpetas: carpeta → repositorio (la raíz no se marca en el árbol)
+  let nestedRepos = $derived(new Map(gitDialogState.repos.filter((r) => r.path).map((r) => [r.path, r])));
+  let activeGitRepo = $derived(repoOf(activeTabPath, gitDialogState.repos));
 </script>
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -2143,7 +2150,7 @@
                   class="git-branch-badge"
                   data-tauri-drag-region="false"
                   onclick={handleOpenBranchDialog}
-                  title="Rama Git: {gitBranch} (Clic para gestionar ramas)"
+                  title="Rama Git{activeGitRepo ? ` de ${activeGitRepo}` : ''}: {gitBranch} (Clic para gestionar ramas)"
                 >
                   <GitBranch size={13} class="git-branch-icon" />
                   <span class="git-branch-name">{gitBranch}</span>
@@ -2471,6 +2478,25 @@
             <FolderSearch class="context-menu-item-icon" />
             <span>Mostrar en carpeta</span>
           </ContextMenu.Item>
+        {/if}
+
+        {#if contextMenuNode && contextMenuNode.isFolder && isGitRepo && nestedRepos.has(contextMenuNode.relativePath)}
+          {@const repoPath = contextMenuNode.relativePath}
+          <ContextMenu.Separator class="context-menu-divider" />
+          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openBranchDialog(repoPath)}>
+            <GitBranch class="context-menu-item-icon" />
+            <span>Ramas de «{repoLabel(repoPath)}»…</span>
+          </ContextMenu.Item>
+          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openCommitDialog([], repoPath)}>
+            <GitCommitHorizontal class="context-menu-item-icon" />
+            <span>Commit en «{repoLabel(repoPath)}»…</span>
+          </ContextMenu.Item>
+          {#if onGitPush}
+            <ContextMenu.Item class="context-menu-item" onSelect={() => onGitPush?.(repoPath)}>
+              <Cloud class="context-menu-item-icon" />
+              <span>Push de «{repoLabel(repoPath)}»</span>
+            </ContextMenu.Item>
+          {/if}
         {/if}
 
         {#if contextMenuNode && !contextMenuNode.isFolder && onOpenWithDrawio && isDrawioPngFile(contextMenuNode.relativePath)}
@@ -2815,6 +2841,7 @@
 
 {#snippet renderRow(node: VaultTreeNode, depth: number)}
   {#if node.isFolder}
+    {@const repo = isGitRepo ? nestedRepos.get(node.relativePath) : undefined}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -2852,6 +2879,19 @@
         size={15}
       />
       <span class="file-name">{node.name}</span>
+      {#if repo}
+        <button
+          type="button"
+          class="folder-git-branch"
+          class:dirty={repo.changes > 0}
+          title="Repositorio Git · rama {repo.branch ?? '(sin rama)'}{repo.changes ? ` · ${repo.changes} cambio(s)` : ''} (clic para gestionar ramas)"
+          onclick={(e) => { e.stopPropagation(); gitDialogState.openBranchDialog(node.relativePath); }}
+        >
+          <GitBranch size={11} />
+          <span class="folder-git-branch-name">{repo.branch ?? 'HEAD'}</span>
+          {#if repo.changes > 0}<span class="folder-git-dot" aria-label="con cambios"></span>{/if}
+        </button>
+      {/if}
     </div>
   {:else}
     {@const rawGitStatus = isGitRepo && gitStatuses ? (gitStatuses[node.relativePath] ?? gitStatuses[node.relativePath.replace(/^\.\//, '')]) : undefined}
@@ -3142,6 +3182,40 @@
     flex: 1;
     overflow-y: auto;
     padding: 6px 0;
+  }
+
+  .folder-git-branch {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 45%;
+    padding: 0 6px;
+    border: 1px solid var(--border-primary);
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    line-height: 16px;
+    cursor: pointer;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  .folder-git-branch:hover {
+    color: var(--accent);
+    border-color: var(--accent-border);
+  }
+  .folder-git-branch-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .folder-git-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning, #d29922);
+    flex-shrink: 0;
   }
 
   .file-tree-item {

@@ -34,6 +34,7 @@ pub async fn get_vault_git_status(
                         is_repo: false,
                         branch: None,
                         statuses: Default::default(),
+                        repos: Vec::new(),
                     });
                 }
             }
@@ -332,30 +333,39 @@ pub fn get_git_file_log(
         })
 }
 
-#[tauri::command(async)]
-pub fn get_git_branches(state: State<'_, AppState>) -> Result<BranchList, String> {
+/// Carpeta del repositorio elegido (`repo`, relativo a la bóveda; vacío o ausente = la raíz).
+fn repo_dir(state: &State<'_, AppState>, repo: Option<&str>) -> Result<PathBuf, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
     };
-    state.get_branches_use_case.execute(GetBranchesQuery {
-        vault_path: vault_path.clone(),
-    })
+    let repo = repo.unwrap_or("").trim_matches('/');
+    if repo.is_empty() {
+        return Ok(vault_path.clone());
+    }
+    if repo.split('/').any(|c| c == ".." || c.is_empty()) {
+        return Err(format!("Repositorio no válido: {repo}"));
+    }
+    Ok(vault_path.join(repo))
+}
+
+#[tauri::command(async)]
+pub fn get_git_branches(state: State<'_, AppState>, repo: Option<String>) -> Result<BranchList, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state.get_branches_use_case.execute(GetBranchesQuery { vault_path })
 }
 
 #[tauri::command]
 pub fn git_checkout_branch(
     state: State<'_, AppState>,
     branch_name: String,
+    repo: Option<String>,
 ) -> Result<String, String> {
-    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
-    };
+    let vault_path = repo_dir(&state, repo.as_deref())?;
     let result = state
         .checkout_branch_use_case
         .execute(CheckoutBranchCommand {
-            vault_path: vault_path.clone(),
+            vault_path,
             branch_name,
         })?;
 
@@ -375,13 +385,11 @@ pub fn git_create_branch(
     new_branch: String,
     base_branch: String,
     checkout: bool,
+    repo: Option<String>,
 ) -> Result<String, String> {
-    let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-    let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
-    };
+    let vault_path = repo_dir(&state, repo.as_deref())?;
     let result = state.create_branch_use_case.execute(CreateBranchCommand {
-        vault_path: vault_path.clone(),
+        vault_path,
         new_branch,
         base_branch,
         checkout,
@@ -399,14 +407,8 @@ pub fn git_create_branch(
 }
 
 #[tauri::command]
-pub async fn git_push_vault(state: State<'_, AppState>) -> Result<String, String> {
-    let vault_path = {
-        let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
-        match *guard {
-            Some(ref p) => p.clone(),
-            None => return Err("No hay ninguna bóveda abierta".to_string()),
-        }
-    };
+pub async fn git_push_vault(state: State<'_, AppState>, repo: Option<String>) -> Result<String, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
     let use_case = state.push_versions_use_case.clone();
     tauri::async_runtime::spawn_blocking(move || {
         use_case.execute(PushVersionsCommand { vault_path })

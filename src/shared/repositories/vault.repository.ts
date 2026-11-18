@@ -54,10 +54,20 @@ export interface GitFileStatus {
 
 export type GitFileStatusKind = GitFileStatus;
 
+/** Repositorio Git de la bóveda: `path` vacío es la raíz; si no, una subcarpeta. */
+export interface GitRepoInfo {
+  path: string;
+  branch?: string | null;
+  /** Archivos con cambios sin confirmar. */
+  changes: number;
+}
+
 export interface VaultGitStatus {
   is_repo: boolean;
   branch?: string | null;
   statuses: Record<string, GitFileStatus>;
+  /** Todos los repositorios: la raíz y los de subcarpetas. */
+  repos?: GitRepoInfo[];
 }
 
 export interface GitDiffResponse {
@@ -406,7 +416,7 @@ export interface VaultRepository {
   /**
    * Ejecuta `git push` en la bóveda actual hacia el remoto.
    */
-  gitPush(): Promise<string>;
+  gitPush(repo?: string): Promise<string>;
 
   /**
    * Obtiene el diff (unificado) de un archivo respecto al índice o a HEAD (o una revisión específica).
@@ -435,12 +445,12 @@ export interface VaultRepository {
   /**
    * Obtiene la lista de ramas locales y remotas del repositorio Git de la bóveda.
    */
-  getGitBranches(): Promise<GitBranchesResult>;
+  getGitBranches(repo?: string): Promise<GitBranchesResult>;
 
   /**
    * Cambia de rama en el repositorio Git de la bóveda (git checkout).
    */
-  gitCheckout(branchName: string): Promise<string>;
+  gitCheckout(branchName: string, repo?: string): Promise<string>;
 
   /**
    * Crea una nueva rama en el repositorio Git de la bóveda.
@@ -449,6 +459,7 @@ export interface VaultRepository {
     newBranch: string;
     baseBranch?: string;
     checkout?: boolean;
+    repo?: string;
   }): Promise<string>;
 
   /**
@@ -1037,11 +1048,11 @@ export class TauriVaultRepository implements VaultRepository {
     await invokeTauri('git_restore_staged_paths', { paths });
   }
 
-  async gitPush(): Promise<string> {
+  async gitPush(repo = ''): Promise<string> {
     if (!this.isConnected()) {
       throw new Error('No hay conexión con el backend de Tauri');
     }
-    return await invokeTauri<string>('git_push_vault');
+    return await invokeTauri<string>('git_push_vault', { repo });
   }
 
   async getGitFileDiff(path: string, staged: boolean, revision?: string): Promise<GitDiffResponse> {
@@ -1139,7 +1150,7 @@ export class TauriVaultRepository implements VaultRepository {
     });
   }
 
-  async getGitBranches(): Promise<GitBranchesResult> {
+  async getGitBranches(repo = ''): Promise<GitBranchesResult> {
     if (!this.isConnected()) {
       return {
         current_branch: null,
@@ -1148,10 +1159,10 @@ export class TauriVaultRepository implements VaultRepository {
       };
     }
 
-    return await invokeTauri<GitBranchesResult>('get_git_branches');
+    return await invokeTauri<GitBranchesResult>('get_git_branches', { repo });
   }
 
-  async gitCheckout(branchName: string): Promise<string> {
+  async gitCheckout(branchName: string, repo = ''): Promise<string> {
     if (!this.isConnected()) {
       throw new Error('No hay conexión con la bóveda');
     }
@@ -1159,6 +1170,7 @@ export class TauriVaultRepository implements VaultRepository {
     return await invokeTauri<string>('git_checkout_branch', {
       branchName,
       branch_name: branchName,
+      repo,
     });
   }
 
@@ -1166,6 +1178,7 @@ export class TauriVaultRepository implements VaultRepository {
     newBranch: string;
     baseBranch?: string;
     checkout?: boolean;
+    repo?: string;
   }): Promise<string> {
     if (!this.isConnected()) {
       throw new Error('No hay conexión con la bóveda');
@@ -1177,6 +1190,7 @@ export class TauriVaultRepository implements VaultRepository {
       baseBranch: params.baseBranch || '',
       base_branch: params.baseBranch || '',
       checkout: params.checkout ?? false,
+      repo: params.repo ?? '',
     });
   }
 

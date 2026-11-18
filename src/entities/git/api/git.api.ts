@@ -57,27 +57,29 @@ export const gitApi = {
     return await invokeTauri<GitFileLogResult>('get_git_file_log', { path, maxCount });
   },
 
-  async getGitBranches(): Promise<GitBranchesResult> {
-    return await invokeTauri<GitBranchesResult>('get_git_branches');
+  async getGitBranches(repo = ''): Promise<GitBranchesResult> {
+    return await invokeTauri<GitBranchesResult>('get_git_branches', { repo });
   },
 
-  async gitCheckout(branchName: string): Promise<string> {
-    return await invokeTauri<string>('git_checkout_branch', { branchName });
+  async gitCheckout(branchName: string, repo = ''): Promise<string> {
+    return await invokeTauri<string>('git_checkout_branch', { branchName, repo });
   },
 
   async gitCreateBranch(params: {
     newBranch: string;
     baseBranch: string;
     checkout: boolean;
+    repo?: string;
   }): Promise<string> {
     return await invokeTauri<string>('git_create_branch', {
       newBranch: params.newBranch,
       baseBranch: params.baseBranch,
       checkout: params.checkout,
+      repo: params.repo ?? '',
     });
   },
 
-  async gitPush(): Promise<string> {
-    return await invokeTauri<string>('git_push_vault');
+  async gitPush(repo = ''): Promise<string> {
+    return await invokeTauri<string>('git_push_vault', { repo });
   },
 };

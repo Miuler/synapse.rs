@@ -57,7 +57,7 @@
   import { measured } from '@shared/lib/perf-probe';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { invokeTauri } from '@shared/repositories/tauri';
-  import {gitApi} from "@entities/git";
+  import {gitApi, gitDialogState, repoOf, type GitRepoInfo} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
   import {systemApi, type McpRuntimeStatus} from "@shared/api";
@@ -292,7 +292,7 @@
   }
 
   let isPushingGit = $state(false);
-  async function handleGitPush() {
+  async function handleGitPush(repo: string = activeGitRepo) {
     if (isPushingGit) return;
     if (!isGitRepo && !appSettings.lastOpenedFolder) {
       showWorkspaceToast('No hay repositorio Git activo');
@@ -301,7 +301,7 @@
     isPushingGit = true;
     showWorkspaceToast('Enviando cambios a Git (push)...');
     try {
-      const res = await gitApi.gitPush();
+      const res = await gitApi.gitPush(repo);
       showWorkspaceToast(res || 'Git push completado');
       await refreshGitStatus();
     } catch (e: unknown) {
@@ -361,7 +361,7 @@
 
   // Estado de control de versiones Git
   let isGitRepo = $state(false);
-  let gitBranch = $state<string | null>(null);
+  let gitRepos = $state<GitRepoInfo[]>([]);
   let gitStatuses = $state<Record<string, GitFileStatusKind>>({});
 
   async function refreshGitStatus() {
@@ -370,13 +370,14 @@
       const status = await vaultRepository.getGitStatus();
       if (status && status.is_repo) {
         isGitRepo = true;
-        gitBranch = status.branch ?? null;
         gitStatuses = status.statuses ?? {};
+        gitRepos = status.repos?.length ? status.repos : [{ path: '', branch: status.branch ?? null, changes: 0 }];
       } else {
         isGitRepo = false;
-        gitBranch = null;
         gitStatuses = {};
+        gitRepos = [];
       }
+      gitDialogState.repos = gitRepos;
     } catch (e) {
       console.warn("Error al refrescar estado de Git:", e);
     }
@@ -2106,6 +2107,9 @@
 
   // Una copia de pestaña (`copy:n:…`) cuenta como su archivo
   let activeFile = $derived(activeTabPath ? baseTabPath(activeTabPath) : null);
+  // Repositorio del archivo activo (el más cercano que lo contiene) y su rama
+  let activeGitRepo = $derived(repoOf(activeFile, gitRepos));
+  let gitBranch = $derived(gitRepos.find((r) => r.path === activeGitRepo)?.branch ?? null);
   let activeSplitFile = $derived(activeSplitTabPath ? baseTabPath(activeSplitTabPath) : null);
 
   let hasActiveContent = $derived(
@@ -3474,7 +3478,7 @@
         name: "Git: Enviar cambios al remoto (git push)",
         category: "Git",
         shortcut: shortcutsConfig.workspace.git_push,
-        action: handleGitPush,
+        action: () => handleGitPush(),
       },
       {
         id: "cmd-git-add-active",
@@ -4135,6 +4139,7 @@
       isGitRepo={isStandaloneMode ? false : isGitRepo}
       gitBranch={isStandaloneMode ? null : gitBranch}
       isStandalone={isStandaloneMode}
+      onGitPush={(repo) => handleGitPush(repo)}
       {lockedFiles}
       onToggleLockFile={handleToggleLockFile}
       onSelectTab={handleSelectTabFromExplorer}
