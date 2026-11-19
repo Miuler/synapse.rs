@@ -178,8 +178,12 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
           shared-key: "synapse-release-windows"
-          cache-directories: |
-            ~/.cache/xwin
+
+      - name: Cache xwin (MSVC CRT y SDK)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/xwin
+          key: ${{ runner.os }}-xwin-0.23.1
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
