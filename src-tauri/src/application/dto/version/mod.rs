@@ -12,3 +12,7 @@ pub mod revert_files_command;
 pub mod save_version_command;
 pub mod track_files_command;
 pub mod untrack_files_command;
+pub mod get_repo_log_query;
+pub mod get_commit_details_query;
+pub mod create_tag_command;
+pub mod delete_ref_command;

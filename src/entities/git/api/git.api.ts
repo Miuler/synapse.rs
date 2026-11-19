@@ -6,6 +6,8 @@ import type {
   GitImageDiffResult,
   GitFileLogResult,
   GitBranchesResult,
+  GitRepoLogResult,
+  GitCommitDetails,
 } from '../model/types';
 
 export const gitApi = {
@@ -59,6 +61,29 @@ export const gitApi = {
 
   async getGitBranches(repo = ''): Promise<GitBranchesResult> {
     return await invokeTauri<GitBranchesResult>('get_git_branches', { repo });
+  },
+
+  /** Log de todas las ramas del repositorio (`repo` relativo a la bóveda; `''` = la raíz). */
+  async getGitRepoLog(repo = '', maxCount = 1000): Promise<GitRepoLogResult> {
+    return await invokeTauri<GitRepoLogResult>('get_git_repo_log', { repo, maxCount });
+  },
+
+  async getGitCommitDetails(commit: string, repo = ''): Promise<GitCommitDetails> {
+    return await invokeTauri<GitCommitDetails>('get_git_commit_details', { repo, commit });
+  },
+
+  async gitCreateTag(params: { name: string; commit: string; message?: string; repo?: string }): Promise<string> {
+    return await invokeTauri<string>('git_create_tag', {
+      repo: params.repo ?? '',
+      name: params.name,
+      commit: params.commit,
+      message: params.message || null,
+    });
+  },
+
+  /** Borra un tag o una rama local (`force` = `git branch -D`). */
+  async gitDeleteRef(kind: 'tag' | 'branch', name: string, repo = '', force = false): Promise<string> {
+    return await invokeTauri<string>('git_delete_ref', { repo, kind, name, force });
   },
 
   async gitCheckout(branchName: string, repo = ''): Promise<string> {

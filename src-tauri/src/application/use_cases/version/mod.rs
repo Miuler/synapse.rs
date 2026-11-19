@@ -12,3 +12,7 @@ pub mod revert_files_use_case;
 pub mod save_version_use_case;
 pub mod track_files_use_case;
 pub mod untrack_files_use_case;
+pub mod get_repo_log_use_case;
+pub mod get_commit_details_use_case;
+pub mod create_tag_use_case;
+pub mod delete_ref_use_case;

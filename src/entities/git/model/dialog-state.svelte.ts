@@ -31,6 +31,7 @@ class GitDialogState {
   isBranchDialogOpen = $state(false);
   isCommitDialogOpen = $state(false);
   isFileLogOpen = $state(false);
+  isRepoLogOpen = $state(false);
   commitPaths = $state<string[]>([]);
   fileLogTarget = $state<string | null>(null);
 
@@ -58,6 +59,12 @@ class GitDialogState {
   closeCommitDialog() {
     this.isCommitDialogOpen = false;
     this.commitPaths = [];
+  }
+
+  /** Log de todas las ramas del repositorio (estilo Git Log de JetBrains). */
+  openRepoLog(repo?: string) {
+    this.repo = this.pick(repo ?? this.repo);
+    this.isRepoLogOpen = true;
   }
 
   openFileLog(path: string) {

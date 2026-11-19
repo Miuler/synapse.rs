@@ -2,6 +2,7 @@
   import GitBranchDialog from './GitBranchDialog.svelte';
   import GitCommitDialog from './GitCommitDialog.svelte';
   import GitFileLogDialog from './GitFileLogDialog.svelte';
+  import GitRepoLogDialog from './GitRepoLogDialog.svelte';
   import {
     gitDialogState,
     gitApi,
@@ -137,4 +138,13 @@
   {onPatchRevision}
   {onCompareRevisions}
   {onAskAgent}
+/>
+
+<GitRepoLogDialog
+  bind:open={gitDialogState.isRepoLogOpen}
+  onOpenFileDiff={onPatchRevision}
+  onRepoChanged={async () => {
+    if (onRefreshGit) await onRefreshGit();
+  }}
+  {onToast}
 />

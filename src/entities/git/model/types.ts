@@ -99,3 +99,46 @@ export interface GitFileLogResult {
   path: string;
   commits: GitCommitLogItem[];
 }
+
+/** Rama o tag que apunta a un commit del log del repositorio. */
+export interface GitCommitRef {
+  name: string;
+  kind: 'local' | 'remote' | 'tag';
+  is_head: boolean;
+}
+
+/** Commit del log de todas las ramas (`git log --all`). */
+export interface GitRepoCommit {
+  commit_hash: string;
+  short_hash: string;
+  parents: string[];
+  author_name: string;
+  author_email: string;
+  date: string;
+  timestamp: number;
+  message: string;
+  refs: GitCommitRef[];
+}
+
+export interface GitRepoLogResult {
+  head: string | null;
+  commits: GitRepoCommit[];
+}
+
+export interface GitCommitFileChange {
+  /** Relativa al repositorio. */
+  path: string;
+  change: string;
+  previous_path: string | null;
+}
+
+export interface GitCommitDetails {
+  commit_hash: string;
+  parents: string[];
+  author_name: string;
+  author_email: string;
+  committer_name: string;
+  date: string;
+  message: string;
+  files: GitCommitFileChange[];
+}

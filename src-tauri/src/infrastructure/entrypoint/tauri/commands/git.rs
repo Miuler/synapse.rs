@@ -1,6 +1,10 @@
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
 use crate::application::dto::version::create_branch_command::CreateBranchCommand;
 use crate::application::dto::version::get_branches_query::GetBranchesQuery;
+use crate::application::dto::version::get_commit_details_query::GetCommitDetailsQuery;
+use crate::application::dto::version::get_repo_log_query::GetRepoLogQuery;
+use crate::application::dto::version::create_tag_command::CreateTagCommand;
+use crate::application::dto::version::delete_ref_command::{DeleteRefCommand, RefToDelete};
 use crate::application::dto::version::get_file_diff_query::GetFileDiffQuery;
 use crate::application::dto::version::get_file_revision_query::GetFileRevisionQuery;
 use crate::application::dto::version::get_file_version_history_query::GetFileVersionHistoryQuery;
@@ -12,7 +16,8 @@ use crate::application::dto::version::save_version_command::SaveVersionCommand;
 use crate::application::dto::version::track_files_command::TrackFilesCommand;
 use crate::application::dto::version::untrack_files_command::UntrackFilesCommand;
 use crate::domain::version::version::{
-    BranchList, FileDiff, FileRevision, FileVersionHistory, ImageDiff, VaultVersionState,
+    BranchList, CommitDetails, FileDiff, FileRevision, FileVersionHistory, ImageDiff, RepoLog,
+    VaultVersionState,
 };
 use crate::infrastructure::config::state::AppState;
 use std::path::PathBuf;
@@ -354,6 +359,66 @@ fn repo_dir(state: &State<'_, AppState>, repo: Option<&str>) -> Result<PathBuf, 
 pub fn get_git_branches(state: State<'_, AppState>, repo: Option<String>) -> Result<BranchList, String> {
     let vault_path = repo_dir(&state, repo.as_deref())?;
     state.get_branches_use_case.execute(GetBranchesQuery { vault_path })
+}
+
+/// Log de todas las ramas del repositorio elegido, con padres y refs para dibujar el grafo.
+#[tauri::command(async)]
+pub fn get_git_repo_log(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    max_count: Option<usize>,
+) -> Result<RepoLog, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state
+        .get_repo_log_use_case
+        .execute(GetRepoLogQuery { vault_path, max_count })
+        .map_err(|err| {
+            log::error!("[commands::get_git_repo_log] {}", err);
+            err
+        })
+}
+
+/// Mensaje completo y archivos cambiados de un commit (rutas relativas al repositorio).
+#[tauri::command(async)]
+pub fn get_git_commit_details(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    commit: String,
+) -> Result<CommitDetails, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state
+        .get_commit_details_use_case
+        .execute(GetCommitDetailsQuery { vault_path, commit })
+}
+
+#[tauri::command]
+pub fn git_create_tag(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    name: String,
+    commit: String,
+    message: Option<String>,
+) -> Result<String, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state.create_tag_use_case.execute(CreateTagCommand { vault_path, name, commit, message })
+}
+
+/// Borra un tag (`kind` = `tag`) o una rama local (`kind` = `branch`, `force` = `-D`).
+#[tauri::command]
+pub fn git_delete_ref(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    kind: String,
+    name: String,
+    force: Option<bool>,
+) -> Result<String, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    let target = match kind.as_str() {
+        "tag" => RefToDelete::Tag(name),
+        "branch" => RefToDelete::Branch { name, force: force.unwrap_or(false) },
+        other => return Err(format!("Tipo de referencia no válido: {other}")),
+    };
+    state.delete_ref_use_case.execute(DeleteRefCommand { vault_path, target })
 }
 
 #[tauri::command]

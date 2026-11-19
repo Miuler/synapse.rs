@@ -3474,6 +3474,12 @@
         action: refreshGitStatus,
       },
       {
+        id: "cmd-git-repo-log",
+        name: "Git: Log de todas las ramas (git log --all)",
+        category: "Git",
+        action: () => gitDialogState.openRepoLog(repoOf(activeTabPath, gitDialogState.repos)),
+      },
+      {
         id: "cmd-git-push",
         name: "Git: Enviar cambios al remoto (git push)",
         category: "Git",

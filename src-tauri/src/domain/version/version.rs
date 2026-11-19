@@ -114,3 +114,59 @@ pub struct FileVersionHistory {
     pub path: String,
     pub commits: Vec<VersionEntry>,
 }
+
+/// Referencia que apunta a un commit en el log del repositorio.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CommitRef {
+    /// Nombre corto (`main`, `origin/main`, `v1.0`).
+    pub name: String,
+    /// `local`, `remote` o `tag`.
+    pub kind: String,
+    /// La rama local en la que está HEAD.
+    #[serde(default)]
+    pub is_head: bool,
+}
+
+/// Un commit del log de todas las ramas del repositorio.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RepoCommit {
+    pub commit_hash: String,
+    pub short_hash: String,
+    pub parents: Vec<String>,
+    pub author_name: String,
+    pub author_email: String,
+    pub date: String,
+    pub timestamp: i64,
+    pub message: String,
+    pub refs: Vec<CommitRef>,
+}
+
+/// Log de todas las ramas del repositorio (`git log --all`), del más nuevo al más antiguo.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RepoLog {
+    /// Commit en el que está HEAD.
+    pub head: Option<String>,
+    pub commits: Vec<RepoCommit>,
+}
+
+/// Archivo que cambió en un commit, relativo al repositorio.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CommitFileChange {
+    pub path: String,
+    /// `A`, `M`, `D`, `R`, `C`, `T`.
+    pub change: String,
+    pub previous_path: Option<String>,
+}
+
+/// Detalles de un commit: mensaje completo y archivos cambiados respecto a su primer padre.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CommitDetails {
+    pub commit_hash: String,
+    pub parents: Vec<String>,
+    pub author_name: String,
+    pub author_email: String,
+    pub committer_name: String,
+    pub date: String,
+    pub message: String,
+    pub files: Vec<CommitFileChange>,
+}

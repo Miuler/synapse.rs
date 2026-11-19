@@ -12,7 +12,7 @@
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
+  import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
   import { measured } from '@shared/lib/perf-probe';
@@ -2486,6 +2486,10 @@
           <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openBranchDialog(repoPath)}>
             <GitBranch class="context-menu-item-icon" />
             <span>Ramas de «{repoLabel(repoPath)}»…</span>
+          </ContextMenu.Item>
+          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openRepoLog(repoPath)}>
+            <GitGraph class="context-menu-item-icon" />
+            <span>Git Log de «{repoLabel(repoPath)}»…</span>
           </ContextMenu.Item>
           <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openCommitDialog([], repoPath)}>
             <GitCommitHorizontal class="context-menu-item-icon" />

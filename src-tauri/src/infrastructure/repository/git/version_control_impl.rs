@@ -1,6 +1,7 @@
 pub use crate::domain::version::version::{
-    Branch, BranchList, FileDiff, FileRevision, FileVersionHistory, FileVersionState, ImageDiff,
-    VaultVersionState, VersionEntry,
+    Branch, BranchList, CommitDetails, CommitFileChange, CommitRef, FileDiff, FileRevision,
+    FileVersionHistory, FileVersionState, ImageDiff, RepoCommit, RepoLog, VaultVersionState,
+    VersionEntry,
 };
 use crate::domain::version::version::RepoInfo;
 use crate::domain::version::version_control::VersionControl;
@@ -117,6 +118,26 @@ impl VersionControl for VersionControlImpl {
     // Ramas y push: `vault_path` ya es la carpeta del repositorio elegido.
     fn get_branches(&self, vault_path: &Path) -> Result<BranchList, String> {
         self.get_branches(vault_path)
+    }
+
+    fn get_repo_log(&self, vault_path: &Path, max_count: Option<usize>) -> Result<RepoLog, String> {
+        repo_log::get_repo_log(vault_path, max_count)
+    }
+
+    fn get_commit_details(&self, vault_path: &Path, commit: &str) -> Result<CommitDetails, String> {
+        repo_log::get_commit_details(vault_path, commit)
+    }
+
+    fn create_tag(&self, vault_path: &Path, name: &str, commit: &str, message: Option<&str>) -> Result<String, String> {
+        repo_log::create_tag(vault_path, name, commit, message)
+    }
+
+    fn delete_tag(&self, vault_path: &Path, name: &str) -> Result<String, String> {
+        repo_log::delete_tag(vault_path, name)
+    }
+
+    fn delete_branch(&self, vault_path: &Path, name: &str, force: bool) -> Result<String, String> {
+        repo_log::delete_branch(vault_path, name, force)
     }
 
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
@@ -2659,5 +2680,273 @@ mod tag_refs_tests {
     fn extrae_los_tags() {
         assert_eq!(parse_tag_refs("tag: v1.0, tag: v2"), vec!["v1.0", "v2"]);
         assert!(parse_tag_refs("").is_empty());
+    }
+}
+
+/// Log de todas las ramas del repositorio y detalles de un commit, con la CLI de git.
+mod repo_log {
+    use super::{CommitDetails, CommitFileChange, CommitRef, RepoCommit, RepoLog};
+    use std::path::Path;
+
+    fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
+        let out = std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .map_err(|e| format!("Error ejecutando git: {e}"))?;
+        if !out.status.success() {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    /// Referencias de `%D` con `--decorate=full`: ramas locales, remotas y tags.
+    pub(super) fn parse_refs(decoration: &str) -> Vec<CommitRef> {
+        let mut refs = Vec::new();
+        for raw in decoration.split(", ").map(str::trim).filter(|r| !r.is_empty()) {
+            let (is_head, r) = match raw.strip_prefix("HEAD -> ") {
+                Some(rest) => (true, rest),
+                None => (false, raw),
+            };
+            if r == "HEAD" {
+                continue;
+            }
+            let r = r.strip_prefix("tag: ").unwrap_or(r);
+            let (kind, name) = if let Some(n) = r.strip_prefix("refs/heads/") {
+                ("local", n)
+            } else if let Some(n) = r.strip_prefix("refs/remotes/") {
+                if n.ends_with("/HEAD") {
+                    continue;
+                }
+                ("remote", n)
+            } else if let Some(n) = r.strip_prefix("refs/tags/") {
+                ("tag", n)
+            } else {
+                continue;
+            };
+            refs.push(CommitRef { name: name.to_string(), kind: kind.to_string(), is_head });
+        }
+        // La rama de HEAD primero, luego locales, remotas y tags
+        refs.sort_by_key(|r| (!r.is_head, match r.kind.as_str() { "local" => 0, "remote" => 1, _ => 2 }));
+        refs
+    }
+
+    pub fn get_repo_log(dir: &Path, max_count: Option<usize>) -> Result<RepoLog, String> {
+        let limit = max_count.unwrap_or(1000).to_string();
+        let head = git(dir, &["rev-parse", "--verify", "-q", "HEAD"])
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        // Un repositorio sin commits no tiene log
+        if head.is_none() && git(dir, &["rev-list", "-n", "1", "--all"]).map(|s| s.trim().is_empty()).unwrap_or(true) {
+            return Ok(RepoLog { head: None, commits: Vec::new() });
+        }
+        let out = git(
+            dir,
+            &[
+                "log",
+                "--exclude=refs/stash",
+                "--all",
+                "--date-order",
+                "--decorate=full",
+                "--format=\x1e%H\x1f%h\x1f%P\x1f%an\x1f%ae\x1f%aI\x1f%at\x1f%D\x1f%s",
+                "-n",
+                &limit,
+            ],
+        )?;
+        let commits = out
+            .split('\x1e')
+            .filter_map(|block| {
+                let p: Vec<&str> = block.trim_end_matches('\n').splitn(9, '\x1f').collect();
+                if p.len() < 9 {
+                    return None;
+                }
+                Some(RepoCommit {
+                    commit_hash: p[0].trim().to_string(),
+                    short_hash: p[1].to_string(),
+                    parents: p[2].split_whitespace().map(str::to_string).collect(),
+                    author_name: p[3].to_string(),
+                    author_email: p[4].to_string(),
+                    date: p[5].to_string(),
+                    timestamp: p[6].parse().unwrap_or(0),
+                    refs: parse_refs(p[7]),
+                    message: p[8].trim().to_string(),
+                })
+            })
+            .collect();
+        Ok(RepoLog { head, commits })
+    }
+
+    pub fn get_commit_details(dir: &Path, commit: &str) -> Result<CommitDetails, String> {
+        if commit.is_empty() || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("Commit no válido: {commit}"));
+        }
+        let header = git(
+            dir,
+            &["show", "-s", "--format=%H\x1f%P\x1f%an\x1f%ae\x1f%cn\x1f%aI\x1f%B", commit],
+        )?;
+        let p: Vec<&str> = header.splitn(7, '\x1f').collect();
+        if p.len() < 7 {
+            return Err(format!("No se pudo leer el commit {commit}"));
+        }
+        let hash = p[0].trim().to_string();
+        let parents: Vec<String> = p[1].split_whitespace().map(str::to_string).collect();
+        // Cambios respecto al primer padre (o todo el árbol en el commit raíz)
+        let names = match parents.first() {
+            Some(parent) => git(dir, &["diff-tree", "-r", "-M", "--name-status", "-z", parent, &hash])?,
+            None => git(dir, &["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z", &hash])?,
+        };
+        Ok(CommitDetails {
+            commit_hash: hash,
+            parents,
+            author_name: p[2].to_string(),
+            author_email: p[3].to_string(),
+            committer_name: p[4].to_string(),
+            date: p[5].to_string(),
+            message: p[6].trim().to_string(),
+            files: parse_name_status_z(&names),
+        })
+    }
+
+    /// Nombre de ref válido para git (y que no se confunda con una opción).
+    fn check_ref_name(dir: &Path, kind: &str, name: &str) -> Result<(), String> {
+        let full = format!("refs/{kind}/{name}");
+        if name.is_empty() || name.starts_with('-') || git(dir, &["check-ref-format", &full]).is_err() {
+            return Err(format!("«{name}» no es un nombre válido"));
+        }
+        Ok(())
+    }
+
+    pub fn create_tag(dir: &Path, name: &str, commit: &str, message: Option<&str>) -> Result<String, String> {
+        check_ref_name(dir, "tags", name)?;
+        if commit.is_empty() || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("Commit no válido: {commit}"));
+        }
+        match message {
+            Some(m) => git(dir, &["tag", "-a", name, "-m", m, commit]),
+            None => git(dir, &["tag", name, commit]),
+        }
+        .map_err(|e| format!("No se pudo crear el tag: {e}"))?;
+        Ok(format!("Tag «{name}» creado"))
+    }
+
+    pub fn delete_tag(dir: &Path, name: &str) -> Result<String, String> {
+        check_ref_name(dir, "tags", name)?;
+        git(dir, &["tag", "-d", name]).map_err(|e| format!("No se pudo borrar el tag: {e}"))?;
+        Ok(format!("Tag «{name}» borrado"))
+    }
+
+    pub fn delete_branch(dir: &Path, name: &str, force: bool) -> Result<String, String> {
+        check_ref_name(dir, "heads", name)?;
+        git(dir, &["branch", if force { "-D" } else { "-d" }, name]).map_err(|e| {
+            if e.contains("not fully merged") {
+                format!("La rama «{name}» tiene commits sin fusionar")
+            } else {
+                format!("No se pudo borrar la rama: {e}")
+            }
+        })?;
+        Ok(format!("Rama «{name}» borrada"))
+    }
+
+    /// Salida de `--name-status -z`: `M\0ruta\0`, `R090\0vieja\0nueva\0`.
+    pub(super) fn parse_name_status_z(out: &str) -> Vec<CommitFileChange> {
+        let mut it = out.split('\0').filter(|s| !s.is_empty());
+        let mut files = Vec::new();
+        while let Some(status) = it.next() {
+            let kind = &status[..1];
+            if kind == "R" || kind == "C" {
+                let (Some(old), Some(new)) = (it.next(), it.next()) else { break };
+                files.push(CommitFileChange {
+                    path: new.to_string(),
+                    change: kind.to_string(),
+                    previous_path: Some(old.to_string()),
+                });
+            } else if let Some(path) = it.next() {
+                files.push(CommitFileChange { path: path.to_string(), change: kind.to_string(), previous_path: None });
+            }
+        }
+        files
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn clasifica_refs_y_pone_head_primero() {
+            let refs = parse_refs("HEAD -> refs/heads/main, tag: refs/tags/v1, refs/remotes/origin/main, refs/remotes/origin/HEAD, refs/heads/dev");
+            let names: Vec<_> = refs.iter().map(|r| (r.name.as_str(), r.kind.as_str(), r.is_head)).collect();
+            assert_eq!(
+                names,
+                vec![("main", "local", true), ("dev", "local", false), ("origin/main", "remote", false), ("v1", "tag", false)]
+            );
+        }
+
+        #[test]
+        fn lee_name_status_con_renombres() {
+            let f = parse_name_status_z("M\0a.md\0R100\0viejo.md\0nuevo.md\0A\0b.md\0");
+            assert_eq!(f.len(), 3);
+            assert_eq!(f[1].path, "nuevo.md");
+            assert_eq!(f[1].previous_path.as_deref(), Some("viejo.md"));
+            assert_eq!(f[2].change, "A");
+        }
+
+        #[test]
+        fn log_de_todas_las_ramas_con_fusion() {
+            let dir = tempfile::tempdir().unwrap();
+            let d = dir.path();
+            let g = |args: &[&str]| {
+                let ok = std::process::Command::new("git").current_dir(d).args(args)
+                    .env("GIT_AUTHOR_NAME", "T").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "T").env("GIT_COMMITTER_EMAIL", "t@t")
+                    .status().unwrap().success();
+                assert!(ok, "git {args:?}");
+            };
+            g(&["init", "-q", "-b", "main"]);
+            std::fs::write(d.join("a.md"), "1").unwrap();
+            g(&["add", "."]);
+            g(&["commit", "-qm", "uno"]);
+            g(&["checkout", "-qb", "dev"]);
+            std::fs::write(d.join("b.md"), "2").unwrap();
+            g(&["add", "."]);
+            g(&["commit", "-qm", "dos"]);
+            g(&["tag", "v1"]);
+            g(&["checkout", "-q", "main"]);
+            std::fs::write(d.join("a.md"), "3").unwrap();
+            g(&["commit", "-qam", "tres"]);
+            g(&["merge", "-q", "--no-ff", "-m", "fusión", "dev"]);
+
+            let log = get_repo_log(d, None).unwrap();
+            assert_eq!(log.commits.len(), 4);
+            assert_eq!(log.commits[0].message, "fusión");
+            assert_eq!(log.commits[0].parents.len(), 2);
+            assert_eq!(log.head.as_deref(), Some(log.commits[0].commit_hash.as_str()));
+            let dos = log.commits.iter().find(|c| c.message == "dos").unwrap();
+            assert!(dos.refs.iter().any(|r| r.name == "dev" && r.kind == "local"));
+            assert!(dos.refs.iter().any(|r| r.name == "v1" && r.kind == "tag"));
+
+            let det = get_commit_details(d, &dos.commit_hash).unwrap();
+            assert_eq!(det.message, "dos");
+            assert_eq!(det.files, vec![CommitFileChange { path: "b.md".into(), change: "A".into(), previous_path: None }]);
+            let raiz = log.commits.last().unwrap();
+            assert_eq!(get_commit_details(d, &raiz.commit_hash).unwrap().files.len(), 1);
+            assert!(get_commit_details(d, "--all").is_err());
+
+            // Tags y ramas
+            assert!(create_tag(d, "v2", &raiz.commit_hash, Some("anotado")).is_ok());
+            assert!(create_tag(d, "-x", &raiz.commit_hash, None).is_err());
+            assert!(create_tag(d, "v3", "HEAD", None).is_err());
+            let log = get_repo_log(d, None).unwrap();
+            assert!(log.commits.last().unwrap().refs.iter().any(|r| r.name == "v2" && r.kind == "tag"));
+            assert!(delete_tag(d, "v2").is_ok());
+            g(&["branch", "suelta", &raiz.commit_hash]);
+            g(&["checkout", "-qb", "sin-fusionar"]);
+            std::fs::write(d.join("c.md"), "x").unwrap();
+            g(&["add", "."]);
+            g(&["commit", "-qm", "suelto"]);
+            g(&["checkout", "-q", "main"]);
+            assert!(delete_branch(d, "suelta", false).is_ok());
+            assert!(delete_branch(d, "sin-fusionar", false).unwrap_err().contains("sin fusionar"));
+            assert!(delete_branch(d, "sin-fusionar", true).is_ok());
+        }
     }
 }

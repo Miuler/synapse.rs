@@ -39,6 +39,10 @@ use crate::application::use_cases::version::checkout_branch_use_case::CheckoutBr
 use crate::application::use_cases::version::clone_repository_use_case::CloneRepositoryUseCase;
 use crate::application::use_cases::version::create_branch_use_case::CreateBranchUseCase;
 use crate::application::use_cases::version::get_branches_use_case::GetBranchesUseCase;
+use crate::application::use_cases::version::get_commit_details_use_case::GetCommitDetailsUseCase;
+use crate::application::use_cases::version::get_repo_log_use_case::GetRepoLogUseCase;
+use crate::application::use_cases::version::create_tag_use_case::CreateTagUseCase;
+use crate::application::use_cases::version::delete_ref_use_case::DeleteRefUseCase;
 use crate::application::use_cases::version::get_file_diff_use_case::GetFileDiffUseCase;
 use crate::application::use_cases::version::get_file_revision_use_case::GetFileRevisionUseCase;
 use crate::application::use_cases::version::get_file_version_history_use_case::GetFileVersionHistoryUseCase;
@@ -155,6 +159,10 @@ pub struct AppState {
     pub get_image_diff_use_case: GetImageDiffUseCase<VersionControlImpl>,
     pub get_file_version_history_use_case: GetFileVersionHistoryUseCase<VersionControlImpl>,
     pub get_branches_use_case: GetBranchesUseCase<VersionControlImpl>,
+    pub get_repo_log_use_case: GetRepoLogUseCase<VersionControlImpl>,
+    pub get_commit_details_use_case: GetCommitDetailsUseCase<VersionControlImpl>,
+    pub create_tag_use_case: CreateTagUseCase<VersionControlImpl>,
+    pub delete_ref_use_case: DeleteRefUseCase<VersionControlImpl>,
     pub checkout_branch_use_case: CheckoutBranchUseCase<VersionControlImpl>,
     pub create_branch_use_case: CreateBranchUseCase<VersionControlImpl>,
     pub clone_repository_use_case: CloneRepositoryUseCase<VersionControlImpl>,
@@ -389,6 +397,10 @@ impl AppState {
                 VersionControlImpl,
             ),
             get_branches_use_case: GetBranchesUseCase::new(VersionControlImpl),
+            get_repo_log_use_case: GetRepoLogUseCase::new(VersionControlImpl),
+            get_commit_details_use_case: GetCommitDetailsUseCase::new(VersionControlImpl),
+            create_tag_use_case: CreateTagUseCase::new(VersionControlImpl),
+            delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
             create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),
             clone_repository_use_case: CloneRepositoryUseCase::new(VersionControlImpl),
@@ -557,6 +569,10 @@ impl AppState {
                 VersionControlImpl,
             ),
             get_branches_use_case: GetBranchesUseCase::new(VersionControlImpl),
+            get_repo_log_use_case: GetRepoLogUseCase::new(VersionControlImpl),
+            get_commit_details_use_case: GetCommitDetailsUseCase::new(VersionControlImpl),
+            create_tag_use_case: CreateTagUseCase::new(VersionControlImpl),
+            delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
             create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),
             clone_repository_use_case: CloneRepositoryUseCase::new(VersionControlImpl),

@@ -60,6 +60,8 @@ export function buildFileLogGraph(commits: GraphCommit[]): GraphRow[] {
     const after = lanes.map((l) => (l?.hash === c.commit_hash ? null : l));
     while (after.length <= col) after.push(null);
     const parents = (c.parents ?? []).filter((p) => known.has(p));
+    // Carriles que este commit abre o continúa: su tramo ya es la línea que baja del punto
+    const opened = new Set<number>();
     parents.forEach((p, k) => {
       const existing = after.findIndex((l) => l?.hash === p);
       if (existing !== -1) {
@@ -77,10 +79,12 @@ export function buildFileLogGraph(commits: GraphCommit[]): GraphRow[] {
         laneColor = nextColor++;
       }
       after[target] = { hash: p, color: laneColor };
+      opened.add(target);
       segments.push({ from: col, to: target, half: 'bottom', color: laneColor });
     });
     after.forEach((l, j) => {
-      if (l && !segments.some((s) => s.half === 'bottom' && s.to === j)) {
+      // Los demás siguen de largo, aunque este commit se una a ellos en diagonal
+      if (l && !opened.has(j)) {
         segments.push({ from: j, to: j, half: 'bottom', color: l.color });
       }
     });

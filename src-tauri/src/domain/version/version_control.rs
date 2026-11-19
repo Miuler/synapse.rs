@@ -1,5 +1,5 @@
 use crate::domain::version::version::{
-    BranchList, FileDiff, FileRevision, FileVersionHistory, ImageDiff, VaultVersionState,
+    BranchList, CommitDetails, FileDiff, FileRevision, FileVersionHistory, ImageDiff, RepoLog, VaultVersionState,
 };
 use std::path::Path;
 
@@ -42,7 +42,15 @@ pub trait VersionControl: Send + Sync {
         max_count: Option<usize>,
     ) -> Result<FileVersionHistory, String>;
     fn get_branches(&self, vault_path: &Path) -> Result<BranchList, String>;
+    /// Log de todas las ramas y tags del repositorio de `vault_path`.
+    fn get_repo_log(&self, vault_path: &Path, max_count: Option<usize>) -> Result<RepoLog, String>;
+    fn get_commit_details(&self, vault_path: &Path, commit: &str) -> Result<CommitDetails, String>;
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String>;
+    /// Crea un tag en `commit` (anotado si hay `message`).
+    fn create_tag(&self, vault_path: &Path, name: &str, commit: &str, message: Option<&str>) -> Result<String, String>;
+    fn delete_tag(&self, vault_path: &Path, name: &str) -> Result<String, String>;
+    /// Borra una rama local; sin `force` git se niega si no está fusionada.
+    fn delete_branch(&self, vault_path: &Path, name: &str, force: bool) -> Result<String, String>;
     fn create_branch(
         &self,
         vault_path: &Path,
@@ -127,8 +135,28 @@ impl<T: VersionControl + ?Sized> VersionControl for &T {
         (**self).get_branches(vault_path)
     }
 
+    fn get_repo_log(&self, vault_path: &Path, max_count: Option<usize>) -> Result<RepoLog, String> {
+        (**self).get_repo_log(vault_path, max_count)
+    }
+
+    fn get_commit_details(&self, vault_path: &Path, commit: &str) -> Result<CommitDetails, String> {
+        (**self).get_commit_details(vault_path, commit)
+    }
+
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
         (**self).checkout_branch(vault_path, branch_name)
+    }
+
+    fn create_tag(&self, vault_path: &Path, name: &str, commit: &str, message: Option<&str>) -> Result<String, String> {
+        (**self).create_tag(vault_path, name, commit, message)
+    }
+
+    fn delete_tag(&self, vault_path: &Path, name: &str) -> Result<String, String> {
+        (**self).delete_tag(vault_path, name)
+    }
+
+    fn delete_branch(&self, vault_path: &Path, name: &str, force: bool) -> Result<String, String> {
+        (**self).delete_branch(vault_path, name, force)
     }
 
     fn create_branch(
