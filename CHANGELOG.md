@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **`SECURITY.md`** (cómo reportar y cómo verificar un binario) y una sección «Seguridad y privacidad» en el README con el mapa de conexiones de red de la app.
+
+### Cambiado
+
+- **README de presentación**: el README es ahora la presentación del producto (antes `docs/about.md`, que queda como enlace a él); la documentación de desarrollo pasa a `CONTRIBUTING.md`. Ya no dice «100 % local»: Synapse es local-first y una sección nueva, «Qué sale de tu equipo», detalla qué funciones usan la red (draw.io, PlantUML, agentes de IA, plugins, Git) y qué viaja en cada una. La landing (`docs/index.html`) se corrige igual.
+
 ## [1.0.0-beta.4] - 2026-11-19
 
 ### Añadido

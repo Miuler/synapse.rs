@@ -1,129 +1,240 @@
-# Synapse.rs 🧠
+# Synapse.rs 🧠⚡
 
-Aplicación de notas de conocimiento personal desarrollada en **Rust** (Tauri v2) y **Svelte 5** (Runes) con **Bun**, estructurada bajo **Feature-Sliced Design (FSD)** en el frontend y **Arquitectura Cebolla (Onion Architecture)** en el backend de Rust.
+[![CI](https://github.com/Miuler/synapse.rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/ci.yml)
+[![Security](https://github.com/Miuler/synapse.rs/actions/workflows/security.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/security.yml)
+[![CodeQL](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Miuler/synapse.rs/badge)](https://scorecard.dev/viewer/?uri=github.com/Miuler/synapse.rs)
 
-## ✨ Características
-
-- 📝 **Editor Markdown**: Integrado con Milkdown y vista previa en tiempo real.
-- 📊 **Editor Mermaid**: Edición avanzada con CodeMirror 6, resaltado de sintaxis nativo para diagramas Mermaid y visualizador interactivo con puntero láser.
-- 🎨 **Visualizador Excalidraw**: Soporte completo para gráficos dibujados a mano con pestañas independientes y guardado configurable.
-- ⚡ **Modo VIM**: Integración con `@replit/codemirror-vim` activable/desactivable en tiempo real desde el botón de la barra de estado.
-- 🗂️ **Arquitectura Multipestaña (Tabs)**: Contexto aislado por archivo abierto e indicador visual de cambios sin guardar (`*`).
-- 🏗️ **Feature-Sliced Design (FSD)**: Organización modular por capas (`app`, `pages`, `widgets`, `features`, `entities`, `shared`).
+> **Gestión de notas, conocimiento personal y arquitectura visual.**  
+> Desarrollado en **Rust (Tauri v2)** y **Svelte 5**.  
+> *Local-first, sin telemetría y con rendimiento nativo.*
 
 ---
 
-## 🏛️ Arquitectura Frontend: Feature-Sliced Design (FSD)
-
-El código frontend dentro de `src` sigue rigurosamente los principios de **Feature-Sliced Design (FSD)** para maximizar la mantenibilidad, escalabilidad y aislamiento entre módulos.
-
-### 📐 Estructura de Capas (Layers) y Slices
-
-```
-src/
-├── app/                      # Capa App: Inicialización de la aplicación, estilos globales y punto de entrada raíz
-│   ├── styles/               # CSS global y sistema de tokens (--bg-primary, --accent, etc.)
-│   └── App.svelte            # Montaje raíz de la aplicación Svelte
-│
-├── pages/                    # Capa Pages: Composición de vistas y páginas completas
-│   └── workspace/            # Página principal del área de trabajo (WorkspacePage)
-│
-├── widgets/                  # Capa Widgets: Bloques UI complejos y autónomos
-│   ├── ribbon/               # Barra de herramientas e iconos laterales (Ribbon)
-│   ├── editor-header/        # Encabezado superior con navegación de pestañas y controles de ventana
-│   ├── status-bar/           # Barra de estado inferior con contadores, sync e indicador VIM
-│   └── command-palette/      # Modal superpuesto para la paleta de comandos (Ctrl+P)
-│
-├── features/                 # Capa Features: Funcionalidades orientadas a la interacción del usuario
-│   ├── vault-explorer/       # Explorador de archivos de la bóveda (Markdown, Mermaid, Excalidraw, PDFs, etc.)
-│   ├── markdown-editor/      # Editor y visor de notas Markdown con Milkdown
-│   ├── merman-editor/        # Editor/visor interactivo de diagramas Mermaid + Láser
-│   └── excalidraw-editor/    # Visualizador e integrador de lienzos Excalidraw
-│
-├── entities/                 # Capa Entities: Entidades de negocio y modelos del dominio
-│   ├── vault-item/           # Modelo de elemento de bóveda (`VaultItem`, `VaultItemKind`, `TabItem`)
-│   └── command/              # Registro de comandos y motor de búsqueda difusa (`commandRegistry`)
-│
-└── shared/                   # Capa Shared: Reutilizables de infraestructura sin lógica de negocio
-    ├── api/                  # Invocación IPC Tauri (`invokeTauri`, `isTauriEnvironment`)
-    ├── ui/code-editor/       # Envoltorio genérico de editor de código CodeMirror 6
-    └── assets/               # Imágenes, logotipos y recursos estáticos
-```
-
-### 🔒 Reglas de Arquitectura FSD
-
-1. **Jerarquía Unidireccional de Importaciones**: Las capas superiores solo pueden importar elementos de capas inferiores.
-   $$\text{app} \longrightarrow \text{pages} \longrightarrow \text{widgets} \longrightarrow \text{features} \longrightarrow \text{entities} \longrightarrow \text{shared}$$
-2. **Sin Importaciones Horizontales entre Slices**: Un slice dentro de `features/` o `widgets/` no puede importar directamente de otro slice de la misma capa. Si se requiere compartir componentes base (como el editor CodeMirror), residen en `shared/ui`.
-3. **Puntos de Entrada Públicos (`index.ts`)**: Cada slice expone únicamente su interfaz pública mediante su correspondiente `index.ts`.
-
-### ⚡ Alias de Rutas Configurados
-
-Para evitar rutas relativas compuestas (`..`), el proyecto cuenta con alias explícitos en `tsconfig.app.json` y `vite.config.ts`:
-
-- `@app/*` → `src/app/*`
-- `@pages/*` → `src/pages/*`
-- `@widgets/*` → `src/widgets/*`
-- `@features/*` → `src/features/*`
-- `@entities/*` → `src/entities/*`
-- `@shared/*` → `src/shared/*`
+![Synapse.rs Interfaz](docs/synapsers.png)
 
 ---
 
-## 🧅 Arquitectura Backend: Onion Architecture
+## 💡 ¿Qué es Synapse?
 
-El código Rust en `src-tauri` implementa **Arquitectura Cebolla (Onion Architecture)**:
+Synapse es un espacio de trabajo para pensar, escribir notas y modelar arquitecturas de software sin intermediarios ni dependencias en la nube. Hoy es especialmente útil para **desarrolladores y arquitectos**: la arquitectura se escribe como código (D2, Mermaid, PlantUML, ADR en Markdown), vive en Git junto al proyecto y tus agentes de IA la leen, la dibujan y la editan contigo.
 
-- **Domain**: Tipos del sistema de archivos, bóveda y structs base.
-- **Application Services**: Comandos IPC (`get_vault_notes`, `save_note_content`, `select_vault_folder`).
-- **Adapters / Infrastructure**: Sistema de archivos del sistema operativo e integración con Tauri v2 Core.
+La mayoría de herramientas modernas sufren del mismo problema: consumen cientos de megabytes de RAM por usar Electron o bloquean tus datos tras formatos propietarios y suscripciones en la nube. Synapse está construido sobre una premisa simple: **tus archivos son tuyos y la herramienta debe ser inmediata.**
 
----
-
-## 🚀 Requisitos Previos
-
-- [Bun](https://bun.sh/) `>= 1.0`
-- [Rust & Cargo](https://www.rust-lang.org/)
-- *(Opcional para compilación cruzada a Windows)*: `cargo-xwin` (`cargo install cargo-xwin`)
+Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Svelte 5** (Feature-Sliced Design). Se inicia en milisegundos, consume una fracción mínima de memoria y busca sobre decenas de miles de notas, diagramas y documentos a la velocidad del teclado.
 
 ---
 
-## 🛠️ Desarrollo Local
+## ⚡ Capacidades Principales
 
-```bash
-# Instalar dependencias del proyecto
-bun install
+### 1. 🏎️ Arquitectura Ligera y Rendimiento
+- **Arranque optimizado:** Montaje de pestañas bajo demanda, árbol del explorador virtualizado y comandos de lectura asíncronos fuera del hilo principal de interfaz.
+- **Gestión eficiente de memoria:** Basado en Tauri v2 en vez de empaquetar un navegador Chromium completo por ventana. Tras abrir y recorrer vaults grandes, el backend libera la memoria del heap devuelta al sistema operativo (`malloc_trim`).
+- **Indexación nativa en paralelo:** Indexa decenas de miles de archivos usando hilos nativos (`rayon` + `jwalk`) sin congelar la interfaz ni bloquear el editor.
 
-# Verificar tipos y sintaxis Svelte/TypeScript
-bun check
+### 2. 🛡️ Soberanía de Datos (Local-first)
+- **Tus archivos se quedan en tu disco:** Las notas son archivos estándar (`.md`, `.excalidraw.md`, `.d2`, `.puml`, `.mmd`). Sin bases de datos opacas ni sincronizaciones obligatorias.
+- **Funciona offline:** Notas, Markdown, Mermaid, D2, Excalidraw, ArchiMate, búsqueda, Git y el servidor MCP no necesitan internet ni cuentas de terceros.
+- **Cero telemetría:** Synapse no envía estadísticas de uso ni tiene cuentas propias.
+- **Lo que sí usa la red, y cuándo:** unas pocas funciones dependen de servicios externos, siempre porque tú las usas. Están en [Qué sale de tu equipo](#-qué-sale-de-tu-equipo).
 
-# Iniciar la aplicación en modo desarrollo con Tauri
-bun tauri dev
-```
+### 3. 🔍 Búsqueda Rápida e Indexación Profunda
+- **Quick Open (`Ctrl+O`):** Búsqueda difusa en memoria mediante Nucleo Matcher (< 2 ms de respuesta).
+- **Filtros por categoría (`kind:`):** Acota búsquedas por tipo de recurso: `kind:pdf`, `kind:markdown`, `kind:d2`, `kind:mermaid`, `kind:excalidraw`, `kind:word`, `kind:excel` o `kind:code`.
+- **Filtro de encabezados (`hs:` / `headings:`):** Busca secciones y subtítulos directamente desde `Ctrl+O` o la búsqueda global (`Ctrl+Shift+F`), mostrando el título indexado y el texto inmediato.
+- **Búsqueda Full-Text (Tantivy):** Motor de texto completo en Rust estilo Lucene con ponderación en títulos y soporte para operadores y frases.
+- **Indexación de documentos adjuntos:** Extrae e indexa el texto dentro de archivos `.pdf` y documentos de Word `.docx`.
+
+### 4. 🎨 Notas y Diagramas como Código
+- **Markdown fluido:** Editor híbrido (CodeMirror 6), alternancia rápida lectura/edición (`F2`), enlaces a encabezados exactos (`[[nota#Título]]`) e incrustación de secciones completas con transclusión (`![[nota#Título]]`).
+- **Lienzo libre con Excalidraw:** Mapas mentales, esquemas y bocetos interactivos embebidos directamente en notas (`.excalidraw.md`).
+- **Diagramas como código (Mermaid, D2 y PlantUML):**
+  - **Mermaid & Merman:** Diagramas de flujo y secuencias con puntero láser para presentaciones técnicas.
+  - **D2 Lang:** Sintaxis declarativa moderna para diagramas de arquitectura.
+  - **PlantUML:** Soporte nativo (`.puml`, `.plantuml`) con servidor configurable y validación en línea.
+  - **Render optimizado:** Planificador con debounce dinámico, `Ctrl+Enter` para forzar redibujado y monitor de tiempo de render en la barra de estado.
+  - **Exportación:** Guarda diagramas en formatos **PNG** o **SVG** desde el menú contextual.
+
+### 5. 🐙 Control de Versiones Git y Comparación Visual (Diff Multi-Modal)
+- **Gestión de Git integrada:** Soporte para el flujo de trabajo de versiones (commits, historial, ramas, stage/unstage, push con `Ctrl+Shift+K`) combinando lectura de estado con `gix` y comandos Git del sistema.
+- **Comparación entre archivos arbitrarios:** Selecciona dos archivos cualesquiera en el explorador y compáralos al instante.
+- **Diff de imágenes binarias:**
+  - *2 Paneles:* Vista lado a lado entre disco local y la versión en Git con zoom independiente.
+  - *Píxel a Píxel:* Resaltado visual en magenta de cada píxel alterado con porcentaje y conteo exacto de diferencias.
+- **Diff multi-modo para diagramas (Excalidraw, D2, Mermaid, PlantUML):**
+  - *Como Diagrama:* Visualiza ambos estados en paralelo con la posibilidad de alternar el panel local a modo *Escritura* para editar sobre la marcha.
+  - *Píxel a Píxel (para Excalidraw):* Genera un render temporal en binario de ambas versiones para comparar visualmente píxel a píxel y localizar de inmediato cualquier trazo, caja o texto modificado en el lienzo.
+  - *Como Texto:* Inspecciona diferencias línea por línea en el código fuente o estructura JSON.
+
+### 6. 🤖 Servidor MCP Integrado (Model Context Protocol)
+- **Conexión nativa para agentes de IA:** Permite a clientes como Claude Code, Google Antigravity, Cursor, Windsurf o Roo Code consultar tu vault como servidor MCP local.
+- **Concurrencia Optimista (OCC):** Modificación segura mediante `expected_hash` u `overwrite` explícito para evitar sobreescrituras accidentales.
+- **Ahorro de contexto y tokens:** Búsqueda jerárquica por tags (`#linux/cachyos`), lectura del esquema de títulos (`outline_only: true`) y lectura quirúrgica por secciones (`section`).
+- **Persistencia por vault:** Recuerda la activación de MCP por bóveda y la reactiva automáticamente.
+
+### 7. ⌨️ Flujo de Trabajo y Teclado
+- **Modo Vim:** Activación instantánea con soporte de comandos, búsqueda (`/`), rehacer (`Ctrl+R`) y plegado por niveles (`zc`, `zo`, `za`, `zM`, `zR`).
+- **Autocompletado del documento:** Sugerencias automáticas basadas en palabras ya escritas en la nota o diagrama activo.
+- **Zoom de texto:** Ajuste rápido de tamaño con `Ctrl+Rueda`, `Ctrl++`, `Ctrl+-` y `Ctrl+0`.
+- **Atajos configurables:** Personalización de combinaciones mediante `shortcuts.jsonc` (conservando comentarios).
+- **Modo Archivo Único:** Abre y edita archivos individuales `.md`, `.d2` o `.excalidraw` sin necesidad de crear un workspace.
+- **Plugins de Obsidian:** Compatibilidad con extensiones comunitarias verificadas a través de una fachada de su API.
+
+### 8. 🎨 Temas por Defecto
+Synapse incluye temas integrados listos para usar con variantes clara y oscura:
+
+#### Neón
+Inspiración cyberpunk con acentos luminosos sobre fondo oscuro:
+
+![Tema Neón](docs/synapsers_neon.png)
+
+#### Neón Islas
+Variante con paneles flotantes y esquinas redondeadas:
+
+![Tema Neón Islas](docs/synapsers_neon_island.png)
+
+#### Rosa
+Tonos frambuesa en modo claro y ciruela suave en modo oscuro:
+
+![Tema Rosa Oscuro](docs/synapsers_rosa_dark.png)
+
+![Tema Rosa Claro](docs/synapsers_rosa_light.png)
+
+### 9. 🏗️ Arquitectura como Código (para desarrolladores)
+La documentación de arquitectura son archivos de texto versionables, no imágenes pegadas que nadie actualiza:
+
+- **Diagramas declarativos con vista previa en vivo:** edita el código D2 (motores ELK/TALA), Mermaid o PlantUML a la izquierda y mira el diagrama a la derecha, con zoom, puntero láser y exportación a PNG/SVG.
+- **Decisiones (ADR) como notas:** Markdown con propiedades (`estado`, `tags` jerárquicos como `#arquitectura/adr`), enlaces a secciones exactas (`[[adr-0001#Decisión]]`) y transclusión (`![[adr-0001#Decisión]]`) para reutilizar una decisión en otra.
+- **Todo en el repositorio:** diagramas, ADR y código viven juntos; con el Git integrado, el historial y el diff visual ves **cómo evolucionó la arquitectura** commit a commit.
+- **Buscable:** `kind:d2`, `kind:mermaid` y `hs:` encuentran un contenedor, una decisión o un encabezado entre miles de archivos.
+
+![Código D2 a la izquierda y el diagrama de contenedores renderizado a la derecha](docs/docs_d2_editor_y_diagrama.png)
+
+Diagramas de secuencia con Mermaid, como parte de la misma bóveda:
+
+![Diagrama de secuencia Mermaid](docs/docs_mermaid_secuencia.png)
+
+Los ADR enlazan con los diagramas y reutilizan secciones de otras decisiones por transclusión:
+
+![ADR con propiedades, enlaces y transclusión](docs/docs_adr_enlaces_y_transclusion.png)
+
+### 10. 🧠 Agentes de IA integrados (ACP)
+Un panel lateral (`Alt+2`) para conversar con agentes de IA **sobre tu bóveda**, sin salir de Synapse:
+
+- **Agentes compatibles con ACP (Agent Client Protocol):** Claude (descarga verificada con sha256 desde el registro público de ACP) y Google Antigravity; además puedes registrar cualquier agente propio (comando, argumentos y variables de entorno) en *Ajustes → Agentes de IA*.
+- **Trabajan con tus archivos mediante el MCP de Synapse:** cada sesión recibe la bóveda abierta como `synapse_instance`. El agente busca, lee por secciones, edita con control optimista (`expected_hash`) y puede **ver los diagramas dibujados** (`render_diagram`), no solo su código. Lee además el historial Git de un archivo (`git_file_history`, `git_diff_revisions`, `git_read_revision`).
+- **Conversación rica:** respuestas en streaming y en Markdown, plan del agente, herramientas desplegables con entrada/salida, diff de los archivos que toca y **peticiones de permiso** con botones Permitir/Rechazar.
+- **Contexto a tu medida:** adjunta notas con `@`, la nota abierta con `@this`, la selección del editor con `Ctrl+Alt+A`, imágenes pegadas con `Ctrl+V` y comandos del agente con `/` (`/compact`, `/usage`…). Se ve el uso de la ventana de contexto y el costo.
+- **Varias conversaciones a la vez** en acordeón, con historial guardado en la bóveda (`.synapse/agent-sessions/`), que se retoma con el agente y el contexto originales.
+- **Los agentes se hablan entre sí 🐙:** entre conversaciones (`#2`) y **entre bóvedas abiertas en otras ventanas** (`@Bóveda#`). Un agente puede consultar la documentación de otra bóveda (solo lectura, con tu permiso) — por ejemplo, validar tus diagramas contra la arquitectura de otro sistema.
+- **Control total:** lecturas permitidas, escrituras con confirmación y aviso de atención cuando el agente espera tu respuesta.
+
+![Panel del agente editando un diagrama D2 con el MCP de Synapse](docs/docs_agente_conversacion.png)
+
+> *Ejemplo real de la interfaz: el agente lee el diagrama, lo comprueba dibujado, lo edita con `patch_note` y deja la decisión en el ADR.*
 
 ---
 
-## 📦 Compilación (Build)
+## 📊 Comparativa
 
-### 1. Compilación nativa (Linux / macOS / Windows)
+| Aspecto | **Synapse.rs** 🧠 | **Obsidian** 💎 | **Notion** ☁️ | **VS Code** 💻 |
+| :--- | :---: | :---: | :---: | :---: |
+| **Arquitectura de ejecución** | **Rust + Tauri v2 (Webview nativo)** | Electron (Chromium empaquetado) | Web / Electron | Electron (Chromium empaquetado) |
+| **Soberanía de archivos** | **100% Local / Formatos abiertos** | 100% Local | En la nube (Propietario) | 100% Local |
+| **Búsqueda en PDFs / DOCX** | **Nativa en Rust (Tantivy)** | Requiere Plugins | En la nube | Requiere extensiones |
+| **Filtros (`kind:`, `hs:`)** | **Nativos en Quick Open y FTS** | Plugins de terceros | No | Extensiones |
+| **Diagramas D2, Mermaid, PlantUML** | **Nativos con exportación PNG/SVG** | Plugins de terceros | Básico | Extensiones |
+| **Lienzo Excalidraw** | **Nativo (.excalidraw.md)** | Vía plugin | No | Extensiones |
+| **Control de versiones Git** | **Integrado en UI (`gix` + Git)** | Requiere Git CLI | No | Requiere Git CLI |
+| **Diff visual de diagramas e imágenes** | **Nativo (Lado a lado, Píxel a píxel)** | No | No | Extensiones |
+| **Servidor MCP para IA** | **Nativo (18 herramientas, OCC)** | Plugins de terceros | No | Extensiones |
+| **Agentes de IA (ACP) en la app** | **Panel integrado, varios agentes y conversaciones, permisos** | Plugins de terceros | Asistente propietario en la nube | Extensiones |
+| **Arquitectura como código** | **D2 + Mermaid + PlantUML + ADR, con vista previa y Git** | Plugins | No | Extensiones |
+| **Portabilidad** | **Binario único sin instalación** | Instalador / AppImage | Instalador | Instalador |
 
-```bash
-bun tauri build
-```
+---
 
-### 2. Compilación cruzada para Windows desde Linux (`x86_64-pc-windows-msvc`)
+## 🔍 Comparación Visual en Acción
 
-Para generar el archivo ejecutable binario `.exe` directamente desde Linux:
+### Diff de Imágenes (Lado a Lado vs. Píxel a Píxel)
 
-```bash
-bun tauri build --target x86_64-pc-windows-msvc --runner cargo-xwin --no-bundle
-```
+Panel a panel con controles de encuadre y zoom:
 
-> **Ubicación del binario generado:**  
-> `src-tauri/target/x86_64-pc-windows-msvc/release/app.exe`
+![Diff Binario de Imagen en 2 Paneles](docs/arquitectura_diff__binario_2_paneles.png)
 
+Detección automática de cambios resaltando los píxeles modificados en magenta:
 
+![Diff Binario Píxel a Píxel](docs/arquitectura_diff__binario_pixel_x_pixel.png)
 
-# TODO
+---
 
-Agregar diff2html
+### Diff de Diagramas (Como Diagrama vs. Píxel a Píxel vs. Como Texto)
+
+Comparación visual interactiva en dos paneles con modo de edición local:
+
+![Diff de Excalidraw como Diagrama](docs/arquitectura_diff__excalidraw_as_diagram.png)
+
+Renderizado temporal a imagen binaria para ubicar fácilmente cualquier cambio gráfico mediante resaltado píxel a píxel:
+
+![Diff de Excalidraw Píxel a Píxel](docs/arquitectura_diff__excalidraw_pixel_x_pixel.png)
+
+Vista de código para auditar cambios a nivel de texto o estructura JSON:
+
+![Diff de Excalidraw como Texto](docs/arquitectura_diff__excalidraw_as_text.png)
+
+---
+
+## 🏛️ Arquitectura Técnica
+
+Synapse sigue una estricta separación de responsabilidades para garantizar mantenibilidad, velocidad y estabilidad a largo plazo:
+
+- **Frontend (Svelte 5 + Bun):** Diseñado con **Feature-Sliced Design (FSD)** en capas unidireccionales (`app` ➔ `pages` ➔ `widgets` ➔ `features` ➔ `entities` ➔ `shared`).
+- **Backend (Rust + Tauri v2):** Construido con **Arquitectura Cebolla**. El núcleo (`domain/`) no contiene frameworks ni I/O; la capa de orquestación (`application/`) contiene 48 casos de uso atómicos, y los adaptadores técnicos (`infrastructure/`) implementan los contratos (persistencia en disco, Tantivy, Nucleo, Gix, servidor MCP).
+
+![Mapa de Arquitectura Global de Synapse.rs](docs/arquitectura.png)
+
+---
+
+## 🔌 Qué sale de tu equipo
+
+Synapse es local-first, no «100 % local»: unas pocas funciones necesitan un servicio externo. Ninguna se activa sola; todas dependen de que uses esa función.
+
+| Función | Con qué se conecta | Qué viaja |
+|---|---|---|
+| **Editor de draw.io** | `embed.diagrams.net` (configurable: puedes usar tu propio draw.io) | El editor se descarga de esa web y corre dentro de Synapse. El diagrama se le pasa dentro de la app, pero es código de un tercero el que lo maneja. Sin conexión no se puede editar (los `.drawio.png`/`.svg` sí se ven). |
+| **Vista previa de PlantUML** | `www.plantuml.com` (configurable: puedes usar un servidor propio, p. ej. en Docker) | **El texto del diagrama se envía** a ese servidor para dibujarlo. |
+| **Agentes de IA (ACP)**: Claude, GitHub Copilot, Antigravity… | El proveedor de cada agente, con tu propia cuenta | **Tus mensajes y lo que el agente lea de la bóveda** van a ese proveedor, según sus condiciones. Synapse solo los lanza y les da acceso a la bóveda. La lista de agentes verificados se consulta en `cdn.agentclientprotocol.com` y el agente se descarga de su sitio oficial al instalarlo. |
+| **Plugins de la comunidad** | GitHub (catálogo de Obsidian y el repositorio de cada plugin) | Solo al abrir el catálogo o instalar o actualizar un plugin. |
+| **Git** (`push`, `clone`) | El remoto que tú configures | Tu repositorio, cuando tú lo envías o clonas. |
+| **Servidor MCP** | Solo `localhost` | Nada sale del equipo: es para tus agentes locales. |
+
+Si trabajas con información sensible, configura un draw.io y un servidor PlantUML propios, y elige los agentes de IA teniendo en cuenta a qué proveedor envían los datos.
+
+---
+
+## 🔒 Seguridad y privacidad
+
+Lo que la tabla anterior no cuenta y conviene saber (revisado en el código de `src/` y `src-tauri/src/`; las librerías de terceros incluidas no se han auditado una a una):
+
+- **Servidor MCP:** escucha solo en `127.0.0.1`, pero el endpoint `/mcp` no pide autenticación y responde con `Access-Control-Allow-Origin: *`. Mientras esté encendido, cualquier proceso local —o una página web abierta en tu navegador— puede enviarle peticiones. Apágalo si no lo usas.
+- **Plugins de la comunidad:** `manifest.json`, `main.js` y `styles.css` se descargan de la rama por defecto del repositorio del plugin **sin verificar ningún hash**, y `main.js` se ejecuta dentro de la app. Instala solo plugins que hayas revisado.
+- **Agentes ACP:** los binarios se comprueban contra el `sha256` del registro cuando este lo incluye.
+- **YouTube:** si una nota enlaza un vídeo, se pide su miniatura a `img.youtube.com`.
+- **Recursos remotos:** el CSP del WebView está desactivado (`csp: null`) y el protocolo de assets alcanza todo el disco, así que Synapse no bloquea que una nota cargue contenido de la red.
+- **Actualizaciones:** el actualizador está configurado (endpoint de GitHub y clave pública minisign), pero hoy ningún código de la app lo invoca: no hay comprobación automática.
+- **Telemetría:** no se encontró código de telemetría ni informes de errores. Los visores embebidos que la ofrecen la tienen apagada (Scalar con `telemetry: false`, el visor de PDF sin CDN). Los plugins comunitarios y los agentes son código de terceros.
+
+Cada release incluye `SHA256SUMS.txt`, el SBOM (CycloneDX) y una attestation de procedencia firmada con Sigstore: cómo verificarlos y cómo reportar una vulnerabilidad está en [SECURITY.md](SECURITY.md).
+
+---
+
+## 📦 Distribución
+
+- **Binario portable:** Un único archivo ejecutable (`synapsers` en Linux / `synapsers.exe` en Windows).
+- **Sin instaladores obligatorios:** No requiere dependencias del sistema ni permisos administrativos para ejecutarse.
+
+---
+
+## 🛠️ Desarrollo
+
+Arquitectura del código, requisitos y cómo compilar: [CONTRIBUTING.md](CONTRIBUTING.md).
