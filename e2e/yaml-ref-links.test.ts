@@ -87,3 +87,25 @@ it('Ctrl+clic abre el archivo referido y salta a la clave del puntero', async ()
     return c?.tab === 'paths/transfers.yaml' && c.line === 5;
   }, { timeout: 15_000, timeoutMsg: 'no abrió paths/transfers.yaml en «responses» (línea 5)' });
 });
+
+it('el índice de claves lista el YAML y salta a la clave elegida', async () => {
+  await s.browser.$('.file-tree-item[data-path="main.yaml"]').click();
+  await s.browser.waitUntil(async () => (await cursor())?.tab === 'main.yaml', { timeout: 15_000 });
+  await s.browser.$('.code-outline-btn').click();
+  await s.browser.$('.heading-outline').waitForExist({ timeout: 15_000 });
+  const roots = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.heading-outline .outline-list > li > .outline-row .outline-heading, .heading-outline .outline-list > li .outline-heading')]
+      .map((e) => e.textContent?.trim()),
+  )) as string[];
+  expect(roots).toContain('paths');
+  expect(roots.some((r) => r.startsWith('H') && /^H\d/.test(r))).toBe(false);
+  expect(roots).not.toContain('$ref');
+  expect(roots).toContain('components');
+  // Búsqueda rápida + Enter: salta a «Error» (línea 12)
+  const search = await s.browser.$('.heading-outline .outline-search-input');
+  await search.setValue('Error');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/yaml-outline.png`);
+  await s.browser.keys(['Enter']);
+  await s.browser.waitUntil(async () => (await cursor())?.line === 12, { timeout: 15_000, timeoutMsg: 'no saltó a «Error»' });
+  expect(await s.browser.$('.heading-outline').isExisting()).toBe(false);
+});

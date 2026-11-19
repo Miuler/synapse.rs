@@ -8,21 +8,29 @@
 
   interface Props {
     content: string;
+    /** Árbol ya calculado (p. ej. las claves de un YAML); si falta, los títulos de `content`. */
+    nodes?: HeadingNode[];
+    /** Textos para otros tipos de archivo. */
+    label?: string;
+    emptyText?: string;
+    /** Mostrar el nivel (`H1`, `H2`…): solo tiene sentido con títulos de Markdown. */
+    showLevel?: boolean;
+    searchPlaceholder?: string;
     /** Línea del título donde está la vista (-1 o ausente si ninguno). */
     currentLine?: number;
     onSelect: (heading: HeadingNode) => void;
     onClose: () => void;
   }
 
-  let { content, currentLine = -1, onSelect, onClose }: Props = $props();
+  let { content, nodes, label = 'Índice de la nota', emptyText = 'La nota no tiene títulos', showLevel = true, searchPlaceholder = 'Buscar título…', currentLine = -1, onSelect, onClose }: Props = $props();
 
-  let tree = $derived(extractHeadingTree(content));
+  let tree = $derived(nodes ?? extractHeadingTree(content));
   // Abre desplegado hasta el título actual (sus ancestros abiertos)
   // Solo el valor inicial: después el usuario despliega y pliega a mano
   let expanded = $state<Record<number, boolean>>(
     untrack(() =>
       Object.fromEntries(
-        headingPathAt(extractHeadingTree(content), currentLine)
+        headingPathAt(nodes ?? extractHeadingTree(content), currentLine)
           .slice(0, -1)
           .map((h) => [h.line, true]),
       ),
@@ -93,7 +101,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="outline-backdrop" onclick={onClose}></div>
-<div class="heading-outline" role="dialog" aria-label="Índice de la nota">
+<div class="heading-outline" role="dialog" aria-label={label}>
   <div class="outline-header">
     <label class="outline-search">
       <Search size={13} />
@@ -102,7 +110,7 @@
         bind:value={query}
         type="text"
         class="outline-search-input"
-        placeholder="Buscar título..."
+        placeholder={searchPlaceholder}
         aria-label="Buscar título"
         onkeydown={onSearchKeydown}
       />
@@ -115,7 +123,7 @@
     </button>
   </div>
   {#if tree.length === 0}
-    <div class="outline-empty">La nota no tiene títulos</div>
+    <div class="outline-empty">{emptyText}</div>
   {:else if visibleTree.length === 0}
     <div class="outline-empty">Ningún título coincide</div>
   {:else}
@@ -152,7 +160,7 @@
         data-line={node.line}
         onclick={() => onSelect(node)}
       >
-        <span class="outline-level">H{node.level}</span>
+        {#if showLevel}<span class="outline-level">H{node.level}</span>{/if}
         <span class="outline-text">{node.text}</span>
       </button>
     </div>

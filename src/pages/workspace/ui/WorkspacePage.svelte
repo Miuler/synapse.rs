@@ -29,7 +29,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
-  import {CodeEditor, openReplacePanel} from "@shared/ui/code-editor";
+  import {CodeEditor, openReplacePanel, extractKeyTree, keyLineAt} from "@shared/ui/code-editor";
   import {GraphViewer} from "@features/graph-viewer";
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
@@ -4618,7 +4618,39 @@
                     <OpenApiViewer {content} />
                   </div>
                 {:else if isCodeFile(tabFile)}
-                  <div class="editor-main-content">
+                  <div class="editor-main-content code-file-pane">
+                    {#if /\.(ya?ml|json)$/i.test(tabFile)}
+                      <!-- Índice de claves del YAML/JSON (como el de títulos de Markdown) -->
+                      <button
+                        type="button"
+                        class="editor-outline-btn code-outline-btn"
+                        class:active={outlineOpenFor === tabPath}
+                        aria-label="Índice de claves"
+                        title="Índice de claves"
+                        onclick={() => (outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath)}
+                      >
+                        <ListTree size={16} />
+                      </button>
+                      {#if outlineOpenFor === tabPath}
+                        {@const keyTree = extractKeyTree(content)}
+                        <div class="code-outline-anchor">
+                          <HeadingOutline
+                            {content}
+                            nodes={keyTree}
+                            label="Índice de claves"
+                            emptyText="El archivo no tiene claves"
+                            showLevel={false}
+                            searchPlaceholder="Buscar clave…"
+                            currentLine={keyLineAt(keyTree, tabSelections[tabPath]?.cursorLine ?? 1)}
+                            onClose={() => (outlineOpenFor = null)}
+                            onSelect={(h) => {
+                              outlineOpenFor = null;
+                              refJumps[tabFile] = h.raw;
+                            }}
+                          />
+                        </div>
+                      {/if}
+                    {/if}
                     <CodeEditor
                       {content}
                       readOnly={!paneEditing}
@@ -5135,6 +5167,32 @@
     background: transparent;
     color: var(--text-secondary, #656d76);
     cursor: pointer;
+  }
+
+  .code-file-pane {
+    position: relative;
+  }
+  .code-outline-btn {
+    position: absolute;
+    top: 4px;
+    right: 18px;
+    z-index: 5;
+    margin: 0;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border-secondary, #e1e4e8);
+  }
+  .code-outline-anchor {
+    position: absolute;
+    top: 34px;
+    right: 18px;
+    width: min(460px, calc(100% - 36px));
+    z-index: 50;
+  }
+  .code-outline-anchor :global(.heading-outline) {
+    top: 0;
+    left: auto;
+    right: 0;
+    width: 100%;
   }
 
   .editor-outline-btn:hover,

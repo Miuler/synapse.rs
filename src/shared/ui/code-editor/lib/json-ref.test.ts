@@ -76,3 +76,51 @@ describe('findPointerLine', () => {
     expect(findPointerLine(json, '/definitions/Id')).toBe(3);
   });
 });
+
+import { extractKeyTree, keyLineAt } from './json-ref';
+
+describe('extractKeyTree', () => {
+  const yaml = [
+    'openapi: 3.0.1', //                1
+    'paths:', //                        2
+    '  /outbound/transfers:', //        3
+    '    post:', //                     4
+    '      parameters:', //             5
+    '        - name: id', //            6
+    '          in: path', //            7
+    '        - name: canal', //         8
+    'components:', //                   9
+    '  schemas:', //                    10
+    '    Error:', //                    11
+    '      type: object', //            12
+  ];
+
+  it('arma el árbol de claves con sus punteros y líneas', () => {
+    const tree = extractKeyTree(yaml.join('\n'), 6);
+    expect(tree.map((n) => n.text)).toEqual(['openapi', 'paths', 'components']);
+    const post = tree[1].children[0].children[0];
+    expect(post.raw).toBe('/paths/~1outbound~1transfers/post');
+    const items = post.children[0].children;
+    expect(items.map((n) => [n.text, n.raw, n.line])).toEqual([
+      ['- id', '/paths/~1outbound~1transfers/post/parameters/0', 6],
+      ['- canal', '/paths/~1outbound~1transfers/post/parameters/1', 8],
+    ]);
+    expect(items[0].children.map((n) => n.raw)).toEqual(['/paths/~1outbound~1transfers/post/parameters/0/in']);
+    // Cada puntero lleva a su propia línea
+    for (const n of [post, ...items, tree[2].children[0].children[0]]) expect(findPointerLine(yaml, n.raw)).toBe(n.line);
+  });
+
+  it('respeta la profundidad máxima sin colgar nodos profundos de la raíz', () => {
+    const tree = extractKeyTree(yaml.join('\n'), 2);
+    expect(tree.map((n) => n.text)).toEqual(['openapi', 'paths', 'components']);
+    expect(tree[1].children[0].children).toEqual([]);
+  });
+
+  it('keyLineAt da la clave más profunda en o antes del cursor', () => {
+    const tree = extractKeyTree(yaml.join('\n'), 6);
+    expect(keyLineAt(tree, 12)).toBe(12);
+    expect(keyLineAt(extractKeyTree(yaml.join("\n"), 3), 12)).toBe(11);
+    expect(keyLineAt(tree, 7)).toBe(7);
+    expect(keyLineAt(tree, 1)).toBe(1);
+  });
+});

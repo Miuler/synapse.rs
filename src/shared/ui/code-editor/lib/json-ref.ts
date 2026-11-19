@@ -157,6 +157,72 @@ export function findPointerLine(lines: string[], pointer: string): number | null
   return found + 1;
 }
 
+/** Nodo del índice de un YAML/JSON (misma forma que el índice de títulos de Markdown). */
+export interface KeyNode {
+  level: number;
+  text: string;
+  /** Puntero JSON de la clave (`/paths/~1transfers/post`), para saltar con `jumpToPointer`. */
+  raw: string;
+  line: number;
+  children: KeyNode[];
+}
+
+const escapeSegment = (s: string) => s.replace(/~/g, '~0').replace(/\//g, '~1');
+
+/**
+ * Árbol de claves de un YAML (o JSON con formato) hasta `maxDepth` niveles, para el índice.
+ * Los elementos de lista aparecen como `- valor` de su primera clave (p. ej. `- name: id` → `- id`).
+ */
+export function extractKeyTree(text: string, maxDepth = 4): KeyNode[] {
+  const roots: KeyNode[] = [];
+  // Pila de nodos abiertos con la columna a partir de la cual algo es su hijo
+  const stack: { col: number; node: KeyNode | null; segs: string[]; items: number }[] = [
+    { col: -1, node: null, segs: [], items: 0 },
+  ];
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, i) => {
+    const li = lineInfo(line);
+    if (!li || (li.key === null && !li.dash)) return;
+    const startCol = li.dash ? li.indent : li.col;
+    while (stack.length > 1 && stack[stack.length - 1].col >= startCol) stack.pop();
+    const parent = stack[stack.length - 1];
+    const depth = stack.length; // 1 = raíz
+    let segs: string[];
+    let label: string;
+    if (li.dash) {
+      segs = [...parent.segs, String(parent.items++)];
+      const rest = line.slice(li.col).trim();
+      const m = /^[^:]+:\s*(.*)$/.exec(rest);
+      label = `- ${(m ? m[1] || rest.split(':')[0] : rest).replace(/^["']|["']$/g, '') || '…'}`;
+    } else {
+      segs = [...parent.segs, li.key!];
+      label = li.key!;
+    }
+    const node: KeyNode = { level: depth, text: label.slice(0, 80), raw: '/' + segs.map(escapeSegment).join('/'), line: i + 1, children: [] };
+    // Más allá de `maxDepth` no se muestra (pero se sigue la pila para los punteros)
+    // Las `$ref` son valores (enlaces), no secciones: no entran en el índice
+    const shown = depth <= maxDepth && (depth === 1 || parent.node !== null) && li.key !== '$ref';
+    if (shown) (parent.node ? parent.node.children : roots).push(node);
+    // Un elemento de lista abre a sus claves (en su línea y más adentro); una clave, a lo de más adentro
+    stack.push({ col: startCol, node: shown ? node : null, segs, items: 0 });
+  });
+  return roots;
+}
+
+/** Clave más profunda en o antes de `line` (1-based): la «sección» donde está el cursor. */
+export function keyLineAt(nodes: KeyNode[], line: number): number {
+  let best = -1;
+  const walk = (ns: KeyNode[]) => {
+    for (const n of ns) {
+      if (n.line > line) return;
+      best = n.line;
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return best;
+}
+
 export interface JsonRefOptions {
   /** Ruta (relativa a la bóveda) del archivo abierto en el editor. */
   getPath: () => string | null | undefined;

@@ -6,3 +6,4 @@ export { lineKeymap } from './lib/line-keymap';
 export { documentWordsCompletion, withDocumentWords } from './lib/document-words';
 export { minimalChange } from './lib/minimal-change';
 export { openReplacePanel } from './lib/open-replace';
+export { extractKeyTree, keyLineAt, type KeyNode } from './lib/json-ref';
