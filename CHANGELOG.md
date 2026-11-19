@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.3] - 2026-11-19
+
 ### Añadido
 
 - **Índice de claves en YAML y JSON**: el editor de código de `.yaml`, `.yml` y `.json` tiene el mismo botón de índice que las notas: las claves en árbol (hasta 4 niveles; los elementos de lista como `- valor`, sin las `$ref`), con búsqueda rápida, plegado y la sección del cursor resaltada. Al elegir una clave, el cursor salta a ella. **Ctrl+F12** (configurable como `toggle_outline`, también en la paleta) abre y cierra el índice de la pestaña activa (el de claves en YAML/JSON y el de títulos en las notas) en un diálogo centrado que se mueve arrastrando la cabecera (doble clic lo recentra) y cambia de tamaño desde bordes y esquinas, recordando su tamaño; el botón del editor sigue abriendo el desplegable junto a él. En ambos índices, desde la búsqueda, ↑/↓ (y RePág/AvPág) recorren las entradas visibles, →/← despliegan y pliegan la activa y Enter va a ella.
@@ -24,22 +26,32 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Toma los colores del tema activo de la app (también al cambiar entre claro y oscuro) y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
 
 - **Resaltado de sintaxis YAML y JSON** en el editor de código para `.yaml`, `.yml` y `.json` (antes se coloreaban como Markdown).
+- **El release también compila para macOS** (Apple Silicon e Intel) en un job aparte que corre después de publicar: sube `synapsers-darwin-*.app.tar.gz` firmados para el actualizador y suma las plataformas a `latest.json`. Sin firma de Apple, macOS pide abrirlo con clic derecho → Abrir.
+- **Los archivos `.xml` y `.archimate` (modelos de Archi) se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
 
 ### Cambiado
 
 - **Tablas en el editor de Markdown (modo En vivo)**: las líneas de la tabla ya no se reemplazan por un widget: siguen siendo texto del documento y se pintan como tabla (bordes, encabezado, filas alternas, `|` tenues), con las columnas alineadas midiendo el ancho real del texto (funciona con fuentes proporcionales y con enlaces dentro de las celdas). Así la numeración de las líneas de debajo ya no se desfasa, y con ↑/↓ el cursor entra en la tabla fila por fila en vez de saltarla entera. El editor de celdas sigue disponible con el botón «Editor visual» que aparece al pasar por el encabezado.
+- **En Linux, la interfaz usa el renderizado rápido de WebKitGTK (DMABUF)**: draw.io y el resto de la app van más fluidos. Si con algún driver la ventana sale en blanco o parpadea, `SYNAPSE_DMABUF=0` vuelve al modo anterior.
 
 ### Corregido
 
 - **Foco al reabrir una bóveda**: la pestaña activa que se restaura en Edición recibe el foco en cuanto se carga su contenido, así que se puede escribir y moverse por el código (CodeMirror) sin hacer clic antes.
+- **Una imagen PNG guardada desde draw.io sale nítida**: se exporta a escala 2 en lugar de 1, que se veía pixelada al ampliarla.
+- **El texto que se edita en Excalidraw con zoom ya no se ve borroso**: el cuadro de edición se amplía con su tamaño de letra real y no con una escala, que WebKitGTK (con DMABUF) dibujaba a baja resolución y estiraba.
+- **«Diff» comparaba con HEAD en vez de con el stage**: como `git diff`, ahora compara lo local con lo que está en stage, también en imágenes y diagramas (2 Paneles y Diferencias), y el lado «antes» se llama «Stage / Index». Si todos los cambios ya están en stage, ya no muestra en silencio el diff contra HEAD: avisa «Sin cambios fuera de stage» con un botón para abrir «Diff --staged».
+- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
+- **El contexto de los adjuntos pedía leer imágenes con `read_note`**: ahora, si se adjunta una imagen o un diagrama, indica `render_diagram` para verlo y `extract_note_diagrams` para la estructura de un draw.io.
+- **El índice de texto completo se reconstruye una vez** (versión 4) para pasar los `.drawio` y `.archimate` ya indexados por los extractores nuevos.
+- **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
+- **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
+- **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
 
 ## [1.0.0-beta.2] - 2026-11-17
 
 ### Añadido
 
-- **El release también compila para macOS** (Apple Silicon e Intel) en un job aparte que corre después de publicar: sube `synapsers-darwin-*.app.tar.gz` firmados para el actualizador y suma las plataformas a `latest.json`. Sin firma de Apple, macOS pide abrirlo con clic derecho → Abrir.
-
-- **Los archivos `.xml` y `.archimate` (modelos de Archi) se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
+- **Los archivos `.xml` se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
 
 - **Copias de pestaña con modo propio y un solo editor por dibujo**: cada copia de una pestaña (`Duplicar pestaña`) tiene su propio botón Lectura/Edición, así una nota puede estar en edición en una pestaña y en lectura en la otra. Los dibujos (Excalidraw y draw.io) solo se editan en una pestaña a la vez, para no pisarse al guardar: pasar a edición en otra copia lleva a la pestaña que ya lo edita; al cerrarla o pasarla a lectura, cualquier copia puede editar. Las copias de una imagen de draw.io se actualizan con cada guardado del editor.
 - **«Abrir en otra pestaña (solo lectura)»** en el menú contextual del explorador, cuando el archivo ya está abierto: abre una copia en lectura junto a la original.
@@ -97,20 +109,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
-- **En Linux, la interfaz usa el renderizado rápido de WebKitGTK (DMABUF)**: draw.io y el resto de la app van más fluidos. Si con algún driver la ventana sale en blanco o parpadea, `SYNAPSE_DMABUF=0` vuelve al modo anterior.
 - **Pruebas más rápidas**: las pruebas de integración de Rust van en un solo binario (`src-tauri/tests/integration/`; un grupo se corre con `cargo test --test integration <módulo>::`), los perfiles `dev` y `test` guardan menos información de depuración y se enlaza con `mold`. Recompilar las pruebas tras un cambio pasa de minutos a unos segundos. Las e2e usan el mismo binario de desarrollo (`target/debug`, Vite en el 5173) en lugar de una compilación aparte en `target/e2e`.
 - **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
 
 ### Corregido
-- **Una imagen PNG guardada desde draw.io sale nítida**: se exporta a escala 2 en lugar de 1, que se veía pixelada al ampliarla.
-- **El texto que se edita en Excalidraw con zoom ya no se ve borroso**: el cuadro de edición se amplía con su tamaño de letra real y no con una escala, que WebKitGTK (con DMABUF) dibujaba a baja resolución y estiraba.
--- **«Diff» comparaba con HEAD en vez de con el stage**: como `git diff`, ahora compara lo local con lo que está en stage, también en imágenes y diagramas (2 Paneles y Diferencias), y el lado «antes» se llama «Stage / Index». Si todos los cambios ya están en stage, ya no muestra en silencio el diff contra HEAD: avisa «Sin cambios fuera de stage» con un botón para abrir «Diff --staged».
-- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
-- **El contexto de los adjuntos pedía leer imágenes con `read_note`**: ahora, si se adjunta una imagen o un diagrama, indica `render_diagram` para verlo y `extract_note_diagrams` para la estructura de un draw.io.
-- **El índice de texto completo se reconstruye una vez** (versión 4) para pasar los `.drawio` y `.archimate` ya indexados por los extractores nuevos.
- **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
-- **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
-- **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
 
 - **La publicación de versiones vuelve a compilar en Linux**: el flujo de release instala `mold`, el enlazador que usa `src-tauri/.cargo/config.toml` (faltaba en el runner y fallaba con «cannot find ld»).
 - **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.
@@ -972,6 +974,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.3]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.3
 [1.0.0-beta.2]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.1
 [1.0.0-alpha.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-alpha.5
