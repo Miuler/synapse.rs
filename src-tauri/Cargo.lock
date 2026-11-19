@@ -7350,6 +7350,7 @@ dependencies = [
  "indicatif",
  "indicatif-log-bridge",
  "jwalk",
+ "libc",
  "log",
  "lopdf",
  "notify",
