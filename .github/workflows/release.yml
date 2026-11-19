@@ -252,7 +252,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -275,10 +275,8 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Build (Apple Silicon e Intel)
-        run: |
-          bun tauri build --bundles app --target aarch64-apple-darwin
-          bun tauri build --bundles app --target x86_64-apple-darwin
+      - name: Build (Apple Silicon)
+        run: bun tauri build --bundles app --target aarch64-apple-darwin
 
       - name: Package and sign
         if: env.IS_RELEASE == 'true'
@@ -288,15 +286,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for pair in aarch64-apple-darwin:darwin-aarch64 x86_64-apple-darwin:darwin-x86_64; do
-            target="${pair%%:*}"
-            platform="${pair##*:}"
-            app_dir="src-tauri/target/$target/release/bundle/macos"
-            app="$(basename "$(ls -d "$app_dir"/*.app | head -n1)")"
-            out="dist/synapsers-$platform.app.tar.gz"
-            tar -czf "$out" -C "$app_dir" "$app"
-            bun tauri signer sign "$out" --app-version "${TAG#v}"
-          done
+          app_dir="src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
+          app="$(basename "$(ls -d "$app_dir"/*.app | head -n1)")"
+          out="dist/synapsers-darwin-aarch64.app.tar.gz"
+          tar -czf "$out" -C "$app_dir" "$app"
+          bun tauri signer sign "$out" --app-version "${TAG#v}"
 
       - if: env.IS_RELEASE == 'true'
         uses: actions/upload-artifact@v4
@@ -335,7 +329,6 @@ jobs:
               "linux-x86_64": "synapsers-linux-x86_64.tar.gz",
               "windows-x86_64": "synapsers-windows-x86_64.zip",
               "darwin-aarch64": "synapsers-darwin-aarch64.app.tar.gz",
-              "darwin-x86_64": "synapsers-darwin-x86_64.app.tar.gz",
           }
           platforms = {}
           for platform, name in files.items():
@@ -366,6 +359,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            synapsers synapsers.exe \
             *.tar.gz *.zip *.sig \
             latest.json
