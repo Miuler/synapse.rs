@@ -57,6 +57,13 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
 
@@ -116,6 +123,13 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
             clang lld mold llvm nasm
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
@@ -189,6 +203,13 @@ jobs:
             sudo ln -sf "$(command -v llvm-ar)" /usr/local/bin/llvm-lib
           fi
 
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
 
@@ -239,6 +260,13 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
