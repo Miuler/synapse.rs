@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-7qa9
 title: 'E2E: más rápidas y robustas (sin paralelizar)'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - e2e
 - pruebas
 owner: null
 created_at: 2026-11-17T19:31:53.256391789Z
+completed_at: 2026-11-19T19:57:15.501385586Z
 acceptance:
 - Ninguna e2e usa pause() fijo salvo esperas justificadas y comentadas (ventanas de la app, comprobaciones de que algo NO ocurre, perf-open, real-vault)
 - Archivos pequeños con bóvedas parecidas comparten una instancia de la app y reinician el estado entre pruebas
@@ -41,8 +42,6 @@ HECHO (commit «test(e2e): corte rápido…»):
 
 5. Punto 3 replanteado: medido, cada archivo tardaba ~34 s, de los que 30 s eran una espera agotada: waitForPort comprobaba Vite en 127.0.0.1 y Vite solo escucha en ::1. Arreglado (espera en localhost) y Vite se arranca una vez por proceso y se reutiliza entre archivos; un vigilante (sh) cierra su grupo al terminar el proceso. Arranque por archivo: ~2 s. Suite completa en un proceso: 160/160 en 323 s (antes 2036 s, ×6). test:e2e:quick también corre en un proceso. Compartir la app entre archivos ya no compensa: ahorraría ~2 s por archivo a cambio de estado compartido entre pruebas.
 
-PENDIENTE:
-- Pausas que quedan, todas justificadas: explorer-system-clipboard (el menú lee el portapapeles al abrirse), drawio (2, comprobaciones negativas), code-edit-mode, 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada), reading-search (1 justificada: mide los 300 ms tras el resultado). perf-open y real-vault se dejan.
-- Punto 4: mover a unitarias la lógica simple.
-- Verificar el corte rápido con una sesión que se cae de verdad (no probado).
-- Reglas: CHANGELOG en el mismo commit, commit solo con aprobación, sin push.
+6. Corte rápido verificado (2026-11-19): matando tauri-driver a mitad, la primera prueba falla en 2 ms y las siguientes en 0 ms con el motivo. Se vio que WebKitWebDriver (hijo de tauri-driver) quedaba huérfano con el puerto 4445 y la salida del proceso abiertas; ahora el WebDriver va en su propio grupo de procesos y close() cierra el grupo entero.
+
+CIERRE: punto 4 (mover lógica a unitarias) se descarta como tarea aparte: con la suite en ~5,5 min no compensa revisar e2e una por una; queda como criterio para código nuevo (la lógica pura lleva prueba unitaria). Pausas restantes: todas comentadas (comprobaciones negativas, el menú que lee el portapapeles, tab-cursor y reading-search que miden tiempos).

@@ -194,7 +194,9 @@ async function launch(base: string, vault: string): Promise<Session> {
   };
   // Si el puerto sigue tomado por el WebDriver anterior, conectarse a él fallaría a mitad de la prueba
   await waitForPortFree(4444, 10_000);
-  const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'] });
+  // Grupo propio: tauri-driver lanza WebKitWebDriver como hijo, y si tauri-driver muere ese hijo
+  // quedaba huérfano (con el puerto 4445 y la salida del proceso de pruebas abiertos)
+  const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'], detached: true });
   children.push(driver);
   // Si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su timeout
   let dead: string | null = null;
@@ -227,6 +229,9 @@ async function launch(base: string, vault: string): Promise<Session> {
     async close() {
       await browser.deleteSession().catch(() => {});
       for (const c of children.reverse()) c.kill();
+      try {
+        process.kill(-driver.pid!, 'SIGTERM');
+      } catch {}
       await waitForPortFree(4444, 10_000).catch(() => {});
       // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
       spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
