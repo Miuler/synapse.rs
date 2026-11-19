@@ -23,6 +23,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **Resaltado de sintaxis YAML y JSON** en el editor de código para `.yaml`, `.yml` y `.json` (antes se coloreaban como Markdown).
 
+### Cambiado
+
+- **Tablas en el editor de Markdown (modo En vivo)**: las líneas de la tabla ya no se reemplazan por un widget: siguen siendo texto del documento y se pintan como tabla (bordes, encabezado, filas alternas, `|` tenues), con las columnas alineadas midiendo el ancho real del texto (funciona con fuentes proporcionales y con enlaces dentro de las celdas). Así la numeración de las líneas de debajo ya no se desfasa, y con ↑/↓ el cursor entra en la tabla fila por fila en vez de saltarla entera. El editor de celdas sigue disponible con el botón «Editor visual» que aparece al pasar por el encabezado.
+
 ## [1.0.0-beta.2] - 2026-11-17
 
 ### Añadido
