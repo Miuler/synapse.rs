@@ -17,9 +17,12 @@ Ejecutar:
 bun run build:e2e   # el binario de desarrollo (src-tauri/target/debug); carga la interfaz desde el 5173,
                     # el mismo de `tauri dev` (si ya hay un Vite de Synapse ahí, se reutiliza)
 bun run test:e2e         # la suite completa
-bun run test:e2e:quick   # smoke + las e2e tocadas (sin commitear o en el último commit)
+bun run test:e2e:quick   # smoke + las e2e tocadas (sin commitear o en el último commit), en un proceso
 bun run test:e2e:quick drawio compare   # … y las que contengan esos nombres
 ```
+
+Vite se arranca una vez por proceso de `bun test` y se reutiliza entre archivos (cada archivo
+sigue con su propia app, HOME y bóveda); un vigilante lo cierra cuando termina el proceso.
 
 Con `E2E_SHOTS=/ruta/carpeta` las pruebas guardan capturas de pantalla en esa carpeta.
 

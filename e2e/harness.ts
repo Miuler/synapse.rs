@@ -48,12 +48,10 @@ export interface Session {
 async function waitForPort(port: number, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try {
-      await fetch(`http://127.0.0.1:${port}`);
-      return;
-    } catch {
-      await Bun.sleep(200);
-    }
+    // `localhost` y no 127.0.0.1: Vite escucha solo en ::1, y con 127.0.0.1 se agotaba la espera
+    // entera (30 s por archivo de pruebas) antes de comprobar localhost
+    if (await isListening(port)) return;
+    await Bun.sleep(200);
   }
   throw new Error(`El puerto ${port} no respondió en ${timeoutMs} ms`);
 }
@@ -149,6 +147,10 @@ function guardBrowser(
   });
 }
 
+/** Vite arrancado por este proceso (null si ya corría o no hace falta) y a qué log escribe. */
+let ownVite: ChildProcess | null = null;
+let viteOut: ReturnType<ReturnType<typeof Bun.file>['writer']> | null = null;
+
 async function launch(base: string, vault: string): Promise<Session> {
   const home = join(base, 'home');
   mkdirSync(home, { recursive: true });
@@ -161,16 +163,20 @@ async function launch(base: string, vault: string): Promise<Session> {
     throw new Error(`El puerto ${VITE_PORT} lo ocupa otro proyecto, no el Vite de Synapse: ciérralo para correr las e2e.`);
   }
   if (NEEDS_VITE && !(await isListening(VITE_PORT))) {
-    const out = Bun.file(viteLog).writer();
-    const vite = spawn('bun', ['x', 'vite', '--port', String(VITE_PORT), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
-    vite.stdout?.on('data', (d) => out.write(d));
-    vite.stderr?.on('data', (d) => out.write(d));
-    children.push(vite);
+    // Vite se arranca una vez por proceso y sigue vivo entre archivos (`bun test ./e2e` los corre en
+    // el mismo proceso): reiniciarlo en cada uno costaba segundos. Se cierra al salir.
+    // Un vigilante cierra el grupo de Vite cuando termina este proceso: bun test no emite `exit`
+    // de forma fiable, y `bun x` lanza node como hijo (matar solo a `bun` dejaba Vite escuchando).
+    const watch = `bun x vite --port ${VITE_PORT} --strictPort & while kill -0 ${process.pid} 2>/dev/null; do sleep 1; done; kill -- -$$`;
+    const vite = spawn('sh', ['-c', watch], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    vite.stdout?.on('data', (d) => viteOut?.write(d));
+    vite.stderr?.on('data', (d) => viteOut?.write(d));
+    ownVite = vite;
   }
+  if (ownVite) viteOut = Bun.file(viteLog).writer();
   if (NEEDS_VITE) {
-    await waitForPort(VITE_PORT, 30_000).catch(async () => {
-      // vite escucha en ::1 (localhost)
-      if (!(await isListening(VITE_PORT))) throw new Error('Vite no arrancó');
+    await waitForPort(VITE_PORT, 30_000).catch(() => {
+      throw new Error('Vite no arrancó');
     });
   }
 
@@ -224,6 +230,9 @@ async function launch(base: string, vault: string): Promise<Session> {
       await waitForPortFree(4444, 10_000).catch(() => {});
       // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
       spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
+      // El log de Vite de este archivo termina aquí; el siguiente abre el suyo
+      await viteOut?.end();
+      viteOut = null;
       rmSync(base, { recursive: true, force: true });
     },
   };

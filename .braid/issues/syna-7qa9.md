@@ -39,9 +39,10 @@ HECHO (commit «test(e2e): corte rápido…»):
 
 4. Suite completa (2026-11-19), un archivo por proceso y sin real-vault, perf-open, docs-shots ni startup-profile: 53/53 archivos pasan, sin caídas en cadena, 2036 s (~34 min). No hay medida «antes» comparable: la corrida anterior se caía en cadena.
 
+5. Punto 3 replanteado: medido, cada archivo tardaba ~34 s, de los que 30 s eran una espera agotada: waitForPort comprobaba Vite en 127.0.0.1 y Vite solo escucha en ::1. Arreglado (espera en localhost) y Vite se arranca una vez por proceso y se reutiliza entre archivos; un vigilante (sh) cierra su grupo al terminar el proceso. Arranque por archivo: ~2 s. Suite completa en un proceso: 160/160 en 323 s (antes 2036 s, ×6). test:e2e:quick también corre en un proceso. Compartir la app entre archivos ya no compensa: ahorraría ~2 s por archivo a cambio de estado compartido entre pruebas.
+
 PENDIENTE:
 - Pausas que quedan, todas justificadas: explorer-system-clipboard (el menú lee el portapapeles al abrirse), drawio (2, comprobaciones negativas), code-edit-mode, 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada), reading-search (1 justificada: mide los 300 ms tras el resultado). perf-open y real-vault se dejan.
-- Punto 3: agrupar archivos pequeños con bóvedas parecidas (pestañas, explorador) reutilizando la app y reiniciando estado entre pruebas.
 - Punto 4: mover a unitarias la lógica simple.
-- Verificar el corte rápido con una sesión que se cae de verdad (no probado). Bajar los 34 min: agrupar archivos (punto 3).
+- Verificar el corte rápido con una sesión que se cae de verdad (no probado).
 - Reglas: CHANGELOG en el mismo commit, commit solo con aprobación, sin push.

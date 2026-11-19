@@ -17,11 +17,6 @@ const named = process.argv.slice(2).flatMap((n) => all.filter((f) => f.includes(
 const files = [...new Set(['smoke.test.ts', ...touched, ...named])];
 
 console.log(`e2e rápidas: ${files.join(', ')}`);
-// Un archivo por proceso, en serie: así un WebDriver caído no arrastra a los siguientes
-let failed = 0;
-for (const f of files) {
-  const r = spawnSync('bun', ['test', '--timeout', '180000', `./e2e/${f}`], { stdio: 'inherit' });
-  if (r.status !== 0) failed++;
-}
-console.log(failed ? `\n${failed} archivo(s) con fallos` : '\nTodo pasa');
-process.exit(failed ? 1 : 0);
+// Todo en un proceso: Vite se arranca una vez y se reutiliza entre archivos
+const r = spawnSync('bun', ['test', '--timeout', '180000', ...files.map((f) => `./e2e/${f}`)], { stdio: 'inherit' });
+process.exit(r.status ?? 1);
