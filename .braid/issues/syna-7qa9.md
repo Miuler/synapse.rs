@@ -34,10 +34,14 @@ HECHO (commit «test(e2e): corte rápido…»):
    Después: compare-files sin pausas (espera la selección real del árbol y el texto del diff); 2/2 pasan.
    Luego: explorer-pin sin pausas (espera que el explorador flote o se fije) y reading-search con 1 (Ctrl+F se reintenta hasta que abre la búsqueda); 3/3 pasan.
    Luego: diagram-pan-zoom (espera que el SVG se quede quieto y que el zoom/arrastre se apliquen), compare-diagrams y compare-files-git (esperan la selección real y el texto del diff) sin pausas; 8/8 pasan.
+   Luego: compare-images, explorer-keyboard-focus, editor-tab, document-words y drawio (2 de 4: esperan el visor montado, el zoom aplicado, el PNG reescrito en disco y la recarga) sin pausas fijas; code-edit-mode deja la suya comentada (comprobación negativa). Todas pasan.
+3. Punto 4 (parte): `bun run test:e2e:quick [nombre…]` (e2e/quick.ts): smoke + e2e cambiadas sin commitear o en el último commit + las que contengan los nombres dados; un archivo por proceso, en serie.
+
+4. Suite completa (2026-11-19), un archivo por proceso y sin real-vault, perf-open, docs-shots ni startup-profile: 53/53 archivos pasan, sin caídas en cadena, 2036 s (~34 min). No hay medida «antes» comparable: la corrida anterior se caía en cadena.
 
 PENDIENTE:
-- Pausas en: compare-images, drawio, explorer-system-clipboard, explorer-keyboard-focus, y 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada), reading-search (1 justificada: mide los 300 ms tras el resultado). perf-open y real-vault se dejan.
+- Pausas que quedan, todas justificadas: explorer-system-clipboard (el menú lee el portapapeles al abrirse), drawio (2, comprobaciones negativas), code-edit-mode, 1 en acp-agent (comprobación negativa del panel cerrado), editor-tab, vim-redo (negativa), document-words, tab-cursor (justificada), reading-search (1 justificada: mide los 300 ms tras el resultado). perf-open y real-vault se dejan.
 - Punto 3: agrupar archivos pequeños con bóvedas parecidas (pestañas, explorador) reutilizando la app y reiniciando estado entre pruebas.
-- Punto 4: scripts test:e2e:quick (smoke + áreas tocadas) y test:e2e (completa); mover a unitarias la lógica simple.
-- Correr la suite completa y medir tiempo; verificar el corte rápido con una sesión que se cae de verdad (no probado).
+- Punto 4: mover a unitarias la lógica simple.
+- Verificar el corte rápido con una sesión que se cae de verdad (no probado). Bajar los 34 min: agrupar archivos (punto 3).
 - Reglas: CHANGELOG en el mismo commit, commit solo con aprobación, sin push.

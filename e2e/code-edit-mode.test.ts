@@ -28,6 +28,7 @@ async function typingChanges(): Promise<boolean> {
   await s.browser.$('.tab-pane:not(.hidden) .cm-content').click();
   await s.browser.keys(['Control', 'Home']);
   await s.browser.keys('Z');
+  // Justificada: en solo lectura se comprueba que el texto NO cambia, y no hay evento que esperar
   await s.browser.pause(200);
   const after = await text();
   if (after !== before) await s.browser.keys(['Backspace']);

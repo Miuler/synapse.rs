@@ -10,7 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Cambiado
 
 - **CI y release**: un workflow nuevo (`ci.yml`) comprueba tipos y corre las unitarias del frontend y de Rust en cada push a `main` y en los PR. El release compila Linux, Windows y macOS en paralelo (antes en serie) y publica la release de una vez al final, con `latest.json` armado con las plataformas que compilaron; si falla Mac se publica sin él. El caché de Rust se calienta desde `main` (al cambiar `Cargo.lock` y cada lunes): el que guardaba cada tag no lo podía usar el siguiente, así que cada release compilaba todas las dependencias desde cero. La validación del tag también comprueba tipos y unitarias. Los e2e siguen siendo locales.
-- **Pruebas e2e sin pausas fijas (en curso, `syna-7qa9`)**: `diagram-pan-zoom`, `compare-diagrams` y `compare-files-git` esperan la condición real (diagrama quieto, zoom aplicado, selección del árbol, texto del diff) en vez de pausas fijas.
+- **Pruebas e2e sin pausas fijas (en curso, `syna-7qa9`)**: `diagram-pan-zoom`, `compare-diagrams`, `compare-files-git`, `compare-images`, `explorer-keyboard-focus`, `editor-tab`, `document-words` y `drawio` esperan la condición real (diagrama quieto, zoom aplicado, selección del árbol, texto del diff, PNG reescrito) en vez de pausas fijas. Nuevo `bun run test:e2e:quick [nombre…]`: smoke más las e2e tocadas o nombradas.
 
 ## [1.0.0-beta.3] - 2026-11-19
 

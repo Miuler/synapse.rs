@@ -58,10 +58,11 @@ it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
   const explorerOpen = () =>
     s.browser.execute(() => getComputedStyle(document.querySelector('.synapse-explorer')!).display !== 'none') as Promise<boolean>;
   const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel')) as Promise<boolean>;
-  const shiftEsc = async () => {
+  /** Pulsa Shift+Escape y espera a que se cierre el panel que se espera cerrar. */
+  const shiftEsc = async (closes: () => Promise<boolean>) => {
     await focusOutside();
     await s.browser.keys(['Shift', 'Escape']);
-    await s.browser.pause(250);
+    await s.browser.waitUntil(async () => !(await closes()), { timeout: 5_000, timeoutMsg: 'Shift+Escape no cerró el panel' });
   };
 
   // Explorador y después el agente: primero se cierra el agente, luego el explorador
@@ -69,11 +70,9 @@ it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
   await s.browser.waitUntil(explorerOpen, { timeout: 5_000 });
   await s.browser.$('.editor-header .agent-toggle').click();
   await s.browser.waitUntil(agentOpen, { timeout: 5_000 });
-  await shiftEsc();
-  expect(await agentOpen()).toBe(false);
+  await shiftEsc(agentOpen);
   expect(await explorerOpen()).toBe(true);
-  await shiftEsc();
-  expect(await explorerOpen()).toBe(false);
+  await shiftEsc(explorerOpen);
 
   // Al revés: el agente y después el explorador; se cierra primero el explorador
   await s.browser.$('.editor-header .agent-toggle').click();
@@ -81,11 +80,9 @@ it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
   await focusOutside();
   await s.browser.keys(['Alt', '1']);
   await s.browser.waitUntil(explorerOpen, { timeout: 5_000 });
-  await shiftEsc();
-  expect(await explorerOpen()).toBe(false);
+  await shiftEsc(explorerOpen);
   expect(await agentOpen()).toBe(true);
-  await shiftEsc();
-  expect(await agentOpen()).toBe(false);
+  await shiftEsc(agentOpen);
 });
 
 it('Alt+2 abre y cierra el panel del agente', async () => {

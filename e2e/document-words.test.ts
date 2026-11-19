@@ -40,7 +40,11 @@ it('en markdown también sugiere palabras del documento', async () => {
     s.browser.execute(
       () => [...document.querySelectorAll('.cm-content .cm-line')].find((l) => l.textContent?.includes('vuela') && (l as HTMLElement).offsetParent) as HTMLElement,
     );
-  await s.browser.pause(800);
+  // Esperar a que la nota monte, en edición o en lectura
+  await s.browser.waitUntil(
+    async () => !!(await findLine()) || ((await s.browser.execute(() => !!document.querySelector('.tab-pane:not(.hidden) .markdown-body'))) as boolean),
+    { timeout: 10_000 },
+  );
   if (!(await findLine())) await s.browser.keys(['F2']);
   await s.browser.waitUntil(async () => !!(await findLine()), { timeout: 10_000 });
   await s.browser.$(await findLine()).click();

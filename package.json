@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "test": "bun test src/",
     "build:e2e": "cd src-tauri && cargo build",
-    "test:e2e": "bun test ./e2e"
+    "test:e2e": "bun test ./e2e",
+    "test:e2e:quick": "bun e2e/quick.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

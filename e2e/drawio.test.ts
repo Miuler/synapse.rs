@@ -2,7 +2,7 @@
 // .drawio.png se ven como imagen y se editan desde el menú contextual o el visor, reescribiendo el PNG.
 // Se usa un draw.io falso local que habla el protocolo embed (init/load/save/export) y guarda solo.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { startApp, type Session } from './harness';
@@ -163,7 +163,7 @@ it('un PNG con un diagrama de draw.io dentro se edita con el botón Lectura/Edic
   // Un PNG normal no ofrece editar
   await s.browser.$('.file-tree-item[data-path="normal.png"]').click();
   await s.browser.$('.tab-title-container[data-path="normal.png"]').waitForExist({ timeout: 10_000 });
-  await s.browser.pause(800);
+  await s.browser.$('.tab-pane:not(.hidden) .image-viewer-container').waitForExist({ timeout: 10_000 });
   expect(await toggle().isExisting()).toBe(false);
   // El que lleva `mxfile` sí: el botón muestra «Lectura» y al pulsarlo abre draw.io
   await s.browser.$('.file-tree-item[data-path="disfrazado.png"]').click();
@@ -242,6 +242,7 @@ it('al guardar en draw.io, otra pestaña con la imagen se recarga sin perder el 
   await s.browser.$(`.tab-title-container[data-path="${copy}"]`).click();
   await s.browser.$(`.tab-title-container.active[data-path="${copy}"]`).waitForExist({ timeout: 5_000 });
   await s.browser.$('.tab-pane:not(.hidden) .zoom-level-btn').waitForExist({ timeout: 10_000 });
+  const zoom0 = (await view()).zoom;
   await s.browser.execute(() => {
     const pane = document.querySelector('.tab-pane:not(.hidden)')!;
     const zoomIn = pane.querySelector('[aria-label^="Acercar"]') as HTMLElement;
@@ -249,7 +250,10 @@ it('al guardar en draw.io, otra pestaña con la imagen se recarga sin perder el 
     zoomIn.click();
     pane.querySelector('.image-viewer-container')?.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, bubbles: true, cancelable: true }));
   });
-  await s.browser.pause(300);
+  await s.browser.waitUntil(async () => (await view()).zoom !== zoom0 && !!(await view()).transform, {
+    timeout: 5_000,
+    timeoutMsg: 'no se aplicó el zoom',
+  });
   const before = await view();
   // El original sale y vuelve a entrar al editor: el draw.io falso guarda al cargar
   await s.browser.$('.tab-title-container[data-path="disfrazado.png"]').click();
@@ -263,11 +267,20 @@ it('al guardar en draw.io, otra pestaña con la imagen se recarga sin perder el 
   expect(afterClose.transform).toBe(before.transform);
   await s.browser.$('.tab-title-container[data-path="disfrazado.png"]').click();
   await s.browser.$('.tab-title-container.active[data-path="disfrazado.png"]').waitForExist({ timeout: 5_000 });
+  const mtime0 = statSync(join(s.vault, 'disfrazado.png')).mtimeMs;
   await toggle().click();
   await s.browser.$('.drawio-viewer[data-drawio-path="disfrazado.png"]').waitForExist({ timeout: 10_000 });
-  await s.browser.pause(2_000); // el draw.io falso guarda a los 300 ms de cargar
+  // El draw.io falso guarda a los 300 ms de cargar: esperar a que reescriba el PNG
+  await s.browser.waitUntil(async () => statSync(join(s.vault, 'disfrazado.png')).mtimeMs !== mtime0, {
+    timeout: 10_000,
+    timeoutMsg: 'draw.io no reescribió el PNG',
+  });
   await s.browser.$(`.tab-title-container[data-path="${copy}"]`).click();
   await s.browser.$(`.tab-title-container.active[data-path="${copy}"]`).waitForExist({ timeout: 5_000 });
+  await s.browser.waitUntil(async () => (await view()).src !== afterClose.src, {
+    timeout: 10_000,
+    timeoutMsg: 'la copia no releyó la imagen guardada',
+  });
   const after = await view();
   expect(after.src).not.toBe(afterClose.src); // releyó la imagen guardada
   expect(after.zoom).toBe(before.zoom);

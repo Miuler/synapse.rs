@@ -68,7 +68,11 @@ it('dos imágenes se comparan lado a lado y píxel por píxel', async () => {
       p,
       i > 0,
     );
-    await s.browser.pause(600);
+    await s.browser.waitUntil(
+      async () =>
+        (await s.browser.execute(() => document.querySelectorAll('.file-tree-item.selected').length)) === i + 1,
+      { timeout: 5_000, timeoutMsg: `no quedó seleccionado ${p}` },
+    );
   }
   await s.browser.execute(() => {
     const el = document.querySelector('.file-tree-item[data-path="despues.png"]')!;

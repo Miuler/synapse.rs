@@ -64,7 +64,8 @@ it('con Vim solo inserta en modo inserción y no pierde el foco', async () => {
   await open('vim.d2');
   await s.browser.keys(['Escape']);
   await s.browser.keys(['Tab']);
-  await s.browser.pause(300);
+  // En modo normal Tab no inserta nada: solo se comprueba que el texto no cambió y el foco sigue
+  await s.browser.waitUntil(async () => (await state()).focused, { timeout: 5_000 });
   expect(await state()).toEqual({ first: 'c -> d', focused: true });
   await s.browser.keys(['i']);
   await s.browser.keys(['Tab']);
