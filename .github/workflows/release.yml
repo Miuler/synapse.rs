@@ -422,7 +422,7 @@ jobs:
       # Procedencia firmada con Sigstore (la gestiona GitHub; no se añade Cosign aparte). Se verifica con
       # `gh attestation verify <archivo> --repo Miuler/synapse.rs`. No altera los archivos ni sus .sig.
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             artifacts/*.tar.gz
