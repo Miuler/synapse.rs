@@ -26,7 +26,7 @@ describe('seleccionar coincidencias (Shift+F6)', () => {
     expect(select('a ->  b', 5)).toBeNull();
   });
 
-  it('solo funciona si el editor tiene foco', () => {
+  it('no depende de view.hasFocus (falso si la ventana no tiene el foco del sistema)', () => {
     let dispatched = false;
     const viewWithoutFocus = {
       hasFocus: false,
@@ -36,18 +36,7 @@ describe('seleccionar coincidencias (Shift+F6)', () => {
       },
     } as unknown as EditorView;
 
-    expect(selectOccurrences(viewWithoutFocus)).toBe(false);
-    expect(dispatched).toBe(false);
-
-    const viewWithFocus = {
-      hasFocus: true,
-      state: EditorState.create({ doc: 'foo foo', selection: { anchor: 0 } }),
-      dispatch: () => {
-        dispatched = true;
-      },
-    } as unknown as EditorView;
-
-    expect(selectOccurrences(viewWithFocus)).toBe(true);
+    expect(selectOccurrences(viewWithoutFocus)).toBe(true);
     expect(dispatched).toBe(true);
   });
 });

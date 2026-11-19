@@ -1,0 +1,75 @@
+name: CI
+
+# Comprobaciones rápidas en cada push a main y en los PR: tipos, unitarias del frontend y del backend.
+# Los e2e no corren aquí: necesitan pantalla, tauri-driver y un binario de depuración; se corren en local.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + unit tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Typecheck
+        run: bun run check
+
+      - name: Unit tests
+        run: bun test src/
+
+  backend:
+    name: Backend (cargo test)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          shared-key: "synapse-ci"
+
+      - name: Cache APT Packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/*.deb
+          key: ${{ runner.os }}-apt-ci-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
+            clang lld mold llvm nasm
+
+      # tauri::generate_context! exige que exista frontendDist (../dist); para los tests basta vacío
+      - name: Placeholder frontend dist
+        run: mkdir -p dist && touch dist/index.html
+
+      - name: Unit tests
+        working-directory: src-tauri
+        run: cargo test --lib --locked

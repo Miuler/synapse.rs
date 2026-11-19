@@ -1,11 +1,33 @@
 name: Rust Release
 
+# Flujo:
+#   validate ──┬── build-linux ───┐
+#              ├── build-windows ─┼── publish
+#              └── build-macos ───┘  (opcional: si falla, se publica sin Mac)
+# Las tres plataformas compilan en paralelo y cada una firma sus paquetes y los deja como artefacto.
+# La release de GitHub se crea al final, de una vez, así que nunca queda a medias.
+# Los e2e no corren aquí (necesitan pantalla y tauri-driver); las comprobaciones rápidas están en ci.yml
+# y se repiten en `validate` por si el tag se empuja antes de que ci.yml termine.
+#
+# Caché: GitHub solo comparte entre refs los cachés guardados en la rama por defecto; el que guarda un tag
+# solo lo ve ese tag, así que cada release empezaba en frío. Por eso este workflow también corre en `main`
+# (cuando cambian las dependencias y una vez por semana) solo para compilar y dejar el caché calentado,
+# sin firmar ni publicar nada. Cada SO tiene su propio caché (rust-cache incluye el SO y el target en la clave).
+
 on:
   workflow_dispatch: # <- Esto habilita el botón manual
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+*"
+    # Calentar el caché en main cuando cambian las dependencias
+    branches: [main]
+    paths:
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/Cargo.toml"
+      - ".github/workflows/release.yml"
+  schedule:
+    - cron: "17 6 * * 1" # lunes: el caché de GitHub expira a los 7 días sin uso
 
 permissions:
   contents: write
@@ -14,16 +36,119 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-jobs:
-  release:
-    name: Validate, test and release
-    runs-on: ubuntu-24.04
+env:
+  TAG: ${{ github.ref_name }}
+  # true en un tag: firmar y publicar; en main solo se compila para el caché
+  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/') }}
 
+jobs:
+  validate:
+    name: Validate tag, changelog and tests
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Verify tag and changelog
+        if: env.IS_RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 ci/release.py "$TAG" --generate-notes release-notes.md
+
+      - name: Typecheck
+        run: bun run check
+
+      - name: Unit tests
+        run: bun test src/
+
+      - name: Upload release notes
+        if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  build-linux:
+    name: Build Linux
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          shared-key: "synapse-release-linux"
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache APT Packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/*.deb
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
+            clang lld mold llvm nasm
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Build
+        run: bun tauri build --no-bundle
+
+      - name: Package and sign
+        if: env.IS_RELEASE == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp src-tauri/target/release/synapsers dist/synapsers
+          tar -czf dist/synapsers-linux-x86_64.tar.gz -C dist synapsers
+          bun tauri signer sign dist/synapsers-linux-x86_64.tar.gz --app-version "${TAG#v}"
+
+      - if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist/
+
+  build-windows:
+    name: Build Windows
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
           persist-credentials: false
 
       - name: Install Rust toolchain
@@ -38,7 +163,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
-          shared-key: "synapse-release-cache"
+          shared-key: "synapse-release-windows"
           cache-directories: |
             ~/.cache/xwin
 
@@ -48,27 +173,17 @@ jobs:
           bun-version: latest
 
       - name: Cache APT Packages
-        id: apt-cache
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives/*.deb
-          # La clave cambia si modificas la lista de paquetes o semanalmente para evitar derivas
           key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
 
-      - name: Install Linux dependencies
+      - name: Install cross-compilation dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            clang \
-            lld \
-            mold \
-            llvm \
-            nasm
-          
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
+            clang lld mold llvm nasm
           # Garantizar que llvm-lib exista en el PATH si la distro solo provee llvm-ar
           if ! command -v llvm-lib &> /dev/null; then
             sudo ln -sf "$(command -v llvm-ar)" /usr/local/bin/llvm-lib
@@ -77,94 +192,31 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Verify tag and changelog
-        id: changelog
-        env:
-          TAG: ${{ github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          python3 ci/release.py "$TAG" --generate-notes release-notes.md
-
-      - name: Build release (Linux)
-        run: bun tauri build --no-bundle
-
-      - name: Build release (Windows)
+      - name: Build
         run: bun tauri build --no-bundle --target x86_64-pc-windows-msvc --runner cargo-xwin
 
-      - name: Package and sign updater bundles
+      - name: Package and sign
+        if: env.IS_RELEASE == 'true'
         env:
-          TAG: ${{ github.ref_name }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
+          mkdir -p dist
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe dist/synapsers.exe
+          (cd dist && zip -9 synapsers-windows-x86_64.zip synapsers.exe)
+          bun tauri signer sign dist/synapsers-windows-x86_64.zip --app-version "${TAG#v}"
 
-          mkdir -p dist-release
-          cp src-tauri/target/release/synapsers dist-release/synapsers
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/synapsers.exe dist-release/synapsers.exe
+      - if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows
+          path: dist/
 
-          # Comprimir bundles para updater
-          tar -czf dist-release/synapsers-linux-x86_64.tar.gz -C dist-release synapsers
-          (cd dist-release && zip -9 synapsers-windows-x86_64.zip synapsers.exe)
-
-          # Firmar los bundles
-          bun tauri signer sign dist-release/synapsers-linux-x86_64.tar.gz --app-version "$VERSION"
-          bun tauri signer sign dist-release/synapsers-windows-x86_64.zip --app-version "$VERSION"
-
-          LINUX_SIG=$(cat dist-release/synapsers-linux-x86_64.tar.gz.sig)
-          WINDOWS_SIG=$(cat dist-release/synapsers-windows-x86_64.zip.sig)
-          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # Generar manifiesto latest.json para el plugin updater de Tauri v2
-          cat <<EOF > dist-release/latest.json
-          {
-            "version": "${VERSION}",
-            "notes": "Synapse release ${TAG}",
-            "pub_date": "${PUB_DATE}",
-            "platforms": {
-              "linux-x86_64": {
-                "signature": "${LINUX_SIG}",
-                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG}/synapsers-linux-x86_64.tar.gz"
-              },
-              "windows-x86_64": {
-                "signature": "${WINDOWS_SIG}",
-                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG}/synapsers-windows-x86_64.zip"
-              }
-            }
-          }
-          EOF
-
-          # Validar formato json
-          python3 -m json.tool dist-release/latest.json > dist-release/latest.formatted.json
-          mv dist-release/latest.formatted.json dist-release/latest.json
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            dist-release/synapsers \
-            dist-release/synapsers.exe \
-            dist-release/synapsers-linux-x86_64.tar.gz \
-            dist-release/synapsers-linux-x86_64.tar.gz.sig \
-            dist-release/synapsers-windows-x86_64.zip \
-            dist-release/synapsers-windows-x86_64.zip.sig \
-            dist-release/latest.json
-
-  # macOS: se compila aparte y después de la publicación, para que un fallo en Mac no bloquee
-  # Linux ni Windows. Sube sus archivos al release ya creado y suma las plataformas a latest.json.
   # Sin firma de Apple (no hay cuenta de desarrollador): macOS pedirá abrirlo con clic derecho → Abrir.
-  release-macos:
+  build-macos:
     name: Build macOS
-    needs: release
+    needs: validate
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -191,46 +243,97 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Build macOS (Apple Silicon e Intel)
+      - name: Build (Apple Silicon e Intel)
         run: |
           bun tauri build --bundles app --target aarch64-apple-darwin
           bun tauri build --bundles app --target x86_64-apple-darwin
 
-      - name: Package, sign and upload
+      - name: Package and sign
+        if: env.IS_RELEASE == 'true'
         env:
-          TAG: ${{ github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
-          mkdir -p dist-macos
+          mkdir -p dist
           for pair in aarch64-apple-darwin:darwin-aarch64 x86_64-apple-darwin:darwin-x86_64; do
             target="${pair%%:*}"
             platform="${pair##*:}"
             app_dir="src-tauri/target/$target/release/bundle/macos"
             app="$(basename "$(ls -d "$app_dir"/*.app | head -n1)")"
-            out="dist-macos/synapsers-$platform.app.tar.gz"
+            out="dist/synapsers-$platform.app.tar.gz"
             tar -czf "$out" -C "$app_dir" "$app"
-            bun tauri signer sign "$out" --app-version "$VERSION"
+            bun tauri signer sign "$out" --app-version "${TAG#v}"
           done
 
-          # Sumar las plataformas de Mac al latest.json que dejó el job principal
-          gh release download "$TAG" --pattern latest.json --dir dist-macos --clobber
-          python3 - <<PY
-          import json, os
-          tag = os.environ["TAG"]
-          repo = os.environ.get("GITHUB_REPOSITORY")
-          p = "dist-macos/latest.json"
-          data = json.load(open(p))
-          for platform in ("darwin-aarch64", "darwin-x86_64"):
-              name = f"synapsers-{platform}.app.tar.gz"
-              data["platforms"][platform] = {
-                  "signature": open(f"dist-macos/{name}.sig").read().strip(),
+      - if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist/
+
+  publish:
+    name: Publish release
+    needs: [validate, build-linux, build-windows, build-macos]
+    # Mac es opcional: se publica aunque falle, siempre que Linux y Windows estén bien
+    if: >-
+      always() &&
+      startsWith(github.ref, 'refs/tags/') &&
+      needs.validate.result == 'success' &&
+      needs.build-linux.result == 'success' &&
+      needs.build-windows.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate latest.json
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime, json, os, pathlib
+          tag, repo = os.environ["TAG"], os.environ["REPO"]
+          d = pathlib.Path("artifacts")
+          files = {
+              "linux-x86_64": "synapsers-linux-x86_64.tar.gz",
+              "windows-x86_64": "synapsers-windows-x86_64.zip",
+              "darwin-aarch64": "synapsers-darwin-aarch64.app.tar.gz",
+              "darwin-x86_64": "synapsers-darwin-x86_64.app.tar.gz",
+          }
+          platforms = {}
+          for platform, name in files.items():
+              sig = d / f"{name}.sig"
+              if not sig.exists():
+                  print(f"::warning::Sin paquete para {platform}; se publica sin esa plataforma")
+                  continue
+              platforms[platform] = {
+                  "signature": sig.read_text().strip(),
                   "url": f"https://github.com/{repo}/releases/download/{tag}/{name}",
               }
-          json.dump(data, open(p, "w"), indent=2)
+          latest = {
+              "version": tag.removeprefix("v"),
+              "notes": f"Synapse release {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": platforms,
+          }
+          (d / "latest.json").write_text(json.dumps(latest, indent=2))
           PY
 
-          gh release upload "$TAG" --clobber dist-macos/*.app.tar.gz dist-macos/*.sig dist-macos/latest.json
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cd artifacts
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            synapsers synapsers.exe \
+            *.tar.gz *.zip *.sig \
+            latest.json
