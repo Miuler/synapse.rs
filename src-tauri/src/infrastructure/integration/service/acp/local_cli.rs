@@ -13,14 +13,24 @@ pub(super) struct LocalCliAgent {
     pub install_hint: &'static str,
 }
 
-pub(super) const LOCAL_CLI_AGENTS: &[LocalCliAgent] = &[LocalCliAgent {
-    id: "antigravity",
-    name: "Google Antigravity",
-    description: "Servidor ACP del CLI de Antigravity (agy acp)",
-    binary: "agy",
-    args: &["acp"],
-    install_hint: "Instala el CLI de Antigravity: curl -fsSL https://antigravity.google/cli/install.sh | bash",
-}];
+pub(super) const LOCAL_CLI_AGENTS: &[LocalCliAgent] = &[
+    LocalCliAgent {
+        id: "antigravity",
+        name: "Google Antigravity",
+        description: "Servidor ACP del CLI de Antigravity (agy acp)",
+        binary: "agy",
+        args: &["acp"],
+        install_hint: "Instala el CLI de Antigravity: curl -fsSL https://antigravity.google/cli/install.sh | bash",
+    },
+    LocalCliAgent {
+        id: "github-copilot",
+        name: "GitHub Copilot",
+        description: "Servidor ACP del CLI de GitHub Copilot (copilot --acp)",
+        binary: "copilot",
+        args: &["--acp"],
+        install_hint: "Instala el CLI de GitHub Copilot: npm install -g @github/copilot (y entra con copilot /login)",
+    },
+];
 
 pub(super) fn find(id: &str) -> Option<&'static LocalCliAgent> {
     LOCAL_CLI_AGENTS.iter().find(|a| a.id == id)

@@ -919,7 +919,7 @@ mod tests {
         assert_eq!(current.as_deref(), Some("m2"));
     }
 
-    /// Prueba real con un agente instalado: `SYNAPSE_REAL_AGENT=claude-acp|antigravity`,
+    /// Prueba real con un agente instalado: `SYNAPSE_REAL_AGENT=claude-acp|antigravity|github-copilot`,
     /// `SYNAPSE_MCP_BIN=<synapsers>` y `cargo test -- --ignored agente_real`. Descarga Claude a
     /// `XDG_DATA_HOME` si hace falta y usa la cuenta del usuario.
     #[tokio::test]

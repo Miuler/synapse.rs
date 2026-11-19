@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- **Agente GitHub Copilot por ACP**: aparece en la lista de agentes junto a Claude y Antigravity. Usa el CLI `copilot` ya instalado (`copilot --acp`); si falta, indica cómo instalarlo (`npm install -g @github/copilot`).
+
 ### Cambiado
 
 - **Pruebas e2e 6 veces más rápidas (`syna-7qa9`)**: cada archivo esperaba 30 s de más porque se buscaba Vite en 127.0.0.1 y Vite escucha en ::1. Ahora arranca en ~2 s, Vite se reutiliza entre archivos y se cierra solo al terminar; la suite completa pasa de ~34 min a ~5,5 min (160/160). `test:e2e:quick` corre todo en un proceso. Si el WebDriver se cae, sus procesos se cierran todos (antes WebKitWebDriver quedaba huérfano).
