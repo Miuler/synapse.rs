@@ -74,7 +74,14 @@ async function compare(a: string, b: string) {
         p,
         i > 0,
       );
-      await s.browser.pause(800);
+      // Esperar a que el clic se refleje en la selección del árbol (abrir el primero puede reiniciarla)
+      await s.browser
+        .waitUntil(
+          async () =>
+            (await s.browser.execute(() => document.querySelectorAll('.file-tree-item.selected').length)) === i + 1,
+          { timeout: 5_000 },
+        )
+        .catch(() => {});
     }
     await contextMenu(b);
     const ready = await s.browser.execute(() =>
@@ -82,7 +89,7 @@ async function compare(a: string, b: string) {
     );
     if (ready) break;
     await s.browser.keys(['Escape']);
-    await s.browser.pause(400);
+    await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000, reverse: true });
   }
   await clickMenu('Comparar archivos');
   await s.browser.$('.view-mode-toggle').waitForExist({ timeout: 10_000 });

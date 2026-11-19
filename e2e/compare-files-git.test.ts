@@ -41,7 +41,11 @@ it('«Diff» con dos archivos seleccionados compara uno contra el otro', async (
       p,
       i > 0,
     );
-    await s.browser.pause(600);
+    await s.browser.waitUntil(
+      async () =>
+        (await s.browser.execute(() => document.querySelectorAll('.file-tree-item.selected').length)) === i + 1,
+      { timeout: 5_000, timeoutMsg: `no quedó seleccionado ${p}` },
+    );
   }
   // El menú se arma con la selección del momento: esperar a que los dos estén elegidos
   await s.browser.waitUntil(
@@ -66,10 +70,15 @@ it('«Diff» con dos archivos seleccionados compara uno contra el otro', async (
     () => s.browser.execute(() => !!document.querySelector('.diff-viewer-wrapper')) as Promise<boolean>,
     { timeout: 10_000 },
   );
-  await s.browser.pause(800);
-  const text = (await s.browser.execute(
-    () => [...document.querySelectorAll('.diff-viewer-wrapper')].map((e) => e.textContent).join('\n'),
-  )) as string;
+  const diffText = () =>
+    s.browser.execute(
+      () => [...document.querySelectorAll('.diff-viewer-wrapper')].map((e) => e.textContent).join('\n'),
+    ) as Promise<string>;
+  await s.browser.waitUntil(async () => (await diffText()).includes('nuevo') && (await diffText()).includes('viejo'), {
+    timeout: 10_000,
+    timeoutMsg: 'el diff no mostró las dos versiones',
+  });
+  const text = await diffText();
   expect(text).toContain('viejo');
   expect(text).toContain('nuevo');
 });

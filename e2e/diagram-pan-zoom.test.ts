@@ -10,7 +10,22 @@ beforeAll(async () => {
   await s.browser.$('.file-tree-item[data-path="flujo.mmd"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="flujo.mmd"]').click();
   await s.browser.$('.preview-pane svg').waitForExist({ timeout: 20_000 });
-  await s.browser.pause(800);
+  // Esperar a que el diagrama deje de moverse (el visor lo encaja tras el render)
+  let last = '';
+  await s.browser.waitUntil(
+    async () => {
+      const now = JSON.stringify(
+        await s.browser.execute(() => {
+          const r = document.querySelector('.preview-pane svg')!.getBoundingClientRect();
+          return [r.left, r.top, r.width, r.height].map(Math.round);
+        }),
+      );
+      const stable = now === last;
+      last = now;
+      return stable;
+    },
+    { timeout: 10_000, interval: 150, timeoutMsg: 'el diagrama no se quedó quieto' },
+  );
 }, 120_000);
 afterAll(() => s?.close());
 
@@ -49,6 +64,7 @@ it('el zoom con la rueda deja quieto el punto bajo el cursor', async () => {
   const mx = r.left + r.width * 0.3;
   const my = r.top + r.height * 0.35;
   const before = await svgPointAt(mx, my);
+  const d0 = (await screenOf({ x: before.x + 10, y: before.y })).x - mx;
   await s.browser.execute(
     (x: number, y: number) => {
       const el = document.querySelector('.preview-pane')!;
@@ -57,7 +73,11 @@ it('el zoom con la rueda deja quieto el punto bajo el cursor', async () => {
     mx,
     my,
   );
-  await s.browser.pause(150);
+  // El zoom se aplica en el siguiente frame: esperar a que cambie la escala
+  await s.browser.waitUntil(
+    async () => (await screenOf({ x: before.x + 10, y: before.y })).x - mx > d0 * 1.05,
+    { timeout: 5_000, timeoutMsg: 'la rueda no hizo zoom' },
+  );
   const after = await svgPointAt(mx, my);
   expect(Math.abs(after.x - before.x)).toBeLessThan(0.5);
   expect(Math.abs(after.y - before.y)).toBeLessThan(0.5);
@@ -81,7 +101,10 @@ it('con zoom, el diagrama se mueve lo mismo que el mouse', async () => {
     x0,
     y0,
   );
-  await s.browser.pause(150);
+  await s.browser.waitUntil(
+    async () => Math.round((await screenOf(anchor)).x - startScreen.x) === 100,
+    { timeout: 5_000, timeoutMsg: 'el arrastre no movió el diagrama' },
+  );
   const endScreen = await screenOf(anchor);
   expect(Math.round(endScreen.x - startScreen.x)).toBe(100);
   expect(Math.round(endScreen.y - startScreen.y)).toBe(60);
