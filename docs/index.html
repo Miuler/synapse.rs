@@ -159,6 +159,8 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
     <a class="logo" href="#top">🧠 Synapse<span class="grad">.rs</span></a>
     <ul>
       <li><a href="#capacidades">Capacidades</a></li>
+      <li><a href="#arquitectura-codigo">Arquitectura como código</a></li>
+      <li><a href="#agentes">Agentes</a></li>
       <li><a href="#diff">Diff visual</a></li>
       <li><a href="#temas">Temas</a></li>
       <li><a href="#comparativa">Comparativa</a></li>
@@ -172,7 +174,7 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
   <div class="wrap">
     <span class="badge">⚡ Rust · Tauri v2 · Svelte 5</span>
     <h1>Tu segundo cerebro, a <span class="grad">velocidad nativa</span>.</h1>
-    <p class="lead">Notas, conocimiento personal y arquitectura visual en un solo espacio. 100% local-first, sin telemetría, sin suscripciones y sin Electron.</p>
+    <p class="lead">Notas, conocimiento personal y arquitectura como código en un solo espacio, con agentes de IA que trabajan sobre tu bóveda. 100% local-first, sin telemetría, sin suscripciones y sin Electron.</p>
     <div class="cta">
       <a class="btn primary" href="#descargar">Empezar ahora →</a>
       <a class="btn ghost" href="#capacidades">Ver capacidades</a>
@@ -265,6 +267,66 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
   </div>
 </section>
 
+<section id="arquitectura-codigo">
+  <div class="wrap">
+    <span class="eyebrow">Para desarrolladores</span>
+    <h2>Arquitectura <span class="grad">como código</span>.</h2>
+    <p class="lead">Diagramas D2, Mermaid y PlantUML, y decisiones (ADR) en Markdown: archivos de texto que viven en tu repositorio, con vista previa en vivo, Git integrado y búsqueda instantánea.</p>
+
+    <div class="split reveal">
+      <div>
+        <h3>Escribe el diagrama, míralo al instante</h3>
+        <p>Código a la izquierda, diagrama a la derecha. Motores ELK y TALA para D2, zoom, puntero láser y exportación a PNG o SVG.</p>
+        <ul class="checks"><li>D2, Mermaid y PlantUML nativos</li><li>Diff visual entre commits: cómo cambió tu arquitectura</li><li>Búsqueda <code>kind:d2</code>, <code>kind:mermaid</code></li></ul>
+      </div>
+      <figure class="frame"><img src="docs_d2_editor_y_diagrama.png" alt="Código D2 y diagrama de contenedores renderizado" loading="lazy"><figcaption>D2: contenedores de una tienda online</figcaption></figure>
+    </div>
+
+    <div class="split rev reveal">
+      <figure class="frame"><img src="docs_mermaid_secuencia.png" alt="Diagrama de secuencia en Mermaid" loading="lazy"><figcaption>Mermaid: secuencia de un pedido</figcaption></figure>
+      <div>
+        <h3>Secuencias, flujos y modelos en la misma bóveda</h3>
+        <p>Cada diagrama es un archivo de texto: se revisa en un pull request, se versiona y se enlaza desde tus notas.</p>
+      </div>
+    </div>
+
+    <div class="split reveal">
+      <div>
+        <h3>Decisiones que se conectan con el diagrama</h3>
+        <p>Los ADR son notas Markdown con propiedades y tags jerárquicos. Enlaza secciones exactas con <code>[[adr#Decisión]]</code> y reutilízalas con transclusión <code>![[adr#Decisión]]</code>.</p>
+      </div>
+      <figure class="frame"><img src="docs_adr_enlaces_y_transclusion.png" alt="ADR con propiedades, enlaces y transclusión" loading="lazy"><figcaption>ADR-0002 reutiliza la decisión del ADR-0001</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="agentes" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">Agentes de IA</span>
+    <h2>Tu agente <span class="grad">ve y edita tu arquitectura</span>.</h2>
+    <p class="lead">Un panel lateral (<kbd>Alt</kbd>+<kbd>2</kbd>) para conversar con Claude, Google Antigravity o cualquier agente compatible con ACP, con acceso a tu bóveda a través del MCP de Synapse.</p>
+
+    <div class="split reveal">
+      <figure class="frame"><img src="docs_agente_conversacion.png" alt="Panel del agente editando un diagrama D2" loading="lazy"><figcaption>El agente lee el diagrama, lo comprueba dibujado y lo edita</figcaption></figure>
+      <div>
+        <h3>No solo lee código: ve los diagramas</h3>
+        <p>Con <code>render_diagram</code> recibe el diagrama como imagen, igual que tú. Edita con <code>patch_note</code> y <code>expected_hash</code>: si alguien tocó el archivo a la vez, la escritura se rechaza.</p>
+        <ul class="checks">
+          <li>Plan, herramientas desplegables, diff y permisos con un clic</li>
+          <li>Adjunta notas con <code>@</code>, la nota abierta con <code>@this</code> o imágenes con <kbd>Ctrl</kbd>+<kbd>V</kbd></li>
+          <li>Historial Git de un archivo: <em>«¿qué cambió en este diagrama?»</em></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card reveal"><div class="ic">🔌</div><h3>Trae tu agente</h3><p>Claude (descarga verificada con sha256) y Antigravity listos; registra cualquier otro agente ACP con su comando.</p></div>
+      <div class="card reveal"><div class="ic">🗂️</div><h3>Varias conversaciones</h3><p>En acordeón, con historial guardado en la bóveda y retomable con el agente y el contexto originales.</p></div>
+      <div class="card reveal"><div class="ic">🐙</div><h3>Agentes que se hablan</h3><p>Entre conversaciones (<code>#2</code>) y entre bóvedas abiertas (<code>@Bóveda#</code>): valida tus diagramas contra la documentación de otro sistema, en solo lectura y con tu permiso.</p></div>
+    </div>
+  </div>
+</section>
+
 <section id="diff">
   <div class="wrap">
     <span class="eyebrow">Git + Diff visual</span>
@@ -328,6 +390,8 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
           <tr><td>Git</td><td class="me">Integrado (<code>gix</code> + Git)</td><td>Requiere CLI</td><td>No</td><td>Requiere CLI</td></tr>
           <tr><td>Diff visual de diagramas e imágenes</td><td class="me">Nativo</td><td>No</td><td>No</td><td>Extensiones</td></tr>
           <tr><td>Servidor MCP para IA</td><td class="me">Nativo (18 herramientas, OCC)</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
+          <tr><td>Agentes de IA (ACP) en la app</td><td class="me">Panel integrado, varios agentes, permisos</td><td>Plugins</td><td>Asistente en la nube</td><td>Extensiones</td></tr>
+          <tr><td>Arquitectura como código</td><td class="me">D2 + Mermaid + PlantUML + ADR, con Git</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
           <tr><td>Portabilidad</td><td class="me">Binario único</td><td>Instalador / AppImage</td><td>Instalador</td><td>Instalador</td></tr>
         </tbody>
       </table>

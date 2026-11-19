@@ -12,7 +12,7 @@
 
 ## 💡 ¿Qué es Synapse?
 
-Synapse es un espacio de trabajo para pensar, escribir notas y modelar arquitecturas de software sin intermediarios ni dependencias en la nube.
+Synapse es un espacio de trabajo para pensar, escribir notas y modelar arquitecturas de software sin intermediarios ni dependencias en la nube. Hoy es especialmente útil para **desarrolladores y arquitectos**: la arquitectura se escribe como código (D2, Mermaid, PlantUML, ADR en Markdown), vive en Git junto al proyecto y tus agentes de IA la leen, la dibujan y la editan contigo.
 
 La mayoría de herramientas modernas sufren del mismo problema: consumen cientos de megabytes de RAM por usar Electron o bloquean tus datos tras formatos propietarios y suscripciones en la nube. Synapse está construido sobre una premisa simple: **tus archivos son tuyos y la herramienta debe ser inmediata.**
 
@@ -94,6 +94,39 @@ Tonos frambuesa en modo claro y ciruela suave en modo oscuro:
 
 ![Tema Rosa Claro](synapsers_rosa_light.png)
 
+### 9. 🏗️ Arquitectura como Código (para desarrolladores)
+La documentación de arquitectura son archivos de texto versionables, no imágenes pegadas que nadie actualiza:
+
+- **Diagramas declarativos con vista previa en vivo:** edita el código D2 (motores ELK/TALA), Mermaid o PlantUML a la izquierda y mira el diagrama a la derecha, con zoom, puntero láser y exportación a PNG/SVG.
+- **Decisiones (ADR) como notas:** Markdown con propiedades (`estado`, `tags` jerárquicos como `#arquitectura/adr`), enlaces a secciones exactas (`[[adr-0001#Decisión]]`) y transclusión (`![[adr-0001#Decisión]]`) para reutilizar una decisión en otra.
+- **Todo en el repositorio:** diagramas, ADR y código viven juntos; con el Git integrado, el historial y el diff visual ves **cómo evolucionó la arquitectura** commit a commit.
+- **Buscable:** `kind:d2`, `kind:mermaid` y `hs:` encuentran un contenedor, una decisión o un encabezado entre miles de archivos.
+
+![Código D2 a la izquierda y el diagrama de contenedores renderizado a la derecha](docs_d2_editor_y_diagrama.png)
+
+Diagramas de secuencia con Mermaid, como parte de la misma bóveda:
+
+![Diagrama de secuencia Mermaid](docs_mermaid_secuencia.png)
+
+Los ADR enlazan con los diagramas y reutilizan secciones de otras decisiones por transclusión:
+
+![ADR con propiedades, enlaces y transclusión](docs_adr_enlaces_y_transclusion.png)
+
+### 10. 🧠 Agentes de IA integrados (ACP)
+Un panel lateral (`Alt+2`) para conversar con agentes de IA **sobre tu bóveda**, sin salir de Synapse:
+
+- **Agentes compatibles con ACP (Agent Client Protocol):** Claude (descarga verificada con sha256 desde el registro público de ACP) y Google Antigravity; además puedes registrar cualquier agente propio (comando, argumentos y variables de entorno) en *Ajustes → Agentes de IA*.
+- **Trabajan con tus archivos mediante el MCP de Synapse:** cada sesión recibe la bóveda abierta como `synapse_instance`. El agente busca, lee por secciones, edita con control optimista (`expected_hash`) y puede **ver los diagramas dibujados** (`render_diagram`), no solo su código. Lee además el historial Git de un archivo (`git_file_history`, `git_diff_revisions`, `git_read_revision`).
+- **Conversación rica:** respuestas en streaming y en Markdown, plan del agente, herramientas desplegables con entrada/salida, diff de los archivos que toca y **peticiones de permiso** con botones Permitir/Rechazar.
+- **Contexto a tu medida:** adjunta notas con `@`, la nota abierta con `@this`, la selección del editor con `Ctrl+Alt+A`, imágenes pegadas con `Ctrl+V` y comandos del agente con `/` (`/compact`, `/usage`…). Se ve el uso de la ventana de contexto y el costo.
+- **Varias conversaciones a la vez** en acordeón, con historial guardado en la bóveda (`.synapse/agent-sessions/`), que se retoma con el agente y el contexto originales.
+- **Los agentes se hablan entre sí 🐙:** entre conversaciones (`#2`) y **entre bóvedas abiertas en otras ventanas** (`@Bóveda#`). Un agente puede consultar la documentación de otra bóveda (solo lectura, con tu permiso) — por ejemplo, validar tus diagramas contra la arquitectura de otro sistema.
+- **Control total:** lecturas permitidas, escrituras con confirmación y aviso de atención cuando el agente espera tu respuesta.
+
+![Panel del agente editando un diagrama D2 con el MCP de Synapse](docs_agente_conversacion.png)
+
+> *Ejemplo real de la interfaz: el agente lee el diagrama, lo comprueba dibujado, lo edita con `patch_note` y deja la decisión en el ADR.*
+
 ---
 
 ## 📊 Comparativa
@@ -109,6 +142,8 @@ Tonos frambuesa en modo claro y ciruela suave en modo oscuro:
 | **Control de versiones Git** | **Integrado en UI (`gix` + Git)** | Requiere Git CLI | No | Requiere Git CLI |
 | **Diff visual de diagramas e imágenes** | **Nativo (Lado a lado, Píxel a píxel)** | No | No | Extensiones |
 | **Servidor MCP para IA** | **Nativo (18 herramientas, OCC)** | Plugins de terceros | No | Extensiones |
+| **Agentes de IA (ACP) en la app** | **Panel integrado, varios agentes y conversaciones, permisos** | Plugins de terceros | Asistente propietario en la nube | Extensiones |
+| **Arquitectura como código** | **D2 + Mermaid + PlantUML + ADR, con vista previa y Git** | Plugins | No | Extensiones |
 | **Portabilidad** | **Binario único sin instalación** | Instalador / AppImage | Instalador | Instalador |
 
 ---
