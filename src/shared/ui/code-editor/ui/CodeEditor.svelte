@@ -21,6 +21,7 @@
   import { renameOccurrencesKeymap } from '../lib/rename-occurrences';
   import { lineKeymap } from '../lib/line-keymap';
   import { minimalChange } from '../lib/minimal-change';
+  import { jsonRefLinks, jumpToPointer } from '../lib/json-ref';
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete, plantumlAutocomplete } from '../lib/diagram-autocompletion';
@@ -57,6 +58,14 @@
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
+    /** Ruta del archivo (relativa a la bóveda): con ella los `$ref` de YAML/JSON se pueden seguir. */
+    filePath?: string | null;
+    /** Abre el archivo de un `$ref` y salta a su puntero `#/...`. */
+    onOpenRef?: (path: string, pointer: string | null) => void;
+    onNotify?: (message: string) => void;
+    /** Puntero `#/...` al que saltar cuando el contenido esté cargado (se consume con `onJumped`). */
+    jumpPointer?: string | null;
+    onJumped?: () => void;
   }
 
   let {
@@ -69,6 +78,11 @@
     diagnostics = [],
     onChange,
     onSelectionChange,
+    filePath = null,
+    onOpenRef,
+    onNotify,
+    jumpPointer = null,
+    onJumped,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -389,6 +403,13 @@
         keymap.of(searchKeymap as any),
         renameOccurrencesKeymap(),
         lineKeymap(),
+        mode === 'yaml' || mode === 'json'
+          ? jsonRefLinks({
+              getPath: () => filePath,
+              openRef: (path, pointer) => onOpenRef?.(path, pointer),
+              notify: (m) => onNotify?.(m),
+            })
+          : [],
         Prec.highest(keymap.of([{ key: 'Mod-Enter', run: () => (onRun ? (onRun(), true) : false) }])),
         editableCompartment.of(EditorState.readOnly.of(readOnly)),
         updateListener,
@@ -409,6 +430,18 @@
         editorView = null;
       }
     };
+  });
+
+  // Salto pendiente a un `$ref` de otro archivo: cuando el contenido ya está en el editor
+  $effect(() => {
+    const ptr = jumpPointer;
+    const text = content;
+    if (!ptr || !editorView || !text) return;
+    queueMicrotask(() => {
+      if (!editorView) return;
+      if (!jumpToPointer(editorView, ptr)) onNotify?.(`No se encontró «#${ptr}» en este archivo`);
+      onJumped?.();
+    });
   });
 
   $effect(() => {

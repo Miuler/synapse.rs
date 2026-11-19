@@ -1099,6 +1099,19 @@
     }
   });
 
+  /** Saltos pendientes a un puntero `#/...` de un `$ref`, por archivo (los consume el editor). */
+  let refJumps = $state<Record<string, string>>({});
+
+  /** Ctrl+clic / F12 sobre un `$ref` de YAML/JSON: abre el archivo y salta a la clave. */
+  async function openJsonRef(path: string, pointer: string | null) {
+    if (!(await vaultRepository.checkVaultPathExists(path))) {
+      showWorkspaceToast(`No existe ${path}`);
+      return;
+    }
+    if (pointer) refJumps[path] = pointer;
+    selectTab(path);
+  }
+
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
     if (isOfficeFile(path)) {
@@ -4611,6 +4624,11 @@
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
                       mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : 'markdown'}
+                      filePath={tabFile}
+                      onOpenRef={openJsonRef}
+                      onNotify={showWorkspaceToast}
+                      jumpPointer={refJumps[tabFile] ?? null}
+                      onJumped={() => delete refJumps[tabFile]}
                       onChange={(updatedCode) => {
                         if (openedNotes[tabFile]) {
                           openedNotes[tabFile].content = updatedCode;
