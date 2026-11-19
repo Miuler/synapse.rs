@@ -142,6 +142,7 @@
         reload_vault: 'Recargar bóveda',
         toggle_theme: 'Cambiar tema',
         toggle_devtools: 'Herramientas de desarrollo',
+        toggle_outline: 'Índice de la nota o de las claves',
         git_push: 'Git: push',
         zoom_in: 'Aumentar tamaño del texto',
         zoom_out: 'Reducir tamaño del texto',

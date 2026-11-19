@@ -109,3 +109,27 @@ it('el índice de claves lista el YAML y salta a la clave elegida', async () => 
   await s.browser.waitUntil(async () => (await cursor())?.line === 12, { timeout: 15_000, timeoutMsg: 'no saltó a «Error»' });
   expect(await s.browser.$('.heading-outline').isExisting()).toBe(false);
 });
+
+it('Ctrl+F12 abre el índice de claves centrado en un diálogo y salta a la clave elegida', async () => {
+  await cursorOnLine(2);
+  expect(await s.browser.$('.heading-outline').isExisting()).toBe(false);
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog .heading-outline').waitForDisplayed({ timeout: 15_000 });
+  // Centrado en la ventana (no en la esquina del editor)
+  const { dx, dy } = (await s.browser.execute(() => {
+    const r = document.querySelector('.outline-dialog')!.getBoundingClientRect();
+    return { dx: Math.abs(r.left + r.width / 2 - innerWidth / 2), dy: Math.abs(r.top + r.height / 2 - innerHeight / 2) };
+  })) as { dx: number; dy: number };
+  expect(dx).toBeLessThan(40);
+  expect(dy).toBeLessThan(80);
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/outline-dialog.png`);
+  await s.browser.$('.outline-dialog .outline-search-input').setValue('Error');
+  await s.browser.keys(['Enter']);
+  await s.browser.waitUntil(async () => (await cursor())?.line === 12, { timeout: 15_000, timeoutMsg: 'no saltó a «Error»' });
+  expect(await s.browser.$('.outline-dialog').isExisting()).toBe(false);
+  // Ctrl+F12 de nuevo lo cierra
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog').waitForExist({ timeout: 15_000 });
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.outline-dialog').isExisting()), { timeout: 15_000 });
+});

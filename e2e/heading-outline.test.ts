@@ -107,3 +107,12 @@ it('el índice abre desplegado en la ruta actual y resalta el título', async ()
   expect(state.current).toBe('Detalle A1');
   await s.browser.keys('Escape');
 });
+
+it('Ctrl+F12 abre y cierra el índice de la nota en un diálogo', async () => {
+  if (await s.browser.$('.heading-outline').isExisting()) await s.browser.keys(['Escape']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog .heading-outline').waitForDisplayed({ timeout: 5_000 });
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
+});

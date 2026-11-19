@@ -26,6 +26,8 @@ export interface WorkspaceShortcutsConfig {
   nav_forward: string;
   toggle_theme: string;
   toggle_devtools: string;
+  /** Índice de la nota o de las claves de un YAML/JSON. */
+  toggle_outline: string;
   toggle_edit_mode: string;
   next_tab: string;
   prev_tab: string;
@@ -66,6 +68,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     nav_forward: 'Alt+ArrowRight',
     toggle_theme: 'Ctrl+Shift+T',
     toggle_devtools: 'F12, Ctrl+Shift+I',
+    toggle_outline: 'Ctrl+F12',
     toggle_edit_mode: 'F2',
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',

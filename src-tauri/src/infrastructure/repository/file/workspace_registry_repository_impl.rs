@@ -227,6 +227,8 @@ impl WorkspaceRegistryRepositoryImpl {
     "toggle_theme": "Ctrl+Shift+T",
     // Abrir o cerrar herramientas de desarrollo (DevTools)
     "toggle_devtools": "F12, Ctrl+Shift+I",
+    // Abrir o cerrar el índice de la nota (títulos) o de un YAML/JSON (claves)
+    "toggle_outline": "Ctrl+F12",
     // Cambiar a la pestaña siguiente
     "next_tab": "Ctrl+PageDown, Ctrl+Tab",
     // Cambiar a la pestaña anterior

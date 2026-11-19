@@ -29,6 +29,7 @@
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
   import {CommunityPluginsModal} from "@features/community-plugins";
+  import {ResizableDialog} from "@shared/ui/dialog-resize";
   import {CodeEditor, openReplacePanel, extractKeyTree, keyLineAt} from "@shared/ui/code-editor";
   import {GraphViewer} from "@features/graph-viewer";
   import {TagsExplorer} from "@features/tags-explorer";
@@ -1098,6 +1099,32 @@
       });
     }
   });
+
+  /** Índice abierto con Ctrl+F12 en un diálogo centrado (movible y redimensionable). */
+  let outlineDialogFor = $state<string | null>(null);
+
+  function toggleOutlineDialog(tab: string) {
+    outlineOpenFor = null;
+    outlineDialogFor = outlineDialogFor === tab ? null : tab;
+  }
+
+  const isKeyOutlineFile = (path: string) => /\.(ya?ml|json)$/i.test(path);
+
+  /** Árbol y posición actual del índice de una pestaña: claves (YAML/JSON) o títulos (Markdown). */
+  function outlineFor(tab: string) {
+    const text = openedNotes[tab]?.content ?? "";
+    if (isKeyOutlineFile(tab)) {
+      const nodes = extractKeyTree(text);
+      return { text, nodes, current: keyLineAt(nodes, tabSelections[tab]?.cursorLine ?? 1) };
+    }
+    return { text, nodes: undefined, current: headingLines[tab] ?? -1 };
+  }
+
+  function selectOutlineEntry(tab: string, h: { raw: string }) {
+    outlineDialogFor = null;
+    if (isKeyOutlineFile(tab)) refJumps[tab] = h.raw;
+    else pendingScrollHeadings[tab] = { text: h.raw, id: ++headingRequestId };
+  }
 
   /** Saltos pendientes a un puntero `#/...` de un `$ref`, por archivo (los consume el editor). */
   let refJumps = $state<Record<string, string>>({});
@@ -3487,6 +3514,16 @@
         action: refreshGitStatus,
       },
       {
+        id: "cmd-toggle-outline",
+        name: "Índice de la nota o de las claves (YAML/JSON)",
+        category: "Vista",
+        shortcut: shortcutsConfig.workspace.toggle_outline,
+        action: () => {
+          const tab = activeTabPath;
+          if (tab && /\.(md|markdown|ya?ml|json)$/i.test(tab)) toggleOutlineDialog(tab);
+        },
+      },
+      {
         id: "cmd-git-repo-log",
         name: "Git: Log de todas las ramas (git log --all)",
         category: "Git",
@@ -3725,6 +3762,15 @@
         return;
       }
 
+      if (matchesShortcut(e, ws.toggle_outline)) {
+        // Índice de títulos (Markdown) o de claves (YAML/JSON) de la pestaña activa
+        const tab = activeTabPath;
+        if (tab && /\.(md|markdown|ya?ml|json)$/i.test(tab)) {
+          stopEvent();
+          toggleOutlineDialog(tab);
+        }
+        return;
+      }
       if (matchesShortcut(e, ws.toggle_devtools)) {
         stopEvent();
         toggleDevtools();
@@ -4956,6 +5002,37 @@
     onDiscard={handleUnsavedDialogDiscard}
     onForceSave={handleUnsavedDialogForceSave}
   />
+
+  <!-- Índice (Ctrl+F12) centrado: se mueve por la cabecera y se redimensiona por los bordes -->
+  {#if outlineDialogFor}
+    {@const tab = outlineDialogFor}
+    {@const o = outlineFor(tab)}
+    <ResizableDialog
+      open={true}
+      onClose={() => (outlineDialogFor = null)}
+      title={isKeyOutlineFile(tab) ? "Índice de claves" : "Índice de la nota"}
+      description={tab.split("/").pop() ?? tab}
+      sizeKey="synapse.outlineDialog.size"
+      defaultSize={{ w: 560, h: 620 }}
+      minSize={{ w: 320, h: 240 }}
+      class="outline-dialog"
+      bodyPadding="0"
+    >
+      {#snippet icon()}<ListTree size={20} />{/snippet}
+      <HeadingOutline
+        content={o.text}
+        nodes={o.nodes}
+        embedded
+        label={isKeyOutlineFile(tab) ? "Índice de claves" : "Índice de la nota"}
+        emptyText={isKeyOutlineFile(tab) ? "El archivo no tiene claves" : "La nota no tiene títulos"}
+        showLevel={!isKeyOutlineFile(tab)}
+        searchPlaceholder={isKeyOutlineFile(tab) ? "Buscar clave…" : "Buscar título…"}
+        currentLine={o.current}
+        onClose={() => (outlineDialogFor = null)}
+        onSelect={(h) => selectOutlineEntry(tab, h)}
+      />
+    </ResizableDialog>
+  {/if}
 
   <!-- 9. DIÁLOGOS DE GESTIÓN DE GIT (BRANCHES, COMMITS, HISTORIAL DE ARCHIVO) -->
   <GitManagementDialogs
