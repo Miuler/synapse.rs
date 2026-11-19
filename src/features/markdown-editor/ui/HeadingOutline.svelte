@@ -67,10 +67,48 @@
     });
   });
 
+  // Navegación con teclado: ↑/↓ recorren las entradas visibles, →/← despliegan y pliegan, Enter elige
+  function visibleRows(nodes: HeadingNode[], out: HeadingNode[] = []): HeadingNode[] {
+    for (const n of nodes) {
+      out.push(n);
+      if (n.children.length > 0 && isOpen(n)) visibleRows(n.children, out);
+    }
+    return out;
+  }
+  let rows = $derived(visibleRows(visibleTree));
+  let activeLine = $state<number>(untrack(() => currentLine));
+  // Al buscar, la entrada activa pasa a la primera coincidencia
+  $effect(() => {
+    const first = matches[0];
+    if (normalizedQuery) activeLine = first ? first.line : -1;
+  });
+
+  function moveActive(delta: number) {
+    if (rows.length === 0) return;
+    const i = rows.findIndex((r) => r.line === activeLine);
+    const next = i < 0 ? (delta > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, i + delta));
+    activeLine = rows[next].line;
+    tick().then(() => listEl?.querySelector(`.outline-heading[data-line="${activeLine}"]`)?.scrollIntoView({ block: 'nearest' }));
+  }
+
   function onSearchKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && matches.length > 0) {
+    const active = rows.find((r) => r.line === activeLine);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      onSelect(matches[0]);
+      moveActive(e.key === 'ArrowDown' ? 1 : -1);
+    } else if (e.key === 'PageDown' || e.key === 'PageUp') {
+      e.preventDefault();
+      moveActive(e.key === 'PageDown' ? 10 : -10);
+    } else if (e.key === 'Enter') {
+      const target = active ?? matches[0];
+      if (target) {
+        e.preventDefault();
+        onSelect(target);
+      }
+    } else if (!normalizedQuery && active && active.children.length > 0 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      // Solo con la búsqueda vacía, para no quitarle las flechas al cursor del texto
+      e.preventDefault();
+      expanded[active.line] = e.key === 'ArrowRight';
     }
   }
 
@@ -158,6 +196,7 @@
         class="outline-heading level-{node.level}"
         class:in-path={currentPath.has(node.line)}
         class:current={node.line === currentLine}
+        class:active={node.line === activeLine}
         aria-current={node.line === currentLine ? 'location' : undefined}
         data-line={node.line}
         onclick={() => onSelect(node)}
@@ -245,6 +284,11 @@
   .outline-heading.current {
     background: color-mix(in srgb, var(--accent, #0969da) 14%, transparent);
     font-weight: 600;
+  }
+  .outline-heading.active {
+    outline: 1px solid var(--accent, #0969da);
+    outline-offset: -1px;
+    background: color-mix(in srgb, var(--accent, #0969da) 22%, transparent);
   }
   .outline-btn,
   .outline-toggle {

@@ -818,7 +818,7 @@
           const activeMode = (isTargetDrawing || isTargetLocked) ? "reading" : (openedNotes[targetActive]?.viewMode || "reading");
           markdownViewMode = activeMode;
           isEditing = activeMode !== "reading";
-          ensureContentLoaded(targetActive);
+          ensureContentLoaded(targetActive).then(() => focusRestoredTab(targetActive));
 
           // Precargar en segundo plano las demás pestañas para evitar desfasajes o lienzos vacíos
           for (const p of openTabPaths) {
@@ -834,6 +834,23 @@
       console.warn("Error al restaurar pestañas abiertas desde DashMap:", e);
     }
     return false;
+  }
+
+  // Al reabrir la bóveda el editor se monta después de cargar el contenido (y a veces después de que la
+  // ventana gane el foco), así que se reintenta unos fotogramas hasta que el foco quede dentro de la pestaña.
+  function focusRestoredTab(path: string, tries = 30) {
+    requestAnimationFrame(() => {
+      if (activeTabPath !== path) return;
+      const pane = document.querySelector('.tab-pane:not(.hidden)');
+      if (pane?.contains(document.activeElement)) return;
+      const active = document.activeElement;
+      // No robar el foco si el usuario ya está en otro campo (búsqueda, paleta…)
+      if (active && active !== document.body && active.matches('input, textarea, [contenteditable="true"]') && !pane?.contains(active)) return;
+      const cm = pane?.querySelector<HTMLElement>('.cm-content');
+      if (cm && cm.offsetParent) cm.focus();
+      else markdownViewers[path]?.focus();
+      if (tries > 0 && !pane?.contains(document.activeElement)) focusRestoredTab(path, tries - 1);
+    });
   }
 
   function handleSelectionChange(path: string, info: SelectionInfo) {

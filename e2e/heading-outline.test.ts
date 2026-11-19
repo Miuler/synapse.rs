@@ -116,3 +116,30 @@ it('Ctrl+F12 abre y cierra el índice de la nota en un diálogo', async () => {
   await s.browser.keys(['Control', 'F12']);
   await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
 });
+
+it('las flechas recorren las entradas visibles, → despliega y Enter va a la elegida', async () => {
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog .heading-outline').waitForDisplayed({ timeout: 5_000 });
+  await s.browser.$('.heading-outline [aria-label="Contraer todo"]').click();
+  await s.browser.$('.heading-outline .outline-search-input').click();
+  const active = () =>
+    s.browser.execute(() => document.querySelector('.heading-outline .outline-heading.active .outline-text')?.textContent ?? null) as Promise<string | null>;
+  // Contraído: la activa (Detalle A1) ya no se ve, así que ↓ empieza por la primera
+  await s.browser.keys('ArrowDown');
+  expect(await active()).toBe('Inicio');
+  await s.browser.keys('ArrowDown');
+  expect(await active()).toBe('Cierre');
+  await s.browser.keys('ArrowRight');
+  await s.browser.keys('ArrowDown');
+  expect(await active()).toBe('Parte B');
+  await s.browser.keys('ArrowUp');
+  await s.browser.keys('ArrowUp');
+  expect(await active()).toBe('Inicio');
+  await s.browser.keys('ArrowDown');
+  await s.browser.keys('ArrowDown');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await headingPath()).join('>') === 'Cierre>Parte B', {
+    timeout: 5_000,
+    timeoutMsg: 'Enter no llevó a Parte B',
+  });
+});
