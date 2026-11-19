@@ -349,7 +349,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— y modelos ArchiMate .archimate), con filtros por carpeta, extensión, tags y telemetría de tokens.".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",

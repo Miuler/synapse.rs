@@ -22,8 +22,8 @@ use tantivy::{
 };
 
 /// Subirla obliga a reconstruir el índice (4: extractores de draw.io y ArchiMate; 5: XML genérico
-/// e identificadores partidos).
-pub const SCHEMA_VERSION: &str = "5";
+/// e identificadores partidos; 6: extractor y tipo propio para BPMN).
+pub const SCHEMA_VERSION: &str = "6";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {

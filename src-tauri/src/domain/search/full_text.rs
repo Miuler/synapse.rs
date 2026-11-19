@@ -16,6 +16,8 @@ pub enum DocumentKind {
     Archimate,
     /// Planilla (Excel, OpenDocument): hojas y filas.
     Excel,
+    /// Diagrama de procesos BPMN (`.bpmn`): nombres de tareas, eventos y compuertas, y su documentación.
+    Bpmn,
 }
 
 impl DocumentKind {
@@ -31,6 +33,7 @@ impl DocumentKind {
             DocumentKind::Drawio => "drawio",
             DocumentKind::Archimate => "archimate",
             DocumentKind::Excel => "excel",
+            DocumentKind::Bpmn => "bpmn",
         }
     }
 
@@ -45,6 +48,7 @@ impl DocumentKind {
             "drawio" => Some(DocumentKind::Drawio),
             "archimate" => Some(DocumentKind::Archimate),
             "excel" => Some(DocumentKind::Excel),
+            "bpmn" => Some(DocumentKind::Bpmn),
             _ => None,
         }
     }

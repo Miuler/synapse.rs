@@ -98,6 +98,19 @@
   --gradient-start: var(--bg-secondary);
   --gradient-end: var(--bg-primary);
   --text-h: var(--text-primary);
+
+  /* Lo que se dibuja en canvas/WebGL (grafo, láser): se lee con getComputedStyle */
+  --graph-bg: var(--bg-primary);
+  --graph-node: #3b82f6;
+  --graph-node-active: #2563eb;
+  --graph-node-match: #ea580c;
+  --graph-node-ring: var(--bg-primary);
+  --graph-label: #374151;
+  --graph-label-match: #c2410c;
+  --graph-ghost: #9ca3af;
+  --graph-ghost-label: #6b7280;
+  --graph-link: rgba(120, 120, 120, 0.4);
+  --laser: #ff0033;
 }
 
 html[data-theme="dark"] {
@@ -175,6 +188,15 @@ html[data-theme="dark"] {
   --git-stashed: #a78bfa;
   --git-stashed-bg: rgba(167, 139, 250, 0.15);
   --git-stashed-border: rgba(167, 139, 250, 0.35);
+
+  --graph-node: #58a6ff;
+  --graph-node-active: #388bfd;
+  --graph-node-match: #f0883e;
+  --graph-label: #c9d1d9;
+  --graph-label-match: #f0883e;
+  --graph-ghost: #8b949e;
+  --graph-ghost-label: #8b949e;
+  --graph-link: rgba(200, 200, 200, 0.25);
 }
 
 * {

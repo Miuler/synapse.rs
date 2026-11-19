@@ -5,6 +5,7 @@
   import { CodeEditor, type EditorDiagnostic } from '@shared/ui/code-editor';
   import { diagramLayoutApi } from '@shared/api';
   import { SplitResizer } from '@shared/ui/split-resizer';
+  import { cssVar, withAlpha, onThemeChange } from '@shared/lib/theme-colors';
 
   interface Props {
     content: string;
@@ -166,6 +167,10 @@
   });
 
   // Renderizado continuo del puntero láser
+  // Color del láser del tema (`--laser`); se relee al cambiar de tema, no en cada frame
+  let laserColor = cssVar('--laser', '#ff0033');
+  const stopTheme = onThemeChange(() => (laserColor = cssVar('--laser', '#ff0033')));
+
   function drawLaserLoop() {
     if (!canvasRef) return;
     const ctx = canvasRef.getContext('2d');
@@ -198,8 +203,8 @@
         const alpha = Math.max(0, 1 - (now - p.time) / maxAge);
         ctx.beginPath();
         ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 30, 60, ${alpha})`; /* fijo: láser */
-        ctx.shadowColor = '#ff0033'; /* fijo: láser */
+        ctx.fillStyle = withAlpha(laserColor, alpha);
+        ctx.shadowColor = laserColor;
         ctx.shadowBlur = 14 * alpha;
         ctx.fill();
         continue;
@@ -223,11 +228,11 @@
           ctx.moveTo(prevMidX, prevMidY);
           ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
         }
-        ctx.strokeStyle = `rgba(255, 30, 60, ${alpha})`; /* fijo: láser */
+        ctx.strokeStyle = withAlpha(laserColor, alpha);
         ctx.lineWidth = 6 * alpha;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = '#ff0033'; /* fijo: láser */
+        ctx.shadowColor = laserColor;
         ctx.shadowBlur = 12 * alpha;
         ctx.stroke();
       }
@@ -237,8 +242,8 @@
       const headAlpha = Math.max(0, 1 - headAge / maxAge);
       ctx.beginPath();
       ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`; /* fijo: láser */
-      ctx.shadowColor = '#ff0033'; /* fijo: láser */
+      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`; /* fijo: el centro del láser es blanco, como un puntero real */
+      ctx.shadowColor = laserColor;
       ctx.shadowBlur = 18 * headAlpha;
       ctx.fill();
     }
@@ -262,6 +267,7 @@
   });
 
   onDestroy(() => {
+    stopTheme();
     if (animFrameId) cancelAnimationFrame(animFrameId);
   });
 
@@ -759,23 +765,30 @@
     transition: all 0.2s ease;
   }
 
-  .laser-dot {
+  /* `.zoom-controls .laser-dot`: gana a `.zoom-controls span` (min-width del «100%»), que lo estiraba */
+  :global(.zoom-controls .laser-dot) {
+    flex: none;
     width: 8px;
+    min-width: 0;
     height: 8px;
     border-radius: 50%;
     background-color: var(--text-muted);
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  :global(.laser-toggle-btn) {
+    border: 1px solid transparent !important;
   }
 
   :global(.laser-toggle-btn.active) {
-    background-color: rgba(255, 30, 60, 0.15) !important; /* fijo: color del láser */
-    color: #e0002b !important; /* fijo: color del láser */
-    border: 1px solid rgba(255, 30, 60, 0.3); /* fijo: color del láser */
+    background-color: color-mix(in srgb, var(--laser) 12%, transparent) !important;
+    color: var(--laser) !important;
+    border-color: color-mix(in srgb, var(--laser) 35%, transparent) !important;
   }
 
   :global(.laser-toggle-btn.active .laser-dot) {
-    background-color: #ff0033; /* fijo: color del láser */
-    box-shadow: 0 0 8px #ff0033; /* fijo: color del láser */
+    background-color: var(--laser);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--laser) 25%, transparent);
   }
 
   :global(.zoom-controls .separator) {

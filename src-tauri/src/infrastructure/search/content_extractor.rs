@@ -78,6 +78,16 @@ pub fn extract_with_config(
         return Some((DocumentKind::Archimate, file_stem.to_string(), text, String::new()));
     }
 
+    // 0c. Diagramas de procesos BPMN: los pasos con su tipo y la documentación, sin el dibujo
+    if lower_name.ends_with(".bpmn") {
+        let (_, decoded) = detect_and_decode(bytes);
+        let mut text = super::bpmn_extractor::bpmn_text(&decoded);
+        if !text.trim().is_empty() {
+            truncate_safe(&mut text, indexing.max_extracted_chars);
+            return Some((DocumentKind::Bpmn, file_stem.to_string(), text, String::new()));
+        }
+    }
+
     // 1. Documentos PDF
     if file_types.is_pdf_file(&lower_name) || lower_name.ends_with(".pdf") {
         if bytes.len() > indexing.max_pdf_file_size {
@@ -237,7 +247,7 @@ pub fn extract_with_config(
         }
     }
 
-    // XML (también XSD, WSDL, BPMN, XSL): solo lo legible, no las etiquetas ni ids o coordenadas
+    // XML (también XSD, WSDL, XSL, o un BPMN sin pasos con nombre): solo lo legible, no las etiquetas ni ids o coordenadas
     let is_xml = [".xml", ".xsd", ".wsdl", ".bpmn", ".xsl", ".xslt"].iter().any(|e| lower_name.ends_with(e));
     if is_xml {
         let (_, decoded) = detect_and_decode(bytes);

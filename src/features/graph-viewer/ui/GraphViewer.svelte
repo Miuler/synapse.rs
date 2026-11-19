@@ -5,6 +5,7 @@
   import * as THREE from 'three';
   import type { VaultGraphData, GraphNode } from '@entities/vault-item';
   import { vaultApi } from '@entities/vault-item';
+  import { cssVar, withAlpha, onThemeChange } from '@shared/lib/theme-colors';
   import { Globe, Crosshair, RefreshCw, Layers, Search, Ghost, Box, Sparkles } from 'lucide-svelte';
 
   interface Props {
@@ -16,6 +17,35 @@
 
   let containerEl = $state<HTMLDivElement | null>(null);
   let graphInstance: any = null;
+
+  /** Colores del tema (variables `--graph-*`): el canvas/WebGL no ve el CSS, se leen y se releen al cambiar de tema. */
+  function readColors() {
+    return {
+      bg: cssVar('--graph-bg', '#0d1117'),
+      node: cssVar('--graph-node', '#3b82f6'),
+      active: cssVar('--graph-node-active', '#2563eb'),
+      match: cssVar('--graph-node-match', '#ea580c'),
+      ring: cssVar('--graph-node-ring', '#ffffff'),
+      label: cssVar('--graph-label', '#374151'),
+      labelMatch: cssVar('--graph-label-match', '#c2410c'),
+      ghost: cssVar('--graph-ghost', '#9ca3af'),
+      ghostLabel: cssVar('--graph-ghost-label', '#6b7280'),
+      link: cssVar('--graph-link', 'rgba(150, 150, 150, 0.35)'),
+    };
+  }
+  let colors = readColors();
+
+  /** Repinta con los colores del tema actual sin reiniciar la simulación. */
+  function applyThemeColors() {
+    colors = readColors();
+    if (!graphInstance) return;
+    if (is3DMode) {
+      graphInstance.backgroundColor(colors.bg).nodeColor(graphInstance.nodeColor()).linkColor(graphInstance.linkColor());
+    } else {
+      // Reasignar los accesores obliga a force-graph a redibujar aunque la simulación ya esté quieta
+      graphInstance.nodeCanvasObject(graphInstance.nodeCanvasObject()).linkColor(graphInstance.linkColor());
+    }
+  }
 
   // Estado del Grafo
   let isGlobalMode = $state(false);
@@ -88,6 +118,7 @@
   });
 
   function initForceGraph() {
+    colors = readColors();
     if (!containerEl) return;
 
     if (graphInstance) {
@@ -106,16 +137,16 @@
       graphInstance = new ForceGraph3D(containerEl)
         .width(width)
         .height(height)
-        .backgroundColor('#0d1117') // fijo: color de canvas/WebGL del grafo
+        .backgroundColor(colors.bg)
         .nodeId('id')
         .nodeLabel((node: any) => `${node.label}${node.is_ghost ? ' (Fantasma)' : ` (${node.id})`}`)
         .nodeVal((node: any) => (node.is_ghost ? 1.5 : Math.max(2, Math.min(node.val * 1.5, 12))))
         .nodeColor((node: any) => {
-          if (node.is_ghost) return '#9ca3af'; // fijo: color de canvas/WebGL del grafo
-          if (activeNotePath && node.id === activeNotePath) return '#3b82f6'; // fijo: color de canvas/WebGL del grafo
-          return node.color || '#60a5fa'; // fijo: color de canvas/WebGL del grafo
+          if (node.is_ghost) return colors.ghost;
+          if (activeNotePath && node.id === activeNotePath) return colors.active;
+          return node.color || colors.node;
         })
-        .linkColor(() => 'rgba(255, 255, 255, 0.2)') // fijo: color de canvas/WebGL del grafo
+        .linkColor(() => colors.link)
         .linkWidth(0.8)
         .warmupTicks(isGlobalMode ? 30 : 10)
         .cooldownTicks(isGlobalMode ? 80 : 120)
@@ -146,19 +177,19 @@
 
           if (node.is_ghost) {
             ctx.setLineDash([3, 2]);
-            ctx.strokeStyle = '#9ca3af'; // fijo: color de canvas/WebGL del grafo
+            ctx.strokeStyle = colors.ghost;
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            ctx.fillStyle = 'rgba(156, 163, 175, 0.15)'; // fijo: color de canvas/WebGL del grafo
+            ctx.fillStyle = withAlpha(colors.ghost, 0.15);
             ctx.fill();
             ctx.setLineDash([]);
           } else {
-            ctx.fillStyle = isFocused ? '#2563eb' : (isMatched ? '#ea580c' : (node.color || '#3b82f6')); // fijo: color de canvas/WebGL del grafo
+            ctx.fillStyle = isFocused ? colors.active : isMatched ? colors.match : node.color || colors.node;
             ctx.fill();
 
             if (isMatched || isFocused) {
               ctx.lineWidth = 2;
-              ctx.strokeStyle = '#ffffff'; // fijo: color de canvas/WebGL del grafo
+              ctx.strokeStyle = colors.ring;
               ctx.stroke();
             }
           }
@@ -170,7 +201,7 @@
             ctx.font = `${fontSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = node.is_ghost ? '#6b7280' : (isMatched ? '#c2410c' : '#374151'); // fijo: color de canvas/WebGL del grafo
+            ctx.fillStyle = node.is_ghost ? colors.ghostLabel : isMatched ? colors.labelMatch : colors.label;
             ctx.fillText(node.label, node.x, node.y + radius + 2);
           }
         })
@@ -178,10 +209,7 @@
         .linkTarget('target')
         .linkColor((link: any) => {
           const targetNode = typeof link.target === 'object' ? link.target : null;
-          if (targetNode?.is_ghost) {
-            return 'rgba(156, 163, 175, 0.35)'; // fijo: color de canvas/WebGL del grafo
-          }
-          return 'rgba(150, 150, 150, 0.35)'; // fijo: color de canvas/WebGL del grafo
+          return targetNode?.is_ghost ? withAlpha(colors.ghost, 0.35) : colors.link;
         })
         .linkDirectionalParticles(isGlobalMode ? 0 : 2)
         .linkDirectionalParticleSpeed(0.006)
@@ -217,8 +245,10 @@
   onMount(() => {
     initForceGraph();
     window.addEventListener('resize', handleResize);
+    const stopTheme = onThemeChange(applyThemeColors);
 
     return () => {
+      stopTheme();
       window.removeEventListener('resize', handleResize);
       if (graphInstance) {
         try {

@@ -9,10 +9,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- **Búsqueda en diagramas BPMN**: de un `.bpmn` se indexa el nombre de cada paso con su tipo (tarea, evento, compuerta…), su documentación y las anotaciones, sin las coordenadas del dibujo; nuevo filtro `kind:bpmn`. El índice se reconstruye solo al abrir la bóveda.
+- **El grafo y el láser siguen el tema**: nodos, nombres y enlaces del grafo (2D y 3D) y el trazo del láser toman sus colores de variables del tema (`--graph-*`, `--laser`) y se repintan al cambiar de tema. En tema oscuro los nombres de las notas del grafo ya se leen (antes gris oscuro sobre fondo oscuro).
 - **Agente GitHub Copilot por ACP**: aparece en la lista de agentes junto a Claude y Antigravity. Usa el CLI `copilot` ya instalado (`copilot --acp`); si falta, indica cómo instalarlo (`npm install -g @github/copilot`).
 
 ### Cambiado
 
+- **Botón Láser**: el punto ya no sale estirado como una píldora y, activo, usa el color del láser del tema.
 - **Pruebas e2e 6 veces más rápidas (`syna-7qa9`)**: cada archivo esperaba 30 s de más porque se buscaba Vite en 127.0.0.1 y Vite escucha en ::1. Ahora arranca en ~2 s, Vite se reutiliza entre archivos y se cierra solo al terminar; la suite completa pasa de ~34 min a ~5,5 min (160/160). `test:e2e:quick` corre todo en un proceso. Si el WebDriver se cae, sus procesos se cierran todos (antes WebKitWebDriver quedaba huérfano).
 - **CI y release**: un workflow nuevo (`ci.yml`) comprueba tipos y corre las unitarias del frontend y de Rust en cada push a `main` y en los PR. El release compila Linux, Windows y macOS en paralelo (antes en serie) y publica la release de una vez al final, con `latest.json` armado con las plataformas que compilaron; si falla Mac se publica sin él. El caché de Rust se calienta desde `main` (al cambiar `Cargo.lock` y cada lunes): el que guardaba cada tag no lo podía usar el siguiente, así que cada release compilaba todas las dependencias desde cero. La validación del tag también comprueba tipos y unitarias. Los e2e siguen siendo locales.
 - **Pruebas e2e sin pausas fijas (`syna-7qa9`)**: `diagram-pan-zoom`, `compare-diagrams`, `compare-files-git`, `compare-images`, `explorer-keyboard-focus`, `editor-tab`, `document-words` y `drawio` esperan la condición real (diagrama quieto, zoom aplicado, selección del árbol, texto del diff, PNG reescrito) en vez de pausas fijas. Nuevo `bun run test:e2e:quick [nombre…]`: smoke más las e2e tocadas o nombradas.
