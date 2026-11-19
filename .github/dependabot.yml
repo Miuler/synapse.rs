@@ -1,0 +1,38 @@
+version: 2
+
+# Actualizaciones semanales. Las menores y de parche se agrupan en un solo PR por ecosistema para no
+# inundar el repo; las mayores llegan una por una porque pueden romper la compilación.
+#
+# Frontend: el ecosistema `npm` de Dependabot no lee bun.lock; el proyecto usa bun, así que se declara
+# `bun`, que sí actualiza package.json y bun.lock.
+
+updates:
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      bun-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

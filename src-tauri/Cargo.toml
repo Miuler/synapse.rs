@@ -4,6 +4,7 @@ name = "synapsers"
 description = "Synapsers - Notas"
 authors = ["Hector Miuler Malpica Gallegos"]
 license = ""
+publish = false
 repository = "https://github.com/Miuler/synapse.rs"
 edition = "2024"
 rust-version = "1.93.0"

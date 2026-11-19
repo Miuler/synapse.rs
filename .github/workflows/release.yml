@@ -29,8 +29,9 @@ on:
   schedule:
     - cron: "17 6 * * 1" # lunes: el caché de GitHub expira a los 7 días sin uso
 
+# Permisos mínimos: solo lectura por defecto; `publish` es el único job que los eleva.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -47,18 +48,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
       - name: Cache Bun packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -82,7 +83,7 @@ jobs:
 
       - name: Upload release notes
         if: env.IS_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-notes
           path: release-notes.md
@@ -93,26 +94,28 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
 
       - name: Rust Cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "src-tauri -> target"
           shared-key: "synapse-release-linux"
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
       - name: Cache APT Packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: /var/cache/apt/archives/*.deb
           key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
@@ -125,7 +128,7 @@ jobs:
             clang lld mold llvm nasm
 
       - name: Cache Bun packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -150,7 +153,7 @@ jobs:
           bun tauri signer sign dist/synapsers-linux-x86_64.tar.gz --app-version "${TAG#v}"
 
       - if: env.IS_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-linux
           path: dist/
@@ -161,37 +164,40 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           targets: x86_64-pc-windows-msvc
 
       - name: Install cargo-xwin
-        uses: taiki-e/install-action@cargo-xwin
+        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2
+        with:
+          tool: cargo-xwin
 
       - name: Rust Cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "src-tauri -> target"
           shared-key: "synapse-release-windows"
 
       - name: Cache xwin (MSVC CRT y SDK)
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/xwin
           key: ${{ runner.os }}-xwin-0.23.1
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
       - name: Cache APT Packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: /var/cache/apt/archives/*.deb
           key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
@@ -208,7 +214,7 @@ jobs:
           fi
 
       - name: Cache Bun packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -233,7 +239,7 @@ jobs:
           bun tauri signer sign dist/synapsers-windows-x86_64.zip --app-version "${TAG#v}"
 
       - if: env.IS_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-windows
           path: dist/
@@ -245,28 +251,29 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-darwin
 
       - name: Rust Cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "src-tauri -> target"
           shared-key: "synapse-release-macos-cache"
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
       - name: Cache Bun packages
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -293,25 +300,88 @@ jobs:
           bun tauri signer sign "$out" --app-version "${TAG#v}"
 
       - if: env.IS_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist-macos
           path: dist/
 
+  # Inventario de dependencias (CycloneDX) del backend Rust y del frontend. Corre también en main para
+  # que un fallo de la herramienta se vea antes de etiquetar; solo en un tag se sube como artefacto.
+  sbom:
+    name: SBOM (CycloneDX)
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Install cargo-cyclonedx
+        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2
+        with:
+          tool: cargo-cyclonedx@0.5.10
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate SBOMs
+        run: |
+          set -euo pipefail
+          mkdir -p sbom
+          (cd src-tauri && cargo cyclonedx --format json)
+          rust_sbom="$(find src-tauri -maxdepth 2 -name '*.cdx.json' | head -n1)"
+          test -n "$rust_sbom"
+          mv "$rust_sbom" "sbom/synapsers-${TAG#v}-rust.cdx.json"
+          # Solo dependencias de producción; npm ls lee node_modules, que deja bun
+          bunx @cyclonedx/cyclonedx-npm@7.0.1 --omit dev --ignore-npm-errors \
+            --output-format JSON --output-file "sbom/synapsers-${TAG#v}-frontend.cdx.json"
+          ls -l sbom
+
+      - if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom/
+
   publish:
     name: Publish release
-    needs: [validate, build-linux, build-windows, build-macos]
-    # Mac es opcional: se publica aunque falle, siempre que Linux y Windows estén bien
+    needs: [validate, build-linux, build-windows, build-macos, sbom]
+    # Mac es opcional: se publica aunque falle, siempre que Linux, Windows y el SBOM estén bien
     if: >-
       always() &&
       startsWith(github.ref, 'refs/tags/') &&
       needs.validate.result == 'success' &&
       needs.build-linux.result == 'success' &&
-      needs.build-windows.result == 'success'
+      needs.build-windows.result == 'success' &&
+      needs.sbom.result == 'success'
     runs-on: ubuntu-24.04
+    # Único job con permisos elevados: crea la release y firma las attestations (OIDC de Sigstore).
+    # No compila nada: solo trabaja con los artefactos de los jobs anteriores.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
@@ -349,6 +419,22 @@ jobs:
           (d / "latest.json").write_text(json.dumps(latest, indent=2))
           PY
 
+      # Procedencia firmada con Sigstore (la gestiona GitHub; no se añade Cosign aparte). Se verifica con
+      # `gh attestation verify <archivo> --repo Miuler/synapse.rs`. No altera los archivos ni sus .sig.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum *.tar.gz *.zip *.sig *.cdx.json latest.json > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -360,4 +446,6 @@ jobs:
             --title "$TAG" \
             --notes-file release-notes.md \
             *.tar.gz *.zip *.sig \
-            latest.json
+            *.cdx.json \
+            latest.json \
+            SHA256SUMS.txt

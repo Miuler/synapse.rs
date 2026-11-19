@@ -1,0 +1,91 @@
+name: Security
+
+# Auditoría de dependencias en cada push a main y en los PR, y una vez por semana (los avisos nuevos
+# aparecen aunque el código no cambie): RustSec (cargo audit), cargo-deny (avisos, licencias, fuentes)
+# y `bun audit` para el frontend. CodeQL y Scorecard tienen su propio workflow.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 5 * * 1" # lunes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-audit:
+    name: cargo audit (RustSec)
+    runs-on: ubuntu-24.04
+    # En PR de forks el token es de solo lectura y la acción no puede publicar el check; cargo-deny
+    # (abajo) revisa los mismos avisos y sí corre en esos PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      checks: write # rustsec/audit-check publica el resultado como check run
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Audit Cargo.lock
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+
+  cargo-deny:
+    name: cargo deny (avisos, licencias, fuentes)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: cargo deny check
+        uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check
+          command-arguments: --config src-tauri/deny.toml
+
+  frontend-audit:
+    name: bun audit (frontend)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Falla con avisos críticos en dependencias de producción. Las de desarrollo (webdriverio,
+      # minimatch…) no llegan al binario, y los avisos altos se listan sin bloquear mientras se
+      # actualizan las dependencias afectadas (lodash-es, nanoid).
+      - name: bun audit (producción, crítico)
+        run: bun audit --prod --audit-level=critical
+
+      - name: bun audit (producción, alto) - informativo
+        run: bun audit --prod --audit-level=high || echo "::warning::bun audit encontró avisos altos en dependencias de producción; revisa el log"

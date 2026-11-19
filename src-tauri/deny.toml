@@ -1,0 +1,47 @@
+# Configuración de cargo-deny (workflow `Security`): avisos de RustSec, licencias, duplicados y fuentes.
+# Se ejecuta con `cargo deny --manifest-path src-tauri/Cargo.toml check --config src-tauri/deny.toml`.
+
+[advisories]
+# Las vulnerabilidades siempre fallan. Para silenciar un aviso concreto, anota aquí su id con el motivo
+# y la fecha en la que revisarlo, p. ej.: "RUSTSEC-0000-0000", # motivo (revisar 2027-01)
+ignore = []
+unmaintained = "workspace" # solo avisa de las dependencias directas sin mantenimiento
+yanked = "warn"
+
+[licenses]
+# Licencias permisivas y de copyleft débil compatibles con GPL-3.0. Lista cerrada: cualquier otra
+# (AGPL, SSPL, BUSL, CDDL, EPL-1.0, licencias no libres…) falla hasta que se decida a mano.
+# Apache-2.0 es compatible con GPL-3.0, no con GPL-2.0-only.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+# El crate de la app (publish = false) no se publica en crates.io y no declara licencia en Cargo.toml.
+ignore = true
+
+[bans]
+multiple-versions = "warn" # el árbol de Tauri trae versiones duplicadas inevitables
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
