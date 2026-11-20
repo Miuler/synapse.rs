@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.7] - 2026-11-20
+
 ### Añadido
 
 - Zoom en los visores de Word y de hojas de cálculo que agranda todo, como en un PDF (no solo la letra): en Word la página entera, con «Ajustar al ancho»; en las hojas, anchos de columna, altos de fila, letra y cabeceras, sin dejar de pintar solo lo visible. De 50 % a 300 % con el control de la barra, Ctrl+rueda o los atajos de tamaño (Ctrl++, Ctrl+−, Ctrl+0), que dentro de estos visores hacen este zoom. Se recuerda un zoom para todos los Word y otro para todas las hojas.
@@ -1057,6 +1059,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7
 [1.0.0-beta.6]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.4
