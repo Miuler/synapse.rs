@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Corregido
+
+- **SBOM del frontend en la release**: se genera con syft sobre las dependencias de producción. `cyclonedx-npm` no funcionaba con bun (`Unexpected npmJsPath`) ni con npm (conflicto con los `overrides`), y el job «SBOM» bloqueaba la publicación.
+
 ## [1.0.0-beta.5] - 2026-11-20
 
 ### Añadido
