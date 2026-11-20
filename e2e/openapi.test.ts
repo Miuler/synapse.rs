@@ -111,3 +111,43 @@ it('sigue los $ref a otros archivos y avisa de los que faltan; se actualiza al c
     "get:\n  summary: Listar transferencias nuevas\n  responses:\n    '200':\n      description: OK\n");
   await s.browser.waitUntil(async () => (await paneText()).includes('Listar transferencias nuevas'), { timeout: 20_000, timeoutMsg: 'no se actualizó al cambiar el archivo referenciado' });
 }, 60_000);
+
+it('Ctrl+P → «Zoom» abre el selector; ↑/↓ + Enter cambian el texto de Scalar, Esc lo deja como estaba', async () => {
+  const zoom = () => s.browser.execute(() => getComputedStyle(document.documentElement).getPropertyValue('--content-zoom').trim());
+  const openZoom = async () => {
+    await s.browser.keys(['Control', 'p']);
+    const input = await s.browser.$('.synapse-command-palette input');
+    await input.waitForExist({ timeout: 15_000 });
+    await input.setValue('Zoom: tamaño');
+    await s.browser.waitUntil(
+      async () => (await s.browser.execute(() => !!document.querySelector('.synapse-command-palette .command-item'))) as boolean,
+      { timeout: 15_000 },
+    );
+    await s.browser.keys(['Enter']);
+    await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000 });
+  };
+  const fontBefore = (await s.browser.execute(() => {
+    const app = document.querySelector('.tab-pane:not(.hidden) .openapi-pane .scalar-app') as HTMLElement;
+    return getComputedStyle(app.querySelector('h1, h2, .section-header') ?? app).fontSize;
+  })) as string;
+  await openZoom();
+  expect(await s.browser.execute(() => document.querySelector('.zoom-list [aria-selected="true"]')?.textContent?.trim())).toBe('100%');
+  await s.browser.keys(['ArrowDown']);
+  await s.browser.keys(['ArrowDown']);
+  await s.browser.keys(['Enter']);
+  await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000, reverse: true });
+  expect(await zoom()).toBe('1.25');
+  const fontAfter = (await s.browser.execute(() => {
+    const app = document.querySelector('.tab-pane:not(.hidden) .openapi-pane .scalar-app') as HTMLElement;
+    return getComputedStyle(app.querySelector('h1, h2, .section-header') ?? app).fontSize;
+  })) as string;
+  expect(parseFloat(fontAfter)).toBeGreaterThan(parseFloat(fontBefore));
+  // Esc deshace la vista previa
+  await openZoom();
+  await s.browser.keys(['ArrowUp']);
+  expect(await zoom()).toBe('1.1');
+  await s.browser.keys(['Escape']);
+  await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000, reverse: true });
+  expect(await zoom()).toBe('1.25');
+  await s.browser.execute(() => document.documentElement.style.setProperty('--content-zoom', '1'));
+}, 60_000);

@@ -40,6 +40,7 @@
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs, GitMissingDialog} from "@features/git-management";
+  import {ZoomDialog} from "@features/content-zoom";
   import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
   import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
@@ -378,6 +379,7 @@
   // La bóveda es un repositorio: si no hay Git que funcione, se ofrece elegir el ejecutable (una vez
   // por sesión; «No volver a preguntar» lo silencia). Ajustes → Git permite cambiarlo siempre.
   let gitMissingOpen = $state(false);
+  let zoomDialogOpen = $state(false);
   let gitBinaryChecked = false;
   async function checkGitBinary() {
     if (gitBinaryChecked || isDetachedWindow) return;
@@ -3605,6 +3607,12 @@
         },
       },
       {
+        id: "cmd-content-zoom",
+        name: "Zoom: tamaño del texto del contenido",
+        category: "Synapse",
+        action: () => (zoomDialogOpen = true),
+      },
+      {
         id: "cmd-app-news",
         name: "Synapse: Novedades (changelog)",
         category: "Synapse",
@@ -5069,6 +5077,7 @@
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
   <GitMissingDialog bind:open={gitMissingOpen} />
+  <ZoomDialog bind:open={zoomDialogOpen} />
   {#if !isDetachedWindow}
     <UpdateNotice onShowNotes={() => { appUpdates.noticeOpen = false; selectTab(UPDATE_NOTES_TAB); }} />
   {/if}

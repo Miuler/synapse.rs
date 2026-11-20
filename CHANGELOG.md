@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Comando «Zoom: tamaño del texto del contenido» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse. El visor OpenAPI también sigue ese zoom (solo la letra, como Markdown y el editor).
 - El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.
 
 ## [1.0.0-beta.6] - 2026-11-20

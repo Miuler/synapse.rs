@@ -61,6 +61,25 @@
   --scalar-color-purple: var(--syntax-function);
   --scalar-font: var(--font-interface, inherit);
   --scalar-font-code: var(--code-font, monospace);
+  /* Solo la letra sigue el zoom del contenido (valores base de Scalar), como en Markdown y el editor */
+  --scalar-heading-1: calc(24px * var(--content-zoom, 1));
+  --scalar-heading-2: calc(20px * var(--content-zoom, 1));
+  --scalar-heading-3: calc(16px * var(--content-zoom, 1));
+  --scalar-heading-4: calc(16px * var(--content-zoom, 1));
+  --scalar-heading-5: calc(16px * var(--content-zoom, 1));
+  --scalar-heading-6: calc(16px * var(--content-zoom, 1));
+  --scalar-page-description: calc(16px * var(--content-zoom, 1));
+  --scalar-paragraph: calc(16px * var(--content-zoom, 1));
+  --scalar-small: calc(14px * var(--content-zoom, 1));
+  --scalar-mini: calc(13px * var(--content-zoom, 1));
+  --scalar-micro: calc(12px * var(--content-zoom, 1));
+  --scalar-font-size-1: calc(21px * var(--content-zoom, 1));
+  --scalar-font-size-2: calc(16px * var(--content-zoom, 1));
+  --scalar-font-size-3: calc(14px * var(--content-zoom, 1));
+  --scalar-font-size-4: calc(13px * var(--content-zoom, 1));
+  --scalar-font-size-5: calc(12px * var(--content-zoom, 1));
+  --scalar-font-size-6: calc(12px * var(--content-zoom, 1));
+  --scalar-font-size-7: calc(10px * var(--content-zoom, 1));
 }`;
 
   function config(spec: string, isDark: boolean) {

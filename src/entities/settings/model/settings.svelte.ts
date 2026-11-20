@@ -55,7 +55,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 function clampZoom(zoom: number): number {
-  return Math.min(3, Math.max(0.5, Math.round(zoom * 10) / 10));
+  return Math.min(3, Math.max(0.5, Math.round(zoom * 20) / 20));
 }
 
 function loadInitialSettings(): AppSettings {
