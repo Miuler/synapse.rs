@@ -19,6 +19,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- El diff de texto se abre colapsado, mostrando solo los cambios («Expandir todo» en la barra para verlo entero). `diff.max_expand_lines` en config.jsonc vale ahora 0; con un número mayor, los archivos de hasta esas líneas se abren expandidos como antes.
 - Un enlace con varios archivos del mismo nombre ya no lleva al «más cercano» sin avisar: se pregunta. Esos enlaces ambiguos no cuentan en backlinks, grafo ni relaciones hasta que se fijan.
 - Visor OpenAPI: Scalar ya no usa la URL de la ventana (`#…`); con varias pestañas de OpenAPI cada una va por su cuenta (antes una pestaña nueva saltaba a la sección de la otra).
 

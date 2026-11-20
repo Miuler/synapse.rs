@@ -117,9 +117,10 @@
 
   // Configuración de visualización y límites de diferencias Git (Diff Viewer)
   "diff": {
-    // Número máximo de líneas en un archivo para expandir automáticamente todo el diff de texto
-    // Si el archivo supera este límite (ej. dibujos Excalidraw o JSON extensos), solo se muestran los bloques modificados (hunks) para prevenir congelamientos
-    "max_expand_lines": 800
+    // El diff de texto se abre colapsado: solo los cambios (hunks), con «Expandir todo» en la barra.
+    // Con un número mayor que 0, los archivos de hasta esas líneas se abren expandidos enteros
+    // (los más grandes, como dibujos Excalidraw o JSON extensos, siguen colapsados para no congelar la vista)
+    "max_expand_lines": 0
   },
 
   // Configuración de límites y parámetros para la indexación de búsqueda Full-Text (Tantivy)

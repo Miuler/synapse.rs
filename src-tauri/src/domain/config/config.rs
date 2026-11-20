@@ -404,7 +404,8 @@ pub struct DiffConfig {
 }
 
 fn default_diff_max_expand_lines() -> usize {
-    800
+    // 0: el diff se abre colapsado (solo los cambios)
+    0
 }
 
 impl Default for DiffConfig {
@@ -519,6 +520,6 @@ mod tests {
         assert_eq!(config.indexing.max_extracted_chars, 200_000);
         assert_eq!(config.indexing.max_word_length, 80);
 
-        assert_eq!(config.diff.max_expand_lines, 800);
+        assert_eq!(config.diff.max_expand_lines, 0);
     }
 }

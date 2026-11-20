@@ -192,9 +192,9 @@
         instance.buildSplitDiffLines();
         instance.buildUnifiedDiffLines();
 
-        // Expansión automática segura basada en el límite configurable de config.jsonc
-        // Evita colgar la interfaz en archivos extensos como .excalidraw o JSON minificados
-        const maxExpandLines = DEFAULT_APP_CONFIG.diff?.max_expand_lines ?? 800;
+        // Por defecto se abre colapsado (solo los cambios). Con `diff.max_expand_lines` > 0 en
+        // config.jsonc, los archivos de hasta esas líneas se abren expandidos enteros
+        const maxExpandLines = DEFAULT_APP_CONFIG.diff?.max_expand_lines ?? 0;
         const totalLines = Math.max(
           instance.splitLineLength ?? 0,
           instance.unifiedLineLength ?? 0,
@@ -202,7 +202,7 @@
           diffData.new_content ? diffData.new_content.split('\n').length : 0
         );
 
-        if (totalLines <= maxExpandLines) {
+        if (maxExpandLines > 0 && totalLines <= maxExpandLines) {
           try {
             instance.onAllExpand('split');
             instance.onAllExpand('unified');
