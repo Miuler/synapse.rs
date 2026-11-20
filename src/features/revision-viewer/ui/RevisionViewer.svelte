@@ -21,6 +21,7 @@
   import { PlantUmlViewer } from '@features/plantuml-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { MarkdownViewer } from '@features/markdown-editor';
+  import { OpenApiViewer, isOpenApiContent } from '@features/openapi-viewer';
   import {
     History,
     Shield,
@@ -52,6 +53,7 @@
   let showDrawingRaw = $state(false);
   let showMermaidEditor = $state(true); // Modo edición (código visible) por defecto para Mermaid
   let showMarkdownRaw = $state(false);
+  let showOpenApiRaw = $state(false);
   let wrapText = $state(false);
   let copiedRaw = $state(false);
 
@@ -62,10 +64,12 @@
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
   const isMarkdown = $derived(isMarkdownFile(filePath));
   const isTextFile = $derived(!isImage && !isPdf);
+  const isOpenApi = $derived(!isDrawing && !isDiagram && !isMarkdown && isOpenApiContent(filePath, revData?.content));
   const isCurrentlyInRaw = $derived(
     (isDrawing && showDrawingRaw) ||
     (isMarkdown && showMarkdownRaw) ||
-    (!isDrawing && !isDiagram && !isImage && !isPdf && !isMarkdown)
+    (isOpenApi && showOpenApiRaw) ||
+    (!isDrawing && !isDiagram && !isImage && !isPdf && !isMarkdown && !isOpenApi)
   );
 
   async function loadRevision() {
@@ -192,6 +196,29 @@
             class:active={showMarkdownRaw}
             onclick={() => (showMarkdownRaw = true)}
             title="Ver texto Markdown en bruto (Raw)"
+          >
+            <FileCode size={12} />
+            <span>Raw</span>
+          </button>
+        </div>
+      {:else if isOpenApi}
+        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización OpenAPI">
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={!showOpenApiRaw}
+            onclick={() => (showOpenApiRaw = false)}
+            title="Vista de la API (OpenAPI)"
+          >
+            <Eye size={12} />
+            <span>API</span>
+          </button>
+          <button
+            type="button"
+            class="toggle-btn"
+            class:active={showOpenApiRaw}
+            onclick={() => (showOpenApiRaw = true)}
+            title="Ver el YAML/JSON en bruto (Raw)"
           >
             <FileCode size={12} />
             <span>Raw</span>
@@ -332,6 +359,10 @@
               />
             </div>
           {/if}
+        {:else if isOpenApi && !showOpenApiRaw}
+          <div class="revision-markdown-container">
+            <OpenApiViewer content={revData.content || ''} />
+          </div>
         {:else}
           <div class="revision-code-container">
             <pre class="revision-code-pre" class:wrap={wrapText}><code>{revData.content || ''}</code></pre>

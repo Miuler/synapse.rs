@@ -20,6 +20,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Workflows con permisos mínimos**: `contents: read` por defecto y `contents: write`, `id-token` y `attestations` solo en el job que publica la release. Las acciones están fijadas por SHA de commit y `dtolnay/rust-toolchain` y `taiki-e/install-action` reciben ahora `toolchain` y `tool` explícitos.
 - `src-tauri/Cargo.toml`: `publish = false` (el crate no se publica en crates.io; lo necesita cargo-deny para no exigirle licencia).
 
+### Corregido
+
+- **Versiones de un OpenAPI en el historial de Git**: «Ver archivo» muestra la API con Scalar, como en Lectura, en vez del YAML/JSON en texto plano; el botón Raw sigue mostrando el texto.
+
 ## [1.0.0-beta.4] - 2026-11-19
 
 ### Añadido
