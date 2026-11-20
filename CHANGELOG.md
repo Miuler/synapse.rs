@@ -12,27 +12,25 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - Zoom en los visores de Word y de hojas de cálculo que agranda todo, como en un PDF (no solo la letra): en Word la página entera, con «Ajustar al ancho»; en las hojas, anchos de columna, altos de fila, letra y cabeceras, sin dejar de pintar solo lo visible. De 50 % a 300 % con el control de la barra, Ctrl+rueda o los atajos de tamaño (Ctrl++, Ctrl+−, Ctrl+0), que dentro de estos visores hacen este zoom. Se recuerda un zoom para todos los Word y otro para todas las hojas.
 - Al copiar desde el modo lectura de Markdown una selección con tareas, las casillas se copian como ☐ (pendiente) y ✅ (hecha), con la lista y la negrita, para pegarlas en un correo o en Teams web (que quitan las casillas HTML); también en texto plano (`- ☐ tarea`). Sin tareas se copia como siempre.
 - Atajo configurable «Marcar / desmarcar tarea» (`toggle_task`, Ctrl+Enter por defecto) en el editor de Markdown, como en Obsidian: alterna `- [ ]` ↔ `- [x]` en la línea del cursor (o en todas las de la selección), añade la casilla a un elemento de lista que no la tiene y convierte una línea normal en tarea. Funciona también con Vim, en modo normal e inserción.
-
-## [1.0.0-beta.7] - 2026-11-20
-
-### Corregido
-
-- El `Buffer` que Synapse ofrece a los plugins de Obsidian tomaba cualquier `Uint8Array` por un `Buffer`, lo que hacía que JSZip leyera mal los nombres de los archivos dentro de un zip (por ejemplo al abrir un `.docx`).
-- El menú contextual del Git Log sale junto al puntero (antes aparecía desplazado) y no se sale de la ventana.
-- «Checkout de este commit» del Git Log fallaba al confirmar porque leía el commit del menú ya cerrado.
-
-### Cambiado
-
-- El visor OpenAPI ya no muestra «Ask AI» de Scalar: el chat enviaba la especificación a servidores externos.
-
-### Añadido
-
 - Visor de documentos Word (`.docx`, `.docm`, `.dotx`) dentro de Synapse, en solo lectura, con docx-preview (se carga al abrir el primero): páginas, fuentes, colores, tablas, imágenes, encabezados y pies. El `.doc` antiguo sigue abriéndose con la aplicación del sistema.
 - Botón «Abrir en la aplicación» en los visores de Word y de hojas de cálculo, para editar con la aplicación del sistema.
 - Visor de hojas de cálculo dentro de Synapse (antes se abrían con la aplicación del sistema), en solo lectura: `.xlsx`, `.xlsm`, `.xltx`, `.xltm` con estilos (negrita, colores, rellenos, bordes, alineación), celdas combinadas y anchos/altos; `.xls`, `.xlsb`, `.ods` solo con valores y fórmulas. Los libros grandes se abren sin cortar: cada hoja se lee al abrirla, las celdas llegan por tramos de filas según te desplazas, solo se pintan las filas y columnas a la vista, y el libro leído queda en caché mientras se usa; un `.xlsx` de más de 10 MB se lee sin estilos para abrir el doble de rápido. Barra de fórmulas con la celda seleccionada, botón «Fórmulas» (Ctrl+`) para verlas en la rejilla, aviso en las fórmulas sin resultado guardado, pestañas de hojas abajo (las ocultas solo al pedirlas; Alt+RePág/AvPág cambia de hoja), navegación con flechas y Ctrl+C para copiar la celda.
 - Actualizar una rama que va por detrás de su remota sin salir de Synapse (fast-forward, sin crear commits): el badge de la rama muestra ↓N / ↑N, el diálogo de ramas tiene «Actualizar desde origin/…», y el menú del Git Log ofrece «Avanzar «rama» hasta aquí» en los commits posteriores. Si las ramas divergieron no se toca nada y se explica por qué.
 - Comando «Zoom: toda la interfaz» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse; se guarda en los ajustes. El zoom del texto del contenido sigue en Ajustes y ahora también lo sigue el visor OpenAPI (solo la letra, como Markdown y el editor).
 - El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.
+
+### Cambiado
+
+- El visor OpenAPI ya no muestra «Ask AI» de Scalar: el chat enviaba la especificación a servidores externos.
+- **Icono de la app**: los iconos de `src-tauri/icons/` se regeneran desde `src/shared/assets/synapsers.svg`.
+- **CI de Windows**: el paso de dependencias de compilación cruzada instala solo `clang lld llvm nasm` (el destino es Windows; sobraban las bibliotecas GTK/WebKit de Linux) y se retira el caché de APT, que no tenía efecto. Ahorra unos 7 minutos por release.
+- **Caché de xwin**: la ruta cacheada era `~/.cache/xwin`, que `cargo-xwin` no usa; ahora es `~/.cache/cargo-xwin`, así la CRT y el SDK de MSVC (~8 min de descarga) se reutilizan entre ejecuciones.
+
+### Corregido
+
+- El `Buffer` que Synapse ofrece a los plugins de Obsidian tomaba cualquier `Uint8Array` por un `Buffer`, lo que hacía que JSZip leyera mal los nombres de los archivos dentro de un zip (por ejemplo al abrir un `.docx`).
+- El menú contextual del Git Log sale junto al puntero (antes aparecía desplazado) y no se sale de la ventana.
+- «Checkout de este commit» del Git Log fallaba al confirmar porque leía el commit del menú ya cerrado.
 
 ## [1.0.0-beta.6] - 2026-11-20
 
@@ -51,10 +49,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
-- **Icono de la app**: los iconos de `src-tauri/icons/` se regeneran desde `src/shared/assets/synapsers.svg`.
 - **e2e**: el puerto de WebDriver se configura con `E2E_DRIVER_PORT` (por defecto 4444; WebKitWebDriver usa el siguiente), para poder correr varios procesos de pruebas a la vez.
-- **CI de Windows**: el paso de dependencias de compilación cruzada instala solo `clang lld llvm nasm` (el destino es Windows; sobraban las bibliotecas GTK/WebKit de Linux) y se retira el caché de APT, que no tenía efecto. Ahorra unos 7 minutos por release.
-- **Caché de xwin**: la ruta cacheada era `~/.cache/xwin`, que `cargo-xwin` no usa; ahora es `~/.cache/cargo-xwin`, así la CRT y el SDK de MSVC (~8 min de descarga) se reutilizan entre ejecuciones.
 
 ## [1.0.0-beta.5] - 2026-11-20
 
@@ -1062,7 +1057,6 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
-[1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7
 [1.0.0-beta.6]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.4
