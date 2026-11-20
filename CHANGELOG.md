@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.6] - 2026-11-20
+
 ### Añadido
 
 - **Actualizaciones desde la app**: al iniciar (desactivable en *Ajustes → Actualizaciones*) o con «Synapse: Buscar actualizaciones» en la paleta, Synapse consulta la última release y, si hay una versión nueva, avisa abajo a la derecha con «Ver novedades», «Más tarde» y «Actualizar». La descarga se verifica con la firma de la release y el ejecutable se reemplaza (en Linux y Windows la release publica el binario suelto, que el instalador de Tauri no sabe instalar); después, «Reiniciar ahora». `latest.json` lleva ahora las novedades de la versión.
@@ -1031,6 +1033,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.6]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.6
 [1.0.0-beta.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.3
