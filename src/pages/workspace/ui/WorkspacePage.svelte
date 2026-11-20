@@ -386,6 +386,8 @@
       gitDialogState.repos = gitRepos;
     } catch (e) {
       console.warn("Error al refrescar estado de Git:", e);
+      // Al log de la app (archivo): si no, en Windows un fallo de Git no deja rastro
+      warn(`[git] error al refrescar el estado: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

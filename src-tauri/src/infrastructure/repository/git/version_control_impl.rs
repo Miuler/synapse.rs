@@ -225,6 +225,12 @@ impl VersionControlImpl {
     }
 }
 
+/// Ruta relativa con `/` (en Windows `to_string_lossy` da `\\` y el explorador usa `/`).
+fn rel_key(rel: &Path) -> String {
+    let key = rel.to_string_lossy();
+    if std::path::MAIN_SEPARATOR == '\\' { key.replace('\\', "/") } else { key.into_owned() }
+}
+
 impl VersionControlImpl {
     pub fn new() -> Self {
         Self
@@ -351,7 +357,11 @@ impl VersionControlImpl {
     pub fn get_vault_status(&self, vault_path: &Path) -> Result<VaultVersionState, String> {
         let repo = match gix::discover(vault_path) {
             Ok(r) => r,
-            Err(_) => {
+            Err(e) => {
+                // Lo normal es que la carpeta no sea un repositorio; si lo es y gix no lo abre, aquí se ve por qué
+                if vault_path.join(".git").exists() {
+                    log::warn!("[git] {} tiene .git pero no se pudo abrir: {e}", vault_path.display());
+                }
                 return Ok(VaultVersionState {
                     is_repo: false,
                     branch: None,
@@ -381,7 +391,12 @@ impl VersionControlImpl {
 
         let platform = match repo.status(gix::progress::Discard) {
             Ok(p) => p,
-            Err(e) => return Err(format!("Failed to obtain git status platform: {e}")),
+            Err(e) => {
+                // Sin estado de archivos el repositorio sigue siendo un repositorio: se muestra la
+                // rama y las acciones de Git, y el motivo queda en el log.
+                log::warn!("[git] no se pudo leer el estado de {}: {e}", work_dir.display());
+                return Ok(VaultVersionState { is_repo: true, branch, statuses: HashMap::new(), repos: Vec::new() });
+            }
         };
 
         let status_iter = match platform
@@ -389,7 +404,12 @@ impl VersionControlImpl {
             .into_iter(None)
         {
             Ok(it) => it,
-            Err(e) => return Err(format!("Failed to create git status iterator: {e}")),
+            Err(e) => {
+                // Sin estado de archivos el repositorio sigue siendo un repositorio: se muestra la
+                // rama y las acciones de Git, y el motivo queda en el log.
+                log::warn!("[git] no se pudo leer el estado de {}: {e}", work_dir.display());
+                return Ok(VaultVersionState { is_repo: true, branch, statuses: HashMap::new(), repos: Vec::new() });
+            }
         };
 
         let mut statuses: HashMap<String, FileVersionState> = HashMap::new();
@@ -401,7 +421,7 @@ impl VersionControlImpl {
                         let rel_str = rela_path.to_string();
                         let abs_path = work_dir.join(&rel_str);
                         if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
-                            let key = v_rel.to_string_lossy().to_string();
+                            let key = rel_key(v_rel);
                             if !key.is_empty() {
                                 let entry = statuses.entry(key).or_default();
                                 let code = if abs_path.symlink_metadata().is_ok() {
@@ -418,7 +438,7 @@ impl VersionControlImpl {
                             let rel_str = entry.rela_path.to_string();
                             let abs_path = work_dir.join(&rel_str);
                             if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
-                                let key = v_rel.to_string_lossy().to_string();
+                                let key = rel_key(v_rel);
                                 if !key.is_empty() {
                                     let entry = statuses.entry(key).or_default();
                                     entry.worktree = Some("?".to_string());
@@ -430,7 +450,7 @@ impl VersionControlImpl {
                         let rel_str = dirwalk_entry.rela_path.to_string();
                         let abs_path = work_dir.join(&rel_str);
                         if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
-                            let key = v_rel.to_string_lossy().to_string();
+                            let key = rel_key(v_rel);
                             if !key.is_empty() {
                                 let entry = statuses.entry(key).or_default();
                                 entry.worktree = Some("M".to_string());
@@ -448,7 +468,7 @@ impl VersionControlImpl {
                     let rel_str = change.location().to_string();
                     let abs_path = work_dir.join(&rel_str);
                     if let Ok(v_rel) = abs_path.strip_prefix(vault_path) {
-                        let key = v_rel.to_string_lossy().to_string();
+                        let key = rel_key(v_rel);
                         if !key.is_empty() {
                             let entry = statuses.entry(key).or_default();
                             entry.index = Some(idx_code.to_string());
