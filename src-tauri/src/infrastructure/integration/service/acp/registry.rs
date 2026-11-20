@@ -160,7 +160,8 @@ impl RegistryClient {
         let fetched = async {
             let resp = self
                 .http
-                .get(REGISTRY_URL)
+                // SYNAPSE_ACP_REGISTRY_URL: las e2e la apuntan a un puerto cerrado para no depender de la red
+                .get(std::env::var("SYNAPSE_ACP_REGISTRY_URL").unwrap_or_else(|_| REGISTRY_URL.to_string()))
                 .timeout(Duration::from_secs(30))
                 .send()
                 .await?;

@@ -195,6 +195,9 @@ async function launch(base: string, vault: string): Promise<Session> {
     // Con la escala de texto de GNOME (p. ej. 1,25), WebKit agranda la página y WebKitWebDriver
     // hace clic en coordenadas sin escalar (cae en otro elemento): se compensa a escala 1.
     GDK_DPI_SCALE: process.env.E2E_GDK_DPI_SCALE ?? String(1 / gnomeTextScale()),
+    // El registro público de agentes ACP: sin red (o con el CDN colgado) la lista de agentes tardaba
+    // hasta 30 s. Un puerto cerrado falla al instante y quedan los agentes locales y personalizados.
+    SYNAPSE_ACP_REGISTRY_URL: process.env.SYNAPSE_ACP_REGISTRY_URL ?? 'http://127.0.0.1:9/registry.json',
   };
   // Si el puerto sigue tomado por el WebDriver anterior, conectarse a él fallaría a mitad de la prueba
   await waitForPortFree(DRIVER_PORT, 10_000);

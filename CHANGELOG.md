@@ -18,6 +18,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Bóveda con Git que no se detectaba (Windows)**: si gix abre el repositorio pero falla al leer el estado de los archivos, la bóveda se sigue mostrando como repositorio (rama y acciones de Git, sin las marcas de cambios) y el motivo queda en el log de la app. Las rutas de los archivos cambiados usan `/` también en Windows (salían con `\` y el explorador no las marcaba).
 - **Clave pública del actualizador**: estaba en `tauri.conf.json` como la línea interior de minisign (`RWQ…`) en vez del formato de Tauri (el archivo de clave en base64), así que ninguna descarga se habría podido verificar e instalar. Es la misma clave: las releases ya publicadas se verifican con ella.
 
+- **e2e de agentes sin red**: la lista de agentes esperaba hasta 30 s al registro público de ACP (sin red o con el CDN colgado), y la prueba del panel del agente fallaba. Las e2e apuntan `SYNAPSE_ACP_REGISTRY_URL` a un puerto cerrado y usan solo los agentes locales y personalizados.
+
 ### Cambiado
 
 - **e2e**: el puerto de WebDriver se configura con `E2E_DRIVER_PORT` (por defecto 4444; WebKitWebDriver usa el siguiente), para poder correr varios procesos de pruebas a la vez.
