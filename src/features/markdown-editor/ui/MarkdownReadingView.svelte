@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { Marked } from 'marked';
+  import { taskAwareCopy } from '../lib/copy-tasks';
   import { Search, ChevronUp, ChevronDown, X } from 'lucide-svelte';
   import { resolveIncludes } from '../lib/include-resolver';
   import { appSettings } from '@entities/settings';
@@ -840,7 +841,18 @@
 
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <article class="markdown-body" onclick={handleContainerClick}>
+  <article
+    class="markdown-body"
+    onclick={handleContainerClick}
+    oncopy={(e) => {
+      // Con casillas de tarea: se copian como ☐ / ✅ para que lleguen a un correo o a Teams
+      const out = taskAwareCopy(window.getSelection(), e.currentTarget as HTMLElement);
+      if (!out || !e.clipboardData) return;
+      e.preventDefault();
+      e.clipboardData.setData('text/html', out.html);
+      e.clipboardData.setData('text/plain', out.text);
+    }}
+  >
     {#if Object.keys(frontmatterData).length > 0}
       <NoteProperties
         metadata={frontmatterData}

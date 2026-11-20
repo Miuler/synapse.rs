@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Al copiar desde el modo lectura de Markdown una selección con tareas, las casillas se copian como ☐ (pendiente) y ✅ (hecha), con la lista y la negrita, para pegarlas en un correo o en Teams web (que quitan las casillas HTML); también en texto plano (`- ☐ tarea`). Sin tareas se copia como siempre.
 - Atajo configurable «Marcar / desmarcar tarea» (`toggle_task`, Ctrl+Enter por defecto) en el editor de Markdown, como en Obsidian: alterna `- [ ]` ↔ `- [x]` en la línea del cursor (o en todas las de la selección), añade la casilla a un elemento de lista que no la tiene y convierte una línea normal en tarea. Funciona también con Vim, en modo normal e inserción.
 
 ## [1.0.0-beta.7] - 2026-11-20
