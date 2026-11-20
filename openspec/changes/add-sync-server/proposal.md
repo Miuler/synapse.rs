@@ -10,7 +10,8 @@ direcciona por contenido (`content_hash`), y la retención de versiones se vuelv
 
 - Nueva carpeta `synapse-server/` en la raíz del repo: un binario Rust independiente, sin dependencia de Tauri ni del
   frontend, que no se empaqueta en el instalador de escritorio.
-- Servicio gRPC (`tonic`, `sync.proto`): `CheckState`, `PushDelta`, `PullState`, `UploadArtifact` y `DownloadArtifact`.
+- Servicio gRPC (`tonic`, `sync.proto`): `CheckState`, `PushDelta`, `PullState`, `UploadArtifact`, `DownloadArtifact`,
+  `FindMissing`, `DeclareManifest`, `ListVersions` y `GetVersion`.
   Cliente pesado / servidor ligero: el cliente calcula los hashes y el Merkle Tree; el servidor actúa como notario de
   integridad, guarda la instantánea actual y gestiona la transferencia diferencial.
 - Sincronización diferencial: si el `root_hash` del cliente coincide con el del servidor no se transfiere nada; si
@@ -54,6 +55,6 @@ direcciona por contenido (`content_hash`), y la retención de versiones se vuelv
   escritorio (`ci/release.py`) no debe incluirlo. La reorganización de carpetas del repo se hace aparte y no es parte de
   este cambio.
 - Dependencias nuevas solo en el servidor: `tonic`/`prost` (gRPC), `axum` para salud y gestión, validación de JWT de
-  Google (`jsonwebtoken` y descarga del JWKS), `sqlx` con SQLite en WAL (PostgreSQL particionado opcional), compresión
+  Google (`jsonwebtoken` y descarga del JWKS), `sqlx` con SQLite en WAL (PostgreSQL particionado, en un cambio posterior), compresión
   Zstd, chunking por contenido (FastCDC) y cliente S3 compatible (R2) como backend de blobs opcional.
 - Contrato nuevo cliente↔servidor (`sync.proto`) que el futuro cliente de escritorio deberá respetar.

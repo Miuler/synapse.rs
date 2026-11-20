@@ -32,10 +32,15 @@ llamadas sin token o con token inválido o caducado.
 - **WHEN** el token está caducado o su audiencia no es el `client_id` del servidor
 - **THEN** el servidor responde `UNAUTHENTICATED` y no modifica nada
 
+#### Scenario: Claves de Google inaccesibles
+
+- **WHEN** la caché del JWKS venció y el servidor no puede descargarlo de nuevo
+- **THEN** el servidor responde `UNAVAILABLE` y no acepta el token sin verificarlo
+
 ### Requirement: Aislamiento por tenant
 
 El tenant SHALL derivarse del claim `sub` del token validado, creándose en el primer acceso, y nunca de un campo del
-mensaje. Si hay una lista de cuentas permitidas configurada, el servidor MUST rechazar a las que no estén en ella. Un
+mensaje. El identificador de bóveda SHALL ser único en todo el servidor: una bóveda pertenece a un solo tenant. Si hay una lista de cuentas permitidas configurada, el servidor MUST rechazar a las que no estén en ella. Un
 tenant nunca puede leer, referenciar ni sobrescribir árboles o artefactos de otro.
 
 #### Scenario: Primer acceso de una cuenta nueva
@@ -53,6 +58,11 @@ tenant nunca puede leer, referenciar ni sobrescribir árboles o artefactos de ot
 - **WHEN** un tenant envía un delta sobre una bóveda que pertenece a otro tenant
 - **THEN** el servidor responde `NOT_FOUND` y no modifica nada
 
+#### Scenario: Lectura de una bóveda de otro tenant
+
+- **WHEN** un tenant pide el estado o el manifiesto de una bóveda de otro tenant
+- **THEN** el servidor responde `NOT_FOUND`, igual que si la bóveda no existiera
+
 ### Requirement: Comprobación del estado
 
 El servidor SHALL ofrecer una operación en la que el cliente envía el `root_hash` que conoce de una bóveda y recibe si
@@ -67,6 +77,11 @@ coincide con la instantánea vigente y, si no, el `root_hash` vigente.
 
 - **WHEN** el `root_hash` del cliente difiere
 - **THEN** la respuesta incluye el `root_hash` vigente del servidor
+
+#### Scenario: Bóveda aún no subida
+
+- **WHEN** el cliente pide el estado de una bóveda que el servidor no conoce
+- **THEN** el servidor responde `NOT_FOUND` y el cliente puede subirla con un delta sobre la raíz vacía
 
 ### Requirement: Transferencia de artefactos direccionados por contenido
 
@@ -98,9 +113,9 @@ no duplicar almacenamiento.
 ### Requirement: Archivos grandes en bloques definidos por contenido
 
 Para archivos por encima de un umbral configurable, el cliente SHALL poder declarar un manifiesto con la lista ordenada
-de hashes de bloques (chunking definido por contenido) en lugar de subir el archivo completo. El `content_hash` del
-archivo SHALL seguir siendo el del contenido completo. El servidor SHALL guardar cada bloque una sola vez y MUST
-rechazar un manifiesto que referencie bloques que no tiene.
+de hashes de bloques ya subidos (chunking definido por contenido, calculado por el cliente). El `content_hash` del
+archivo SHALL seguir siendo el del contenido completo. El servidor SHALL guardar cada bloque una sola vez, MUST rechazar
+un manifiesto con bloques que no tiene y MUST verificar el `content_hash` y el tamaño del archivo reensamblado.
 
 #### Scenario: Edición pequeña en un archivo grande
 
@@ -112,12 +127,22 @@ rechazar un manifiesto que referencie bloques que no tiene.
 - **WHEN** el cliente declara un manifiesto que referencia un bloque que nunca subió
 - **THEN** el servidor rechaza la operación indicando los bloques faltantes
 
+#### Scenario: Manifiesto que no corresponde al archivo
+
+- **WHEN** los bloques del manifiesto, unidos en orden, no producen el `content_hash` declarado
+- **THEN** el servidor responde `INVALID_ARGUMENT` y no registra el archivo
+
+#### Scenario: Descarga de un archivo en bloques
+
+- **WHEN** el cliente descarga un archivo registrado mediante manifiesto
+- **THEN** recibe por streaming los bytes completos del archivo, en orden
+
 ### Requirement: Confirmación atómica de deltas del árbol
 
-El servidor SHALL aceptar un delta con los nodos creados o modificados (ruta, tipo `FILE`/`DIR`/`INDEX`, `content_hash`,
-tamaño) y las rutas eliminadas, junto con el nuevo `root_hash` calculado por el cliente. El delta SHALL aplicarse
-completo o no aplicarse, actualizando a la vez el árbol y el `root_hash` de la instantánea. Todos los contenidos
-referenciados MUST existir antes de confirmar.
+El servidor SHALL aceptar un delta con los nodos hoja creados o modificados (ruta, tipo `FILE`/`INDEX`, `content_hash`,
+tamaño y, si es un movimiento, la ruta de origen), los directorios vacíos que se crean y las rutas eliminadas, junto con
+el nuevo `root_hash` calculado por el cliente. El delta SHALL aplicarse completo o no aplicarse, actualizando a la vez
+el árbol y el `root_hash` de la instantánea. Todos los contenidos referenciados MUST existir antes de confirmar.
 
 #### Scenario: Delta válido
 
@@ -127,7 +152,37 @@ referenciados MUST existir antes de confirmar.
 #### Scenario: Artefacto no subido
 
 - **WHEN** el delta referencia un `content_hash` que el servidor no tiene
-- **THEN** el servidor rechaza el delta completo indicando los hashes faltantes
+- **THEN** el servidor rechaza el delta completo con `FAILED_PRECONDITION` indicando los hashes faltantes
+
+#### Scenario: Primera subida de una bóveda
+
+- **WHEN** el cliente envía el primer delta de una bóveda nueva con base igual a la raíz vacía
+- **THEN** el servidor crea la bóveda para ese tenant y aplica el delta
+
+### Requirement: Rutas válidas
+
+Toda ruta de un delta MUST ser relativa a la raíz de la bóveda, usar `/` como separador, estar en UTF-8 NFC y no tener
+`/` inicial ni final, segmentos vacíos, `.` ni `..`. El servidor SHALL rechazar el delta completo si alguna no cumple.
+
+#### Scenario: Ruta inválida
+
+- **WHEN** el delta contiene una ruta con `..`, un `/` inicial o un segmento vacío
+- **THEN** el servidor responde `INVALID_ARGUMENT` y no aplica nada
+
+### Requirement: Directorios del árbol
+
+Los directorios intermedios de una ruta SHALL crearse implícitamente y su hash SHALL calcularlo el servidor. Un delta
+MAY crear directorios vacíos de forma explícita. Eliminar un directorio SHALL eliminar todo su subárbol.
+
+#### Scenario: Directorios implícitos
+
+- **WHEN** el delta crea `a/b/c.md` en una bóveda sin la carpeta `a`
+- **THEN** el árbol vivo contiene los directorios `a` y `a/b` con su hash calculado por el servidor
+
+#### Scenario: Borrado de un directorio
+
+- **WHEN** el delta elimina una ruta de tipo `DIR`
+- **THEN** desaparecen del árbol vivo el directorio y todo lo que contenía
 
 ### Requirement: Validación de integridad del árbol
 

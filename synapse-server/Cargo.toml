@@ -1,0 +1,62 @@
+[package]
+name = "synapse-server"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93.0"
+description = "Synapse Server: servidor de sincronización ligero"
+license = ""
+publish = false
+repository = "https://github.com/Miuler/synapse.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = "0.8.9"
+clap = { version = "4.6.9", features = ["derive", "env"] }
+figment = { version = "0.10.19", features = ["toml", "env"] }
+humantime-serde = "1.1"
+prost = "0.14"
+prost-types = "0.14"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = "0.14"
+tonic-health = "0.14"
+tonic-prost = "0.14"
+tonic-reflection = "0.14"
+tonic-types = "0.14"
+tower-http = { version = "0.7.1", features = ["trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "json"] }
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+
+[dev-dependencies]
+figment = { version = "0.10.19", features = ["toml", "env", "test"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+
+# Menos información de depuración: binarios y enlazados más livianos; los backtraces siguen
+# mostrando archivo y línea.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 16
+panic = "abort"
+strip = true

@@ -19,10 +19,16 @@ versiones anteriores de la ruta. Registrar una versión MUST NOT copiar contenid
 - **THEN** la ruta desaparece del árbol vivo pero sus versiones previas siguen en el historial mientras la retención lo
   permita
 
+#### Scenario: Archivo movido
+
+- **WHEN** se confirma un delta que mueve `notas/a.md` a `archivo/a.md` indicando la ruta de origen
+- **THEN** el historial registra el movimiento y las versiones previas de `notas/a.md` siguen consultables
+
 ### Requirement: Consulta del historial
 
-El servidor SHALL listar las versiones de una ruta, de la más reciente a la más antigua, y SHALL entregar el contenido
-de cualquier versión retenida (reensamblando bloques si el archivo se guardó en bloques).
+El servidor SHALL listar las versiones de una ruta, de la más reciente a la más antigua, SHALL devolver los metadatos de
+una versión concreta y SHALL entregar el contenido de cualquier versión retenida mediante la descarga por
+`content_hash` (reensamblando bloques si el archivo se guardó en bloques).
 
 #### Scenario: Contenido de una versión antigua
 
@@ -31,8 +37,8 @@ de cualquier versión retenida (reensamblando bloques si el archivo se guardó e
 
 ### Requirement: Retención por plan
 
-Cada tenant SHALL tener una política de retención configurable: últimas N versiones por archivo, versiones de los
-últimos N días, o ilimitada. La versión vigente de cada ruta del árbol vivo MUST conservarse siempre, sin importar la
+Cada tenant SHALL tener una política de retención configurable: últimas N versiones por archivo (contando la vigente),
+versiones de los últimos N días, o ilimitada. Un tenant nuevo recibe la política por defecto de la configuración. La versión vigente de cada ruta del árbol vivo MUST conservarse siempre, sin importar la
 política. Las versiones fuera de la política SHALL eliminarse del historial.
 
 #### Scenario: Plan con 5 versiones
@@ -49,7 +55,8 @@ política. Las versiones fuera de la política SHALL eliminarse del historial.
 
 Un proceso del servidor SHALL borrar físicamente los blobs y bloques que no estén referenciados por el árbol vivo, por
 el historial retenido ni por la información de índice retenida. MUST NOT borrar contenido que se subió hace poco y aún
-no fue confirmado por un delta, durante un periodo de gracia configurable.
+no fue confirmado por un delta, durante un periodo de gracia configurable que se cuenta desde la última vez que el
+contenido se subió o se consultó como existente.
 
 #### Scenario: Contenido sin referencias
 

@@ -1,0 +1,58 @@
+# Configuración de ejemplo para Synapse Server.
+# Prioridad: valores por defecto -> este archivo TOML -> variables de entorno SYNAPSE_*.
+# Para claves anidadas en variables de entorno usa `__`, p. ej. SYNAPSE_BLOB_BACKEND__DATA_DIR.
+
+# Dirección del servidor gRPC (TLS lo termina el proxy inverso; el binario habla h2c).
+grpc_addr = "127.0.0.1:50051"
+
+# Dirección del servidor HTTP (salud y gestión ligera).
+http_addr = "127.0.0.1:8080"
+
+# Formato de logs: "json" en producción; cualquier otro valor usa formato legible.
+log_format = "text"
+
+# URL de la base de datos SQLite.
+database_url = "sqlite://data/synapse.db?mode=rwc"
+
+# Client ID de Google OAuth esperado en el claim `aud` de los ID tokens (OBLIGATORIO).
+google_client_id = "tu-client-id.apps.googleusercontent.com"
+
+# URL del JWKS de Google para validar las firmas RS256.
+google_jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
+
+# Lista opcional de cuentas permitidas (`sub` o email verificado). Vacía = cualquiera.
+allowed_accounts = []
+
+# Política de retención por defecto para tenants nuevos:
+# "unlimited" | "versions:N" (N >= 1, cuenta la vigente) | "days:N" (N >= 1).
+default_retention = "unlimited"
+
+# Umbral a partir del cual el cliente trocea archivos grandes (4 MiB por defecto).
+chunk_threshold_bytes = 4194304
+
+# Tamaño máximo permitido para un artefacto (2 GiB por defecto).
+max_artifact_bytes = 2147483648
+
+# Tamaño máximo de un mensaje gRPC (4 MiB por defecto).
+max_message_bytes = 4194304
+
+# Número máximo de nodos permitidos en un solo PushDelta.
+max_delta_nodes = 10000
+
+# Intervalo entre ejecuciones del recolector de basura.
+gc_interval = "1h"
+
+# Periodo de gracia sobre `last_seen_at` antes de recolectar blobs huérfanos.
+gc_grace_period = "24h"
+
+# Backend de almacenamiento de blobs: "local" o "s3".
+[blob_backend]
+type = "local"
+data_dir = "data"
+
+# Ejemplo para S3 / Cloudflare R2 (las credenciales se leen del entorno, nunca en este archivo):
+# [blob_backend]
+# type = "s3"
+# bucket = "synapse-blobs"
+# region = "auto"
+# endpoint = "https://<account-id>.r2.cloudflarestorage.com"

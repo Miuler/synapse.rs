@@ -1,0 +1,3 @@
+[target.x86_64-unknown-linux-gnu]
+# mold enlaza más rápido que lld (usa todos los núcleos); ver docs/stack_rust.md
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
