@@ -35,6 +35,10 @@ async function servesSynapse(port: number): Promise<boolean> {
 }
 const NEEDS_VITE = !process.env.E2E_APP;
 const DRIVER = join(process.env.HOME ?? '', '.cargo/bin/tauri-driver');
+// Puertos de tauri-driver y de WebKitWebDriver: E2E_DRIVER_PORT permite correr varios procesos de
+// pruebas a la vez (cada uno con su par, p. ej. 4444/4445, 4446/4447…) sin pisarse.
+const DRIVER_PORT = Number(process.env.E2E_DRIVER_PORT ?? 4444);
+const NATIVE_PORT = DRIVER_PORT + 1;
 
 export interface Session {
   browser: Browser;
@@ -193,19 +197,19 @@ async function launch(base: string, vault: string): Promise<Session> {
     GDK_DPI_SCALE: process.env.E2E_GDK_DPI_SCALE ?? String(1 / gnomeTextScale()),
   };
   // Si el puerto sigue tomado por el WebDriver anterior, conectarse a él fallaría a mitad de la prueba
-  await waitForPortFree(4444, 10_000);
+  await waitForPortFree(DRIVER_PORT, 10_000);
   // Grupo propio: tauri-driver lanza WebKitWebDriver como hijo, y si tauri-driver muere ese hijo
   // quedaba huérfano (con el puerto 4445 y la salida del proceso de pruebas abiertos)
-  const driver = spawn(DRIVER, ['--port', '4444'], { env, stdio: ['ignore', 'inherit', 'inherit'], detached: true });
+  const driver = spawn(DRIVER, ['--port', String(DRIVER_PORT), '--native-port', String(NATIVE_PORT)], { env, stdio: ['ignore', 'inherit', 'inherit'], detached: true });
   children.push(driver);
   // Si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su timeout
   let dead: string | null = null;
   driver.on('exit', (code) => (dead ??= `el WebDriver terminó (código ${code})`));
-  await waitForPort(4444, 15_000);
+  await waitForPort(DRIVER_PORT, 15_000);
 
   const raw = await remote({
     hostname: '127.0.0.1',
-    port: 4444,
+    port: DRIVER_PORT,
     logLevel: 'warn',
     // Sin reintentos: con la conexión rota, cada pedido reintentaba 3 veces con 2 min de espera
     connectionRetryCount: 0,
@@ -232,7 +236,7 @@ async function launch(base: string, vault: string): Promise<Session> {
       try {
         process.kill(-driver.pid!, 'SIGTERM');
       } catch {}
-      await waitForPortFree(4444, 10_000).catch(() => {});
+      await waitForPortFree(DRIVER_PORT, 10_000).catch(() => {});
       // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
       spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
       // El log de Vite de este archivo termina aquí; el siguiente abre el suyo

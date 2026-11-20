@@ -19,6 +19,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- **e2e**: el puerto de WebDriver se configura con `E2E_DRIVER_PORT` (por defecto 4444; WebKitWebDriver usa el siguiente), para poder correr varios procesos de pruebas a la vez.
 - **CI de Windows**: el paso de dependencias de compilación cruzada instala solo `clang lld llvm nasm` (el destino es Windows; sobraban las bibliotecas GTK/WebKit de Linux) y se retira el caché de APT, que no tenía efecto. Ahorra unos 7 minutos por release.
 
 ## [1.0.0-beta.5] - 2026-11-20
