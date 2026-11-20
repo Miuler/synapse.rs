@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - **Actualizaciones desde la app**: al iniciar (desactivable en *Ajustes → Actualizaciones*) o con «Synapse: Buscar actualizaciones» en la paleta, Synapse consulta la última release y, si hay una versión nueva, avisa abajo a la derecha con «Ver novedades», «Más tarde» y «Actualizar». La descarga se verifica con la firma de la release y el ejecutable se reemplaza (en Linux y Windows la release publica el binario suelto, que el instalador de Tauri no sabe instalar); después, «Reiniciar ahora». `latest.json` lleva ahora las novedades de la versión.
 - **Novedades**: «Synapse: Novedades (changelog)» abre el historial de cambios en una pestaña en memoria (no es un archivo del vault). La primera vez que se abre una versión nueva, se abren solas las novedades desde la versión que se usaba.
+- **Ejecutable de Git configurable**: si la bóveda es un repositorio y no se encuentra Git, un diálogo permite elegir el ejecutable (o «No volver a preguntar»); la ruta se guarda en `config.jsonc` (`git.path`) y se cambia en *Ajustes → Git*, que muestra la versión en uso y permite volver al del sistema. Todas las operaciones que usan el Git real la respetan, y en Windows ya no abren una ventana de consola por comando.
 
 ### Corregido
 

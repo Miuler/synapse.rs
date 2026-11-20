@@ -39,7 +39,7 @@
   import {GraphViewer} from "@features/graph-viewer";
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
-  import {GitManagementDialogs} from "@features/git-management";
+  import {GitManagementDialogs, GitMissingDialog} from "@features/git-management";
   import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
   import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
@@ -63,7 +63,7 @@
   import { measured } from '@shared/lib/perf-probe';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { invokeTauri } from '@shared/repositories/tauri';
-  import {gitApi, gitDialogState, repoOf, type GitRepoInfo} from "@entities/git";
+  import {gitApi, gitBinary, gitDialogState, repoOf, type GitRepoInfo} from "@entities/git";
   import {commandRegistry} from "@entities/command";
   import {vaultRepository, searchRepository, toggleDevtools, isTauriEnvironment, type GitFileStatusKind} from "@shared/repositories";
   import {systemApi, type McpRuntimeStatus} from "@shared/api";
@@ -370,11 +370,27 @@
   let gitRepos = $state<GitRepoInfo[]>([]);
   let gitStatuses = $state<Record<string, GitFileStatusKind>>({});
 
+  // La bóveda es un repositorio: si no hay Git que funcione, se ofrece elegir el ejecutable (una vez
+  // por sesión; «No volver a preguntar» lo silencia). Ajustes → Git permite cambiarlo siempre.
+  let gitMissingOpen = $state(false);
+  let gitBinaryChecked = false;
+  async function checkGitBinary() {
+    if (gitBinaryChecked || isDetachedWindow) return;
+    gitBinaryChecked = true;
+    try {
+      await gitBinary.load();
+      if (gitBinary.missing && !gitBinary.dismissed) gitMissingOpen = true;
+    } catch (e) {
+      warn(`[git] no se pudo comprobar el ejecutable de Git: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   async function refreshGitStatus() {
     if (!vaultRepository.isConnected() || isStandaloneMode) return;
     try {
       const status = await vaultRepository.getGitStatus();
       if (status && status.is_repo) {
+        if (!isGitRepo) void checkGitBinary();
         isGitRepo = true;
         gitStatuses = status.statuses ?? {};
         gitRepos = status.repos?.length ? status.repos : [{ path: '', branch: status.branch ?? null, changes: 0 }];
@@ -5047,6 +5063,7 @@
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
+  <GitMissingDialog bind:open={gitMissingOpen} />
   {#if !isDetachedWindow}
     <UpdateNotice onShowNotes={() => { appUpdates.noticeOpen = false; selectTab(UPDATE_NOTES_TAB); }} />
   {/if}

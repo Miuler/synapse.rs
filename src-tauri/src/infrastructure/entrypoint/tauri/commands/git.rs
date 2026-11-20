@@ -482,3 +482,34 @@ pub async fn git_push_vault(state: State<'_, AppState>, repo: Option<String>) ->
     .await
     .map_err(|e| e.to_string())?
 }
+
+// ── Ejecutable de Git ───────────────────────────────────────────────────────────────────────────
+// La ruta elegida se guarda en `<config>/config.jsonc` (`git.path`); sin ella se usa `git` del PATH.
+
+use crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl;
+use crate::infrastructure::service::os::git_binary::{self, GitInfo};
+
+/// Git en uso: ruta configurada (si hay) y versión (`None` si no se encuentra).
+#[tauri::command]
+pub async fn get_git_info() -> GitInfo {
+    git_binary::info()
+}
+
+/// Guarda la ruta del ejecutable de Git (`None` vuelve a usar el del PATH).
+#[tauri::command]
+pub async fn set_git_path(path: Option<String>) -> Result<GitInfo, String> {
+    git_binary::save(&WorkspaceRegistryRepositoryImpl::resolve_config_dir(), path.as_deref())
+}
+
+/// Diálogo nativo para elegir el ejecutable de Git.
+#[tauri::command]
+pub async fn pick_git_executable() -> Option<String> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title("Elige el ejecutable de Git");
+    if cfg!(windows) {
+        dialog = dialog.add_filter("git.exe", &["exe"]);
+        if std::path::Path::new(r"C:\Program Files\Git\cmd").is_dir() {
+            dialog = dialog.set_directory(r"C:\Program Files\Git\cmd");
+        }
+    }
+    dialog.pick_file().await.map(|f| f.path().to_string_lossy().into_owned())
+}

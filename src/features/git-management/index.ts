@@ -3,3 +3,4 @@ export { default as GitCommitDialog, type GitCommitFileItem } from './ui/GitComm
 export { default as GitFileLogDialog } from './ui/GitFileLogDialog.svelte';
 export { default as GitManagementDialogs } from './ui/GitManagementDialogs.svelte';
 export { default as GitRepoLogDialog } from './ui/GitRepoLogDialog.svelte';
+export { default as GitMissingDialog } from './ui/GitMissingDialog.svelte';

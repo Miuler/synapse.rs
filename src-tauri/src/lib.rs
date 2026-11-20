@@ -31,6 +31,7 @@ use infrastructure::entrypoint::tauri::commands::{
     show_item_in_folder, start_mcp_server, stop_mcp_server, toggle_devtools, toggle_mcp_server,
     toggle_pin_workspace, uninstall_community_plugin, write_binary_file,
     check_for_update, install_update, restart_app,
+    get_git_info, set_git_path, pick_git_executable,
 };
 use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::env;
@@ -92,6 +93,9 @@ pub fn run() {
             check_for_update,
             install_update,
             restart_app,
+            get_git_info,
+            set_git_path,
+            pick_git_executable,
             get_supported_file_types,
             get_vault_notes,
             get_vault_files,
@@ -225,6 +229,10 @@ pub fn run() {
         .setup(|app| {
             // Restos de una actualización anterior (Windows deja el .exe viejo como .old)
             infrastructure::service::os::self_update::cleanup_old_binary();
+            // Ruta de Git elegida por el usuario (config.jsonc → git.path)
+            infrastructure::service::os::git_binary::load(
+                &infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir(),
+            );
             if let Ok(matches) = app.cli().matches() {
                 if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
                     print!("{}", help);

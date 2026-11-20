@@ -15,6 +15,7 @@
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT } from '@entities/acp-agent';
   import { appUpdates } from '@features/app-updates';
+  import { gitBinary } from '@entities/git';
 
   // Bóvedas aceptadas o rechazadas por esta (se leen al abrir Ajustes)
   let peerDecisions = $state(agentStore.peers.decisions());
@@ -26,7 +27,7 @@
     .then((v) => (feedbackAvailable = v))
     .catch(() => {});
 
-  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'updates' | 'shortcuts';
+  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'git' | 'updates' | 'shortcuts';
 
   interface Props {
     open?: boolean;
@@ -40,6 +41,7 @@
     { id: 'editor', label: 'Editor' },
     { id: 'diagrams', label: 'Diagramas' },
     { id: 'agents', label: 'Agentes de IA' },
+    { id: 'git', label: 'Git' },
     { id: 'updates', label: 'Actualizaciones' },
     { id: 'shortcuts', label: 'Atajos de teclado' },
   ];
@@ -51,6 +53,7 @@
 
   $effect(() => {
     if (open && section === 'agents') agentStore.refresh();
+    if (open && section === 'git') void gitBinary.load();
   });
 
   async function installAgent(id: string) {
@@ -578,6 +581,38 @@
             <button type="submit">Agregar agente</button>
           </form>
           {#if agentError}<span class="error">{agentError}</span>{/if}
+        {:else if section === 'git'}
+          <h3>Git</h3>
+          <div class="row">
+            <span class="row-label">Ejecutable</span>
+            <span class="git-path" title={gitBinary.info?.configuredPath ?? 'git del PATH'}>
+              {gitBinary.info?.configuredPath ?? 'git del PATH del sistema'}
+            </span>
+          </div>
+          <div class="row">
+            <span class="row-label">Estado</span>
+            {#if !gitBinary.info}
+              <span>Comprobando…</span>
+            {:else if gitBinary.info.version}
+              <span>✓ {gitBinary.info.version}</span>
+            {:else}
+              <span class="error">No se encontró Git</span>
+            {/if}
+          </div>
+          <div class="row">
+            <span class="row-label"></span>
+            <span class="git-actions">
+              <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.choose()}>Elegir ejecutable…</button>
+              {#if gitBinary.info?.configuredPath}
+                <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.setPath(null)}>Usar el del sistema</button>
+              {/if}
+            </span>
+          </div>
+          {#if gitBinary.error}<p class="error">{gitBinary.error}</p>{/if}
+          <p class="hint">
+            Ver el estado, el historial y las versiones no necesita Git; commit, cambiar de rama, push, clone y
+            Git LFS sí. La ruta se guarda en <code>config.jsonc</code> (<code>git.path</code>).
+          </p>
         {:else if section === 'updates'}
           <h3>Actualizaciones</h3>
           <label class="row">
@@ -843,6 +878,19 @@
     border: 1px solid var(--border-primary, #d0d7de);
   }
 
+  .git-path {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--code-font, monospace);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .git-actions {
+    display: inline-flex;
+    gap: 8px;
+  }
   .hint {
     margin: 0 0 4px;
     font-size: 12px;

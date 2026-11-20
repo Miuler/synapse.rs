@@ -242,7 +242,7 @@ impl VersionControlImpl {
             return Err("La URL del repositorio Git no puede estar vacía".to_string());
         }
 
-        let output = std::process::Command::new("git")
+        let output = crate::infrastructure::service::os::git_binary::git_command()
             .arg("clone")
             .arg(trimmed_url)
             .arg(target_path)
@@ -525,7 +525,7 @@ impl VersionControlImpl {
         let (existing, missing): (Vec<String>, Vec<String>) =
             targets.into_iter().partition(|t| work_dir.join(t).exists());
         if !missing.is_empty() {
-            let output = std::process::Command::new("git")
+            let output = crate::infrastructure::service::os::git_binary::git_command()
                 .current_dir(work_dir)
                 .args(["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"])
                 .args(&missing)
@@ -539,7 +539,7 @@ impl VersionControlImpl {
             }
         }
 
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.arg("add");
         cmd.arg("--");
@@ -597,7 +597,7 @@ impl VersionControlImpl {
             Some(pre) => format!("{}/{}", pre, clean),
             None => clean.to_string(),
         };
-        std::process::Command::new("git")
+        crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(work_dir)
             .args(["ls-files", "--", &target])
             .output()
@@ -621,7 +621,7 @@ impl VersionControlImpl {
             if s.is_empty() { None } else { Some(s) }
         });
 
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.arg("restore");
         cmd.arg("--");
@@ -682,7 +682,7 @@ impl VersionControlImpl {
             if s.is_empty() { None } else { Some(s) }
         });
 
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.arg("restore");
         cmd.arg("--staged");
@@ -757,7 +757,7 @@ impl VersionControlImpl {
         self.git_add(vault_path, paths)?;
 
         // 2. Ejecutar git commit con pathspec
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.arg("commit");
         cmd.arg("-m");
@@ -852,7 +852,7 @@ impl VersionControlImpl {
             let rev_path = Self::path_at_revision(work_dir, rev, &repo_rel_path)
                 .unwrap_or_else(|| repo_rel_path.clone());
             let renamed = rev_path != repo_rel_path;
-            let mut show_cmd = std::process::Command::new("git");
+            let mut show_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_cmd.current_dir(work_dir);
             show_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
             if let Ok(out) = show_cmd.output() {
@@ -882,7 +882,7 @@ impl VersionControlImpl {
                     diff = format!("diff --git a/{rev_path} b/{repo_rel_path}\n{unified}");
                 }
             } else {
-                let mut diff_cmd = std::process::Command::new("git");
+                let mut diff_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 diff_cmd.current_dir(work_dir);
                 diff_cmd.args(["diff", rev, "-u", "--", &repo_rel_path]);
                 if let Ok(out) = diff_cmd.output() {
@@ -897,7 +897,7 @@ impl VersionControlImpl {
                 #[cfg(not(windows))]
                 let null_target = "/dev/null";
 
-                let mut no_idx_cmd = std::process::Command::new("git");
+                let mut no_idx_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 no_idx_cmd.current_dir(work_dir);
                 no_idx_cmd.args([
                     "diff",
@@ -913,7 +913,7 @@ impl VersionControlImpl {
             }
         } else if staged {
             // Diff de stage: HEAD vs Index (:path)
-            let mut show_head_cmd = std::process::Command::new("git");
+            let mut show_head_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_head_cmd.current_dir(work_dir);
             show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
             if let Ok(out) = show_head_cmd.output() {
@@ -927,7 +927,7 @@ impl VersionControlImpl {
                 }
             }
 
-            let mut show_index_cmd = std::process::Command::new("git");
+            let mut show_index_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_index_cmd.current_dir(work_dir);
             show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
@@ -941,7 +941,7 @@ impl VersionControlImpl {
                 }
             }
 
-            let mut diff_cmd = std::process::Command::new("git");
+            let mut diff_cmd = crate::infrastructure::service::os::git_binary::git_command();
             diff_cmd.current_dir(work_dir);
             diff_cmd.args(["diff", "--staged", "-u", "--", &repo_rel_path]);
             if let Ok(out) = diff_cmd.output() {
@@ -949,7 +949,7 @@ impl VersionControlImpl {
             }
         } else {
             // Diff normal de trabajo: Index vs Worktree
-            let mut show_index_cmd = std::process::Command::new("git");
+            let mut show_index_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_index_cmd.current_dir(work_dir);
             show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index_cmd.output() {
@@ -961,7 +961,7 @@ impl VersionControlImpl {
                     );
                     old_content = String::from_utf8_lossy(&resolved).to_string();
                 } else {
-                    let mut show_head_cmd = std::process::Command::new("git");
+                    let mut show_head_cmd = crate::infrastructure::service::os::git_binary::git_command();
                     show_head_cmd.current_dir(work_dir);
                     show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
                     if let Ok(head_out) = show_head_cmd.output() {
@@ -983,7 +983,7 @@ impl VersionControlImpl {
                 }
             }
 
-            let mut diff_cmd = std::process::Command::new("git");
+            let mut diff_cmd = crate::infrastructure::service::os::git_binary::git_command();
             diff_cmd.current_dir(work_dir);
             diff_cmd.args(["diff", "-u", "--", &repo_rel_path]);
             if let Ok(out) = diff_cmd.output() {
@@ -993,7 +993,7 @@ impl VersionControlImpl {
             // Como `git diff`: local contra stage. Si no hay nada fuera de stage pero sí en stage, no
             // se cae a HEAD en silencio: se marca para que el visor ofrezca el diff de stage.
             if diff.is_empty() {
-                let mut staged_cmd = std::process::Command::new("git");
+                let mut staged_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 staged_cmd.current_dir(work_dir);
                 staged_cmd.args(["diff", "--staged", "--quiet", "--", &repo_rel_path]);
                 if let Ok(out) = staged_cmd.output() {
@@ -1008,7 +1008,7 @@ impl VersionControlImpl {
                 #[cfg(not(windows))]
                 let null_target = "/dev/null";
 
-                let mut no_idx_cmd = std::process::Command::new("git");
+                let mut no_idx_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 no_idx_cmd.current_dir(work_dir);
                 no_idx_cmd.args([
                     "diff",
@@ -1046,7 +1046,7 @@ impl VersionControlImpl {
         }
 
         // 1. Intentar resolver usando `git lfs smudge`
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.args(["lfs", "smudge"]);
         cmd.stdin(std::process::Stdio::piped());
@@ -1104,7 +1104,7 @@ impl VersionControlImpl {
 
     /// Nombres que tuvo el archivo en su historial (siguiendo renombres), sin el actual.
     fn historical_names(work_dir: &Path, repo_rel_path: &str) -> Vec<String> {
-        let out = std::process::Command::new("git")
+        let out = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(work_dir)
             .args([
                 "log",
@@ -1137,7 +1137,7 @@ impl VersionControlImpl {
         repo_rel_path: &str,
     ) -> Option<String> {
         let exists = |p: &str| {
-            std::process::Command::new("git")
+            crate::infrastructure::service::os::git_binary::git_command()
                 .current_dir(work_dir)
                 .args(["cat-file", "-e", &format!("{revision}:{p}")])
                 .output()
@@ -1200,7 +1200,7 @@ impl VersionControlImpl {
             format!("{}:{}", revision, repo_rel_path)
         };
 
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         cmd.args(["show", &git_target]);
 
@@ -1225,7 +1225,7 @@ impl VersionControlImpl {
             if let Some(old) = Self::path_at_revision(work_dir, rev, &repo_rel_path)
                 .filter(|p| *p != repo_rel_path)
             {
-                if let Ok(out) = std::process::Command::new("git")
+                if let Ok(out) = crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(work_dir)
                     .args(["show", &format!("{rev}:{old}")])
                     .output()
@@ -1367,7 +1367,7 @@ impl VersionControlImpl {
             // Con el nombre que tenía el archivo en esa revisión (por si se renombró después)
             let rev_path = Self::path_at_revision(work_dir, rev, &repo_rel_path)
                 .unwrap_or_else(|| repo_rel_path.clone());
-            let mut rev_cmd = std::process::Command::new("git");
+            let mut rev_cmd = crate::infrastructure::service::os::git_binary::git_command();
             rev_cmd.current_dir(work_dir);
             rev_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
             if let Ok(out) = rev_cmd.output() {
@@ -1376,7 +1376,7 @@ impl VersionControlImpl {
                 }
             }
         } else {
-            let mut head_cmd = std::process::Command::new("git");
+            let mut head_cmd = crate::infrastructure::service::os::git_binary::git_command();
             head_cmd.current_dir(work_dir);
             head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
             if let Ok(out) = head_cmd.output() {
@@ -1386,7 +1386,7 @@ impl VersionControlImpl {
             }
 
             if old_bytes.is_empty() && !staged {
-                let mut index_cmd = std::process::Command::new("git");
+                let mut index_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 index_cmd.current_dir(work_dir);
                 index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
                 if let Ok(out) = index_cmd.output() {
@@ -1406,7 +1406,7 @@ impl VersionControlImpl {
                 Vec::new()
             }
         } else if staged {
-            let mut show_index = std::process::Command::new("git");
+            let mut show_index = crate::infrastructure::service::os::git_binary::git_command();
             show_index.current_dir(work_dir);
             show_index.args(["show", &format!(":{}", repo_rel_path)]);
             if let Ok(out) = show_index.output() {
@@ -1608,7 +1608,7 @@ impl VersionControlImpl {
         // también lo tocaron y las fusiones que las unen.
         let mut paths = vec![repo_rel_path.clone()];
         paths.extend(Self::historical_names(work_dir, &repo_rel_path));
-        let mut cmd = std::process::Command::new("git");
+        let mut cmd = crate::infrastructure::service::os::git_binary::git_command();
         cmd.current_dir(work_dir);
         // \x1e separa commits; tras el formato vienen las líneas de --name-status del commit.
         // %H %h %an %ae %aI %at, %D: tags (por --decorate-refs), %P: padres reescritos, %s: asunto
@@ -1695,7 +1695,7 @@ impl VersionControlImpl {
             .flatten()
             .map(|n| n.shorten().to_string());
 
-        let output = std::process::Command::new("git")
+        let output = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(&work_dir)
             .args([
                 "for-each-ref",
@@ -1794,7 +1794,7 @@ impl VersionControlImpl {
         }
 
         let ref_exists = |r: &str| {
-            std::process::Command::new("git")
+            crate::infrastructure::service::os::git_binary::git_command()
                 .current_dir(&work_dir)
                 .args(["show-ref", "--verify", "--quiet", r])
                 .status()
@@ -1810,7 +1810,7 @@ impl VersionControlImpl {
         let remote_split = if is_local || !ref_exists(&format!("refs/remotes/{short}")) {
             None
         } else {
-            let remotes = std::process::Command::new("git")
+            let remotes = crate::infrastructure::service::os::git_binary::git_command()
                 .current_dir(&work_dir)
                 .arg("remote")
                 .output()
@@ -1845,7 +1845,7 @@ impl VersionControlImpl {
         };
         let checkout_target = checkout_target.as_str();
 
-        let output = std::process::Command::new("git")
+        let output = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(&work_dir)
             .env("LC_ALL", "C")
             .args(&args)
@@ -1888,7 +1888,7 @@ impl VersionControlImpl {
         }
 
         // Validar formato de nombre con check-ref-format
-        let check_format = std::process::Command::new("git")
+        let check_format = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(&work_dir)
             .args(["check-ref-format", "--branch", new_branch])
             .output()
@@ -1901,7 +1901,7 @@ impl VersionControlImpl {
         }
 
         // Verificar si la rama ya existe localmente
-        let check_exists = std::process::Command::new("git")
+        let check_exists = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(&work_dir)
             .args(["rev-parse", "--verify", &format!("refs/heads/{new_branch}")])
             .output();
@@ -1914,24 +1914,24 @@ impl VersionControlImpl {
 
         let output = if checkout {
             if base_branch.is_empty() {
-                std::process::Command::new("git")
+                crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(&work_dir)
                     .args(["checkout", "-b", new_branch])
                     .output()
             } else {
-                std::process::Command::new("git")
+                crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(&work_dir)
                     .args(["checkout", "-b", new_branch, base_branch])
                     .output()
             }
         } else {
             if base_branch.is_empty() {
-                std::process::Command::new("git")
+                crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(&work_dir)
                     .args(["branch", new_branch])
                     .output()
             } else {
-                std::process::Command::new("git")
+                crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(&work_dir)
                     .args(["branch", new_branch, base_branch])
                     .output()
@@ -1961,7 +1961,7 @@ impl VersionControlImpl {
             .ok_or_else(|| "Bare repository not supported".to_string())?
             .to_path_buf();
 
-        let output = std::process::Command::new("git")
+        let output = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(&work_dir)
             .arg("push")
             .output()
@@ -2768,7 +2768,7 @@ mod repo_log {
     use std::path::Path;
 
     fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
-        let out = std::process::Command::new("git")
+        let out = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(dir)
             .args(args)
             .output()
