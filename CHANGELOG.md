@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - **Workflow `Security`**: `cargo audit`, `cargo deny` (avisos, licencias compatibles con GPL y fuentes, con `src-tauri/deny.toml`) y `bun audit` en cada push a `main`, en los PR y una vez por semana. CodeQL (JavaScript/TypeScript y Rust; Rust no bloquea) y OpenSSF Scorecard en workflows propios.
 - **Dependabot semanal** para Cargo, bun y GitHub Actions, con las actualizaciones menores y de parche agrupadas en un PR por ecosistema.
 - **Vista en árbol en el diálogo de commit**: un botón junto a «Seleccionar todos» cambia la lista de archivos a un árbol de carpetas (las cadenas de una sola carpeta se compactan, como `docs/guias/`). Cada carpeta se pliega y tiene su casilla, que marca o desmarca todo lo que contiene; la vista elegida se recuerda.
+- **«Git Log…» y «Ramas…» en el explorador**: el clic derecho en el espacio vacío del explorador, en el nombre del vault o en el badge de la rama abre el log del repositorio o sus ramas. Antes, si el vault era un único repositorio, el log solo se abría desde la paleta de comandos.
 - **`SECURITY.md`** (cómo reportar y cómo verificar un binario) y una sección «Seguridad y privacidad» en el README con el mapa de conexiones de red de la app.
 
 ### Cambiado

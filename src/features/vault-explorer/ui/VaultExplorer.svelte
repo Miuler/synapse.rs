@@ -2387,6 +2387,19 @@
           <span class="context-menu-shortcut">Ctrl+R</span>
         </ContextMenu.Item>
 
+        {#if !contextMenuNode && selectedNodes.length <= 1 && isGitRepo}
+          <!-- Raíz del vault (espacio vacío, nombre del vault o badge de la rama): log y ramas del repositorio -->
+          <ContextMenu.Separator class="context-menu-divider" />
+          <ContextMenu.Item class="context-menu-item vault-git-log" onSelect={() => gitDialogState.openRepoLog(activeGitRepo)}>
+            <GitGraph class="context-menu-item-icon" />
+            <span>Git Log…</span>
+          </ContextMenu.Item>
+          <ContextMenu.Item class="context-menu-item" onSelect={handleOpenBranchDialog}>
+            <GitBranch class="context-menu-item-icon" />
+            <span>Ramas…</span>
+          </ContextMenu.Item>
+        {/if}
+
         {#if filesToCompare && onCompareFiles}
           <ContextMenu.Separator class="context-menu-divider" />
 
