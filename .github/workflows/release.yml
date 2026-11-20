@@ -114,18 +114,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Cache APT Packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
-
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
-            clang lld mold llvm nasm
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev mold
 
       - name: Cache Bun packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
