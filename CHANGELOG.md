@@ -23,6 +23,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Corregido
 
 - **Versiones de un OpenAPI en el historial de Git**: «Ver archivo» muestra la API con Scalar, como en Lectura, en vez del YAML/JSON en texto plano; el botón Raw sigue mostrando el texto.
+- **Vista Raw de una versión**: ya no dibuja una línea horizontal bajo cada línea de texto (heredaba el estilo de `code` en línea).
 
 ## [1.0.0-beta.4] - 2026-11-19
 

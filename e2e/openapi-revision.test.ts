@@ -70,4 +70,10 @@ it('la versión antigua de un OpenAPI se ve con Scalar y con Raw como texto', as
   await s.browser.$('.tab-pane:not(.hidden) .revision-code-pre').waitForExist({ timeout: 5_000 });
   expect(await s.browser.$('.tab-pane:not(.hidden) .revision-code-pre').getText()).toContain('openapi: 3.0.3');
   expect(await s.browser.$('.tab-pane:not(.hidden) .scalar-app').isExisting()).toBe(false);
+  // Sin la caja del `code` global (borde por línea)
+  const codeStyle = (await s.browser.execute(() => {
+    const cs = getComputedStyle(document.querySelector('.tab-pane:not(.hidden) .revision-code-pre code')!);
+    return { border: cs.borderTopWidth, padding: cs.paddingTop };
+  })) as { border: string; padding: string };
+  expect(codeStyle).toEqual({ border: '0px', padding: '0px' });
 }, 60_000);

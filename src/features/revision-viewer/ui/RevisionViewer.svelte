@@ -569,6 +569,16 @@
     tab-size: 2;
   }
 
+  /* El estilo global de `code` (inline: borde, relleno, fondo) dibujaba una caja en cada línea */
+  .revision-code-pre code {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+
   .revision-code-pre.wrap {
     white-space: pre-wrap;
     word-break: break-word;
