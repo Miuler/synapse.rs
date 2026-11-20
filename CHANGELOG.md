@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- Chat del agente: las respuestas muestran las casillas de tarea (antes el saneado del HTML las quitaba); bajo cada respuesta, «Markdown» copia el texto tal cual y «Con formato» lo copia para un correo o Teams, con las tareas como ☐ / ✅; copiar una selección con tareas hace lo mismo.
+- Chat del agente: zoom de los mensajes y la caja de texto con Ctrl+rueda, Ctrl++, Ctrl+− y Ctrl+0 (se recuerda).
+- Chat del agente: la caja de texto crece con lo que escribes, hasta el 40 % de la altura de la ventana; después tiene su propio scroll.
+
 ## [1.0.0-beta.7] - 2026-11-20
 
 ### Añadido
