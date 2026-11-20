@@ -419,3 +419,83 @@ it('un agente consulta otra bóveda con permiso del usuario', async () => {
   expect((await text('.acp-msg.agent')).some((t) => t?.includes('📚 Bóveda «mainframe»'))).toBe(true);
   expect(existsSync(join(s.vault, '.synapse/vault-access.json'))).toBe(true);
 }, 120_000);
+
+it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selección y zoom', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  await input.setValue('dame la lista de tareas');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Modelo de Dato')), {
+    timeout: 10_000,
+    timeoutMsg: 'no llegó la lista de tareas',
+  });
+  // Las casillas se ven (antes el saneado las quitaba)
+  const boxes = (await s.browser.execute(() => {
+    const msg = [...document.querySelectorAll('.acp-msg.agent')].find((m) => m.textContent?.includes('Modelo de Dato'))!;
+    msg.closest('.acp-agent-wrap')!.setAttribute('data-test', 'tareas');
+    return [...msg.querySelectorAll('input[type="checkbox"]')].map((i) => ({ checked: (i as HTMLInputElement).checked, disabled: (i as HTMLInputElement).disabled }));
+  })) as { checked: boolean; disabled: boolean }[];
+  expect(boxes).toEqual([{ checked: false, disabled: true }, { checked: true, disabled: true }]);
+
+  // «Con formato» y la selección copian ☐ / ✅. Se captura lo que se escribe en el portapapeles
+  // (evento copy o ClipboardItem); el botón se pulsa con un clic real (copiar exige un gesto del usuario)
+  await s.browser.execute(() => {
+    const w = window as any;
+    w.__copied = {};
+    const orig = DataTransfer.prototype.setData;
+    DataTransfer.prototype.setData = function (type: string, data: string) {
+      w.__copied[type] = data;
+      return orig.call(this, type, data);
+    };
+    navigator.clipboard.write = async (items: ClipboardItem[]) => {
+      for (const it of items) for (const t of it.types) w.__copied[t] = await (await it.getType(t)).text();
+    };
+  });
+  const rich = s.browser.$('.acp-agent-wrap[data-test="tareas"] .acp-copy-rich');
+  await rich.scrollIntoView();
+  await rich.moveTo();
+  await rich.click();
+  await s.browser.waitUntil(async () => !!(await s.browser.execute(() => (window as any).__copied['text/plain'])), {
+    timeout: 5_000,
+    timeoutMsg: '«Con formato» no escribió en el portapapeles',
+  });
+  const captured = (await s.browser.execute(() => {
+    const w = window as any;
+    const out = [{ html: w.__copied['text/html'] ?? '', text: w.__copied['text/plain'] ?? '' }];
+    const wrap = document.querySelector('.acp-agent-wrap[data-test="tareas"]')!;
+    const ul = wrap.querySelector('.acp-msg.agent ul')!;
+    const range = document.createRange();
+    range.selectNodeContents(ul);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const data = new DataTransfer();
+    ul.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+    out.push({ html: data.getData('text/html'), text: data.getData('text/plain') });
+    return out;
+  })) as { html: string; text: string }[];
+  expect(captured[0].text).toBe('Avance\n- ☐ 00. Modelo de Dato\n- ✅ 02. Diagrama de Software');
+  expect(captured[0].html).toContain('<h2>Avance</h2>');
+  expect(captured[0].html).toContain('<strong>02.</strong>');
+  expect(captured[0].html).not.toContain('<input');
+  expect(captured[1].text).toBe('- ☐ 00. Modelo de Dato\n- ✅ 02. Diagrama de Software');
+
+  // Zoom del chat: Ctrl++ con el foco en los mensajes, Ctrl+0 vuelve
+  const zoom = () => s.browser.execute(() => (document.querySelector('.acp-messages') as HTMLElement).style.zoom) as Promise<string>;
+  await s.browser.execute(() => (document.querySelector('.acp-messages') as HTMLElement).focus());
+  await s.browser.keys(['Control', '=']);
+  await s.browser.waitUntil(async () => (await zoom()) === '1.1', { timeout: 5_000, timeoutMsg: 'Ctrl+= no amplió el chat' });
+  await s.browser.keys(['Control', '0']);
+  await s.browser.waitUntil(async () => (await zoom()) === '1', { timeout: 5_000, timeoutMsg: 'Ctrl+0 no volvió al 100 %' });
+
+  // La caja de texto crece con el contenido, con tope
+  const h1 = (await s.browser.execute(() => (document.querySelector('.acp-input textarea') as HTMLElement).offsetHeight)) as number;
+  await input.setValue(Array.from({ length: 40 }, (_, i) => `línea ${i}`).join('\n'));
+  const grown = (await s.browser.execute(() => {
+    const t = document.querySelector('.acp-input textarea') as HTMLElement;
+    return { h: t.offsetHeight, max: window.innerHeight * 0.4 };
+  })) as { h: number; max: number };
+  expect(grown.h).toBeGreaterThan(h1 * 2);
+  expect(grown.h).toBeLessThanOrEqual(grown.max + 1);
+  await input.clearValue();
+}, 60_000);

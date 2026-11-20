@@ -3,10 +3,22 @@ import DOMPurify from 'dompurify';
 
 const marked = new Marked({ gfm: true, breaks: true });
 
+/** De los `<input>`, solo se dejan las casillas de tarea de las listas, desactivadas */
+function keepOnlyTaskCheckboxes(node: Element) {
+  if (node.nodeName !== 'INPUT') return;
+  if ((node as HTMLInputElement).type !== 'checkbox') node.remove();
+  else node.setAttribute('disabled', '');
+}
+
 /** Markdown de las respuestas del agente, ya saneado para insertarlo como HTML. */
 export function renderAgentMarkdown(text: string): string {
   const html = marked.parse(text, { async: false }) as string;
-  return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'input', 'iframe'] });
+  DOMPurify.addHook('afterSanitizeElements', keepOnlyTaskCheckboxes);
+  try {
+    return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'iframe'] });
+  } finally {
+    DOMPurify.removeHook('afterSanitizeElements', keepOnlyTaskCheckboxes);
+  }
 }
 
 /** Ruta relativa a la bóveda de un enlace `file://` que apunta dentro de ella, o `null`. */

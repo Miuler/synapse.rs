@@ -121,6 +121,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }
+    // «lista de tareas»: responde con una lista de tareas en Markdown
+    if (said.includes('lista de tareas')) {
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '## Avance\n\n- [ ] 00. Modelo de Dato\n- [x] **02.** Diagrama de Software' } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
     // «consulta en <bóveda>: <ruta>»: lee una nota de otra bóveda con el MCP de Synapse
     const consult = /consulta en (\S+): (\S+)/.exec(said);
     if (consult) {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { Marked } from 'marked';
-  import { taskAwareCopy } from '../lib/copy-tasks';
+  import { taskAwareCopy } from '@shared/lib/rich-copy';
   import { Search, ChevronUp, ChevronDown, X } from 'lucide-svelte';
   import { resolveIncludes } from '../lib/include-resolver';
   import { appSettings } from '@entities/settings';

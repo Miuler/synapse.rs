@@ -28,9 +28,14 @@ export interface AppSettings {
   /** Zoom de los visores de Word y de hojas de cálculo (crece todo, como en un PDF). */
   docxZoom: number;
   sheetZoom: number;
+  /** Zoom del chat del agente (mensajes y caja de texto). */
+  chatZoom: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
+
+/** Visores con zoom propio (crece todo su contenido) */
+export type ZoomTarget = 'docx' | 'sheet' | 'chat';
 
 const STORAGE_KEY = 'synapse_settings';
 
@@ -60,6 +65,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uiZoom: 1, // Zoom de toda la interfaz
   docxZoom: 1, // Zoom del visor de Word
   sheetZoom: 1, // Zoom del visor de hojas de cálculo
+  chatZoom: 1, // Zoom del chat del agente
 };
 
 function clampZoom(zoom: number): number {
@@ -90,7 +96,7 @@ function loadInitialSettings(): AppSettings {
       if (typeof parsed.uiZoom === 'number' && Number.isFinite(parsed.uiZoom)) {
         settings.uiZoom = clampZoom(parsed.uiZoom);
       }
-      for (const key of ['docxZoom', 'sheetZoom'] as const) {
+      for (const key of ['docxZoom', 'sheetZoom', 'chatZoom'] as const) {
         const z = parsed[key];
         if (typeof z === 'number' && Number.isFinite(z)) settings[key] = clampZoom(z);
       }
@@ -333,9 +339,13 @@ class SettingsManager {
     return this.settings.sheetZoom;
   }
 
-  /** Zoom del visor de Word (`docx`) o de hojas de cálculo (`sheet`), de 50 % a 300 %. */
-  setViewerZoom(viewer: 'docx' | 'sheet', zoom: number) {
-    const key = viewer === 'docx' ? 'docxZoom' : 'sheetZoom';
+  get chatZoom(): number {
+    return this.settings.chatZoom;
+  }
+
+  /** Zoom del visor de Word (`docx`), de hojas de cálculo (`sheet`) o del chat del agente (`chat`), de 50 % a 300 %. */
+  setViewerZoom(viewer: ZoomTarget, zoom: number) {
+    const key = viewer === 'docx' ? 'docxZoom' : viewer === 'sheet' ? 'sheetZoom' : 'chatZoom';
     const next = clampZoom(zoom);
     if (next === this.settings[key]) return;
     this.settings = { ...this.settings, [key]: next };

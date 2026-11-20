@@ -31,10 +31,15 @@
     Shrink,
     ChevronDown,
     Copy,
+    ClipboardType,
+    Check,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
+  import { taskAwareCopy, richCopyOfElement, writeRichClipboard } from '@shared/lib/rich-copy';
+  import { appSettings } from '@entities/settings';
+  import { stepViewerZoom } from '@shared/lib/viewer-zoom';
   import {
     ago,
     conversationTooltip,
@@ -88,6 +93,45 @@
   });
   let scroller = $state<HTMLDivElement | null>(null);
   let textarea = $state<HTMLTextAreaElement | null>(null);
+  let chatRoot = $state<HTMLDivElement | null>(null);
+
+  // Zoom del chat (mensajes y caja de texto): Ctrl+rueda aquí; Ctrl++/−/0 los gestiona el espacio de trabajo
+  $effect(() => {
+    const el = chatRoot;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || !e.deltaY) return;
+      e.preventDefault();
+      appSettings.setViewerZoom('chat', stepViewerZoom(appSettings.chatZoom, e.deltaY < 0 ? 1 : -1));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+
+  // Copiar una respuesta: Markdown tal cual o con formato (HTML + texto, casillas como ☐ / ✅)
+  let copied = $state<{ id: string; how: 'md' | 'rich' } | null>(null);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  function flagCopied(id: string, how: 'md' | 'rich') {
+    copied = { id, how };
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copied = null), 1500);
+  }
+  function copyMarkdown(id: string, text: string) {
+    navigator.clipboard?.writeText(text).then(() => flagCopied(id, 'md')).catch(() => {});
+  }
+  function copyRich(id: string, button: HTMLElement) {
+    const msg = button.closest('.acp-agent-wrap')?.querySelector<HTMLElement>('.acp-msg.agent');
+    if (msg) writeRichClipboard(richCopyOfElement(msg)).then((ok) => ok && flagCopied(id, 'rich'));
+  }
+
+  // La caja crece con el texto (desde 3 líneas) hasta el 40 % de la ventana; después, scroll propio
+  $effect(() => {
+    void draft;
+    const el = textarea;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 2}px`;
+  });
   let dragOver = $state(false);
   let pickIndex = $state(0);
 
@@ -514,7 +558,7 @@
   const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
 </script>
 
-<div class="acp-chat">
+<div class="acp-chat" bind:this={chatRoot}>
   {#if zoomed}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="acp-lightbox" role="dialog" tabindex="-1" aria-modal="true" aria-label={zoomed.name} onclick={() => (zoomed = null)}>
@@ -527,7 +571,21 @@
     </div>
   {/if}
   {#if conv}
-    <div class="acp-messages" bind:this={scroller}>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="acp-messages"
+      tabindex="-1"
+      bind:this={scroller}
+      style={`zoom:${appSettings.chatZoom}`}
+      oncopy={(e) => {
+        // Con casillas de tarea: se copian como ☐ / ✅ (como en el modo lectura de las notas)
+        const out = taskAwareCopy(window.getSelection(), e.currentTarget as HTMLElement);
+        if (!out || !e.clipboardData) return;
+        e.preventDefault();
+        e.clipboardData.setData('text/html', out.html);
+        e.clipboardData.setData('text/plain', out.text);
+      }}
+    >
       {#if conv.connection === 'installing' || conv.connection === 'starting'}
         <div class="acp-status"><Loader2 size={14} class="acp-spin" /> {statusText[conv.connection]}</div>
       {:else if conv.connection === 'idle' && conv.items.length === 0}
@@ -591,7 +649,23 @@
           </div>
         {:else if item.type === 'agent'}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-          <div class="acp-msg agent markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
+          <div class="acp-agent-wrap">
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <div class="acp-msg agent markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
+            <div class="acp-msg-actions">
+              <button type="button" class="acp-copy-md" title="Copiar el Markdown tal cual" onclick={() => copyMarkdown(item.id, item.text)}>
+                {#if copied?.id === item.id && copied.how === 'md'}<Check size={11} /> Copiado{:else}<Copy size={11} /> Markdown{/if}
+              </button>
+              <button
+                type="button"
+                class="acp-copy-rich"
+                title="Copiar con formato, para pegar en un correo o en Teams (las tareas como ☐ / ✅)"
+                onclick={(e) => copyRich(item.id, e.currentTarget)}
+              >
+                {#if copied?.id === item.id && copied.how === 'rich'}<Check size={11} /> Copiado{:else}<ClipboardType size={11} /> Con formato{/if}
+              </button>
+            </div>
+          </div>
         {:else if item.type === 'thought'}
           <details class="acp-thought"><summary title="Razonamiento del agente" aria-label="Razonamiento">🧠<span class="acp-thought-label"> Razonamiento</span></summary>{item.text}</details>
         {:else if item.type === 'tool'}
@@ -795,6 +869,7 @@
         </div>
       {/if}
       <form
+        style={`zoom:${appSettings.chatZoom}`}
         class="acp-input"
         onsubmit={(e) => {
           e.preventDefault();
@@ -848,6 +923,9 @@
     text-align: center;
     font-size: 13px;
   }
+  .acp-messages:focus {
+    outline: none;
+  }
   .acp-messages {
     flex: 1;
     min-height: 0;
@@ -874,6 +952,38 @@
   .acp-msg.agent {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
+  }
+  .acp-agent-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .acp-msg-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .acp-agent-wrap:hover .acp-msg-actions,
+  .acp-msg-actions:focus-within {
+    opacity: 1;
+  }
+  .acp-msg-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .acp-msg-actions button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
   .acp-msg.error {
     display: flex;
@@ -1399,6 +1509,8 @@
   .acp-input textarea {
     flex: 1;
     resize: none;
+    max-height: 40vh;
+    overflow-y: auto;
     font: inherit;
     font-size: 13px;
     padding: 6px 8px;

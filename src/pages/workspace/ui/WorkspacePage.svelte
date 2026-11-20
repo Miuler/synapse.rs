@@ -1204,8 +1204,9 @@
     return (isImageFile(path) && !isDrawingFile(path)) || isExcelFile(path) || isDocxFile(path);
   }
 
-  /** Visor de documento (Word u hoja de cálculo) de la pestaña activa del panel con el foco */
-  function documentViewerOfFocusedPane(): 'docx' | 'sheet' | null {
+  /** Zona con zoom propio donde está el foco: el chat del agente, o el visor de Word / hoja de cálculo de la pestaña activa */
+  function documentViewerOfFocusedPane(): 'docx' | 'sheet' | 'chat' | null {
+    if (document.activeElement?.closest('.acp-chat')) return 'chat';
     const path = activeFocusedPane === 'right' ? activeSplitTabPath : activeTabPath;
     if (!path) return null;
     if (isDocxFile(path)) return 'docx';
@@ -1213,8 +1214,8 @@
     return null;
   }
 
-  function viewerZoom(viewer: 'docx' | 'sheet'): number {
-    return viewer === 'docx' ? appSettings.docxZoom : appSettings.sheetZoom;
+  function viewerZoom(viewer: 'docx' | 'sheet' | 'chat'): number {
+    return viewer === 'docx' ? appSettings.docxZoom : viewer === 'sheet' ? appSettings.sheetZoom : appSettings.chatZoom;
   }
 
   /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
