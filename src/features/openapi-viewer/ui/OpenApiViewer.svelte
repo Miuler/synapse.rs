@@ -98,6 +98,9 @@
       agent: { disabled: true },
       // Que Scalar no busque nada fuera (fuentes, proxy, «Open in client»)
       proxyUrl: undefined,
+      // Sin tocar la URL de la ventana: cada pestaña va por su cuenta (con dos pestañas de OpenAPI,
+      // la segunda saltaba a la sección que guardaba la primera en el `#hash`)
+      urlRouting: false,
     };
   }
 

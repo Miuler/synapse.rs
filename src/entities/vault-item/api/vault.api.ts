@@ -156,6 +156,14 @@ export const vaultApi = {
     await invokeTauri('write_binary_file', { relativePath, data: bytes });
   },
 
+  /** Como `resolveVaultLink`, distinguiendo «no existe» de «varios archivos con ese nombre» */
+  async resolveVaultLinkDetailed(
+    link: string,
+    baseFile?: string | null,
+  ): Promise<{ status: 'resolved'; path: string } | { status: 'ambiguous'; candidates: string[] } | { status: 'missing' }> {
+    return await invokeTauri('resolve_vault_link_detailed', { link, baseFile });
+  },
+
   async resolveVaultLink(link: string, baseFile?: string | null): Promise<string | null> {
     return await invokeTauri<string | null>('resolve_vault_link', { link, baseFile });
   },

@@ -148,6 +148,8 @@ export async function resolveVaultImageUrl(rawSrc: string, basePath?: string | n
     } catch (err) {
       console.warn(`Error resolviendo ruta para imagen "${cleanSrc}":`, err);
     }
+    // No está, o hay varias con ese nombre (ambigua): sin URL inventada, para poder avisar
+    return '';
   }
 
   // 2. Fallback para entorno desconectado o pruebas

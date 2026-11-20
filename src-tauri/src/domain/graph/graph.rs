@@ -47,6 +47,9 @@ pub struct OutlinkItem {
     pub alias: Option<String>,
     pub resolved_path: Option<String>,
     pub is_embed: bool,
+    /// Varios archivos con ese nombre: candidatos (no se elige ninguno)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ambiguous: Vec<String>,
 }
 
 /// Mención textual no vinculada que coincide con el título o nombre de la nota

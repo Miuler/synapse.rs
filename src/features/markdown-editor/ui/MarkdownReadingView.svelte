@@ -530,6 +530,16 @@
         const resolvedUrl = await resolveVaultImageUrl(rawSrc, filePath);
         if (resolvedUrl && img.src !== resolvedUrl) {
           img.src = resolvedUrl;
+        } else if (!resolvedUrl && !/^(?:https?:|data:|blob:|asset:)/i.test(rawSrc)) {
+          // Varios archivos con ese nombre: no se elige ninguno, se avisa y se ofrece elegir
+          const r = await vaultApi.resolveVaultLinkDetailed(rawSrc, filePath).catch(() => null);
+          if (r?.status === 'ambiguous') {
+            const container = fig.querySelector<HTMLElement>('.reading-image-container');
+            if (container) {
+              const name = escapeHtml(rawSrc.split('/').pop() ?? rawSrc);
+              container.innerHTML = `<div class="reading-link-ambiguous">⚠ Hay ${r.candidates.length} archivos «${name}»: usa la ruta completa <button type="button" data-ambiguous-target="${escapeHtml(rawSrc)}">Elegir cuál</button></div>`;
+            }
+          }
         }
       } catch (err) {
         console.warn('Error resolviendo imagen en modo lectura:', err);
@@ -659,6 +669,13 @@
   }
 
   function handleContainerClick(event: MouseEvent) {
+    // «Elegir cuál» de una imagen incrustada ambigua: el espacio de trabajo pregunta y puede fijarla
+    const ambiguous = (event.target as HTMLElement).closest<HTMLElement>('[data-ambiguous-target]');
+    if (ambiguous) {
+      event.preventDefault();
+      onNavigate?.(ambiguous.dataset.ambiguousTarget ?? '');
+      return;
+    }
     const target = (event.target as HTMLElement).closest('a');
     if (!target) return;
 
@@ -1310,5 +1327,23 @@
     font-size: calc(12px * var(--content-zoom, 1));
     color: var(--text-secondary, #656d76);
     font-style: italic;
+  }
+  :global(.reading-link-ambiguous) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px dashed var(--warning, #d29922);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+  }
+  :global(.reading-link-ambiguous button) {
+    padding: 2px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
   }
 </style>

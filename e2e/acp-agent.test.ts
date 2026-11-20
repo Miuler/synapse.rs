@@ -194,11 +194,14 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeout: 5_000,
     timeoutMsg: 'la imagen pegada no aparece como adjunto',
   });
-  // Al hacer clic en la miniatura se ve ampliada; Esc la cierra
+  // Al hacer clic en la miniatura se abre en una pestaña con el visor de imágenes (zoom, mover)
   await s.browser.$('.acp-composer .acp-chip.image .acp-image-btn').click();
-  await s.browser.$('.acp-lightbox img').waitForExist({ timeout: 5_000 });
-  await s.browser.keys('Escape');
-  await s.browser.waitUntil(async () => (await count('.acp-lightbox')) === 0, { timeout: 5_000, timeoutMsg: 'Esc no cerró la imagen' });
+  await s.browser.waitUntil(async () => (await text('.editor-header .tab-title, .editor-header [class*="tab"]')).some((t) => t?.includes('Agente · Imagen 1.png')), {
+    timeout: 5_000,
+    timeoutMsg: 'la imagen no se abrió en una pestaña',
+  });
+  await s.browser.$('.agent-image-pane img').waitForExist({ timeout: 5_000 });
+  expect(await count('.agent-image-pane .agent-image-save')).toBe(1);
 
   // La conversación queda guardada en la bóveda y aparece en el historial
   const dir = join(s.vault, '.synapse/agent-sessions');

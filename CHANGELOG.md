@@ -9,10 +9,18 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Enlaces con una sola regla en notas (wikilinks y enlaces Markdown), panel de relaciones y chat del agente: si la ruta existe tal cual (relativa a la nota o a la raíz) se usa esa; si no, el único archivo con ese nombre; si hay varios, una lista para elegir (↑/↓; Enter o clic abre; Ctrl+Enter, Ctrl+clic o «Fijar» abre y corrige el enlace en la nota con la ruta completa). Una imagen incrustada ambigua muestra un aviso con «Elegir cuál».
+- Chat del agente: las imágenes se abren en una pestaña («Agente · …», con el icono del agente) con el visor de imágenes (zoom, mover, ajustar) y el botón «Guardar en la bóveda».
+- MCP: `get_backlinks_and_relations` indica en cada enlace saliente `resolved_path` y, si es ambiguo, `ambiguous` con los candidatos.
 - Chat del agente: mientras el agente trabaja, Enter deja el mensaje en cola (con sus adjuntos y menciones) y se envía solo al terminar el turno, en orden. Cada mensaje en cola tiene ✕ para quitarlo, ↑ con la caja vacía saca el último para editarlo, y «Detener» corta el turno y devuelve lo encolado a la caja sin enviarlo. Funciona con cualquier agente ACP (la cola la lleva Synapse).
 - Chat del agente: las respuestas muestran las casillas de tarea (antes el saneado del HTML las quitaba); bajo cada respuesta, «Markdown» copia el texto tal cual y «Con formato» lo copia para un correo o Teams, con las tareas como ☐ / ✅; copiar una selección con tareas hace lo mismo.
 - Chat del agente: zoom de los mensajes y la caja de texto con Ctrl+rueda, Ctrl++, Ctrl+− y Ctrl+0 (se recuerda).
 - Chat del agente: la caja de texto crece con lo que escribes, hasta el 40 % de la altura de la ventana; después tiene su propio scroll.
+
+### Cambiado
+
+- Un enlace con varios archivos del mismo nombre ya no lleva al «más cercano» sin avisar: se pregunta. Esos enlaces ambiguos no cuentan en backlinks, grafo ni relaciones hasta que se fijan.
+- Visor OpenAPI: Scalar ya no usa la URL de la ventana (`#…`); con varias pestañas de OpenAPI cada una va por su cuenta (antes una pestaña nueva saltaba a la sección de la otra).
 
 ## [1.0.0-beta.7] - 2026-11-20
 

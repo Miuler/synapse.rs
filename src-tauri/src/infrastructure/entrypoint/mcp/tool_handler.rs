@@ -799,7 +799,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 13. get_backlinks_and_relations
                 McpTool {
                     name: "get_backlinks_and_relations".to_string(),
-                    description: "Obtiene backlinks con snippets contextuales, outlinks no resueltos (huérfanos) y top 5 vecinos por similitud Jaccard de tags.".to_string(),
+                    description: "Obtiene backlinks con snippets contextuales, outlinks (resueltos, no resueltos y ambiguos: si hay varias notas con ese nombre, `ambiguous` lista los candidatos y conviene enlazar con la ruta completa) y top 5 vecinos por similitud Jaccard de tags.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -2604,7 +2604,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let outlinks: Vec<_> = relations
             .outlinks
             .into_iter()
-            .map(|o| json!({ "target": o.target, "alias": o.alias, "is_embed": o.is_embed, "is_resolved": o.is_resolved }))
+            .map(|o| {
+                let mut v = json!({ "target": o.target, "alias": o.alias, "is_embed": o.is_embed, "is_resolved": o.is_resolved, "resolved_path": o.resolved_path });
+                // Varios archivos con ese nombre: no se elige ninguno; conviene escribir la ruta completa
+                if !o.ambiguous.is_empty() {
+                    v["ambiguous"] = json!(o.ambiguous);
+                }
+                v
+            })
             .collect();
         let neighbors_json: Vec<_> = relations
             .neighbors

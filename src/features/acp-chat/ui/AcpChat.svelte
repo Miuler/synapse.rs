@@ -2,6 +2,7 @@
   import {
     agentStore,
     agentApi,
+    agentImages,
     modeBadge,
     shortModelLabels,
     type Attachment,
@@ -80,6 +81,16 @@
     const rel = vaultPathOfLink(href, cwd);
     if (rel) onOpenNote?.(rel);
     else if (/^https?:/i.test(href)) window.open(href, '_blank', 'noopener');
+    // Enlace relativo (p. ej. solo el nombre del archivo): el espacio de trabajo lo resuelve
+    else if (href && !/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith('#')) {
+      let target = href;
+      try {
+        target = decodeURI(href);
+      } catch {
+        /* tal cual */
+      }
+      onOpenNote?.(target.replace(/^\.\//, ''));
+    }
   }
 
   let draft = $state('');
@@ -513,19 +524,10 @@
     }
   }
 
-  // Imagen ampliada (lightbox): fondo oscuro, la imagen centrada; Esc, clic fuera o ✕ la cierran
-  let zoomed = $state<Extract<Attachment, { kind: 'image' }> | null>(null);
-  $effect(() => {
-    if (!zoomed) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        zoomed = null;
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  });
+  // Una imagen del chat se abre en una pestaña con el visor de imágenes (zoom, mover, ajustar)
+  function openImage(a: Extract<Attachment, { kind: 'image' }>) {
+    agentImages.open({ name: a.name, mimeType: a.mimeType, data: a.data });
+  }
 
   function chipLabel(a: Attachment) {
     if (a.kind !== 'selection') return a.name;
@@ -589,17 +591,6 @@
 </script>
 
 <div class="acp-chat" bind:this={chatRoot}>
-  {#if zoomed}
-    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="acp-lightbox" role="dialog" tabindex="-1" aria-modal="true" aria-label={zoomed.name} onclick={() => (zoomed = null)}>
-      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-      <figure onclick={(e) => e.stopPropagation()}>
-        <img src="data:{zoomed.mimeType};base64,{zoomed.data}" alt={zoomed.name} />
-        <figcaption>{zoomed.name}</figcaption>
-      </figure>
-      <button type="button" class="acp-lightbox-close" aria-label="Cerrar" onclick={() => (zoomed = null)}><X size={18} /></button>
-    </div>
-  {/if}
   {#if conv}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
@@ -665,7 +656,7 @@
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
                   {#if a.kind === 'image'}
-                    <button type="button" class="acp-image-btn" title="Ver {a.name}" onclick={() => (zoomed = a)}>
+                    <button type="button" class="acp-image-btn" title="Ver {a.name}" onclick={() => openImage(a)}>
                       <img class="acp-sent-image" src="data:{a.mimeType};base64,{a.data}" alt={a.name} />
                     </button>
                   {:else}
@@ -904,7 +895,7 @@
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
-              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => (zoomed = a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
+              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => openImage(a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
               <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>
@@ -1326,47 +1317,6 @@
     border: none;
     background: none;
     cursor: zoom-in;
-  }
-  .acp-lightbox {
-    position: fixed;
-    inset: 0;
-    z-index: 2000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.72);
-    cursor: zoom-out;
-  }
-  .acp-lightbox figure {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    cursor: default;
-  }
-  .acp-lightbox img {
-    max-width: 90vw;
-    max-height: 85vh;
-    object-fit: contain;
-    border-radius: 6px;
-    background: #fff;
-  }
-  .acp-lightbox figcaption {
-    color: #eee;
-    font-size: 12px;
-  }
-  .acp-lightbox-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    display: inline-flex;
-    padding: 6px;
-    border: none;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-    cursor: pointer;
   }
   .acp-msg.user.from-agent {
     align-self: flex-start;

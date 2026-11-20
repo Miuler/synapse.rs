@@ -146,12 +146,14 @@
                 tabindex="0"
                 onclick={() => {
                   if (o.resolved_path) onSelectNote(o.resolved_path);
+                  else if (o.ambiguous?.length) onSelectNote(o.target);
                   else onSelectNote(o.target.endsWith('.md') ? o.target : `${o.target}.md`);
                 }}
                 onkeydown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     if (o.resolved_path) onSelectNote(o.resolved_path);
+                    else if (o.ambiguous?.length) onSelectNote(o.target);
                     else onSelectNote(o.target.endsWith('.md') ? o.target : `${o.target}.md`);
                   }
                 }}
@@ -159,7 +161,9 @@
                 <div class="card-top">
                   <ArrowUpRight size={12} class="card-icon" />
                   <span class="card-title">{o.alias || o.target}</span>
-                  {#if !o.resolved_path}
+                  {#if o.ambiguous?.length}
+                    <span class="ghost-tag ambiguous" title={`Hay ${o.ambiguous.length} archivos con ese nombre:\n${o.ambiguous.join('\n')}\nAl abrirlo se elige cuál y se puede fijar`}>ambiguo ({o.ambiguous.length})</span>
+                  {:else if !o.resolved_path}
                     <span class="ghost-tag">pendiente</span>
                   {/if}
                 </div>
@@ -388,5 +392,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .ghost-tag.ambiguous {
+    color: var(--warning, #d29922);
+    border-color: var(--warning, #d29922);
   }
 </style>

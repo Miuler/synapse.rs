@@ -27,6 +27,10 @@
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
   import {DocxViewer} from "@features/docx-viewer";
+  import {LinkChooser} from "@shared/ui/link-chooser";
+  import {rewriteLinkTarget} from "@features/markdown-editor/lib/link-rewrite";
+  import {agentImages, AGENT_IMAGE_TAB_PREFIX} from "@entities/acp-agent";
+  import {ImageDown} from "lucide-svelte";
   import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
@@ -423,6 +427,31 @@
   $effect(() => {
     document.documentElement.style.setProperty("--content-zoom", String(appSettings.contentZoom));
   });
+  // Imagen del chat del agente: se abre en una pestaña con el visor de imágenes
+  $effect(() => {
+    const tab = agentImages.request;
+    if (!tab) return;
+    agentImages.request = null;
+    selectTab(tab);
+  });
+
+  /** Guarda en la bóveda una imagen del chat del agente («Imágenes del agente/…») y la abre */
+  async function saveAgentImage(tab: string) {
+    const img = agentImages.get(tab);
+    if (!img) return;
+    const ext = img.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png';
+    const base = img.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '-') || 'imagen';
+    let rel = `Imágenes del agente/${base}.${ext}`;
+    for (let i = 2; vaultItemStore.get(rel); i++) rel = `Imágenes del agente/${base} (${i}).${ext}`;
+    try {
+      await vaultApi.saveBinaryAsset(rel, img.data);
+      showWorkspaceToast(`Guardada en ${rel}`);
+      selectTab(rel);
+    } catch (e) {
+      showWorkspaceToast(`No se pudo guardar la imagen: ${e}`);
+    }
+  }
+
   // Zoom de toda la interfaz (selector de Ctrl+P → «Zoom»)
   $effect(() => {
     const z = appSettings.uiZoom;
@@ -1335,12 +1364,99 @@
     if (!targetPath) return;
     const { path: cleanPath, anchor } = splitNavigationTarget(targetPath);
     if (cleanPath) {
-      selectTab(cleanPath);
-      if (anchor) {
-        pendingScrollHeadings[cleanPath] = { text: anchor, id: ++headingRequestId };
+      // Si no es una ruta exacta de la bóveda: tal cual relativo a la nota, único por nombre o ambiguo
+      if (!vaultItemStore.get(cleanPath) && !isSyntheticTab(cleanPath)) {
+        void resolveAndOpenLink(cleanPath, anchor, focusedTabPath(), true);
+        return;
       }
+      openLinkTarget(cleanPath, anchor);
     } else if (anchor && activeTabPath) {
       pendingScrollTerms[activeTabPath] = [anchor];
+    }
+  }
+
+  function openLinkTarget(path: string, anchor?: string | null) {
+    selectTab(path);
+    if (anchor) pendingScrollHeadings[path] = { text: anchor, id: ++headingRequestId };
+  }
+
+  function focusedTabPath(): string | null {
+    const p = activeFocusedPane === 'right' ? activeSplitTabPath : activeTabPath;
+    return p && !isSyntheticTab(p) ? p : null;
+  }
+
+  /** Enlace ambiguo (varios archivos con ese nombre) esperando a que el usuario elija */
+  let linkChoice = $state<{ target: string; anchor: string | null; source: string | null; candidates: string[]; canFix: boolean } | null>(null);
+
+  /**
+   * Resuelve un enlace con la regla única (tal cual, único por nombre o ambiguo) y lo abre; si es
+   * ambiguo pregunta cuál. `fixable`: el enlace está en una nota que se puede corregir (no en el chat).
+   */
+  async function resolveAndOpenLink(target: string, anchor: string | null | undefined, source: string | null, fixable: boolean) {
+    let r: Awaited<ReturnType<typeof vaultApi.resolveVaultLinkDetailed>>;
+    try {
+      r = await vaultApi.resolveVaultLinkDetailed(target, source);
+    } catch {
+      r = { status: 'missing' };
+    }
+    if (r.status === 'resolved') {
+      const [path, ownAnchor] = r.path.split('#');
+      openLinkTarget(path, anchor || ownAnchor);
+    } else if (r.status === 'ambiguous') {
+      linkChoice = {
+        target,
+        anchor: anchor ?? null,
+        source,
+        candidates: r.candidates,
+        canFix: fixable && !!source && !unsavedChanges.isLocked(source),
+      };
+    } else {
+      openLinkTarget(target, anchor);
+    }
+  }
+
+  async function onLinkChosen(path: string, fix: boolean) {
+    const choice = linkChoice;
+    linkChoice = null;
+    if (!choice) return;
+    openLinkTarget(path, choice.anchor);
+    if (fix && choice.source) await fixLinkInNote(choice.source, choice.target, path);
+  }
+
+  /** Corrige en la nota los enlaces a `target` para que lleven a `chosen` (en el editor si está abierto, con Ctrl+Z) */
+  async function fixLinkInNote(source: string, target: string, chosen: string) {
+    const view = markdownViewers[source]?.getView?.();
+    try {
+      if (view) {
+        const doc = view.state.doc.toString();
+        const next = rewriteLinkTarget(doc, target, chosen, source);
+        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        // Solo el tramo que cambia, para no mover el cursor ni el scroll
+        let from = 0;
+        while (from < doc.length && doc[from] === next.content[from]) from++;
+        let endA = doc.length;
+        let endB = next.content.length;
+        while (endA > from && endB > from && doc[endA - 1] === next.content[endB - 1]) {
+          endA--;
+          endB--;
+        }
+        view.dispatch({ changes: { from, to: endA, insert: next.content.slice(from, endB) }, userEvent: 'input.fix-link' });
+      } else if (openedNotes[source]?.isLoaded) {
+        const next = rewriteLinkTarget(openedNotes[source].content ?? '', target, chosen, source);
+        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        openedNotes[source].content = next.content;
+        const item = vaultItemStore.get(source);
+        if (item) await persistVaultItemToRust(item);
+      } else {
+        const note = await vaultRepository.readNote(source);
+        if (!note) return;
+        const next = rewriteLinkTarget(note.content ?? '', target, chosen, source);
+        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        await vaultRepository.saveNote({ relativePath: source, title: note.title, content: next.content, encoding: note.encoding || 'UTF-8' });
+      }
+      showWorkspaceToast(`Enlace fijado a ${chosen}`);
+    } catch (e) {
+      showWorkspaceToast(`No se pudo corregir el enlace: ${e}`);
     }
   }
 
@@ -2269,6 +2385,9 @@
   function tabInfo(path: string): TabInfoItem {
     // Copia de otra pestaña: lo mismo que la original, con su propio id
     if (isTabCopy(path)) return { ...tabInfo(baseTabPath(path)), path };
+    if (path.startsWith(AGENT_IMAGE_TAB_PREFIX)) {
+      return { path, title: `Agente · ${agentImages.get(path)?.name ?? 'Imagen'}`, abs_path: undefined, isDirty: false, kind: 'agent' as const };
+    }
     if (isSyntheticTab(path)) {
       return {
         path,
@@ -2299,7 +2418,7 @@
     abs_path: string | undefined;
     isDirty: boolean;
     isLocked?: boolean;
-    kind?: 'excalidraw';
+    kind?: 'excalidraw' | 'agent';
   };
 
   let tabsInfo = $derived(openTabPaths.map(tabInfo));
@@ -4394,7 +4513,7 @@
       >
         <RelationsInspector
           activeNotePath={currentActiveNonGraphPath}
-          onSelectNote={(notePath) => selectTab(notePath)}
+          onSelectNote={(notePath) => (vaultItemStore.get(notePath) ? selectTab(notePath) : handleNavigateLink(notePath))}
         />
         <div
           role="separator"
@@ -4787,6 +4906,21 @@
                       isMarkdown={true}
                     />
                   </div>
+                {:else if tabFile.startsWith(AGENT_IMAGE_TAB_PREFIX)}
+                  {@const agentImg = agentImages.get(tabFile)}
+                  {#if agentImg}
+                    <div class="agent-image-pane">
+                      <div class="agent-image-bar">
+                        <span>Imagen del chat del agente · solo en esta sesión</span>
+                        <button type="button" class="agent-image-save" onclick={() => saveAgentImage(tabFile)}>
+                          <ImageDown size={14} /> Guardar en la bóveda
+                        </button>
+                      </div>
+                      <ImageViewer src={`data:${agentImg.mimeType};base64,${agentImg.data}`} alt={agentImg.name} />
+                    </div>
+                  {:else}
+                    <div class="agent-image-missing">Esta imagen ya no está disponible (las imágenes del chat solo duran la sesión).</div>
+                  {/if}
                 {:else if tabFile.startsWith("synapse://graph")}
                   {@const targetFocus = tabFile.slice("synapse://graph".length).replace(/^:/, "") || currentActiveNonGraphPath}
                   <GraphViewer
@@ -5120,7 +5254,7 @@
       cwd={isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null)}
       onClose={() => setAgentPanelOpen(false)}
       onOpenSettings={openAgentSettings}
-      onOpenNote={(path) => selectTab(path)}
+      onOpenNote={(path) => (vaultItemStore.get(path) ? selectTab(path) : void resolveAndOpenLink(path, null, null, false))}
     />
   {/if}
 
@@ -5130,7 +5264,16 @@
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
   <GitMissingDialog bind:open={gitMissingOpen} />
-  <ZoomDialog bind:open={zoomDialogOpen} />
+  {#if linkChoice}
+  <LinkChooser
+    target={linkChoice.target}
+    candidates={linkChoice.candidates}
+    canFix={linkChoice.canFix}
+    onPick={onLinkChosen}
+    onClose={() => (linkChoice = null)}
+  />
+{/if}
+<ZoomDialog bind:open={zoomDialogOpen} />
   {#if !isDetachedWindow}
     <UpdateNotice onShowNotes={() => { appUpdates.noticeOpen = false; selectTab(UPDATE_NOTES_TAB); }} />
   {/if}
@@ -5532,5 +5675,48 @@
       opacity: 1;
       transform: translate(-50%, 0);
     }
+  }
+  .agent-image-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+  .agent-image-pane > :global(:last-child) {
+    flex: 1;
+    min-height: 0;
+  }
+  .agent-image-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .agent-image-bar span {
+    flex: 1;
+  }
+  .agent-image-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .agent-image-save:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .agent-image-missing {
+    padding: 24px;
+    color: var(--text-secondary);
   }
 </style>

@@ -1,7 +1,8 @@
 use crate::application::dto::note::get_note_relations_query::{
     Backlink, GetNoteRelationsQuery, NoteRelations, Outlink,
 };
-use crate::domain::graph::wikilink::{LinkTarget, WikilinkToken};
+use crate::domain::graph::wikilink::WikilinkToken;
+use crate::domain::service::link_resolver::{LinkResolution, LinkResolver};
 use crate::domain::note::note_repository::NoteRepository;
 use std::collections::{HashMap, HashSet};
 
@@ -26,12 +27,6 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
             .relative_path
             .trim_start_matches('/')
             .replace('\\', "/");
-        let target_stem = target_normalized
-            .rsplit('/')
-            .next()
-            .and_then(|n| n.rsplit_once('.').map(|(s, _)| s))
-            .unwrap_or(&target_normalized)
-            .to_string();
 
         let mut target_tags: HashSet<String> = HashSet::new();
         let mut backlinks = Vec::new();
@@ -68,11 +63,22 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
             let mut matching_snippet = String::new();
 
             for wl in wikilinks {
-                let (norm_target, _) = LinkTarget::normalize(&wl.target);
-                if norm_target == target_normalized
-                    || norm_target == format!("{}.md", target_stem)
-                    || wl.target.eq_ignore_ascii_case(&target_stem)
-                {
+                // Misma regla que al hacer clic: tal cual, único por nombre, o ambiguo (no cuenta)
+                let resolution = LinkResolver::resolve_detailed(
+                    &wl.target,
+                    Some(n_path),
+                    |p| all_note_paths.get(p).cloned(),
+                    |visit| {
+                        for p in &all_note_paths {
+                            visit(p);
+                        }
+                    },
+                );
+                let resolved_path = match &resolution {
+                    LinkResolution::Resolved(p) => Some(p.split('#').next().unwrap_or(p).to_string()),
+                    _ => None,
+                };
+                if resolved_path.as_deref() == Some(target_normalized.as_str()) {
                     links_to_target = true;
                     // Extraer snippet de contexto de la línea
                     for line in full_note.content.lines() {
@@ -85,13 +91,16 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
                 }
 
                 if n_path == target_normalized {
-                    let is_resolved = all_note_paths.contains(&norm_target)
-                        || all_note_paths.contains(&format!("{}.md", norm_target));
                     outlinks.push(Outlink {
                         target: wl.target,
                         alias: wl.alias,
                         is_embed: wl.is_embed,
-                        is_resolved,
+                        is_resolved: resolved_path.is_some(),
+                        resolved_path,
+                        ambiguous: match resolution {
+                            LinkResolution::Ambiguous(c) => c,
+                            _ => Vec::new(),
+                        },
                     });
                 }
             }

@@ -36,6 +36,8 @@ export interface OutlinkItem {
   alias?: string | null;
   resolved_path?: string | null;
   is_embed: boolean;
+  /** Varios archivos con ese nombre: candidatos (no se elige ninguno) */
+  ambiguous?: string[];
 }
 
 export interface UnlinkedMentionItem {

@@ -16,6 +16,10 @@ pub struct Outlink {
     pub alias: Option<String>,
     pub is_embed: bool,
     pub is_resolved: bool,
+    /// Ruta a la que lleva, si se resolvió
+    pub resolved_path: Option<String>,
+    /// Hay varios archivos con ese nombre: candidatos (no se elige ninguno)
+    pub ambiguous: Vec<String>,
 }
 
 /// Enlaces entrantes y salientes de una nota y las notas con etiquetas más parecidas.

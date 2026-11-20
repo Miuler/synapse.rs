@@ -149,6 +149,34 @@ pub fn resolve_vault_link(
     Ok(engine.resolve_link_path_with_base(&link, base_file.as_deref()))
 }
 
+/// Resultado de resolver un enlace: `resolved` (con `path`), `ambiguous` (con `candidates`) o `missing`.
+#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum LinkResolutionDto {
+    Resolved { path: String },
+    Ambiguous { candidates: Vec<String> },
+    Missing,
+}
+
+/// Resuelve un enlace distinguiendo «no existe» de «hay varios archivos con ese nombre».
+#[tauri::command(async)]
+pub fn resolve_vault_link_detailed(
+    state: State<'_, AppState>,
+    link: String,
+    base_file: Option<String>,
+) -> Result<LinkResolutionDto, String> {
+    use crate::domain::service::link_resolver::LinkResolution;
+    let guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
+    let Some(ref engine) = *guard else {
+        return Ok(LinkResolutionDto::Missing);
+    };
+    Ok(match engine.resolve_link_detailed_with_base(&link, base_file.as_deref()) {
+        LinkResolution::Resolved(path) => LinkResolutionDto::Resolved { path },
+        LinkResolution::Ambiguous(candidates) => LinkResolutionDto::Ambiguous { candidates },
+        LinkResolution::NotFound => LinkResolutionDto::Missing,
+    })
+}
+
 #[tauri::command(async)]
 pub fn resolve_vault_links(
     state: State<'_, AppState>,

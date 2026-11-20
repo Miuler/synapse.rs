@@ -1471,19 +1471,36 @@ impl NavigationEngine {
         self.resolve_link_path_with_base(raw_target, None)
     }
 
-    /// Resuelve la ruta completa de un enlace o WikiLink (`[[...]]`), teniendo en cuenta la proximidad al
-    /// archivo base `base_file`.
-    /// Si existe más de un archivo con el mismo nombre, prefiere:
-    /// 1. El que esté en la misma carpeta del archivo base.
-    /// 2. El que esté en subcarpetas más cercanas.
-    /// 3. El que esté en carpetas padre más cercanas hacia la raíz.
-    /// 4. Otras carpetas del árbol.
+    /// Resuelve la ruta completa de un enlace o WikiLink (`[[...]]`) con la regla de `LinkResolver`:
+    /// tal cual (relativo a `base_file` o a la raíz), o el único archivo con ese nombre. Si hay varios
+    /// con el mismo nombre devuelve `None` (ambiguo: no se elige ninguno).
     pub fn resolve_link_path_with_base(
         &self,
         raw_target: &str,
         base_file: Option<&str>,
     ) -> Option<String> {
         crate::domain::service::link_resolver::LinkResolver::resolve(
+            raw_target,
+            base_file,
+            |path| {
+                let id = *self.path_index.get(&CompactString::new(path))?.value();
+                self.notes.get(&id).map(|meta| meta.path.to_string())
+            },
+            |visit| {
+                for item in self.notes.iter() {
+                    visit(item.value().path.as_str());
+                }
+            },
+        )
+    }
+
+    /// Como `resolve_link_path_with_base`, pero distingue «no existe» de «hay varios con ese nombre».
+    pub fn resolve_link_detailed_with_base(
+        &self,
+        raw_target: &str,
+        base_file: Option<&str>,
+    ) -> crate::domain::service::link_resolver::LinkResolution {
+        crate::domain::service::link_resolver::LinkResolver::resolve_detailed(
             raw_target,
             base_file,
             |path| {
@@ -1792,7 +1809,7 @@ impl NavigationEngine {
         use crate::domain::graph::graph::{
             BacklinkItem, NoteBacklinksReport, OutlinkItem, UnlinkedMentionItem,
         };
-        use crate::domain::graph::wikilink::{LinkTarget, WikilinkToken};
+        use crate::domain::graph::wikilink::WikilinkToken;
 
         let clean_target = target_path.trim_start_matches('/').replace('\\', "/");
         let target_stem = clean_target
@@ -1823,13 +1840,15 @@ impl NavigationEngine {
             let mut linked_in_this_file = false;
 
             for wl in &wikilinks {
-                let resolved = self.resolve_link_path_with_base(&wl.target, Some(&p_str));
-                let matches_target = resolved.as_deref() == Some(&clean_target) || {
-                    let (norm, _) = LinkTarget::normalize(&wl.target);
-                    norm == clean_target
-                        || norm == format!("{}.md", target_stem)
-                        || wl.target.eq_ignore_ascii_case(target_stem)
+                use crate::domain::service::link_resolver::LinkResolution;
+                let resolution = self.resolve_link_detailed_with_base(&wl.target, Some(&p_str));
+                let (resolved, ambiguous) = match resolution {
+                    LinkResolution::Resolved(p) => (Some(p.split('#').next().unwrap_or(&p).to_string()), Vec::new()),
+                    LinkResolution::Ambiguous(c) => (None, c),
+                    LinkResolution::NotFound => (None, Vec::new()),
                 };
+                // Un enlace ambiguo no cuenta como backlink de ninguno de los candidatos
+                let matches_target = resolved.as_deref() == Some(&clean_target);
 
                 if matches_target && p_str != clean_target {
                     linked_in_this_file = true;
@@ -1848,6 +1867,7 @@ impl NavigationEngine {
                         alias: wl.alias.clone(),
                         resolved_path: resolved,
                         is_embed: wl.is_embed,
+                        ambiguous,
                     });
                 }
             }
