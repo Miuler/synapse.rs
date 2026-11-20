@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Cambiado
+
+- El visor OpenAPI ya no muestra «Ask AI» de Scalar: el chat enviaba la especificación a servidores externos.
+
+### Añadido
+
+- El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.
+
 ## [1.0.0-beta.6] - 2026-11-20
 
 ### Añadido

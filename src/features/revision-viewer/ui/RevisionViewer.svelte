@@ -72,6 +72,12 @@
     (!isDrawing && !isDiagram && !isImage && !isPdf && !isMarkdown && !isOpenApi)
   );
 
+  // Los `$ref` a otros archivos se leen de la misma revisión
+  async function readAtRevision(path: string): Promise<string | null> {
+    const r = await vaultRepository.getGitFileRevision(path, false, revision).catch(() => null);
+    return r?.exists ? (r.content ?? null) : null;
+  }
+
   async function loadRevision() {
     loading = true;
     error = null;
@@ -361,7 +367,7 @@
           {/if}
         {:else if isOpenApi && !showOpenApiRaw}
           <div class="revision-markdown-container">
-            <OpenApiViewer content={revData.content || ''} />
+            <OpenApiViewer content={revData.content || ''} path={filePath} readFile={readAtRevision} />
           </div>
         {:else}
           <div class="revision-code-container">

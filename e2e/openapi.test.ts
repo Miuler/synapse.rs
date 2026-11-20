@@ -27,6 +27,12 @@ beforeAll(async () => {
   vault = join(base, 'vault');
   mkdirSync(join(vault, '.synapse'), { recursive: true });
   writeFileSync(join(vault, 'openapi.yaml'), SPEC);
+  // Especificación repartida en archivos: los `$ref` relativos se siguen dentro de la bóveda
+  mkdirSync(join(vault, 'api', 'paths'), { recursive: true });
+  writeFileSync(join(vault, 'api', 'main.yaml'),
+    "openapi: 3.0.1\ninfo:\n  title: API Repartida\n  version: 1.0.0\npaths:\n  /transferencias:\n    $ref: ./paths/transferencias.yaml\n  /falta:\n    $ref: ./paths/no-existe.yaml\n");
+  writeFileSync(join(vault, 'api', 'paths', 'transferencias.yaml'),
+    "get:\n  summary: Buscar transferencias\n  responses:\n    '200':\n      description: OK\n");
   s = await startAppOnVault(vault);
   await s.browser.$('.file-tree-item[data-path="openapi.yaml"]').waitForExist({ timeout: 30_000 });
 }, 120_000);
@@ -93,4 +99,15 @@ it('en Edición muestra el YAML en el editor de código', async () => {
   );
   expect(keySpans).toBeGreaterThan(0);
   expect(await s.browser.$('.tab-pane:not(.hidden) .openapi-pane').isExisting()).toBe(false);
+}, 60_000);
+
+it('sigue los $ref a otros archivos y avisa de los que faltan; se actualiza al cambiar uno', async () => {
+  await s.browser.execute(() => document.querySelector('.file-tree-item[data-path="api"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await s.browser.$('.file-tree-item[data-path="api/main.yaml"]').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.file-tree-item[data-path="api/main.yaml"]').click();
+  await s.browser.waitUntil(async () => (await paneText()).includes('Buscar transferencias'), { timeout: 20_000, timeoutMsg: 'no se resolvió el $ref externo' });
+  expect(await paneText()).toContain('sin resolver');
+  writeFileSync(join(vault, 'api', 'paths', 'transferencias.yaml'),
+    "get:\n  summary: Listar transferencias nuevas\n  responses:\n    '200':\n      description: OK\n");
+  await s.browser.waitUntil(async () => (await paneText()).includes('Listar transferencias nuevas'), { timeout: 20_000, timeoutMsg: 'no se actualizó al cambiar el archivo referenciado' });
 }, 60_000);

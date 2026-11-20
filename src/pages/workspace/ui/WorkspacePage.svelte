@@ -89,6 +89,11 @@
     UnsavedChangesState,
   } from "../model";
 
+  // Texto de un archivo de la bóveda (para seguir los `$ref` de un OpenAPI repartido en archivos)
+  async function readVaultText(path: string): Promise<string | null> {
+    return (await vaultRepository.readNote(path).catch(() => null))?.content ?? null;
+  }
+
   interface VaultFsChangeEvent {
     paths: string[];
     deleted: string[];
@@ -4761,7 +4766,7 @@
                 {:else if !paneEditing && isOpenApiContent(tabFile, content)}
                   <!-- OpenAPI/Swagger: Scalar en Lectura; en Edición cae en el editor de código -->
                   <div class="editor-main-content openapi-pane">
-                    <OpenApiViewer {content} />
+                    <OpenApiViewer {content} path={tabFile} readFile={readVaultText} watchFiles />
                   </div>
                 {:else if isCodeFile(tabFile)}
                   <div class="editor-main-content code-file-pane">
