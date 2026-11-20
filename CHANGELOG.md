@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- `synapse-server`: configuración completa en capas (defaults → TOML → `SYNAPSE_*` con soporte de claves anidadas `__`) validada al arrancar, `RetentionPolicy` en `domain`, `config.example.toml`, separación `lib.rs`/`main.rs` con apagado ordenado (Ctrl+C y `SIGTERM`), arnés de pruebas en proceso (`TestServer`) y guardián de capas de arquitectura cebolla (`tests/integration/architecture.rs`).
 - Enlaces con una sola regla en notas (wikilinks y enlaces Markdown), panel de relaciones y chat del agente: si la ruta existe tal cual (relativa a la nota o a la raíz) se usa esa; si no, el único archivo con ese nombre; si hay varios, una lista para elegir (↑/↓; Enter o clic abre; Ctrl+Enter, Ctrl+clic o «Fijar» abre y corrige el enlace en la nota con la ruta completa). Una imagen incrustada ambigua muestra un aviso con «Elegir cuál».
 - Chat del agente: las imágenes se abren en una pestaña («Agente · …», con el icono del agente) con el visor de imágenes (zoom, mover, ajustar) y el botón «Guardar en la bóveda».
 - MCP: `get_backlinks_and_relations` indica en cada enlace saliente `resolved_path` y, si es ambiguo, `ambiguous` con los candidatos.
@@ -19,6 +20,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Al guardar una nota Markdown ya no se añade `title` al frontmatter (ni se crea un frontmatter solo para eso): el título por defecto es el nombre del archivo. Al renombrar, el `title` solo cambia si ya existía y coincidía con el nombre anterior; un título propio se respeta. El `write_note` del MCP solo escribe `title` si se le pasa.
 - El diff de texto se abre colapsado, mostrando solo los cambios («Expandir todo» en la barra para verlo entero). `diff.max_expand_lines` en config.jsonc vale ahora 0; con un número mayor, los archivos de hasta esas líneas se abren expandidos como antes.
 - Un enlace con varios archivos del mismo nombre ya no lleva al «más cercano» sin avisar: se pregunta. Esos enlaces ambiguos no cuentan en backlinks, grafo ni relaciones hasta que se fijan.
 - Visor OpenAPI: Scalar ya no usa la URL de la ventana (`#…`); con varias pestañas de OpenAPI cada una va por su cuenta (antes una pestaña nueva saltaba a la sección de la otra).

@@ -69,8 +69,8 @@ it('Ctrl+Enter abre y fija el enlace en la nota', async () => {
   await s.browser.keys(['Control', 'Enter']);
   await s.browser.waitUntil(async () => (await activeTab()) === 'a/b/informe.md', { timeout: 10_000 });
   await s.browser.waitUntil(async () => plan().includes('[[a/b/informe|informe]]'), { timeout: 10_000, timeoutMsg: 'no se fijó el enlace en la nota' });
-  expect(plan()).not.toContain('[[informe]]');
-  expect(plan()).toContain('[el único](unico.md)');
+  // Solo cambia el enlace: guardar no añade frontmatter ni `title`
+  expect(plan()).toBe(PLAN.replace('[[informe]]', '[[a/b/informe|informe]]'));
 }, 30_000);
 
 it('una imagen incrustada ambigua avisa y ofrece elegir', async () => {

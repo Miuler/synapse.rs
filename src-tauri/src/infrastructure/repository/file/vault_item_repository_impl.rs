@@ -242,19 +242,23 @@ impl VaultItemRepositoryImpl {
 
         fs::rename(&source, &target).map_err(|e| format!("Error al renombrar elemento: {}", e))?;
 
-        // Si el archivo renombrado es Markdown, sincronizar el title de su frontmatter con el nuevo file_stem
+        // Markdown renombrado: si su frontmatter tenía `title` igual al nombre anterior, pasa al nuevo
+        // (un título propio, distinto del nombre, se respeta; sin `title` no se añade)
         if target.is_file() {
             let file_types = crate::domain::vault::file_types::SupportedFileTypes::default();
             let target_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name)
             {
                 if let Ok(raw_content) = fs::read_to_string(&target) {
-                    if let Some(new_stem) = target.file_stem().and_then(|s| s.to_str()) {
-                        let updated = crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
+                    let old_stem = source.file_stem().and_then(|s| s.to_str());
+                    if let (Some(old_stem), Some(new_stem)) = (old_stem, target.file_stem().and_then(|s| s.to_str())) {
+                        if let Some(updated) = crate::domain::note::frontmatter::NoteFrontmatter::rename_title(
                             &raw_content,
+                            old_stem,
                             new_stem,
-                        );
-                        let _ = fs::write(&target, updated);
+                        ) {
+                            let _ = fs::write(&target, updated);
+                        }
                     }
                 }
             }

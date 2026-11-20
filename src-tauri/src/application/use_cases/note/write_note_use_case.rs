@@ -86,14 +86,22 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
                 .as_ref()
                 .and_then(|n| n.frontmatter.clone())
                 .unwrap_or_default();
-            fm.title = Some(title.clone());
+            // `title` solo si se pidió (el título por defecto es el nombre del archivo)
+            if let Some(t) = command.title.clone() {
+                fm.title = Some(t);
+            }
             if let Some(tags) = command.tags {
                 fm.tags = tags;
             }
             if let Some(aliases) = command.aliases {
                 fm.aliases = aliases;
             }
-            NoteFrontmatter::serialize_with_content(Some(&fm), content)
+            // Sin nada que poner, sin frontmatter
+            if fm.is_empty() {
+                content.to_string()
+            } else {
+                NoteFrontmatter::serialize_with_content(Some(&fm), content)
+            }
         };
 
         if command.dry_run {

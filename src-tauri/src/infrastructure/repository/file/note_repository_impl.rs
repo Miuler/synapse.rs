@@ -308,18 +308,9 @@ impl NoteRepository for NoteRepositoryImpl {
             return Ok(());
         }
 
-        let is_markdown =
-            file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
-        let final_content = if is_markdown {
-            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
-                &note.content,
-                &note.title,
-            )
-        } else {
-            note.content.clone()
-        };
-
-        let bytes = encode_content(&final_content, &note.encoding);
+        // Se guarda tal cual: el título por defecto es el nombre del archivo, no se escribe en el
+        // frontmatter (ni se crea uno solo para eso)
+        let bytes = encode_content(&note.content, &note.encoding);
         fs::write(&abs_path, bytes)
             .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
     }
@@ -409,18 +400,9 @@ impl NoteRepository for NoteRepositoryImpl {
             return Ok(());
         }
 
-        let is_markdown =
-            file_types.is_markdown_file(file_name) && !file_types.is_drawing_file(file_name);
-        let final_content = if is_markdown {
-            crate::domain::note::frontmatter::NoteFrontmatter::sync_title(
-                &note.content,
-                &note.title,
-            )
-        } else {
-            note.content.clone()
-        };
-
-        let bytes = encode_content(&final_content, &note.encoding);
+        // Se guarda tal cual: el título por defecto es el nombre del archivo, no se escribe en el
+        // frontmatter (ni se crea uno solo para eso)
+        let bytes = encode_content(&note.content, &note.encoding);
         fs::write(path, bytes).map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
     }
 }

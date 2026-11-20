@@ -166,14 +166,17 @@ impl NoteFrontmatter {
         }
     }
 
-    /// Sincroniza el título en el frontmatter YAML de un contenido Markdown.
-    /// Si el contenido ya posee un bloque frontmatter, actualiza o añade el campo `title`.
-    /// Si no posee frontmatter, lo crea en la cabecera con el campo `title`.
-    pub fn sync_title(content: &str, title: &str) -> String {
-        let (mut fm_opt, body) = NoteFrontmatter::parse(content);
-        let mut fm = fm_opt.take().unwrap_or_default();
-        fm.title = Some(title.to_string());
-        NoteFrontmatter::serialize_with_content(Some(&fm), &body)
+    /// Al renombrar una nota: si su frontmatter tiene `title` igual al nombre anterior, lo cambia por
+    /// el nuevo y devuelve el contenido actualizado. Sin frontmatter, sin `title` o con un título propio
+    /// (distinto del nombre) devuelve `None`: no se toca nada ni se añade un frontmatter.
+    pub fn rename_title(content: &str, old_name: &str, new_name: &str) -> Option<String> {
+        let (fm_opt, body) = NoteFrontmatter::parse(content);
+        let mut fm = fm_opt?;
+        if fm.title.as_deref() != Some(old_name) {
+            return None;
+        }
+        fm.title = Some(new_name.to_string());
+        Some(NoteFrontmatter::serialize_with_content(Some(&fm), &body))
     }
 }
 
@@ -233,19 +236,15 @@ Este es el cuerpo principal."#;
     }
 
     #[test]
-    fn test_sync_frontmatter_title() {
-        let no_fm = "# Título Original\nTexto";
-        let with_title = NoteFrontmatter::sync_title(no_fm, "Mi Archivo");
-        let (fm, body) = NoteFrontmatter::parse(&with_title);
-        assert_eq!(fm.unwrap().title.as_deref(), Some("Mi Archivo"));
-        assert_eq!(body, no_fm);
-
-        let existing_fm = "---\ntags:\n  - test\n---\n# Cuerpo";
-        let updated = NoteFrontmatter::sync_title(existing_fm, "Nuevo Nombre");
-        let (fm2, body2) = NoteFrontmatter::parse(&updated);
-        let fm_data = fm2.unwrap();
-        assert_eq!(fm_data.title.as_deref(), Some("Nuevo Nombre"));
-        assert_eq!(fm_data.tags, vec!["test".to_string()]);
-        assert_eq!(body2, "# Cuerpo");
+    fn rename_title_solo_si_coincidia_con_el_nombre() {
+        let with = "---\ntitle: Plan\ntags:\n- a\n---\n# Plan\n";
+        let out = NoteFrontmatter::rename_title(with, "Plan", "Plan 2026").unwrap();
+        assert!(out.contains("title: Plan 2026"));
+        assert!(out.contains("# Plan"));
+        // Título propio: se respeta
+        assert_eq!(NoteFrontmatter::rename_title("---\ntitle: Mi plan\n---\nx\n", "Plan", "Otro"), None);
+        // Sin frontmatter o sin title: no se crea nada
+        assert_eq!(NoteFrontmatter::rename_title("# Plan\n", "Plan", "Otro"), None);
+        assert_eq!(NoteFrontmatter::rename_title("---\ntags:\n- a\n---\nx\n", "Plan", "Otro"), None);
     }
 }
