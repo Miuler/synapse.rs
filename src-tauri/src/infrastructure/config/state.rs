@@ -255,6 +255,15 @@ pub fn open_vault_components(
         }
     };
 
+    // `index.md` OKF en cada carpeta, mantenido al indexar (solo se escribe si cambia).
+    // `SYNAPSE_OKF_INDEX=0` lo desactiva (las e2e lo apagan salvo la suya)
+    if std::env::var("SYNAPSE_OKF_INDEX").as_deref() != Ok("0") {
+        let okf_indexer = crate::infrastructure::okf::OkfIndexer::start(vault_path.clone(), Arc::clone(&engine.notes));
+        engine.register_change_listener(Arc::new(move |upserted, removed| {
+            okf_indexer.on_change(&upserted, &removed);
+        }));
+    }
+
     let indexer = FtsIndexer::start(vault_path, file_types, Arc::clone(&tantivy_index));
     let handle_for_fts = Arc::clone(&app_handle);
     indexer.set_on_status_change(Arc::new(move |status| {

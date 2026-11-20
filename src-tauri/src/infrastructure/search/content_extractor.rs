@@ -39,6 +39,12 @@ pub fn extract_with_config(
 ) -> Option<(DocumentKind, String, String, String)> {
     let file_name = rel_path.file_name()?.to_str()?;
     let lower_name = file_name.to_lowercase();
+    // El `index.md` OKF que genera Synapse no se indexa: repite los títulos de la carpeta
+    if lower_name == crate::domain::okf::INDEX_FILE
+        && crate::domain::okf::is_generated(&String::from_utf8_lossy(&bytes[..bytes.len().min(2048)]))
+    {
+        return None;
+    }
     let file_stem = rel_path
         .file_stem()
         .and_then(|s| s.to_str())

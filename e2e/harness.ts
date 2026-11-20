@@ -198,6 +198,8 @@ async function launch(base: string, vault: string): Promise<Session> {
     // El registro público de agentes ACP: sin red (o con el CDN colgado) la lista de agentes tardaba
     // hasta 30 s. Un puerto cerrado falla al instante y quedan los agentes locales y personalizados.
     SYNAPSE_ACP_REGISTRY_URL: process.env.SYNAPSE_ACP_REGISTRY_URL ?? 'http://127.0.0.1:9/registry.json',
+    // Los index.md OKF por carpeta ensuciarían las bóvedas de prueba (Git, explorador): solo su prueba los activa
+    SYNAPSE_OKF_INDEX: process.env.SYNAPSE_OKF_INDEX ?? '0',
   };
   // Si el puerto sigue tomado por el WebDriver anterior, conectarse a él fallaría a mitad de la prueba
   await waitForPortFree(DRIVER_PORT, 10_000);

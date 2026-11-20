@@ -28,7 +28,7 @@
     filePath: string;
     isStaged?: boolean;
     baseRevision?: string;
-    /** Compara `filePath` con este otro archivo de la bóveda (panel derecho) en lugar de con Git. */
+    /** Compara `filePath` con este otro archivo de la bóveda (panel izquierdo) en lugar de con Git. */
     compareWith?: string;
     /** Parche de un commit: el archivo en ese commit contra su commit padre. */
     commitRevision?: string;
@@ -38,9 +38,9 @@
   }
 
   let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, renderToImage = false }: Props = $props();
-  // Panel izquierdo = «después», panel derecho = «antes»
+  // Como en todo Synapse: izquierda = «antes» (Git, revisión anterior), derecha = «después» (disco, versión nueva)
   const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision }));
-  /** Solo se puede editar el panel izquierdo cuando es el archivo en disco. */
+  /** Solo se puede editar el panel derecho («después») cuando es el archivo en disco. */
   const afterIsDisk = $derived(sides.after.kind === 'disk');
 
   let loading = $state(true);
@@ -165,8 +165,9 @@
       <p>{error}</p>
     </div>
   {:else}
-    <!-- PANEL IZQUIERDO: DISCO DURO (WORKING TREE) -->
-    <div class="pane left-pane" style="width: {splitRatio}%">
+    <!-- PANEL DERECHO («después»): DISCO DURO (WORKING TREE) o la versión nueva. Va primero en el
+         código y `order` lo coloca a la derecha -->
+    <div class="pane right-pane after-pane" style="width: {100 - splitRatio}%; order: 3">
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
@@ -252,6 +253,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
       class="resizer"
+      style="order: 2"
       class:resizing={isResizing}
       onpointerdown={handleResizeStart}
       role="separator"
@@ -265,8 +267,8 @@
       </div>
     </div>
 
-    <!-- PANEL DERECHO: GIT (HEAD, STAGED O REVISIÓN) -->
-    <div class="pane right-pane" style="width: {100 - splitRatio}%">
+    <!-- PANEL IZQUIERDO («antes»): GIT (HEAD, STAGED O REVISIÓN ANTERIOR) -->
+    <div class="pane left-pane before-pane" style="width: {splitRatio}%; order: 1">
       <div class="pane-header">
         <div class="pane-tag git" class:is-revision={Boolean(baseRevision || commitRevision)}>
           <GitCommit size={13} />

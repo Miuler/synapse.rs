@@ -17,6 +17,7 @@
   import VisualDiffViewer from './VisualDiffViewer.svelte';
   import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
   import { renderKindOf } from '../lib/render-to-image';
+  import { diffSides } from '../lib/diff-sides';
   import { needsRenderedPixelDiff } from '../lib/render-kind';
   import { workspaceDiffSettings, type DiffVisualTab } from '../model/diff-settings.svelte';
   import {
@@ -52,6 +53,9 @@
   }
 
   let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, onClose, onOpenStaged }: Props = $props();
+
+  // Qué es cada lado, igual en todas las vistas: izquierda / «−» = antes, derecha / «+» = después
+  const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision }));
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -421,6 +425,19 @@
       </button>
     </div>
   </header>
+
+  {#if hasDiff && activeVisualTab === 'text'}
+    <!-- Qué es cada lado del diff de texto (izquierda / «−» = antes, derecha / «+» = después) -->
+    <div class="diff-sides-bar" class:unified={viewMode !== DiffModeEnum.Split || showRawDiff}>
+      {#if viewMode === DiffModeEnum.Split && !showRawDiff}
+        <span class="diff-side before" title="Lado izquierdo: antes">◀ {sides.beforeLabel}</span>
+        <span class="diff-side after" title="Lado derecho: después">{sides.afterLabel} ▶</span>
+      {:else}
+        <span class="diff-side before" title="Líneas «−»: antes">− {sides.beforeLabel}</span>
+        <span class="diff-side after" title="Líneas «+»: después">+ {sides.afterLabel}</span>
+      {/if}
+    </div>
+  {/if}
 
   {#if diffData?.only_staged && !isStaged && !baseRevision && !compareWith && !commitRevision}
     <!-- Como `git diff`: local contra stage. Todo está en stage: los cambios se ven en el diff de stage -->
@@ -871,5 +888,28 @@
   .diff-raw-line.header {
     color: var(--text-muted);
     font-weight: 500;
+  }
+  .diff-sides-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 3px 10px;
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .diff-sides-bar.unified {
+    display: flex;
+    gap: 16px;
+  }
+  .diff-side.before {
+    color: var(--danger, #f85149);
+  }
+  .diff-side.after {
+    color: var(--success, #3fb950);
+  }
+  .diff-sides-bar:not(.unified) .diff-side.after {
+    text-align: right;
   }
 </style>

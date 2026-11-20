@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Índice OKF (Open Knowledge Format v0.3) en cada carpeta: Synapse mantiene un `index.md` con sus subcarpetas, conceptos (notas con `type`, con su `description`) y demás archivos, para que un agente pueda recorrer la bóveda desde el disco. Se regenera al cambiar la carpeta y solo se escribe si cambia (pensado para commitearse); en la raíz lleva `okf_version: "0.3"` y conserva `title`, `description`, `license` y `x-…`. Un `index.md` propio se renombra a `index.deprecado.md`. En Synapse se abre en solo lectura y no sale en la búsqueda. `SYNAPSE_OKF_INDEX=0` lo desactiva.
+- MCP: `read_note` devuelve además el `index.md` de la raíz y el de la carpeta de la nota.
+- Diff de texto: una línea indica qué es cada lado (◀ antes · después ▶, o − antes / + después).
+- `synapse-server`: contrato gRPC `synapse.sync.v1` (`proto/synapse/sync/v1/sync.proto`), generación con `tonic-prost-build` en `build.rs`, servidor `tonic` en `grpc_addr` con `tonic-health` (`SERVING`), `tonic-reflection`, límites `max_message_bytes`, `SyncController` (`UNIMPLEMENTED`) y mapeo centralizado de errores `google.rpc` con `tonic-types`.
 - `synapse-server`: configuración completa en capas (defaults → TOML → `SYNAPSE_*` con soporte de claves anidadas `__`) validada al arrancar, `RetentionPolicy` en `domain`, `config.example.toml`, separación `lib.rs`/`main.rs` con apagado ordenado (Ctrl+C y `SIGTERM`), arnés de pruebas en proceso (`TestServer`) y guardián de capas de arquitectura cebolla (`tests/integration/architecture.rs`).
 - Enlaces con una sola regla en notas (wikilinks y enlaces Markdown), panel de relaciones y chat del agente: si la ruta existe tal cual (relativa a la nota o a la raíz) se usa esa; si no, el único archivo con ese nombre; si hay varios, una lista para elegir (↑/↓; Enter o clic abre; Ctrl+Enter, Ctrl+clic o «Fijar» abre y corrige el enlace en la nota con la ruta completa). Una imagen incrustada ambigua muestra un aviso con «Elegir cuál».
 - Chat del agente: las imágenes se abren en una pestaña («Agente · …», con el icono del agente) con el visor de imágenes (zoom, mover, ajustar) y el botón «Guardar en la bóveda».
@@ -20,6 +24,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Diff visual «2 Paneles»: izquierda = antes (Git, versión anterior, primer archivo) y derecha = después (disco, versión nueva), igual que el diff de texto; el panel editable del disco pasa a la derecha.
 - Al guardar una nota Markdown ya no se añade `title` al frontmatter (ni se crea un frontmatter solo para eso): el título por defecto es el nombre del archivo. Al renombrar, el `title` solo cambia si ya existía y coincidía con el nombre anterior; un título propio se respeta. El `write_note` del MCP solo escribe `title` si se le pasa.
 - El diff de texto se abre colapsado, mostrando solo los cambios («Expandir todo» en la barra para verlo entero). `diff.max_expand_lines` en config.jsonc vale ahora 0; con un número mayor, los archivos de hasta esas líneas se abren expandidos como antes.
 - Un enlace con varios archivos del mismo nombre ya no lleva al «más cercano» sin avisar: se pregunta. Esos enlaces ambiguos no cuentan en backlinks, grafo ni relaciones hasta que se fijan.

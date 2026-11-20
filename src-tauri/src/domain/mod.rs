@@ -10,6 +10,7 @@ pub mod config;
 pub mod graph;
 pub mod mcp;
 pub mod note;
+pub mod okf;
 pub mod pdf;
 pub mod plugin;
 pub mod search;

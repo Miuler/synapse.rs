@@ -97,6 +97,13 @@ it('dos imágenes se comparan lado a lado y píxel por píxel', async () => {
     },
     { timeout: 10_000, timeoutMsg: 'no se ven los dos archivos lado a lado' },
   );
+  // Izquierda = antes (el primero elegido), derecha = después, como en el diff de texto
+  const x = (await s.browser.execute(() => {
+    const left = (name: string) =>
+      [...document.querySelectorAll('.pane-tag')].find((t) => t.textContent?.includes(name))!.getBoundingClientRect().left;
+    return { antes: left('antes.png'), despues: left('despues.png') };
+  })) as { antes: number; despues: number };
+  expect(x.antes).toBeLessThan(x.despues);
 
   // Píxel por píxel: el cuadrado de 8×8 cambió
   await s.browser.$('button*=Diferencias').click();

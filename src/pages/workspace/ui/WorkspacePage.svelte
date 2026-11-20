@@ -1247,6 +1247,11 @@
     return viewer === 'docx' ? appSettings.docxZoom : viewer === 'sheet' ? appSettings.sheetZoom : appSettings.chatZoom;
   }
 
+  /** `index.md` OKF generado por Synapse: solo lectura (se regenera solo al cambiar la carpeta) */
+  function isGeneratedOkfIndex(path: string, content: string): boolean {
+    return /(^|\/)index\.md$/i.test(path) && content.includes('<!-- okf-index: generado por Synapse');
+  }
+
   /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
   function isDocxFile(path: string): boolean {
     return isWordFile(path) && /\.(docx|docm|dotx|dotm)$/i.test(path);
@@ -4652,8 +4657,9 @@
           {@const isLoading = note?.isLoading ?? false}
           {@const isVisibleTab = tabPath === activePath}
           {@const hiddenViewMode = isTabCopy(tabPath) ? modeOfTab(tabPath) : ((note?.viewMode ?? 'reading') as MarkdownViewMode)}
-          {@const paneEditing = !isVisibleTab ? hiddenViewMode !== 'reading' : isRight ? isSplitEditing : isEditing}
-          {@const paneViewMode = !isVisibleTab ? hiddenViewMode : isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
+          {@const generatedIndex = isGeneratedOkfIndex(tabFile, content)}
+          {@const paneEditing = generatedIndex ? false : !isVisibleTab ? hiddenViewMode !== 'reading' : isRight ? isSplitEditing : isEditing}
+          {@const paneViewMode = generatedIndex ? 'reading' : !isVisibleTab ? hiddenViewMode : isRight ? (!isSplitEditing ? 'reading' : splitMarkdownViewMode) : (!isEditing ? 'reading' : markdownViewMode)}
           {@const isDrawing = isDrawingTab(tabFile, content)}
           <div
             class="tab-pane"

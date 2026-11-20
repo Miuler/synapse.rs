@@ -533,7 +533,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 6. read_note
                 McpTool {
                     name: "read_note".to_string(),
-                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only'/'outline_only', proveyendo content_hash (OCC), TOC y detección de bloques.".to_string(),
+                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only'/'outline_only', proveyendo content_hash (OCC), TOC y detección de bloques. Devuelve además el index.md OKF de la raíz y el de la carpeta de la nota (mapas de la bóveda que mantiene Synapse; cada carpeta tiene el suyo en disco).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -1099,7 +1099,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 self.execute_list_folder_contents(parent, true, true, false, None, None, None)
             }
             "list_sibling_notes" => self.execute_list_sibling_notes(&args),
-            "read_note" => self.execute_read_note(&args),
+            "read_note" => self.with_okf_indexes(&args, self.execute_read_note(&args)),
             "write_note" => self.execute_write_note(&args),
             "patch_note" => self.execute_patch_note(&args),
             "append_to_note" => self.execute_append_to_note(&args),
@@ -1136,6 +1136,51 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
     fn vault(&self) -> PathBuf {
         self.vault_path.clone()
+    }
+
+    /// Añade al resultado de `read_note` el `index.md` OKF de la raíz y el de la carpeta de la nota
+    /// (cada uno hasta ~4 KB; si es más largo se corta y se indica la ruta para leerlo entero)
+    fn with_okf_indexes(&self, args: &Value, mut result: McpCallToolResult) -> McpCallToolResult {
+        const MAX: usize = 4096;
+        let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
+            return result;
+        };
+        let rel = rel.trim_start_matches('/');
+        if result.is_error || rel.rsplit('/').next() == Some(crate::domain::okf::INDEX_FILE) {
+            return result;
+        }
+        let (root, own) = crate::infrastructure::okf::OkfIndexer::indexes_for(&self.vault(), rel);
+        let cap = |text: String, path: &str| -> String {
+            if text.len() <= MAX {
+                return text;
+            }
+            let mut end = MAX;
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}\n… (cortado; léelo entero con read_note «{}»)", &text[..end], path)
+        };
+        let folder = rel.rfind('/').map(|i| &rel[..i]).unwrap_or("");
+        let mut parts = Vec::new();
+        if let Some(r) = root {
+            parts.push(format!("## index.md (raíz de la bóveda)\n\n{}", cap(r, "index.md")));
+        }
+        if let Some(o) = own {
+            let path = format!("{folder}/index.md");
+            parts.push(format!("## {path} (carpeta de la nota)\n\n{}", cap(o, &path)));
+        }
+        if !parts.is_empty() {
+            result.content.push(crate::infrastructure::entrypoint::mcp::dto::McpContentItem {
+                content_type: "text".into(),
+                text: Some(format!(
+                    "Índices OKF (index.md, generados por Synapse) para orientarte en la bóveda:\n\n{}",
+                    parts.join("\n\n")
+                )),
+                data: None,
+                mime_type: None,
+            });
+        }
+        result
     }
 
     fn execute_search_notes(&self, args: &Value) -> McpCallToolResult {
