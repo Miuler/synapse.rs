@@ -2902,6 +2902,9 @@ mod repo_log {
                 assert!(ok, "git {args:?}");
             };
             g(&["init", "-q", "-b", "main"]);
+            // create_tag llama a git sin las variables de g: un tag anotado necesita identidad en el repo
+            g(&["config", "user.name", "T"]);
+            g(&["config", "user.email", "t@t"]);
             std::fs::write(d.join("a.md"), "1").unwrap();
             g(&["add", "."]);
             g(&["commit", "-qm", "uno"]);
