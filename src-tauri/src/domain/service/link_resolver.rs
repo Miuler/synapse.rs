@@ -2,12 +2,16 @@
 //!
 //! Regla única, sin adivinar:
 //! 1. Si el destino existe tal cual (relativo a la carpeta del archivo de origen, o a la raíz de la
-//!    bóveda), se usa ese.
+//!    bóveda), se usa ese. Para imágenes y adjuntos se mira además `attachments/` junto al origen,
+//!    antes que la raíz.
 //! 2. Si no, se busca por nombre (o por la parte final de la ruta) en toda la bóveda: si hay uno
 //!    solo, se usa ese.
 //! 3. Si hay varios, el enlace es **ambiguo**: no se elige ninguno (quien lo usa pregunta al usuario
 //!    o lo marca), para no abrir nunca el archivo equivocado sin avisar.
 use crate::domain::graph::wikilink::LinkTarget;
+
+/// Carpeta de imágenes y adjuntos junto a cada nota
+pub const ATTACHMENTS_DIR: &str = "attachments";
 
 /// Resultado de resolver un enlace.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,11 +61,20 @@ impl LinkResolver {
             }
         };
 
-        // 1. Tal cual: relativo a la carpeta del archivo de origen y, si no, a la raíz de la bóveda
+        // 1. Tal cual: relativo a la carpeta del archivo de origen y, si no, a la raíz de la bóveda.
+        //    Para imágenes y adjuntos (todo lo que no es `.md`), entre medias la carpeta `attachments/`
+        //    junto al archivo de origen (`a/b/c/NOTA.md` → `a/b/c/attachments/imagen.png`)
+        let is_note = target_with_ext.to_lowercase().ends_with(".md");
         if let Some(base) = base_file {
             let base_dir = LinkTarget::parent_directory(base);
             if !base_dir.is_empty() {
                 if let Some(path) = Self::join(&base_dir, &target_with_ext).and_then(|p| find_exact(&p)) {
+                    return LinkResolution::Resolved(attach_anchor(&path));
+                }
+            }
+            if !is_note {
+                let in_attachments = Self::join(&base_dir, &format!("{ATTACHMENTS_DIR}/{target_with_ext}"));
+                if let Some(path) = in_attachments.and_then(|p| find_exact(&p)) {
                     return LinkResolution::Resolved(attach_anchor(&path));
                 }
             }
@@ -192,5 +205,39 @@ mod tests {
         );
         // Con parte de la ruta deja de ser ambiguo
         assert_eq!(r("b/informe", Some("c/nota.md")), LinkResolution::Resolved("a/b/informe.md".into()));
+    }
+
+    #[test]
+    fn imagenes_y_adjuntos_tambien_en_attachments_junto_a_la_nota() {
+        let files = ["a/b/c/nota.md", "a/b/c/attachments/imagen.png", "otra/imagen.png", "a/b/c/attachments/notas.md", "a/b/c/junto.png", "a/b/c/attachments/junto.png"];
+        let r = |t: &str| {
+            LinkResolver::resolve_detailed(
+                t,
+                Some("a/b/c/nota.md"),
+                |p| files.iter().find(|f| **f == p).map(|f| f.to_string()),
+                |visit| {
+                    for f in &files {
+                        visit(f);
+                    }
+                },
+            )
+        };
+        // Junto a la nota gana; después attachments/ (aunque haya otra igual en la bóveda)
+        assert_eq!(r("junto.png"), LinkResolution::Resolved("a/b/c/junto.png".into()));
+        assert_eq!(r("imagen.png"), LinkResolution::Resolved("a/b/c/attachments/imagen.png".into()));
+        // Las notas no se buscan en attachments/: «notas» sigue la regla de siempre (única por nombre)
+        assert_eq!(r("notas"), LinkResolution::Resolved("a/b/c/attachments/notas.md".into()));
+        // Desde otra carpeta no aplica: hay dos imagen.png → ambiguo
+        let other = LinkResolver::resolve_detailed(
+            "imagen.png",
+            Some("x/y.md"),
+            |p| files.iter().find(|f| **f == p).map(|f| f.to_string()),
+            |visit| {
+                for f in &files {
+                    visit(f);
+                }
+            },
+        );
+        assert!(matches!(other, LinkResolution::Ambiguous(_)));
     }
 }

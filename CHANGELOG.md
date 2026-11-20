@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Imágenes y adjuntos (todo enlace que no es una nota `.md`) se buscan también en la carpeta `attachments/` junto a la nota: para `a/b/c/NOTA.md`, primero `a/b/c/imagen.png`, luego `a/b/c/attachments/imagen.png`, y después la regla de siempre (raíz de la bóveda, único por nombre o elegir).
 - Panel del agente con pin, como el explorador: fijado ocupa su espacio a la derecha; suelto flota sobre el editor sin quitarle espacio y se oculta al hacer clic fuera o con Esc.
 - Índice OKF (Open Knowledge Format v0.3) en cada carpeta: Synapse mantiene un `index.md` con sus subcarpetas, conceptos (notas con `type`, con su `description`) y demás archivos, para que un agente pueda recorrer la bóveda desde el disco. Se regenera al cambiar la carpeta y solo se escribe si cambia (pensado para commitearse); en la raíz lleva `okf_version: "0.3"` y conserva `title`, `description`, `license` y `x-…`. Un `index.md` propio se renombra a `index.deprecado.md`. En Synapse se abre en solo lectura (sin el botón de lectura/escritura) y no sale en la búsqueda; un enlace a una carpeta (`carpeta/`) abre su `index.md`. `SYNAPSE_OKF_INDEX=0` lo desactiva.
 - MCP: `read_note` devuelve además el `index.md` de la raíz y el de la carpeta de la nota.

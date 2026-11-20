@@ -2,12 +2,12 @@
 // elegir: Enter solo abre, Ctrl+Enter abre y fija el enlace en la nota. Una imagen incrustada
 // ambigua avisa en lugar de mostrar una cualquiera.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type Session, paneReady } from './harness';
 
 let s: Session;
-const PLAN = ['# Plan', '', 'Ver [[informe]] y [el único](unico.md).', '', '![[foto.png]]', ''].join('\n');
+const PLAN = ['# Plan', '', 'Ver [[informe]] y [el único](unico.md).', '', '![[foto.png]]', '', '![logo](logo.png)', ''].join('\n');
 
 beforeAll(async () => {
   s = await startApp({
@@ -19,6 +19,9 @@ beforeAll(async () => {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   writeFileSync(join(s.vault, 'a/foto.png'), png);
   writeFileSync(join(s.vault, 'otro/foto.png'), png);
+  // Adjunto en attachments/ junto a la nota
+  mkdirSync(join(s.vault, 'notas/attachments'), { recursive: true });
+  writeFileSync(join(s.vault, 'notas/attachments/logo.png'), png);
   // La nota está dentro de «notas/»: se abre la carpeta en el explorador
   await s.browser.$('.file-tree-item[data-path="notas"]').waitForExist({ timeout: 30_000 });
   await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="notas"]') as HTMLElement).click());
@@ -82,4 +85,16 @@ it('una imagen incrustada ambigua avisa y ofrece elegir', async () => {
   expect(await candidates()).toEqual(['a/foto.png', 'otro/foto.png']);
   await s.browser.keys('Escape');
   await s.browser.$('.link-chooser').waitForExist({ timeout: 5_000, reverse: true });
+}, 30_000);
+
+it('una imagen se busca también en attachments/ junto a la nota', async () => {
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="notas/plan.md"]') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => {
+        const img = [...document.querySelectorAll('.markdown-reading-wrapper img')].find((i) => i.getAttribute('alt') === 'logo') as HTMLImageElement | undefined;
+        return !!img && img.complete && img.naturalWidth > 0;
+      })) as boolean,
+    { timeout: 15_000, timeoutMsg: 'no se cargó la imagen de attachments/' },
+  );
 }, 30_000);
