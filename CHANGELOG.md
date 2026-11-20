@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.5] - 2026-11-20
+
 ### Añadido
 
 - **Release verificable**: cada release adjunta `SHA256SUMS.txt`, el SBOM CycloneDX del backend Rust y del frontend, y una attestation de procedencia (Sigstore, `gh attestation verify`) de cada paquete. No cambian los paquetes ni las firmas del actualizador.
@@ -1010,6 +1012,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.5]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.5
 [1.0.0-beta.4]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.3
 [1.0.0-beta.2]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.2
