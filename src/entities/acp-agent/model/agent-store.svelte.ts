@@ -16,6 +16,7 @@ import type {
   Mention,
   PlanEntry,
   PromptBlock,
+  QueuedMessage,
 } from './types';
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -81,6 +82,9 @@ export class Conversation {
   number = 0;
   /** Mensajes de otras conversaciones que esperan a que termine su turno. */
   inbox = $state<InboxMessage[]>([]);
+  /** Mensajes del usuario escritos mientras el agente trabajaba: se envían al terminar el turno, en orden. */
+  queue = $state<QueuedMessage[]>([]);
+  #queueId = 1;
   /** Conversaciones a las que preguntó y de las que espera respuesta (#2…). */
   waitingFor = $state<string[]>([]);
   /** Conversación abierta por otra bóveda de Synapse (🐙), con su origen. */
@@ -227,9 +231,45 @@ export class Conversation {
     return now ? 'delivered' : 'queued';
   }
 
-  /** Entrega el siguiente mensaje del buzón si la conversación está libre. */
+  /**
+   * Encola un mensaje escrito mientras el agente trabaja, con sus adjuntos y menciones (la caja de
+   * texto queda libre). Se envía al terminar el turno.
+   */
+  enqueue(text: string, opts: { prompt?: string; mentions?: Mention[] } = {}) {
+    if (!text.trim()) return;
+    this.queue.push({ id: this.#queueId++, text, prompt: opts.prompt, mentions: opts.mentions ?? [], attachments: this.pendingAttachments });
+    this.attachments = [];
+    const note = this.#store.activeNote;
+    if (note) this.dismissedActiveNote = note.path;
+    this.deliverNext();
+  }
+
+  /** Saca un mensaje de la cola (para editarlo o cancelarlo); sus adjuntos vuelven a la caja si `restore` */
+  unqueue(id: number, restore = false): QueuedMessage | null {
+    const i = this.queue.findIndex((q) => q.id === id);
+    if (i < 0) return null;
+    const [item] = this.queue.splice(i, 1);
+    if (restore) for (const a of item.attachments) this.attach(a);
+    return item;
+  }
+
+  /** Vacía la cola devolviendo sus mensajes (al detener el turno vuelven a la caja de texto) */
+  takeQueue(): QueuedMessage[] {
+    const all = [...this.queue];
+    this.queue = [];
+    for (const item of all) for (const a of item.attachments) this.attach(a);
+    return all;
+  }
+
+  /** Entrega lo siguiente si la conversación está libre: primero lo encolado por el usuario, luego el buzón. */
   deliverNext() {
-    if (this.connection !== 'ready' || !this.inbox.length) return;
+    if (this.connection !== 'ready') return;
+    if (this.queue.length) {
+      const q = this.queue.shift()!;
+      void this.send(q.text, { prompt: q.prompt, mentions: q.mentions, attachments: q.attachments });
+      return;
+    }
+    if (!this.inbox.length) return;
     const msg = this.inbox.shift()!;
     const from = msg.from;
     const origin = from.vault ? `otra bóveda de Synapse («${from.vault}»)` : 'otra conversación de agente';
@@ -308,6 +348,8 @@ export class Conversation {
       hops?: number;
       replyTo?: ReplyTarget | null;
       mentions?: Mention[];
+      /** Adjuntos ya elegidos (los de un mensaje encolado); si no, los pendientes */
+      attachments?: Attachment[];
     } = {},
   ) {
     const session = this.session;
@@ -323,7 +365,7 @@ export class Conversation {
     if (/(^|\s)@this\b/.test(text)) this.attachActiveNote();
     // `/feedback [indicaciones]`: lo resuelve Synapse, no el agente
     const feedback = this.#store.feedbackAvailable ? /^\/feedback(?:\s+([\s\S]*))?$/.exec(text.trim()) : null;
-    const attachments = this.pendingAttachments;
+    const attachments = opts.attachments ?? this.pendingAttachments;
     const blocks: PromptBlock[] = [];
     if (this.#replay) {
       blocks.push({ type: 'text', text: this.#replay });

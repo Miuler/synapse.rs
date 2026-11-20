@@ -32,6 +32,7 @@
     ChevronDown,
     Copy,
     ClipboardType,
+    Clock,
     Check,
   } from 'lucide-svelte';
   import { tick } from 'svelte';
@@ -407,10 +408,15 @@
 
   async function submit() {
     const text = draft.trim();
-    if (!text || !ready || busy) return;
+    if (!text || !ready) return;
     draft = '';
     const { prompt, used } = mentionsPrompt(text, pickedMentions);
     pickedMentions = [];
+    // Mientras el agente trabaja, el mensaje queda en cola y se envía al terminar el turno
+    if (busy) {
+      conv.enqueue(text, used.length ? { prompt, mentions: used } : {});
+      return;
+    }
     // Si se mencionó una bóveda que se está encendiendo, se espera a que responda
     const waiting = used.flatMap((m) => {
       const v = vaults.find((x) => m.to === x.name || m.to.startsWith(`${x.name}#`));
@@ -418,6 +424,23 @@
     });
     if (waiting.length) await Promise.all(waiting);
     conv.send(text, used.length ? { prompt, mentions: used } : {});
+  }
+
+  /** Vuelve a poner en la caja los mensajes sacados de la cola (con sus menciones) */
+  function restoreQueued(items: { text: string; mentions: Mention[] }[]) {
+    if (!items.length) return;
+    draft = [...items.map((q) => q.text), draft].filter((t) => t.trim()).join('\n\n');
+    for (const q of items) for (const m of q.mentions) if (!pickedMentions.some((x) => x.token === m.token)) pickedMentions = [...pickedMentions, m];
+    tick().then(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(draft.length, draft.length);
+    });
+  }
+
+  /** Detener: corta el turno y lo que estaba en cola vuelve a la caja de texto, sin enviarse */
+  function stopTurn() {
+    void conv.cancel();
+    restoreQueued(conv.takeQueue());
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -435,6 +458,13 @@
         suggestions[pickIndex].pick();
         return;
       }
+    }
+    // ↑ con la caja vacía: el último mensaje en cola vuelve a la caja para editarlo (sale de la cola)
+    if (e.key === 'ArrowUp' && !draft && conv.queue.length) {
+      e.preventDefault();
+      const item = conv.unqueue(conv.queue[conv.queue.length - 1].id, true);
+      if (item) restoreQueued([item]);
+      return;
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -857,6 +887,19 @@
           {/each}
         </div>
       {/if}
+      {#if conv.queue.length}
+        <div class="acp-queue" aria-label="Mensajes en cola">
+          {#each conv.queue as q (q.id)}
+            <div class="acp-queued">
+              <Clock size={11} />
+              <span class="acp-queued-text" title={q.text}>{q.text}</span>
+              {#if q.attachments.length}<span class="acp-queued-att">+{q.attachments.length}</span>{/if}
+              <button type="button" aria-label="Quitar de la cola" title="Quitar de la cola" onclick={() => conv.unqueue(q.id)}><X size={10} /></button>
+            </div>
+          {/each}
+          <div class="acp-queue-hint">En cola: se envía al terminar el turno · ↑ edita el último · Detener lo devuelve a la caja</div>
+        </div>
+      {/if}
       {#if conv.pendingAttachments.length}
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
@@ -885,13 +928,15 @@
           onclick={(e) => (caret = e.currentTarget.selectionStart)}
           oninput={(e) => (caret = e.currentTarget.selectionStart)}
           rows="3"
-          placeholder={ready
+          placeholder={busy
+            ? `${conv.agent?.name ?? 'El agente'} está trabajando: Enter deja el mensaje en cola`
+            : ready
             ? `Escribe a ${conv.agent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
             : 'El agente no está conectado'}
           disabled={!ready}
         ></textarea>
         {#if busy}
-          <button type="button" class="acp-send" title="Detener" onclick={() => conv.cancel()}>
+          <button type="button" class="acp-send" title="Detener (lo que esté en cola vuelve a la caja)" onclick={stopTurn}>
             <Square size={14} />
           </button>
         {:else}
@@ -1097,6 +1142,51 @@
   .acp-composer.drag-over {
     outline: 2px dashed var(--accent);
     outline-offset: -4px;
+  }
+  .acp-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 6px;
+  }
+  .acp-queued {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border: 1px dashed var(--border-primary);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .acp-queued-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+  }
+  .acp-queued-att {
+    font-size: 11px;
+  }
+  .acp-queued button {
+    display: inline-flex;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+  }
+  .acp-queued button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .acp-queue-hint {
+    font-size: 11px;
+    color: var(--text-muted, var(--text-secondary));
   }
   .acp-chips {
     display: flex;

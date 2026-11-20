@@ -10,6 +10,8 @@ let opened = 0;
 let current = 'ses-e2e';
 const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: current, update: u } });
 let promptId: unknown = null;
+/** Turno lento en curso («trabajo lento»): termina solo o con session/cancel */
+let slow: { id: unknown; timer: ReturnType<typeof setTimeout> } | null = null;
 let mcp: string[] = [];
 let mcpTools = 'sin-probar';
 /** Resultado de pedir un diagrama como imagen al MCP (marca de read_note + render_diagram). */
@@ -109,6 +111,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       },
     });
     update({ sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'resumir', description: 'Resume la nota' }, { name: 'compact', description: 'Compacta el contexto' }] });
+  } else if (msg.method === 'session/cancel') {
+    if (slow) {
+      clearTimeout(slow.timer);
+      send({ jsonrpc: '2.0', id: slow.id, result: { stopReason: 'cancelled' } });
+      slow = null;
+    }
   } else if (msg.method === 'session/set_mode') {
     send({ jsonrpc: '2.0', id: msg.id, result: {} });
   } else if (msg.method === 'session/prompt') {
@@ -118,6 +126,26 @@ for await (const line of createInterface({ input: process.stdin })) {
     // Mensaje de otra conversación: responde enseguida (sin pedir permiso)
     if (said.includes('[Mensaje de otra conversación')) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Respuesta de ${current}: sí, tiene SignOn.` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
+    // «trabajo lento»: el turno dura 2,5 s sin bloquear la lectura (para encolar y cancelar)
+    if (said.includes('trabajo lento')) {
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Empiezo un trabajo lento…' } });
+      const id = msg.id;
+      slow = {
+        id,
+        timer: setTimeout(() => {
+          update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ' terminado.' } });
+          send({ jsonrpc: '2.0', id, result: { stopReason: 'end_turn' } });
+          slow = null;
+        }, 2_500),
+      };
+      continue;
+    }
+    // «eco: …»: repite lo recibido (para ver qué mensajes llegan y en qué orden)
+    if (said.trim().startsWith('eco:')) {
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Recibido «${said.trim()}»` } });
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }

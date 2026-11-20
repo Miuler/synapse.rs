@@ -169,6 +169,16 @@ export interface ConversationSummary {
 }
 
 /** Mención en un mensaje: `#2` (conversación de esta ventana), `@Bóveda` o `@Bóveda#2`. */
+/** Mensaje del usuario en cola (escrito mientras el agente trabajaba). */
+export interface QueuedMessage {
+  id: number;
+  text: string;
+  /** Texto que se envía al agente si difiere del visible (menciones resueltas) */
+  prompt?: string;
+  mentions: Mention[];
+  attachments: Attachment[];
+}
+
 export interface Mention {
   token: string;
   /** Qué es, para el tooltip y para explicárselo al agente. */

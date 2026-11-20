@@ -499,3 +499,50 @@ it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selecc
   expect(grown.h).toBeLessThanOrEqual(grown.max + 1);
   await input.clearValue();
 }, 60_000);
+
+it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ edita; Detener lo devuelve a la caja', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  const queued = () => text('.acp-queued-text');
+  const say = async (msg: string) => {
+    await input.setValue(msg);
+    await s.browser.keys('Enter');
+  };
+  await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
+  await say('trabajo lento');
+  await s.browser.$('.acp-send[title^="Detener"]').waitForExist({ timeout: 5_000 });
+  await say('eco: uno');
+  await say('eco: dos');
+  await s.browser.waitUntil(async () => (await queued()).length === 2, { timeout: 5_000, timeoutMsg: 'no se encolaron los dos mensajes' });
+  // ✕ quita «dos» de la cola
+  await s.browser.execute(() => {
+    const row = [...document.querySelectorAll('.acp-queued')].find((r) => r.textContent?.includes('eco: dos'))!;
+    (row.querySelector('button') as HTMLButtonElement).click();
+  });
+  expect(await queued()).toEqual(['eco: uno']);
+  // Al terminar el turno se envía «uno» (y «dos» no)
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Recibido «eco: uno»')), {
+    timeout: 10_000,
+    timeoutMsg: 'no se envió lo encolado al terminar el turno',
+  });
+  expect(await queued()).toEqual([]);
+  await s.browser.pause(500);
+  expect((await text('.acp-msg.agent')).some((t) => t?.includes('eco: dos'))).toBe(false);
+
+  // ↑ con la caja vacía saca el último de la cola para editarlo; Detener devuelve la cola a la caja
+  await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 10_000 });
+  await say('trabajo lento');
+  await s.browser.$('.acp-send[title^="Detener"]').waitForExist({ timeout: 5_000 });
+  await say('eco: tres');
+  await s.browser.waitUntil(async () => (await queued()).length === 1, { timeout: 5_000 });
+  await s.browser.keys('ArrowUp');
+  await s.browser.waitUntil(async () => (await input.getValue()) === 'eco: tres', { timeout: 5_000, timeoutMsg: '↑ no sacó el mensaje de la cola' });
+  expect(await queued()).toEqual([]);
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await queued()).length === 1, { timeout: 5_000, timeoutMsg: 'no se volvió a encolar' });
+  await s.browser.$('.acp-send[title^="Detener"]').click();
+  await s.browser.waitUntil(async () => (await input.getValue()) === 'eco: tres', { timeout: 5_000, timeoutMsg: 'Detener no devolvió la cola a la caja' });
+  expect(await queued()).toEqual([]);
+  await s.browser.pause(1_000);
+  expect((await text('.acp-msg.agent')).some((t) => t?.includes('Recibido «eco: tres»'))).toBe(false);
+  await input.clearValue();
+}, 60_000);
