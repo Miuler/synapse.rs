@@ -7,10 +7,6 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
-### Corregido
-
-- **SBOM del frontend en la release**: se genera con syft sobre las dependencias de producción. `cyclonedx-npm` no funcionaba con bun (`Unexpected npmJsPath`) ni con npm (conflicto con los `overrides`), y el job «SBOM» bloqueaba la publicación.
-
 ## [1.0.0-beta.5] - 2026-11-20
 
 ### Añadido
@@ -30,6 +26,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- **SBOM del frontend en la release**: se genera con syft sobre las dependencias de producción. `cyclonedx-npm` no funcionaba con bun (`Unexpected npmJsPath`) ni con npm (conflicto con los `overrides`), y el job «SBOM» bloqueaba la publicación.
 - **Versiones de un OpenAPI en el historial de Git**: «Ver archivo» muestra la API con Scalar, como en Lectura, en vez del YAML/JSON en texto plano; el botón Raw sigue mostrando el texto.
 - **Checkout de ramas remotas**: «Checkout» en una rama remota sin rama local crea la local con seguimiento (`git checkout -b feature/x --track origin/feature/x`) en vez de dejar HEAD suelto. Y una rama local con `/` (`feat/y`) ya no puede saltar a otra local llamada `y`.
 - **Vista Raw de una versión**: ya no dibuja una línea horizontal bajo cada línea de texto (heredaba el estilo de `code` en línea).
