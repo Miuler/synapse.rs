@@ -14,6 +14,7 @@ pub mod pdf;
 pub mod plugin;
 pub mod search;
 pub mod service;
+pub mod spreadsheet;
 pub mod vault;
 pub mod version;
 pub mod workspace;

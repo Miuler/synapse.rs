@@ -4,6 +4,7 @@ pub mod pdf;
 pub mod plugin;
 pub mod search;
 pub mod session;
+pub mod spreadsheet;
 pub mod system;
 pub mod vault_item;
 pub mod version;

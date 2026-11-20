@@ -60,13 +60,16 @@
       "dotx"
     ],
 
-    // Hojas de cálculo Microsoft Excel
+    // Hojas de cálculo (Excel y OpenDocument): se ven en Synapse, en solo lectura
     "excel": [
       "xlsx",
       "xls",
       "xlsm",
+      "xlsb",
       "xlt",
-      "xltx"
+      "xltx",
+      "xltm",
+      "ods"
     ],
 
     // Código fuente y texto estructurado

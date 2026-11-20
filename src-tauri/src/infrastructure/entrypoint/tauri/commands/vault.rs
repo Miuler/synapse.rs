@@ -351,3 +351,55 @@ pub fn get_vault_files_count(state: State<'_, AppState>) -> Result<usize, String
     };
     Ok(engine.notes.len())
 }
+
+fn active_vault(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+    state
+        .active_vault_path
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No hay bóveda abierta".to_string())
+}
+
+/// Abre una hoja de cálculo de la bóveda (`.xlsx`, `.xls`, `.ods`…): la lista de sus hojas.
+#[tauri::command]
+pub async fn spreadsheet_open(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<crate::domain::spreadsheet::WorkbookInfo, String> {
+    let vault_path = active_vault(&state)?;
+    let use_case = state.read_spreadsheet_use_case.clone();
+    tauri::async_runtime::spawn_blocking(move || use_case.open(&vault_path, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Forma de una hoja (filas, columnas, combinadas, medidas), sin las celdas.
+#[tauri::command]
+pub async fn spreadsheet_layout(
+    state: State<'_, AppState>,
+    path: String,
+    sheet: usize,
+) -> Result<crate::domain::spreadsheet::SheetLayout, String> {
+    let vault_path = active_vault(&state)?;
+    let use_case = state.read_spreadsheet_use_case.clone();
+    tauri::async_runtime::spawn_blocking(move || use_case.layout(&vault_path, &path, sheet))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Celdas de un tramo de filas (`from_row..=to_row`, 1-based) de una hoja.
+#[tauri::command]
+pub async fn spreadsheet_cells(
+    state: State<'_, AppState>,
+    path: String,
+    sheet: usize,
+    from_row: u32,
+    to_row: u32,
+) -> Result<crate::domain::spreadsheet::CellBlock, String> {
+    let vault_path = active_vault(&state)?;
+    let use_case = state.read_spreadsheet_use_case.clone();
+    tauri::async_runtime::spawn_blocking(move || use_case.cells(&vault_path, &path, sheet, from_row, to_row))
+        .await
+        .map_err(|e| e.to_string())?
+}

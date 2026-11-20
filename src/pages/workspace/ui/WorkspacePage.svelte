@@ -25,6 +25,7 @@
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
+  import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
   import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
@@ -57,6 +58,8 @@
     isDrawioPngFile,
     isPdfFile,
     isOfficeFile,
+    isWordFile,
+    isExcelFile,
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
   } from "@entities/file-type";
@@ -462,7 +465,7 @@
             if (pdfViewers[p]?.reload) {
               pdfViewers[p].reload();
             }
-          } else if (isImageFile(p) && !isDrawingFile(p)) {
+          } else if (isStaticBinary(p)) {
             openedNotes[p] = {
               ...openedNotes[p],
               lastReloaded: Date.now(),
@@ -537,7 +540,7 @@
             if (pdfViewers[openPath]?.reload) {
               pdfViewers[openPath].reload();
             }
-          } else if (isImageFile(openPath) && !isDrawingFile(openPath)) {
+          } else if (isStaticBinary(openPath)) {
             openedNotes[openPath] = {
               ...openedNotes[openPath],
               lastReloaded: Date.now(),
@@ -961,7 +964,7 @@
     let initialAbsPath = vaultItem?.abs_path;
 
     // Para imágenes y PDFs no se requiere leer contenido como texto; resolveAssetUrl / readAssetDataUrl se encarga
-    if ((isImageFile(path) && !isDrawingFile(path)) || isPdfFile(path)) {
+    if (isStaticBinary(path) || isPdfFile(path)) {
       if (!initialAbsPath) {
         try {
           initialAbsPath = (await vaultRepository.resolveAssetFilePath(path)) ?? undefined;
@@ -1194,9 +1197,14 @@
     selectTab(path);
   }
 
+  /** Archivos binarios de solo lectura: no se leen como texto ni se guardan desde Synapse */
+  function isStaticBinary(path: string): boolean {
+    return (isImageFile(path) && !isDrawingFile(path)) || isExcelFile(path);
+  }
+
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
-    if (isOfficeFile(path)) {
+    if (isWordFile(path)) {
       systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
@@ -1707,7 +1715,7 @@
 
   function selectSplitTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
-    if (isOfficeFile(path)) {
+    if (isWordFile(path)) {
       systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
@@ -2215,6 +2223,7 @@
       openTabPaths.includes(activeTabPath) &&
       !isImageFile(activeFile) &&
       !isPdfFile(activeFile) &&
+      !isExcelFile(activeFile) &&
       openedNotes[activeFile] &&
       !openedNotes[activeFile].isLoading
     )
@@ -2228,6 +2237,7 @@
       splitTabPaths.includes(activeSplitTabPath) &&
       !isImageFile(activeSplitFile) &&
       !isPdfFile(activeSplitFile) &&
+      !isExcelFile(activeSplitFile) &&
       openedNotes[activeSplitFile] &&
       !openedNotes[activeSplitFile]?.isLoading
     )
@@ -2843,7 +2853,7 @@
                   if (pdfViewers[matchedOpenPath]?.reload) {
                     pdfViewers[matchedOpenPath].reload();
                   }
-                } else if (isImageFile(matchedOpenPath) && !isDrawingFile(matchedOpenPath)) {
+                } else if (isStaticBinary(matchedOpenPath)) {
                   openedNotes[matchedOpenPath] = {
                     ...openedNotes[matchedOpenPath],
                     lastReloaded: Date.now(),
@@ -3118,7 +3128,7 @@
     }
 
     // Proteger archivos binarios o imágenes de sobreescrituras accidentales (excepto dibujos)
-    if (isImageFile(path) && !isDrawingFile(path)) return;
+    if (isStaticBinary(path)) return;
 
     // Si es un archivo PDF, delegar persistencia al visor PDF (con anotaciones incrustadas)
     if (isPdfFile(path)) {
@@ -4505,6 +4515,7 @@
               isDrawing ||
               isDrawioFile(tabFile) ||
               isPdfFile(tabFile) ||
+              isExcelFile(tabFile) ||
               tabFile.startsWith('synapse://')}
           >
             {#if !tabFile.startsWith('synapse://')}
@@ -4779,6 +4790,8 @@
                       syncState = "synced";
                     }}
                   />
+                {:else if isExcelFile(tabFile)}
+                  <SpreadsheetViewer path={tabFile} reloadKey={note?.lastReloaded || 0} />
                 {:else if !paneEditing && isOpenApiContent(tabFile, content)}
                   <!-- OpenAPI/Swagger: Scalar en Lectura; en Edición cae en el editor de código -->
                   <div class="editor-main-content openapi-pane">

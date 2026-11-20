@@ -86,6 +86,7 @@ flate2 = "1.1"
 tar = "0.4"
 tokio = { version = "1", features = ["rt-multi-thread", "process", "io-util", "sync", "time"] }
 calamine = { version = "0.38", default-features = false }
+umya-spreadsheet = "3.1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk-nvidia-quirk = "2.3.0"
@@ -104,6 +105,20 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # mostrando archivo y línea.
 [profile.dev]
 debug = "line-tables-only"
+
+# Leer hojas de cálculo grandes sin optimizar es ~10 veces más lento: en desarrollo también se optimizan
+[profile.dev.package.umya-spreadsheet]
+opt-level = 3
+[profile.dev.package.calamine]
+opt-level = 3
+[profile.dev.package.quick-xml]
+opt-level = 3
+[profile.dev.package.zip]
+opt-level = 3
+[profile.dev.package.zlib-rs]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
 
 [profile.test]
 debug = "line-tables-only"
