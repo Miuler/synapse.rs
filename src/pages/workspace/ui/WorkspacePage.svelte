@@ -26,6 +26,7 @@
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
+  import {DocxViewer} from "@features/docx-viewer";
   import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
@@ -1199,12 +1200,17 @@
 
   /** Archivos binarios de solo lectura: no se leen como texto ni se guardan desde Synapse */
   function isStaticBinary(path: string): boolean {
-    return (isImageFile(path) && !isDrawingFile(path)) || isExcelFile(path);
+    return (isImageFile(path) && !isDrawingFile(path)) || isExcelFile(path) || isDocxFile(path);
+  }
+
+  /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
+  function isDocxFile(path: string): boolean {
+    return isWordFile(path) && /\.(docx|docm|dotx|dotm)$/i.test(path);
   }
 
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
-    if (isWordFile(path)) {
+    if (isWordFile(path) && !isDocxFile(path)) {
       systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
@@ -1715,7 +1721,7 @@
 
   function selectSplitTab(path: string, viewerPreference?: ExcalidrawViewerType) {
     if (!path) return;
-    if (isWordFile(path)) {
+    if (isWordFile(path) && !isDocxFile(path)) {
       systemApi.openFileWithDefaultApp(path).catch((err) => {
         console.warn('Error al abrir archivo con la aplicación por defecto del sistema:', err);
       });
@@ -2224,6 +2230,7 @@
       !isImageFile(activeFile) &&
       !isPdfFile(activeFile) &&
       !isExcelFile(activeFile) &&
+      !isDocxFile(activeFile) &&
       openedNotes[activeFile] &&
       !openedNotes[activeFile].isLoading
     )
@@ -2238,6 +2245,7 @@
       !isImageFile(activeSplitFile) &&
       !isPdfFile(activeSplitFile) &&
       !isExcelFile(activeSplitFile) &&
+      !isDocxFile(activeSplitFile) &&
       openedNotes[activeSplitFile] &&
       !openedNotes[activeSplitFile]?.isLoading
     )
@@ -4516,6 +4524,7 @@
               isDrawioFile(tabFile) ||
               isPdfFile(tabFile) ||
               isExcelFile(tabFile) ||
+              isDocxFile(tabFile) ||
               tabFile.startsWith('synapse://')}
           >
             {#if !tabFile.startsWith('synapse://')}
@@ -4792,6 +4801,8 @@
                   />
                 {:else if isExcelFile(tabFile)}
                   <SpreadsheetViewer path={tabFile} reloadKey={note?.lastReloaded || 0} />
+                {:else if isDocxFile(tabFile)}
+                  <DocxViewer path={tabFile} reloadKey={note?.lastReloaded || 0} />
                 {:else if !paneEditing && isOpenApiContent(tabFile, content)}
                   <!-- OpenAPI/Swagger: Scalar en Lectura; en Edición cae en el editor de código -->
                   <div class="editor-main-content openapi-pane">

@@ -9,7 +9,7 @@
   import { ContextMenu } from 'bits-ui';
   import { gitDialogState, gitApi, repoOf, repoLabel, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
-  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isWordFile, isSupportedFile } from '@entities/file-type';
+  import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
@@ -705,7 +705,7 @@
   function handleActivateNode(node: VaultTreeNode) {
     if (node.isFolder) {
       toggleFolder(node.relativePath);
-    } else if (isWordFile(node.relativePath)) {
+    } else if (/\.(doc|dot)$/i.test(node.relativePath)) {
       handleOpenFileWithDefaultApp(node.relativePath);
     } else {
       onSelectTab(node.relativePath);
@@ -892,7 +892,7 @@
       // Ya no está en disco: se ve lo que se borró
       const info = getFileGitStatus(node.relativePath);
       handleOpenDiff(node.relativePath, info?.index === 'D' && info?.worktree !== 'D');
-    } else if (isWordFile(node.relativePath)) {
+    } else if (/\.(doc|dot)$/i.test(node.relativePath)) {
       handleOpenFileWithDefaultApp(node.relativePath);
     } else {
       onSelectTab(node.relativePath);

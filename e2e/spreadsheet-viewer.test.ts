@@ -113,6 +113,7 @@ it('abre el .xlsx en una pestaña con valores, estilos, combinadas y fórmulas',
   await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="ventas.xlsx"]') as HTMLElement).click());
   await s.browser.$('.spreadsheet-viewer .sheet-cell[data-cell="A1"]').waitForExist({ timeout: 20_000 });
   expect((await cell('A2'))?.text).toBe('Café');
+  expect(await s.browser.execute(() => !!document.querySelector('.spreadsheet-viewer .open-external'))).toBe(true);
   expect((await cell('A1'))?.bold).toBe(true);
   const total = await cell('B4');
   expect(total?.text).toBe('15');

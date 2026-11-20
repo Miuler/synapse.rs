@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- El `Buffer` que Synapse ofrece a los plugins de Obsidian tomaba cualquier `Uint8Array` por un `Buffer`, lo que hacía que JSZip leyera mal los nombres de los archivos dentro de un zip (por ejemplo al abrir un `.docx`).
 - El menú contextual del Git Log sale junto al puntero (antes aparecía desplazado) y no se sale de la ventana.
 - «Checkout de este commit» del Git Log fallaba al confirmar porque leía el commit del menú ya cerrado.
 
@@ -18,7 +19,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
-- Visor de hojas de cálculo dentro de Synapse (antes se abrían con la aplicación del sistema), en solo lectura: `.xlsx`, `.xlsm`, `.xltx`, `.xltm` con estilos (negrita, colores, rellenos, bordes, alineación), celdas combinadas y anchos/altos; `.xls`, `.xlsb`, `.ods` solo con valores y fórmulas. Los libros grandes se abren sin cortar: cada hoja se lee al abrirla, las celdas llegan por tramos de filas según te desplazas, solo se pintan las filas y columnas a la vista, y el libro leído queda en caché mientras se usa; un `.xlsx` de más de 10 MB se lee sin estilos para abrir el doble de rápido. Barra de fórmulas con la celda seleccionada, botón «Fórmulas» (Ctrl+`) para verlas en la rejilla, aviso en las fórmulas sin resultado guardado, pestañas de hojas abajo (las ocultas solo al pedirlas; Alt+RePág/AvPág cambia de hoja), navegación con flechas y Ctrl+C para copiar la celda. Los Word siguen abriéndose con la aplicación del sistema.
+- Visor de documentos Word (`.docx`, `.docm`, `.dotx`) dentro de Synapse, en solo lectura, con docx-preview (se carga al abrir el primero): páginas, fuentes, colores, tablas, imágenes, encabezados y pies. El `.doc` antiguo sigue abriéndose con la aplicación del sistema.
+- Botón «Abrir en la aplicación» en los visores de Word y de hojas de cálculo, para editar con la aplicación del sistema.
+- Visor de hojas de cálculo dentro de Synapse (antes se abrían con la aplicación del sistema), en solo lectura: `.xlsx`, `.xlsm`, `.xltx`, `.xltm` con estilos (negrita, colores, rellenos, bordes, alineación), celdas combinadas y anchos/altos; `.xls`, `.xlsb`, `.ods` solo con valores y fórmulas. Los libros grandes se abren sin cortar: cada hoja se lee al abrirla, las celdas llegan por tramos de filas según te desplazas, solo se pintan las filas y columnas a la vista, y el libro leído queda en caché mientras se usa; un `.xlsx` de más de 10 MB se lee sin estilos para abrir el doble de rápido. Barra de fórmulas con la celda seleccionada, botón «Fórmulas» (Ctrl+`) para verlas en la rejilla, aviso en las fórmulas sin resultado guardado, pestañas de hojas abajo (las ocultas solo al pedirlas; Alt+RePág/AvPág cambia de hoja), navegación con flechas y Ctrl+C para copiar la celda.
 - Actualizar una rama que va por detrás de su remota sin salir de Synapse (fast-forward, sin crear commits): el badge de la rama muestra ↓N / ↑N, el diálogo de ramas tiene «Actualizar desde origin/…», y el menú del Git Log ofrece «Avanzar «rama» hasta aquí» en los commits posteriores. Si las ramas divergieron no se toca nada y se explica por qué.
 - Comando «Zoom: toda la interfaz» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse; se guarda en los ajustes. El zoom del texto del contenido sigue en Ajustes y ahora también lo sigue el visor OpenAPI (solo la letra, como Markdown y el editor).
 - El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.

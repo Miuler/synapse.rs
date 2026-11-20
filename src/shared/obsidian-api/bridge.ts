@@ -268,7 +268,9 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
         return new BufferPolyfill(0);
       }
       static isBuffer(obj: any): boolean {
-        return obj instanceof Uint8Array;
+        // Solo los creados aquí: un `Uint8Array` cualquiera no tiene `toString('utf-8')`, y
+        // librerías como JSZip (docx-preview) lo usarían para decodificar texto
+        return obj instanceof BufferPolyfill;
       }
       toString(encoding?: string): string {
         if (encoding === 'base64') {

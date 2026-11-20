@@ -4,7 +4,8 @@
   // aquí se piden la lista de hojas, la forma de la hoja abierta y sus celdas por bloques de filas
   // según se desplaza. Solo se pintan las filas y columnas a la vista (más un margen).
   import { invokeTauri } from '@shared/api/tauri-client';
-  import { FunctionSquare, EyeOff, Eye, TriangleAlert } from 'lucide-svelte';
+  import { systemApi } from '@shared/api';
+  import { FunctionSquare, EyeOff, Eye, TriangleAlert, ExternalLink } from 'lucide-svelte';
   import type { WorkbookInfo, SheetLayout, CellBlock, Cell } from '../model/types';
   import { buildGeometry, visibleWindow, visibleMerges, colName, styleToCss, DEFAULT_ROW_PX } from '../lib/grid';
 
@@ -306,6 +307,14 @@
         onclick={() => (showFormulas = !showFormulas)}
       >
         <FunctionSquare size={14} /> Fórmulas
+      </button>
+      <button
+        type="button"
+        class="sheet-btn open-external"
+        title="Abrir con la aplicación del sistema para editarlo"
+        onclick={() => systemApi.openFileWithDefaultApp(path).catch((e) => console.warn('No se pudo abrir con la aplicación del sistema:', e))}
+      >
+        <ExternalLink size={14} /> Abrir en la aplicación
       </button>
     </div>
 
