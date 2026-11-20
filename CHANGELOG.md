@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Cambiado
+
+- **CI de Windows**: el paso de dependencias de compilación cruzada instala solo `clang lld llvm nasm` (el destino es Windows; sobraban las bibliotecas GTK/WebKit de Linux) y se retira el caché de APT, que no tenía efecto. Ahorra unos 7 minutos por release.
+
 ## [1.0.0-beta.5] - 2026-11-20
 
 ### Añadido

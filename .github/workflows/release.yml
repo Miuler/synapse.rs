@@ -196,18 +196,12 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Cache APT Packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/release.yml') }}
-
       - name: Install cross-compilation dependencies
         run: |
+          # Solo herramientas del host: el destino es Windows (WebView2), no hacen falta las
+          # bibliotecas GTK/WebKit de Linux.
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
-            clang lld mold llvm nasm
+          sudo apt-get install --no-install-recommends -y clang lld llvm nasm
           # Garantizar que llvm-lib exista en el PATH si la distro solo provee llvm-ar
           if ! command -v llvm-lib &> /dev/null; then
             sudo ln -sf "$(command -v llvm-ar)" /usr/local/bin/llvm-lib
