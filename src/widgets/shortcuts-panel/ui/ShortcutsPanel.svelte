@@ -60,6 +60,7 @@
           { label: 'Rehacer', shortcut: 'Ctrl+Shift+Z, Ctrl+Y' },
           { label: 'Comentar / descomentar líneas', shortcut: 'Ctrl+/' },
           { label: 'Sangrar / quitar sangría', shortcut: 'Tab, Shift+Tab' },
+          { label: 'Marcar / desmarcar tarea', shortcut: ws.toggle_task },
           { label: 'Aumentar tamaño del texto', shortcut: ws.zoom_in },
           { label: 'Reducir tamaño del texto', shortcut: ws.zoom_out },
           { label: 'Restablecer tamaño del texto', shortcut: ws.zoom_reset },

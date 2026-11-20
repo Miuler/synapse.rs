@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- Atajo configurable «Marcar / desmarcar tarea» (`toggle_task`, Ctrl+Enter por defecto) en el editor de Markdown, como en Obsidian: alterna `- [ ]` ↔ `- [x]` en la línea del cursor (o en todas las de la selección), añade la casilla a un elemento de lista que no la tiene y convierte una línea normal en tarea. Funciona también con Vim, en modo normal e inserción.
+
 ## [1.0.0-beta.7] - 2026-11-20
 
 ### Corregido

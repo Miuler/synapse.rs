@@ -152,6 +152,7 @@
         zoom_in: 'Aumentar tamaño del texto',
         zoom_out: 'Reducir tamaño del texto',
         zoom_reset: 'Restablecer tamaño del texto',
+        toggle_task: 'Marcar / desmarcar tarea',
       },
     },
     {

@@ -242,7 +242,9 @@ impl WorkspaceRegistryRepositoryImpl {
     // Reducir el tamaño del texto en el editor y la previsualización
     "zoom_out": "Ctrl+-",
     // Restablecer el tamaño del texto al valor por defecto
-    "zoom_reset": "Ctrl+0"
+    "zoom_reset": "Ctrl+0",
+    // Marcar o desmarcar la casilla de tarea (- [ ] / - [x]) de la línea del cursor en el editor
+    "toggle_task": "Ctrl+Enter"
   }
 }
 "#

@@ -157,6 +157,9 @@ pub struct WorkspaceShortcutsConfig {
     pub zoom_out: String,
     #[serde(default = "default_ws_zoom_reset")]
     pub zoom_reset: String,
+    /// Marca o desmarca la casilla de tarea (`- [ ]` ↔ `- [x]`) de la línea del cursor
+    #[serde(default = "default_ws_toggle_task")]
+    pub toggle_task: String,
 }
 
 fn default_ws_quick_open() -> String {
@@ -236,6 +239,10 @@ fn default_ws_zoom_reset() -> String {
     "Ctrl+0".to_string()
 }
 
+fn default_ws_toggle_task() -> String {
+    "Ctrl+Enter".to_string()
+}
+
 impl Default for WorkspaceShortcutsConfig {
     fn default() -> Self {
         Self {
@@ -264,6 +271,7 @@ impl Default for WorkspaceShortcutsConfig {
             zoom_in: default_ws_zoom_in(),
             zoom_out: default_ws_zoom_out(),
             zoom_reset: default_ws_zoom_reset(),
+            toggle_task: default_ws_toggle_task(),
         }
     }
 }

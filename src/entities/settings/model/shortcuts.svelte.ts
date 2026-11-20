@@ -35,6 +35,8 @@ export interface WorkspaceShortcutsConfig {
   zoom_in: string;
   zoom_out: string;
   zoom_reset: string;
+  /** Marca o desmarca la casilla de tarea de la línea del cursor (editor de Markdown). */
+  toggle_task: string;
 }
 
 export interface ShortcutsConfig {
@@ -76,6 +78,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     zoom_in: 'Ctrl++, Ctrl+=',
     zoom_out: 'Ctrl+-',
     zoom_reset: 'Ctrl+0',
+    toggle_task: 'Ctrl+Enter',
   },
 };
 

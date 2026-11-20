@@ -20,6 +20,7 @@
   import { findHeadingLine, extractHeadingTree, flattenHeadings, normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
   import { imagePasteExtension } from '../lib/image-paste';
+  import { taskToggleExtension } from '../lib/task-toggle';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
   import { lineKeymap, minimalChange, registerVimFolding, renameOccurrencesKeymap } from '@shared/ui/code-editor';
@@ -960,6 +961,7 @@
         extensions: [
           filePathCompartment.of(activeFilePathFacet.of(filePath)),
           onNavigateCompartment.of(onNavigateFacet.of(onNavigate || (() => {}))),
+          taskToggleExtension(),
           vimCompartment.of(vimMode ? vim() : []),
           readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
           viewModeCompartment.of(getActiveExtensions(viewMode)),
@@ -1101,7 +1103,8 @@
               extensions: [
                 filePathCompartment.of(activeFilePathFacet.of(filePath)),
                 onNavigateCompartment.of(onNavigateFacet.of(onNavigate || (() => {}))),
-                vimCompartment.of(vimMode ? vim() : []),
+                taskToggleExtension(),
+          vimCompartment.of(vimMode ? vim() : []),
                 readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
                 viewModeCompartment.of(getActiveExtensions(viewMode)),
                 pluginExtensionsCompartment.of(exts || []),
