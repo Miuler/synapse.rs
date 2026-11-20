@@ -51,6 +51,9 @@ pub trait VersionControl: Send + Sync {
     fn delete_tag(&self, vault_path: &Path, name: &str) -> Result<String, String>;
     /// Borra una rama local; sin `force` git se niega si no está fusionada.
     fn delete_branch(&self, vault_path: &Path, name: &str, force: bool) -> Result<String, String>;
+    /// Avanza la rama local `branch` hasta `target` solo si es un avance rápido (fast-forward).
+    /// Con `dry_run` solo comprueba si se puede.
+    fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String>;
     fn create_branch(
         &self,
         vault_path: &Path,
@@ -157,6 +160,10 @@ impl<T: VersionControl + ?Sized> VersionControl for &T {
 
     fn delete_branch(&self, vault_path: &Path, name: &str, force: bool) -> Result<String, String> {
         (**self).delete_branch(vault_path, name, force)
+    }
+
+    fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String> {
+        (**self).fast_forward_branch(vault_path, branch, target, dry_run)
     }
 
     fn create_branch(

@@ -81,6 +81,11 @@ export const gitApi = {
     });
   },
 
+  /** Avanza la rama local `branch` hasta `target` (commit o rama) solo si es fast-forward; `dryRun` solo comprueba. */
+  async gitFastForward(branch: string, target: string, repo = '', dryRun = false): Promise<string> {
+    return await invokeTauri<string>('git_fast_forward', { repo, branch, target, dryRun });
+  },
+
   /** Borra un tag o una rama local (`force` = `git branch -D`). */
   async gitDeleteRef(kind: 'tag' | 'branch', name: string, repo = '', force = false): Promise<string> {
     return await invokeTauri<string>('git_delete_ref', { repo, kind, name, force });

@@ -16,6 +16,7 @@
     "core:window:allow-destroy",
     "core:window:allow-start-dragging",
     "core:webview:allow-set-webview-size",
-    "core:webview:allow-set-webview-auto-resize"
+    "core:webview:allow-set-webview-auto-resize",
+    "core:webview:allow-set-webview-zoom"
   ]
 }

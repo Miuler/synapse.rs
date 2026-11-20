@@ -112,13 +112,13 @@ it('sigue los $ref a otros archivos y avisa de los que faltan; se actualiza al c
   await s.browser.waitUntil(async () => (await paneText()).includes('Listar transferencias nuevas'), { timeout: 20_000, timeoutMsg: 'no se actualizó al cambiar el archivo referenciado' });
 }, 60_000);
 
-it('Ctrl+P → «Zoom» abre el selector; ↑/↓ + Enter cambian el texto de Scalar, Esc lo deja como estaba', async () => {
-  const zoom = () => s.browser.execute(() => getComputedStyle(document.documentElement).getPropertyValue('--content-zoom').trim());
+it('Ctrl+P → «Zoom» cambia el zoom de toda la interfaz con ↑/↓ + Enter; Esc deja el que había', async () => {
+  const width = () => s.browser.execute(() => window.innerWidth) as Promise<number>;
   const openZoom = async () => {
     await s.browser.keys(['Control', 'p']);
     const input = await s.browser.$('.synapse-command-palette input');
     await input.waitForExist({ timeout: 15_000 });
-    await input.setValue('Zoom: tamaño');
+    await input.setValue('Zoom: toda la interfaz');
     await s.browser.waitUntil(
       async () => (await s.browser.execute(() => !!document.querySelector('.synapse-command-palette .command-item'))) as boolean,
       { timeout: 15_000 },
@@ -126,28 +126,21 @@ it('Ctrl+P → «Zoom» abre el selector; ↑/↓ + Enter cambian el texto de Sc
     await s.browser.keys(['Enter']);
     await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000 });
   };
-  const fontBefore = (await s.browser.execute(() => {
-    const app = document.querySelector('.tab-pane:not(.hidden) .openapi-pane .scalar-app') as HTMLElement;
-    return getComputedStyle(app.querySelector('h1, h2, .section-header') ?? app).fontSize;
-  })) as string;
+  const w100 = await width();
   await openZoom();
   expect(await s.browser.execute(() => document.querySelector('.zoom-list [aria-selected="true"]')?.textContent?.trim())).toBe('100%');
   await s.browser.keys(['ArrowDown']);
   await s.browser.keys(['ArrowDown']);
   await s.browser.keys(['Enter']);
   await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000, reverse: true });
-  expect(await zoom()).toBe('1.25');
-  const fontAfter = (await s.browser.execute(() => {
-    const app = document.querySelector('.tab-pane:not(.hidden) .openapi-pane .scalar-app') as HTMLElement;
-    return getComputedStyle(app.querySelector('h1, h2, .section-header') ?? app).fontSize;
-  })) as string;
-  expect(parseFloat(fontAfter)).toBeGreaterThan(parseFloat(fontBefore));
-  // Esc deshace la vista previa
+  // Al 125 % caben menos píxeles CSS en la misma ventana
+  await s.browser.waitUntil(async () => Math.abs((await width()) - w100 / 1.25) < 4, { timeout: 5_000, timeoutMsg: 'la interfaz no cambió de zoom' });
+  // El zoom del contenido no se toca
+  expect(await s.browser.execute(() => getComputedStyle(document.documentElement).getPropertyValue('--content-zoom').trim())).toBe('1');
   await openZoom();
   await s.browser.keys(['ArrowUp']);
-  expect(await zoom()).toBe('1.1');
   await s.browser.keys(['Escape']);
   await s.browser.$('.zoom-dialog').waitForExist({ timeout: 5_000, reverse: true });
-  expect(await zoom()).toBe('1.25');
-  await s.browser.execute(() => document.documentElement.style.setProperty('--content-zoom', '1'));
+  await s.browser.waitUntil(async () => Math.abs((await width()) - w100 / 1.25) < 4, { timeout: 5_000, timeoutMsg: 'Esc no restauró el zoom' });
+  await s.browser.execute(() => (window as any).__TAURI_INTERNALS__.invoke('plugin:webview|set_webview_zoom', { label: 'main', value: 1 }).catch(() => {}));
 }, 60_000);

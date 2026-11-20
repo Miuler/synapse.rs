@@ -5,7 +5,7 @@
   import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     GitGraph, Search, Loader2, AlertCircle, Tag, GitBranch, Cloud, FileText, RefreshCw,
-    GitBranchPlus, LogIn, Trash2, Copy, Crosshair,
+    GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward,
   } from 'lucide-svelte';
   import {
     gitApi,
@@ -140,6 +140,9 @@
 
   // ── Menú contextual de un commit ──────────────────────────────────────────
   let menu = $state<{ x: number; y: number; commit: GitRepoCommit } | null>(null);
+  let menuEl = $state<HTMLDivElement | null>(null);
+  /** ¿Se puede avanzar la rama actual hasta el commit del menú? `null` = no aplica (o aún no se sabe). */
+  let ffCheck = $state<{ hash: string; ok: boolean; reason?: string } | null>(null);
   /** Pide un nombre (rama o tag) antes de ejecutar la acción. */
   let prompt = $state<{
     kind: 'branch' | 'tag';
@@ -157,7 +160,40 @@
     e.preventDefault();
     void selectCommit(c.commit_hash);
     menu = { x: e.clientX, y: e.clientY, commit: c };
+    ffCheck = null;
+    const branch = headBranch;
+    if (branch && c.commit_hash !== head) {
+      gitApi
+        .gitFastForward(branch, c.commit_hash, repo, true)
+        .then(() => (ffCheck = { hash: c.commit_hash, ok: true }))
+        .catch((err) => {
+          const reason = err instanceof Error ? err.message : String(err);
+          // Solo se ofrece (desactivado) si las ramas divergieron; en commits anteriores no aplica
+          if (reason.startsWith('No es un avance rápido')) ffCheck = { hash: c.commit_hash, ok: false, reason };
+        });
+    }
   }
+
+  // El diálogo puede tener `transform` (arrastre/redimensión) y entonces `position: fixed` se mide
+  // desde él, no desde la ventana: se corrige con lo que de verdad ocupa el menú y se mete en pantalla.
+  $effect(() => {
+    if (!menu || !menuEl) return;
+    const target = { x: menu.x, y: menu.y };
+    const el = menuEl;
+    requestAnimationFrame(() => {
+      el.style.left = `${target.x}px`;
+      el.style.top = `${target.y}px`;
+      const r = el.getBoundingClientRect();
+      let dx = target.x - r.left;
+      let dy = target.y - r.top;
+      const right = target.x + r.width;
+      const bottom = target.y + r.height;
+      if (right > window.innerWidth - 4) dx -= right - (window.innerWidth - 4);
+      if (bottom > window.innerHeight - 4) dy -= bottom - (window.innerHeight - 4);
+      el.style.left = `${target.x + dx}px`;
+      el.style.top = `${target.y + dy}px`;
+    });
+  });
 
   $effect(() => {
     if (!menu) return;
@@ -456,7 +492,7 @@
     {@const c = menu.commit}
     {@const locals = c.refs.filter((r) => r.kind === 'local')}
     {@const tags = c.refs.filter((r) => r.kind === 'tag')}
-    <div class="repo-log-menu" role="menu" style="left: {menu.x}px; top: {menu.y}px">
+    <div class="repo-log-menu" role="menu" bind:this={menuEl} style="left: {menu.x}px; top: {menu.y}px">
       <div class="menu-title">{c.short_hash} · {c.message}</div>
       {#each locals.filter((r) => r.name !== headBranch) as r (r.name)}
         <button type="button" role="menuitem" onclick={() => run(() => gitApi.gitCheckout(r.name, repo), true)}>
@@ -468,13 +504,32 @@
           type="button"
           role="menuitem"
           data-action="checkout-commit"
-          onclick={() =>
+          onclick={() => {
+            const hash = c.commit_hash; // `c` sale de `menu`, que se cierra antes de confirmar
             askConfirm(
               `¿Hacer checkout de ${c.short_hash}? HEAD quedará separado (sin rama): los commits nuevos no pertenecerán a ninguna rama.`,
-              () => gitApi.gitCheckout(c.commit_hash, repo)
-            )}
+              () => gitApi.gitCheckout(hash, repo)
+            );
+          }}
         >
           <Crosshair size={13} /> Checkout de este commit (HEAD separado)
+        </button>
+      {/if}
+      {#if headBranch && ffCheck?.hash === c.commit_hash}
+        <button
+          type="button"
+          role="menuitem"
+          data-action="fast-forward"
+          disabled={!ffCheck.ok}
+          title={ffCheck.ok ? `Mueve «${headBranch}» hasta ${c.short_hash} sin crear commits (git merge --ff-only)` : ffCheck.reason}
+          onclick={() => {
+            // `c` sale de `menu`, que `run` cierra: se copia antes
+            const b = headBranch!;
+            const hash = c.commit_hash;
+            void run(() => gitApi.gitFastForward(b, hash, repo), true);
+          }}
+        >
+          <FastForward size={13} /> Avanzar «{headBranch}» hasta aquí (fast-forward)
         </button>
       {/if}
       <button type="button" role="menuitem" data-action="new-branch" onclick={() => askName('branch', c)}>
@@ -917,6 +972,13 @@
   }
   .repo-log-menu button:hover {
     background: var(--bg-hover, rgba(127, 127, 127, 0.12));
+  }
+  .repo-log-menu button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .repo-log-menu button:disabled:hover {
+    background: none;
   }
   .repo-log-menu button.danger {
     color: var(--danger, #cf222e);

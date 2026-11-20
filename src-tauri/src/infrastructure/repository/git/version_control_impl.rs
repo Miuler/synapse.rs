@@ -140,6 +140,10 @@ impl VersionControl for VersionControlImpl {
         repo_log::delete_branch(vault_path, name, force)
     }
 
+    fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String> {
+        repo_log::fast_forward_branch(vault_path, branch, target, dry_run)
+    }
+
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
         self.checkout_branch(vault_path, branch_name)
     }
@@ -1699,7 +1703,7 @@ impl VersionControlImpl {
             .current_dir(&work_dir)
             .args([
                 "for-each-ref",
-                "--format=%(refname)|%(refname:short)|%(HEAD)|%(upstream:short)|%(committerdate:relative)|%(subject)",
+                "--format=%(refname)|%(refname:short)|%(HEAD)|%(upstream:short)|%(upstream:track,nobracket)|%(committerdate:relative)|%(subject)",
                 "refs/heads",
                 "refs/remotes",
             ])
@@ -1721,8 +1725,8 @@ impl VersionControlImpl {
                 continue;
             }
 
-            let parts: Vec<&str> = line.splitn(6, '|').collect();
-            if parts.len() < 6 {
+            let parts: Vec<&str> = line.splitn(7, '|').collect();
+            if parts.len() < 7 {
                 continue;
             }
 
@@ -1730,8 +1734,18 @@ impl VersionControlImpl {
             let short_name = parts[1].trim();
             let is_head_marker = parts[2].trim() == "*";
             let upstream_raw = parts[3].trim();
-            let committerdate_rel = parts[4].trim();
-            let subject = parts[5].trim();
+            // «ahead 2, behind 5», «behind 3», «gone» o vacío
+            let track = parts[4].trim();
+            let count = |word: &str| {
+                track
+                    .split(',')
+                    .map(str::trim)
+                    .find_map(|t| t.strip_prefix(word).map(|n| n.trim().parse::<u32>().unwrap_or(0)))
+                    .unwrap_or(0)
+            };
+            let (ahead, behind) = (count("ahead"), count("behind"));
+            let committerdate_rel = parts[5].trim();
+            let subject = parts[6].trim();
 
             // Filtrar referencias simbólicas remotas como refs/remotes/origin/HEAD
             if ref_name.starts_with("refs/remotes/") && ref_name.ends_with("/HEAD") {
@@ -1765,6 +1779,8 @@ impl VersionControlImpl {
                 } else {
                     Some(subject.to_string())
                 },
+                ahead,
+                behind,
             };
 
             if is_remote {
@@ -2322,6 +2338,66 @@ mod tests {
         assert!(conflict_res.unwrap_err().contains("Conflicto"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn avance_rapido_de_la_rama_actual_y_de_otra_y_rechazo_si_divergen() {
+        let dir = tempfile::tempdir().unwrap();
+        let origen = dir.path().join("origen");
+        let clon = dir.path().join("clon");
+        std::fs::create_dir_all(&origen).unwrap();
+        let git = |cwd: &Path, args: &[&str]| -> String {
+            let out = std::process::Command::new("git").current_dir(cwd).args(args)
+                .env("GIT_AUTHOR_NAME", "T").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "T").env("GIT_COMMITTER_EMAIL", "t@t")
+                .output().unwrap();
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        git(&origen, &["init", "-q", "-b", "main"]);
+        std::fs::write(origen.join("a.md"), "1").unwrap();
+        git(&origen, &["add", "."]);
+        git(&origen, &["commit", "-qm", "uno"]);
+        git(&origen, &["branch", "otra"]);
+        git(dir.path(), &["clone", "-q", origen.to_str().unwrap(), clon.to_str().unwrap()]);
+        git(&clon, &["branch", "otra", "origin/otra"]);
+        for n in ["2", "3"] {
+            std::fs::write(origen.join("a.md"), n).unwrap();
+            git(&origen, &["commit", "-qam", n]);
+        }
+        git(&origen, &["branch", "-f", "otra", "main"]);
+        git(&clon, &["fetch", "-q"]);
+        let svc = VersionControlImpl::new();
+
+        // Contadores: main va 2 por detrás de origin/main
+        let b = svc.get_branches(&clon).unwrap();
+        let main = b.local_branches.iter().find(|x| x.name == "main").unwrap();
+        assert_eq!((main.ahead, main.behind), (0, 2));
+
+        // Comprobar sin tocar nada
+        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", true).is_ok());
+        assert_eq!(git(&clon, &["rev-list", "--count", "main..origin/main"]), "2");
+
+        // Rama actual: avanza también los archivos
+        svc.fast_forward_branch(&clon, "main", "origin/main", false).unwrap();
+        assert_eq!(git(&clon, &["rev-parse", "main"]), git(&clon, &["rev-parse", "origin/main"]));
+        assert_eq!(std::fs::read_to_string(clon.join("a.md")).unwrap(), "3");
+        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", true).unwrap_err().contains("ya está"));
+
+        // Otra rama (no la actual): solo se mueve la ref
+        svc.fast_forward_branch(&clon, "otra", "origin/otra", false).unwrap();
+        assert_eq!(git(&clon, &["rev-parse", "otra"]), git(&clon, &["rev-parse", "origin/otra"]));
+        assert_eq!(git(&clon, &["rev-parse", "--abbrev-ref", "HEAD"]), "main");
+
+        // Divergen: no toca nada
+        std::fs::write(clon.join("b.md"), "local").unwrap();
+        git(&clon, &["add", "."]);
+        git(&clon, &["commit", "-qm", "local"]);
+        std::fs::write(origen.join("a.md"), "4").unwrap();
+        git(&origen, &["commit", "-qam", "4"]);
+        git(&clon, &["fetch", "-q"]);
+        let antes = git(&clon, &["rev-parse", "main"]);
+        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", false).unwrap_err().contains("No es un avance rápido"));
+        assert_eq!(git(&clon, &["rev-parse", "main"]), antes);
     }
 
     #[test]
@@ -2913,6 +2989,43 @@ mod repo_log {
         check_ref_name(dir, "tags", name)?;
         git(dir, &["tag", "-d", name]).map_err(|e| format!("No se pudo borrar el tag: {e}"))?;
         Ok(format!("Tag «{name}» borrado"))
+    }
+
+    /// Avance rápido de una rama local hasta `target` (commit o rama, p. ej. `origin/main`). Si la
+    /// rama es la actual se usa `merge --ff-only` (actualiza los archivos); si no, solo se mueve la ref.
+    /// Nunca crea commits ni descarta trabajo: si las ramas divergieron, no toca nada.
+    pub fn fast_forward_branch(dir: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String> {
+        check_ref_name(dir, "heads", branch)?;
+        let target = target.trim();
+        if target.is_empty() || target.starts_with('-') {
+            return Err(format!("Destino no válido: {target}"));
+        }
+        let rev = |r: &str| git(dir, &["rev-parse", "--verify", "--quiet", &format!("{r}^{{commit}}")]).map(|s| s.trim().to_string());
+        let old = rev(&format!("refs/heads/{branch}")).map_err(|_| format!("No existe la rama local «{branch}»"))?;
+        let new = rev(target).map_err(|_| format!("No se encontró «{target}»"))?;
+        if old == new {
+            return Err(format!("«{branch}» ya está en ese commit"));
+        }
+        if git(dir, &["merge-base", "--is-ancestor", &new, &old]).is_ok() {
+            return Err(format!("«{branch}» ya incluye ese commit (está por delante)"));
+        }
+        if git(dir, &["merge-base", "--is-ancestor", &old, &new]).is_err() {
+            return Err(format!(
+                "No es un avance rápido: «{branch}» tiene commits que no están en «{target}». Hay que hacer rebase o merge."
+            ));
+        }
+        if dry_run {
+            return Ok(String::new());
+        }
+        let current = git(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"]).map(|s| s.trim().to_string()).ok();
+        if current.as_deref() == Some(branch) {
+            git(dir, &["merge", "--ff-only", "--quiet", &new]).map_err(|e| format!("No se pudo avanzar «{branch}»: {e}"))?;
+        } else {
+            git(dir, &["update-ref", "-m", &format!("synapse: fast-forward a {target}"), &format!("refs/heads/{branch}"), &new, &old])
+                .map_err(|e| format!("No se pudo avanzar «{branch}»: {e}"))?;
+        }
+        let n = git(dir, &["rev-list", "--count", &format!("{old}..{new}")]).map(|s| s.trim().to_string()).unwrap_or_default();
+        Ok(format!("«{branch}» avanzó {n} commit(s) hasta {}", &new[..new.len().min(7)]))
     }
 
     pub fn delete_branch(dir: &Path, name: &str, force: bool) -> Result<String, String> {

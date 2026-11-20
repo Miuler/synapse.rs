@@ -52,6 +52,12 @@ pub struct Branch {
     pub upstream: Option<String>,
     pub last_commit_date: Option<String>,
     pub last_commit_message: Option<String>,
+    /// Commits propios que la rama remota (`upstream`) no tiene
+    #[serde(default)]
+    pub ahead: u32,
+    /// Commits de la rama remota que esta rama no tiene todavía
+    #[serde(default)]
+    pub behind: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -152,6 +152,10 @@ export interface GitBranchItem {
   upstream?: string | null;
   last_commit_date?: string | null;
   last_commit_message?: string | null;
+  /** Commits propios que `upstream` no tiene */
+  ahead?: number;
+  /** Commits de `upstream` que la rama no tiene todavía */
+  behind?: number;
 }
 
 export interface GitBranchesResult {

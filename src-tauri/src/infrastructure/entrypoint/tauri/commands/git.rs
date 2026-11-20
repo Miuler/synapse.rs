@@ -4,6 +4,7 @@ use crate::application::dto::version::get_branches_query::GetBranchesQuery;
 use crate::application::dto::version::get_commit_details_query::GetCommitDetailsQuery;
 use crate::application::dto::version::get_repo_log_query::GetRepoLogQuery;
 use crate::application::dto::version::create_tag_command::CreateTagCommand;
+use crate::application::dto::version::fast_forward_command::FastForwardCommand;
 use crate::application::dto::version::delete_ref_command::{DeleteRefCommand, RefToDelete};
 use crate::application::dto::version::get_file_diff_query::GetFileDiffQuery;
 use crate::application::dto::version::get_file_revision_query::GetFileRevisionQuery;
@@ -401,6 +402,19 @@ pub fn git_create_tag(
 ) -> Result<String, String> {
     let vault_path = repo_dir(&state, repo.as_deref())?;
     state.create_tag_use_case.execute(CreateTagCommand { vault_path, name, commit, message })
+}
+
+/// Avanza la rama local `branch` hasta `target` (fast-forward); con `dry_run` solo comprueba.
+#[tauri::command]
+pub fn git_fast_forward(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    branch: String,
+    target: String,
+    dry_run: Option<bool>,
+) -> Result<String, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state.fast_forward_use_case.execute(FastForwardCommand { vault_path, branch, target, dry_run: dry_run.unwrap_or(false) })
 }
 
 /// Borra un tag (`kind` = `tag`) o una rama local (`kind` = `branch`, `force` = `-D`).

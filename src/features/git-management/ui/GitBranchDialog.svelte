@@ -12,13 +12,14 @@
     MessageSquare,
     X,
     ExternalLink,
+    ArrowDownToLine,
   } from 'lucide-svelte';
   import {
     vaultRepository,
     type GitBranchItem,
     type GitBranchesResult,
   } from '@shared/repositories';
-  import { gitDialogState } from '@entities/git';
+  import { gitDialogState, gitApi } from '@entities/git';
   import GitRepoSelect from './GitRepoSelect.svelte';
 
   export interface GitBranchDialogProps {
@@ -119,6 +120,23 @@
       console.error('Error en checkout de rama:', err);
       const msg = err instanceof Error ? err.message : String(err);
       errorMessage = msg;
+    } finally {
+      isActionLoading = false;
+    }
+  }
+
+  /** Avanza la rama hasta su remota (fast-forward); si divergieron, git no toca nada y se avisa. */
+  async function handleFastForward(branch: GitBranchItem) {
+    if (isActionLoading || !branch.upstream) return;
+    isActionLoading = true;
+    errorMessage = null;
+    actionSuccessMessage = null;
+    try {
+      actionSuccessMessage = await gitApi.gitFastForward(branch.name, branch.upstream, gitDialogState.repo);
+      await fetchBranches();
+      if (branch.is_current && onBranchChanged) await onBranchChanged();
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : String(err);
     } finally {
       isActionLoading = false;
     }
@@ -438,6 +456,18 @@
                           <ArrowUpRight size={10} />
                           <span>{branch.upstream}</span>
                         </span>
+                        {#if branch.behind || branch.ahead}
+                          <span
+                            class="track-tag"
+                            class:diverged={!!branch.behind && !!branch.ahead}
+                            title={[
+                              branch.behind ? `${branch.behind} commit(s) en ${branch.upstream} que no tienes` : '',
+                              branch.ahead ? `${branch.ahead} commit(s) tuyos sin subir` : '',
+                            ].filter(Boolean).join(' · ')}
+                          >
+                            {#if branch.behind}↓{branch.behind}{/if}{#if branch.behind && branch.ahead}&nbsp;{/if}{#if branch.ahead}↑{branch.ahead}{/if}
+                          </span>
+                        {/if}
                       {/if}
                     </div>
 
@@ -461,6 +491,20 @@
 
                   <!-- Acciones de la rama -->
                   <div class="git-branch-actions">
+                    {#if branch.upstream && branch.behind}
+                      <button
+                        type="button"
+                        class="git-row-btn fast-forward"
+                        onclick={() => handleFastForward(branch)}
+                        disabled={isActionLoading || !!branch.ahead}
+                        title={branch.ahead
+                          ? `«${branch.name}» y «${branch.upstream}» divergieron (tienes ${branch.ahead} commit(s) propios): hace falta rebase o merge`
+                          : `Avanzar hasta ${branch.upstream} sin crear commits (git merge --ff-only)`}
+                      >
+                        <ArrowDownToLine size={12} />
+                        <span>Actualizar desde {branch.upstream}</span>
+                      </button>
+                    {/if}
                     {#if !branch.is_current}
                       <button
                         type="button"
@@ -894,6 +938,19 @@
     background: var(--bg-secondary, #f6f8fa);
     border: 1px solid var(--border-primary, #d0d7de);
     color: var(--text-secondary, #656d76);
+  }
+
+  .track-tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .track-tag.diverged {
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
   }
 
   .git-branch-sub-line {

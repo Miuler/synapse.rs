@@ -42,6 +42,7 @@ use crate::application::use_cases::version::get_branches_use_case::GetBranchesUs
 use crate::application::use_cases::version::get_commit_details_use_case::GetCommitDetailsUseCase;
 use crate::application::use_cases::version::get_repo_log_use_case::GetRepoLogUseCase;
 use crate::application::use_cases::version::create_tag_use_case::CreateTagUseCase;
+use crate::application::use_cases::version::fast_forward_use_case::FastForwardUseCase;
 use crate::application::use_cases::version::delete_ref_use_case::DeleteRefUseCase;
 use crate::application::use_cases::version::get_file_diff_use_case::GetFileDiffUseCase;
 use crate::application::use_cases::version::get_file_revision_use_case::GetFileRevisionUseCase;
@@ -162,6 +163,7 @@ pub struct AppState {
     pub get_repo_log_use_case: GetRepoLogUseCase<VersionControlImpl>,
     pub get_commit_details_use_case: GetCommitDetailsUseCase<VersionControlImpl>,
     pub create_tag_use_case: CreateTagUseCase<VersionControlImpl>,
+    pub fast_forward_use_case: FastForwardUseCase<VersionControlImpl>,
     pub delete_ref_use_case: DeleteRefUseCase<VersionControlImpl>,
     pub checkout_branch_use_case: CheckoutBranchUseCase<VersionControlImpl>,
     pub create_branch_use_case: CreateBranchUseCase<VersionControlImpl>,
@@ -400,6 +402,7 @@ impl AppState {
             get_repo_log_use_case: GetRepoLogUseCase::new(VersionControlImpl),
             get_commit_details_use_case: GetCommitDetailsUseCase::new(VersionControlImpl),
             create_tag_use_case: CreateTagUseCase::new(VersionControlImpl),
+            fast_forward_use_case: FastForwardUseCase::new(VersionControlImpl),
             delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
             create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),
@@ -572,6 +575,7 @@ impl AppState {
             get_repo_log_use_case: GetRepoLogUseCase::new(VersionControlImpl),
             get_commit_details_use_case: GetCommitDetailsUseCase::new(VersionControlImpl),
             create_tag_use_case: CreateTagUseCase::new(VersionControlImpl),
+            fast_forward_use_case: FastForwardUseCase::new(VersionControlImpl),
             delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
             create_branch_use_case: CreateBranchUseCase::new(VersionControlImpl),

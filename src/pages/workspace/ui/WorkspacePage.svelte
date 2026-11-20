@@ -40,7 +40,7 @@
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs, GitMissingDialog} from "@features/git-management";
-  import {ZoomDialog} from "@features/content-zoom";
+  import {ZoomDialog} from "@features/ui-zoom";
   import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
   import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
@@ -417,6 +417,14 @@
   let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
     document.documentElement.style.setProperty("--content-zoom", String(appSettings.contentZoom));
+  });
+  // Zoom de toda la interfaz (selector de Ctrl+P → «Zoom»)
+  $effect(() => {
+    const z = appSettings.uiZoom;
+    if (!isTauriEnvironment()) return;
+    void import("@tauri-apps/api/webview")
+      .then(({getCurrentWebview}) => getCurrentWebview().setZoom(z))
+      .catch((e) => warn(`[zoom] no se pudo aplicar: ${e}`));
   });
 
   // Ctrl+rueda sobre el editor o la previsualización cambia el tamaño del texto.
@@ -3608,7 +3616,7 @@
       },
       {
         id: "cmd-content-zoom",
-        name: "Zoom: tamaño del texto del contenido",
+        name: "Zoom: toda la interfaz",
         category: "Synapse",
         action: () => (zoomDialogOpen = true),
       },

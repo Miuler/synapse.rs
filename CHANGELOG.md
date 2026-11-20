@@ -7,13 +7,19 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Corregido
+
+- El menú contextual del Git Log sale junto al puntero (antes aparecía desplazado) y no se sale de la ventana.
+- «Checkout de este commit» del Git Log fallaba al confirmar porque leía el commit del menú ya cerrado.
+
 ### Cambiado
 
 - El visor OpenAPI ya no muestra «Ask AI» de Scalar: el chat enviaba la especificación a servidores externos.
 
 ### Añadido
 
-- Comando «Zoom: tamaño del texto del contenido» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse. El visor OpenAPI también sigue ese zoom (solo la letra, como Markdown y el editor).
+- Actualizar una rama que va por detrás de su remota sin salir de Synapse (fast-forward, sin crear commits): el badge de la rama muestra ↓N / ↑N, el diálogo de ramas tiene «Actualizar desde origin/…», y el menú del Git Log ofrece «Avanzar «rama» hasta aquí» en los commits posteriores. Si las ramas divergieron no se toca nada y se explica por qué.
+- Comando «Zoom: toda la interfaz» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse; se guarda en los ajustes. El zoom del texto del contenido sigue en Ajustes y ahora también lo sigue el visor OpenAPI (solo la letra, como Markdown y el editor).
 - El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.
 
 ## [1.0.0-beta.6] - 2026-11-20

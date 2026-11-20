@@ -2100,6 +2100,39 @@
   // Repositorios en subcarpetas: carpeta → repositorio (la raíz no se marca en el árbol)
   let nestedRepos = $derived(new Map(gitDialogState.repos.filter((r) => r.path).map((r) => [r.path, r])));
   let activeGitRepo = $derived(repoOf(activeTabPath, gitDialogState.repos));
+
+  // Commits por detrás / por delante de la rama remota, para el badge (↓N ↑N). Se recalcula al
+  // cambiar de rama o de estado de git y al volver a la ventana (p. ej. tras un `git fetch` fuera).
+  let branchTrack = $state<{ ahead: number; behind: number; upstream: string } | null>(null);
+  let trackBump = $state(0);
+  $effect(() => {
+    if (!isGitRepo || !gitBranch) {
+      branchTrack = null;
+      return;
+    }
+    const repo = activeGitRepo;
+    void gitStatuses;
+    void trackBump;
+    let stale = false;
+    gitApi
+      .getGitBranches(repo)
+      .then((r) => {
+        if (stale) return;
+        const cur = r.local_branches.find((b) => b.is_current);
+        branchTrack = cur?.upstream ? { ahead: cur.ahead ?? 0, behind: cur.behind ?? 0, upstream: cur.upstream } : null;
+      })
+      .catch(() => {
+        if (!stale) branchTrack = null;
+      });
+    return () => {
+      stale = true;
+    };
+  });
+  $effect(() => {
+    const onFocus = () => trackBump++;
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  });
 </script>
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -2150,10 +2183,15 @@
                   class="git-branch-badge"
                   data-tauri-drag-region="false"
                   onclick={handleOpenBranchDialog}
-                  title="Rama Git{activeGitRepo ? ` de ${activeGitRepo}` : ''}: {gitBranch} (Clic para gestionar ramas)"
+                  title="Rama Git{activeGitRepo ? ` de ${activeGitRepo}` : ''}: {gitBranch}{branchTrack?.behind ? ` · ${branchTrack.behind} commit(s) nuevos en ${branchTrack.upstream}` : ''}{branchTrack?.ahead ? ` · ${branchTrack.ahead} sin subir` : ''} (Clic para gestionar ramas)"
                 >
                   <GitBranch size={13} class="git-branch-icon" />
                   <span class="git-branch-name">{gitBranch}</span>
+                  {#if branchTrack?.behind || branchTrack?.ahead}
+                    <span class="git-branch-track" class:diverged={!!branchTrack.behind && !!branchTrack.ahead}>
+                      {#if branchTrack.behind}↓{branchTrack.behind}{/if}{#if branchTrack.ahead}↑{branchTrack.ahead}{/if}
+                    </span>
+                  {/if}
                 </button>
               {/if}
             </div>
@@ -3019,6 +3057,14 @@
     overflow: hidden;
   }
 
+  .git-branch-track {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .git-branch-track.diverged {
+    color: var(--warning);
+  }
   .git-branch-badge {
     display: inline-flex;
     align-items: center;

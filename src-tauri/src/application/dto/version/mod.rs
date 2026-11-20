@@ -15,4 +15,5 @@ pub mod untrack_files_command;
 pub mod get_repo_log_query;
 pub mod get_commit_details_query;
 pub mod create_tag_command;
+pub mod fast_forward_command;
 pub mod delete_ref_command;

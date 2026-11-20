@@ -23,6 +23,8 @@ export interface AppSettings {
   /** Dirección del editor de draw.io en modo embed (por defecto el público; puede ser uno propio sin red). */
   drawioUrl: string;
   contentZoom: number;
+  /** Zoom de toda la ventana (zoom del webview), aparte del de contenido. */
+  uiZoom: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
@@ -52,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
   drawioUrl: 'https://embed.diagrams.net/', // Editor público de draw.io en modo embed
   contentZoom: 1, // Tamaño del texto del editor y la previsualización
+  uiZoom: 1, // Zoom de toda la interfaz
 };
 
 function clampZoom(zoom: number): number {
@@ -78,6 +81,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.contentZoom === 'number' && Number.isFinite(parsed.contentZoom)) {
         settings.contentZoom = clampZoom(parsed.contentZoom);
+      }
+      if (typeof parsed.uiZoom === 'number' && Number.isFinite(parsed.uiZoom)) {
+        settings.uiZoom = clampZoom(parsed.uiZoom);
       }
       if (typeof parsed.vimMode === 'boolean') {
         settings.vimMode = parsed.vimMode;
@@ -296,6 +302,17 @@ class SettingsManager {
     const next = clampZoom(zoom);
     if (next === this.settings.contentZoom) return;
     this.settings = { ...this.settings, contentZoom: next };
+    this.persist();
+  }
+
+  get uiZoom(): number {
+    return this.settings.uiZoom;
+  }
+
+  setUiZoom(zoom: number) {
+    const next = clampZoom(zoom);
+    if (next === this.settings.uiZoom) return;
+    this.settings = { ...this.settings, uiZoom: next };
     this.persist();
   }
 

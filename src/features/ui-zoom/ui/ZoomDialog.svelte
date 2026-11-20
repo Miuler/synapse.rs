@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Selector pequeño del zoom del contenido (texto del editor, Markdown y OpenAPI). Se abre desde la
-  // paleta (Ctrl+P → «Zoom»); ↑/↓ mueven, Enter aplica, Esc cierra. Al moverse ya se ve el cambio.
+  // Selector pequeño del zoom de toda la interfaz (zoom del webview). Se abre desde la paleta
+  // (Ctrl+P → «Zoom»); ↑/↓ mueven, Enter aplica, Esc deja el que había. Al moverse ya se ve el cambio.
+  // El tamaño del texto del contenido es otro ajuste (Ajustes → zoom del contenido).
   import { appSettings } from '@entities/settings';
   import { tick, untrack } from 'svelte';
 
@@ -23,24 +24,24 @@
 
   $effect(() => {
     if (!open) return;
-    original = untrack(() => appSettings.contentZoom);
+    original = untrack(() => appSettings.uiZoom);
     index = nearest(original);
     void tick().then(() => list?.focus());
   });
 
   function preview(i: number) {
     index = i;
-    appSettings.setContentZoom(ZOOM_LEVELS[i]);
+    appSettings.setUiZoom(ZOOM_LEVELS[i]);
     list?.querySelector<HTMLElement>(`[data-index="${i}"]`)?.scrollIntoView({ block: 'nearest' });
   }
 
   function accept(i = index) {
-    appSettings.setContentZoom(ZOOM_LEVELS[i]);
+    appSettings.setUiZoom(ZOOM_LEVELS[i]);
     open = false;
   }
 
   function cancel() {
-    appSettings.setContentZoom(original);
+    appSettings.setUiZoom(original);
     open = false;
   }
 
