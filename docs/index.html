@@ -172,9 +172,9 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
 
 <header class="hero" id="top">
   <div class="wrap">
-    <span class="badge">⚡ Rust · Tauri v2 · Svelte 5</span>
+    <span class="badge">⚡ Rust · Tauri v2 · Svelte 5 · Baterías incluidas</span>
     <h1>Tu segundo cerebro, a <span class="grad">velocidad nativa</span>.</h1>
-    <p class="lead">Notas, conocimiento personal y arquitectura como código en un solo espacio, con agentes de IA que trabajan sobre tu bóveda. Local-first, sin telemetría, sin suscripciones y sin Electron.</p>
+    <p class="lead">Notas, arquitectura como código, visores de Word/Excel/OpenAPI y agentes de IA en un solo binario. Local-first, preparado con estándares abiertos (ACP · MCP · OKF), sin telemetría y sin Electron.</p>
     <div class="cta">
       <a class="btn primary" href="#descargar">Empezar ahora →</a>
       <a class="btn ghost" href="#capacidades">Ver capacidades</a>
@@ -184,7 +184,7 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
     <div class="stats">
       <div class="stat reveal"><b>&lt; 2 ms</b><span>búsqueda difusa en Quick Open</span></div>
       <div class="stat reveal"><b>10 000+</b><span>archivos indexados en paralelo</span></div>
-      <div class="stat reveal"><b>18</b><span>herramientas MCP para tu IA</span></div>
+      <div class="stat reveal"><b>ACP · MCP · OKF</b><span>estándares abiertos para tus agentes</span></div>
       <div class="stat reveal"><b>0</b><span>bytes de telemetría</span></div>
     </div>
   </div>
@@ -205,9 +205,9 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
 
 <section id="capacidades" class="alt">
   <div class="wrap">
-    <span class="eyebrow">Capacidades</span>
+    <span class="eyebrow">Capacidades · Baterías incluidas</span>
     <h2>Todo lo que necesitas, <span class="grad">integrado de serie</span>.</h2>
-    <p class="lead">Sin plugins de terceros para lo esencial. Cada pieza está pensada para trabajar junta.</p>
+    <p class="lead">Sin instalar docenas de plugins para trabajar con documentación real. Cada pieza está pensada para trabajar junta.</p>
 
     <div class="grid g3">
       <div class="card reveal">
@@ -222,48 +222,57 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
       <div class="card reveal">
         <div class="ic">🛡️</div><h3>Soberanía de datos</h3>
         <ul>
-          <li>Notas en <code>.md</code>, <code>.excalidraw.md</code>, <code>.d2</code>, <code>.puml</code>, <code>.mmd</code></li>
+          <li>Notas en <code>.md</code>, <code>.excalidraw.md</code>, <code>.d2</code>, <code>.puml</code>, <code>.mmd</code>, <code>.bpmn</code>, <code>.archimate</code></li>
           <li>Sin cuentas ni internet para notas, diagramas, búsqueda y Git</li>
           <li>Cero telemetría</li>
-          <li>Usan la red solo si los usas: el editor de draw.io, la vista de PlantUML y los agentes de IA (<a href="https://github.com/Miuler/synapse.rs#-qué-sale-de-tu-equipo">detalle</a>)</li>
+          <li>Usan la red solo si los usas: draw.io, PlantUML y agentes de IA (<a href="https://github.com/Miuler/synapse.rs#-qué-sale-de-tu-equipo">detalle</a>)</li>
         </ul>
       </div>
       <div class="card reveal">
         <div class="ic">🔍</div><h3>Búsqueda profunda</h3>
         <ul>
           <li><kbd>Ctrl</kbd>+<kbd>O</kbd> difusa con Nucleo (&lt; 2 ms)</li>
-          <li>Filtros <code>kind:pdf</code>, <code>kind:d2</code>, <code>kind:excel</code>…</li>
-          <li>Encabezados con <code>hs:</code> / <code>headings:</code></li>
-          <li>Full-text con Tantivy, también dentro de <code>.pdf</code> y <code>.docx</code></li>
+          <li>Filtros <code>kind:pdf</code>, <code>kind:d2</code>, <code>kind:bpmn</code>, <code>kind:excel</code>…</li>
+          <li>Entiende <code>camelCase</code>, <code>snake_case</code> y rutas YAML/JSON</li>
+          <li>Full-text con Tantivy dentro de PDF, Word, Excel y XML/ArchiMate</li>
         </ul>
       </div>
       <div class="card reveal">
         <div class="ic">🎨</div><h3>Notas y diagramas como código</h3>
         <ul>
-          <li>Editor híbrido CodeMirror 6, lectura/edición con <kbd>F2</kbd></li>
+          <li>Editor híbrido CodeMirror 6 y <strong>tablas Markdown en vivo</strong> alineadas al ancho real (sin desfasar líneas)</li>
           <li>Enlaces <code>[[nota#Título]]</code> y transclusión <code>![[nota#Título]]</code></li>
-          <li>Excalidraw, Mermaid, D2 y PlantUML nativos</li>
+          <li>D2, Mermaid, PlantUML, Excalidraw, draw.io, BPMN y ArchiMate</li>
           <li>Exporta a PNG o SVG</li>
         </ul>
       </div>
       <div class="card reveal">
-        <div class="ic">🤖</div><h3>Servidor MCP integrado</h3>
+        <div class="ic">🤖</div><h3>Preparado para Agentes (OKF + MCP)</h3>
         <ul>
-          <li>Claude Code, Cursor, Windsurf, Roo Code, Antigravity</li>
-          <li>Concurrencia optimista (<code>expected_hash</code>)</li>
-          <li>Lectura quirúrgica: <code>outline_only</code> y <code>section</code> para ahorrar tokens</li>
-          <li>Recuerda la activación por vault</li>
+          <li><strong>Índice OKF v0.3:</strong> <code>index.md</code> automático por carpeta para recorrer el disco sin quemar tokens</li>
+          <li>MCP nativo para Claude Code, Antigravity, Cursor, Windsurf y Roo Code</li>
+          <li>Concurrencia optimista (<code>expected_hash</code>) y caché ArchiMate (~0,3 ms)</li>
+          <li><code>render_diagram</code> y <code>extract_note_diagrams</code> para ver arquitectura real</li>
         </ul>
       </div>
       <div class="card reveal">
         <div class="ic">⌨️</div><h3>Hecho para el teclado</h3>
         <ul>
           <li>Modo Vim con búsqueda, rehacer y plegado</li>
-          <li>Atajos en <code>shortcuts.jsonc</code></li>
+          <li>Atajos en <code>shortcuts.jsonc</code> y tareas con <kbd>Ctrl</kbd>+<kbd>Enter</kbd></li>
           <li>Modo archivo único, sin workspace</li>
           <li>Compatible con plugins de Obsidian verificados</li>
         </ul>
       </div>
+    </div>
+
+    <h3 style="margin-top:56px;font-size:1.5rem">Visores nativos integrados: <span class="grad">Word, Excel, PDF y OpenAPI</span></h3>
+    <p class="lead" style="margin-top:8px">Abre documentos de oficina y especificaciones API sin salir de Synapse, con indexación YAML/JSON (<kbd>Ctrl</kbd>+<kbd>F12</kbd>) y seguimiento de <code>$ref</code> entre archivos.</p>
+    <div class="themes" style="margin-top:28px">
+      <figure class="frame reveal"><img src="docs_word_visor.png" alt="Visor nativo de Word (.docx) en Synapse.rs" loading="lazy"><figcaption><b>Word (.docx)</b> — lectura paginada con zoom proporcional y «Ajustar al ancho»</figcaption></figure>
+      <figure class="frame reveal"><img src="docs_excel_visor.png" alt="Visor virtualizado de Excel (.xlsx) en Synapse.rs" loading="lazy"><figcaption><b>Excel / ODS</b> — visor virtualizado ultrarrápido con barra y vista de fórmulas</figcaption></figure>
+      <figure class="frame reveal"><img src="docs_pdf_visor.png" alt="Visor nativo de PDF en Synapse.rs" loading="lazy"><figcaption><b>PDF nativo</b> — lectura rápida, búsqueda de texto e indexación Tantivy</figcaption></figure>
+      <figure class="frame reveal"><img src="docs_openapi_visor.png" alt="Visor OpenAPI con Scalar en Synapse.rs" loading="lazy"><figcaption><b>OpenAPI / Swagger (Scalar)</b> — documentación interactiva sin CDN ni telemetría</figcaption></figure>
     </div>
   </div>
 </section>
@@ -303,25 +312,25 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
 
 <section id="agentes" class="alt">
   <div class="wrap">
-    <span class="eyebrow">Agentes de IA</span>
-    <h2>Tu agente <span class="grad">ve y edita tu arquitectura</span>.</h2>
-    <p class="lead">Un panel lateral (<kbd>Alt</kbd>+<kbd>2</kbd>) para conversar con Claude, Google Antigravity o cualquier agente compatible con ACP, con acceso a tu bóveda a través del MCP de Synapse.</p>
+    <span class="eyebrow">Agentes de IA · ACP + MCP + OKF</span>
+    <h2>Tu agente <span class="grad">ve, recorre y edita tu arquitectura</span>.</h2>
+    <p class="lead">Un panel lateral (<kbd>Alt</kbd>+<kbd>2</kbd>, fijable o flotante) para conversar con Claude, Google Antigravity, GitHub Copilot o cualquier agente compatible con ACP, con acceso a tu bóveda mediante MCP e índices OKF.</p>
 
     <div class="split reveal">
       <figure class="frame"><img src="docs_agente_conversacion.png" alt="Panel del agente editando un diagrama D2" loading="lazy"><figcaption>El agente lee el diagrama, lo comprueba dibujado y lo edita</figcaption></figure>
       <div>
-        <h3>No solo lee código: ve los diagramas</h3>
-        <p>Con <code>render_diagram</code> recibe el diagrama como imagen, igual que tú. Edita con <code>patch_note</code> y <code>expected_hash</code>: si alguien tocó el archivo a la vez, la escritura se rechaza.</p>
+        <h3>No solo lee código: entiende el contexto completo</h3>
+        <p>Con <code>index.md</code> (OKF v0.3) recorre la estructura sin gastar tokens; con <code>render_diagram</code> ve los diagramas dibujados; y edita con <code>patch_note</code> y <code>expected_hash</code> para evitar sobreescrituras.</p>
         <ul class="checks">
-          <li>Plan, herramientas desplegables, diff y permisos con un clic</li>
+          <li>Cola automática de mensajes mientras trabaja, zoom propio e imágenes en pestaña</li>
           <li>Adjunta notas con <code>@</code>, la nota abierta con <code>@this</code> o imágenes con <kbd>Ctrl</kbd>+<kbd>V</kbd></li>
-          <li>Historial Git de un archivo: <em>«¿qué cambió en este diagrama?»</em></li>
+          <li>Historial Git e inspección de ArchiMate (<code>inspect_archimate_element</code>) y draw.io</li>
         </ul>
       </div>
     </div>
 
     <div class="grid g3">
-      <div class="card reveal"><div class="ic">🔌</div><h3>Trae tu agente</h3><p>Claude (descarga verificada con sha256) y Antigravity listos; registra cualquier otro agente ACP con su comando.</p></div>
+      <div class="card reveal"><div class="ic">🔌</div><h3>Trae tu agente (ACP)</h3><p>Claude (descarga verificada con sha256), Antigravity y GitHub Copilot listos; registra cualquier otro agente ACP con su comando.</p></div>
       <div class="card reveal"><div class="ic">🗂️</div><h3>Varias conversaciones</h3><p>En acordeón, con historial guardado en la bóveda y retomable con el agente y el contexto originales.</p></div>
       <div class="card reveal"><div class="ic">🐙</div><h3>Agentes que se hablan</h3><p>Entre conversaciones (<code>#2</code>) y entre bóvedas abiertas (<code>@Bóveda#</code>): valida tus diagramas contra la documentación de otro sistema, en solo lectura y con tu permiso.</p></div>
     </div>
@@ -332,7 +341,7 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
   <div class="wrap">
     <span class="eyebrow">Git + Diff visual</span>
     <h2>Compara <span class="grad">lo que otros no pueden</span>.</h2>
-    <p class="lead">Git integrado (commits, historial, ramas, stage/unstage, push con <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>) y un diff multi-modal que entiende imágenes y diagramas.</p>
+    <p class="lead">Git multi-repositorio con Git Log visual estilo JetBrains (grafo de ramas, tags, fast-forward sin commits extra y push con <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>) y un diff multi-modal que entiende imágenes y diagramas.</p>
 
     <div class="split reveal">
       <div>
@@ -378,21 +387,22 @@ dialog#lb::backdrop{background:rgba(4,4,10,.92);backdrop-filter:blur(6px)}
   <div class="wrap">
     <span class="eyebrow">Comparativa</span>
     <h2>Por qué <span class="grad">Synapse</span>.</h2>
-    <div class="tw reveal">
+    <div class="tw reveal" tabindex="0" role="region" aria-label="Tabla comparativa de Synapse.rs frente a otras herramientas">
       <table>
         <thead><tr><th>Aspecto</th><th class="me">Synapse.rs 🧠</th><th>Obsidian</th><th>Notion</th><th>VS Code</th></tr></thead>
         <tbody>
           <tr><td>Arquitectura</td><td class="me">Rust + Tauri v2 (webview nativo)</td><td>Electron</td><td>Web / Electron</td><td>Electron</td></tr>
           <tr><td>Soberanía de archivos</td><td class="me">100% local / formatos abiertos</td><td>100% local</td><td>Nube (propietario)</td><td>100% local</td></tr>
-          <tr><td>Búsqueda en PDF / DOCX</td><td class="me">Nativa (Tantivy)</td><td>Plugins</td><td>En la nube</td><td>Extensiones</td></tr>
+          <tr><td>Búsqueda en PDF / DOCX / Excel / XML</td><td class="me">Nativa (Tantivy)</td><td>Plugins</td><td>En la nube</td><td>Extensiones</td></tr>
+          <tr><td>Visores Word, Excel y OpenAPI</td><td class="me">Integrados (Scalar + virtualización)</td><td>Plugins / Externa</td><td>Nube / Básico</td><td>Extensiones</td></tr>
           <tr><td>Filtros <code>kind:</code>, <code>hs:</code></td><td class="me">Nativos</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
-          <tr><td>D2, Mermaid, PlantUML</td><td class="me">Nativos + export PNG/SVG</td><td>Plugins</td><td>Básico</td><td>Extensiones</td></tr>
+          <tr><td>D2, Mermaid, PlantUML, BPMN, ArchiMate</td><td class="me">Nativos + draw.io + export PNG/SVG</td><td>Plugins</td><td>Básico</td><td>Extensiones</td></tr>
           <tr><td>Lienzo Excalidraw</td><td class="me">Nativo</td><td>Plugin</td><td>No</td><td>Extensiones</td></tr>
-          <tr><td>Git</td><td class="me">Integrado (<code>gix</code> + Git)</td><td>Requiere CLI</td><td>No</td><td>Requiere CLI</td></tr>
-          <tr><td>Diff visual de diagramas e imágenes</td><td class="me">Nativo</td><td>No</td><td>No</td><td>Extensiones</td></tr>
-          <tr><td>Servidor MCP para IA</td><td class="me">Nativo (18 herramientas, OCC)</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
-          <tr><td>Agentes de IA (ACP) en la app</td><td class="me">Panel integrado, varios agentes, permisos</td><td>Plugins</td><td>Asistente en la nube</td><td>Extensiones</td></tr>
-          <tr><td>Arquitectura como código</td><td class="me">D2 + Mermaid + PlantUML + ADR, con Git</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
+          <tr><td>Git</td><td class="me">Multi-repo + Git Log visual (<code>gix</code> + Git)</td><td>Requiere CLI</td><td>No</td><td>Requiere CLI</td></tr>
+          <tr><td>Diff visual de diagramas e imágenes</td><td class="me">Nativo (entre cualquier formato)</td><td>No</td><td>No</td><td>Extensiones</td></tr>
+          <tr><td>Estándares IA (MCP + OKF)</td><td class="me">MCP nativo (OCC, diagramas, ArchiMate) + OKF v0.3</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
+          <tr><td>Agentes de IA (ACP) en la app</td><td class="me">Panel integrado (Claude, Antigravity, Copilot), cola y permisos</td><td>Plugins</td><td>Asistente en la nube</td><td>Extensiones</td></tr>
+          <tr><td>Arquitectura como código</td><td class="me">D2 + Mermaid + PlantUML + OpenAPI + ADR, con Git</td><td>Plugins</td><td>No</td><td>Extensiones</td></tr>
           <tr><td>Portabilidad</td><td class="me">Binario único</td><td>Instalador / AppImage</td><td>Instalador</td><td>Instalador</td></tr>
         </tbody>
       </table>

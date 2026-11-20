@@ -5,9 +5,9 @@
 [![CodeQL](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Miuler/synapse.rs/badge)](https://scorecard.dev/viewer/?uri=github.com/Miuler/synapse.rs)
 
-> **Gestión de notas, conocimiento personal y arquitectura visual.**  
+> **Espacio de trabajo local-first con baterías incluidas para pensar, documentar arquitecturas y colaborar con agentes de IA.**  
 > Desarrollado en **Rust (Tauri v2)** y **Svelte 5**.  
-> *Local-first, sin telemetría y con rendimiento nativo.*
+> *Estándares abiertos (ACP · MCP · OKF), cero telemetría y rendimiento nativo.*
 
 ---
 
@@ -17,11 +17,11 @@
 
 ## 💡 ¿Qué es Synapse?
 
-Synapse es un espacio de trabajo para pensar, escribir notas y modelar arquitecturas de software sin intermediarios ni dependencias en la nube. Hoy es especialmente útil para **desarrolladores y arquitectos**: la arquitectura se escribe como código (D2, Mermaid, PlantUML, ADR en Markdown), vive en Git junto al proyecto y tus agentes de IA la leen, la dibujan y la editan contigo.
+Synapse es un espacio de trabajo **todo en uno (baterías incluidas)** para pensar, escribir notas, leer documentos técnicos y modelar arquitecturas de software sin intermediarios ni dependencias en la nube. Está pensado especialmente para **desarrolladores, arquitectos y equipos técnicos**: la arquitectura se escribe como código (D2, Mermaid, PlantUML, Excalidraw, draw.io, BPMN, ArchiMate, OpenAPI y ADR en Markdown), vive en Git junto al proyecto y **tus agentes de IA la entienden, la recorren y la editan contigo**.
 
-La mayoría de herramientas modernas sufren del mismo problema: consumen cientos de megabytes de RAM por usar Electron o bloquean tus datos tras formatos propietarios y suscripciones en la nube. Synapse está construido sobre una premisa simple: **tus archivos son tuyos y la herramienta debe ser inmediata.**
+La mayoría de herramientas modernas sufren del mismo problema: consumen cientos de megabytes de RAM por usar Electron, dependen de docenas de plugins frágiles o encierran tus datos tras formatos propietarios y suscripciones en la nube. Synapse parte de una premisa simple: **tus archivos son tuyos, todo viene integrado de serie y la herramienta debe ser inmediata.**
 
-Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Svelte 5** (Feature-Sliced Design). Se inicia en milisegundos, consume una fracción mínima de memoria y busca sobre decenas de miles de notas, diagramas y documentos a la velocidad del teclado.
+Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Svelte 5** (Feature-Sliced Design). Arranca en milisegundos, consume una fracción mínima de memoria y está preparado desde el núcleo para el ecosistema de agentes mediante **ACP**, **MCP** y **OKF (Open Knowledge Format)**.
 
 ---
 
@@ -40,37 +40,48 @@ Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Sv
 
 ### 3. 🔍 Búsqueda Rápida e Indexación Profunda
 - **Quick Open (`Ctrl+O`):** Búsqueda difusa en memoria mediante Nucleo Matcher (< 2 ms de respuesta).
-- **Filtros por categoría (`kind:`):** Acota búsquedas por tipo de recurso: `kind:pdf`, `kind:markdown`, `kind:d2`, `kind:mermaid`, `kind:excalidraw`, `kind:word`, `kind:excel` o `kind:code`.
+- **Filtros por categoría (`kind:`):** Acota búsquedas por tipo de recurso: `kind:pdf`, `kind:markdown`, `kind:d2`, `kind:mermaid`, `kind:excalidraw`, `kind:bpmn`, `kind:word`, `kind:excel` o `kind:code`.
 - **Filtro de encabezados (`hs:` / `headings:`):** Busca secciones y subtítulos directamente desde `Ctrl+O` o la búsqueda global (`Ctrl+Shift+F`), mostrando el título indexado y el texto inmediato.
-- **Búsqueda Full-Text (Tantivy):** Motor de texto completo en Rust estilo Lucene con ponderación en títulos y soporte para operadores y frases.
-- **Indexación de documentos adjuntos:** Extrae e indexa el texto dentro de archivos `.pdf` y documentos de Word `.docx`.
+- **Búsqueda Full-Text (Tantivy):** Motor de texto completo en Rust estilo Lucene que entiende identificadores (`camelCase`, `snake_case`, `kebab-case`) y busca dentro de `.pdf`, Word (`.docx`), hojas de cálculo (por hojas y filas), XML/BPMN/ArchiMate (sin ruido de coordenadas) y rutas de claves YAML/JSON.
 
-### 4. 🎨 Notas y Diagramas como Código
-- **Markdown fluido:** Editor híbrido (CodeMirror 6), alternancia rápida lectura/edición (`F2`), enlaces a encabezados exactos (`[[nota#Título]]`) e incrustación de secciones completas con transclusión (`![[nota#Título]]`).
-- **Lienzo libre con Excalidraw:** Mapas mentales, esquemas y bocetos interactivos embebidos directamente en notas (`.excalidraw.md`).
-- **Diagramas como código (Mermaid, D2 y PlantUML):**
-  - **Mermaid & Merman:** Diagramas de flujo y secuencias con puntero láser para presentaciones técnicas.
-  - **D2 Lang:** Sintaxis declarativa moderna para diagramas de arquitectura.
-  - **PlantUML:** Soporte nativo (`.puml`, `.plantuml`) con servidor configurable y validación en línea.
-  - **Render optimizado:** Planificador con debounce dinámico, `Ctrl+Enter` para forzar redibujado y monitor de tiempo de render en la barra de estado.
-  - **Exportación:** Guarda diagramas en formatos **PNG** o **SVG** desde el menú contextual.
+### 4. 🔋 Baterías Incluidas: Notas, Tablas, Documentos y Diagramas
+Todo viene integrado de serie, sin instalar plugins para trabajar con documentación técnica real:
+- **Markdown fluido y tablas mejoradas:** Editor híbrido (CodeMirror 6), alternancia rápida lectura/edición (`F2`), enlaces a encabezados (`[[nota#Título]]`) y transclusión (`![[nota#Título]]`). Las **tablas en modo En vivo** se mantienen como texto real del documento con columnas alineadas al ancho real del texto, navegación fila por fila (`↑`/`↓`) sin desfasar líneas y editor visual bajo demanda. Además, atajo `Ctrl+Enter` para tareas y copia de listas como `☐` / `✅` para correo o Teams.
+- **Todos los diagramas de arquitectura integrados:**
+  - **D2 Lang** (motores ELK/TALA), **Mermaid & Merman** (con puntero láser) y **PlantUML** (`.puml`, `.plantuml`).
+  - **Excalidraw** (`.excalidraw.md`) y **draw.io** (`.drawio`, `.drawio.png`, `.drawio.svg`).
+  - **BPMN** (`.bpmn`, indexado por pasos y anotaciones) y modelos **ArchiMate** (`.archimate`).
+  - Exportación de diagramas a **PNG** o **SVG** y render optimizado con monitor en la barra de estado.
+- **Visor OpenAPI / Swagger (Scalar) + Editor YAML/JSON:** Los archivos `openapi` / `swagger` se abren en Lectura como documentación interactiva embebida (sin CDN, sin «Ask AI» ni telemetría), siguen `$ref` entre archivos de la bóveda (también en historial Git) y adoptan el tema activo. En Edición incluyen resaltado YAML/JSON, navegación de `$ref` e índice de claves (`Ctrl+F12`).
+- **Lectores rápidos de Word y Excel / Hojas de cálculo:**
+  - **Word (`.docx`, `.docm`, `.dotx`):** Visor nativo de solo lectura con páginas, tablas, imágenes, encabezados y zoom proporcional de página completa (`50 %–300 %`) con «Ajustar al ancho».
+  - **Hojas de cálculo (`.xlsx`, `.xlsm`, `.xltx`, `.xltm`, `.xls`, `.xlsb`, `.ods`):** Visor virtualizado ultrarrápido que pinta solo las filas/columnas visibles y carga libros grandes por tramos, con estilos, celdas combinadas, barra de fórmulas, vista de fórmulas (`Ctrl+\``), pestañas de hojas y zoom proporcional.
+
+![Visor nativo de Word en Synapse.rs](docs/docs_word_visor.png)
+
+![Visor virtualizado de hojas de cálculo Excel/ODS en Synapse.rs](docs/docs_excel_visor.png)
+
+![Visor nativo de PDF en Synapse.rs](docs/docs_pdf_visor.png)
+
+![Visor interactivo de OpenAPI/Swagger con Scalar en Synapse.rs](docs/docs_openapi_visor.png)
 
 ### 5. 🐙 Control de Versiones Git y Comparación Visual (Diff Multi-Modal)
-- **Gestión de Git integrada:** Soporte para el flujo de trabajo de versiones (commits, historial, ramas, stage/unstage, push con `Ctrl+Shift+K`) combinando lectura de estado con `gix` y comandos Git del sistema.
-- **Comparación entre archivos arbitrarios:** Selecciona dos archivos cualesquiera en el explorador y compáralos al instante.
+- **Git multi-repositorio + Git Log estilo JetBrains:** Varios repositorios Git en la misma bóveda, diálogo de **Git Log de todas las ramas** con grafo en colores, tags, checkout, **fast-forward** (`↓N / ↑N`) sin commits extra, vista en árbol en commits y push con `Ctrl+Shift+K`.
+- **Comparación entre archivos arbitrarios:** Selecciona dos archivos cualesquiera en el explorador y compáralos al instante (incluso entre tipos distintos, como Mermaid vs Excalidraw o `.drawio` vs `.drawio`).
 - **Diff de imágenes binarias:**
-  - *2 Paneles:* Vista lado a lado entre disco local y la versión en Git con zoom independiente.
+  - *2 Paneles:* Vista lado a lado (antes a la izquierda, después a la derecha) con zoom independiente.
   - *Píxel a Píxel:* Resaltado visual en magenta de cada píxel alterado con porcentaje y conteo exacto de diferencias.
-- **Diff multi-modo para diagramas (Excalidraw, D2, Mermaid, PlantUML):**
-  - *Como Diagrama:* Visualiza ambos estados en paralelo con la posibilidad de alternar el panel local a modo *Escritura* para editar sobre la marcha.
-  - *Píxel a Píxel (para Excalidraw):* Genera un render temporal en binario de ambas versiones para comparar visualmente píxel a píxel y localizar de inmediato cualquier trazo, caja o texto modificado en el lienzo.
-  - *Como Texto:* Inspecciona diferencias línea por línea en el código fuente o estructura JSON.
+- **Diff multi-modo para diagramas (Excalidraw, D2, Mermaid, PlantUML, draw.io):**
+  - *Como Diagrama:* Visualiza ambos estados en paralelo con edición local sobre la marcha.
+  - *Píxel a Píxel:* Renderiza ambas versiones a imagen para localizar de inmediato cualquier trazo, caja o texto modificado.
+  - *Como Texto:* Inspecciona diferencias línea por línea en el código fuente o estructura JSON/XML (colapsado a los cambios por defecto).
 
-### 6. 🤖 Servidor MCP Integrado (Model Context Protocol)
-- **Conexión nativa para agentes de IA:** Permite a clientes como Claude Code, Google Antigravity, Cursor, Windsurf o Roo Code consultar tu vault como servidor MCP local.
-- **Concurrencia Optimista (OCC):** Modificación segura mediante `expected_hash` u `overwrite` explícito para evitar sobreescrituras accidentales.
-- **Ahorro de contexto y tokens:** Búsqueda jerárquica por tags (`#linux/cachyos`), lectura del esquema de títulos (`outline_only: true`) y lectura quirúrgica por secciones (`section`).
-- **Persistencia por vault:** Recuerda la activación de MCP por bóveda y la reactiva automáticamente.
+### 6. 🤖 Preparado para Agentes: Estándares Abiertos (OKF + MCP)
+Synapse está diseñado desde la base para que los agentes de IA trabajen con tu conocimiento usando estándares abiertos:
+- **Índice OKF (Open Knowledge Format v0.3):** Synapse mantiene automáticamente un `index.md` en cada carpeta con subcarpetas, conceptos (`type` + `description`) y demás archivos (con `okf_version: "0.3"` en la raíz). Pensado para commitearse en Git y para que **cualquier agente recorra la bóveda desde el disco sin perderse ni quemar tokens**.
+- **Servidor MCP integrado (Model Context Protocol):** Conecta Claude Code, Google Antigravity, Cursor, Windsurf o Roo Code a tu vault local. `read_note` devuelve el `index.md` de la raíz y de la carpeta de la nota.
+- **Herramientas especializadas de arquitectura:** `render_diagram` (el agente ve tus diagramas e imágenes renderizadas), `extract_note_diagrams` (estructura de contenedores y conexiones en draw.io), `inspect_archimate_element` (consultas en ~0,3 ms con caché), historial Git y resolución de enlaces ambiguos.
+- **Concurrencia Optimista (OCC) y ahorro de tokens:** Escrituras seguras mediante `expected_hash`, búsqueda jerárquica por tags (`#linux/cachyos`), esquema de títulos (`outline_only: true`) y lectura quirúrgica por secciones (`section`).
 
 ### 7. ⌨️ Flujo de Trabajo y Teclado
 - **Modo Vim:** Activación instantánea con soporte de comandos, búsqueda (`/`), rehacer (`Ctrl+R`) y plegado por niveles (`zc`, `zo`, `za`, `zM`, `zR`).
@@ -119,12 +130,12 @@ Los ADR enlazan con los diagramas y reutilizan secciones de otras decisiones por
 ![ADR con propiedades, enlaces y transclusión](docs/docs_adr_enlaces_y_transclusion.png)
 
 ### 10. 🧠 Agentes de IA integrados (ACP)
-Un panel lateral (`Alt+2`) para conversar con agentes de IA **sobre tu bóveda**, sin salir de Synapse:
+Un panel lateral (`Alt+2`, fijable o flotante sobre el editor) para conversar con agentes de IA **sobre tu bóveda**, sin salir de Synapse:
 
-- **Agentes compatibles con ACP (Agent Client Protocol):** Claude (descarga verificada con sha256 desde el registro público de ACP) y Google Antigravity; además puedes registrar cualquier agente propio (comando, argumentos y variables de entorno) en *Ajustes → Agentes de IA*.
-- **Trabajan con tus archivos mediante el MCP de Synapse:** cada sesión recibe la bóveda abierta como `synapse_instance`. El agente busca, lee por secciones, edita con control optimista (`expected_hash`) y puede **ver los diagramas dibujados** (`render_diagram`), no solo su código. Lee además el historial Git de un archivo (`git_file_history`, `git_diff_revisions`, `git_read_revision`).
-- **Conversación rica:** respuestas en streaming y en Markdown, plan del agente, herramientas desplegables con entrada/salida, diff de los archivos que toca y **peticiones de permiso** con botones Permitir/Rechazar.
-- **Contexto a tu medida:** adjunta notas con `@`, la nota abierta con `@this`, la selección del editor con `Ctrl+Alt+A`, imágenes pegadas con `Ctrl+V` y comandos del agente con `/` (`/compact`, `/usage`…). Se ve el uso de la ventana de contexto y el costo.
+- **Agentes compatibles con ACP (Agent Client Protocol):** Claude (descarga verificada con sha256 desde el registro público de ACP), Google Antigravity y **GitHub Copilot** (`copilot --acp`); además puedes registrar cualquier agente propio (comando, argumentos y variables de entorno) en *Ajustes → Agentes de IA*.
+- **Trabajan con tus archivos mediante MCP + OKF:** cada sesión recibe la bóveda abierta como `synapse_instance`. El agente recorre los índices OKF, busca, lee por secciones, edita con control optimista (`expected_hash`) y puede **ver los diagramas dibujados** (`render_diagram`), inspeccionar modelos ArchiMate o leer el historial Git.
+- **Conversación rica y cola de mensajes:** respuestas en streaming y Markdown (con casillas de tarea copiables como `☐` / `✅`), cola automática de mensajes mientras el agente trabaja, caja de texto autoajustable, zoom propio, imágenes en pestaña dedicada con «Guardar en la bóveda» y **peticiones de permiso** con un clic.
+- **Contexto a tu medida:** adjunta notas con `@`, la nota abierta con `@this`, la selección del editor con `Ctrl+Alt+A`, imágenes pegadas con `Ctrl+V` y comandos del agente con `/` (`/compact`, `/usage`…).
 - **Varias conversaciones a la vez** en acordeón, con historial guardado en la bóveda (`.synapse/agent-sessions/`), que se retoma con el agente y el contexto originales.
 - **Los agentes se hablan entre sí 🐙:** entre conversaciones (`#2`) y **entre bóvedas abiertas en otras ventanas** (`@Bóveda#`). Un agente puede consultar la documentación de otra bóveda (solo lectura, con tu permiso) — por ejemplo, validar tus diagramas contra la arquitectura de otro sistema.
 - **Control total:** lecturas permitidas, escrituras con confirmación y aviso de atención cuando el agente espera tu respuesta.
@@ -141,14 +152,15 @@ Un panel lateral (`Alt+2`) para conversar con agentes de IA **sobre tu bóveda**
 | :--- | :---: | :---: | :---: | :---: |
 | **Arquitectura de ejecución** | **Rust + Tauri v2 (Webview nativo)** | Electron (Chromium empaquetado) | Web / Electron | Electron (Chromium empaquetado) |
 | **Soberanía de archivos** | **100% Local / Formatos abiertos** | 100% Local | En la nube (Propietario) | 100% Local |
-| **Búsqueda en PDFs / DOCX** | **Nativa en Rust (Tantivy)** | Requiere Plugins | En la nube | Requiere extensiones |
+| **Búsqueda en PDFs / DOCX / Excel / XML** | **Nativa en Rust (Tantivy)** | Requiere Plugins | En la nube | Requiere extensiones |
+| **Visores nativos (Word, Excel, OpenAPI)** | **Integrados de serie (Scalar + virtualización)** | Plugins / App externa | En la nube / Básico | Extensiones |
 | **Filtros (`kind:`, `hs:`)** | **Nativos en Quick Open y FTS** | Plugins de terceros | No | Extensiones |
-| **Diagramas D2, Mermaid, PlantUML** | **Nativos con exportación PNG/SVG** | Plugins de terceros | Básico | Extensiones |
+| **Diagramas D2, Mermaid, PlantUML, BPMN, ArchiMate** | **Nativos + draw.io y exportación PNG/SVG** | Plugins de terceros | Básico | Extensiones |
 | **Lienzo Excalidraw** | **Nativo (.excalidraw.md)** | Vía plugin | No | Extensiones |
-| **Control de versiones Git** | **Integrado en UI (`gix` + Git)** | Requiere Git CLI | No | Requiere Git CLI |
+| **Control de versiones Git** | **Multi-repo + Git Log visual (`gix` + Git)** | Requiere Git CLI | No | Requiere Git CLI |
 | **Diff visual de diagramas e imágenes** | **Nativo (Lado a lado, Píxel a píxel)** | No | No | Extensiones |
-| **Servidor MCP para IA** | **Nativo (18 herramientas, OCC)** | Plugins de terceros | No | Extensiones |
-| **Agentes de IA (ACP) en la app** | **Panel integrado, varios agentes y conversaciones, permisos** | Plugins de terceros | Asistente propietario en la nube | Extensiones |
+| **Estándares para IA (MCP + OKF)** | **MCP nativo (OCC, diagramas, ArchiMate) + índices OKF** | Plugins de terceros | No | Extensiones |
+| **Agentes de IA (ACP) en la app** | **Panel integrado (Claude, Antigravity, Copilot), cola y permisos** | Plugins de terceros | Asistente propietario en la nube | Extensiones |
 | **Arquitectura como código** | **D2 + Mermaid + PlantUML + ADR, con vista previa y Git** | Plugins | No | Extensiones |
 | **Portabilidad** | **Binario único sin instalación** | Instalador / AppImage | Instalador | Instalador |
 
