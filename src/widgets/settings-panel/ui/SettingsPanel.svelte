@@ -14,6 +14,7 @@
   import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
   import { convertFileSrc } from '@tauri-apps/api/core';
   import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT } from '@entities/acp-agent';
+  import { appUpdates } from '@features/app-updates';
 
   // Bóvedas aceptadas o rechazadas por esta (se leen al abrir Ajustes)
   let peerDecisions = $state(agentStore.peers.decisions());
@@ -25,7 +26,7 @@
     .then((v) => (feedbackAvailable = v))
     .catch(() => {});
 
-  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'shortcuts';
+  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'updates' | 'shortcuts';
 
   interface Props {
     open?: boolean;
@@ -39,6 +40,7 @@
     { id: 'editor', label: 'Editor' },
     { id: 'diagrams', label: 'Diagramas' },
     { id: 'agents', label: 'Agentes de IA' },
+    { id: 'updates', label: 'Actualizaciones' },
     { id: 'shortcuts', label: 'Atajos de teclado' },
   ];
 
@@ -576,6 +578,31 @@
             <button type="submit">Agregar agente</button>
           </form>
           {#if agentError}<span class="error">{agentError}</span>{/if}
+        {:else if section === 'updates'}
+          <h3>Actualizaciones</h3>
+          <label class="row">
+            <span class="row-label">Buscar actualizaciones al iniciar</span>
+            <input
+              type="checkbox"
+              checked={appSettings.autoCheckUpdates}
+              onchange={(e) => appSettings.setAutoCheckUpdates(e.currentTarget.checked)}
+            />
+          </label>
+          <p class="hint">
+            Consulta el <code>latest.json</code> de la última release en GitHub. Solo se envía la petición
+            (sin datos de tus notas); el paquete se verifica con su firma antes de instalarlo.
+          </p>
+          <div class="row">
+            <span class="row-label">Ahora</span>
+            <button
+              type="button"
+              class="theme-dirs-rescan"
+              disabled={appUpdates.status === 'checking' || appUpdates.status === 'installing'}
+              onclick={() => appUpdates.check(false)}
+            >
+              {appUpdates.status === 'checking' ? 'Buscando…' : 'Buscar actualizaciones'}
+            </button>
+          </div>
         {:else}
           <h3>Atajos de teclado</h3>
           <p class="hint">

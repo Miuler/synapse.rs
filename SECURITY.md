@@ -54,14 +54,13 @@ Confirma que el archivo lo construyó el workflow de release de este repositorio
 
 ### 3. Firma del actualizador (minisign)
 
-Los `.sig` los genera `tauri signer sign` con la clave privada del proyecto. La clave pública que usa el actualizador está en [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json) (`plugins.updater.pubkey`). Para comprobarla a mano con [minisign](https://jedisct1.github.io/minisign/), el `.sig` de Tauri es una firma minisign codificada en base64:
+Los `.sig` los genera `tauri signer sign` con la clave privada del proyecto. La clave pública que usa el actualizador está en [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json) (`plugins.updater.pubkey`), en el formato de Tauri: el archivo de clave pública de minisign codificado en base64. El `.sig` es, igualmente, una firma minisign en base64. Para comprobarla a mano con [minisign](https://jedisct1.github.io/minisign/):
 
 ```bash
+jq -r .plugins.updater.pubkey src-tauri/tauri.conf.json | base64 -d > synapse.pub
 base64 -d synapsers-linux-x86_64.tar.gz.sig > synapsers-linux-x86_64.tar.gz.minisig
-minisign -V -P "<pubkey de tauri.conf.json>" -m synapsers-linux-x86_64.tar.gz -x synapsers-linux-x86_64.tar.gz.minisig
+minisign -V -p synapse.pub -m synapsers-linux-x86_64.tar.gz -x synapsers-linux-x86_64.tar.gz.minisig
 ```
-
-(Si la clave de `tauri.conf.json` aparece envuelta en base64 en lugar de empezar por `RWQ`, decodifícala primero.)
 
 ## Cómo se protege el proceso de release
 

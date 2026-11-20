@@ -7,6 +7,7 @@ pub mod plugins;
 pub mod search;
 pub mod session;
 pub mod system;
+pub mod updates;
 pub mod vault;
 pub mod workspace;
 
@@ -19,6 +20,7 @@ pub use plugins::*;
 pub use search::*;
 pub use session::*;
 pub use system::*;
+pub use updates::*;
 pub use vault::*;
 pub use workspace::*;
 

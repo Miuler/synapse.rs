@@ -197,7 +197,7 @@ Synapse sigue una estricta separación de responsabilidades para garantizar mant
 
 ## 🔌 Qué sale de tu equipo
 
-Synapse es local-first, no «100 % local»: unas pocas funciones necesitan un servicio externo. Ninguna se activa sola; todas dependen de que uses esa función.
+Synapse es local-first, no «100 % local»: unas pocas funciones necesitan un servicio externo. Todas dependen de que uses esa función, salvo la búsqueda de actualizaciones al iniciar, que se puede desactivar.
 
 | Función | Con qué se conecta | Qué viaja |
 |---|---|---|
@@ -206,6 +206,7 @@ Synapse es local-first, no «100 % local»: unas pocas funciones necesitan un se
 | **Agentes de IA (ACP)**: Claude, GitHub Copilot, Antigravity… | El proveedor de cada agente, con tu propia cuenta | **Tus mensajes y lo que el agente lea de la bóveda** van a ese proveedor, según sus condiciones. Synapse solo los lanza y les da acceso a la bóveda. La lista de agentes verificados se consulta en `cdn.agentclientprotocol.com` y el agente se descarga de su sitio oficial al instalarlo. |
 | **Plugins de la comunidad** | GitHub (catálogo de Obsidian y el repositorio de cada plugin) | Solo al abrir el catálogo o instalar o actualizar un plugin. |
 | **Git** (`push`, `clone`) | El remoto que tú configures | Tu repositorio, cuando tú lo envías o clonas. |
+| **Actualizaciones** | GitHub (`latest.json` de la última release) | Al iniciar (desactivable en *Ajustes → Actualizaciones*) o con «Buscar actualizaciones»: solo la petición, sin datos de tus notas. Si aceptas actualizar, se descarga el paquete y se verifica su firma antes de instalarlo. |
 | **Servidor MCP** | Solo `localhost` | Nada sale del equipo: es para tus agentes locales. |
 
 Si trabajas con información sensible, configura un draw.io y un servidor PlantUML propios, y elige los agentes de IA teniendo en cuenta a qué proveedor envían los datos.
@@ -221,7 +222,7 @@ Lo que la tabla anterior no cuenta y conviene saber (revisado en el código de `
 - **Agentes ACP:** los binarios se comprueban contra el `sha256` del registro cuando este lo incluye.
 - **YouTube:** si una nota enlaza un vídeo, se pide su miniatura a `img.youtube.com`.
 - **Recursos remotos:** el CSP del WebView está desactivado (`csp: null`) y el protocolo de assets alcanza todo el disco, así que Synapse no bloquea que una nota cargue contenido de la red.
-- **Actualizaciones:** el actualizador está configurado (endpoint de GitHub y clave pública minisign), pero hoy ningún código de la app lo invoca: no hay comprobación automática.
+- **Actualizaciones:** al iniciar, Synapse consulta el `latest.json` de la última release (desactivable en *Ajustes → Actualizaciones*) y avisa si hay una versión nueva. Solo se instala si lo aceptas, y el paquete se verifica con la firma minisign y la clave pública de `tauri.conf.json` antes de reemplazar el ejecutable.
 - **Telemetría:** no se encontró código de telemetría ni informes de errores. Los visores embebidos que la ofrecen la tienen apagada (Scalar con `telemetry: false`, el visor de PDF sin CDN). Los plugins comunitarios y los agentes son código de terceros.
 
 Cada release incluye `SHA256SUMS.txt`, el SBOM (CycloneDX) y una attestation de procedencia firmada con Sigstore: cómo verificarlos y cómo reportar una vulnerabilidad está en [SECURITY.md](SECURITY.md).

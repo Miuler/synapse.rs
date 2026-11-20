@@ -409,7 +409,8 @@ jobs:
               }
           latest = {
               "version": tag.removeprefix("v"),
-              "notes": f"Synapse release {tag}",
+              # Las novedades de la versión (Markdown del CHANGELOG): la app las muestra al avisar
+              "notes": notes.read_text() if (notes := d / "release-notes.md").exists() else f"Synapse release {tag}",
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": platforms,
           }

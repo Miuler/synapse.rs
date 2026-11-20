@@ -15,6 +15,8 @@ export interface AppSettings {
   defaultExcalidrawViewer: ExcalidrawViewerType;
   vimMode: boolean;
   mcpServerEnabled: boolean;
+  /** Consultar al iniciar si hay una versión nueva en GitHub (latest.json de la última release). */
+  autoCheckUpdates: boolean;
   locale: SupportedLocale;
   propertiesViewMode: PropertiesViewMode;
   plantumlServer: string;
@@ -27,6 +29,16 @@ export interface AppSettings {
 
 const STORAGE_KEY = 'synapse_settings';
 
+/** Había ajustes guardados al arrancar (antes de que la app escriba nada): distingue una
+ *  actualización de una instalación nueva. */
+export const hadStoredSettingsAtStartup: boolean = (() => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+})();
+
 export const DEFAULT_SETTINGS: AppSettings = {
   mermaidRenderer: 'mermaidjs', // Por defecto el visor es Mermaid.js
   lastOpenedFolder: undefined,
@@ -34,6 +46,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultExcalidrawViewer: 'native', // Por defecto los archivos .excalidraw se abren con Excalidraw nativo
   vimMode: false, // Por defecto modo Vim desactivado
   mcpServerEnabled: false, // Por defecto servidor MCP desactivado
+  autoCheckUpdates: true, // Por defecto busca actualizaciones al iniciar (se puede desactivar)
   locale: 'es', // Por defecto español
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
@@ -71,6 +84,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.mcpServerEnabled === 'boolean') {
         settings.mcpServerEnabled = parsed.mcpServerEnabled;
+      }
+      if (typeof parsed.autoCheckUpdates === 'boolean') {
+        settings.autoCheckUpdates = parsed.autoCheckUpdates;
       }
       if (parsed.locale === 'es' || parsed.locale === 'en') {
         settings.locale = parsed.locale;
@@ -324,6 +340,15 @@ class SettingsManager {
 
   setMcpServerEnabled(enabled: boolean) {
     this.settings.mcpServerEnabled = enabled;
+    this.persist();
+  }
+
+  get autoCheckUpdates(): boolean {
+    return this.settings.autoCheckUpdates ?? true;
+  }
+
+  setAutoCheckUpdates(enabled: boolean) {
+    this.settings.autoCheckUpdates = enabled;
     this.persist();
   }
 

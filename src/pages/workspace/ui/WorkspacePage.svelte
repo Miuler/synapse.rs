@@ -28,6 +28,11 @@
   import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
   import {DiffViewer} from "@features/diff-viewer";
   import {RevisionViewer} from "@features/revision-viewer";
+  import {
+    NewsTab, UpdateNotice, appUpdates, newsMarkdown, newsToOpenOnStartup, CHANGELOG_RAW,
+    NEWS_TAB, UPDATE_NOTES_TAB, LAST_SEEN_VERSION_KEY,
+  } from "@features/app-updates";
+  import {getVersion} from "@tauri-apps/api/app";
   import {CommunityPluginsModal} from "@features/community-plugins";
   import {ResizableDialog} from "@shared/ui/dialog-resize";
   import {CodeEditor, openReplacePanel, extractKeyTree, keyLineAt} from "@shared/ui/code-editor";
@@ -35,7 +40,7 @@
   import {TagsExplorer} from "@features/tags-explorer";
   import {RelationsInspector} from "@features/relations-inspector";
   import {GitManagementDialogs} from "@features/git-management";
-  import {appSettings, shortcutsConfig, matchesShortcut, type ExcalidrawViewerType} from "@entities/settings";
+  import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
   import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
@@ -2604,6 +2609,42 @@
   // Carga únicamente de metadatos desde la bóveda (repositorio) al montar
   // El MCP pide diagramas como imagen (`render_diagram`); los dibuja la ventana principal.
   // También se atienden desde el arranque los pedidos de otras bóvedas, aunque no haya conversaciones.
+  // Versión instalada: novedades la primera vez que se abre una versión nueva y búsqueda de
+  // actualizaciones al iniciar (sin bloquear el arranque; se desactiva en Ajustes).
+  let appVersion = $state<string>("");
+  /** Notas de la versión nueva disponible (las publica la release en latest.json) */
+  function updateNotesMarkdown(): string {
+    const u = appUpdates.available;
+    if (!u) return "# Novedades\n\nNo hay ninguna versión nueva pendiente.";
+    // La release ya trae «## versión»: se quita para no repetir el título
+    const notes = (u.notes ?? "").replace(/^##[^\n]*\n+/, "").trim();
+    return `# Novedades de Synapse ${u.version}\n\n${notes || "Sin notas para esta versión."}\n`;
+  }
+  onMount(() => {
+    if (isDetachedWindow || !isTauriEnvironment()) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void getVersion().then((version) => {
+      appVersion = version;
+      let lastSeen: string | null = null;
+      let hadSettings = false;
+      try {
+        lastSeen = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+        // «Ajustes sin versión vista» = actualización desde una versión que no la guardaba; solo
+        // tiene sentido en builds publicadas (en desarrollo/e2e se recarga con ajustes a medias)
+        hadSettings = hadStoredSettingsAtStartup && !import.meta.env.DEV;
+        localStorage.setItem(LAST_SEEN_VERSION_KEY, version);
+      } catch {
+        /* sin almacenamiento: no se abre nada */
+      }
+      const news = newsToOpenOnStartup(CHANGELOG_RAW, version, lastSeen, hadSettings);
+      if (news) selectTab(news.since ? `${NEWS_TAB}:${news.since}` : NEWS_TAB);
+    });
+    if (appSettings.autoCheckUpdates && !import.meta.env.DEV) {
+      timer = setTimeout(() => void appUpdates.check(true), 8000);
+    }
+    return () => clearTimeout(timer);
+  });
+
   onMount(() => {
     if (isDetachedWindow) return;
     void agentStore.startListening();
@@ -3541,6 +3582,18 @@
         },
       },
       {
+        id: "cmd-app-news",
+        name: "Synapse: Novedades (changelog)",
+        category: "Synapse",
+        action: () => selectTab(NEWS_TAB),
+      },
+      {
+        id: "cmd-app-check-updates",
+        name: "Synapse: Buscar actualizaciones",
+        category: "Synapse",
+        action: () => void appUpdates.check(false),
+      },
+      {
         id: "cmd-git-repo-log",
         name: "Git: Log de todas las ramas (git log --all)",
         category: "Git",
@@ -4363,6 +4416,18 @@
               onOpenStaged={() => selectTab(`diff-staged:${tabFile.slice("diff:".length)}`)}
             />
           </div>
+        {:else if tabFile.startsWith(NEWS_TAB) || tabFile === UPDATE_NOTES_TAB}
+          <!-- Novedades en memoria (no son archivos del vault) -->
+          <div class="tab-pane full-pane" class:hidden={tabPath !== activePath}>
+            {#if tabFile === UPDATE_NOTES_TAB}
+              <NewsTab
+                pendingUpdate
+                markdown={updateNotesMarkdown()}
+              />
+            {:else}
+              <NewsTab markdown={newsMarkdown(CHANGELOG_RAW, appVersion, tabFile.slice(NEWS_TAB.length).replace(/^:/, "") || undefined)} />
+            {/if}
+          </div>
         {:else if tabFile.startsWith("rev:")}
           {@const rest = tabFile.slice("rev:".length)}
           {@const firstColonIdx = rest.indexOf(":")}
@@ -4980,6 +5045,9 @@
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
+  {#if !isDetachedWindow}
+    <UpdateNotice onShowNotes={() => { appUpdates.noticeOpen = false; selectTab(UPDATE_NOTES_TAB); }} />
+  {/if}
   <ShortcutsPanel bind:isOpen={isShortcutsPanelOpen}/>
 
   <!-- 5. BUSCADOR RÁPIDO DE ARCHIVOS (OVERLAY CTRL+O) -->

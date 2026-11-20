@@ -30,6 +30,7 @@ use infrastructure::entrypoint::tauri::commands::{
     select_vault_folder, set_active_vault_path, set_diagram_split_ratio, set_note_view_mode,
     show_item_in_folder, start_mcp_server, stop_mcp_server, toggle_devtools, toggle_mcp_server,
     toggle_pin_workspace, uninstall_community_plugin, write_binary_file,
+    check_for_update, install_update, restart_app,
 };
 use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::env;
@@ -88,6 +89,9 @@ pub fn run() {
     builder
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
+            check_for_update,
+            install_update,
+            restart_app,
             get_supported_file_types,
             get_vault_notes,
             get_vault_files,
@@ -219,6 +223,8 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript
         ])
         .setup(|app| {
+            // Restos de una actualización anterior (Windows deja el .exe viejo como .old)
+            infrastructure::service::os::self_update::cleanup_old_binary();
             if let Ok(matches) = app.cli().matches() {
                 if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
                     print!("{}", help);

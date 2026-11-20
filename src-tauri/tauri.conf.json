@@ -49,7 +49,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "RWQeDPNOAk7T8jjbacJhPsEyhwduR5/JtD0E8FhlmuHeL0M7MKj+1DzJ",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyRDM0RTAyNEVGMzBDMUUKUldRZURQTk9BazdUOGpqYmFjSmhQc0V5aHdkdVI1L0p0RDBFOEZobG11SGVMME03TUtqKzFEekoK",
       "endpoints": [
         "https://github.com/Miuler/synapse.rs/releases/latest/download/latest.json"
       ]

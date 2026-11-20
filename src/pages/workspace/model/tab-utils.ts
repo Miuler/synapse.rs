@@ -55,6 +55,8 @@ export function cleanTabTitle(rawTitle: string, path: string | null | undefined)
 export function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
   if (!path) return fallbackTitle;
   if (path.startsWith('empty:')) return 'Nueva pestaña';
+  if (path === 'synapse://update-notes') return 'Novedades de la nueva versión';
+  if (path.startsWith('synapse://news')) return 'Novedades';
   if (path.startsWith('synapse://graph')) {
     const target = path.slice('synapse://graph'.length).replace(/^:/, '');
     if (target) {
