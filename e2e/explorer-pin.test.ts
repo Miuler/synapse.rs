@@ -8,7 +8,9 @@ let s: Session;
 beforeAll(async () => {
   s = await startApp({ 'uno.md': '# Uno\n', 'dos.md': '# Dos\n' });
   await s.browser.$('.file-tree-item[data-path="uno.md"]').waitForExist({ timeout: 30_000 });
-  await s.browser.execute(() => localStorage.removeItem('synapse.explorer.pinned'));
+  await s.browser.execute(() => {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('synapse.explorer.pinned')) localStorage.removeItem(k);
+  });
 }, 120_000);
 afterAll(() => s?.close());
 
@@ -61,7 +63,12 @@ it('fijado ocupa espacio; suelto flota sobre el editor y se oculta al abrir un a
   await s.browser.waitUntil(async () => !(await rects()).visible, { timeout: 5_000, timeoutMsg: 'clic fuera no lo ocultó' });
 
   // La elección se recuerda; fijarlo de nuevo vuelve al comportamiento de siempre
-  expect(await s.browser.execute(() => localStorage.getItem('synapse.explorer.pinned'))).toBe('0');
+  // Se recuerda por bóveda (la clave lleva su ruta)
+  expect(
+    await s.browser.execute(() =>
+      Object.keys(localStorage).filter((k) => k.startsWith('synapse.explorer.pinned::')).map((k) => localStorage.getItem(k)),
+    ),
+  ).toEqual(['0']);
   await s.browser.$(filesButton).click();
   await s.browser.waitUntil(async () => (await rects()).visible, { timeout: 5_000 });
   await s.browser.$('.sidebar-pin-btn').click();

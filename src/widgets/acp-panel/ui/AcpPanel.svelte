@@ -19,6 +19,7 @@
     Ellipsis,
   } from 'lucide-svelte';
   import { onMount } from 'svelte';
+  import { loadVaultFlag, saveVaultFlag } from '@shared/lib/vault-prefs';
 
   interface Props {
     /** Carpeta de trabajo (bóveda abierta). */
@@ -74,6 +75,42 @@
 
   /** Con una conversación fijada, el panel acoplado se ensancha para la segunda columna. */
   const dockedWidth = $derived(agentStore.pinnedConversation ? width * 2 : width);
+
+  // Fijado (ocupa su espacio a la derecha) o suelto (flota sobre el editor, como el explorador sin
+  // fijar, y se oculta al hacer clic fuera o con Esc). Se recuerda por bóveda.
+  const PIN_KEY = 'synapse.agent.pinned';
+  let pinned = $state(loadVaultFlag(PIN_KEY, cwd, true));
+  $effect(() => {
+    pinned = loadVaultFlag(PIN_KEY, cwd, true);
+  });
+  function togglePinned() {
+    pinned = !pinned;
+    saveVaultFlag(PIN_KEY, cwd, pinned);
+  }
+  const overlay = $derived(!agentStore.floating && !pinned);
+  let dockedEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!overlay) return;
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || dockedEl?.contains(t)) return;
+      // El botón que abre el panel, menús y diálogos no lo cierran
+      if (t.closest('.agent-toggle, [role="menu"], [role="dialog"], [role="alertdialog"], [data-context-menu-content], .link-chooser-backdrop')) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.shiftKey && dockedEl?.contains(document.activeElement)) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  });
 
   function formatDate(ms: number) {
     return new Date(ms).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -185,6 +222,21 @@
       disabled={!cwd || !agentStore.fallbackAgentId}
       onclick={() => agentStore.fallbackAgentId && startWith(agentStore.fallbackAgentId)}><Plus size={15} /></button
     >
+    {#if !agentStore.floating}
+      <button
+        type="button"
+        class="acp-icon acp-pin-btn"
+        class:active={pinned}
+        aria-pressed={pinned}
+        aria-label={pinned ? 'Soltar panel del agente' : 'Fijar panel del agente'}
+        title={pinned
+          ? 'Soltar: el panel flota sobre el editor y no le quita espacio (se oculta al hacer clic fuera)'
+          : 'Fijar: el panel ocupa su espacio al lado del editor'}
+        onclick={togglePinned}
+      >
+        {#if pinned}<Pin size={13} />{:else}<PinOff size={13} />{/if}
+      </button>
+    {/if}
     <button
       type="button"
       class="acp-icon"
@@ -392,7 +444,13 @@
     {@render content()}
   </section>
 {:else}
-  <aside class="acp-panel docked synapse-agent-panel synapse-right-sidebar" style="width: {dockedWidth}px;" aria-label="Agente">
+  <aside
+    class="acp-panel docked synapse-agent-panel synapse-right-sidebar"
+    class:is-overlay={overlay}
+    bind:this={dockedEl}
+    style="width: {dockedWidth}px;"
+    aria-label="Agente"
+  >
     <div
       role="separator"
       tabindex="-1"
@@ -418,6 +476,18 @@
     flex-shrink: 0;
     height: 100%;
     border-left: 1px solid var(--border-primary);
+  }
+  /* Sin fijar: encima del editor, pegado a la derecha, sin quitarle espacio */
+  .acp-panel.docked.is-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .acp-pin-btn.active {
+    color: var(--accent);
   }
   .acp-panel.floating {
     position: fixed;

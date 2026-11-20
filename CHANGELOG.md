@@ -9,7 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
-- Índice OKF (Open Knowledge Format v0.3) en cada carpeta: Synapse mantiene un `index.md` con sus subcarpetas, conceptos (notas con `type`, con su `description`) y demás archivos, para que un agente pueda recorrer la bóveda desde el disco. Se regenera al cambiar la carpeta y solo se escribe si cambia (pensado para commitearse); en la raíz lleva `okf_version: "0.3"` y conserva `title`, `description`, `license` y `x-…`. Un `index.md` propio se renombra a `index.deprecado.md`. En Synapse se abre en solo lectura y no sale en la búsqueda. `SYNAPSE_OKF_INDEX=0` lo desactiva.
+- Panel del agente con pin, como el explorador: fijado ocupa su espacio a la derecha; suelto flota sobre el editor sin quitarle espacio y se oculta al hacer clic fuera o con Esc.
+- Índice OKF (Open Knowledge Format v0.3) en cada carpeta: Synapse mantiene un `index.md` con sus subcarpetas, conceptos (notas con `type`, con su `description`) y demás archivos, para que un agente pueda recorrer la bóveda desde el disco. Se regenera al cambiar la carpeta y solo se escribe si cambia (pensado para commitearse); en la raíz lleva `okf_version: "0.3"` y conserva `title`, `description`, `license` y `x-…`. Un `index.md` propio se renombra a `index.deprecado.md`. En Synapse se abre en solo lectura (sin el botón de lectura/escritura) y no sale en la búsqueda; un enlace a una carpeta (`carpeta/`) abre su `index.md`. `SYNAPSE_OKF_INDEX=0` lo desactiva.
 - MCP: `read_note` devuelve además el `index.md` de la raíz y el de la carpeta de la nota.
 - Diff de texto: una línea indica qué es cada lado (◀ antes · después ▶, o − antes / + después).
 - `synapse-server`: contrato gRPC `synapse.sync.v1` (`proto/synapse/sync/v1/sync.proto`), generación con `tonic-prost-build` en `build.rs`, servidor `tonic` en `grpc_addr` con `tonic-health` (`SERVING`), `tonic-reflection`, límites `max_message_bytes`, `SyncController` (`UNIMPLEMENTED`) y mapeo centralizado de errores `google.rpc` con `tonic-types`.
@@ -24,6 +25,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Si el explorador y el panel del agente están fijados se recuerda por bóveda (la primera vez cada bóveda toma el último valor global).
 - Diff visual «2 Paneles»: izquierda = antes (Git, versión anterior, primer archivo) y derecha = después (disco, versión nueva), igual que el diff de texto; el panel editable del disco pasa a la derecha.
 - Al guardar una nota Markdown ya no se añade `title` al frontmatter (ni se crea un frontmatter solo para eso): el título por defecto es el nombre del archivo. Al renombrar, el `title` solo cambia si ya existía y coincidía con el nombre anterior; un título propio se respeta. El `write_note` del MCP solo escribe `title` si se le pasa.
 - El diff de texto se abre colapsado, mostrando solo los cambios («Expandir todo» en la barra para verlo entero). `diff.max_expand_lines` en config.jsonc vale ahora 0; con un número mayor, los archivos de hasta esas líneas se abren expandidos como antes.

@@ -53,4 +53,16 @@ it('en Synapse el index.md generado se abre en solo lectura', async () => {
       return !!c && c.offsetParent !== null;
     }),
   ).toBe(false);
+  // Sin el botón de lectura/escritura
+  expect(await s.browser.execute(() => !!document.querySelector('.view-toggle-btn'))).toBe(false);
+  // Un enlace a una carpeta abre el index.md de esa carpeta
+  await s.browser.execute(() => {
+    const a = [...document.querySelectorAll('.markdown-reading-wrapper .markdown-body a')].find((x) => x.textContent?.trim() === 'proyecto') as HTMLElement;
+    a.click();
+  });
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md',
+    { timeout: 10_000, timeoutMsg: 'el enlace a la carpeta no abrió su index.md' },
+  );
 }, 30_000);

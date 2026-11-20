@@ -52,6 +52,7 @@
   import { t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
   import { stepViewerZoom } from "@shared/lib/viewer-zoom";
+  import { loadVaultFlag, saveVaultFlag } from "@shared/lib/vault-prefs";
   import {
     isImageFile,
     isMarkdownFile,
@@ -111,13 +112,14 @@
 
   // Estados reactivos con Runas de Svelte 5
   let activeRibbonTab = $state("files");
-  // Explorador fijado (ocupa espacio) o suelto (flota sobre el editor); se recuerda
-  let explorerPinned = $state((() => {
-    try { return localStorage.getItem('synapse.explorer.pinned') !== '0'; } catch { return true; }
-  })());
+  // Explorador fijado (ocupa espacio) o suelto (flota sobre el editor); se recuerda por bóveda
+  let explorerPinned = $state(loadVaultFlag('synapse.explorer.pinned', appSettings.lastOpenedFolder, true));
+  $effect(() => {
+    explorerPinned = loadVaultFlag('synapse.explorer.pinned', appSettings.lastOpenedFolder, true);
+  });
   function toggleExplorerPinned() {
     explorerPinned = !explorerPinned;
-    try { localStorage.setItem('synapse.explorer.pinned', explorerPinned ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    saveVaultFlag('synapse.explorer.pinned', appSettings.lastOpenedFolder, explorerPinned);
   }
   // Orden en que se abrieron los paneles laterales, para que Shift+Escape cierre el último
   // («left»: explorador u otro panel de la barra izquierda; «agent»: el panel del agente)
@@ -1367,7 +1369,9 @@
 
   function handleNavigateLink(targetPath: string) {
     if (!targetPath) return;
-    const { path: cleanPath, anchor } = splitNavigationTarget(targetPath);
+    let { path: cleanPath, anchor } = splitNavigationTarget(targetPath);
+    // Enlace a una carpeta (`carpeta/`, como en los index.md OKF): se abre el index.md de esa carpeta
+    if (cleanPath && cleanPath.endsWith('/')) cleanPath = `${cleanPath}index.md`;
     if (cleanPath) {
       // Si no es una ruta exacta de la bóveda: tal cual relativo a la nota, único por nombre o ambiguo
       if (!vaultItemStore.get(cleanPath) && !isSyntheticTab(cleanPath)) {
@@ -5051,7 +5055,7 @@
         onNavigateBack={navigateBack}
         onNavigateForward={navigateForward}
         isMarkdownFile={isMarkdownTab}
-        showViewToggle={hasActiveContent || isDrawioImage(activeFile)}
+        showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile)}
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -5115,7 +5119,7 @@
           onNavigateBack={navigateBack}
           onNavigateForward={navigateForward}
           isMarkdownFile={isMarkdownTab}
-          showViewToggle={hasActiveContent || isDrawioImage(activeFile)}
+          showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile)}
           markdownViewMode={!isEditing ? "reading" : markdownViewMode}
           onChangeMarkdownView={handleChangeMarkdownView}
           title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -5183,7 +5187,7 @@
           canGoBack={false}
           canGoForward={false}
           isMarkdownFile={isMarkdownSplitTab}
-          showViewToggle={hasActiveSplitContent || isDrawioImage(activeSplitFile)}
+          showViewToggle={(hasActiveSplitContent && !isGeneratedOkfIndex(activeSplitFile ?? '', openedNotes[activeSplitFile ?? '']?.content ?? '')) || isDrawioImage(activeSplitFile)}
           markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
           onChangeMarkdownView={handleChangeSplitMarkdownView}
           title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
