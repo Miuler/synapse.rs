@@ -7,8 +7,13 @@
     Loader2,
     Search,
     Trash2,
+    List,
+    FolderTree,
+    Folder,
+    ChevronRight,
   } from 'lucide-svelte';
   import GitRepoSelect from './GitRepoSelect.svelte';
+  import { buildCommitTree, type CommitTreeNode } from '../lib/commit-tree';
 
   export interface GitCommitFileItem {
     path: string;
@@ -45,6 +50,32 @@
   let selectedSet = $state<Set<string>>(new Set());
   let textareaEl = $state<HTMLTextAreaElement | null>(null);
 
+  // Vista en lista o en árbol de carpetas; se recuerda entre aperturas
+  const VIEW_KEY = 'synapse.gitCommitDialog.view';
+  function readView(): 'list' | 'tree' {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'tree' ? 'tree' : 'list';
+    } catch {
+      return 'list';
+    }
+  }
+  let viewMode = $state<'list' | 'tree'>(readView());
+  function toggleView() {
+    viewMode = viewMode === 'list' ? 'tree' : 'list';
+    try {
+      localStorage.setItem(VIEW_KEY, viewMode);
+    } catch {
+      /* sin almacenamiento: solo dura esta sesión */
+    }
+  }
+  let collapsed = $state<Set<string>>(new Set());
+  function toggleCollapsed(path: string) {
+    const next = new Set(collapsed);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    collapsed = next;
+  }
+
   const effectiveFiles = $derived.by<GitCommitFileItem[]>(() => {
     if (allFiles && allFiles.length > 0) {
       return allFiles;
@@ -65,6 +96,8 @@
     if (!q) return effectiveFiles;
     return effectiveFiles.filter((f) => f.path.toLowerCase().includes(q));
   });
+
+  const tree = $derived(buildCommitTree(filteredFiles));
 
   const selectedPaths = $derived(
     effectiveFiles.filter((f) => selectedSet.has(f.path)).map((f) => f.path)
@@ -121,6 +154,17 @@
       next.delete(path);
     } else {
       next.add(path);
+    }
+    selectedSet = next;
+  }
+
+  function toggleFolder(filePaths: string[]) {
+    if (loading) return;
+    const next = new Set(selectedSet);
+    const all = filePaths.every((p) => next.has(p));
+    for (const p of filePaths) {
+      if (all) next.delete(p);
+      else next.add(p);
     }
     selectedSet = next;
   }
@@ -233,6 +277,17 @@
           <span class="git-commit-files-title">
             Archivos a confirmar ({selectedPaths.length} de {effectiveFiles.length} seleccionados):
           </span>
+          <span class="git-commit-files-actions">
+          <button
+            type="button"
+            class="git-commit-view-btn"
+            onclick={toggleView}
+            title={viewMode === 'list' ? 'Ver en árbol de carpetas' : 'Ver como lista'}
+            aria-label={viewMode === 'list' ? 'Ver en árbol de carpetas' : 'Ver como lista'}
+            aria-pressed={viewMode === 'tree'}
+          >
+            {#if viewMode === 'list'}<FolderTree size={13} />{:else}<List size={13} />{/if}
+          </button>
           {#if effectiveFiles.length > 0}
             <button
               type="button"
@@ -243,6 +298,7 @@
               {allFilteredSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
             </button>
           {/if}
+          </span>
         </div>
 
         {#if effectiveFiles.length > 6}
@@ -268,56 +324,18 @@
           </div>
         {/if}
 
-        <div class="git-commit-files-list">
-          {#each filteredFiles as file (file.path)}
-            {@const isChecked = selectedSet.has(file.path)}
-            {@const isDeleted = file.isDeleted || file.statusKind === 'deleted'}
-            <label
-              class="git-commit-file-item"
-              class:checked={isChecked}
-              class:is-deleted={isDeleted}
-              title={file.path}
-            >
-              <input
-                type="checkbox"
-                checked={isChecked}
-                onchange={() => toggleFile(file.path)}
-                disabled={loading}
-                class="git-commit-checkbox"
-              />
-
-              <span
-                class="git-status-badge status-{file.statusKind || 'modified'}"
-                title={file.statusLabel || file.statusKind}
-              >
-                {#if isDeleted}
-                  <Trash2 size={10} />
-                  <span>Eliminado</span>
-                {:else if file.statusKind === 'untracked'}
-                  <span>Nuevo</span>
-                {:else if file.statusKind === 'added'}
-                  <span>Añadido</span>
-                {:else if file.statusKind === 'staged'}
-                  <span>Staged</span>
-                {:else}
-                  <span>Modificado</span>
-                {/if}
-              </span>
-
-              <span class="git-commit-file-path">
-                <span class="git-commit-file-name" class:strikethrough={isDeleted}>
-                  {getFilename(file.path)}
-                </span>
-                {#if getDirname(file.path)}
-                  <span class="git-commit-file-dir">{getDirname(file.path)}/</span>
-                {/if}
-              </span>
-            </label>
-          {:else}
+        <div class="git-commit-files-list" class:tree={viewMode === 'tree'}>
+          {#if filteredFiles.length === 0}
             <div class="git-commit-empty-files">
               {filterText ? 'No hay archivos que coincidan con el filtro' : 'No hay archivos con cambios'}
             </div>
-          {/each}
+          {:else if viewMode === 'list'}
+            {#each filteredFiles as file (file.path)}
+              {@render fileRow(file, 0, true)}
+            {/each}
+          {:else}
+            {@render treeNodes(tree, 0)}
+          {/if}
         </div>
       </div>
 
@@ -349,6 +367,97 @@
       {/if}
 
 </ResizableDialog>
+
+{#snippet fileRow(file: GitCommitFileItem, depth: number, showDir: boolean)}
+  {@const isChecked = selectedSet.has(file.path)}
+  {@const isDeleted = file.isDeleted || file.statusKind === 'deleted'}
+  <label
+    class="git-commit-file-item"
+    class:checked={isChecked}
+    class:is-deleted={isDeleted}
+    title={file.path}
+    style:padding-left={depth ? `${8 + depth * 16}px` : null}
+  >
+    <input
+      type="checkbox"
+      checked={isChecked}
+      onchange={() => toggleFile(file.path)}
+      disabled={loading}
+      class="git-commit-checkbox"
+    />
+
+    <span
+      class="git-status-badge status-{file.statusKind || 'modified'}"
+      title={file.statusLabel || file.statusKind}
+    >
+      {#if isDeleted}
+        <Trash2 size={10} />
+        <span>Eliminado</span>
+      {:else if file.statusKind === 'untracked'}
+        <span>Nuevo</span>
+      {:else if file.statusKind === 'added'}
+        <span>Añadido</span>
+      {:else if file.statusKind === 'staged'}
+        <span>Staged</span>
+      {:else}
+        <span>Modificado</span>
+      {/if}
+    </span>
+
+    <span class="git-commit-file-path">
+      <span class="git-commit-file-name" class:strikethrough={isDeleted}>
+        {getFilename(file.path)}
+      </span>
+      {#if showDir && getDirname(file.path)}
+        <span class="git-commit-file-dir">{getDirname(file.path)}/</span>
+      {/if}
+    </span>
+  </label>
+{/snippet}
+
+{#snippet treeNodes(nodes: CommitTreeNode<GitCommitFileItem>[], depth: number)}
+  {#each nodes as node (node.kind + ':' + node.path)}
+    {#if node.kind === 'file'}
+      {@render fileRow(node.item, depth, false)}
+    {:else}
+      {@const selectedCount = node.filePaths.filter((p) => selectedSet.has(p)).length}
+      {@const isOpen = !collapsed.has(node.path) || !!filterText.trim()}
+      <div
+        class="git-commit-folder-item"
+        class:checked={selectedCount === node.filePaths.length}
+        data-folder={node.path}
+        title={node.path + '/'}
+        style:padding-left={`${8 + depth * 16}px`}
+      >
+        <button
+          type="button"
+          class="git-commit-folder-chevron"
+          class:open={isOpen}
+          onclick={() => toggleCollapsed(node.path)}
+          aria-label={isOpen ? 'Plegar carpeta' : 'Desplegar carpeta'}
+          aria-expanded={isOpen}
+        >
+          <ChevronRight size={12} />
+        </button>
+        <input
+          type="checkbox"
+          checked={selectedCount === node.filePaths.length}
+          indeterminate={selectedCount > 0 && selectedCount < node.filePaths.length}
+          onchange={() => toggleFolder(node.filePaths)}
+          disabled={loading}
+          class="git-commit-checkbox"
+          aria-label="Seleccionar la carpeta {node.path}"
+        />
+        <Folder size={13} class="git-commit-folder-icon" />
+        <button type="button" class="git-commit-folder-name" onclick={() => toggleCollapsed(node.path)}>{node.name}/</button>
+        <span class="git-commit-folder-count">{selectedCount}/{node.filePaths.length}</span>
+      </div>
+      {#if isOpen}
+        {@render treeNodes(node.children, depth + 1)}
+      {/if}
+    {/if}
+  {/each}
+{/snippet}
 
 <style>
   .git-commit-branch-badge {
@@ -391,6 +500,87 @@
     color: var(--text-secondary, #656d76);
     text-transform: uppercase;
     letter-spacing: 0.3px;
+  }
+
+  .git-commit-files-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .git-commit-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 4px;
+    border: 1px solid var(--border-primary, #d0d7de);
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+  }
+
+  .git-commit-view-btn:hover {
+    color: var(--accent, #0969da);
+    border-color: var(--accent, #0969da);
+  }
+
+  .git-commit-folder-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-primary, #1f2328);
+    user-select: none;
+  }
+
+  .git-commit-folder-item:hover {
+    background: var(--bg-tertiary, #eaeef2);
+  }
+
+  .git-commit-folder-chevron {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-secondary, #656d76);
+    cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+
+  .git-commit-folder-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  :global(.git-commit-folder-icon) {
+    color: var(--text-secondary, #656d76);
+    flex-shrink: 0;
+  }
+
+  .git-commit-folder-name {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    text-align: left;
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #1f2328);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .git-commit-folder-count {
+    font-size: 10.5px;
+    color: var(--text-muted, #8c959f);
+    flex-shrink: 0;
   }
 
   .git-commit-toggle-all-btn {
