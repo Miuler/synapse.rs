@@ -5,6 +5,9 @@
   import { vaultRepository } from '@shared/repositories';
   import { systemApi } from '@shared/api';
   import { ExternalLink, TriangleAlert } from 'lucide-svelte';
+  import { appSettings } from '@entities/settings';
+  import { ZoomControl } from '@shared/ui/zoom-control';
+  import { stepViewerZoom } from '@shared/lib/viewer-zoom';
 
   interface Props {
     /** Ruta relativa a la bóveda */
@@ -16,6 +19,7 @@
 
   let body = $state<HTMLDivElement | null>(null);
   let styles = $state<HTMLDivElement | null>(null);
+  let scroller = $state<HTMLDivElement | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let generation = 0;
@@ -58,6 +62,41 @@
     if (body && styles) render();
   });
 
+  // Zoom de toda la página (CSS `zoom`: la maquetación crece entera, como en un PDF)
+  const zoom = $derived(appSettings.docxZoom);
+
+  function setZoom(z: number) {
+    if (!scroller) return appSettings.setViewerZoom('docx', z);
+    // Mantener a la vista el mismo punto del documento
+    const ratioY = scroller.scrollHeight ? (scroller.scrollTop + scroller.clientHeight / 2) / scroller.scrollHeight : 0;
+    appSettings.setViewerZoom('docx', z);
+    requestAnimationFrame(() => {
+      if (scroller) scroller.scrollTop = ratioY * scroller.scrollHeight - scroller.clientHeight / 2;
+    });
+  }
+
+  /** La página más ancha ocupa todo el ancho disponible */
+  function fitWidth() {
+    const pages = body ? [...body.querySelectorAll<HTMLElement>('section.docx')] : [];
+    if (!scroller || !pages.length) return;
+    const pageWidth = Math.max(...pages.map((p) => p.getBoundingClientRect().width)) / zoom;
+    const padding = 32; // relleno lateral del fondo gris (también escala)
+    setZoom((scroller.clientWidth - 16) / (pageWidth + padding));
+  }
+
+  // Ctrl+rueda: zoom (no pasivo para poder evitar el desplazamiento)
+  $effect(() => {
+    const el = scroller;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || !e.deltaY) return;
+      e.preventDefault();
+      setZoom(stepViewerZoom(appSettings.docxZoom, e.deltaY < 0 ? 1 : -1));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+
   function openExternal() {
     systemApi.openFileWithDefaultApp(path).catch((e) => console.warn('No se pudo abrir con la aplicación del sistema:', e));
   }
@@ -68,13 +107,14 @@
     <span class="docx-status">
       {#if loading}Leyendo documento…{:else if error}<TriangleAlert size={14} /> {error}{:else}Solo lectura{/if}
     </span>
+    <ZoomControl {zoom} onChange={setZoom} onFit={fitWidth} />
     <button type="button" class="open-external" title="Abrir con la aplicación del sistema para editarlo" onclick={openExternal}>
       <ExternalLink size={14} /> Abrir en la aplicación
     </button>
   </div>
-  <div class="docx-scroll">
+  <div class="docx-scroll" bind:this={scroller}>
     <div class="docx-styles" bind:this={styles}></div>
-    <div class="docx-body" bind:this={body}></div>
+    <div class="docx-body" style={`zoom:${zoom}`} bind:this={body}></div>
   </div>
 </div>
 
@@ -127,11 +167,19 @@
     overflow: auto;
   }
   /* El fondo gris de docx-preview, con las páginas blancas como papel */
+  /* Centrado con márgenes automáticos (no con flex): con zoom, una página más ancha que la
+     ventana no se corta por la izquierda, se llega a todo desplazando */
   .docx-body :global(.docx-wrapper) {
     background: var(--bg-secondary);
     padding: 24px 16px;
+    align-items: flex-start;
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
   }
   .docx-body :global(.docx-wrapper > section.docx) {
+    margin-left: auto;
+    margin-right: auto;
     margin-bottom: 24px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
     color: #000;

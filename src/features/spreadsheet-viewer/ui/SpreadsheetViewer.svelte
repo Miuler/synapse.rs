@@ -5,6 +5,9 @@
   // según se desplaza. Solo se pintan las filas y columnas a la vista (más un margen).
   import { invokeTauri } from '@shared/api/tauri-client';
   import { systemApi } from '@shared/api';
+  import { appSettings } from '@entities/settings';
+  import { ZoomControl } from '@shared/ui/zoom-control';
+  import { stepViewerZoom } from '@shared/lib/viewer-zoom';
   import { FunctionSquare, EyeOff, Eye, TriangleAlert, ExternalLink } from 'lucide-svelte';
   import type { WorkbookInfo, SheetLayout, CellBlock, Cell } from '../model/types';
   import { buildGeometry, visibleWindow, visibleMerges, colName, styleToCss, DEFAULT_ROW_PX } from '../lib/grid';
@@ -139,7 +142,41 @@
     if (sheetName) memory.set(path, { sheet: sheetName, r: sel.r, c: sel.c });
   });
 
-  const grid = $derived(layout ? buildGeometry(layout) : null);
+  // Zoom de toda la rejilla: se multiplican las medidas y la letra (no se escala la imagen, así
+  // se siguen pintando solo las filas y columnas a la vista)
+  const zoom = $derived(appSettings.sheetZoom);
+  const headH = $derived(Math.round(HEAD_H * zoom));
+  const headW = $derived(Math.round(HEAD_W * zoom));
+
+  function setZoom(z: number) {
+    const before = appSettings.sheetZoom;
+    appSettings.setViewerZoom('sheet', z);
+    const ratio = appSettings.sheetZoom / before;
+    if (!scroller || ratio === 1) return;
+    // Mantener a la vista el mismo sitio de la hoja
+    const cx = scroller.scrollLeft + scroller.clientWidth / 2;
+    const cy = scroller.scrollTop + scroller.clientHeight / 2;
+    requestAnimationFrame(() => {
+      if (!scroller) return;
+      scroller.scrollLeft = cx * ratio - scroller.clientWidth / 2;
+      scroller.scrollTop = cy * ratio - scroller.clientHeight / 2;
+    });
+  }
+
+  // Ctrl+rueda: zoom (no pasivo para poder evitar el desplazamiento)
+  $effect(() => {
+    const el = scroller;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || !e.deltaY) return;
+      e.preventDefault();
+      setZoom(stepViewerZoom(appSettings.sheetZoom, e.deltaY < 0 ? 1 : -1));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+
+  const grid = $derived(layout ? buildGeometry(layout, zoom) : null);
   const win = $derived(grid ? visibleWindow(grid, scrollTop, scrollLeft, viewHeight, viewWidth) : null);
   const visRows = $derived(grid && win ? grid.rows.slice(win.rows.from, win.rows.to + 1) : []);
   const visCols = $derived(grid && win ? grid.cols.slice(win.cols.from, win.cols.to + 1) : []);
@@ -308,6 +345,7 @@
       >
         <FunctionSquare size={14} /> Fórmulas
       </button>
+      <ZoomControl {zoom} onChange={setZoom} />
       <button
         type="button"
         class="sheet-btn open-external"
@@ -332,8 +370,8 @@
         <div class="sheet-message">La hoja está vacía.</div>
       {:else}
         <!-- Cabeceras fuera del área que se desplaza: se mueven con ella por transform -->
-        <div class="corner" style={`width:${HEAD_W}px;height:${HEAD_H}px`}></div>
-        <div class="col-heads" style={`left:${HEAD_W}px;height:${HEAD_H}px`}>
+        <div class="corner" style={`width:${headW}px;height:${headH}px`}></div>
+        <div class="col-heads" style={`left:${headW}px;height:${headH}px;font-size:${11 * zoom}px`}>
           <div class="heads-inner" style={`transform:translateX(${-scrollLeft}px)`}>
             {#each visCols as c (c)}
               <div class="col-head" class:sel={c === sel.c} style={`left:${grid.colLeft[ci(c)]}px;width:${grid.colPx[ci(c)]}px`}>
@@ -342,7 +380,7 @@
             {/each}
           </div>
         </div>
-        <div class="row-heads" style={`top:${HEAD_H}px;width:${HEAD_W}px`}>
+        <div class="row-heads" style={`top:${headH}px;width:${headW}px;font-size:${11 * zoom}px`}>
           <div class="heads-inner" style={`transform:translateY(${-scrollTop}px)`}>
             {#each visRows as r (r)}
               <div class="row-head" class:sel={r === sel.r} style={`top:${grid.rowTop[ri(r)]}px;height:${grid.rowPx[ri(r)]}px`}>{r}</div>
@@ -354,7 +392,7 @@
       <div
         class="sheet-scroll"
         class:formulas={showFormulas}
-        style={`top:${HEAD_H}px;left:${HEAD_W}px`}
+        style={`top:${headH}px;left:${headW}px`}
         tabindex="0"
         role="grid"
         aria-label={`Hoja ${sheetName}`}
@@ -368,7 +406,7 @@
         onkeydown={onKeydown}
       >
         {#if layout && grid && win && (layout.cellCount || layout.merges.length)}
-          <div class="sheet-canvas" style={`width:${grid.width}px;height:${grid.height}px`}>
+          <div class="sheet-canvas" style={`width:${grid.width}px;height:${grid.height}px;font-size:${(14.67 * zoom).toFixed(2)}px;--cell-pad:${(3 * zoom).toFixed(1)}px`}>
             {#each visRows as r (r)}
               {@const top = grid.rowTop[ri(r)]}
               {@const h = grid.rowPx[ri(r)]}
@@ -537,7 +575,6 @@
     position: relative;
     color: #000;
     font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif;
-    font-size: 14.5px;
     line-height: 1.2;
   }
   .sheet-cell {
@@ -546,7 +583,7 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    padding: 0 3px;
+    padding: 0 var(--cell-pad, 3px);
     border-right: 1px solid #e1e1e1;
     border-bottom: 1px solid #e1e1e1;
     overflow: hidden;
@@ -576,7 +613,7 @@
   }
   .sheet-scroll.formulas .sheet-cell.has-formula {
     font-family: var(--font-mono, monospace);
-    font-size: 12px;
+    font-size: 0.82em;
     text-align: left !important;
   }
   .corner,
@@ -586,7 +623,6 @@
     overflow: hidden;
     background: var(--bg-secondary);
     color: var(--text-secondary);
-    font-size: 11px;
   }
   .corner {
     top: 0;

@@ -25,6 +25,9 @@ export interface AppSettings {
   contentZoom: number;
   /** Zoom de toda la ventana (zoom del webview), aparte del de contenido. */
   uiZoom: number;
+  /** Zoom de los visores de Word y de hojas de cálculo (crece todo, como en un PDF). */
+  docxZoom: number;
+  sheetZoom: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
@@ -55,6 +58,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   drawioUrl: 'https://embed.diagrams.net/', // Editor público de draw.io en modo embed
   contentZoom: 1, // Tamaño del texto del editor y la previsualización
   uiZoom: 1, // Zoom de toda la interfaz
+  docxZoom: 1, // Zoom del visor de Word
+  sheetZoom: 1, // Zoom del visor de hojas de cálculo
 };
 
 function clampZoom(zoom: number): number {
@@ -84,6 +89,10 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.uiZoom === 'number' && Number.isFinite(parsed.uiZoom)) {
         settings.uiZoom = clampZoom(parsed.uiZoom);
+      }
+      for (const key of ['docxZoom', 'sheetZoom'] as const) {
+        const z = parsed[key];
+        if (typeof z === 'number' && Number.isFinite(z)) settings[key] = clampZoom(z);
       }
       if (typeof parsed.vimMode === 'boolean') {
         settings.vimMode = parsed.vimMode;
@@ -313,6 +322,23 @@ class SettingsManager {
     const next = clampZoom(zoom);
     if (next === this.settings.uiZoom) return;
     this.settings = { ...this.settings, uiZoom: next };
+    this.persist();
+  }
+
+  get docxZoom(): number {
+    return this.settings.docxZoom;
+  }
+
+  get sheetZoom(): number {
+    return this.settings.sheetZoom;
+  }
+
+  /** Zoom del visor de Word (`docx`) o de hojas de cálculo (`sheet`), de 50 % a 300 %. */
+  setViewerZoom(viewer: 'docx' | 'sheet', zoom: number) {
+    const key = viewer === 'docx' ? 'docxZoom' : 'sheetZoom';
+    const next = clampZoom(zoom);
+    if (next === this.settings[key]) return;
+    this.settings = { ...this.settings, [key]: next };
     this.persist();
   }
 

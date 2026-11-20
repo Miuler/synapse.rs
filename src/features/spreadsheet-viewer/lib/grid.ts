@@ -31,7 +31,8 @@ export interface MergeBox extends Merge {
   height: number;
 }
 
-export function buildGeometry(layout: SheetLayout): Geometry {
+/** Geometría de la hoja; `zoom` multiplica todas las medidas (crece todo, no solo la letra) */
+export function buildGeometry(layout: SheetLayout, zoom = 1): Geometry {
   const hiddenRows = new Set(layout.hiddenRows);
   const hiddenCols = new Set(layout.hiddenCols);
   const widths = new Map(layout.colWidths);
@@ -48,7 +49,7 @@ export function buildGeometry(layout: SheetLayout): Geometry {
   for (let c = 1; c <= nCols; c++) {
     if (hiddenCols.has(c)) continue;
     const w = widths.get(c);
-    const px = w ? Math.max(12, Math.round(w * 7 + 5)) : DEFAULT_COL_PX;
+    const px = Math.round((w ? Math.max(12, w * 7 + 5) : DEFAULT_COL_PX) * zoom);
     colIndex.set(c, cols.length);
     cols.push(c);
     colPx.push(px);
@@ -64,7 +65,7 @@ export function buildGeometry(layout: SheetLayout): Geometry {
   for (let r = 1; r <= nRows; r++) {
     if (hiddenRows.has(r)) continue;
     const h = heights.get(r);
-    const px = h ? Math.max(8, Math.round((h * 4) / 3)) : DEFAULT_ROW_PX;
+    const px = Math.round((h ? Math.max(8, (h * 4) / 3) : DEFAULT_ROW_PX) * zoom);
     rowIndex.set(r, rows.length);
     rows.push(r);
     rowPx.push(px);
@@ -165,7 +166,8 @@ export function styleToCss(st: CellStyle): string {
   if (deco) out.push(`text-decoration:${deco}`);
   if (st.color) out.push(`color:${st.color}`);
   if (st.bg) out.push(`background:${st.bg}`);
-  if (st.size10) out.push(`font-size:${(((st.size10 / 10) * 4) / 3).toFixed(1)}px`);
+  // En `em` respecto a la letra base de la rejilla (11 pt), que ya lleva el zoom
+  if (st.size10) out.push(`font-size:${(st.size10 / 110).toFixed(3)}em`);
   // La celda es una columna flex: el contenido va abajo salvo que diga otra cosa
   if (st.valign) out.push(`justify-content:${st.valign === 'top' ? 'flex-start' : 'center'}`);
   if (st.wrap) out.push('white-space:pre-wrap');

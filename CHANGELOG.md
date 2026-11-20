@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Zoom en los visores de Word y de hojas de cálculo que agranda todo, como en un PDF (no solo la letra): en Word la página entera, con «Ajustar al ancho»; en las hojas, anchos de columna, altos de fila, letra y cabeceras, sin dejar de pintar solo lo visible. De 50 % a 300 % con el control de la barra, Ctrl+rueda o los atajos de tamaño (Ctrl++, Ctrl+−, Ctrl+0), que dentro de estos visores hacen este zoom. Se recuerda un zoom para todos los Word y otro para todas las hojas.
 - Al copiar desde el modo lectura de Markdown una selección con tareas, las casillas se copian como ☐ (pendiente) y ✅ (hecha), con la lista y la negrita, para pegarlas en un correo o en Teams web (que quitan las casillas HTML); también en texto plano (`- ☐ tarea`). Sin tareas se copia como siempre.
 - Atajo configurable «Marcar / desmarcar tarea» (`toggle_task`, Ctrl+Enter por defecto) en el editor de Markdown, como en Obsidian: alterna `- [ ]` ↔ `- [x]` en la línea del cursor (o en todas las de la selección), añade la casilla a un elemento de lista que no la tiene y convierte una línea normal en tarea. Funciona también con Vim, en modo normal e inserción.
 

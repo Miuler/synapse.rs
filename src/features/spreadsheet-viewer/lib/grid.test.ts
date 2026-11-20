@@ -55,9 +55,16 @@ describe('rejilla', () => {
     expect(visibleMerges(g, 10_000, 10_600, 3_000, 3_800)).toEqual([big]);
   });
 
+  it('el zoom multiplica anchos y altos', () => {
+    const g = buildGeometry(layout({ colWidths: [[1, 20]] }), 1.5);
+    expect(g.colPx[0]).toBe(218);
+    expect(g.colPx[1]).toBe(96);
+    expect(g.rowPx[0]).toBe(30);
+  });
+
   it('CSS de estilos', () => {
     expect(styleToCss({ bold: true, bg: '#ffff00', align: 'center', size10: 140 })).toBe(
-      'font-weight:700;background:#ffff00;font-size:18.7px;text-align:center',
+      'font-weight:700;background:#ffff00;font-size:1.273em;text-align:center',
     );
   });
 });

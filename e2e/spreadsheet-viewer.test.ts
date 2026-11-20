@@ -156,3 +156,26 @@ it('pestañas de hojas: cambia de hoja y la oculta solo aparece al pedirla', asy
   await s.browser.keys(['Alt', 'PageDown']);
   await s.browser.waitUntil(async () => (await cell('A1'))?.text === 'Secreto', { timeout: 5_000, timeoutMsg: 'Alt+AvPág no cambió de hoja' });
 }, 60_000);
+
+it('zoom: Ctrl++ agranda toda la rejilla (anchos, altos y letra), Ctrl+0 vuelve', async () => {
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.spreadsheet-viewer .sheet-tab')].find((t) => t.textContent?.includes('Ventas')) as HTMLElement).click(),
+  );
+  await s.browser.waitUntil(async () => (await cell('A1'))?.text === 'Producto', { timeout: 5_000 });
+  const box = () =>
+    s.browser.execute(() => {
+      const c = document.querySelector('.spreadsheet-viewer .sheet-cell[data-cell="A2"]') as HTMLElement;
+      const r = c.getBoundingClientRect();
+      return { w: r.width, h: r.height, font: parseFloat(getComputedStyle(c).fontSize) };
+    }) as Promise<{ w: number; h: number; font: number }>;
+  const b100 = await box();
+  await s.browser.execute(() => (document.querySelector('.spreadsheet-viewer .sheet-scroll') as HTMLElement).focus());
+  for (const k of [['Control', '='], ['Control', '=']]) await s.browser.keys(k);
+  await s.browser.waitUntil(async () => Math.abs((await box()).w / b100.w - 1.2) < 0.03, { timeout: 5_000, timeoutMsg: 'no creció el ancho' });
+  const b120 = await box();
+  expect(b120.h / b100.h).toBeCloseTo(1.2, 1);
+  expect(b120.font / b100.font).toBeCloseTo(1.2, 1);
+  await s.browser.saveScreenshot('/tmp/claude-1000/-home-miuler-src-github-com-Miuler-synapse-rs/47a613e4-73f4-47e2-9153-fa7e86d7bbd0/scratchpad/sheet-120.png');
+  await s.browser.keys(['Control', '0']);
+  await s.browser.waitUntil(async () => Math.abs((await box()).w - b100.w) < 1, { timeout: 5_000, timeoutMsg: 'Ctrl+0 no volvió al 100 %' });
+}, 60_000);

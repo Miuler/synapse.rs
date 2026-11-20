@@ -47,6 +47,7 @@
   import {appearance} from "@entities/appearance";
   import { t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
+  import { stepViewerZoom } from "@shared/lib/viewer-zoom";
   import {
     isImageFile,
     isMarkdownFile,
@@ -1201,6 +1202,19 @@
   /** Archivos binarios de solo lectura: no se leen como texto ni se guardan desde Synapse */
   function isStaticBinary(path: string): boolean {
     return (isImageFile(path) && !isDrawingFile(path)) || isExcelFile(path) || isDocxFile(path);
+  }
+
+  /** Visor de documento (Word u hoja de cálculo) de la pestaña activa del panel con el foco */
+  function documentViewerOfFocusedPane(): 'docx' | 'sheet' | null {
+    const path = activeFocusedPane === 'right' ? activeSplitTabPath : activeTabPath;
+    if (!path) return null;
+    if (isDocxFile(path)) return 'docx';
+    if (isExcelFile(path)) return 'sheet';
+    return null;
+  }
+
+  function viewerZoom(viewer: 'docx' | 'sheet'): number {
+    return viewer === 'docx' ? appSettings.docxZoom : appSettings.sheetZoom;
   }
 
   /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
@@ -3873,19 +3887,25 @@
         e.stopImmediatePropagation();
       };
 
+      // En los visores de Word y de hojas de cálculo, los atajos de tamaño hacen zoom de todo
+      // (como en un PDF); en el resto cambian el tamaño del texto
+      const zoomViewer = documentViewerOfFocusedPane();
       if (matchesShortcut(e, ws.zoom_in)) {
         stopEvent();
-        appSettings.setContentZoom(appSettings.contentZoom + 0.1);
+        if (zoomViewer) appSettings.setViewerZoom(zoomViewer, stepViewerZoom(viewerZoom(zoomViewer), 1));
+        else appSettings.setContentZoom(appSettings.contentZoom + 0.1);
         return;
       }
       if (matchesShortcut(e, ws.zoom_out)) {
         stopEvent();
-        appSettings.setContentZoom(appSettings.contentZoom - 0.1);
+        if (zoomViewer) appSettings.setViewerZoom(zoomViewer, stepViewerZoom(viewerZoom(zoomViewer), -1));
+        else appSettings.setContentZoom(appSettings.contentZoom - 0.1);
         return;
       }
       if (matchesShortcut(e, ws.zoom_reset)) {
         stopEvent();
-        appSettings.setContentZoom(1);
+        if (zoomViewer) appSettings.setViewerZoom(zoomViewer, 1);
+        else appSettings.setContentZoom(1);
         return;
       }
 

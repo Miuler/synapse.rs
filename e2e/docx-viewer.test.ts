@@ -44,3 +44,37 @@ it('abre el .docx en una pestaña con su texto, la negrita y la tabla', async ()
   expect(info.status).toBe('Solo lectura');
   expect(info.button).toBe(true);
 }, 60_000);
+
+it('zoom: Ctrl++ y el control agrandan la página entera; «Ajustar al ancho» la ajusta', async () => {
+  const pageWidth = () =>
+    s.browser.execute(() => document.querySelector('.docx-viewer section.docx')!.getBoundingClientRect().width) as Promise<number>;
+  const w100 = await pageWidth();
+  await s.browser.execute(() => (document.querySelector('.docx-viewer .docx-scroll') as HTMLElement).focus());
+  await s.browser.keys(['Control', '=']);
+  await s.browser.waitUntil(async () => Math.abs((await pageWidth()) / w100 - 1.1) < 0.02, { timeout: 5_000, timeoutMsg: 'Ctrl+= no amplió la página' });
+  expect(await s.browser.execute(() => document.querySelector('.docx-viewer .zoom-value')?.textContent?.trim())).toBe('110 %');
+  await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-in') as HTMLElement).click());
+  await s.browser.waitUntil(async () => Math.abs((await pageWidth()) / w100 - 1.2) < 0.02, { timeout: 5_000 });
+  await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-fit') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => {
+        const sc = document.querySelector('.docx-viewer .docx-scroll') as HTMLElement;
+        const w = document.querySelector('.docx-viewer section.docx')!.getBoundingClientRect().width;
+        return w > sc.clientWidth * 0.85 && w <= sc.clientWidth;
+      })) as boolean,
+    { timeout: 5_000, timeoutMsg: 'no se ajustó al ancho' },
+  );
+  await s.browser.saveScreenshot('/tmp/claude-1000/-home-miuler-src-github-com-Miuler-synapse-rs/47a613e4-73f4-47e2-9153-fa7e86d7bbd0/scratchpad/docx-fit.png');
+  // Con mucho zoom la página no se corta por la izquierda: se llega a su borde desplazando
+  for (let i = 0; i < 12; i++) await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-in') as HTMLElement).click());
+  await s.browser.pause(300);
+  const edge = (await s.browser.execute(() => {
+    const sc = document.querySelector('.docx-viewer .docx-scroll') as HTMLElement;
+    sc.scrollLeft = 0;
+    return document.querySelector('.docx-viewer section.docx')!.getBoundingClientRect().left - sc.getBoundingClientRect().left;
+  })) as number;
+  expect(edge).toBeGreaterThanOrEqual(0);
+  await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-value') as HTMLElement).click());
+  await s.browser.waitUntil(async () => Math.abs((await pageWidth()) - w100) < 2, { timeout: 5_000 });
+}, 60_000);
