@@ -25,6 +25,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Corregido
 
 - **Versiones de un OpenAPI en el historial de Git**: «Ver archivo» muestra la API con Scalar, como en Lectura, en vez del YAML/JSON en texto plano; el botón Raw sigue mostrando el texto.
+- **Checkout de ramas remotas**: «Checkout» en una rama remota sin rama local crea la local con seguimiento (`git checkout -b feature/x --track origin/feature/x`) en vez de dejar HEAD suelto. Y una rama local con `/` (`feat/y`) ya no puede saltar a otra local llamada `y`.
 - **Vista Raw de una versión**: ya no dibuja una línea horizontal bajo cada línea de texto (heredaba el estilo de `code` en línea).
 
 ## [1.0.0-beta.4] - 2026-11-19

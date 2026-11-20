@@ -1773,41 +1773,62 @@ impl VersionControlImpl {
             return Err("Branch name cannot be empty".to_string());
         }
 
-        // Si es una rama remota ("origin/foo" o "refs/remotes/origin/foo")
-        let target_branch = if branch_name.starts_with("refs/remotes/") {
-            branch_name.trim_start_matches("refs/remotes/")
-        } else {
-            branch_name
+        let ref_exists = |r: &str| {
+            std::process::Command::new("git")
+                .current_dir(&work_dir)
+                .args(["show-ref", "--verify", "--quiet", r])
+                .status()
+                .map(|st| st.success())
+                .unwrap_or(false)
         };
 
-        // Si empieza con un nombre de remoto (e.g., origin/foo), verificar si existe rama local con ese nombre corto
-        let candidate_local =
-            if let Some((_remote, local_candidate)) = target_branch.split_once('/') {
-                // Verificar si la rama local existe
-                let check_local = std::process::Command::new("git")
-                    .current_dir(&work_dir)
-                    .args(["rev-parse", "--verify", local_candidate])
-                    .output();
+        // «origin/foo» o «refs/remotes/origin/foo»
+        let short = branch_name.strip_prefix("refs/remotes/").unwrap_or(branch_name);
+        // Una rama local manda: «feat/x» es la rama local, no «x» en el remoto «feat»
+        let is_local = !branch_name.starts_with("refs/remotes/") && ref_exists(&format!("refs/heads/{short}"));
+        // Rama remota: separar el remoto (el más largo que coincida, por si su nombre lleva «/»)
+        let remote_split = if is_local || !ref_exists(&format!("refs/remotes/{short}")) {
+            None
+        } else {
+            let remotes = std::process::Command::new("git")
+                .current_dir(&work_dir)
+                .arg("remote")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                .unwrap_or_default();
+            remotes
+                .lines()
+                .map(str::trim)
+                .filter(|r| !r.is_empty())
+                .filter_map(|r| short.strip_prefix(r).and_then(|rest| rest.strip_prefix('/')).map(|local| (r, local)))
+                .filter(|(_, local)| !local.is_empty())
+                .max_by_key(|(r, _)| r.len())
+                .map(|(_, local)| local.to_string())
+        };
 
-                if let Ok(out) = check_local {
-                    if out.status.success() {
-                        Some(local_candidate)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-        let checkout_target = candidate_local.unwrap_or(target_branch);
+        let mut args: Vec<String> = vec!["checkout".into()];
+        let checkout_target: String = match remote_split {
+            // Ya hay rama local con ese nombre: cambiar a ella
+            Some(local) if ref_exists(&format!("refs/heads/{local}")) => {
+                args.push(local.clone());
+                local
+            }
+            // Sin rama local: crearla siguiendo a la remota (no dejar HEAD suelto)
+            Some(local) => {
+                args.extend(["-b".into(), local.clone(), "--track".into(), short.to_string()]);
+                local
+            }
+            None => {
+                args.push(short.to_string());
+                short.to_string()
+            }
+        };
+        let checkout_target = checkout_target.as_str();
 
         let output = std::process::Command::new("git")
             .current_dir(&work_dir)
             .env("LC_ALL", "C")
-            .args(["checkout", checkout_target])
+            .args(&args)
             .output()
             .map_err(|e| format!("Failed to execute git checkout: {e}"))?;
 
@@ -2281,6 +2302,44 @@ mod tests {
         assert!(conflict_res.unwrap_err().contains("Conflicto"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn checkout_de_rama_remota_crea_la_local_con_seguimiento_y_respeta_ramas_con_barra() {
+        let dir = tempfile::tempdir().unwrap();
+        let origen = dir.path().join("origen");
+        let clon = dir.path().join("clon");
+        std::fs::create_dir_all(&origen).unwrap();
+        let git = |cwd: &Path, args: &[&str]| -> String {
+            let out = std::process::Command::new("git").current_dir(cwd).args(args)
+                .env("GIT_AUTHOR_NAME", "T").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "T").env("GIT_COMMITTER_EMAIL", "t@t")
+                .output().unwrap();
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        git(&origen, &["init", "-q", "-b", "main"]);
+        std::fs::write(origen.join("a.md"), "1").unwrap();
+        git(&origen, &["add", "."]);
+        git(&origen, &["commit", "-qm", "uno"]);
+        git(&origen, &["branch", "feature/x"]);
+        git(dir.path(), &["clone", "-q", origen.to_str().unwrap(), clon.to_str().unwrap()]);
+        let svc = VersionControlImpl::new();
+
+        // 1. Remota sin rama local: crea feature/x siguiendo a origin/feature/x, sin HEAD suelto
+        svc.checkout_branch(&clon, "origin/feature/x").unwrap();
+        assert_eq!(git(&clon, &["rev-parse", "--abbrev-ref", "HEAD"]), "feature/x");
+        assert_eq!(git(&clon, &["rev-parse", "--abbrev-ref", "feature/x@{upstream}"]), "origin/feature/x");
+
+        // 2. Otra vez desde la remota: ya hay local, solo cambia a ella
+        svc.checkout_branch(&clon, "main").unwrap();
+        svc.checkout_branch(&clon, "refs/remotes/origin/feature/x").unwrap();
+        assert_eq!(git(&clon, &["rev-parse", "--abbrev-ref", "HEAD"]), "feature/x");
+
+        // 3. Rama local con barra: «feat/y» no salta a una local «y»
+        git(&clon, &["branch", "y"]);
+        git(&clon, &["branch", "feat/y"]);
+        svc.checkout_branch(&clon, "feat/y").unwrap();
+        assert_eq!(git(&clon, &["rev-parse", "--abbrev-ref", "HEAD"]), "feat/y");
     }
 
     #[test]
