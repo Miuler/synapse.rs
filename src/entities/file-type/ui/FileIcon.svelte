@@ -11,6 +11,7 @@
     FileCog,
     FileSpreadsheet,
     Bot,
+    Folder,
     type IconProps
   } from 'lucide-svelte';
 
@@ -41,10 +42,11 @@
   const fileExt = $derived((extension || fileName.split('.').pop() || '').toLowerCase());
 
   // Clasificador de tipos de archivo para theming y variantes de icono
-  type FileCategory = 'agent' | 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'word' | 'excel' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
+  type FileCategory = 'agent' | 'folder' | 'markdown' | 'rust' | 'code' | 'image' | 'pdf' | 'word' | 'excel' | 'json' | 'config' | 'diagram' | 'git' | 'binary' | 'default';
 
   const category = $derived((): FileCategory => {
     if (kind === 'agent') return 'agent';
+    if (kind === 'folder') return 'folder';
     if (kind === 'excalidraw' || kind === 'mermaid') return 'diagram';
     if (kind === 'pdf') return 'pdf';
     if (kind === 'image') return 'image';
@@ -126,7 +128,9 @@
   });
 </script>
 
-{#if category() === 'agent'}
+{#if category() === 'folder'}
+  <Folder {size} {strokeWidth} class="synapse-file-icon synapse-file-folder {className}" />
+{:else if category() === 'agent'}
   <Bot {size} {strokeWidth} class="synapse-file-icon synapse-file-agent {className}" />
 {:else if category() === 'markdown'}
   <FileText {size} {strokeWidth} class="synapse-file-icon synapse-file-md {className}" />

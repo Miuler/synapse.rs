@@ -2412,13 +2412,18 @@
     const isDrawing = isDrawingTab(path, note?.content);
     const rawTitle = note?.title || vaultItem?.title || path;
     const displayTitle = cleanTabTitle(rawTitle, path);
+    // Un index.md (índice OKF de una carpeta) se nombra como su carpeta, con icono de carpeta
+    const isFolderIndex = /(^|\/)index\.md$/i.test(path);
+    const folderName = isFolderIndex
+      ? (path.includes('/') ? path.slice(0, path.lastIndexOf('/')).split('/').pop() : appSettings.lastOpenedFolder?.split(/[\\/]/).filter(Boolean).pop()) || 'index.md'
+      : '';
     return {
       path,
       abs_path: note?.abs_path || vaultItem?.abs_path,
-      title: displayTitle,
+      title: isFolderIndex ? folderName : displayTitle,
       isDirty,
       isLocked,
-      kind: isDrawing ? ('excalidraw' as const) : undefined,
+      kind: isFolderIndex ? ('folder' as const) : isDrawing ? ('excalidraw' as const) : undefined,
     };
   }
   type TabInfoItem = {
@@ -2427,7 +2432,7 @@
     abs_path: string | undefined;
     isDirty: boolean;
     isLocked?: boolean;
-    kind?: 'excalidraw' | 'agent';
+    kind?: 'excalidraw' | 'agent' | 'folder';
   };
 
   let tabsInfo = $derived(openTabPaths.map(tabInfo));

@@ -65,4 +65,12 @@ it('en Synapse el index.md generado se abre en solo lectura', async () => {
       (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md',
     { timeout: 10_000, timeoutMsg: 'el enlace a la carpeta no abrió su index.md' },
   );
+  // La pestaña del index.md se llama como su carpeta y lleva icono de carpeta
+  const tab = (await s.browser.execute(() => {
+    const t = document.querySelector('.tab-title-container[data-path="proyecto/index.md"]')!;
+    return { text: t.textContent?.trim(), folderIcon: !!t.querySelector('.synapse-file-folder') };
+  })) as { text: string; folderIcon: boolean };
+  expect(tab.text).toContain('proyecto');
+  expect(tab.text).not.toContain('index');
+  expect(tab.folderIcon).toBe(true);
 }, 30_000);
