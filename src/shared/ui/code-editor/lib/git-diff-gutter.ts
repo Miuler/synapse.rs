@@ -203,6 +203,8 @@ export interface DiffHunk {
   newCount: number;
   oldLines: string[];
   newLines: string[];
+  /** Borrado puro: línea (1-based) tras la que estaban las líneas borradas; 0 = al principio */
+  afterLine?: number;
 }
 
 /** Bloques de cambio de `currentText` respecto a `baseText` (para mostrar qué había antes). */
@@ -236,7 +238,7 @@ export function computeHunks(baseText: string, currentText: string): DiffHunk[] 
     if (insCount > 0) {
       hunks.push({ kind: delCount > 0 ? 'modified' : 'added', startLine: currLine, newCount: insCount, oldLines, newLines });
     } else {
-      hunks.push({ kind: 'deleted', startLine: Math.min(Math.max(1, currLine - 1), currLines.length), newCount: 0, oldLines, newLines });
+      hunks.push({ kind: 'deleted', startLine: Math.min(Math.max(1, currLine - 1), currLines.length), newCount: 0, oldLines, newLines, afterLine: currLine - 1 });
     }
     oldLine += delCount;
     currLine += insCount;
@@ -419,8 +421,32 @@ function lineEl(kind: 'old' | 'new', content: string | CharSegment[]): HTMLEleme
   return el;
 }
 
+/** Devuelve el bloque a como estaba en Git (en el editor: se deshace con Ctrl+Z) */
+export function revertHunk(view: EditorView, h: DiffHunk): void {
+  const doc = view.state.doc;
+  const old = h.oldLines.join('\n');
+  let changes: { from: number; to: number; insert: string };
+  if (h.kind === 'deleted') {
+    const after = h.afterLine ?? h.startLine;
+    changes = after <= 0 ? { from: 0, to: 0, insert: `${old}\n` } : { from: doc.line(after).to, to: doc.line(after).to, insert: `\n${old}` };
+  } else {
+    const first = doc.line(h.startLine);
+    const last = doc.line(Math.min(h.startLine + h.newCount - 1, doc.lines));
+    if (h.kind === 'added') {
+      // Quitar las líneas añadidas con su salto de línea
+      const from = last.number < doc.lines ? first.from : Math.max(0, first.from - 1);
+      const to = last.number < doc.lines ? last.to + 1 : last.to;
+      changes = { from, to, insert: '' };
+    } else {
+      changes = { from: first.from, to: last.to, insert: old };
+    }
+  }
+  view.dispatch({ changes, userEvent: 'revert.git', effects: setHoverHunk.of(null) });
+  view.focus();
+}
+
 /** Contenido del tooltip: qué había en Git y qué hay ahora, con las letras cambiadas resaltadas */
-function renderHunk(h: DiffHunk): HTMLElement {
+function renderHunk(h: DiffHunk, view: EditorView): HTMLElement {
   const dom = document.createElement('div');
   dom.className = 'cm-git-diff-tip';
   const head = document.createElement('div');
@@ -458,7 +484,62 @@ function renderHunk(h: DiffHunk): HTMLElement {
     if (total > MAX_TOOLTIP_LINES) more(total - MAX_TOOLTIP_LINES);
   }
   if (body.childNodes.length) dom.appendChild(body);
+  // Acciones: revertir el bloque y copiar lo que había en Git
+  const actions = document.createElement('div');
+  actions.className = 'cm-git-diff-tip-actions';
+  const button = (label: string, title: string, cls: string, run: () => void, disabled = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `cm-git-diff-tip-btn ${cls}`;
+    b.textContent = label;
+    b.title = title;
+    b.disabled = disabled;
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      run();
+    });
+    actions.appendChild(b);
+    return b;
+  };
+  const readOnly = view.state.readOnly;
+  button(
+    'Revertir',
+    readOnly ? 'El archivo está en solo lectura' : 'Devolver este bloque a como está en Git (Ctrl+Z lo deshace)',
+    'cm-git-diff-tip-revert',
+    () => revertHunk(view, h),
+    readOnly,
+  );
+  if (h.oldLines.length) {
+    const copy = button('Copiar original', 'Copiar las líneas que había en Git', 'cm-git-diff-tip-copy', () => {
+      navigator.clipboard?.writeText(h.oldLines.join('\n')).then(
+        () => (copy.textContent = 'Copiado'),
+        () => (copy.textContent = 'No se pudo copiar'),
+      );
+    });
+  }
+  dom.appendChild(actions);
+  // Mientras el ratón esté encima, el tooltip sigue abierto (para poder usar los botones)
+  dom.addEventListener('mouseenter', () => {
+    tooltipHovered = true;
+    clearTimeout(hideTimer);
+  });
+  dom.addEventListener('mouseleave', () => {
+    tooltipHovered = false;
+    scheduleHide(view);
+  });
   return dom;
+}
+
+/** El ratón está sobre el tooltip / temporizador para ocultarlo al salir del margen */
+let tooltipHovered = false;
+let hideTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleHide(view: EditorView) {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    if (tooltipHovered) return;
+    if (view.state.field(hoverHunkField, false)) view.dispatch({ effects: setHoverHunk.of(null) });
+  }, 300);
 }
 
 const hoverHunkField = StateField.define<{ hunk: number; line: number } | null>({
@@ -474,7 +555,7 @@ const hoverHunkField = StateField.define<{ hunk: number; line: number } | null>(
       if (!hover || !hunk) return null;
       // Justo debajo de la línea bajo el ratón, al principio (pegado al margen)
       const line = state.doc.line(Math.min(Math.max(1, hover.line), state.doc.lines));
-      return { pos: line.from, above: false, create: () => ({ dom: renderHunk(hunk) }) };
+      return { pos: line.from, above: false, create: (view) => ({ dom: renderHunk(hunk, view) }) };
     }),
 });
 
@@ -509,6 +590,24 @@ const gitDiffGutterTheme = EditorView.baseTheme({
   '.cm-git-diff-tip-sign': { display: 'inline-block', width: '14px', opacity: '0.7', userSelect: 'none' },
   '.cm-git-diff-tip-del': { background: 'rgba(248, 81, 73, 0.45)', borderRadius: '2px' },
   '.cm-git-diff-tip-ins': { background: 'rgba(46, 160, 67, 0.45)', borderRadius: '2px' },
+  '.cm-git-diff-tip-actions': {
+    display: 'flex',
+    gap: '6px',
+    padding: '4px 8px',
+    borderTop: '1px solid var(--border-primary, #444)',
+    fontFamily: 'var(--font-ui, sans-serif)',
+  },
+  '.cm-git-diff-tip-btn': {
+    padding: '2px 8px',
+    fontSize: '11px',
+    border: '1px solid var(--border-primary, #555)',
+    borderRadius: '4px',
+    background: 'var(--bg-secondary, #2a2a2a)',
+    color: 'var(--text-primary, #ddd)',
+    cursor: 'pointer',
+  },
+  '.cm-git-diff-tip-btn:hover:not(:disabled)': { borderColor: 'var(--accent, #2f81f7)' },
+  '.cm-git-diff-tip-btn:disabled': { opacity: '0.5', cursor: 'default' },
   '.cm-git-diff-tip-more': { padding: '2px 8px', fontStyle: 'italic', opacity: '0.7' },
   '.cm-git-diff-gutter .cm-gutterElement:has(.cm-git-diff-marker)': { cursor: 'help' },
   '.cm-git-diff-gutter': {
@@ -560,6 +659,7 @@ export function gitDiffGutter(initialBase: string | null = null): Extension {
       // Al pasar por una marca: tooltip con lo que había en Git (y qué letras cambiaron)
       domEventHandlers: {
         mousemove(view, line) {
+          clearTimeout(hideTimer);
           const n = view.state.doc.lineAt(line.from).number;
           const i = hunkAtLine(view.state.field(gitDiffMarkersField).hunks, n);
           const cur = view.state.field(hoverHunkField);
@@ -568,7 +668,8 @@ export function gitDiffGutter(initialBase: string | null = null): Extension {
           return false;
         },
         mouseleave(view) {
-          if (view.state.field(hoverHunkField) !== null) view.dispatch({ effects: setHoverHunk.of(null) });
+          // Con retraso: así da tiempo a pasar al tooltip y usar sus botones
+          scheduleHide(view);
           return false;
         },
       },

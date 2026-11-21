@@ -107,12 +107,30 @@ it('al pasar por la marca, un tooltip muestra lo que había en Git y resalta lo 
   expect(gap.dy).toBeGreaterThan(-5);
   expect(gap.dy).toBeLessThan(30);
   expect(gap.dx).toBeLessThan(80);
-  // Al salir del margen se oculta
+  // Al pasar del margen al tooltip sigue abierto (para usar sus botones)
   await s.browser.execute(() => {
     const g = document.querySelector('.tab-pane:not(.hidden) .cm-git-diff-gutter') as HTMLElement;
     g.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+    document.querySelector('.cm-git-diff-tip')!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
   });
-  await s.browser.$('.cm-git-diff-tip').waitForExist({ timeout: 5_000, reverse: true, timeoutMsg: 'el tooltip no se ocultó' });
+  await s.browser.pause(600);
+  expect(await s.browser.$('.cm-git-diff-tip').isExisting()).toBe(true);
+  // «Copiar original» copia lo que había en Git
+  await s.browser.execute(() => {
+    (window as any).__copied = null;
+    navigator.clipboard.writeText = async (t: string) => {
+      (window as any).__copied = t;
+    };
+    (document.querySelector('.cm-git-diff-tip-copy') as HTMLElement).click();
+  });
+  await s.browser.waitUntil(async () => (await s.browser.execute(() => (window as any).__copied)) === 'linea 2', { timeout: 5_000 });
+  // «Revertir» devuelve la línea a como está en Git; Ctrl+Z lo deshace
+  const line2 = () => s.browser.execute(() => document.querySelectorAll('.tab-pane:not(.hidden) .cm-content .cm-line')[1]?.textContent) as Promise<string>;
+  await s.browser.execute(() => (document.querySelector('.cm-git-diff-tip-revert') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await line2()) === 'linea 2', { timeout: 5_000, timeoutMsg: 'Revertir no devolvió la línea' });
+  expect(await s.browser.$('.cm-git-diff-tip').isExisting()).toBe(false);
+  await s.browser.keys(['Control', 'z']);
+  await s.browser.waitUntil(async () => (await line2()) === 'linea 2 editada', { timeout: 5_000, timeoutMsg: 'Ctrl+Z no deshizo el revertir' });
 }, 30_000);
 
 it('muestra todas las líneas como añadidas en archivo untracked (nueva.md)', async () => {

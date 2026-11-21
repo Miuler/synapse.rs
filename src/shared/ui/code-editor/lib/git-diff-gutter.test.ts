@@ -43,7 +43,7 @@ describe('computeHunks', () => {
   it('guarda el texto de antes y el de ahora de cada bloque', () => {
     expect(computeHunks('a\nb\nc\nd', 'a\nB\nc')).toEqual([
       { kind: 'modified', startLine: 2, newCount: 1, oldLines: ['b'], newLines: ['B'] },
-      { kind: 'deleted', startLine: 3, newCount: 0, oldLines: ['d'], newLines: [] },
+      { kind: 'deleted', startLine: 3, newCount: 0, oldLines: ['d'], newLines: [], afterLine: 3 },
     ]);
     expect(computeHunks('a\nc', 'a\nb\nc')).toEqual([{ kind: 'added', startLine: 2, newCount: 1, oldLines: [], newLines: ['b'] }]);
   });
