@@ -113,6 +113,26 @@ impl AgentTelemetryRepositoryImpl {
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0)
     }
+
+    fn vault_name(cwd: &str) -> String {
+        Path::new(cwd)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(cwd)
+            .to_string()
+    }
+
+    fn detect_git_branch(cwd: &str) -> Option<String> {
+        let head = std::fs::read_to_string(Path::new(cwd).join(".git").join("HEAD")).ok()?;
+        let trimmed = head.trim();
+        if let Some(branch) = trimmed.strip_prefix("ref: refs/heads/") {
+            Some(branch.to_string())
+        } else if !trimmed.is_empty() {
+            Some(trimmed.chars().take(12).collect())
+        } else {
+            None
+        }
+    }
 }
 
 impl AgentTelemetryRepository for AgentTelemetryRepositoryImpl {
@@ -151,6 +171,40 @@ impl AgentTelemetryRepository for AgentTelemetryRepositoryImpl {
             }
         }
 
+        if iteration.effort.is_none() {
+            iteration.effort = crate::domain::agent::agent_telemetry::infer_effort(
+                iteration.model.as_deref(),
+                iteration.mode.as_deref(),
+            );
+        }
+
+        let vault_name = Self::vault_name(cwd);
+        let git_branch = Self::detect_git_branch(cwd);
+
+        let mut tags = vec![
+            format!("vault:{vault_name}"),
+            format!("agent:{agent_id}"),
+            format!("session:{conversation_id}"),
+        ];
+        if let Some(ref m) = iteration.model {
+            tags.push(format!("model:{m}"));
+        }
+        if let Some(ref m) = iteration.mode {
+            tags.push(format!("mode:{m}"));
+        }
+        if let Some(ref e) = iteration.effort {
+            tags.push(format!("effort:{e}"));
+        }
+        if let Some(ref b) = git_branch {
+            tags.push(format!("branch:{b}"));
+        }
+        for t in &iteration.tags {
+            if !tags.contains(t) {
+                tags.push(t.clone());
+            }
+        }
+        iteration.tags = tags.clone();
+
         let record = AgentUsageRecord {
             id: iteration.id.clone(),
             recorded_at: Self::now_ms(),
@@ -161,7 +215,10 @@ impl AgentTelemetryRepository for AgentTelemetryRepositoryImpl {
             agent_name: agent_name.to_string(),
             model: iteration.model.clone(),
             mode: iteration.mode.clone(),
+            effort: iteration.effort.clone(),
             vault_cwd: cwd.to_string(),
+            vault_name,
+            git_branch,
             conversation_id: conversation_id.to_string(),
             acp_session_id: session.acp_session_id.clone(),
             transcript_path: transcript_path.to_string_lossy().into_owned(),
@@ -175,6 +232,7 @@ impl AgentTelemetryRepository for AgentTelemetryRepositoryImpl {
             cost_currency: iteration.cost_currency.clone(),
             tool_calls_count: iteration.tool_calls.len() as u32,
             mcp_calls_count: iteration.mcp_call_ids.len() as u32,
+            tags,
         };
 
         session.iterations.push(iteration);
@@ -239,8 +297,9 @@ mod tests {
             IterationTelemetry {
                 id: "iter-1000-1".into(),
                 turn_index: 1,
-                model: Some("claude-sonnet-4".into()),
+                model: Some("claude-sonnet-4-high".into()),
                 mode: Some("code".into()),
+                effort: None,
                 started_at: 1000,
                 ended_at: 2000,
                 duration_ms: 1000,
@@ -260,6 +319,7 @@ mod tests {
                     duration_ms: Some(60),
                 }],
                 mcp_call_ids: vec![],
+                tags: vec!["custom:test".into()],
             },
         )
         .unwrap();
@@ -283,7 +343,12 @@ mod tests {
             .collect();
         assert_eq!(lines.len(), 1);
         let rec: AgentUsageRecord = serde_json::from_str(&lines[0]).unwrap();
-        assert_eq!(rec.model.as_deref(), Some("claude-sonnet-4"));
+        assert_eq!(rec.model.as_deref(), Some("claude-sonnet-4-high"));
+        assert_eq!(rec.effort.as_deref(), Some("high"));
+        assert!(!rec.vault_name.is_empty());
+        assert!(rec.tags.contains(&"agent:claude-acp".to_string()));
+        assert!(rec.tags.contains(&"effort:high".to_string()));
+        assert!(rec.tags.contains(&"custom:test".to_string()));
         assert_eq!(rec.tool_calls_count, 1);
         assert_eq!(rec.mcp_calls_count, 1);
         assert!(rec.transcript_path.ends_with(".synapse/agent-sessions/conv-1.json"));

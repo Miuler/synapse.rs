@@ -74,6 +74,7 @@ export interface IterationTelemetry {
   turn_index: number;
   model?: string | null;
   mode?: string | null;
+  effort?: string | null;
   started_at: number;
   ended_at: number;
   duration_ms: number;
@@ -85,6 +86,7 @@ export interface IterationTelemetry {
   cost_currency?: string | null;
   tool_calls: ToolCallTelemetry[];
   mcp_call_ids: string[];
+  tags?: string[];
 }
 
 export interface RecordIterationPayload {

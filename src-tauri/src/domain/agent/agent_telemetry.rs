@@ -27,6 +27,8 @@ pub struct IterationTelemetry {
     pub model: Option<String>,
     #[serde(default)]
     pub mode: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
     pub started_at: i64,
     pub ended_at: i64,
     pub duration_ms: u64,
@@ -46,6 +48,9 @@ pub struct IterationTelemetry {
     /// IDs de llamadas al servidor MCP de Synapse realizadas durante esta iteración.
     #[serde(default)]
     pub mcp_call_ids: Vec<String>,
+    /// Etiquetas libres o estructuradas (`vault:...`, `agent:...`, `model:...`, `effort:...`, etc.).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// Request y response de una llamada hecha por el agente al servidor MCP de Synapse.
@@ -98,7 +103,13 @@ pub struct AgentUsageRecord {
     pub model: Option<String>,
     #[serde(default)]
     pub mode: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
     pub vault_cwd: String,
+    #[serde(default)]
+    pub vault_name: String,
+    #[serde(default)]
+    pub git_branch: Option<String>,
     pub conversation_id: String,
     #[serde(default)]
     pub acp_session_id: Option<String>,
@@ -120,4 +131,21 @@ pub struct AgentUsageRecord {
     pub cost_currency: Option<String>,
     pub tool_calls_count: u32,
     pub mcp_calls_count: u32,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Intenta inferir el nivel de esfuerzo (`low`, `medium`, `high`, `xhigh`, `minimal`, `max`)
+/// a partir del nombre del modelo o modo cuando el agente no lo expone por separado.
+pub fn infer_effort(model: Option<&str>, mode: Option<&str>) -> Option<String> {
+    const LEVELS: &[&str] = &["xhigh", "minimal", "medium", "high", "low", "max"];
+    for raw in [model, mode].into_iter().flatten() {
+        let lower = raw.to_ascii_lowercase();
+        for token in lower.split(|c: char| !c.is_ascii_alphanumeric()) {
+            if LEVELS.contains(&token) {
+                return Some(token.to_string());
+            }
+        }
+    }
+    None
 }
