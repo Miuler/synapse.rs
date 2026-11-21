@@ -30,8 +30,8 @@ function stringifyYamlFrontmatter(data: Record<string, any>): string {
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) continue;
     if (typeof value === 'string') {
-      if (value.includes(':') || value.includes('\n') || value.includes('"') || value.includes("'")) {
-        lines.push(`${key}: "${value.replace(/"/g, '\\"')}"`);
+      if (value.includes(':') || value.includes('\n') || value.includes('"') || value.includes("'") || value.includes('\\')) {
+        lines.push(`${key}: ${JSON.stringify(value)}`);
       } else {
         lines.push(`${key}: ${value}`);
       }

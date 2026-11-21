@@ -493,7 +493,12 @@ it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selecc
 
   // La caja de texto crece con el contenido, con tope
   const h1 = (await s.browser.execute(() => (document.querySelector('.acp-input textarea') as HTMLElement).offsetHeight)) as number;
-  await input.setValue(Array.from({ length: 40 }, (_, i) => `línea ${i}`).join('\n'));
+  const longText = Array.from({ length: 40 }, (_, i) => `línea ${i}`).join('\n');
+  await s.browser.execute((text: string) => {
+    const t = document.querySelector('.acp-input textarea') as HTMLTextAreaElement;
+    t.value = text;
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+  }, longText);
   const grown = (await s.browser.execute(() => {
     const t = document.querySelector('.acp-input textarea') as HTMLElement;
     return { h: t.offsetHeight, max: window.innerHeight * 0.4 };

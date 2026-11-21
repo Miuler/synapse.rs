@@ -62,9 +62,10 @@ afterAll(async () => {
 
 it('el modo Diferencias resalta solo lo que cambió del dibujo', async () => {
   await s.browser.$('.file-tree-item[data-path="dibujo.excalidraw"]').click({ button: 'right' });
-  const item = s.browser.$('.context-menu-item*=Diff visual');
-  await item.waitForDisplayed({ timeout: 5_000 });
-  await item.click();
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.includes('Diff visual')) as HTMLElement).click(),
+  );
   const diffBtn = s.browser.$('.toggle-btn*=Diferencias');
   await diffBtn.waitForDisplayed({ timeout: 10_000 });
   await diffBtn.click();

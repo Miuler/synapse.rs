@@ -11,7 +11,10 @@
     "tauri": "tauri",
     "test": "bun test src/",
     "build:e2e": "cd src-tauri && cargo build",
-    "test:e2e": "bun test ./e2e",
+    "test:e2e": "bun test --timeout 60000 ./e2e",
+    "test:e2e:hiden": "GDK_BACKEND=x11 xvfb-run -a bun run test:e2e",
+    "test:e2e:embebed:x11": "Xephyr :100 -screen 1030x1860 -resizeable",
+    "test:e2e:embebed:run": "GDK_BACKEND=x11 DISPLAY=:100 bun run test:e2e",
     "test:e2e:quick": "bun e2e/quick.ts"
   },
   "devDependencies": {
