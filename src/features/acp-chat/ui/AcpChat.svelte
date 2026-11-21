@@ -59,11 +59,13 @@
     onOpenSettings?: () => void;
     /** Abre en Synapse una nota de la bóveda (ruta relativa). */
     onOpenNote?: (relativePath: string) => void;
+    /** Enlace `file://` a un archivo fuera de la bóveda */
+    onOutsideFile?: (absolutePath: string) => void;
     /** Conversación que muestra este chat. */
     conv: Conversation;
   }
 
-  let { cwd, onOpenSettings, onOpenNote, conv }: Props = $props();
+  let { cwd, onOpenSettings, onOpenNote, onOutsideFile, conv }: Props = $props();
 
   // Enlaces en las respuestas: notas de la bóveda se abren en Synapse; el resto, fuera
   /** Tamaño del mensaje de otro agente, para el resumen cerrado. */
@@ -78,7 +80,10 @@
     const href = a.getAttribute('href') ?? '';
     e.preventDefault();
     const rel = vaultPathOfLink(href, cwd);
-    if (rel) onOpenNote?.(rel);
+    // Se conserva el ancla (p. ej. `#L56-L65`, líneas a las que saltar)
+    const hash = href.includes('#') ? href.slice(href.indexOf('#') + 1) : '';
+    if (rel) onOpenNote?.(hash ? `${rel}#${decodeURIComponent(hash)}` : rel);
+    else if (href.startsWith('file://')) onOutsideFile?.(decodeURIComponent(href.replace(/^file:\/\//, '')));
     else if (/^https?:/i.test(href)) window.open(href, '_blank', 'noopener');
     // Enlace relativo (p. ej. solo el nombre del archivo): el espacio de trabajo lo resuelve
     else if (href && !/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith('#')) {

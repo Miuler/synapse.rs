@@ -1433,6 +1433,53 @@
     }
   }
 
+  /**
+   * Enlace `file://` del agente que no cae dentro de esta bóveda (otra raíz, otra copia del repo):
+   * se busca en el índice de la bóveda por el final de la ruta, del tramo más largo al nombre
+   * (`a/b/c.yaml`, `b/c.yaml`, `c.yaml`). Uno → se abre; varios → lista para elegir; ninguno → aviso.
+   */
+  async function openOutsideFileFromAgent(absWithAnchor: string) {
+    const [abs, anchor] = absWithAnchor.split('#');
+    const parts = abs.split('/').filter(Boolean);
+    for (let i = 1; i < parts.length; i++) {
+      const suffix = parts.slice(i).join('/');
+      let r: Awaited<ReturnType<typeof vaultApi.resolveVaultLinkDetailed>>;
+      try {
+        r = await vaultApi.resolveVaultLinkDetailed(suffix, null);
+      } catch {
+        continue;
+      }
+      if (r.status === 'resolved') {
+        openFromAgentChat(anchor ? `${r.path.split('#')[0]}#${anchor}` : r.path.split('#')[0]);
+        return;
+      }
+      if (r.status === 'ambiguous') {
+        linkChoice = { target: suffix, anchor: anchor ?? null, source: null, candidates: r.candidates, canFix: false };
+        return;
+      }
+    }
+    showWorkspaceToast(`No está en esta bóveda: ${abs}`);
+  }
+
+  /** Enlace de una respuesta del agente: abre el archivo; `#L56-L65` salta a esas líneas */
+  function openFromAgentChat(link: string) {
+    const [path, anchor] = [link.split('#')[0], link.includes('#') ? link.slice(link.indexOf('#') + 1) : ''];
+    if (!vaultItemStore.get(path)) {
+      void resolveAndOpenLink(path, anchor || null, null, false);
+      return;
+    }
+    if (/^L\d+/i.test(anchor) && !isMarkdownFile(path)) {
+      refJumps[path] = anchor;
+      selectTab(path);
+      // Las líneas solo se ven en el editor: si se abre en lectura (p. ej. OpenAPI en Scalar), a edición
+      tick().then(() => {
+        if (activeTabPath === path && !isEditing) toggleViewMode();
+      });
+      return;
+    }
+    openLinkTarget(path, anchor && !/^L\d+/i.test(anchor) ? anchor : null);
+  }
+
   function openLinkTarget(path: string, anchor?: string | null) {
     selectTab(path);
     if (anchor) pendingScrollHeadings[path] = { text: anchor, id: ++headingRequestId };
@@ -5320,7 +5367,8 @@
       cwd={isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null)}
       onClose={() => setAgentPanelOpen(false)}
       onOpenSettings={openAgentSettings}
-      onOpenNote={(path) => (vaultItemStore.get(path) ? selectTab(path) : void resolveAndOpenLink(path, null, null, false))}
+      onOpenNote={openFromAgentChat}
+      onOutsideFile={openOutsideFileFromAgent}
     />
   {/if}
 

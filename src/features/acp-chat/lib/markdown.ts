@@ -5,6 +5,9 @@ import { splitMentions } from './mentions';
 
 const marked = new Marked({ gfm: true, breaks: true });
 
+/** Enlaces permitidos: los de DOMPurify por defecto más `file:` */
+const ALLOWED_URIS = /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
 /** De los `<input>`, solo se dejan las casillas de tarea de las listas, desactivadas */
 function keepOnlyTaskCheckboxes(node: Element) {
   if (node.nodeName !== 'INPUT') return;
@@ -17,7 +20,8 @@ export function renderAgentMarkdown(text: string): string {
   const html = marked.parse(text, { async: false }) as string;
   DOMPurify.addHook('afterSanitizeElements', keepOnlyTaskCheckboxes);
   try {
-    return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'iframe'] });
+    // Como la lista por defecto de DOMPurify, más `file:` (los agentes enlazan archivos así)
+    return DOMPurify.sanitize(html, { FORBID_TAGS: ['style', 'form', 'iframe'], ALLOWED_URI_REGEXP: ALLOWED_URIS });
   } finally {
     DOMPurify.removeHook('afterSanitizeElements', keepOnlyTaskCheckboxes);
   }

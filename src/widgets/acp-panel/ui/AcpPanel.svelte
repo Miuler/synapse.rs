@@ -28,9 +28,10 @@
     onOpenSettings: () => void;
     /** Abre una nota de la bóveda (ruta relativa) desde un enlace del agente. */
     onOpenNote?: (relativePath: string) => void;
+    onOutsideFile?: (absolutePath: string) => void;
   }
 
-  let { cwd, onClose, onOpenSettings, onOpenNote }: Props = $props();
+  let { cwd, onClose, onOpenSettings, onOpenNote, onOutsideFile }: Props = $props();
 
   const WIDTH_KEY = 'synapse.agent.width';
   const POS_KEY = 'synapse.agent.float';
@@ -413,7 +414,7 @@
         {@const c = agentStore.pinnedConversation}
         <section class="acp-pinned" aria-label="Conversación fijada">
           {@render row(c, true, true)}
-          {#key c.id}<AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />{/key}
+          {#key c.id}<AcpChat {cwd} {onOpenSettings} {onOpenNote} {onOutsideFile} conv={c} />{/key}
         </section>
       {/if}
       <div class="acp-accordion">
@@ -423,7 +424,7 @@
             {@render row(c, open, false)}
             {#if open}
               <div class="acp-section-body">
-                <AcpChat {cwd} {onOpenSettings} {onOpenNote} conv={c} />
+                <AcpChat {cwd} {onOpenSettings} {onOpenNote} {onOutsideFile} conv={c} />
               </div>
             {/if}
           </section>

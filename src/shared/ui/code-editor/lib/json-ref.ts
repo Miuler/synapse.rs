@@ -234,6 +234,21 @@ export interface JsonRefOptions {
 
 /** Salta a la clave del puntero en el documento abierto; devuelve si la encontró. */
 export function jumpToPointer(view: EditorView, pointer: string): boolean {
+  // Ancla de líneas, como en GitHub: `L56` o `L56-L65` (selecciona esas líneas)
+  const lineRange = /^L(\d+)(?:-L?(\d+))?$/i.exec(pointer.trim());
+  if (lineRange) {
+    const total = view.state.doc.lines;
+    const from = Math.min(Math.max(1, Number(lineRange[1])), total);
+    const to = Math.min(Math.max(from, Number(lineRange[2] ?? lineRange[1])), total);
+    const a = view.state.doc.line(from);
+    const b = view.state.doc.line(to);
+    view.dispatch({
+      selection: { anchor: a.from, head: b.to },
+      effects: EditorView.scrollIntoView(a.from, { y: 'start', yMargin: 60 }),
+    });
+    view.focus();
+    return true;
+  }
   const lines = view.state.doc.toString().split('\n');
   const line = findPointerLine(lines, pointer);
   if (line === null) return false;

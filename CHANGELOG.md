@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Corregido
+
+- Chat del agente: los enlaces `file://` de sus respuestas no abrían nada (el saneado del HTML les quitaba el destino). Ahora abren el archivo de la bóveda y un ancla `#L56-L65` lo abre en el editor con esas líneas seleccionadas. Si la ruta no cae en la bóveda (otra raíz u otra copia del repositorio), se busca por el final de la ruta en el índice: uno se abre, varios dan a elegir.
+
 ### Añadido
 
 - Telemetría de agentes: registro global de uso por iteración en `~/.config/synapsers/agent-usage.jsonl` (modelo, sesión, duración, tokens/costo y referencias a los JSON de cada bóveda) y sidecar detallado por conversación en `<bóveda>/.synapse/agent-sessions/telemetry/<id>.json` con tiempos de iteración, uso de herramientas y correlación de request/response de llamadas al MCP de Synapse.

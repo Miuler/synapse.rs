@@ -7,6 +7,8 @@ import { createInterface } from 'node:readline';
 const send = (msg: unknown) => process.stdout.write(JSON.stringify(msg) + '\n');
 /** Un mismo proceso atiende varias conversaciones: cada `session/new` abre una sesión distinta. */
 let opened = 0;
+/** Carpeta de trabajo (la bóveda) que manda Synapse en session/new */
+let cwd = '';
 let current = 'ses-e2e';
 const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: current, update: u } });
 let promptId: unknown = null;
@@ -96,6 +98,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { embeddedContext: true } } },
     });
   } else if (msg.method === 'session/new') {
+    cwd = msg.params?.cwd ?? cwd;
     current = `ses-e2e-${++opened}`;
     const servers = msg.params.mcpServers ?? [];
     mcp = servers.map((s: { name: string; command?: string }) => `${s.name}:${s.command ? 'stdio' : 'http'}`);
@@ -146,6 +149,13 @@ for await (const line of createInterface({ input: process.stdin })) {
     // «eco: …»: repite lo recibido (para ver qué mensajes llegan y en qué orden)
     if (said.trim().startsWith('eco:')) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Recibido «${said.trim()}»` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
+    // «enlaces a archivos»: enlaces file:// (con ancla de líneas) a la bóveda y uno de fuera
+    if (said.includes('enlaces a archivos')) {
+      const text = `Mira [flujo.mmd#L2](file://${cwd}/flujo.mmd#L2), [otra copia](file:///otro/repo/flujo.mmd#L2) y [fuera](file:///etc/no-existe-en-la-boveda.txt).`;
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } });
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }

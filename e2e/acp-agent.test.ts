@@ -575,3 +575,36 @@ it('tus mensajes se ven en Markdown y «Copiar» copia el texto tal cual', async
     timeoutMsg: '«Copiar» no copió el texto original',
   });
 }, 30_000);
+
+it('los enlaces file:// del agente abren el archivo de la bóveda y saltan a la línea', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
+  await input.setValue('dame enlaces a archivos');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('flujo.mmd#L2')), { timeout: 10_000 });
+  // El enlace conserva su destino (antes el saneado lo quitaba)
+  const href = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.acp-msg.agent a')].find((a) => a.textContent === 'flujo.mmd#L2')?.getAttribute('href'),
+  )) as string | null;
+  expect(href).toMatch(/^file:\/\/.+\/flujo\.mmd#L2$/);
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.acp-msg.agent a')].find((a) => a.textContent === 'flujo.mmd#L2') as HTMLElement).click(),
+  );
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'flujo.mmd',
+    { timeout: 10_000, timeoutMsg: 'no abrió flujo.mmd' },
+  );
+  // Ruta de otra copia (fuera de la bóveda): se busca por el final de la ruta en el índice
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="nota.md"]') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'nota.md',
+    { timeout: 10_000 },
+  );
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.acp-msg.agent a')].find((a) => a.textContent === 'otra copia') as HTMLElement).click(),
+  );
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'flujo.mmd',
+    { timeout: 10_000, timeoutMsg: 'no encontró flujo.mmd por el final de la ruta' },
+  );
+}, 30_000);
