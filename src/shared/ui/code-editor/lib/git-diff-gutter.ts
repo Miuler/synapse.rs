@@ -449,6 +449,13 @@ export function revertHunk(view: EditorView, h: DiffHunk): void {
 function renderHunk(h: DiffHunk, view: EditorView): HTMLElement {
   const dom = document.createElement('div');
   dom.className = 'cm-git-diff-tip';
+  // Paleta clara u oscura según el modo de la app (no según las variables del tema, que pueden no
+  // estar definidas dentro del editor o dar texto claro sobre fondo claro)
+  const root = document.documentElement;
+  const dark =
+    root.getAttribute('data-theme') === 'dark' ||
+    (!root.getAttribute('data-theme') && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  dom.dataset.scheme = dark ? 'dark' : 'light';
   const head = document.createElement('div');
   head.className = 'cm-git-diff-tip-head';
   const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
@@ -565,18 +572,13 @@ const gitDiffGutterTheme = EditorView.baseTheme({
     borderRadius: '6px',
     overflow: 'hidden',
   },
-  '.cm-git-diff-tip': {
-    maxWidth: 'min(80vw, 900px)',
-    fontSize: '12px',
-    background: 'var(--bg-primary, #1e1e1e)',
-    color: 'var(--text-primary, #ddd)',
-  },
-  '.cm-git-diff-tip-head': {
-    padding: '4px 8px',
-    fontFamily: 'var(--font-ui, sans-serif)',
-    color: 'var(--text-secondary, #aaa)',
-    borderBottom: '1px solid var(--border-primary, #444)',
-  },
+  '.cm-git-diff-tip': { maxWidth: 'min(80vw, 900px)', fontSize: '12px' },
+  // Paletas fijas (como el diff de GitHub): legibles con cualquier tema
+  '.cm-git-diff-tip[data-scheme=light]': { background: '#ffffff', color: '#1f2328' },
+  '.cm-git-diff-tip[data-scheme=dark]': { background: '#161b22', color: '#e6edf3' },
+  '.cm-git-diff-tip-head': { padding: '4px 8px', fontFamily: 'var(--font-ui, sans-serif)', opacity: '0.85' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-head': { borderBottom: '1px solid #d0d7de' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-head': { borderBottom: '1px solid #30363d' },
   '.cm-git-diff-tip-body': {
     maxHeight: '40vh',
     overflow: 'auto',
@@ -585,28 +587,22 @@ const gitDiffGutterTheme = EditorView.baseTheme({
     padding: '2px 0',
   },
   '.cm-git-diff-tip-line': { padding: '0 8px 0 4px' },
-  '.cm-git-diff-tip-old': { background: 'rgba(248, 81, 73, 0.12)' },
-  '.cm-git-diff-tip-new': { background: 'rgba(46, 160, 67, 0.12)' },
   '.cm-git-diff-tip-sign': { display: 'inline-block', width: '14px', opacity: '0.7', userSelect: 'none' },
-  '.cm-git-diff-tip-del': { background: 'rgba(248, 81, 73, 0.45)', borderRadius: '2px' },
-  '.cm-git-diff-tip-ins': { background: 'rgba(46, 160, 67, 0.45)', borderRadius: '2px' },
-  '.cm-git-diff-tip-actions': {
-    display: 'flex',
-    gap: '6px',
-    padding: '4px 8px',
-    borderTop: '1px solid var(--border-primary, #444)',
-    fontFamily: 'var(--font-ui, sans-serif)',
-  },
-  '.cm-git-diff-tip-btn': {
-    padding: '2px 8px',
-    fontSize: '11px',
-    border: '1px solid var(--border-primary, #555)',
-    borderRadius: '4px',
-    background: 'var(--bg-secondary, #2a2a2a)',
-    color: 'var(--text-primary, #ddd)',
-    cursor: 'pointer',
-  },
-  '.cm-git-diff-tip-btn:hover:not(:disabled)': { borderColor: 'var(--accent, #2f81f7)' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-old': { background: '#ffebe9' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-new': { background: '#dafbe1' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-del': { background: '#ff8182', borderRadius: '2px' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-ins': { background: '#6fdd8b', borderRadius: '2px' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-old': { background: 'rgba(248, 81, 73, 0.15)' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-new': { background: 'rgba(46, 160, 67, 0.15)' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-del': { background: 'rgba(248, 81, 73, 0.6)', color: '#ffffff', borderRadius: '2px' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-ins': { background: 'rgba(46, 160, 67, 0.6)', color: '#ffffff', borderRadius: '2px' },
+  '.cm-git-diff-tip-actions': { display: 'flex', gap: '6px', padding: '4px 8px', fontFamily: 'var(--font-ui, sans-serif)' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-actions': { borderTop: '1px solid #d0d7de' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-actions': { borderTop: '1px solid #30363d' },
+  '.cm-git-diff-tip-btn': { padding: '2px 8px', fontSize: '11px', borderRadius: '4px', cursor: 'pointer' },
+  '.cm-git-diff-tip[data-scheme=light] .cm-git-diff-tip-btn': { background: '#f6f8fa', color: '#1f2328', border: '1px solid #d0d7de' },
+  '.cm-git-diff-tip[data-scheme=dark] .cm-git-diff-tip-btn': { background: '#21262d', color: '#e6edf3', border: '1px solid #30363d' },
+  '.cm-git-diff-tip-btn:hover:not(:disabled)': { borderColor: '#2f81f7' },
   '.cm-git-diff-tip-btn:disabled': { opacity: '0.5', cursor: 'default' },
   '.cm-git-diff-tip-more': { padding: '2px 8px', fontStyle: 'italic', opacity: '0.7' },
   '.cm-git-diff-gutter .cm-gutterElement:has(.cm-git-diff-marker)': { cursor: 'help' },
