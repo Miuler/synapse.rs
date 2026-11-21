@@ -22,6 +22,7 @@
   import { lineKeymap } from '../lib/line-keymap';
   import { minimalChange } from '../lib/minimal-change';
   import { jsonRefLinks, jumpToPointer } from '../lib/json-ref';
+  import { gitDiffGutter, setGitBaseContent } from '../lib/git-diff-gutter';
 
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete, plantumlAutocomplete } from '../lib/diagram-autocompletion';
@@ -66,6 +67,8 @@
     /** Puntero `#/...` al que saltar cuando el contenido esté cargado (se consume con `onJumped`). */
     jumpPointer?: string | null;
     onJumped?: () => void;
+    /** Contenido base de Git (HEAD) para mostrar indicadores de líneas nuevas/modificadas en el gutter. */
+    gitBaseContent?: string | null;
   }
 
   let {
@@ -83,6 +86,7 @@
     onNotify,
     jumpPointer = null,
     onJumped,
+    gitBaseContent = null,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -387,6 +391,7 @@
         // En el body: dentro del editor los contenedores de la vista recortan o tapan los tooltips
         tooltips({ parent: document.body }),
         basicSetup,
+        gitDiffGutter(gitBaseContent),
         undoRedoExtension(),
         commentExtension(),
         langExtension,
@@ -442,6 +447,11 @@
       if (!jumpToPointer(editorView, ptr)) onNotify?.(`No se encontró «#${ptr}» en este archivo`);
       onJumped?.();
     });
+  });
+
+  $effect(() => {
+    const base = gitBaseContent;
+    editorView?.dispatch({ effects: setGitBaseContent.of(base) });
   });
 
   $effect(() => {

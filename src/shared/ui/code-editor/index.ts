@@ -7,3 +7,4 @@ export { documentWordsCompletion, withDocumentWords } from './lib/document-words
 export { minimalChange } from './lib/minimal-change';
 export { openReplacePanel } from './lib/open-replace';
 export { extractKeyTree, keyLineAt, type KeyNode } from './lib/json-ref';
+export { gitDiffGutter, setGitBaseContent, computeLineDiff, type LineDiffKind, type LineDiffMark } from './lib/git-diff-gutter';

@@ -23,7 +23,7 @@
   import { taskToggleExtension } from '../lib/task-toggle';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
-  import { lineKeymap, minimalChange, registerVimFolding, renameOccurrencesKeymap } from '@shared/ui/code-editor';
+  import { lineKeymap, minimalChange, registerVimFolding, renameOccurrencesKeymap, gitDiffGutter, setGitBaseContent } from '@shared/ui/code-editor';
 
   registerVimFolding();
 
@@ -53,6 +53,8 @@
     onSelectionChange?: (info: SelectionInfo) => void;
     /** Línea (base 0) del título en el que está la parte de arriba de la vista; -1 antes del primero. */
     onHeadingLineChange?: (line: number) => void;
+    /** Contenido base de Git (HEAD) para mostrar indicadores de líneas nuevas/modificadas en el gutter. */
+    gitBaseContent?: string | null;
   }
 
   let {
@@ -70,6 +72,7 @@
     onChange,
     onSelectionChange,
     onHeadingLineChange,
+    gitBaseContent = null,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -967,6 +970,7 @@
           viewModeCompartment.of(getActiveExtensions(viewMode)),
           pluginExtensionsCompartment.of(editorExtensions || []),
           basicSetup,
+          gitDiffGutter(gitBaseContent),
           undoRedoExtension(),
           commentExtension(),
           markdown({ codeLanguages: [mermaidLanguageDescription] }),
@@ -1071,6 +1075,16 @@
     }
   });
 
+  // Reaccionar a cambios en el contenido base de Git (HEAD)
+  $effect(() => {
+    const base = gitBaseContent;
+    if (editorView) {
+      editorView.dispatch({
+        effects: setGitBaseContent.of(base),
+      });
+    }
+  });
+
   // Reaccionar a cambios en onNavigate
   $effect(() => {
     const nav = onNavigate;
@@ -1109,6 +1123,7 @@
                 viewModeCompartment.of(getActiveExtensions(viewMode)),
                 pluginExtensionsCompartment.of(exts || []),
                 basicSetup,
+                gitDiffGutter(gitBaseContent),
                 undoRedoExtension(),
           commentExtension(),
                 markdown({ codeLanguages: [mermaidLanguageDescription] }),

@@ -386,6 +386,52 @@
   let isGitRepo = $state(false);
   let gitRepos = $state<GitRepoInfo[]>([]);
   let gitStatuses = $state<Record<string, GitFileStatusKind>>({});
+  let gitBaseContents = $state<Record<string, string | null>>({});
+  let gitBaseVersion = $state(0);
+  const gitBaseInFlight = new Set<string>();
+
+  async function ensureGitBaseContent(filePath: string, version: number) {
+    if (!filePath || filePath.startsWith('synapse://') || filePath.startsWith('agent-image://')) return;
+    const key = `${version}:${filePath}`;
+    if (gitBaseInFlight.has(key)) return;
+    gitBaseInFlight.add(key);
+    try {
+      const status = gitStatuses[filePath];
+      if (status?.worktree === '?' && !status?.index) {
+        if (gitBaseVersion === version) gitBaseContents[filePath] = '';
+        return;
+      }
+      const rev = await vaultRepository.getGitFileRevision(filePath, false, 'HEAD');
+      if (gitBaseVersion !== version) return;
+      if (rev.exists && !rev.is_binary && rev.content !== null) {
+        gitBaseContents[filePath] = rev.content;
+      } else if (!rev.exists) {
+        gitBaseContents[filePath] = '';
+      } else {
+        gitBaseContents[filePath] = null;
+      }
+    } catch {
+      if (gitBaseVersion === version) gitBaseContents[filePath] = null;
+    } finally {
+      gitBaseInFlight.delete(key);
+    }
+  }
+
+  $effect(() => {
+    const repo = isGitRepo;
+    const version = gitBaseVersion;
+    const active = activeTabPath ? baseTabPath(activeTabPath) : null;
+    const secondary = activeSplitTabPath ? baseTabPath(activeSplitTabPath) : null;
+    if (!repo) {
+      gitBaseContents = {};
+      return;
+    }
+    for (const file of [active, secondary]) {
+      if (file && !isSyntheticTab(file) && !(file in untrack(() => gitBaseContents))) {
+        void ensureGitBaseContent(file, version);
+      }
+    }
+  });
 
   // La bóveda es un repositorio: si no hay Git que funcione, se ofrece elegir el ejecutable (una vez
   // por sesión; «No volver a preguntar» lo silencia). Ajustes → Git permite cambiarlo siempre.
@@ -412,10 +458,13 @@
         isGitRepo = true;
         gitStatuses = status.statuses ?? {};
         gitRepos = status.repos?.length ? status.repos : [{ path: '', branch: status.branch ?? null, changes: 0 }];
+        gitBaseContents = {};
+        gitBaseVersion += 1;
       } else {
         isGitRepo = false;
         gitStatuses = {};
         gitRepos = [];
+        gitBaseContents = {};
       }
       gitDialogState.repos = gitRepos;
     } catch (e) {
@@ -4918,6 +4967,7 @@
                       }}
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                       editorExtensions={pluginEditorExtensions}
+                      gitBaseContent={gitBaseContents[tabFile] ?? null}
                       isMarkdown={true}
                     />
                   </div>
@@ -5018,6 +5068,7 @@
                       vimMode={isVimMode}
                       mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : 'markdown'}
                       filePath={tabFile}
+                      gitBaseContent={gitBaseContents[tabFile] ?? null}
                       onOpenRef={openJsonRef}
                       onNotify={showWorkspaceToast}
                       jumpPointer={refJumps[tabFile] ?? null}
