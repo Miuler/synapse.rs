@@ -76,27 +76,25 @@ describe.skipIf(!VAULT)('bóveda real', () => {
   it('latencia del IPC con la app en reposo', async () => {
     // Las mismas llamadas que en la apertura, pero sin carga: separa el costo del backend y del
     // transporte del tiempo que la respuesta espera a que el hilo de JS del webview se libere.
-    const res = (await s.browser.executeAsync((done: (r: unknown) => void) => {
+    const res = (await s.browser.execute(async () => {
       const invoke = (window as any).__TAURI_INTERNALS__.invoke;
-      (async () => {
-        const out: Record<string, number> = {};
-        for (const [cmd, args] of [
-          ['get_diagram_split_ratio', { path: 'x.md' }],
-          ['get_app_version', {}],
-          ['get_vault_directory_children', { parentPath: '' }],
-          ['get_vault_git_status', {}],
-        ] as [string, Record<string, unknown>][]) {
-          const times: number[] = [];
-          for (let i = 0; i < 5; i++) {
-            const t = performance.now();
-            await invoke(cmd, args).catch(() => null);
-            times.push(performance.now() - t);
-          }
-          times.sort((a, b) => a - b);
-          out[cmd] = times[2];
+      const out: Record<string, number> = {};
+      for (const [cmd, args] of [
+        ['get_diagram_split_ratio', { path: 'x.md' }],
+        ['get_app_version', {}],
+        ['get_vault_directory_children', { parentPath: '' }],
+        ['get_vault_git_status', {}],
+      ] as [string, Record<string, unknown>][]) {
+        const times: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          const t = performance.now();
+          await invoke(cmd, args).catch(() => null);
+          times.push(performance.now() - t);
         }
-        done(out);
-      })();
+        times.sort((a, b) => a - b);
+        out[cmd] = times[2];
+      }
+      return out;
     })) as Record<string, number>;
     for (const [cmd, ms] of Object.entries(res)) console.log(`  en reposo ${cmd.padEnd(30)} ${ms.toFixed(1)} ms`);
     expect(Object.keys(res).length).toBe(4);
@@ -117,27 +115,31 @@ describe.skipIf(!VAULT)('bóveda real', () => {
     for (const query of ['rust', 'docker', 'proyecto', 'arq', 'linux']) {
       await s.browser.keys(['Control', 'o']);
       await s.browser.$('.quick-open-command-root input').waitForExist({ timeout: 10_000 });
-      const { ms, count } = (await s.browser.executeAsync((q: string, done: (r: unknown) => void) => {
-        const input = document.querySelector('.quick-open-command-root input') as HTMLInputElement;
-        const list = document.querySelector('.quick-open-command-root') as HTMLElement;
-        const start = performance.now();
-        let last = start;
-        let quiet: ReturnType<typeof setTimeout>;
-        const finish = () => {
-          observer.disconnect();
-          const count = list.querySelectorAll('.quick-open-results-container [data-command-item]').length;
-          done({ ms: last - start, count });
-        };
-        const observer = new MutationObserver(() => {
-          last = performance.now();
-          clearTimeout(quiet);
-          quiet = setTimeout(finish, 500);
-        });
-        observer.observe(list, { childList: true, subtree: true, characterData: true });
-        quiet = setTimeout(finish, 3000); // hasta el primer cambio
-        input.value = q;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }, query)) as { ms: number; count: number };
+      const { ms, count } = (await s.browser.execute(
+        (q: string) =>
+          new Promise((done) => {
+            const input = document.querySelector('.quick-open-command-root input') as HTMLInputElement;
+            const list = document.querySelector('.quick-open-command-root') as HTMLElement;
+            const start = performance.now();
+            let last = start;
+            let quiet: ReturnType<typeof setTimeout>;
+            const finish = () => {
+              observer.disconnect();
+              const count = list.querySelectorAll('.quick-open-results-container [data-command-item]').length;
+              done({ ms: last - start, count });
+            };
+            const observer = new MutationObserver(() => {
+              last = performance.now();
+              clearTimeout(quiet);
+              quiet = setTimeout(finish, 500);
+            });
+            observer.observe(list, { childList: true, subtree: true, characterData: true });
+            quiet = setTimeout(finish, 3000); // hasta el primer cambio
+            input.value = q;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }),
+        query
+      )) as { ms: number; count: number };
       times.push(ms);
       console.log(`  "${query}": ${count} resultados en ${ms.toFixed(0)} ms`);
       if (shots && query === 'rust') await s.browser.saveScreenshot(`${shots}/real-quick-open.png`);

@@ -22,22 +22,20 @@ afterAll(async () => {
 });
 
 async function measure(command: string): Promise<{ medianMs: number; items: number; kb: number }> {
-  return (await s.browser.executeAsync((cmd: string, done: (r: unknown) => void) => {
+  return (await s.browser.execute(async (cmd: string) => {
     const invoke = (window as any).__TAURI_INTERNALS__.invoke as (c: string) => Promise<unknown[]>;
-    (async () => {
-      const times: number[] = [];
-      let items = 0;
-      let kb = 0;
-      for (let i = 0; i < 7; i++) {
-        const t = performance.now();
-        const res = await invoke(cmd);
-        times.push(performance.now() - t);
-        items = res.length;
-        if (i === 0) kb = JSON.stringify(res).length / 1024;
-      }
-      times.sort((a, b) => a - b);
-      done({ medianMs: times[3], items, kb });
-    })();
+    const times: number[] = [];
+    let items = 0;
+    let kb = 0;
+    for (let i = 0; i < 7; i++) {
+      const t = performance.now();
+      const res = await invoke(cmd);
+      times.push(performance.now() - t);
+      items = res.length;
+      if (i === 0) kb = JSON.stringify(res).length / 1024;
+    }
+    times.sort((a, b) => a - b);
+    return { medianMs: times[3], items, kb };
   }, command)) as { medianMs: number; items: number; kb: number };
 }
 

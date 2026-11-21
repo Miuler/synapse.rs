@@ -216,6 +216,8 @@ async function launch(base: string, vault: string): Promise<Session> {
     hostname: '127.0.0.1',
     port: DRIVER_PORT,
     logLevel: 'warn',
+    // WebdriverIO v9+ activa strictSelectors por defecto y falla si `$()` coincide con >1 elemento
+    strictSelectors: false,
     // Sin reintentos: con la conexión rota, cada pedido reintentaba 3 veces con 2 min de espera
     connectionRetryCount: 0,
     connectionRetryTimeout: 30_000,

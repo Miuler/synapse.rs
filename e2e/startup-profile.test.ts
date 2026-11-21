@@ -177,19 +177,17 @@ describe.skipIf(!VAULT)('perfil del arranque', () => {
   it('las mismas llamadas IPC del arranque, repetidas en reposo', async () => {
     // Si una llamada tarda poco en reposo, lo que costó al arrancar fue la espera por el hilo de JS
     // ocupado; si tarda mucho, el costo está en el backend.
-    const res = (await s.browser.executeAsync((done: (r: unknown) => void) => {
+    const res = (await s.browser.execute(async () => {
       const invoke = (window as any).__TAURI_INTERNALS__.invoke;
       const log = ((window as any).__synapseIpcLog ?? []).slice() as { cmd: string; ms: number; args?: unknown }[];
-      (async () => {
-        const out: { cmd: string; startup: number; rest: number }[] = [];
-        for (const e of log) {
-          if (/^(save_|set_|record_|update_|write_|delete_|move_|rename_|create_)/.test(e.cmd)) continue;
-          const t = performance.now();
-          await invoke(e.cmd, e.args ?? {}).catch(() => null);
-          out.push({ cmd: e.cmd, startup: e.ms, rest: performance.now() - t });
-        }
-        done(out);
-      })();
+      const out: { cmd: string; startup: number; rest: number }[] = [];
+      for (const e of log) {
+        if (/^(save_|set_|record_|update_|write_|delete_|move_|rename_|create_)/.test(e.cmd)) continue;
+        const t = performance.now();
+        await invoke(e.cmd, e.args ?? {}).catch(() => null);
+        out.push({ cmd: e.cmd, startup: e.ms, rest: performance.now() - t });
+      }
+      return out;
     })) as { cmd: string; startup: number; rest: number }[];
     const byCmd = new Map<string, { n: number; startup: number; rest: number; max: number }>();
     for (const r of res) {

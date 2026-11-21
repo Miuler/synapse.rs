@@ -77,8 +77,8 @@ afterAll(async () => {
 });
 
 it('carga cada imagen por protocolo de assets y por data URL', async () => {
-  const results = (await s.browser.executeAsync(
-    (vault: string, rels: string[], done: (r: unknown) => void) => {
+  const results = (await s.browser.execute(
+    async (vault: string, rels: string[]) => {
       const internals = (window as any).__TAURI_INTERNALS__;
       const load = (src: string) =>
         new Promise<{ ok: boolean; ms: number }>((resolve) => {
@@ -88,19 +88,17 @@ it('carga cada imagen por protocolo de assets y por data URL', async () => {
           img.onerror = () => resolve({ ok: false, ms: performance.now() - t });
           img.src = src;
         });
-      (async () => {
-        const out: unknown[] = [];
-        for (const rel of rels) {
-          const abs = `${vault}/${rel}`;
-          const asset = await load(internals.convertFileSrc(abs, 'asset'));
-          const t = performance.now();
-          const dataUrl = await internals.invoke('read_asset_data_url', { src: rel, baseFile: null });
-          const ipcMs = performance.now() - t;
-          const data = dataUrl ? await load(dataUrl) : { ok: false, ms: 0 };
-          out.push({ rel, asset, data: { ok: data.ok, ms: ipcMs + data.ms } });
-        }
-        done(out);
-      })();
+      const out: unknown[] = [];
+      for (const rel of rels) {
+        const abs = `${vault}/${rel}`;
+        const asset = await load(internals.convertFileSrc(abs, 'asset'));
+        const t = performance.now();
+        const dataUrl = await internals.invoke('read_asset_data_url', { src: rel, baseFile: null });
+        const ipcMs = performance.now() - t;
+        const data = dataUrl ? await load(dataUrl) : { ok: false, ms: 0 };
+        out.push({ rel, asset, data: { ok: data.ok, ms: ipcMs + data.ms } });
+      }
+      return out;
     },
     s.vault,
     IMAGES
