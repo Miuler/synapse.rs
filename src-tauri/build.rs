@@ -1,15 +1,15 @@
 use anyhow::Result;
-use vergen_gix::{BuildBuilder, Emitter, GixBuilder};
+use vergen_gix::{Build, Emitter, Gix};
 
 fn main() -> Result<()> {
     // Timestamp de compilación (UTC)
-    let build = BuildBuilder::default().build_timestamp(true).build()?;
+    let build = Build::builder().build_timestamp(true).build();
 
     // `git describe --tags --dirty` y estado sucio del árbol de trabajo
-    let gix = GixBuilder::default()
+    let gix = Gix::builder()
         .describe(true, true, None)
         .dirty(true)
-        .build()?;
+        .build();
 
     Emitter::default()
         .add_instructions(&build)?
