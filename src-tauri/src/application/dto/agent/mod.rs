@@ -1,5 +1,5 @@
 use crate::domain::agent::{
-    AgentLaunch, AgentTranscript, PermissionDecision, PromptBlock, ToolServer,
+    AgentLaunch, AgentTranscript, IterationTelemetry, PermissionDecision, PromptBlock, ToolServer,
 };
 
 pub struct ListAgentsQuery;
@@ -88,4 +88,13 @@ pub struct DeleteAllAgentTranscriptsCommand {
 pub struct SetAgentProcessLimitCommand {
     pub agent_id: String,
     pub limit: usize,
+}
+
+pub struct RecordAgentIterationCommand {
+    pub cwd: String,
+    pub conversation_id: String,
+    pub agent_id: String,
+    pub agent_name: String,
+    pub acp_session_id: Option<String>,
+    pub iteration: IterationTelemetry,
 }

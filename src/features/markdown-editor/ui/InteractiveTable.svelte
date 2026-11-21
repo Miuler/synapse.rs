@@ -356,18 +356,31 @@
             </td>
 
             {#each headers as _, colIndex}
+              {@const cellVal = row[colIndex] ?? ''}
+              {@const checkboxMatch = /^\[([ xX])\]$/.exec(cellVal.trim())}
               <td class="table-data-cell">
-                <input
-                  type="text"
-                  class="table-input cell-input"
-                  style="text-align: {alignments[colIndex] === 'center' ? 'center' : alignments[colIndex] === 'right' ? 'right' : 'left'};"
-                  value={row[colIndex] ?? ''}
-                  data-row={rowIndex}
-                  data-col={colIndex}
-                  placeholder=""
-                  oninput={(e) => updateCell(rowIndex, colIndex, (e.target as HTMLInputElement).value)}
-                  onkeydown={(e) => handleCellKeyDown(e, rowIndex, colIndex)}
-                />
+                {#if checkboxMatch}
+                  <div class="table-checkbox-wrap">
+                    <input
+                      type="checkbox"
+                      class="table-checkbox"
+                      checked={checkboxMatch[1] !== ' '}
+                      onchange={(e) => updateCell(rowIndex, colIndex, e.currentTarget.checked ? '[x]' : '[ ]')}
+                    />
+                  </div>
+                {:else}
+                  <input
+                    type="text"
+                    class="table-input cell-input"
+                    style="text-align: {alignments[colIndex] === 'center' ? 'center' : alignments[colIndex] === 'right' ? 'right' : 'left'};"
+                    value={cellVal}
+                    data-row={rowIndex}
+                    data-col={colIndex}
+                    placeholder=""
+                    oninput={(e) => updateCell(rowIndex, colIndex, (e.target as HTMLInputElement).value)}
+                    onkeydown={(e) => handleCellKeyDown(e, rowIndex, colIndex)}
+                  />
+                {/if}
               </td>
             {/each}
           </tr>
@@ -378,6 +391,16 @@
 </div>
 
 <style>
+  .table-checkbox-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+  }
+  .table-checkbox {
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
   .table-card {
     display: block;
     margin: 14px 0 18px 0;

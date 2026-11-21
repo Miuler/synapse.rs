@@ -228,7 +228,8 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_feedback_available,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_debug_log,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_process_limit,
-            infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_open_transcript,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_record_iteration
         ])
         .setup(|app| {
             // Restos de una actualización anterior (Windows deja el .exe viejo como .old)

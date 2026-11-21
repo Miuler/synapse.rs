@@ -189,6 +189,40 @@ function tableLayout(state: EditorState, from: number, to: number) {
   return layoutTableLines(lines);
 }
 
+/** Checkbox interactivo para celdas de tabla con `[ ]` o `[x]`. */
+class TableCheckboxWidget extends WidgetType {
+  constructor(
+    readonly checked: boolean,
+    readonly from: number,
+    readonly to: number
+  ) {
+    super();
+  }
+
+  eq(other: TableCheckboxWidget): boolean {
+    return other.checked === this.checked && other.from === this.from && other.to === this.to;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'cm-md-table-checkbox';
+    input.checked = this.checked;
+    input.addEventListener('mousedown', (e) => e.preventDefault());
+    input.addEventListener('change', (e) => {
+      e.stopPropagation();
+      view.dispatch({
+        changes: { from: this.from, to: this.to, insert: input.checked ? '[x]' : '[ ]' },
+      });
+    });
+    return input;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 /** Botón al final del encabezado para pasar la tabla al editor visual. */
 class TableVisualButtonWidget extends WidgetType {
   constructor(readonly tableFrom: number) {
@@ -405,6 +439,22 @@ function buildTableDecorations(state: EditorState, spacers: Map<number, number>)
           .filter(Boolean)
           .join(' ');
         decos.push(Decoration.line({ class: cls }).range(line.lineFrom));
+        if (line.kind === 'row') {
+          const sel = state.selection.main;
+          for (const cell of line.cells) {
+            const raw = state.doc.sliceString(cell.from, cell.to);
+            const match = /^(\s*)\[([ xX])\](\s*)$/.exec(raw);
+            if (!match) continue;
+            const boxFrom = cell.from + match[1].length;
+            const boxTo = boxFrom + 3;
+            if (sel.from <= boxTo && sel.to >= boxFrom) continue;
+            decos.push(
+              Decoration.replace({
+                widget: new TableCheckboxWidget(match[2] !== ' ', boxFrom, boxTo),
+              }).range(boxFrom, boxTo)
+            );
+          }
+        }
         for (const p of line.pipes) {
           const px = spacers.get(p);
           if (px) decos.push(Decoration.widget({ widget: new TableSpacerWidget(px), side: -1 }).range(p));
@@ -476,6 +526,12 @@ export const tableLineTheme = EditorView.baseTheme({
   },
   '.cm-md-table-header:hover .cm-md-table-visual-btn, .cm-md-table-visual-btn:focus': {
     opacity: '1',
+  },
+  '.cm-md-table-checkbox': {
+    cursor: 'pointer',
+    verticalAlign: 'middle',
+    margin: '0 2px',
+    accentColor: 'var(--accent)',
   },
 });
 

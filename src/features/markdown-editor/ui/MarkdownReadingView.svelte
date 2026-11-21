@@ -416,6 +416,16 @@
 
   marked.use({
     renderer: {
+      tablecell(token: { text: string; header: boolean; align: 'center' | 'left' | 'right' | null }) {
+        if (!token.header) {
+          const m = /^\[([ xX])\]$/.exec(token.text.trim());
+          if (m) {
+            const align = token.align ? ` align="${token.align}"` : '';
+            return `<td${align}><input type="checkbox" class="md-table-checkbox" disabled${m[1] !== ' ' ? ' checked' : ''} /></td>\n`;
+          }
+        }
+        return false;
+      },
       link({ href, title, text }: { href: string; title?: string | null; text: string }) {
         const safeHref = href || '';
         const isExternal = /^(?:https?:\/\/|mailto:|tel:)/i.test(safeHref);

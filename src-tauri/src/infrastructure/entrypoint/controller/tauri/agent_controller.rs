@@ -3,7 +3,7 @@
 use crate::application::dto::agent::*;
 use crate::domain::agent::{
     AgentLaunch, AgentProfile, AgentSession, AgentTranscript, AgentTranscriptSummary,
-    PermissionDecision, PromptBlock, ToolServer,
+    IterationTelemetry, PermissionDecision, PromptBlock, ToolServer,
 };
 use crate::infrastructure::config::agent_state::AgentState;
 use crate::infrastructure::config::state::AppState;
@@ -233,6 +233,33 @@ pub fn agent_save_transcript(
     state
         .save_agent_transcript
         .execute(SaveAgentTranscriptCommand { transcript })
+}
+
+#[derive(serde::Deserialize)]
+pub struct RecordIterationPayload {
+    pub cwd: String,
+    pub conversation_id: String,
+    pub agent_id: String,
+    pub agent_name: String,
+    pub acp_session_id: Option<String>,
+    pub iteration: IterationTelemetry,
+}
+
+#[tauri::command]
+pub fn agent_record_iteration(
+    state: State<'_, AgentState>,
+    payload: RecordIterationPayload,
+) -> Result<(), String> {
+    state
+        .record_agent_iteration
+        .execute(RecordAgentIterationCommand {
+            cwd: payload.cwd,
+            conversation_id: payload.conversation_id,
+            agent_id: payload.agent_id,
+            agent_name: payload.agent_name,
+            acp_session_id: payload.acp_session_id,
+            iteration: payload.iteration,
+        })
 }
 
 #[tauri::command]

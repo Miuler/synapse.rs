@@ -11,6 +11,7 @@ use crate::application::use_case::list_agent_transcripts_use_case::ListAgentTran
 use crate::application::use_case::list_agents_use_case::ListAgentsUseCase;
 use crate::application::use_case::load_agent_transcript_use_case::LoadAgentTranscriptUseCase;
 use crate::application::use_case::open_agent_transcript_use_case::OpenAgentTranscriptUseCase;
+use crate::application::use_case::record_agent_iteration_use_case::RecordAgentIterationUseCase;
 use crate::application::use_case::respond_permission_use_case::RespondPermissionUseCase;
 use crate::application::use_case::save_agent_profile_use_case::SaveAgentProfileUseCase;
 use crate::application::use_case::save_agent_transcript_use_case::SaveAgentTranscriptUseCase;
@@ -23,6 +24,7 @@ use crate::infrastructure::integration::service::acp::{
     AgentCatalogImpl, AgentEventSink, AgentInstallerImpl, AgentRunnerImpl,
 };
 use crate::infrastructure::repository::file::agent_profile_repository_impl::AgentProfileRepositoryImpl;
+use crate::infrastructure::repository::file::agent_telemetry_repository_impl::AgentTelemetryRepositoryImpl;
 use crate::infrastructure::repository::file::agent_transcript_repository_impl::AgentTranscriptRepositoryImpl;
 use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 
@@ -48,6 +50,7 @@ pub struct AgentState {
         DeleteAllAgentTranscriptsUseCase<AgentTranscriptRepositoryImpl>,
     pub open_agent_transcript:
         OpenAgentTranscriptUseCase<AgentTranscriptRepositoryImpl, SystemShellImpl>,
+    pub record_agent_iteration: RecordAgentIterationUseCase<AgentTelemetryRepositoryImpl>,
 }
 
 impl AgentState {
@@ -58,6 +61,7 @@ impl AgentState {
         let profiles = AgentProfileRepositoryImpl::default();
         let runner = AgentRunnerImpl::new(sink);
         let transcripts = AgentTranscriptRepositoryImpl;
+        let telemetry = AgentTelemetryRepositoryImpl::default();
         Self {
             list_agents: ListAgentsUseCase::new(catalog, profiles.clone()),
             install_agent: InstallAgentUseCase::new(installer.clone()),
@@ -79,6 +83,7 @@ impl AgentState {
                 transcripts.clone(),
             ),
             open_agent_transcript: OpenAgentTranscriptUseCase::new(transcripts, SystemShellImpl),
+            record_agent_iteration: RecordAgentIterationUseCase::new(telemetry),
         }
     }
 }

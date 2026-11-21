@@ -91,6 +91,10 @@ export class Conversation {
   incoming = $state<{ vault: string; handle: string; title: string } | null>(null);
   /** Saltos entre agentes del turno en curso (0 si lo empezó el usuario). */
   #turnHops = 0;
+  /** Contador de iteraciones (turnos) completados en esta conversación. */
+  #turnIndex = 0;
+  /** Tiempos de inicio y fin de cada `toolCallId` para la telemetría de iteración. */
+  toolTimings = new Map<string, { startedAt: number; endedAt?: number }>();
 
   readonly #store: AgentStore;
   readonly #cwd: string;
@@ -399,16 +403,71 @@ export class Conversation {
     this.plan = [];
     this.connection = 'busy';
     this.persist(true);
+    const turnStartedAt = Date.now();
+    const prevCostAmount = this.usage?.cost?.amount ?? null;
+    const turnIndex = ++this.#turnIndex;
+    let stopReason = 'error';
     try {
       const stop = await agentApi.sendPrompt(session.id, blocks);
+      stopReason = stop;
       if (stop === 'refusal') this.push({ type: 'error', text: 'El agente rechazó la petición.' });
     } catch (e) {
       this.error(e);
     } finally {
+      const turnEndedAt = Date.now();
       if (this.session?.id === session.id) this.connection = 'ready';
       if (compact) this.compacting = false;
       if (!this.#store.isVisible(this)) this.unseen = true;
       this.persist(true);
+      const agent = this.agent;
+      if (agent) {
+        const toolCalls = this.items
+          .slice(turnStart)
+          .filter((i): i is Extract<ChatItem, { type: 'tool' }> => i.type === 'tool')
+          .map((t) => {
+            const timing = this.toolTimings.get(t.toolCallId);
+            const started_at = timing?.startedAt ?? null;
+            const ended_at = timing?.endedAt ?? null;
+            return {
+              tool_call_id: t.toolCallId,
+              title: t.title,
+              kind: t.kind,
+              status: t.status,
+              started_at,
+              ended_at,
+              duration_ms: started_at != null && ended_at != null ? Math.max(0, ended_at - started_at) : null,
+            };
+          });
+        const costAmount = this.usage?.cost?.amount ?? null;
+        const costDelta =
+          costAmount != null ? Math.max(0, costAmount - (prevCostAmount ?? 0)) : null;
+        void agentApi
+          .recordIteration({
+            cwd: this.#cwd,
+            conversation_id: this.id,
+            agent_id: agent.id,
+            agent_name: agent.name,
+            acp_session_id: this.session?.id ?? this.#acpSessionId,
+            iteration: {
+              id: `iter-${turnStartedAt}-${turnIndex}`,
+              turn_index: turnIndex,
+              model: this.currentModel,
+              mode: this.currentMode,
+              started_at: turnStartedAt,
+              ended_at: turnEndedAt,
+              duration_ms: Math.max(0, turnEndedAt - turnStartedAt),
+              stop_reason: stopReason,
+              usage_used: this.usage?.used ?? null,
+              usage_size: this.usage?.size ?? null,
+              cost_amount: costAmount,
+              cost_delta: costDelta,
+              cost_currency: this.usage?.cost?.currency ?? null,
+              tool_calls: toolCalls,
+              mcp_call_ids: [],
+            },
+          })
+          .catch(() => {});
+      }
       // Era una pregunta de otra conversación: su respuesta vuelve sola
       if (opts.replyTo) {
         const answer = this.items
@@ -621,6 +680,15 @@ export class AgentStore {
       onToolCall: (e) => {
         const c = this.#bySession(e.sessionId);
         if (!c) return;
+        const now = Date.now();
+        let timing = c.toolTimings.get(e.toolCallId);
+        if (!timing) {
+          timing = { startedAt: now };
+          c.toolTimings.set(e.toolCallId, timing);
+        }
+        if (e.status === 'completed' || e.status === 'failed' || e.status === 'error') {
+          timing.endedAt = now;
+        }
         const existing = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
         if (existing && existing.type === 'tool') {
           if (e.title) existing.title = e.title;

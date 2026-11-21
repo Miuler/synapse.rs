@@ -581,19 +581,32 @@ impl McpBackgroundRuntime {
             let note_repo = NoteRepositoryImpl::new();
             let git_service = Some(Arc::new(VersionControlImpl));
 
-            let tool_handler = McpToolHandler::new(active_vault, note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl))
+            let tool_handler = McpToolHandler::new(active_vault.clone(), note_repo, fts_opt, git_service, std::sync::Arc::new(crate::infrastructure::repository::file::vault_item_repository_impl::VaultItemRepositoryImpl), std::sync::Arc::new(crate::infrastructure::repository::file::pdf_document_repository_impl::PdfDocumentRepositoryImpl))
                 .with_diagram_renderer(provider.diagram_renderer())
-                .with_conversations(provider.conversation_hub(), caller);
+                .with_conversations(provider.conversation_hub(), caller.clone());
             let (catalog, prompter) = provider.vault_access();
             let tool_handler = tool_handler.with_vaults(catalog, prompter);
             let stdio_server = McpStdioServer::new(tool_handler);
 
+            let started_at = now_unix_ms();
             let response_body = if let Some(resp) = stdio_server.handle_line(body_str.trim()) {
                 resp
             } else {
                 // Notificación o vacío
                 "".to_string()
             };
+            let ended_at = now_unix_ms();
+
+            if let Some(conv_id) = caller.as_deref() {
+                record_agent_mcp_call(
+                    &active_vault,
+                    conv_id,
+                    started_at,
+                    ended_at,
+                    body_str.trim(),
+                    &response_body,
+                );
+            }
 
             let header = format!(
                 "HTTP/1.1 200 OK\r\n\
@@ -613,5 +626,74 @@ impl McpBackgroundRuntime {
         let _ = stream.write_all(not_found.as_bytes());
         let _ = stream.flush();
         Ok(())
+    }
+}
+
+static MCP_CALL_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn now_unix_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Registra el request y response de una llamada de un agente al MCP de Synapse en el sidecar
+/// de telemetría de su conversación (`<bóveda>/.synapse/agent-sessions/telemetry/<conv>.json`).
+fn record_agent_mcp_call(
+    vault: &Path,
+    conv_id: &str,
+    started_at: i64,
+    ended_at: i64,
+    request_raw: &str,
+    response_raw: &str,
+) {
+    let Ok(request) = serde_json::from_str::<Value>(request_raw) else {
+        return;
+    };
+    let method = request
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    if method.is_empty() || method == "ping" || method == "notifications/initialized" {
+        return;
+    }
+    let tool_name = (method == "tools/call").then(|| {
+        request
+            .get("params")
+            .and_then(|p| p.get("name"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    }).flatten();
+    let jsonrpc_id = request.get("id").cloned();
+    let response = if response_raw.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str::<Value>(response_raw).unwrap_or_else(|_| Value::String(response_raw.to_string()))
+    };
+    let is_error = response.get("error").is_some()
+        || response
+            .get("result")
+            .and_then(|r| r.get("isError"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+    let seq = MCP_CALL_SEQ.fetch_add(1, Ordering::Relaxed);
+    let call = crate::domain::agent::McpCallTelemetry {
+        id: format!("mcp-{started_at}-{seq}"),
+        started_at,
+        ended_at,
+        duration_ms: ended_at.saturating_sub(started_at) as u64,
+        method,
+        tool_name,
+        jsonrpc_id,
+        request,
+        response,
+        is_error,
+    };
+    use crate::domain::agent::AgentTelemetryRepository;
+    let repo = crate::infrastructure::repository::file::agent_telemetry_repository_impl::AgentTelemetryRepositoryImpl::default();
+    if let Err(e) = repo.record_mcp_call(&vault.to_string_lossy(), conv_id, call) {
+        log::debug!("No se pudo registrar telemetría MCP para {conv_id}: {e}");
     }
 }

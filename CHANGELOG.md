@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Telemetría de agentes: registro global de uso por iteración en `~/.config/synapsers/agent-usage.jsonl` (modelo, sesión, duración, tokens/costo y referencias a los JSON de cada bóveda) y sidecar detallado por conversación en `<bóveda>/.synapse/agent-sessions/telemetry/<id>.json` con tiempos de iteración, uso de herramientas y correlación de request/response de llamadas al MCP de Synapse.
+- Tablas Markdown: las celdas con `[ ]`, `[x]` o `[X]` se renderizan como checkboxes interactivos en el editor en vivo, el editor visual de celdas y la vista de lectura.
 - Chat del agente: tus mensajes se muestran en Markdown (negrita, listas, código, enlaces…) con las menciones resaltadas, y tienen un botón «Copiar» que copia el texto tal como lo escribiste para reusar el prompt.
 - La pestaña de un `index.md` muestra el nombre de su carpeta (el de la bóveda para el de la raíz) con un icono de carpeta.
 - Imágenes y adjuntos (todo enlace que no es una nota `.md`) se buscan también en la carpeta `attachments/` junto a la nota: para `a/b/c/NOTA.md`, primero `a/b/c/imagen.png`, luego `a/b/c/attachments/imagen.png`, y después la regla de siempre (raíz de la bóveda, único por nombre o elegir).

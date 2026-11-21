@@ -59,6 +59,43 @@ export interface AgentTranscript extends AgentTranscriptSummary {
   items: ChatItem[];
 }
 
+export interface ToolCallTelemetry {
+  tool_call_id: string;
+  title: string;
+  kind?: string | null;
+  status?: string | null;
+  started_at?: number | null;
+  ended_at?: number | null;
+  duration_ms?: number | null;
+}
+
+export interface IterationTelemetry {
+  id: string;
+  turn_index: number;
+  model?: string | null;
+  mode?: string | null;
+  started_at: number;
+  ended_at: number;
+  duration_ms: number;
+  stop_reason: string;
+  usage_used?: number | null;
+  usage_size?: number | null;
+  cost_amount?: number | null;
+  cost_delta?: number | null;
+  cost_currency?: string | null;
+  tool_calls: ToolCallTelemetry[];
+  mcp_call_ids: string[];
+}
+
+export interface RecordIterationPayload {
+  cwd: string;
+  conversation_id: string;
+  agent_id: string;
+  agent_name: string;
+  acp_session_id: string | null;
+  iteration: IterationTelemetry;
+}
+
 /** Parte de un mensaje al agente (coincide con `PromptBlock` del backend). */
 export type PromptBlock =
   | { type: 'text'; text: string }
