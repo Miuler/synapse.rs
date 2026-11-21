@@ -388,7 +388,7 @@ const gitDiffMarkersField = StateField.define<DiffState>({
 });
 
 /** Bloque bajo el ratón en el margen (índice en `hunks`), para el tooltip */
-const setHoverHunk = StateEffect.define<number | null>();
+const setHoverHunk = StateEffect.define<{ hunk: number; line: number } | null>();
 
 /** Bloque al que pertenece la línea `n` (1-based) */
 function hunkAtLine(hunks: DiffHunk[], n: number): number | null {
@@ -461,7 +461,7 @@ function renderHunk(h: DiffHunk): HTMLElement {
   return dom;
 }
 
-const hoverHunkField = StateField.define<number | null>({
+const hoverHunkField = StateField.define<{ hunk: number; line: number } | null>({
   create: () => null,
   update(value, tr) {
     for (const e of tr.effects) if (e.is(setHoverHunk)) return e.value;
@@ -469,12 +469,12 @@ const hoverHunkField = StateField.define<number | null>({
   },
   provide: (f) =>
     showTooltip.compute([f, gitDiffMarkersField], (state): Tooltip | null => {
-      const i = state.field(f);
-      const hunk = i === null ? undefined : state.field(gitDiffMarkersField).hunks[i];
-      if (!hunk) return null;
-      // Debajo del bloque (encima taparía la parte de arriba en las primeras líneas)
-      const last = Math.min(Math.max(1, hunk.startLine + Math.max(hunk.newCount, 1) - 1), state.doc.lines);
-      return { pos: state.doc.line(last).to, above: false, create: () => ({ dom: renderHunk(hunk) }) };
+      const hover = state.field(f);
+      const hunk = hover === null ? undefined : state.field(gitDiffMarkersField).hunks[hover.hunk];
+      if (!hover || !hunk) return null;
+      // Justo debajo de la línea bajo el ratón, al principio (pegado al margen)
+      const line = state.doc.line(Math.min(Math.max(1, hover.line), state.doc.lines));
+      return { pos: line.from, above: false, create: () => ({ dom: renderHunk(hunk) }) };
     }),
 });
 
@@ -562,7 +562,9 @@ export function gitDiffGutter(initialBase: string | null = null): Extension {
         mousemove(view, line) {
           const n = view.state.doc.lineAt(line.from).number;
           const i = hunkAtLine(view.state.field(gitDiffMarkersField).hunks, n);
-          if (i !== view.state.field(hoverHunkField)) view.dispatch({ effects: setHoverHunk.of(i) });
+          const cur = view.state.field(hoverHunkField);
+          const next = i === null ? null : { hunk: i, line: n };
+          if (cur?.hunk !== next?.hunk || cur?.line !== next?.line) view.dispatch({ effects: setHoverHunk.of(next) });
           return false;
         },
         mouseleave(view) {

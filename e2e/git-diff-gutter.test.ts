@@ -98,6 +98,15 @@ it('al pasar por la marca, un tooltip muestra lo que había en Git y resalta lo 
   expect(tip.old).toBe('−linea 2');
   expect(tip.now).toBe('+linea 2 editada');
   expect(tip.ins).toEqual([' editada']);
+  // Aparece pegado a la marca: justo debajo de su línea y al inicio del texto (no al final de la línea)
+  const gap = (await s.browser.execute(() => {
+    const m = document.querySelector('.tab-pane:not(.hidden) .cm-git-diff-modified')!.getBoundingClientRect();
+    const t = document.querySelector('.cm-git-diff-tip')!.getBoundingClientRect();
+    return { dy: t.top - m.bottom, dx: t.left - m.right };
+  })) as { dy: number; dx: number };
+  expect(gap.dy).toBeGreaterThan(-5);
+  expect(gap.dy).toBeLessThan(30);
+  expect(gap.dx).toBeLessThan(80);
   // Al salir del margen se oculta
   await s.browser.execute(() => {
     const g = document.querySelector('.tab-pane:not(.hidden) .cm-git-diff-gutter') as HTMLElement;
