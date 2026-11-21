@@ -77,6 +77,35 @@ it('muestra marcadores de línea modificada y añadida en nota.md', async () => 
   expect(counts.added).toBe(1);
 }, 60_000);
 
+it('al pasar por la marca, un tooltip muestra lo que había en Git y resalta lo que cambió', async () => {
+  const marker = () =>
+    s.browser.execute((ev) => {
+      const m = document.querySelector('.tab-pane:not(.hidden) .cm-git-diff-modified') as HTMLElement;
+      m.dispatchEvent(new MouseEvent(ev, { bubbles: true, clientX: m.getBoundingClientRect().x + 1, clientY: m.getBoundingClientRect().y + 2 }));
+    }, 'mousemove');
+  await marker();
+  await s.browser.$('.cm-git-diff-tip').waitForExist({ timeout: 5_000, timeoutMsg: 'no apareció el tooltip' });
+  const tip = (await s.browser.execute(() => {
+    const t = document.querySelector('.cm-git-diff-tip')!;
+    return {
+      head: t.querySelector('.cm-git-diff-tip-head')?.textContent,
+      old: t.querySelector('.cm-git-diff-tip-old')?.textContent,
+      now: t.querySelector('.cm-git-diff-tip-new')?.textContent,
+      ins: [...t.querySelectorAll('.cm-git-diff-tip-ins')].map((e) => e.textContent),
+    };
+  })) as { head: string; old: string; now: string; ins: string[] };
+  expect(tip.head).toContain('Modificado');
+  expect(tip.old).toBe('−linea 2');
+  expect(tip.now).toBe('+linea 2 editada');
+  expect(tip.ins).toEqual([' editada']);
+  // Al salir del margen se oculta
+  await s.browser.execute(() => {
+    const g = document.querySelector('.tab-pane:not(.hidden) .cm-git-diff-gutter') as HTMLElement;
+    g.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+  });
+  await s.browser.$('.cm-git-diff-tip').waitForExist({ timeout: 5_000, reverse: true, timeoutMsg: 'el tooltip no se ocultó' });
+}, 30_000);
+
 it('muestra todas las líneas como añadidas en archivo untracked (nueva.md)', async () => {
   await s.browser.$('.file-tree-item[data-path="nueva.md"]').click();
   await s.browser.$('.tab-title-container.active[data-path="nueva.md"]').waitForExist({ timeout: 10_000 });

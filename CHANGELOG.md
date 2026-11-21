@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Editor: al pasar el ratón por una marca del margen de Git aparece un tooltip con lo que había en Git y lo que hay ahora (−/+), con las letras que cambiaron resaltadas (aunque sea una sola); en un borrado, las líneas que se quitaron.
 - Telemetría de agentes: registro global de uso por iteración en `~/.config/synapsers/agent-usage.jsonl` (modelo, sesión, duración, tokens/costo y referencias a los JSON de cada bóveda) y sidecar detallado por conversación en `<bóveda>/.synapse/agent-sessions/telemetry/<id>.json` con tiempos de iteración, uso de herramientas y correlación de request/response de llamadas al MCP de Synapse.
 - Tablas Markdown: las celdas con `[ ]`, `[x]` o `[X]` se renderizan como checkboxes interactivos en el editor en vivo, el editor visual de celdas y la vista de lectura.
 - Chat del agente: tus mensajes se muestran en Markdown (negrita, listas, código, enlaces…) con las menciones resaltadas, y tienen un botón «Copiar» que copia el texto tal como lo escribiste para reusar el prompt.
