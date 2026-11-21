@@ -113,10 +113,38 @@
       });
       if (gen !== generation) return;
       const rows = new Map<number, Map<number, Cell>>();
+      const colWidths = new Map(layout?.colWidths ?? []);
+      const rowHeights = new Map(layout?.rowHeights ?? []);
+      let heightsChanged = false;
       for (const cell of block.cells) {
         let row = rows.get(cell.r);
         if (!row) rows.set(cell.r, (row = new Map()));
         row.set(cell.c, cell);
+
+        // Si la celda tiene ajuste de línea (`wrap`) o saltos `\n`, asegurar alto suficiente para no recortar la cabecera
+        const st = cell.s !== undefined ? block.styles[cell.s] : undefined;
+        if (cell.v && (st?.wrap || cell.v.includes('\n'))) {
+          const colW = colWidths.get(cell.c);
+          const colPx = colW ? Math.max(12, colW * 7 + 5) : 64;
+          const fontPt = st?.size10 ? st.size10 / 10 : 11;
+          const fontPx = (fontPt * 4) / 3;
+          const charsPerLine = Math.max(4, Math.floor((colPx - 8) / (fontPx * 0.6)));
+          let lines = 0;
+          for (const seg of cell.v.split('\n')) {
+            lines += Math.max(1, Math.ceil(seg.length / charsPerLine));
+          }
+          if (lines > 1) {
+            const neededPt = Math.ceil(lines * fontPt * 1.35 + 4);
+            const currentPt = rowHeights.get(cell.r) ?? 15;
+            if (neededPt > currentPt) {
+              rowHeights.set(cell.r, neededPt);
+              heightsChanged = true;
+            }
+          }
+        }
+      }
+      if (heightsChanged && layout) {
+        layout = { ...layout, rowHeights: Array.from(rowHeights.entries()) };
       }
       blocks.set(b, { rows, css: block.styles.map(styleToCss) });
       blocksVersion++;

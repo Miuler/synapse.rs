@@ -168,9 +168,9 @@ export function styleToCss(st: CellStyle): string {
   if (st.bg) out.push(`background:${st.bg}`);
   // En `em` respecto a la letra base de la rejilla (11 pt), que ya lleva el zoom
   if (st.size10) out.push(`font-size:${(st.size10 / 110).toFixed(3)}em`);
-  // La celda es una columna flex: el contenido va abajo salvo que diga otra cosa
-  if (st.valign) out.push(`justify-content:${st.valign === 'top' ? 'flex-start' : 'center'}`);
-  if (st.wrap) out.push('white-space:pre-wrap');
+  // La celda es una columna flex: el contenido va abajo salvo que diga otra cosa (`safe` evita recortar arriba)
+  if (st.valign) out.push(`justify-content:${st.valign === 'top' ? 'flex-start' : 'safe center'}`);
+  if (st.wrap) out.push('white-space:pre-wrap;overflow-wrap:break-word');
   if (st.borderTop) out.push(`border-top:${st.borderTop}`);
   if (st.borderRight) out.push(`border-right:${st.borderRight}`);
   if (st.borderBottom) out.push(`border-bottom:${st.borderBottom}`);
