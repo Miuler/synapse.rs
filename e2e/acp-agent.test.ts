@@ -549,3 +549,29 @@ it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ 
   expect((await text('.acp-msg.agent')).some((t) => t?.includes('Recibido «eco: tres»'))).toBe(false);
   await input.clearValue();
 }, 60_000);
+
+it('tus mensajes se ven en Markdown y «Copiar» copia el texto tal cual', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
+  await input.setValue('eco: **fuerte** y `codigo`');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Recibido «eco: fuerte')), { timeout: 10_000 });
+  const html = (await s.browser.execute(() => {
+    const msg = [...document.querySelectorAll('.acp-msg.user')].find((m) => m.textContent?.includes('fuerte'))!;
+    return { strong: msg.querySelector('strong')?.textContent, code: msg.querySelector('code')?.textContent, html: msg.innerHTML.slice(0, 300) };
+  })) as { strong?: string; code?: string; html: string };
+  expect({ strong: html.strong, code: html.code }).toEqual({ strong: 'fuerte', code: 'codigo' });
+  // «Copiar» copia el texto original (Markdown), para reusarlo
+  await s.browser.execute(() => {
+    (window as any).__copiedText = null;
+    navigator.clipboard.writeText = async (t: string) => {
+      (window as any).__copiedText = t;
+    };
+    const wrap = [...document.querySelectorAll('.acp-user-wrap')].find((w) => w.textContent?.includes('fuerte'))!;
+    (wrap.querySelector('.acp-copy-user') as HTMLElement).click();
+  });
+  await s.browser.waitUntil(async () => (await s.browser.execute(() => (window as any).__copiedText)) === 'eco: **fuerte** y `codigo`', {
+    timeout: 5_000,
+    timeoutMsg: '«Copiar» no copió el texto original',
+  });
+}, 30_000);

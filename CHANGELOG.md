@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente: tus mensajes se muestran en Markdown (negrita, listas, código, enlaces…) con las menciones resaltadas, y tienen un botón «Copiar» que copia el texto tal como lo escribiste para reusar el prompt.
 - La pestaña de un `index.md` muestra el nombre de su carpeta (el de la bóveda para el de la raíz) con un icono de carpeta.
 - Imágenes y adjuntos (todo enlace que no es una nota `.md`) se buscan también en la carpeta `attachments/` junto a la nota: para `a/b/c/NOTA.md`, primero `a/b/c/imagen.png`, luego `a/b/c/attachments/imagen.png`, y después la regla de siempre (raíz de la bóveda, único por nombre o elegir).
 - Panel del agente con pin, como el explorador: fijado ocupa su espacio a la derecha; suelto flota sobre el editor sin quitarle espacio y se oculta al hacer clic fuera o con Esc.

@@ -1,5 +1,7 @@
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
+import type { Mention } from '@entities/acp-agent';
+import { splitMentions } from './mentions';
 
 const marked = new Marked({ gfm: true, breaks: true });
 
@@ -42,4 +44,18 @@ export function formatRaw(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Mensaje del usuario como Markdown (lo básico), con sus menciones `@…` resaltadas. */
+export function renderUserMarkdown(text: string, mentions?: Mention[]): string {
+  const source = splitMentions(text, mentions)
+    .map((part) =>
+      'mention' in part
+        ? `<span class="acp-mention" title="${escapeHtml(part.mention.title)}">${escapeHtml(part.mention.token)}</span>`
+        : part.text,
+    )
+    .join('');
+  return renderAgentMarkdown(source);
 }

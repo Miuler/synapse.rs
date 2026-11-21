@@ -38,7 +38,7 @@
   } from 'lucide-svelte';
   import { tick } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
-  import { renderAgentMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
+  import { renderAgentMarkdown, renderUserMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
   import { taskAwareCopy, richCopyOfElement, writeRichClipboard } from '@shared/lib/rich-copy';
   import { appSettings } from '@entities/settings';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
@@ -47,7 +47,6 @@
     conversationTooltip,
     mentionsPrompt,
     mergeVaults,
-    splitMentions,
     STATUS_ICON,
     VAULT_ICON,
     vaultToken,
@@ -646,12 +645,14 @@
             </button>
           </details>
         {:else if item.type === 'user'}
-          <div class="acp-msg user" class:from-agent={!!item.from}>
+          <div class="acp-user-wrap">
+          <div class="acp-msg user markdown" class:from-agent={!!item.from}>
             {#if item.from}<div class="acp-from">
                 {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
                 De {item.from.agent} · {item.from.handle}
               </div>{/if}
-            {#each splitMentions(item.text, item.mentions) as part, i (i)}{#if 'mention' in part}<span class="acp-mention" title={part.mention.title}>{part.mention.token}</span>{:else}{part.text}{/if}{/each}
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <div class="acp-user-text" onclick={onMessageClick}>{@html renderUserMarkdown(item.text, item.mentions)}</div>
             {#if item.attachments.length}
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
@@ -667,6 +668,12 @@
                 {/each}
               </div>
             {/if}
+          </div>
+            <div class="acp-msg-actions">
+              <button type="button" class="acp-copy-user" title="Copiar el texto tal como lo escribiste (para reusarlo)" onclick={() => copyMarkdown(String(item.id), item.text)}>
+                {#if copied?.id === String(item.id) && copied.how === 'md'}<Check size={11} /> Copiado{:else}<Copy size={11} /> Copiar{/if}
+              </button>
+            </div>
           </div>
         {:else if item.type === 'agent'}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -979,9 +986,28 @@
     padding: 8px 10px;
     border-radius: 8px;
   }
-  .acp-msg.user {
+  .acp-user-wrap {
     align-self: flex-end;
     max-width: 85%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .acp-user-wrap:hover .acp-msg-actions,
+  .acp-user-wrap .acp-msg-actions:focus-within {
+    opacity: 1;
+  }
+  .acp-msg.user :global(.acp-mention) {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent-primary, #6366f1) 18%, transparent);
+    font-weight: 500;
+    cursor: help;
+  }
+  .acp-msg.user {
+    align-self: flex-end;
+    max-width: 100%;
     background: color-mix(in srgb, var(--accent) 14%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   }
