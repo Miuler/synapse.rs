@@ -165,6 +165,25 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 Adicionalmente, antes de realizar cualquier commit, verificar si los cambios son relevantes e incluirlos en `CHANGELOG.md` bajo `## [Sin publicar] (Unreleased)`.
 
+### Pruebas E2E (siempre en la pantalla embebida)
+
+Las e2e abren la app real; **nunca** se ejecutan en el escritorio del usuario, sino en la pantalla
+embebida Xephyr `:100`:
+
+```bash
+# Suite completa
+bun run test:e2e:embebed:run
+
+# Solo algunos archivos (mismo entorno)
+GDK_BACKEND=x11 DISPLAY=:100 bun e2e/quick.ts <nombre-sin-.test.ts>
+```
+
+Si falla porque la pantalla `:100` no existe, ábrela **en segundo plano** y reintenta:
+
+```bash
+bun run test:e2e:embebed:x11
+```
+
 <!-- braid:agents:start v8 -->
 ## braid workflow
 
