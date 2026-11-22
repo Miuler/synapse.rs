@@ -2941,7 +2941,7 @@
       onclick={(e) => handleFolderClick(e, node, () => openFolderOrIndex(node))}
       oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
-      <!-- La flecha siempre despliega/pliega (el clic en la carpeta puede abrir su índice) -->
+      <!-- La flecha y el icono de carpeta siempre despliegan/pliegan (el clic en el nombre puede abrir su índice) -->
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <span
         class="chevron-toggle"
@@ -2961,12 +2961,12 @@
             size={12}
           />
         {/if}
+        <FolderIcon
+          isOpen={!!expandedFolders[node.relativePath]}
+          name={node.name}
+          size={15}
+        />
       </span>
-      <FolderIcon
-        isOpen={!!expandedFolders[node.relativePath]}
-        name={node.name}
-        size={15}
-      />
       <span class="file-name">{node.name}</span>
       {#if repo}
         <button
@@ -3669,6 +3669,7 @@
   .chevron-toggle {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     align-self: stretch;
     cursor: pointer;
   }
