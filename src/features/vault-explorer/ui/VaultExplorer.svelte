@@ -369,10 +369,15 @@
 
   // Helper para obtener los hijos en el render considerando el filtro
   function getDisplayChildren(node: VaultTreeNode): VaultTreeNode[] {
-    if (!isGitRepo || !filterOnlyModifiedGitFiles) {
-      return getChildren(node);
-    }
-    return node.children;
+    const children = !isGitRepo || !filterOnlyModifiedGitFiles ? getChildren(node) : node.children;
+    return hideFolderIndex(children);
+  }
+
+  /** Con «clic en carpeta abre su índice», el index.md no se lista dentro: la carpeta ya lo abre
+   *  (sigue en disco para los agentes y en el MCP) */
+  function hideFolderIndex(nodes: VaultTreeNode[]): VaultTreeNode[] {
+    if (appSettings.folderClick !== 'index') return nodes;
+    return nodes.filter((n) => n.isFolder || n.name.toLowerCase() !== 'index.md');
   }
 
   // Árbol activo: usa el cargado perezosamente desde Rust si está disponible, o el fallback, y aplica el filtro si está activo

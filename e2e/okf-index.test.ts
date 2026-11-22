@@ -93,6 +93,8 @@ it('clic en una carpeta abre su index.md (la flecha la despliega); con «Despleg
   // La flecha la despliega
   await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
   await s.browser.waitUntil(childVisible, { timeout: 5_000, timeoutMsg: 'la flecha no desplegó la carpeta' });
+  // Desplegada, su index.md no se lista dentro (la carpeta ya lo abre)
+  expect(await s.browser.$('.file-tree-item[data-path="proyecto/index.md"]').isExisting()).toBe(false);
   await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
   await s.browser.waitUntil(async () => !(await childVisible()), { timeout: 5_000 });
   // Ajuste «Desplegarla»: el clic despliega (como antes)
@@ -104,4 +106,36 @@ it('clic en una carpeta abre su index.md (la flecha la despliega); con «Despleg
   await folder().waitForExist({ timeout: 30_000 });
   await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
   await s.browser.waitUntil(childVisible, { timeout: 5_000, timeoutMsg: 'con «Desplegarla» no se desplegó' });
+}, 60_000);
+
+it('el índice de una carpeta tiene «+ Nuevo…» y «+ Carpeta» para crear dentro de ella', async () => {
+  const active = () => s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path')) as Promise<string>;
+  await s.browser.execute(() => {
+    const raw = JSON.parse(localStorage.getItem('synapse_settings') ?? '{}');
+    localStorage.setItem('synapse_settings', JSON.stringify({ ...raw, folderClick: 'index' }));
+  });
+  await s.browser.refresh();
+  await s.browser.$('.file-tree-item.folder[data-path="proyecto"]').waitForExist({ timeout: 30_000 });
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await active()) === 'proyecto/index.md', { timeout: 10_000 });
+  await s.browser.$('.folder-index-new').waitForExist({ timeout: 10_000, timeoutMsg: 'no aparecen los botones del índice' });
+  // Nueva nota dentro de la carpeta
+  await s.browser.execute(() => {
+    const sel = document.querySelector('.tab-pane:not(.hidden) .folder-index-new') as HTMLSelectElement;
+    sel.value = 'markdown';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await s.browser.waitUntil(async () => /^proyecto\/Nuevo Archivo \d+\.md$/.test(await active()), {
+    timeout: 10_000,
+    timeoutMsg: 'no creó la nota dentro de la carpeta',
+  });
+  // Nueva subcarpeta (el nombre se pide con prompt)
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await active()) === 'proyecto/index.md', { timeout: 10_000 });
+  await s.browser.$('.tab-pane:not(.hidden) .folder-index-new-folder').waitForExist({ timeout: 10_000 });
+  await s.browser.execute(() => {
+    window.prompt = () => 'nueva-sub';
+    (document.querySelector('.tab-pane:not(.hidden) .folder-index-new-folder') as HTMLElement).click();
+  });
+  await s.browser.waitUntil(async () => existsSync(join(s.vault, 'proyecto/nueva-sub')), { timeout: 10_000, timeoutMsg: 'no creó la subcarpeta' });
 }, 60_000);

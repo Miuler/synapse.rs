@@ -29,6 +29,7 @@
   import {DocxViewer} from "@features/docx-viewer";
   import {LinkChooser} from "@shared/ui/link-chooser";
   import {rewriteLinkTarget} from "@features/markdown-editor/lib/link-rewrite";
+  import {FOLDER_INDEX_EVENT, type FolderIndexAction} from "@features/markdown-editor/lib/folder-index-actions";
   import {agentImages, AGENT_IMAGE_TAB_PREFIX} from "@entities/acp-agent";
   import {ImageDown} from "lucide-svelte";
   import {OpenApiViewer, isOpenApiContent} from "@features/openapi-viewer";
@@ -502,6 +503,31 @@
       showWorkspaceToast(`No se pudo guardar la imagen: ${e}`);
     }
   }
+
+  // Botones del índice de una carpeta (index.md): crear un archivo o una subcarpeta en ella
+  $effect(() => {
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<FolderIndexAction>).detail;
+      if (!d) return;
+      if (d.action === 'new-file') {
+        void createNewVaultItem(undefined, d.kind, d.folder);
+        return;
+      }
+      const name = window.prompt(d.folder ? `Nueva subcarpeta en «${d.folder}»:` : 'Nueva carpeta:')?.trim();
+      if (!name) return;
+      if (/[\\/]/.test(name) || name === '.' || name === '..') {
+        showWorkspaceToast('Nombre de carpeta no válido');
+        return;
+      }
+      const path = d.folder ? `${d.folder}/${name}` : name;
+      vaultApi
+        .createFolder(path)
+        .then(() => showWorkspaceToast(`Carpeta creada: ${path}`))
+        .catch((err) => showWorkspaceToast(`No se pudo crear la carpeta: ${err}`));
+    };
+    window.addEventListener(FOLDER_INDEX_EVENT, onAction);
+    return () => window.removeEventListener(FOLDER_INDEX_EVENT, onAction);
+  });
 
   // Zoom de toda la interfaz (selector de Ctrl+P → «Zoom»)
   $effect(() => {
@@ -3466,7 +3492,9 @@
 
   async function createNewVaultItem(
     emptyTabPathToReplace?: string,
-    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown',
+    /** Carpeta donde crearlo (por defecto la raíz de la bóveda) */
+    folder = ''
   ) {
     let extension = 'md';
     let defaultBaseTitle = 'Nuevo Archivo';
@@ -3519,14 +3547,15 @@
       initialContent = createCanonicalExcalidrawContent(templateContent);
     }
 
+    const prefix = folder ? `${folder.replace(/\/+$/, '')}/` : '';
     let counter = vaultItemStore.count + 1;
     let newTitle = `${defaultBaseTitle} ${counter}`;
-    let newRelPath = `${newTitle}.${extension}`;
+    let newRelPath = `${prefix}${newTitle}.${extension}`;
 
     while (vaultItemStore.has(newRelPath)) {
       counter++;
       newTitle = `${defaultBaseTitle} ${counter}`;
-      newRelPath = `${newTitle}.${extension}`;
+      newRelPath = `${prefix}${newTitle}.${extension}`;
     }
 
     const newVaultItem: VaultItem = {

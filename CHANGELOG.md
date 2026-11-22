@@ -13,7 +13,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
-- Explorador: clic en una carpeta abre su `index.md` (la flecha la despliega; sin `index.md`, se despliega como antes). Ajustes → «Clic en una carpeta del explorador» permite volver a «Desplegarla».
+- Índice de carpeta (`index.md`): «+ Nuevo…» (desplegable: nota Markdown, Mermaid, D2, PlantUML, Excalidraw) junto a «Archivos»/«Conceptos» y «+ Carpeta» junto a «Carpetas», que crean dentro de esa carpeta; si falta la sección, los botones van arriba.
+- Explorador: clic en una carpeta abre su `index.md` (la flecha la despliega; sin `index.md`, se despliega como antes). Ajustes → «Clic en una carpeta del explorador» permite volver a «Desplegarla». En ese modo el `index.md` no se lista dentro de su carpeta (el de la raíz sí); sigue en disco y en el MCP.
 - Editor: al pasar el ratón por una marca del margen de Git aparece un tooltip con lo que había en Git y lo que hay ahora (−/+), con las letras que cambiaron resaltadas (aunque sea una sola); en un borrado, las líneas que se quitaron. Botones «Revertir» (devuelve el bloque a como está en Git; Ctrl+Z lo deshace) y «Copiar original». Colores propios en claro y oscuro (como el diff de GitHub), legibles con cualquier tema. El tooltip sale junto a la línea bajo el ratón y sigue abierto al pasar a él.
 - Telemetría de agentes: registro global de uso por iteración en `~/.config/synapsers/agent-usage.jsonl` (modelo, sesión, duración, tokens/costo y referencias a los JSON de cada bóveda) y sidecar detallado por conversación en `<bóveda>/.synapse/agent-sessions/telemetry/<id>.json` con tiempos de iteración, uso de herramientas y correlación de request/response de llamadas al MCP de Synapse.
 - Tablas Markdown: las celdas con `[ ]`, `[x]` o `[X]` se renderizan como checkboxes interactivos en el editor en vivo, el editor visual de celdas y la vista de lectura.

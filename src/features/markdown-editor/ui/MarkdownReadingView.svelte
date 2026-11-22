@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { Marked } from 'marked';
+  import { decorateFolderIndex, isGeneratedFolderIndex } from '../lib/folder-index-actions';
   import { taskAwareCopy } from '@shared/lib/rich-copy';
   import { Search, ChevronUp, ChevronDown, X } from 'lucide-svelte';
   import { resolveIncludes } from '../lib/include-resolver';
@@ -729,6 +730,12 @@
       if (!isCurrent) return;
       renderDiagrams();
       renderImages();
+      // Índice de carpeta generado: botones para crear archivos y subcarpetas en ella
+      const body = containerRef?.querySelector<HTMLElement>('.markdown-body');
+      if (body && isGeneratedFolderIndex(filePath, raw)) {
+        const folder = filePath!.includes('/') ? filePath!.slice(0, filePath!.lastIndexOf('/')) : '';
+        decorateFolderIndex(body, folder);
+      }
       if (scrollToHeading) {
         goToHeading(scrollToHeading.text);
       } else if (scrollToTerms && scrollToTerms.length > 0) {
@@ -1355,5 +1362,34 @@
     background: var(--bg-secondary);
     color: var(--text-primary);
     cursor: pointer;
+  }
+  .markdown-body :global(.folder-index-actions) {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: 14px;
+    vertical-align: middle;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .markdown-body :global(.folder-index-top) {
+    display: flex;
+    margin: 0 0 12px;
+  }
+  .markdown-body :global(.folder-index-actions select),
+  .markdown-body :global(.folder-index-actions button) {
+    padding: 3px 10px;
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .markdown-body :global(.folder-index-actions select:hover),
+  .markdown-body :global(.folder-index-actions button:hover) {
+    border-color: var(--accent);
   }
 </style>
