@@ -629,7 +629,10 @@
   }
 
   export async function locateActiveFile(targetPath?: string) {
-    const pathToLocate = targetPath || activeTabPath;
+    let pathToLocate = targetPath || activeTabPath;
+    // Un index.md (índice de carpeta) se ubica en su carpeta: se selecciona sin desplegarla
+    const folderIndex = !!pathToLocate && /(^|\/)index\.md$/i.test(pathToLocate) && pathToLocate.includes('/');
+    if (folderIndex) pathToLocate = pathToLocate!.slice(0, pathToLocate!.lastIndexOf('/'));
     if (!pathToLocate || pathToLocate.startsWith('empty:')) {
       showToast('No hay ningún archivo activo para ubicar');
       return;
@@ -655,7 +658,8 @@
     }
 
     // Si el objetivo es una carpeta que existe, aseguramos que también quede expandida y sus hijos cargados
-    if (folderChildren[pathToLocate] !== undefined || (targetPath && !targetPath.includes('.'))) {
+    // (salvo la carpeta de un index.md: se selecciona sin desplegarla)
+    if (!folderIndex && (folderChildren[pathToLocate] !== undefined || (targetPath && !targetPath.includes('.')))) {
       if (!folderChildren[pathToLocate]) {
         await loadDirectory(pathToLocate);
       }

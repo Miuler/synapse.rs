@@ -139,3 +139,25 @@ it('el índice de una carpeta tiene «+ Nuevo…» y «+ Carpeta» para crear de
   });
   await s.browser.waitUntil(async () => existsSync(join(s.vault, 'proyecto/nueva-sub')), { timeout: 10_000, timeoutMsg: 'no creó la subcarpeta' });
 }, 60_000);
+
+it('Ctrl+Alt+1 en un index.md selecciona su carpeta sin desplegarla', async () => {
+  const childVisible = () => s.browser.$('.file-tree-item[data-path="proyecto/plan.md"]').isExisting();
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md',
+    { timeout: 10_000 },
+  );
+  if (await childVisible()) {
+    await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
+    await s.browser.waitUntil(async () => !(await childVisible()), { timeout: 5_000 });
+  }
+  // Quitar la selección y ubicar el archivo activo
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="nota.md"]') as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true })));
+  await s.browser.execute(() => (document.querySelector('.tab-pane:not(.hidden)') as HTMLElement)?.focus());
+  await s.browser.keys(['Control', 'Alt', '1']);
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.file-tree-item.folder[data-path="proyecto"]')?.classList.contains('selected'))) as boolean,
+    { timeout: 5_000, timeoutMsg: 'no seleccionó la carpeta' },
+  );
+  expect(await childVisible()).toBe(false);
+}, 30_000);
