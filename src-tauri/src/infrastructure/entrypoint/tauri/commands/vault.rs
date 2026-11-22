@@ -320,18 +320,21 @@ pub async fn set_active_vault_path(
 
     let synapse_dir = target_dir.join(".synapse");
     if !synapse_dir.exists() {
-        let confirmed = rfd::AsyncMessageDialog::new()
-            .set_title("Advertencia de Bóveda")
-            .set_description(format!(
-                "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
-                target_dir.display()
-            ))
-            .set_buttons(rfd::MessageButtons::YesNo)
-            .show()
-            .await;
+        #[cfg(feature = "desktop")]
+        {
+            let confirmed = rfd::AsyncMessageDialog::new()
+                .set_title("Advertencia de Bóveda")
+                .set_description(format!(
+                    "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                    target_dir.display()
+                ))
+                .set_buttons(rfd::MessageButtons::YesNo)
+                .show()
+                .await;
 
-        if confirmed != rfd::MessageDialogResult::Yes {
-            return Err("Apertura de bóveda cancelada por el usuario".to_string());
+            if confirmed != rfd::MessageDialogResult::Yes {
+                return Err("Apertura de bóveda cancelada por el usuario".to_string());
+            }
         }
 
         if let Err(e) = std::fs::create_dir_all(&synapse_dir) {

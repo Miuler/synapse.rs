@@ -13,6 +13,14 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["desktop"]
+# Funcionalidades exclusivas de escritorio (diálogos nativos, portapapeles del SO, CLI, updater, quirks Linux).
+desktop = [
+  "dep:rfd",
+  "dep:arboard",
+  "dep:tauri-plugin-cli",
+  "dep:webkit2gtk-nvidia-quirk",
+]
 # Herramientas para desarrollar Synapse: el modo feedback del MCP (`report_feedback`).
 develop = []
 
@@ -46,8 +54,8 @@ tracing-indicatif = "0.3.14"
 indicatif-log-bridge = "0.2.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
-rfd = "0.18"
-arboard = { version = "3.7", default-features = false, features = [
+rfd = { version = "0.18", optional = true }
+arboard = { version = "3.7", default-features = false, optional = true, features = [
   "wayland-data-control",
 ] }
 encoding_rs = "0.8.44"
@@ -80,7 +88,7 @@ lopdf = "0.47"
 serde_yaml = "0.9.34"
 sha2 = "0.11"
 similar = { version = "3.2.1", default-features = false, features = ["text"] }
-tauri-plugin-cli = "2.5.0"
+tauri-plugin-cli = { version = "2.5.0", optional = true }
 tauri-plugin-notification = "2"
 object_store = { version = "0.14.2", default-features = false, features = [
   "fs",
@@ -99,7 +107,7 @@ calamine = { version = "0.38", default-features = false }
 umya-spreadsheet = "3.1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-webkit2gtk-nvidia-quirk = "2.3.0"
+webkit2gtk-nvidia-quirk = { version = "2.3.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

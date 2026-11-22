@@ -36,10 +36,11 @@ use infrastructure::entrypoint::tauri::commands::{
 use infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use std::env;
 use tauri::Manager;
+#[cfg(feature = "desktop")]
 use tauri_plugin_cli::CliExt;
 use tauri_plugin_log::{Target, TargetKind};
 //use webkit2gtk_nvidia_quirk::ApplyWorkaroundOptions;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "desktop"))]
 use webkit2gtk_nvidia_quirk::{ApplyWorkaroundOptions, apply_workaround_with_options};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -52,7 +53,7 @@ pub fn run() {
         *st = startup_target;
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "desktop"))]
     {
         // El renderizador DMABUF de WebKitGTK es el rápido (draw.io, por ejemplo, va mucho más fluido)
         // y queda activo. Si con algún driver deja la ventana en blanco o parpadea, `SYNAPSE_DMABUF=0`
@@ -67,12 +68,16 @@ pub fn run() {
         apply_workaround_with_options(options);
     }
 
-    let mut builder =
-        tauri::Builder::default().plugin(tauri_plugin_updater::Builder::new().build());
+    let mut builder = tauri::Builder::default();
 
-    builder = builder
-        .plugin(tauri_plugin_cli::init())
-        .plugin(tauri_plugin_notification::init());
+    #[cfg(feature = "desktop")]
+    {
+        builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_cli::init());
+    }
+
+    builder = builder.plugin(tauri_plugin_notification::init());
 
     if cfg!(debug_assertions) {
         builder = builder.plugin(
@@ -238,6 +243,7 @@ pub fn run() {
             infrastructure::service::os::git_binary::load(
                 &infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir(),
             );
+            #[cfg(feature = "desktop")]
             if let Ok(matches) = app.cli().matches() {
                 if let Some(help) = matches.args.get("help").and_then(|a| a.value.as_str()) {
                     print!("{}", help);

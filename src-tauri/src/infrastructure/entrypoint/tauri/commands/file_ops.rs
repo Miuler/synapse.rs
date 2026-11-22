@@ -183,27 +183,43 @@ pub fn import_external_items(
 // async: fuera del hilo principal (en X11 leer el portapapeles puede esperar a su dueño)
 #[tauri::command(async)]
 pub fn copy_files_to_system_clipboard(paths: Vec<String>) -> Result<(), String> {
-    let mut guard = system_clipboard()?;
-    let clipboard = guard.as_mut().ok_or("Portapapeles del sistema no disponible")?;
-    clipboard.set().file_list(&paths).map_err(|e| e.to_string())
+    #[cfg(feature = "desktop")]
+    {
+        let mut guard = system_clipboard()?;
+        let clipboard = guard.as_mut().ok_or("Portapapeles del sistema no disponible")?;
+        clipboard.set().file_list(&paths).map_err(|e| e.to_string())
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = paths;
+        Err("Portapapeles de archivos solo disponible en escritorio".to_string())
+    }
 }
 
 /// Archivos (rutas absolutas) que hay en el portapapeles del sistema; vacío si no hay archivos.
 // async: fuera del hilo principal (en X11 leer el portapapeles puede esperar a su dueño)
 #[tauri::command(async)]
 pub fn read_system_clipboard_files() -> Result<Vec<String>, String> {
-    let mut guard = system_clipboard()?;
-    let Some(clipboard) = guard.as_mut() else {
-        return Ok(Vec::new());
-    };
-    Ok(clipboard
-        .get()
-        .file_list()
-        .map(|files| files.into_iter().map(|p| p.to_string_lossy().into_owned()).collect())
-        .unwrap_or_default())
+    #[cfg(feature = "desktop")]
+    {
+        let mut guard = system_clipboard()?;
+        let Some(clipboard) = guard.as_mut() else {
+            return Ok(Vec::new());
+        };
+        Ok(clipboard
+            .get()
+            .file_list()
+            .map(|files| files.into_iter().map(|p| p.to_string_lossy().into_owned()).collect())
+            .unwrap_or_default())
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Ok(Vec::new())
+    }
 }
 
 /// El portapapeles se conserva vivo: en Linux lo copiado solo existe mientras su dueño exista.
+#[cfg(feature = "desktop")]
 fn system_clipboard() -> Result<std::sync::MutexGuard<'static, Option<arboard::Clipboard>>, String> {
     static CLIPBOARD: std::sync::OnceLock<std::sync::Mutex<Option<arboard::Clipboard>>> =
         std::sync::OnceLock::new();

@@ -17,67 +17,75 @@ pub async fn select_vault_folder(
     state: State<'_, AppState>,
     starting_directory: Option<String>,
 ) -> Result<Option<SelectVaultFolderResult>, String> {
-    let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar Carpeta / Bóveda");
+    #[cfg(feature = "desktop")]
+    {
+        let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar Carpeta / Bóveda");
 
-    let starting_path = starting_directory
-        .as_deref()
-        .map(PathBuf::from)
-        .and_then(|p| {
-            if p.is_dir() {
-                Some(p)
-            } else if p.is_file() {
-                p.parent().map(|parent| parent.to_path_buf())
-            } else {
-                None
-            }
-        })
-        .or_else(|| {
-            state.active_vault_path.lock().ok().and_then(|p| {
-                p.as_ref().and_then(|path| {
-                    if path.is_dir() {
-                        Some(path.clone())
-                    } else if path.is_file() {
-                        path.parent().map(|parent| parent.to_path_buf())
-                    } else {
-                        None
-                    }
-                })
+        let starting_path = starting_directory
+            .as_deref()
+            .map(PathBuf::from)
+            .and_then(|p| {
+                if p.is_dir() {
+                    Some(p)
+                } else if p.is_file() {
+                    p.parent().map(|parent| parent.to_path_buf())
+                } else {
+                    None
+                }
             })
-        });
+            .or_else(|| {
+                state.active_vault_path.lock().ok().and_then(|p| {
+                    p.as_ref().and_then(|path| {
+                        if path.is_dir() {
+                            Some(path.clone())
+                        } else if path.is_file() {
+                            path.parent().map(|parent| parent.to_path_buf())
+                        } else {
+                            None
+                        }
+                    })
+                })
+            });
 
-    if let Some(dir) = starting_path {
-        dialog = dialog.set_directory(&dir);
-    }
-
-    let folder = dialog.pick_folder().await;
-
-    if let Some(folder_handle) = folder {
-        let path = folder_handle.path().to_path_buf();
-
-        let synapse_dir = path.join(".synapse");
-        if !synapse_dir.exists() {
-            let confirmed = rfd::AsyncMessageDialog::new()
-                .set_title("Advertencia de Bóveda")
-                .set_description(format!(
-                    "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
-                    path.display()
-                ))
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .show()
-                .await;
-
-            if confirmed != rfd::MessageDialogResult::Yes {
-                return Ok(None);
-            }
-
-            if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
-                return Err(format!("No se pudo crear el directorio .synapse: {}", e));
-            }
+        if let Some(dir) = starting_path {
+            dialog = dialog.set_directory(&dir);
         }
 
-        let res = state.activate_vault(path, None)?;
-        Ok(Some(res))
-    } else {
+        let folder = dialog.pick_folder().await;
+
+        if let Some(folder_handle) = folder {
+            let path = folder_handle.path().to_path_buf();
+
+            let synapse_dir = path.join(".synapse");
+            if !synapse_dir.exists() {
+                let confirmed = rfd::AsyncMessageDialog::new()
+                    .set_title("Advertencia de Bóveda")
+                    .set_description(format!(
+                        "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                        path.display()
+                    ))
+                    .set_buttons(rfd::MessageButtons::YesNo)
+                    .show()
+                    .await;
+
+                if confirmed != rfd::MessageDialogResult::Yes {
+                    return Ok(None);
+                }
+
+                if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
+                    return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+                }
+            }
+
+            let res = state.activate_vault(path, None)?;
+            Ok(Some(res))
+        } else {
+            Ok(None)
+        }
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (state, starting_directory);
         Ok(None)
     }
 }
@@ -136,15 +144,22 @@ pub fn request_attention(window: tauri::WebviewWindow, title: String, body: Stri
 /// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.
 #[tauri::command]
 pub async fn pick_image_file() -> Result<Option<String>, String> {
-    let file = rfd::AsyncFileDialog::new()
-        .set_title("Seleccionar imagen de fondo")
-        .add_filter(
-            "Imágenes",
-            &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"],
-        )
-        .pick_file()
-        .await;
-    Ok(file.map(|f| f.path().to_string_lossy().into_owned()))
+    #[cfg(feature = "desktop")]
+    {
+        let file = rfd::AsyncFileDialog::new()
+            .set_title("Seleccionar imagen de fondo")
+            .add_filter(
+                "Imágenes",
+                &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"],
+            )
+            .pick_file()
+            .await;
+        Ok(file.map(|f| f.path().to_string_lossy().into_owned()))
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Ok(None)
+    }
 }
 
 #[tauri::command]
@@ -174,35 +189,43 @@ pub async fn create_new_workspace(
     state: State<'_, AppState>,
     starting_directory: Option<String>,
 ) -> Result<Option<SelectVaultFolderResult>, String> {
-    let mut dialog = rfd::AsyncFileDialog::new()
-        .set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
-
-    if let Some(dir) = starting_directory
-        .as_deref()
-        .map(PathBuf::from)
-        .filter(|p| p.is_dir())
+    #[cfg(feature = "desktop")]
     {
-        dialog = dialog.set_directory(&dir);
-    } else if let Ok(home) = std::env::var("HOME") {
-        let hp = PathBuf::from(home);
-        if hp.is_dir() {
-            dialog = dialog.set_directory(&hp);
+        let mut dialog = rfd::AsyncFileDialog::new()
+            .set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
+
+        if let Some(dir) = starting_directory
+            .as_deref()
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+        {
+            dialog = dialog.set_directory(&dir);
+        } else if let Ok(home) = std::env::var("HOME") {
+            let hp = PathBuf::from(home);
+            if hp.is_dir() {
+                dialog = dialog.set_directory(&hp);
+            }
+        }
+
+        let folder = dialog.pick_folder().await;
+
+        if let Some(folder_handle) = folder {
+            let path = folder_handle.path().to_path_buf();
+
+            let synapse_dir = path.join(".synapse");
+            if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
+                return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+            }
+
+            let res = state.activate_vault(path, None)?;
+            Ok(Some(res))
+        } else {
+            Ok(None)
         }
     }
-
-    let folder = dialog.pick_folder().await;
-
-    if let Some(folder_handle) = folder {
-        let path = folder_handle.path().to_path_buf();
-
-        let synapse_dir = path.join(".synapse");
-        if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
-            return Err(format!("No se pudo crear el directorio .synapse: {}", e));
-        }
-
-        let res = state.activate_vault(path, None)?;
-        Ok(Some(res))
-    } else {
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (state, starting_directory);
         Ok(None)
     }
 }
@@ -213,54 +236,62 @@ pub async fn clone_git_workspace(
     repo_url: String,
     starting_directory: Option<String>,
 ) -> Result<Option<SelectVaultFolderResult>, String> {
-    let trimmed_url = repo_url.trim().to_string();
-    if trimmed_url.is_empty() {
-        return Err("La URL del repositorio Git no puede estar vacía".to_string());
-    }
-
-    let mut dialog = rfd::AsyncFileDialog::new()
-        .set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
-
-    if let Some(dir) = starting_directory
-        .as_deref()
-        .map(PathBuf::from)
-        .filter(|p| p.is_dir())
+    #[cfg(feature = "desktop")]
     {
-        dialog = dialog.set_directory(&dir);
-    } else if let Ok(home) = std::env::var("HOME") {
-        let hp = PathBuf::from(home);
-        if hp.is_dir() {
-            dialog = dialog.set_directory(&hp);
+        let trimmed_url = repo_url.trim().to_string();
+        if trimmed_url.is_empty() {
+            return Err("La URL del repositorio Git no puede estar vacía".to_string());
         }
+
+        let mut dialog = rfd::AsyncFileDialog::new()
+            .set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
+
+        if let Some(dir) = starting_directory
+            .as_deref()
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+        {
+            dialog = dialog.set_directory(&dir);
+        } else if let Ok(home) = std::env::var("HOME") {
+            let hp = PathBuf::from(home);
+            if hp.is_dir() {
+                dialog = dialog.set_directory(&hp);
+            }
+        }
+
+        let Some(folder_handle) = dialog.pick_folder().await else {
+            return Ok(None);
+        };
+
+        let parent_dir = folder_handle.path().to_path_buf();
+        let repo_name = trimmed_url
+            .trim_end_matches('/')
+            .trim_end_matches(".git")
+            .rsplit(['/', ':'])
+            .next()
+            .filter(|s| !s.is_empty())
+            .unwrap_or("synapse-vault");
+
+        let target_dir = parent_dir.join(repo_name);
+
+        state.clone_repository_use_case.execute(
+            crate::application::dto::version::clone_repository_command::CloneRepositoryCommand {
+                repo_url: trimmed_url.to_string(),
+                target_path: target_dir.clone(),
+            },
+        )?;
+
+        let synapse_dir = target_dir.join(".synapse");
+        let _ = std::fs::create_dir_all(&synapse_dir);
+
+        let res = state.activate_vault(target_dir, Some(true))?;
+        Ok(Some(res))
     }
-
-    let Some(folder_handle) = dialog.pick_folder().await else {
-        return Ok(None);
-    };
-
-    let parent_dir = folder_handle.path().to_path_buf();
-    let repo_name = trimmed_url
-        .trim_end_matches('/')
-        .trim_end_matches(".git")
-        .rsplit(['/', ':'])
-        .next()
-        .filter(|s| !s.is_empty())
-        .unwrap_or("synapse-vault");
-
-    let target_dir = parent_dir.join(repo_name);
-
-    state.clone_repository_use_case.execute(
-        crate::application::dto::version::clone_repository_command::CloneRepositoryCommand {
-            repo_url: trimmed_url.to_string(),
-            target_path: target_dir.clone(),
-        },
-    )?;
-
-    let synapse_dir = target_dir.join(".synapse");
-    let _ = std::fs::create_dir_all(&synapse_dir);
-
-    let res = state.activate_vault(target_dir, Some(true))?;
-    Ok(Some(res))
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (state, repo_url, starting_directory);
+        Ok(None)
+    }
 }
 
 #[tauri::command]

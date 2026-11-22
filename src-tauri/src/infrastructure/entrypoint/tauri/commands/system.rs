@@ -211,34 +211,42 @@ pub fn get_startup_target(state: State<'_, AppState>) -> Result<Option<StartupTa
 
 #[tauri::command]
 pub async fn select_standalone_file(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let file = rfd::AsyncFileDialog::new()
-        .set_title("Abrir archivo")
-        .add_filter(
-            "Archivos soportados (*.md, *.mermaid, *.excalidraw)",
-            &["md", "markdown", "mermaid", "mmd", "excalidraw", "json"],
-        )
-        .add_filter("Markdown (*.md, *.markdown)", &["md", "markdown"])
-        .add_filter("Diagramas Mermaid (*.mermaid, *.mmd)", &["mermaid", "mmd"])
-        .add_filter(
-            "Dibujos Excalidraw (*.excalidraw, *.excalidraw.md, *.excalidraw.json)",
-            &["excalidraw", "json", "md"],
-        )
-        .add_filter("Todos los archivos (*.*)", &["*"])
-        .pick_file()
-        .await;
+    #[cfg(feature = "desktop")]
+    {
+        let file = rfd::AsyncFileDialog::new()
+            .set_title("Abrir archivo")
+            .add_filter(
+                "Archivos soportados (*.md, *.mermaid, *.excalidraw)",
+                &["md", "markdown", "mermaid", "mmd", "excalidraw", "json"],
+            )
+            .add_filter("Markdown (*.md, *.markdown)", &["md", "markdown"])
+            .add_filter("Diagramas Mermaid (*.mermaid, *.mmd)", &["mermaid", "mmd"])
+            .add_filter(
+                "Dibujos Excalidraw (*.excalidraw, *.excalidraw.md, *.excalidraw.json)",
+                &["excalidraw", "json", "md"],
+            )
+            .add_filter("Todos los archivos (*.*)", &["*"])
+            .pick_file()
+            .await;
 
-    if let Some(handle) = file {
-        let path = handle.path().to_string_lossy().to_string();
-        if let Ok(guard) = state.app_handle.lock() {
-            if let Some(ref app_h) = *guard {
-                if let Some(parent) = handle.path().parent() {
-                    use tauri::Manager;
-                    let _ = app_h.asset_protocol_scope().allow_directory(parent, true);
+        if let Some(handle) = file {
+            let path = handle.path().to_string_lossy().to_string();
+            if let Ok(guard) = state.app_handle.lock() {
+                if let Some(ref app_h) = *guard {
+                    if let Some(parent) = handle.path().parent() {
+                        use tauri::Manager;
+                        let _ = app_h.asset_protocol_scope().allow_directory(parent, true);
+                    }
                 }
             }
+            Ok(Some(path))
+        } else {
+            Ok(None)
         }
-        Ok(Some(path))
-    } else {
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = state;
         Ok(None)
     }
 }

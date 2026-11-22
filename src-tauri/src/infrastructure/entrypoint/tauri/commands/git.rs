@@ -518,12 +518,19 @@ pub async fn set_git_path(path: Option<String>) -> Result<GitInfo, String> {
 /// Diálogo nativo para elegir el ejecutable de Git.
 #[tauri::command]
 pub async fn pick_git_executable() -> Option<String> {
-    let mut dialog = rfd::AsyncFileDialog::new().set_title("Elige el ejecutable de Git");
-    if cfg!(windows) {
-        dialog = dialog.add_filter("git.exe", &["exe"]);
-        if std::path::Path::new(r"C:\Program Files\Git\cmd").is_dir() {
-            dialog = dialog.set_directory(r"C:\Program Files\Git\cmd");
+    #[cfg(feature = "desktop")]
+    {
+        let mut dialog = rfd::AsyncFileDialog::new().set_title("Elige el ejecutable de Git");
+        if cfg!(windows) {
+            dialog = dialog.add_filter("git.exe", &["exe"]);
+            if std::path::Path::new(r"C:\Program Files\Git\cmd").is_dir() {
+                dialog = dialog.set_directory(r"C:\Program Files\Git\cmd");
+            }
         }
+        dialog.pick_file().await.map(|f| f.path().to_string_lossy().into_owned())
     }
-    dialog.pick_file().await.map(|f| f.path().to_string_lossy().into_owned())
+    #[cfg(not(feature = "desktop"))]
+    {
+        None
+    }
 }
