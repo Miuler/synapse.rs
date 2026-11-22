@@ -6,6 +6,8 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
 export type ExcalidrawViewerType = 'native' | 'obsidian';
 export type PropertiesViewMode = 'expanded' | 'collapsed' | 'hidden';
+/** Clic en una carpeta del explorador: abre su `index.md` (por defecto) o la despliega */
+export type FolderClickMode = 'index' | 'expand';
 export type { SupportedLocale };
 
 export interface AppSettings {
@@ -19,6 +21,7 @@ export interface AppSettings {
   autoCheckUpdates: boolean;
   locale: SupportedLocale;
   propertiesViewMode: PropertiesViewMode;
+  folderClick: FolderClickMode;
   plantumlServer: string;
   /** Dirección del editor de draw.io en modo embed (por defecto el público; puede ser uno propio sin red). */
   drawioUrl: string;
@@ -59,6 +62,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoCheckUpdates: true, // Por defecto busca actualizaciones al iniciar (se puede desactivar)
   locale: 'es', // Por defecto español
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
+  folderClick: 'index', // Clic en carpeta: abre su index.md
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
   drawioUrl: 'https://embed.diagrams.net/', // Editor público de draw.io en modo embed
   contentZoom: 1, // Tamaño del texto del editor y la previsualización
@@ -114,6 +118,9 @@ function loadInitialSettings(): AppSettings {
       }
       if (parsed.propertiesViewMode === 'expanded' || parsed.propertiesViewMode === 'collapsed' || parsed.propertiesViewMode === 'hidden') {
         settings.propertiesViewMode = parsed.propertiesViewMode;
+      }
+      if (parsed.folderClick === 'index' || parsed.folderClick === 'expand') {
+        settings.folderClick = parsed.folderClick;
       }
       if (parsed.wallpapers && typeof parsed.wallpapers === 'object') {
         settings.wallpapers = Object.fromEntries(
@@ -402,6 +409,15 @@ class SettingsManager {
 
   setAutoCheckUpdates(enabled: boolean) {
     this.settings.autoCheckUpdates = enabled;
+    this.persist();
+  }
+
+  get folderClick(): FolderClickMode {
+    return this.settings.folderClick || 'index';
+  }
+
+  setFolderClick(mode: FolderClickMode) {
+    this.settings = { ...this.settings, folderClick: mode };
     this.persist();
   }
 

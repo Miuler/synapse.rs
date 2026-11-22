@@ -3,7 +3,7 @@
   import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
   import { vaultApi, vaultItemStore } from '@entities/vault-item';
-  import { settingsApi } from '@entities/settings';
+  import { settingsApi, appSettings } from '@entities/settings';
   import { systemApi } from '@shared/api';
   import type { GitFileStatusKind } from '@shared/repositories';
   import { ContextMenu } from 'bits-ui';
@@ -404,7 +404,9 @@
           const parts = path.split('/').filter(Boolean);
           let currentPath = '';
           let changed = false;
-          for (let i = 0; i < parts.length - 1; i++) {
+          // El index.md de una carpeta se abre desde la propia carpeta: solo se despliegan las de encima
+          const upTo = parts[parts.length - 1]?.toLowerCase() === 'index.md' ? parts.length - 2 : parts.length - 1;
+          for (let i = 0; i < upTo; i++) {
             currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
             if (!expandedFolders[currentPath]) {
               expandedFolders[currentPath] = true;
@@ -702,9 +704,22 @@
     }
   }
 
+  /** `index.md` de una carpeta, si existe en la bóveda */
+  function folderIndexOf(folderPath: string): string | null {
+    const path = folderPath ? `${folderPath}/index.md` : 'index.md';
+    return vaultItemStore.get(path) ? path : null;
+  }
+
+  /** Clic (o Enter) en una carpeta: abre su index.md según el ajuste; si no tiene, la despliega */
+  function openFolderOrIndex(node: VaultTreeNode) {
+    const index = appSettings.folderClick === 'index' && !node.deleted ? folderIndexOf(node.relativePath) : null;
+    if (index) onSelectTab(index);
+    else toggleFolder(node.relativePath, node.deleted);
+  }
+
   function handleActivateNode(node: VaultTreeNode) {
     if (node.isFolder) {
-      toggleFolder(node.relativePath);
+      openFolderOrIndex(node);
     } else if (/\.(doc|dot)$/i.test(node.relativePath)) {
       handleOpenFileWithDefaultApp(node.relativePath);
     } else {
@@ -2914,20 +2929,30 @@
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
       style="padding-left: {12 + depth * 14}px;"
-      onclick={(e) => handleFolderClick(e, node, () => toggleFolder(node.relativePath, node.deleted))}
+      onclick={(e) => handleFolderClick(e, node, () => openFolderOrIndex(node))}
       oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
-      {#if expandedFolders[node.relativePath]}
-        <ChevronDown
-          class="chevron-icon"
-          size={12}
-        />
-      {:else}
-        <ChevronRight
-          class="chevron-icon"
-          size={12}
-        />
-      {/if}
+      <!-- La flecha siempre despliega/pliega (el clic en la carpeta puede abrir su índice) -->
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <span
+        class="chevron-toggle"
+        onclick={(e) => {
+          e.stopPropagation();
+          handleFolderClick(e, node, () => toggleFolder(node.relativePath, node.deleted));
+        }}
+      >
+        {#if expandedFolders[node.relativePath]}
+          <ChevronDown
+            class="chevron-icon"
+            size={12}
+          />
+        {:else}
+          <ChevronRight
+            class="chevron-icon"
+            size={12}
+          />
+        {/if}
+      </span>
       <FolderIcon
         isOpen={!!expandedFolders[node.relativePath]}
         name={node.name}
@@ -3631,5 +3656,11 @@
       opacity: 1;
       transform: translate(-50%, 0);
     }
+  }
+  .chevron-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: stretch;
+    cursor: pointer;
   }
 </style>

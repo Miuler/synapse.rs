@@ -74,3 +74,34 @@ it('en Synapse el index.md generado se abre en solo lectura', async () => {
   expect(tab.text).not.toContain('index');
   expect(tab.folderIcon).toBe(true);
 }, 30_000);
+
+it('clic en una carpeta abre su index.md (la flecha la despliega); con «Desplegarla» se despliega', async () => {
+  const folder = () => s.browser.$('.file-tree-item.folder[data-path="proyecto"]');
+  const active = () => s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path')) as Promise<string>;
+  const childVisible = () => s.browser.$('.file-tree-item[data-path="proyecto/plan.md"]').isExisting();
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="nota.md"]') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await active()) === 'nota.md', { timeout: 10_000 });
+  // Partir con la carpeta plegada
+  if (await childVisible()) {
+    await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
+    await s.browser.waitUntil(async () => !(await childVisible()), { timeout: 5_000 });
+  }
+  // Clic en la carpeta: su índice, sin desplegarla
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(async () => (await active()) === 'proyecto/index.md', { timeout: 10_000, timeoutMsg: 'el clic no abrió el index.md' });
+  expect(await childVisible()).toBe(false);
+  // La flecha la despliega
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
+  await s.browser.waitUntil(childVisible, { timeout: 5_000, timeoutMsg: 'la flecha no desplegó la carpeta' });
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"] .chevron-toggle') as HTMLElement).click());
+  await s.browser.waitUntil(async () => !(await childVisible()), { timeout: 5_000 });
+  // Ajuste «Desplegarla»: el clic despliega (como antes)
+  await s.browser.execute(() => {
+    const raw = JSON.parse(localStorage.getItem('synapse_settings') ?? '{}');
+    localStorage.setItem('synapse_settings', JSON.stringify({ ...raw, folderClick: 'expand' }));
+  });
+  await s.browser.refresh();
+  await folder().waitForExist({ timeout: 30_000 });
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(childVisible, { timeout: 5_000, timeoutMsg: 'con «Desplegarla» no se desplegó' });
+}, 60_000);

@@ -8,6 +8,7 @@
     type MermaidRendererType,
     type ExcalidrawViewerType,
     type PropertiesViewMode,
+    type FolderClickMode,
   } from '@entities/settings';
   import type { SupportedLocale } from '@shared/lib/i18n';
   import { invokeTauri } from '@shared/repositories/tauri';
@@ -368,6 +369,16 @@
               checked={appSettings.vimMode}
               onchange={(e) => appSettings.setVimMode(e.currentTarget.checked)}
             />
+          </label>
+          <label class="row">
+            <span class="row-label">Clic en una carpeta del explorador</span>
+            <select
+              value={appSettings.folderClick}
+              onchange={(e) => appSettings.setFolderClick(e.currentTarget.value as FolderClickMode)}
+            >
+              <option value="index">Abrir su índice (index.md)</option>
+              <option value="expand">Desplegarla</option>
+            </select>
           </label>
           <label class="row">
             <span class="row-label">Propiedades de la nota</span>
