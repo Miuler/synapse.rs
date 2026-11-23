@@ -246,6 +246,7 @@ export interface RecentWorkspaceEntry {
   name: string;
   last_opened_ms: number;
   pinned: boolean;
+  pinned_order?: number | null;
   notes_count: number;
   git_branch?: string | null;
   is_git_repo: boolean;
@@ -569,6 +570,11 @@ export interface VaultRepository {
    * Fija o desfija un workspace en la lista de recientes.
    */
   togglePinWorkspace(path: string): Promise<RecentWorkspaceEntry[]>;
+
+  /**
+   * Reordena los workspaces fijados según la lista de rutas dada.
+   */
+  reorderPinnedWorkspaces(paths: string[]): Promise<RecentWorkspaceEntry[]>;
 
   /**
    * Elimina un workspace del registro de recientes.
@@ -1433,6 +1439,17 @@ export class TauriVaultRepository implements VaultRepository {
       return Array.isArray(list) ? list : [];
     } catch (error) {
       console.warn('Error al alternar toggle_pin_workspace:', error);
+      return [];
+    }
+  }
+
+  async reorderPinnedWorkspaces(paths: string[]): Promise<RecentWorkspaceEntry[]> {
+    if (!this.isConnected()) return [];
+    try {
+      const list = await invokeTauri<RecentWorkspaceEntry[]>('reorder_pinned_workspaces', { paths });
+      return Array.isArray(list) ? list : [];
+    } catch (error) {
+      console.warn('Error al reordenar pinned workspaces:', error);
       return [];
     }
   }

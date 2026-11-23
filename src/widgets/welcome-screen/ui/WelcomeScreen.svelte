@@ -83,6 +83,14 @@
   // Estado modal Atajos de teclado
   let isShortcutsOpen = $state(false);
 
+  // Estado drag-and-drop para bóvedas fijadas
+  let canReorderPinned = $derived(
+    activeFilter !== 'git' && searchQuery.trim() === '' && sortOrder === 'recent'
+  );
+  let draggedPath = $state<string | null>(null);
+  let dragOverPath = $state<string | null>(null);
+  let dragOverPosition = $state<'before' | 'after' | null>(null);
+
   let filteredWorkspaces = $derived.by(() => {
     let list = [...workspaces];
 
@@ -106,6 +114,11 @@
     list.sort((a, b) => {
       if (a.pinned !== b.pinned && activeFilter === 'all') {
         return a.pinned ? -1 : 1;
+      }
+      if (a.pinned && b.pinned && sortOrder === 'recent') {
+        const orderA = a.pinned_order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.pinned_order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
       }
       if (sortOrder === 'name') {
         return a.name.localeCompare(b.name);
@@ -193,6 +206,74 @@
   async function handleRemoveWorkspace(entry: RecentWorkspaceEntry, e: MouseEvent) {
     e.stopPropagation();
     workspaces = await vaultRepository.removeRecentWorkspace(entry.path);
+  }
+
+  function handleDragStart(entry: RecentWorkspaceEntry, e: DragEvent) {
+    if (!entry.pinned || !canReorderPinned) {
+      e.preventDefault();
+      return;
+    }
+    draggedPath = entry.path;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', entry.path);
+    }
+  }
+
+  function handleDragOver(entry: RecentWorkspaceEntry, e: DragEvent) {
+    if (!entry.pinned || !canReorderPinned || !draggedPath || draggedPath === entry.path) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragOverPath = entry.path;
+    dragOverPosition = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  }
+
+  function handleDragLeave(entry: RecentWorkspaceEntry, e: DragEvent) {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+    if (dragOverPath === entry.path) {
+      dragOverPath = null;
+      dragOverPosition = null;
+    }
+  }
+
+  async function handleDrop(entry: RecentWorkspaceEntry, e: DragEvent) {
+    e.preventDefault();
+    const sourcePath = draggedPath;
+    const pos = dragOverPosition;
+    draggedPath = null;
+    dragOverPath = null;
+    dragOverPosition = null;
+
+    if (!entry.pinned || !canReorderPinned || !sourcePath || sourcePath === entry.path) return;
+
+    const pinnedPaths = filteredWorkspaces.filter((w) => w.pinned).map((w) => w.path);
+    const remaining = pinnedPaths.filter((p) => p !== sourcePath);
+    const targetIdx = remaining.indexOf(entry.path);
+    if (targetIdx === -1) return;
+
+    const insertIdx = pos === 'after' ? targetIdx + 1 : targetIdx;
+    remaining.splice(insertIdx, 0, sourcePath);
+
+    // Actualización optimista del orden
+    const orderMap = new Map(remaining.map((p, idx) => [p, idx]));
+    workspaces = workspaces.map((w) =>
+      w.pinned && orderMap.has(w.path) ? { ...w, pinned_order: orderMap.get(w.path)! } : w
+    );
+
+    const updated = await vaultRepository.reorderPinnedWorkspaces(remaining);
+    if (updated.length > 0) {
+      workspaces = updated;
+    }
+  }
+
+  function handleDragEnd() {
+    draggedPath = null;
+    dragOverPath = null;
+    dragOverPosition = null;
   }
 
   async function handleCreateNewWorkspace() {
@@ -619,6 +700,15 @@
               class="workspace-card"
               class:selected={idx === selectedIndex}
               class:missing={!ws.exists}
+              class:dragging={draggedPath === ws.path}
+              class:drag-over-before={dragOverPath === ws.path && dragOverPosition === 'before'}
+              class:drag-over-after={dragOverPath === ws.path && dragOverPosition === 'after'}
+              draggable={ws.pinned && canReorderPinned}
+              ondragstart={(e) => handleDragStart(ws, e)}
+              ondragover={(e) => handleDragOver(ws, e)}
+              ondragleave={(e) => handleDragLeave(ws, e)}
+              ondrop={(e) => handleDrop(ws, e)}
+              ondragend={handleDragEnd}
               onpointerenter={() => {
                 hoveredIndex = idx;
               }}
@@ -626,10 +716,10 @@
             >
               <!-- ICONO IZQUIERDO -->
               <div class="ws-icon-box" class:pinned-box={ws.pinned} class:teal-box={!ws.pinned}>
-                {#if ws.pinned}
-                  <Folder size={22} />
-                {:else}
+                {#if ws.is_git_repo || ws.git_branch}
                   <FolderGit2 size={22} />
+                {:else}
+                  <Folder size={22} />
                 {/if}
               </div>
 
@@ -1473,6 +1563,18 @@
   .workspaces-list:not(.keyboard-nav) .workspace-card:hover {
     background-color: var(--bg-tertiary);
     border-color: var(--warning-border);
+  }
+
+  .workspace-card.dragging {
+    opacity: 0.45;
+  }
+
+  .workspace-card.drag-over-before {
+    box-shadow: inset 0 2px 0 0 var(--warning);
+  }
+
+  .workspace-card.drag-over-after {
+    box-shadow: inset 0 -2px 0 0 var(--warning);
   }
 
   .ws-icon-box {

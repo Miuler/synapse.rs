@@ -61,6 +61,7 @@ use crate::application::use_cases::workspace::get_workspace_registry_use_case::G
 use crate::application::use_cases::workspace::list_workspaces_use_case::ListWorkspacesUseCase;
 use crate::application::use_cases::workspace::record_workspace_opened_use_case::RecordWorkspaceOpenedUseCase;
 use crate::application::use_cases::workspace::remove_workspace_use_case::RemoveWorkspaceUseCase;
+use crate::application::use_cases::workspace::reorder_pinned_workspaces_use_case::ReorderPinnedWorkspacesUseCase;
 use crate::application::use_cases::workspace::save_shortcut_use_case::SaveShortcutUseCase;
 use crate::application::use_cases::workspace::toggle_workspace_pin_use_case::ToggleWorkspacePinUseCase;
 use crate::domain::config::startup::StartupTarget;
@@ -187,6 +188,8 @@ pub struct AppState {
     pub record_workspace_opened_use_case:
         RecordWorkspaceOpenedUseCase<WorkspaceRegistryRepositoryImpl>,
     pub toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase<WorkspaceRegistryRepositoryImpl>,
+    pub reorder_pinned_workspaces_use_case:
+        ReorderPinnedWorkspacesUseCase<WorkspaceRegistryRepositoryImpl>,
     pub remove_workspace_use_case: RemoveWorkspaceUseCase<WorkspaceRegistryRepositoryImpl>,
     pub get_shortcuts_config_use_case: GetShortcutsConfigUseCase<WorkspaceRegistryRepositoryImpl>,
     pub save_shortcut_use_case: SaveShortcutUseCase<WorkspaceRegistryRepositoryImpl>,
@@ -351,6 +354,9 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase::new(
+                workspace_registry_repository.clone(),
+            ),
+            reorder_pinned_workspaces_use_case: ReorderPinnedWorkspacesUseCase::new(
                 workspace_registry_repository.clone(),
             ),
             remove_workspace_use_case: RemoveWorkspaceUseCase::new(
@@ -525,6 +531,9 @@ impl AppState {
                 workspace_registry_repository.clone(),
             ),
             toggle_workspace_pin_use_case: ToggleWorkspacePinUseCase::new(
+                workspace_registry_repository.clone(),
+            ),
+            reorder_pinned_workspaces_use_case: ReorderPinnedWorkspacesUseCase::new(
                 workspace_registry_repository.clone(),
             ),
             remove_workspace_use_case: RemoveWorkspaceUseCase::new(

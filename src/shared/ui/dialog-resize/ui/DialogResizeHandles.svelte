@@ -1,12 +1,15 @@
 <!-- Bordes y esquinas para cambiar el tamaño de un diálogo; el padre debe tener posición fija o relativa. -->
 <script lang="ts">
+  export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
   interface Props {
     onStart: (e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) => void;
+    edges?: ResizeEdge[];
   }
 
-  let { onStart }: Props = $props();
+  let { onStart, edges }: Props = $props();
 
-  const HANDLES: { cls: string; dx: -1 | 0 | 1; dy: -1 | 0 | 1 }[] = [
+  const HANDLES: { cls: ResizeEdge; dx: -1 | 0 | 1; dy: -1 | 0 | 1 }[] = [
     { cls: 'n', dx: 0, dy: -1 },
     { cls: 's', dx: 0, dy: 1 },
     { cls: 'e', dx: 1, dy: 0 },
@@ -16,9 +19,11 @@
     { cls: 'se', dx: 1, dy: 1 },
     { cls: 'sw', dx: -1, dy: 1 },
   ];
+
+  let visibleHandles = $derived(edges ? HANDLES.filter((h) => edges.includes(h.cls)) : HANDLES);
 </script>
 
-{#each HANDLES as h (h.cls)}
+{#each visibleHandles as h (h.cls)}
   <div class="dialog-resize {h.cls}" aria-hidden="true" onpointerdown={(e) => onStart(e, h.dx, h.dy)}></div>
 {/each}
 

@@ -425,18 +425,10 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
 
         let mut cfg = self.load_registry().unwrap_or_default();
 
-        let existing_pinned = cfg
-            .workspaces
-            .iter()
-            .find(|w| w.path == clean_path)
-            .map(|w| w.pinned)
-            .unwrap_or(false);
-
-        let existing_notes = cfg
-            .workspaces
-            .iter()
-            .find(|w| w.path == clean_path)
-            .map(|w| w.notes_count);
+        let existing_entry = cfg.workspaces.iter().find(|w| w.path == clean_path);
+        let existing_pinned = existing_entry.map(|w| w.pinned).unwrap_or(false);
+        let existing_pinned_order = existing_entry.and_then(|w| w.pinned_order);
+        let existing_notes = existing_entry.map(|w| w.notes_count);
 
         let computed_notes = notes_count
             .or(existing_notes)
@@ -454,6 +446,7 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
             name: Self::extract_workspace_name(&path_buf),
             last_opened_ms: Self::now_ms(),
             pinned: existing_pinned,
+            pinned_order: existing_pinned_order,
             notes_count: computed_notes,
             git_branch: detected_branch,
             is_git_repo: detected_is_git,
@@ -471,11 +464,53 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
     fn toggle_pin(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String> {
         let clean_path = Self::normalize_path(path);
         let mut cfg = self.load_registry().unwrap_or_default();
+        let next_order = cfg
+            .workspaces
+            .iter()
+            .filter(|x| x.pinned)
+            .filter_map(|x| x.pinned_order)
+            .max()
+            .map(|m| m + 1)
+            .unwrap_or(0);
 
         for w in cfg.workspaces.iter_mut() {
             if w.path == clean_path || w.path == path {
                 w.pinned = !w.pinned;
+                w.pinned_order = if w.pinned { Some(next_order) } else { None };
                 break;
+            }
+        }
+
+        self.save_registry(&cfg)?;
+        self.list_workspaces()
+    }
+
+    fn reorder_pinned_workspaces(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<RecentWorkspaceEntry>, String> {
+        let mut cfg = self.load_registry().unwrap_or_default();
+        let normalized: Vec<(String, &str)> = paths
+            .iter()
+            .map(|p| (Self::normalize_path(p), p.as_str()))
+            .collect();
+
+        let mut assigned = vec![false; cfg.workspaces.len()];
+        for (idx, (clean_target, raw_target)) in normalized.iter().enumerate() {
+            for (w_idx, w) in cfg.workspaces.iter_mut().enumerate() {
+                if w.pinned && (w.path == *clean_target || w.path == *raw_target) {
+                    w.pinned_order = Some(idx as u32);
+                    assigned[w_idx] = true;
+                    break;
+                }
+            }
+        }
+
+        let mut next_order = normalized.len() as u32;
+        for (w_idx, w) in cfg.workspaces.iter_mut().enumerate() {
+            if w.pinned && !assigned[w_idx] {
+                w.pinned_order = Some(next_order);
+                next_order += 1;
             }
         }
 
@@ -701,5 +736,64 @@ mod tests {
         assert_eq!(reloaded.welcome.new_workspace, "Ctrl+Alt+N");
         assert_eq!(reloaded.welcome.open_folder, "Ctrl+Shift+O"); // Default preserved
         assert_eq!(reloaded.workspace.quick_open, "Ctrl+K");
+    }
+
+    #[test]
+    fn test_pinned_order_persistence_and_reorder() {
+        let cfg_dir = tempdir().unwrap();
+        let ws1_dir = tempdir().unwrap();
+        let ws2_dir = tempdir().unwrap();
+        let ws3_dir = tempdir().unwrap();
+
+        let repo = WorkspaceRegistryRepositoryImpl::with_config_dir(
+            cfg_dir.path().to_path_buf(),
+            SupportedFileTypes::default(),
+        );
+
+        let ws1 = ws1_dir.path().to_string_lossy().to_string();
+        let ws2 = ws2_dir.path().to_string_lossy().to_string();
+        let ws3 = ws3_dir.path().to_string_lossy().to_string();
+
+        repo.record_workspace_opened(&ws1, Some(1), None, None).unwrap();
+        repo.record_workspace_opened(&ws2, Some(2), None, None).unwrap();
+        repo.record_workspace_opened(&ws3, Some(3), None, None).unwrap();
+
+        // Pin ws1 and ws2 -> should get pinned_order 0 and 1
+        let list = repo.toggle_pin(&ws1).unwrap();
+        assert_eq!(
+            list.iter().find(|w| w.notes_count == 1).unwrap().pinned_order,
+            Some(0)
+        );
+        let list = repo.toggle_pin(&ws2).unwrap();
+        assert_eq!(
+            list.iter().find(|w| w.notes_count == 2).unwrap().pinned_order,
+            Some(1)
+        );
+
+        // Reorder pinned: [ws2, ws1]
+        let reordered = repo
+            .reorder_pinned_workspaces(&[ws2.clone(), ws1.clone()])
+            .unwrap();
+        assert_eq!(
+            reordered.iter().find(|w| w.notes_count == 2).unwrap().pinned_order,
+            Some(0)
+        );
+        assert_eq!(
+            reordered.iter().find(|w| w.notes_count == 1).unwrap().pinned_order,
+            Some(1)
+        );
+
+        // Re-opening ws2 preserves pinned and pinned_order
+        let reopened = repo
+            .record_workspace_opened(&ws2, Some(2), None, None)
+            .unwrap();
+        assert!(reopened.pinned);
+        assert_eq!(reopened.pinned_order, Some(0));
+
+        // Unpinning ws2 clears pinned_order
+        let after_unpin = repo.toggle_pin(&ws2).unwrap();
+        let ws2_after = after_unpin.iter().find(|w| w.notes_count == 2).unwrap();
+        assert!(!ws2_after.pinned);
+        assert_eq!(ws2_after.pinned_order, None);
     }
 }

@@ -4,6 +4,7 @@
   // vista, que se resalta, y arriba tiene una búsqueda rápida de títulos.
   import { tick, untrack } from 'svelte';
   import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search } from 'lucide-svelte';
+  import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import { extractHeadingTree, flattenHeadings, headingPathAt, normalizeHeadingText, type HeadingNode } from '../lib/heading-anchor';
 
   interface Props {
@@ -18,13 +19,22 @@
     searchPlaceholder?: string;
     /** Dentro de un diálogo: sin fondo para cerrar ni posición flotante (lo maneja el diálogo). */
     embedded?: boolean;
+    /** A qué borde está anclado el popover para decidir hacia qué lado se redimensiona. */
+    align?: 'left' | 'right';
     /** Línea del título donde está la vista (-1 o ausente si ninguno). */
     currentLine?: number;
     onSelect: (heading: HeadingNode) => void;
     onClose: () => void;
   }
 
-  let { content, nodes, label = 'Índice de la nota', emptyText = 'La nota no tiene títulos', showLevel = true, searchPlaceholder = 'Buscar título…', embedded = false, currentLine = -1, onSelect, onClose }: Props = $props();
+  let { content, nodes, label = 'Índice de la nota', emptyText = 'La nota no tiene títulos', showLevel = true, searchPlaceholder = 'Buscar título…', embedded = false, align = 'left', currentLine = -1, onSelect, onClose }: Props = $props();
+
+  const popoverSize = persistedDialogSize(
+    'synapse.outlinePopover.size',
+    { w: 460, h: 420 },
+    { w: 280, h: 180 },
+    { centered: false, maxHeightMargin: 120 },
+  );
 
   let tree = $derived(nodes ?? extractHeadingTree(content));
   // Abre desplegado hasta el título actual (sus ancestros abiertos)
@@ -141,7 +151,19 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 {#if !embedded}<div class="outline-backdrop" onclick={onClose}></div>{/if}
-<div class="heading-outline" class:embedded role={embedded ? undefined : 'dialog'} aria-label={label}>
+<div
+  class="heading-outline"
+  class:embedded
+  style={embedded ? undefined : popoverSize.style}
+  role={embedded ? undefined : 'dialog'}
+  aria-label={label}
+>
+  {#if !embedded}
+    <DialogResizeHandles
+      onStart={popoverSize.startResize}
+      edges={align === 'right' ? ['w', 's', 'sw'] : ['e', 's', 'se']}
+    />
+  {/if}
   <div class="outline-header">
     <label class="outline-search">
       <Search size={13} />
@@ -226,9 +248,10 @@
     top: 100%;
     left: 16px;
     z-index: 50;
-    width: min(460px, calc(100% - 32px));
-    max-height: 60vh;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 8px;
@@ -249,12 +272,18 @@
     padding: 8px 12px;
   }
   .outline-header {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 4px;
     padding: 2px 4px 6px;
     border-bottom: 1px solid var(--border-primary, #d0d7de);
     margin-bottom: 4px;
+  }
+  .heading-outline > .outline-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
   .outline-search {
     flex: 1;

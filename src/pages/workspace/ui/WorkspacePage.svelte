@@ -5124,6 +5124,7 @@
                           <HeadingOutline
                             {content}
                             nodes={keyTree}
+                            align="right"
                             label="Índice de claves"
                             emptyText="El archivo no tiene claves"
                             showLevel={false}
@@ -5719,14 +5720,12 @@
     position: absolute;
     top: 34px;
     right: 18px;
-    width: min(460px, calc(100% - 36px));
     z-index: 50;
   }
   .code-outline-anchor :global(.heading-outline) {
     top: 0;
     left: auto;
     right: 0;
-    width: 100%;
   }
 
   .editor-outline-btn:hover,

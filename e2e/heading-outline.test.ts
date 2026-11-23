@@ -143,3 +143,94 @@ it('las flechas recorren las entradas visibles, → despliega y Enter va a la el
     timeoutMsg: 'Enter no llevó a Parte B',
   });
 });
+
+async function dragResizeHandle(selector: string, dx: number, dy: number) {
+  await s.browser.execute(
+    (sel: string, deltaX: number, deltaY: number) => {
+      const handle = document.querySelector(sel) as HTMLElement;
+      if (!handle) throw new Error(`No existe handle: ${sel}`);
+      const r = handle.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: y }));
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: x + deltaX, clientY: y + deltaY }));
+      window.dispatchEvent(new PointerEvent('pointerup', { clientX: x + deltaX, clientY: y + deltaY }));
+    },
+    selector,
+    dx,
+    dy,
+  );
+}
+
+it('el popover del índice se redimensiona arrastrando su esquina y recuerda el tamaño', async () => {
+  await s.browser.execute(() => localStorage.removeItem('synapse.outlinePopover.size'));
+  if (await s.browser.$('.heading-outline').isExisting()) await s.browser.keys(['Escape']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
+
+  await s.browser.$('.editor-outline-btn').click();
+  await s.browser.$('.heading-outline .dialog-resize.se').waitForDisplayed({ timeout: 5_000 });
+
+  const before = (await s.browser.execute(() => {
+    const r = document.querySelector('.heading-outline')!.getBoundingClientRect();
+    return { width: r.width, height: r.height };
+  })) as { width: number; height: number };
+
+  await dragResizeHandle('.heading-outline .dialog-resize.se', 120, 90);
+
+  const after = (await s.browser.execute(() => {
+    const r = document.querySelector('.heading-outline')!.getBoundingClientRect();
+    return { width: r.width, height: r.height };
+  })) as { width: number; height: number };
+
+  expect(after.width).toBeGreaterThan(before.width + 80);
+  expect(after.height).toBeGreaterThan(before.height + 50);
+
+  await s.browser.keys(['Escape']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
+
+  await s.browser.$('.editor-outline-btn').click();
+  await s.browser.$('.heading-outline').waitForDisplayed({ timeout: 5_000 });
+
+  const reopened = (await s.browser.execute(() => {
+    const r = document.querySelector('.heading-outline')!.getBoundingClientRect();
+    return { width: r.width, height: r.height };
+  })) as { width: number; height: number };
+
+  expect(Math.round(reopened.width)).toBe(Math.round(after.width));
+  expect(Math.round(reopened.height)).toBe(Math.round(after.height));
+
+  await s.browser.keys(['Escape']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.heading-outline').isExisting()), { timeout: 5_000 });
+});
+
+it('el diálogo Ctrl+F12 del índice se redimensiona arrastrando un borde y recuerda el tamaño', async () => {
+  await s.browser.execute(() => localStorage.removeItem('synapse.outlineDialog.size'));
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog .dialog-resize.e').waitForDisplayed({ timeout: 5_000 });
+  await Bun.sleep(250);
+
+  const beforeWidth = (await s.browser.execute(
+    () => document.querySelector('.outline-dialog')!.getBoundingClientRect().width,
+  )) as number;
+
+  await dragResizeHandle('.outline-dialog .dialog-resize.e', 60, 0);
+
+  const afterWidth = (await s.browser.execute(
+    () => document.querySelector('.outline-dialog')!.getBoundingClientRect().width,
+  )) as number;
+
+  expect(afterWidth).toBeGreaterThan(beforeWidth + 80);
+
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.waitUntil(async () => !(await s.browser.$('.outline-dialog').isExisting()), { timeout: 5_000 });
+
+  await s.browser.keys(['Control', 'F12']);
+  await s.browser.$('.outline-dialog').waitForDisplayed({ timeout: 5_000 });
+  await Bun.sleep(250);
+
+  const reopenedWidth = (await s.browser.execute(
+    () => document.querySelector('.outline-dialog')!.getBoundingClientRect().width,
+  )) as number;
+
+  expect(Math.round(reopenedWidth)).toBe(Math.round(afterWidth));
+});

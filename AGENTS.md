@@ -48,7 +48,7 @@ El backend reside en `src-tauri/src` y se organiza en capas concéntricas. La re
 └────────────────────────────────────────────────────────┘
 ```
 
-### Reglas para cualquier nueva creación en Backend:
+### Reglas para cualquier nueva creación en Backend
 
 1. **Capa `domain` (Núcleo Puro)**:
    - Debe contener únicamente entidades de negocio, value objects validados, traits/puertos de repositorios y servicios de pura lógica.
@@ -79,7 +79,8 @@ El backend reside en `src-tauri/src` y se organiza en capas concéntricas. La re
 
 El código frontend reside en `src/` y sigue estrictamente **Feature-Sliced Design**.
 
-### Jerarquía de Capas (de arriba hacia abajo):
+### Jerarquía de Capas (de arriba hacia abajo)
+
 $$\text{app} \longrightarrow \text{pages} \longrightarrow \text{widgets} \longrightarrow \text{features} \longrightarrow \text{entities} \longrightarrow \text{shared}$$
 
 ```
@@ -92,9 +93,10 @@ src/
 └── shared/       # Código genérico reutilizable sin lógica de negocio (ui kit, api IPC base, lib)
 ```
 
-### Reglas de Oro FSD:
+### Reglas de Oro FSD
 
 #### 1. Jerarquía Unidireccional de Importaciones (NUNCA hacia arriba)
+
 - Una capa solo puede importar elementos de capas situadas **estrictamente por debajo** en la jerarquía:
   - `pages` puede importar de `widgets`, `features`, `entities`, `shared`.
   - `widgets` puede importar de `features`, `entities`, `shared`.
@@ -103,6 +105,7 @@ src/
   - `shared` **NUNCA** puede importar de ninguna otra capa (`entities`, `features`, `widgets`, etc.).
 
 #### 2. Cero Importaciones Horizontales (Cross-slice imports)
+
 - **PROHIBIDO**: Una `feature` **NO** puede importar de otra `feature` (`features/A` ❌ `features/B`).
 - **PROHIBIDO**: Un `widget` **NO** puede importar de otro `widget` (`widgets/A` ❌ `widgets/B`).
 - **PROHIBIDO**: Una `entity` **NO** puede importar de otra `entity` (`entities/A` ❌ `entities/B`).
@@ -112,7 +115,9 @@ src/
   - Si se comparten componentes de UI genéricos (botones, diálogos, iconos neutros) → Mover a `shared/ui/`.
 
 #### 3. Estructura Interna Canónica de cada Slice
+
 Cada slice dentro de `features/`, `widgets/` o `entities/` debe organizarse en los siguientes segmentos estándar:
+
 - `ui/`: Componentes Svelte de la slice.
 - `model/`: Tipos, estados reactivos, stores (`.svelte.ts`, `.ts`).
 - `api/`: Repositorios o llamadas IPC Tauri específicas del slice.
@@ -122,6 +127,7 @@ Cada slice dentro de `features/`, `widgets/` o `entities/` debe organizarse en l
   - **PROHIBIDO** importar archivos internos profundos de otro slice (ej. ❌ `@features/markdown-editor/ui/MarkdownViewer.svelte`).
 
 #### 4. Terminología FSD
+
 - **PROHIBIDO** crear carpetas `use-cases` en `shared/`. En FSD, la lógica de entidades va en `entities/<slice>/api` o `model`, y los flujos de usuario en `features`.
 
 ---
@@ -129,6 +135,7 @@ Cada slice dentro de `features/`, `widgets/` o `entities/` debe organizarse en l
 ## 🎨 3. Estándares de Código y Calidad
 
 ### Svelte 5 (Runes)
+
 - **OBLIGATORIO**: Usar siempre la sintaxis de **Runes**:
   - `$state(...)` para estado reactivo.
   - `$derived(...)` para valores calculados.
@@ -139,6 +146,7 @@ Cada slice dentro de `features/`, `widgets/` o `entities/` debe organizarse en l
 - **PROHIBIDO**: Usar sintaxis heredada de Svelte 3/4 (`export let`, `$: reactive`, `createEventDispatcher`).
 
 ### Tokens y Estilos Visuales
+
 - Utilizar siempre las variables CSS del sistema para garantizar soporte dual de temas claro y oscuro:
   - `--bg-primary`, `--bg-secondary`, `--bg-tertiary`
   - `--text-primary`, `--text-secondary`, `--text-muted`
@@ -172,7 +180,7 @@ embebida Xephyr `:100`:
 
 ```bash
 # Suite completa
-bun run test:e2e:embebed:run
+bun run test:e2e:embedded:run
 
 # Solo algunos archivos (mismo entorno)
 GDK_BACKEND=x11 DISPLAY=:100 bun e2e/quick.ts <nombre-sin-.test.ts>
@@ -181,7 +189,7 @@ GDK_BACKEND=x11 DISPLAY=:100 bun e2e/quick.ts <nombre-sin-.test.ts>
 Si falla porque la pantalla `:100` no existe, ábrela **en segundo plano** y reintenta:
 
 ```bash
-bun run test:e2e:embebed:x11
+bun run test:e2e:embedded:x11
 ```
 
 <!-- braid:agents:start v8 -->
@@ -190,6 +198,7 @@ bun run test:e2e:embebed:x11
 this repo uses braid (`brd`) for issue tracking. issues live in `.braid/issues/` as markdown files.
 
 basic flow:
+
 1. `brd start` — claim the next ready issue
 2. do the work, commit as usual
 3. `brd done <id>` — mark the issue complete
@@ -198,6 +207,7 @@ basic flow:
    - on main: just `git push` (you're already there)
 
 useful commands:
+
 - `brd ls` — list all issues
 - `brd ready` — show issues with no unresolved dependencies
 - `brd show <id>` — view issue details (shows deps and dependents)
@@ -216,11 +226,13 @@ cat .braid/agent.toml 2>/dev/null && echo "yes, worktree" || echo "no, main"
 ```
 
 **if you're in a worktree (feature branch):**
+
 - `brd start` handles syncing automatically
 - use `brd agent merge` to ship (rebase + ff-merge to main)
 - if you see schema mismatch errors, rebase onto latest main
 
 **if you're on main:**
+
 - `brd start` syncs and claims
 - after `brd done`, just `git push` your code commits
 - no `brd agent merge` needed — you're already on main
@@ -228,12 +240,14 @@ cat .braid/agent.toml 2>/dev/null && echo "yes, worktree" || echo "no, main"
 ## design and meta issues
 
 **design issues** (`type: design`) require human collaboration:
+
 - don't close autonomously — discuss with human first
 - research options, write up trade-offs in the issue body
 - produce output before closing (implementation issues or a plan)
 - only mark done after human approves
 
 **meta issues** (`type: meta`) are tracking issues:
+
 - group related work under a parent issue
 - show progress as "done/total" in `brd ls`
 - typically not picked up directly — work on the child issues instead
@@ -243,23 +257,27 @@ cat .braid/agent.toml 2>/dev/null && echo "yes, worktree" || echo "no, main"
 this repo stores issues **with code** — issues live in `.braid/issues/` and sync via git.
 
 **how it works:**
+
 - `brd start` auto-syncs: fetches, rebases, claims, commits, and pushes
 - `brd done` marks complete and auto-pushes (if auto_push enabled)
 - issue changes flow through your normal git workflow
 
 **in a worktree (feature branch):**
+
 ```bash
 brd done <id>        # marks done, auto-pushes issue state
 brd agent merge      # ship code to main (rebase + ff-merge)
 ```
 
 **on main:**
+
 ```bash
 brd done <id>        # marks done, auto-pushes issue state
 git push             # push your code commits
 ```
 
 **changing settings:**
+
 - `brd config` — show current config
 - `brd config issues-branch <name>` — enable issues-branch for multi-agent setups
 <!-- braid:agents:end -->

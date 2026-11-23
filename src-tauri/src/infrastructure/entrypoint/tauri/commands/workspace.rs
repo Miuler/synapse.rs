@@ -173,6 +173,18 @@ pub async fn toggle_pin_workspace(
 }
 
 #[tauri::command]
+pub async fn reorder_pinned_workspaces(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<Vec<RecentWorkspaceEntry>, String> {
+    state.reorder_pinned_workspaces_use_case.execute(
+        crate::application::dto::workspace::reorder_pinned_workspaces_command::ReorderPinnedWorkspacesCommand {
+            paths,
+        },
+    )
+}
+
+#[tauri::command]
 pub async fn remove_recent_workspace(
     state: State<'_, AppState>,
     path: String,

@@ -13,6 +13,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Pantalla de bienvenida: las bóvedas fijadas se pueden reordenar con drag and drop (orden guardado en `workspaces.json`) y las fijadas con repositorio Git conservan el icono de carpeta Git con el color de fijado.
+- Índice de Markdown y claves YAML/JSON: el popover del índice reutiliza `@shared/ui/dialog-resize` para redimensionarse arrastrando sus bordes o esquinas y recordar su tamaño.
 - Índice de carpeta (`index.md`): «+ Nuevo…» (desplegable: nota Markdown, Mermaid, D2, PlantUML, Excalidraw) junto a «Archivos»/«Conceptos» y «+ Carpeta» junto a «Carpetas», que crean dentro de esa carpeta; si falta la sección, los botones van arriba.
 - Explorador: clic en una carpeta abre su `index.md` (la flecha la despliega; sin `index.md`, se despliega como antes). Ajustes → «Clic en una carpeta del explorador» permite volver a «Desplegarla». En ese modo el `index.md` no se lista dentro de su carpeta (el de la raíz sí); sigue en disco y en el MCP. «Localizar archivo activo» (Ctrl+Alt+1) sobre un `index.md` selecciona su carpeta sin desplegarla.
 - Editor: al pasar el ratón por una marca del margen de Git aparece un tooltip con lo que había en Git y lo que hay ahora (−/+), con las letras que cambiaron resaltadas (aunque sea una sola); en un borrado, las líneas que se quitaron. Botones «Revertir» (devuelve el bloque a como está en Git; Ctrl+Z lo deshace) y «Copiar original». Colores propios en claro y oscuro (como el diff de GitHub), legibles con cualquier tema. El tooltip sale junto a la línea bajo el ratón y sigue abierto al pasar a él.

@@ -9,6 +9,8 @@ pub struct RecentWorkspaceEntry {
     #[serde(default)]
     pub pinned: bool,
     #[serde(default)]
+    pub pinned_order: Option<u32>,
+    #[serde(default)]
     pub notes_count: usize,
     #[serde(default)]
     pub git_branch: Option<String>,

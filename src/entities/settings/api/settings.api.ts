@@ -23,6 +23,7 @@ export interface RecentWorkspaceEntry {
   name: string;
   last_opened: number;
   pinned: boolean;
+  pinned_order?: number | null;
   notes_count?: number;
   git_branch?: string;
   is_git_repo?: boolean;

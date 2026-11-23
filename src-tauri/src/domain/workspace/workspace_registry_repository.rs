@@ -12,6 +12,8 @@ pub trait WorkspaceRegistryRepository: Send + Sync {
         is_git_repo: Option<bool>,
     ) -> Result<RecentWorkspaceEntry, String>;
     fn toggle_pin(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String>;
+    fn reorder_pinned_workspaces(&self, paths: &[String])
+        -> Result<Vec<RecentWorkspaceEntry>, String>;
     fn remove_workspace(&self, path: &str) -> Result<Vec<RecentWorkspaceEntry>, String>;
     fn list_workspaces(&self) -> Result<Vec<RecentWorkspaceEntry>, String>;
     fn load_shortcuts_config(&self) -> Result<ShortcutsConfig, String>;

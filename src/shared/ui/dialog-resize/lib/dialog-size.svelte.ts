@@ -6,9 +6,24 @@ export interface DialogSize {
   h: number;
 }
 
+export interface DialogSizeOptions {
+  /** Si es `false` (ej. popover anclado a un borde), el arrastre aplica 1x en vez de 2x. */
+  centered?: boolean;
+  /** Margen reservado de alto respecto al viewport (`100vh - margin`). */
+  maxHeightMargin?: number;
+}
+
 const MARGIN = 16;
 
-export function persistedDialogSize(key: string, initial: DialogSize, min: DialogSize) {
+export function persistedDialogSize(
+  key: string,
+  initial: DialogSize,
+  min: DialogSize,
+  options?: DialogSizeOptions,
+) {
+  const factor = options?.centered === false ? 1 : 2;
+  const hMargin = options?.maxHeightMargin ?? MARGIN;
+
   function load(): DialogSize {
     try {
       const v = JSON.parse(localStorage.getItem(key) ?? 'null');
@@ -21,7 +36,7 @@ export function persistedDialogSize(key: string, initial: DialogSize, min: Dialo
 
   let size = $state(load());
   const clampW = (w: number) => Math.max(min.w, Math.min(window.innerWidth - MARGIN, w));
-  const clampH = (h: number) => Math.max(min.h, Math.min(window.innerHeight - MARGIN, h));
+  const clampH = (h: number) => Math.max(min.h, Math.min(window.innerHeight - hMargin, h));
 
   /** Empieza a arrastrar un borde (`dx`/`dy` = -1, 0 o 1 según el lado). */
   function startResize(e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) {
@@ -35,8 +50,8 @@ export function persistedDialogSize(key: string, initial: DialogSize, min: Dialo
     // El diálogo está centrado: crece igual hacia ambos lados, por eso el desplazamiento cuenta doble
     const move = (ev: PointerEvent) => {
       size = {
-        w: dx ? clampW(w0 + 2 * dx * (ev.clientX - x0)) : w0,
-        h: dy ? clampH(h0 + 2 * dy * (ev.clientY - y0)) : h0,
+        w: dx ? clampW(w0 + factor * dx * (ev.clientX - x0)) : w0,
+        h: dy ? clampH(h0 + factor * dy * (ev.clientY - y0)) : h0,
       };
     };
     const up = () => {
@@ -58,7 +73,7 @@ export function persistedDialogSize(key: string, initial: DialogSize, min: Dialo
     },
     /** Estilo en línea con el tamaño actual, para el contenedor del diálogo. */
     get style() {
-      return `width: ${size.w}px; height: ${size.h}px; max-width: calc(100vw - ${MARGIN}px); max-height: calc(100vh - ${MARGIN}px);`;
+      return `width: ${size.w}px; height: ${size.h}px; max-width: calc(100vw - ${MARGIN}px); max-height: calc(100vh - ${hMargin}px);`;
     },
     startResize,
   };
