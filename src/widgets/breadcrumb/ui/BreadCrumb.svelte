@@ -386,40 +386,8 @@
 
                 <ContextMenu.Portal>
                   <ContextMenu.Content class="breadcrumb-context-menu">
-                    {#if onOpenInNewWindow}
-                      <ContextMenu.Item
-                        class="context-menu-item"
-                        onSelect={() => onOpenInNewWindow(cleanPath)}
-                      >
-                        <ExternalLink size={14} class="context-menu-item-icon" />
-                        <span>Abrir en nueva ventana</span>
-                      </ContextMenu.Item>
-                    {/if}
-
-                    {#if onOpenFileWithDefaultApp}
-                      <ContextMenu.Item
-                        class="context-menu-item"
-                        onSelect={() => onOpenFileWithDefaultApp(cleanPath)}
-                      >
-                        <ExternalLink size={14} class="context-menu-item-icon" />
-                        <span>Abrir con la app por defecto</span>
-                      </ContextMenu.Item>
-                    {/if}
-
-                    {#if onShowItemInFolder}
-                      <ContextMenu.Item
-                        class="context-menu-item"
-                        onSelect={() => onShowItemInFolder(cleanPath)}
-                      >
-                        <FolderSearch size={14} class="context-menu-item-icon" />
-                        <span>Mostrar en carpeta</span>
-                      </ContextMenu.Item>
-                    {/if}
-
                     <!-- Opciones de Git -->
                     {#if isGitRepo}
-                      <ContextMenu.Separator class="context-menu-divider" />
-
                       {#if canGitCommit}
                         <ContextMenu.Item
                           class="context-menu-item"
@@ -497,6 +465,40 @@
                           <span>Git Restore</span>
                         </ContextMenu.Item>
                       {/if}
+
+                      {#if onOpenInNewWindow || onOpenFileWithDefaultApp || onShowItemInFolder}
+                        <ContextMenu.Separator class="context-menu-divider" />
+                      {/if}
+                    {/if}
+
+                    {#if onOpenInNewWindow}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenInNewWindow(cleanPath)}
+                      >
+                        <ExternalLink size={14} class="context-menu-item-icon" />
+                        <span>Abrir en nueva ventana</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if onOpenFileWithDefaultApp}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onOpenFileWithDefaultApp(cleanPath)}
+                      >
+                        <ExternalLink size={14} class="context-menu-item-icon" />
+                        <span>Abrir con la app por defecto</span>
+                      </ContextMenu.Item>
+                    {/if}
+
+                    {#if onShowItemInFolder}
+                      <ContextMenu.Item
+                        class="context-menu-item"
+                        onSelect={() => onShowItemInFolder(cleanPath)}
+                      >
+                        <FolderSearch size={14} class="context-menu-item-icon" />
+                        <span>Mostrar en carpeta</span>
+                      </ContextMenu.Item>
                     {/if}
 
                     <ContextMenu.Separator class="context-menu-divider" />

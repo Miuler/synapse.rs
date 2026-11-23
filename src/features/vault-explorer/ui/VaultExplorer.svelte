@@ -2449,17 +2449,141 @@
           <span class="context-menu-shortcut">Ctrl+R</span>
         </ContextMenu.Item>
 
-        {#if !contextMenuNode && selectedNodes.length <= 1 && isGitRepo}
-          <!-- Raíz del vault (espacio vacío, nombre del vault o badge de la rama): log y ramas del repositorio -->
-          <ContextMenu.Separator class="context-menu-divider" />
-          <ContextMenu.Item class="context-menu-item vault-git-log" onSelect={() => gitDialogState.openRepoLog(activeGitRepo)}>
-            <GitGraph class="context-menu-item-icon" />
-            <span>Git Log…</span>
-          </ContextMenu.Item>
-          <ContextMenu.Item class="context-menu-item" onSelect={handleOpenBranchDialog}>
-            <GitBranch class="context-menu-item-icon" />
-            <span>Ramas…</span>
-          </ContextMenu.Item>
+        {#if isGitRepo}
+          {@const isVaultRootGit = !contextMenuNode && selectedNodes.length <= 1}
+          {@const nestedRepoPath = contextMenuNode?.isFolder && nestedRepos.has(contextMenuNode.relativePath) ? contextMenuNode.relativePath : null}
+          {@const hasGitSection = isVaultRootGit || !!nestedRepoPath || canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore || !!targetFileForDiff}
+          {#if hasGitSection}
+            <ContextMenu.Separator class="context-menu-divider" />
+
+            {#if isVaultRootGit}
+              <!-- Raíz del vault (espacio vacío, nombre del vault o badge de la rama): log y ramas del repositorio -->
+              <ContextMenu.Item class="context-menu-item vault-git-log" onSelect={() => gitDialogState.openRepoLog(activeGitRepo)}>
+                <GitGraph class="context-menu-item-icon" />
+                <span>Git Log…</span>
+              </ContextMenu.Item>
+              <ContextMenu.Item class="context-menu-item" onSelect={handleOpenBranchDialog}>
+                <GitBranch class="context-menu-item-icon" />
+                <span>Ramas…</span>
+              </ContextMenu.Item>
+            {/if}
+
+            {#if nestedRepoPath}
+              <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openBranchDialog(nestedRepoPath)}>
+                <GitBranch class="context-menu-item-icon" />
+                <span>Ramas de «{repoLabel(nestedRepoPath)}»…</span>
+              </ContextMenu.Item>
+              <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openRepoLog(nestedRepoPath)}>
+                <GitGraph class="context-menu-item-icon" />
+                <span>Git Log de «{repoLabel(nestedRepoPath)}»…</span>
+              </ContextMenu.Item>
+              <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openCommitDialog([], nestedRepoPath)}>
+                <GitCommitHorizontal class="context-menu-item-icon" />
+                <span>Commit en «{repoLabel(nestedRepoPath)}»…</span>
+              </ContextMenu.Item>
+              {#if onGitPush}
+                <ContextMenu.Item class="context-menu-item" onSelect={() => onGitPush?.(nestedRepoPath)}>
+                  <Cloud class="context-menu-item-icon" />
+                  <span>Push de «{repoLabel(nestedRepoPath)}»</span>
+                </ContextMenu.Item>
+              {/if}
+            {/if}
+
+            {#if canGitCommit}
+              <ContextMenu.Item
+                class="context-menu-item"
+                onSelect={handlePromptGitCommit}
+              >
+                <GitCommitHorizontal class="context-menu-item-icon" />
+                <span>
+                  {gitCommitPaths.length > 1
+                    ? `Hacer commit (${gitCommitPaths.length} elementos)...`
+                    : gitCommitPaths.length === 1
+                      ? 'Hacer commit...'
+                      : `Hacer commit (${allGitChangedFiles.length} cambios)...`}
+                </span>
+              </ContextMenu.Item>
+            {/if}
+
+            {#if filesToCompare && onCompareFiles}
+              <!-- Con dos archivos seleccionados, «Diff» los compara entre sí (no contra Git) -->
+              <ContextMenu.Item
+                class="context-menu-item diff-two-files"
+                onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
+              >
+                <GitCompare class="context-menu-item-icon" />
+                <span>Diff entre los 2 archivos</span>
+              </ContextMenu.Item>
+            {:else if targetFileForDiff}
+              <ContextMenu.Item
+                class="context-menu-item"
+                disabled={!canGitDiff}
+                onSelect={() => handleOpenDiff(targetFileForDiff!, false)}
+              >
+                {#if isVisualCandidateForDiff}
+                  <Columns class="context-menu-item-icon" />
+                  <span>Diff visual (2 paneles)</span>
+                {:else}
+                  <GitCompare class="context-menu-item-icon" />
+                  <span>Diff</span>
+                {/if}
+              </ContextMenu.Item>
+
+              <ContextMenu.Item
+                class="context-menu-item"
+                disabled={!canGitDiffStaged}
+                onSelect={() => handleOpenDiff(targetFileForDiff!, true)}
+              >
+                {#if isVisualCandidateForDiff}
+                  <Columns class="context-menu-item-icon" />
+                  <span>Diff visual --staged</span>
+                {:else}
+                  <GitCompareArrows class="context-menu-item-icon" />
+                  <span>Diff --staged</span>
+                {/if}
+              </ContextMenu.Item>
+            {/if}
+
+            {#if targetFileForDiff}
+              <ContextMenu.Item
+                class="context-menu-item"
+                onSelect={() => handleOpenFileLog(targetFileForDiff)}
+              >
+                <History class="context-menu-item-icon" />
+                <span>Historial de Git (Log)...</span>
+              </ContextMenu.Item>
+            {/if}
+
+            {#if canGitAdd}
+              <ContextMenu.Item
+                class="context-menu-item"
+                onSelect={handleGitAdd}
+              >
+                <Plus class="context-menu-item-icon" />
+                <span>{gitAddPaths.length > 1 ? `Git Add (${gitAddPaths.length} elementos)` : 'Git Add'}</span>
+              </ContextMenu.Item>
+            {/if}
+
+            {#if canGitRestoreStaged}
+              <ContextMenu.Item
+                class="context-menu-item"
+                onSelect={handleGitRestoreStaged}
+              >
+                <Undo2 class="context-menu-item-icon" />
+                <span>{gitRestoreStagedPaths.length > 1 ? `Git Restore --staged (${gitRestoreStagedPaths.length} elementos)` : 'Git Restore --staged'}</span>
+              </ContextMenu.Item>
+            {/if}
+
+            {#if canGitRestore}
+              <ContextMenu.Item
+                class="context-menu-item"
+                onSelect={handlePromptGitRestore}
+              >
+                <RotateCcw class="context-menu-item-icon" />
+                <span>{gitRestorePaths.length > 1 ? `Git Restore (${gitRestorePaths.length} elementos)` : 'Git Restore'}</span>
+              </ContextMenu.Item>
+            {/if}
+          {/if}
         {/if}
 
         {#if filesToCompare && onCompareFiles}
@@ -2553,29 +2677,6 @@
             <FolderSearch class="context-menu-item-icon" />
             <span>Mostrar en carpeta</span>
           </ContextMenu.Item>
-        {/if}
-
-        {#if contextMenuNode && contextMenuNode.isFolder && isGitRepo && nestedRepos.has(contextMenuNode.relativePath)}
-          {@const repoPath = contextMenuNode.relativePath}
-          <ContextMenu.Separator class="context-menu-divider" />
-          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openBranchDialog(repoPath)}>
-            <GitBranch class="context-menu-item-icon" />
-            <span>Ramas de «{repoLabel(repoPath)}»…</span>
-          </ContextMenu.Item>
-          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openRepoLog(repoPath)}>
-            <GitGraph class="context-menu-item-icon" />
-            <span>Git Log de «{repoLabel(repoPath)}»…</span>
-          </ContextMenu.Item>
-          <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openCommitDialog([], repoPath)}>
-            <GitCommitHorizontal class="context-menu-item-icon" />
-            <span>Commit en «{repoLabel(repoPath)}»…</span>
-          </ContextMenu.Item>
-          {#if onGitPush}
-            <ContextMenu.Item class="context-menu-item" onSelect={() => onGitPush?.(repoPath)}>
-              <Cloud class="context-menu-item-icon" />
-              <span>Push de «{repoLabel(repoPath)}»</span>
-            </ContextMenu.Item>
-          {/if}
         {/if}
 
         {#if contextMenuNode && !contextMenuNode.isFolder && onOpenWithDrawio && isDrawioPngFile(contextMenuNode.relativePath)}
@@ -2769,105 +2870,6 @@
             hasConcreteSelection ? 'Copiar ruta completa' : 'Copiar ruta de la bóveda'
           }</span>
         </ContextMenu.Item>
-
-        {#if isGitRepo && (canGitCommit || canGitAdd || canGitRestoreStaged || canGitRestore || targetFileForDiff)}
-          <ContextMenu.Separator class="context-menu-divider" />
-
-          {#if canGitCommit}
-            <ContextMenu.Item
-              class="context-menu-item"
-              onSelect={handlePromptGitCommit}
-            >
-              <GitCommitHorizontal class="context-menu-item-icon" />
-              <span>
-                {gitCommitPaths.length > 1
-                  ? `Hacer commit (${gitCommitPaths.length} elementos)...`
-                  : gitCommitPaths.length === 1
-                    ? 'Hacer commit...'
-                    : `Hacer commit (${allGitChangedFiles.length} cambios)...`}
-              </span>
-            </ContextMenu.Item>
-          {/if}
-
-          {#if filesToCompare && onCompareFiles}
-            <!-- Con dos archivos seleccionados, «Diff» los compara entre sí (no contra Git) -->
-            <ContextMenu.Item
-              class="context-menu-item diff-two-files"
-              onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
-            >
-              <GitCompare class="context-menu-item-icon" />
-              <span>Diff entre los 2 archivos</span>
-            </ContextMenu.Item>
-          {:else if targetFileForDiff}
-            <ContextMenu.Item
-              class="context-menu-item"
-              disabled={!canGitDiff}
-              onSelect={() => handleOpenDiff(targetFileForDiff!, false)}
-            >
-              {#if isVisualCandidateForDiff}
-                <Columns class="context-menu-item-icon" />
-                <span>Diff visual (2 paneles)</span>
-              {:else}
-                <GitCompare class="context-menu-item-icon" />
-                <span>Diff</span>
-              {/if}
-            </ContextMenu.Item>
-
-            <ContextMenu.Item
-              class="context-menu-item"
-              disabled={!canGitDiffStaged}
-              onSelect={() => handleOpenDiff(targetFileForDiff!, true)}
-            >
-              {#if isVisualCandidateForDiff}
-                <Columns class="context-menu-item-icon" />
-                <span>Diff visual --staged</span>
-              {:else}
-                <GitCompareArrows class="context-menu-item-icon" />
-                <span>Diff --staged</span>
-              {/if}
-            </ContextMenu.Item>
-          {/if}
-
-          {#if isGitRepo && targetFileForDiff}
-            <ContextMenu.Item
-              class="context-menu-item"
-              onSelect={() => handleOpenFileLog(targetFileForDiff)}
-            >
-              <History class="context-menu-item-icon" />
-              <span>Historial de Git (Log)...</span>
-            </ContextMenu.Item>
-          {/if}
-
-          {#if canGitAdd}
-            <ContextMenu.Item
-              class="context-menu-item"
-              onSelect={handleGitAdd}
-            >
-              <Plus class="context-menu-item-icon" />
-              <span>{gitAddPaths.length > 1 ? `Git Add (${gitAddPaths.length} elementos)` : 'Git Add'}</span>
-            </ContextMenu.Item>
-          {/if}
-
-          {#if canGitRestoreStaged}
-            <ContextMenu.Item
-              class="context-menu-item"
-              onSelect={handleGitRestoreStaged}
-            >
-              <Undo2 class="context-menu-item-icon" />
-              <span>{gitRestoreStagedPaths.length > 1 ? `Git Restore --staged (${gitRestoreStagedPaths.length} elementos)` : 'Git Restore --staged'}</span>
-            </ContextMenu.Item>
-          {/if}
-
-          {#if canGitRestore}
-            <ContextMenu.Item
-              class="context-menu-item"
-              onSelect={handlePromptGitRestore}
-            >
-              <RotateCcw class="context-menu-item-icon" />
-              <span>{gitRestorePaths.length > 1 ? `Git Restore (${gitRestorePaths.length} elementos)` : 'Git Restore'}</span>
-            </ContextMenu.Item>
-          {/if}
-        {/if}
 
         {#if (selectedPaths.length > 0 && selectedPaths[0] !== "") || contextMenuNode}
           <ContextMenu.Separator class="context-menu-divider" />

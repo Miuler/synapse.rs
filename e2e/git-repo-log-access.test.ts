@@ -58,7 +58,7 @@ for (const [where, selector] of [
   }, 30_000);
 }
 
-it('sobre un archivo no aparece «Git Log…» (tiene «Historial de Git»)', async () => {
+it('sobre un archivo no aparece «Git Log…» y las opciones de Git salen juntas arriba', async () => {
   await s.browser.execute(() => {
     const el = document.querySelector('.file-tree-item[data-path="nota.md"]')!;
     const { x, y } = el.getBoundingClientRect();
@@ -66,5 +66,59 @@ it('sobre un archivo no aparece «Git Log…» (tiene «Historial de Git»)', as
   });
   await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
   expect(await s.browser.$('.context-menu-item.vault-git-log').isExisting()).toBe(false);
+
+  const labels = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.vault-context-menu .context-menu-item')].map((i) => i.textContent?.trim() ?? ''),
+  )) as string[];
+
+  const diffIdx = labels.findIndex((l) => l === 'Diff');
+  const diffStagedIdx = labels.findIndex((l) => l === 'Diff --staged');
+  const historyIdx = labels.findIndex((l) => l.includes('Historial de Git'));
+  const openWinIdx = labels.findIndex((l) => l.includes('Abrir en nueva ventana'));
+  const newFolderIdx = labels.findIndex((l) => l === 'Nueva carpeta');
+
+  expect(diffIdx).toBeGreaterThan(0);
+  expect(diffStagedIdx).toBe(diffIdx + 1);
+  expect(historyIdx).toBe(diffStagedIdx + 1);
+  expect(historyIdx).toBeLessThan(openWinIdx);
+  expect(openWinIdx).toBeLessThan(newFolderIdx);
+  await s.browser.keys('Escape');
+});
+
+it('en la raíz con cambios sin commitear las opciones de Git aparecen juntas arriba', async () => {
+  writeFileSync(join(base, 'vault', 'nota.md'), '# Nota\n\ncambio sin commit\n');
+  await s.browser.$('.sidebar-content').waitForExist({ timeout: 5_000 });
+  // Refrescar estado Git vía Ctrl+R desde el menú del espacio vacío
+  await s.browser.execute(() => {
+    const el = document.querySelector('.sidebar-content')!;
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 10, clientY: r.bottom - 10 }));
+  });
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => {
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.includes('Recargar')) as HTMLElement).click();
+  });
+  await Bun.sleep(400);
+
+  await s.browser.execute(() => {
+    const el = document.querySelector('.sidebar-content')!;
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 10, clientY: r.bottom - 10 }));
+  });
+  await s.browser.$('.context-menu-item.vault-git-log').waitForExist({ timeout: 5_000 });
+
+  const labels = (await s.browser.execute(() =>
+    [...document.querySelectorAll('.vault-context-menu .context-menu-item')].map((i) => i.textContent?.trim() ?? ''),
+  )) as string[];
+
+  const logIdx = labels.findIndex((l) => l.includes('Git Log'));
+  const branchesIdx = labels.findIndex((l) => l.includes('Ramas'));
+  const commitIdx = labels.findIndex((l) => l.includes('Hacer commit'));
+  const newFolderIdx = labels.findIndex((l) => l === 'Nueva carpeta');
+
+  expect(logIdx).toBeGreaterThan(0);
+  expect(branchesIdx).toBe(logIdx + 1);
+  expect(commitIdx).toBe(branchesIdx + 1);
+  expect(commitIdx).toBeLessThan(newFolderIdx);
   await s.browser.keys('Escape');
 });

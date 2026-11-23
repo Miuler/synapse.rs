@@ -38,6 +38,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Menús contextuales del explorador de bóveda y breadcrumb: todas las opciones de Git ahora aparecen agrupadas juntas en la parte superior.
 - Diálogos redimensionables unificados sobre `@shared/ui/dialog-resize` en `QuickOpen`, `FullTextSearch`, `CommandPalette`, `SettingsPanel`, `ShortcutsPanel` y `CommunityPluginsModal` (conserva tamaños guardados, grip en esquina inferior derecha y arrastre desde la cabecera en plugins comunitarios).
 - Si el explorador y el panel del agente están fijados se recuerda por bóveda (la primera vez cada bóveda toma el último valor global).
 - Diff visual «2 Paneles»: izquierda = antes (Git, versión anterior, primer archivo) y derecha = después (disco, versión nueva), igual que el diff de texto; el panel editable del disco pasa a la derecha.
