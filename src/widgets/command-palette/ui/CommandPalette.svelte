@@ -3,6 +3,7 @@
   import { Command, Dialog } from 'bits-ui';
   import { SearchBox } from '@shared/ui/search-box';
   import { Kbd } from '@shared/ui/kbd';
+  import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
 
   interface Props {
     isOpen?: boolean;
@@ -12,6 +13,13 @@
   let { isOpen = $bindable(false), onClose }: Props = $props();
 
   let searchValue = $state('');
+
+  const dialogSize = persistedDialogSize(
+    'synapse.commandPalette.size',
+    { w: 620, h: 440 },
+    { w: 400, h: 260 },
+    { centeredX: true, centeredY: false, maxHeightMargin: 140 },
+  );
 
   // La apertura global Ctrl+P se maneja de forma centralizada en WorkspacePage para evitar listeners duplicados
 
@@ -40,7 +48,11 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="palette-backdrop" />
-    <Dialog.Content class="palette-container synapse-dialog synapse-command-palette">
+    <Dialog.Content
+      class={`palette-container synapse-dialog synapse-command-palette ${dialogSize.resizing ? 'is-resizing' : ''}`}
+      style={dialogSize.style}
+    >
+      <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
       <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
       <Command.Root class="command-root" loop>
         <SearchBox
@@ -114,8 +126,6 @@
     top: 14vh;
     left: 50%;
     transform: translateX(-50%);
-    width: 620px;
-    max-width: 90%;
     background-color: var(--bg-primary, #ffffff);
     border-radius: 12px;
     border: 1px solid var(--border-primary, #d0d7de);
@@ -128,6 +138,11 @@
     animation: slideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  :global(.palette-container.is-resizing) {
+    animation: none !important;
+    user-select: none !important;
+  }
+
   @keyframes slideDown {
     from { transform: translateX(-50%) translateY(-12px) scale(0.98); opacity: 0; }
     to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
@@ -136,12 +151,15 @@
   :global(.palette-container .command-root) {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     width: 100%;
     outline: none;
   }
 
   :global(.palette-container .results-container) {
-    max-height: 320px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 6px 0;
     outline: none;

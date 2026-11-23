@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Dialog } from 'bits-ui';
+  import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import {
     appSettings,
     shortcutsConfig,
@@ -27,6 +28,13 @@
     .feedbackAvailable()
     .then((v) => (feedbackAvailable = v))
     .catch(() => {});
+
+  const dialogSize = persistedDialogSize(
+    'synapse.settingsPanel.size',
+    { w: 820, h: 620 },
+    { w: 560, h: 380 },
+    { centeredX: true, centeredY: false, maxHeightMargin: 96 },
+  );
 
   type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'git' | 'updates' | 'shortcuts';
 
@@ -222,7 +230,11 @@
 <Dialog.Root bind:open>
   <Dialog.Portal>
     <Dialog.Overlay class="settings-backdrop" />
-    <Dialog.Content class="settings-panel synapse-dialog synapse-settings">
+    <Dialog.Content
+      class={`settings-panel synapse-dialog synapse-settings ${dialogSize.resizing ? 'is-resizing' : ''}`}
+      style={dialogSize.style}
+    >
+      <DialogResizeHandles onStart={dialogSize.startResize} />
       <nav class="settings-nav" aria-label="Secciones de configuración">
         <Dialog.Title class="settings-title">Configuración</Dialog.Title>
         {#each sections as s (s.id)}
@@ -722,8 +734,6 @@
     top: 8vh;
     left: 50%;
     transform: translateX(-50%);
-    width: min(820px, calc(100vw - 32px));
-    height: min(620px, 84vh);
     display: flex;
     background: var(--bg-primary, #ffffff);
     color: var(--text-primary, #1f2328);
@@ -732,6 +742,10 @@
     box-shadow: var(--modal-shadow);
     overflow: hidden;
     z-index: 1001;
+  }
+
+  :global(.settings-panel.is-resizing) {
+    user-select: none !important;
   }
 
   .settings-nav {

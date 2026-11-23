@@ -17,6 +17,7 @@
   } from 'lucide-svelte';
   import type { VaultRepository } from '@shared/repositories';
   import type { SynapseApp } from '@shared/obsidian-api';
+  import { DialogResizeHandles, dialogOffset, persistedDialogSize } from '@shared/ui/dialog-resize';
   import { communityPluginsState } from '../model/community-plugins.svelte';
 
   interface Props {
@@ -101,6 +102,13 @@
     if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
     return count.toString();
   }
+
+  const dialogSize = persistedDialogSize(
+    'synapse.communityPlugins.size',
+    { w: 900, h: 680 },
+    { w: 560, h: 420 },
+  );
+  const offset = dialogOffset('synapse.communityPlugins.size');
 </script>
 
 <Dialog.Root
@@ -112,10 +120,22 @@
 >
   <Dialog.Portal>
     <Dialog.Overlay class="plugin-modal-backdrop" />
-    <Dialog.Content class="plugin-modal-content synapse-dialog">
+    <Dialog.Content
+      class={`plugin-modal-content synapse-dialog ${dialogSize.resizing ? 'is-resizing' : ''}`}
+      style="{dialogSize.style} {offset.style(dialogSize.size)}"
+    >
+      <DialogResizeHandles onStart={dialogSize.startResize} />
       <!-- Encabezado del Modal -->
       <div class="plugin-modal-header">
-        <div class="header-title-row">
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="header-title-row"
+          title="Arrastra para mover; doble clic para centrar"
+          onpointerdown={(e) => offset.startDrag(e, dialogSize.size)}
+          ondblclick={(e) => {
+            if (!(e.target as HTMLElement).closest('button, input, select, textarea, a')) offset.reset();
+          }}
+        >
           <div class="header-title-group">
             <Boxes size={22} class="header-icon" />
             <Dialog.Title class="header-title">Plugins de la Comunidad</Dialog.Title>
@@ -525,9 +545,6 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 900px;
-    height: 84vh;
     background: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: 12px;
@@ -537,6 +554,10 @@
     flex-direction: column;
     overflow: hidden;
     color: var(--text-primary);
+  }
+
+  :global(.plugin-modal-content.is-resizing) {
+    user-select: none !important;
   }
 
   .plugin-modal-header {
@@ -549,6 +570,8 @@
   }
 
   .header-title-row {
+    cursor: move;
+    user-select: none;
     display: flex;
     justify-content: space-between;
     align-items: center;

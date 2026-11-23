@@ -3,6 +3,7 @@
   import { shortcutsConfig, appSettings } from '@entities/settings';
   import { Kbd } from '@shared/ui/kbd';
   import { SearchBox } from '@shared/ui/search-box';
+  import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
 
   interface Props {
     isOpen?: boolean;
@@ -20,6 +21,13 @@
   }
 
   let query = $state('');
+
+  const dialogSize = persistedDialogSize(
+    'synapse.shortcutsPanel.size',
+    { w: 680, h: 560 },
+    { w: 420, h: 300 },
+    { centeredX: true, centeredY: false, maxHeightMargin: 120 },
+  );
 
   // Los atajos configurables salen de shortcuts.jsonc; el resto son atajos fijos de los editores
   let groups = $derived.by<Group[]>(() => {
@@ -123,7 +131,11 @@
 <Dialog.Root bind:open={isOpen}>
   <Dialog.Portal>
     <Dialog.Overlay class="shortcuts-backdrop" />
-    <Dialog.Content class="shortcuts-panel synapse-dialog">
+    <Dialog.Content
+      class={`shortcuts-panel synapse-dialog ${dialogSize.resizing ? 'is-resizing' : ''}`}
+      style={dialogSize.style}
+    >
+      <DialogResizeHandles onStart={dialogSize.startResize} />
       <Dialog.Title class="shortcuts-title">Atajos de teclado</Dialog.Title>
       <SearchBox bind:value={query} placeholder="Buscar un atajo o una acción..." />
 
@@ -161,8 +173,6 @@
     top: 10vh;
     left: 50%;
     transform: translateX(-50%);
-    width: min(680px, calc(100vw - 32px));
-    max-height: 78vh;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -172,7 +182,13 @@
     border: 1px solid var(--border-primary, #d0d7de);
     border-radius: 10px;
     box-shadow: var(--modal-shadow);
+    overflow: hidden;
+    box-sizing: border-box;
     z-index: 1001;
+  }
+
+  :global(.shortcuts-panel.is-resizing) {
+    user-select: none !important;
   }
 
   :global(.shortcuts-title) {
@@ -182,6 +198,8 @@
   }
 
   .shortcuts-body {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

@@ -5,9 +5,10 @@
   interface Props {
     onStart: (e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) => void;
     edges?: ResizeEdge[];
+    showCornerGrip?: boolean;
   }
 
-  let { onStart, edges }: Props = $props();
+  let { onStart, edges, showCornerGrip = false }: Props = $props();
 
   const HANDLES: { cls: ResizeEdge; dx: -1 | 0 | 1; dy: -1 | 0 | 1 }[] = [
     { cls: 'n', dx: 0, dy: -1 },
@@ -24,13 +25,19 @@
 </script>
 
 {#each visibleHandles as h (h.cls)}
-  <div class="dialog-resize {h.cls}" aria-hidden="true" onpointerdown={(e) => onStart(e, h.dx, h.dy)}></div>
+  <div class="dialog-resize {h.cls}" aria-hidden="true" onpointerdown={(e) => onStart(e, h.dx, h.dy)}>
+    {#if showCornerGrip && h.cls === 'se'}
+      <svg class="corner-grip-icon" viewBox="0 0 10 10" width="10" height="10">
+        <path d="M9 1L1 9 M9 5L5 9 M9 9L9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      </svg>
+    {/if}
+  </div>
 {/each}
 
 <style>
   .dialog-resize {
     position: absolute;
-    z-index: 5;
+    z-index: 20;
   }
   .n,
   .s {
@@ -60,5 +67,22 @@
   .ne { top: 0; right: 0; cursor: nesw-resize; }
   .sw { bottom: 0; left: 0; cursor: nesw-resize; }
   .nw { top: 0; left: 0; cursor: nwse-resize; }
-  .se { bottom: 0; right: 0; cursor: nwse-resize; }
+  .se {
+    bottom: 0;
+    right: 0;
+    cursor: nwse-resize;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 3px;
+  }
+  .corner-grip-icon {
+    color: var(--text-secondary, #656d76);
+    opacity: 0.45;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+  .se:hover .corner-grip-icon {
+    opacity: 0.9;
+  }
 </style>

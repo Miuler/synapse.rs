@@ -5,3 +5,4 @@ export {
   type DialogSize,
   type DialogSizeOptions,
 } from './lib/dialog-size.svelte';
+export { dialogOffset } from './lib/dialog-offset.svelte';

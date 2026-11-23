@@ -37,6 +37,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Diálogos redimensionables unificados sobre `@shared/ui/dialog-resize` en `QuickOpen`, `FullTextSearch`, `CommandPalette`, `SettingsPanel`, `ShortcutsPanel` y `CommunityPluginsModal` (conserva tamaños guardados, grip en esquina inferior derecha y arrastre desde la cabecera en plugins comunitarios).
 - Si el explorador y el panel del agente están fijados se recuerda por bóveda (la primera vez cada bóveda toma el último valor global).
 - Diff visual «2 Paneles»: izquierda = antes (Git, versión anterior, primer archivo) y derecha = después (disco, versión nueva), igual que el diff de texto; el panel editable del disco pasa a la derecha.
 - Al guardar una nota Markdown ya no se añade `title` al frontmatter (ni se crea un frontmatter solo para eso): el título por defecto es el nombre del archivo. Al renombrar, el `title` solo cambia si ya existía y coincidía con el nombre anterior; un título propio se respeta. El `write_note` del MCP solo escribe `title` si se le pasa.

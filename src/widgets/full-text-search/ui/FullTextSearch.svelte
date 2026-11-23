@@ -2,6 +2,7 @@
   import { Command, Dialog } from 'bits-ui';
   import { RefreshCw } from 'lucide-svelte';
   import { SearchBox } from '@shared/ui/search-box';
+  import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import { FileIcon } from '@entities/file-type';
   import { handleRelativePageJump } from '@shared/lib/navigation';
   import {
@@ -38,88 +39,20 @@
   });
 
   // Dimensiones redimensionables del cuadro de diálogo con persistencia en localStorage
-  function getInitialDialogWidth(): number {
-    try {
-      const saved = localStorage.getItem('synapse_fts_width');
-      if (saved) {
-        const p = parseInt(saved, 10);
-        if (!isNaN(p) && p >= 450 && p <= 1600) return p;
-      }
-    } catch {}
-    return 720;
-  }
-
-  function getInitialDialogHeight(): number {
-    try {
-      const saved = localStorage.getItem('synapse_fts_height');
-      if (saved) {
-        const p = parseInt(saved, 10);
-        if (!isNaN(p) && p >= 320 && p <= 1200) return p;
-      }
-    } catch {}
-    return 520;
-  }
-
-  let dialogWidth = $state<number>(getInitialDialogWidth());
-  let dialogHeight = $state<number>(getInitialDialogHeight());
-  let isResizing = $state(false);
-
-  function startResize(e: PointerEvent, direction: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w') {
-    e.preventDefault();
-    e.stopPropagation();
-    isResizing = true;
-    document.body.style.userSelect = 'none';
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startW = dialogWidth;
-    const startH = dialogHeight;
-
-    const onPointerMove = (ev: PointerEvent) => {
-      const deltaX = ev.clientX - startX;
-      const deltaY = ev.clientY - startY;
-      const maxW = typeof window !== 'undefined' ? window.innerWidth * 0.96 : 1400;
-      const maxH = typeof window !== 'undefined' ? window.innerHeight * 0.9 : 900;
-
-      if (direction === 'se') {
-        dialogWidth = Math.max(450, Math.min(startW + deltaX * 2, maxW));
-        dialogHeight = Math.max(320, Math.min(startH + deltaY, maxH));
-      } else if (direction === 'sw') {
-        dialogWidth = Math.max(450, Math.min(startW - deltaX * 2, maxW));
-        dialogHeight = Math.max(320, Math.min(startH + deltaY, maxH));
-      } else if (direction === 'ne') {
-        dialogWidth = Math.max(450, Math.min(startW + deltaX * 2, maxW));
-        dialogHeight = Math.max(320, Math.min(startH - deltaY, maxH));
-      } else if (direction === 'nw') {
-        dialogWidth = Math.max(450, Math.min(startW - deltaX * 2, maxW));
-        dialogHeight = Math.max(320, Math.min(startH - deltaY, maxH));
-      } else if (direction === 'e') {
-        dialogWidth = Math.max(450, Math.min(startW + deltaX * 2, maxW));
-      } else if (direction === 'w') {
-        dialogWidth = Math.max(450, Math.min(startW - deltaX * 2, maxW));
-      } else if (direction === 's') {
-        dialogHeight = Math.max(320, Math.min(startH + deltaY, maxH));
-      } else if (direction === 'n') {
-        dialogHeight = Math.max(320, Math.min(startH - deltaY, maxH));
-      }
-    };
-
-    const onPointerUp = () => {
-      isResizing = false;
-      document.body.style.userSelect = '';
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
-      try {
-        localStorage.setItem('synapse_fts_width', String(Math.round(dialogWidth)));
-        localStorage.setItem('synapse_fts_height', String(Math.round(dialogHeight)));
-      } catch {}
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
-  }
+  const dialogSize = persistedDialogSize(
+    'synapse.ftsDialog.size',
+    { w: 720, h: 520 },
+    { w: 450, h: 320 },
+    {
+      centeredX: true,
+      centeredY: false,
+      maxHeightMargin: 96,
+      legacyKeys: {
+        w: 'synapse_fts_width',
+        h: 'synapse_fts_height',
+      },
+    },
+  );
 
   // Refrescar estado del índice al abrir
   $effect(() => {
@@ -242,30 +175,10 @@
   <Dialog.Portal>
     <Dialog.Overlay class="fts-backdrop" />
     <Dialog.Content
-      class={`synapse-dialog fts-container ${isResizing ? 'is-resizing' : ''}`}
-      style="width: {dialogWidth}px; height: {dialogHeight}px;"
+      class={`synapse-dialog fts-container ${dialogSize.resizing ? 'is-resizing' : ''}`}
+      style={dialogSize.style}
     >
-      <!-- Handles de redimensionamiento -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner nw" onpointerdown={(e) => startResize(e, 'nw')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner ne" onpointerdown={(e) => startResize(e, 'ne')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner sw" onpointerdown={(e) => startResize(e, 'sw')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle corner se" onpointerdown={(e) => startResize(e, 'se')}>
-        <svg class="corner-grip-icon" viewBox="0 0 10 10" width="10" height="10">
-          <path d="M9 1L1 9 M9 5L5 9 M9 9L9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge n" onpointerdown={(e) => startResize(e, 'n')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge s" onpointerdown={(e) => startResize(e, 's')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge e" onpointerdown={(e) => startResize(e, 'e')}></div>
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="resize-handle edge w" onpointerdown={(e) => startResize(e, 'w')}></div>
+      <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
 
       <Dialog.Title class="sr-only">Búsqueda en el Contenido de Notas (Full-Text)</Dialog.Title>
 
@@ -457,89 +370,6 @@
   @keyframes slideDown {
     from { transform: translateX(-50%) translateY(-12px) scale(0.98); opacity: 0; }
     to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
-  }
-
-  /* Handles de redimensionamiento */
-  :global(.fts-container .resize-handle) {
-    position: absolute;
-    z-index: 100;
-  }
-
-  :global(.fts-container .resize-handle.corner) {
-    width: 18px;
-    height: 18px;
-  }
-
-  :global(.fts-container .resize-handle.corner.nw) {
-    top: 0;
-    left: 0;
-    cursor: nwse-resize;
-  }
-
-  :global(.fts-container .resize-handle.corner.ne) {
-    top: 0;
-    right: 0;
-    cursor: nesw-resize;
-  }
-
-  :global(.fts-container .resize-handle.corner.sw) {
-    bottom: 0;
-    left: 0;
-    cursor: nesw-resize;
-  }
-
-  :global(.fts-container .resize-handle.corner.se) {
-    bottom: 0;
-    right: 0;
-    cursor: nwse-resize;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    padding: 3px 4px;
-  }
-
-  :global(.fts-container .corner-grip-icon) {
-    color: var(--text-secondary, #656d76);
-    opacity: 0.4;
-    pointer-events: none;
-    transition: opacity 0.15s ease, color 0.15s ease;
-  }
-
-  :global(.fts-container .resize-handle.corner.se:hover .corner-grip-icon) {
-    opacity: 1;
-    color: var(--accent, #0969da);
-  }
-
-  :global(.fts-container .resize-handle.edge.n) {
-    top: 0;
-    left: 18px;
-    right: 18px;
-    height: 6px;
-    cursor: ns-resize;
-  }
-
-  :global(.fts-container .resize-handle.edge.s) {
-    bottom: 0;
-    left: 18px;
-    right: 18px;
-    height: 6px;
-    cursor: ns-resize;
-  }
-
-  :global(.fts-container .resize-handle.edge.w) {
-    left: 0;
-    top: 18px;
-    bottom: 18px;
-    width: 6px;
-    cursor: ew-resize;
-  }
-
-  :global(.fts-container .resize-handle.edge.e) {
-    right: 0;
-    top: 18px;
-    bottom: 18px;
-    width: 6px;
-    cursor: ew-resize;
   }
 
   :global(.fts-container .fts-command-root) {
