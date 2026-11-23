@@ -1,7 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { DiffView, DiffModeEnum, DiffFile } from '@git-diff-view/svelte';
-  import '@git-diff-view/svelte/styles/diff-view.css';
+  import CodeMirrorDiffView from './CodeMirrorDiffView.svelte';
   import { vaultRepository, type GitDiffResponse } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
   import {
@@ -60,7 +59,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let diffData = $state<GitDiffResponse | null>(null);
-  let diffFileInstance = $state<DiffFile | null>(null);
+  let collapseUnchanged = $state(true);
 
   const isDrawing = $derived(isDrawingFile(filePath));
   const isDiagram = $derived(isDiagramFile(filePath));
@@ -138,10 +137,8 @@
     if (!visited[tab]) visited[tab] = true;
   });
 
-  const viewMode = $derived(
-    chosenTextMode === 'unified'
-      ? DiffModeEnum.Unified
-      : DiffModeEnum.Split
+  const viewMode = $derived<'split' | 'unified'>(
+    chosenTextMode === 'unified' ? 'unified' : 'split'
   );
   const showRawDiff = $derived(chosenTextMode === 'raw');
   let enableWrap = $state(false);
@@ -182,44 +179,16 @@
   const fileName = $derived(filePath.split('/').pop() || filePath);
 
   $effect(() => {
-    if (diffData?.diff && diffData.diff.trim().length > 0) {
-      try {
-        const instance = new DiffFile(
-          diffData.old_file_name || fileName,
-          diffData.old_content ?? '',
-          diffData.new_file_name || fileName,
-          diffData.new_content ?? '',
-          [diffData.diff]
-        );
-        instance.initTheme(currentTheme);
-        instance.initRaw();
-        instance.buildSplitDiffLines();
-        instance.buildUnifiedDiffLines();
-
-        // Por defecto se abre colapsado (solo los cambios). Con `diff.max_expand_lines` > 0 en
-        // config.jsonc, los archivos de hasta esas líneas se abren expandidos enteros
-        const maxExpandLines = DEFAULT_APP_CONFIG.diff?.max_expand_lines ?? 0;
-        const totalLines = Math.max(
-          instance.splitLineLength ?? 0,
-          instance.unifiedLineLength ?? 0,
-          diffData.old_content ? diffData.old_content.split('\n').length : 0,
-          diffData.new_content ? diffData.new_content.split('\n').length : 0
-        );
-
-        if (maxExpandLines > 0 && totalLines <= maxExpandLines) {
-          try {
-            instance.onAllExpand('split');
-            instance.onAllExpand('unified');
-          } catch {}
-        }
-
-        diffFileInstance = instance;
-      } catch (err) {
-        console.error('Error inicializando DiffFile:', err);
-        diffFileInstance = null;
-      }
+    if (!diffData) return;
+    const maxExpandLines = DEFAULT_APP_CONFIG.diff?.max_expand_lines ?? 0;
+    if (maxExpandLines > 0) {
+      const totalLines = Math.max(
+        diffData.old_content ? diffData.old_content.split('\n').length : 0,
+        diffData.new_content ? diffData.new_content.split('\n').length : 0
+      );
+      collapseUnchanged = totalLines > maxExpandLines;
     } else {
-      diffFileInstance = null;
+      collapseUnchanged = true;
     }
   });
 
@@ -242,13 +211,11 @@
   );
 
   function handleExpandAll() {
-    const mode = viewMode === DiffModeEnum.Split ? 'split' : 'unified';
-    diffFileInstance?.onAllExpand?.(mode);
+    collapseUnchanged = false;
   }
 
   function handleCollapseAll() {
-    const mode = viewMode === DiffModeEnum.Split ? 'split' : 'unified';
-    diffFileInstance?.onAllCollapse?.(mode);
+    collapseUnchanged = true;
   }
 </script>
 
@@ -352,7 +319,7 @@
           <button
             type="button"
             class="toggle-btn"
-            class:active={!showRawDiff && viewMode === DiffModeEnum.Split}
+            class:active={!showRawDiff && viewMode === 'split'}
             onclick={() => chooseTextMode('split')}
             title="Vista dividida (Split)"
           >
@@ -362,7 +329,7 @@
           <button
             type="button"
             class="toggle-btn"
-            class:active={!showRawDiff && viewMode === DiffModeEnum.Unified}
+            class:active={!showRawDiff && viewMode === 'unified'}
             onclick={() => chooseTextMode('unified')}
             title="Vista unificada (Unified)"
           >
@@ -381,7 +348,7 @@
           </button>
         </div>
 
-        {#if !showRawDiff && diffFileInstance}
+        {#if !showRawDiff && hasDiff}
           <!-- EXPANDIR / COLAPSAR TODO -->
           <button
             type="button"
@@ -428,8 +395,8 @@
 
   {#if hasDiff && activeVisualTab === 'text'}
     <!-- Qué es cada lado del diff de texto (izquierda / «−» = antes, derecha / «+» = después) -->
-    <div class="diff-sides-bar" class:unified={viewMode !== DiffModeEnum.Split || showRawDiff}>
-      {#if viewMode === DiffModeEnum.Split && !showRawDiff}
+    <div class="diff-sides-bar" class:unified={viewMode !== 'split' || showRawDiff}>
+      {#if viewMode === 'split' && !showRawDiff}
         <span class="diff-side before" title="Lado izquierdo: antes">◀ {sides.beforeLabel}</span>
         <span class="diff-side after" title="Lado derecho: después">{sides.afterLabel} ▶</span>
       {:else}
@@ -491,7 +458,7 @@
         </p>
       </div>
     {:else if diffData}
-      {#if showRawDiff || !diffFileInstance}
+      {#if showRawDiff}
         <div class="diff-raw-container">
           <pre class="diff-raw-pre" class:wrap={enableWrap}><code>{#each diffData.diff.split('\n') as line}
             <div
@@ -505,12 +472,14 @@
         </div>
       {:else}
         <div class="diff-view-scroller">
-          <DiffView
-            diffFile={diffFileInstance}
-            diffViewMode={viewMode}
-            diffViewTheme={currentTheme}
-            diffViewWrap={enableWrap}
-            diffViewHighlight={true}
+          <CodeMirrorDiffView
+            oldContent={diffData.old_content ?? ''}
+            newContent={diffData.new_content ?? ''}
+            {fileName}
+            mode={viewMode}
+            wrap={enableWrap}
+            {collapseUnchanged}
+            theme={currentTheme}
           />
         </div>
       {/if}
