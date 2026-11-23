@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Git Log del repositorio: las columnas se pueden reordenar arrastrando sus cabeceras (orden guardado) y «Hash» pasa a ser la primera columna por defecto.
 - Pantalla de bienvenida: las bóvedas fijadas se pueden reordenar con drag and drop (orden guardado en `workspaces.json`) y las fijadas con repositorio Git conservan el icono de carpeta Git con el color de fijado.
 - Índice de Markdown y claves YAML/JSON: el popover del índice reutiliza `@shared/ui/dialog-resize` para redimensionarse arrastrando sus bordes o esquinas y recordar su tamaño.
 - Índice de carpeta (`index.md`): «+ Nuevo…» (desplegable: nota Markdown, Mermaid, D2, PlantUML, Excalidraw) junto a «Archivos»/«Conceptos» y «+ Carpeta» junto a «Carpetas», que crean dentro de esa carpeta; si falta la sección, los botones van arriba.

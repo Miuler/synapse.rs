@@ -203,3 +203,56 @@ it('borra un tag y una rama con confirmación, y hace checkout de un commit con 
   await s.browser.$('.repo-log-prompt [data-action="confirm"]').click();
   await s.browser.waitUntil(async () => !(await rows()).find((r) => r.msg === 'inicio')!.refs.includes('branch:desde-inicio'), { timeout: 15_000, timeoutMsg: 'borrar rama' });
 });
+
+it('muestra Hash como primera columna por defecto y permite reordenarlas con drag and drop', async () => {
+  const headerCols = () =>
+    s.browser.execute(() =>
+      [...document.querySelectorAll('.git-repo-log-dialog .repo-log-table thead th')].map(
+        (th) => th.getAttribute('data-col') ?? '',
+      ),
+    ) as Promise<string[]>;
+
+  const firstRowCols = () =>
+    s.browser.execute(() =>
+      [...document.querySelectorAll('.git-repo-log-dialog .repo-log-table tbody tr:first-child td')].map((td) =>
+        [...td.classList].find((c) => c.startsWith('col-'))?.replace('col-', '') ?? '',
+      ),
+    ) as Promise<string[]>;
+
+  expect(await headerCols()).toEqual(['hash', 'message', 'author', 'date']);
+  expect(await firstRowCols()).toEqual(['hash', 'message', 'author', 'date']);
+
+  await s.browser.execute(() => {
+    const source = document.querySelector('.git-repo-log-dialog th[data-col="author"]') as HTMLElement;
+    const target = document.querySelector('.git-repo-log-dialog th[data-col="hash"]') as HTMLElement;
+    if (!source || !target) throw new Error('Cabeceras no encontradas');
+    const dt = new DataTransfer();
+    const r = target.getBoundingClientRect();
+    source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    target.dispatchEvent(
+      new DragEvent('dragover', { bubbles: true, cancelable: true, clientX: r.left + 4, dataTransfer: dt }),
+    );
+    target.dispatchEvent(
+      new DragEvent('drop', { bubbles: true, cancelable: true, clientX: r.left + 4, dataTransfer: dt }),
+    );
+    source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+
+  await s.browser.waitUntil(
+    async () => (await headerCols()).join(',') === 'author,hash,message,date',
+    { timeout: 5_000, timeoutMsg: 'el orden de columnas no cambió tras drag-and-drop' },
+  );
+  expect(await firstRowCols()).toEqual(['author', 'hash', 'message', 'date']);
+
+  const saved = (await s.browser.execute(() =>
+    localStorage.getItem('synapse.gitRepoLogDialog.columns'),
+  )) as string | null;
+  expect(JSON.parse(saved ?? '[]')).toEqual(['author', 'hash', 'message', 'date']);
+
+  // Cerrar y volver a abrir el diálogo para confirmar persistencia
+  await s.browser.keys(['Escape']);
+  await s.browser.$('.git-repo-log-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+  await openLog();
+  expect(await headerCols()).toEqual(['author', 'hash', 'message', 'date']);
+  expect(await firstRowCols()).toEqual(['author', 'hash', 'message', 'date']);
+});

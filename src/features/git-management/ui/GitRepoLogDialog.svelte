@@ -51,6 +51,94 @@
 
   const repo = $derived(gitDialogState.repo);
 
+  type RepoLogColumnId = 'hash' | 'message' | 'author' | 'date';
+  const COLUMNS_STORAGE_KEY = 'synapse.gitRepoLogDialog.columns';
+  const DEFAULT_COLUMNS: RepoLogColumnId[] = ['hash', 'message', 'author', 'date'];
+  const COLUMN_LABELS: Record<RepoLogColumnId, string> = {
+    hash: 'Hash',
+    message: 'Mensaje',
+    author: 'Autor',
+    date: 'Fecha',
+  };
+
+  function loadColumns(): RepoLogColumnId[] {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(COLUMNS_STORAGE_KEY) ?? 'null');
+      if (
+        Array.isArray(parsed) &&
+        parsed.length === DEFAULT_COLUMNS.length &&
+        DEFAULT_COLUMNS.every((id) => parsed.includes(id))
+      ) {
+        return parsed as RepoLogColumnId[];
+      }
+    } catch {
+      /* usar orden por defecto */
+    }
+    return [...DEFAULT_COLUMNS];
+  }
+
+  let columns = $state<RepoLogColumnId[]>(loadColumns());
+  let draggedCol = $state<RepoLogColumnId | null>(null);
+  let dragOverCol = $state<RepoLogColumnId | null>(null);
+  let dragOverSide = $state<'before' | 'after' | null>(null);
+
+  function saveColumns(next: RepoLogColumnId[]) {
+    columns = next;
+    try {
+      localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+
+  function onColDragStart(col: RepoLogColumnId, e: DragEvent) {
+    draggedCol = col;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', col);
+    }
+  }
+
+  function onColDragOver(col: RepoLogColumnId, e: DragEvent) {
+    if (!draggedCol || draggedCol === col) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragOverCol = col;
+    dragOverSide = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+  }
+
+  function onColDragLeave(col: RepoLogColumnId, e: DragEvent) {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+    if (dragOverCol === col) {
+      dragOverCol = null;
+      dragOverSide = null;
+    }
+  }
+
+  function onColDrop(col: RepoLogColumnId, e: DragEvent) {
+    e.preventDefault();
+    const source = draggedCol;
+    const side = dragOverSide;
+    draggedCol = null;
+    dragOverCol = null;
+    dragOverSide = null;
+    if (!source || source === col) return;
+
+    const next = columns.filter((c) => c !== source);
+    const targetIdx = next.indexOf(col);
+    if (targetIdx === -1) return;
+    next.splice(side === 'after' ? targetIdx + 1 : targetIdx, 0, source);
+    saveColumns(next);
+  }
+
+  function onColDragEnd() {
+    draggedCol = null;
+    dragOverCol = null;
+    dragOverSide = null;
+  }
+
   async function loadLog() {
     loading = true;
     error = null;
@@ -372,10 +460,24 @@
         <table class="repo-log-table">
           <thead>
             <tr>
-              <th class="col-message">Mensaje</th>
-              <th class="col-author">Autor</th>
-              <th class="col-date">Fecha</th>
-              <th class="col-hash">Hash</th>
+              {#each columns as col (col)}
+                <th
+                  class="col-{col}"
+                  class:dragging={draggedCol === col}
+                  class:drag-over-before={dragOverCol === col && dragOverSide === 'before'}
+                  class:drag-over-after={dragOverCol === col && dragOverSide === 'after'}
+                  data-col={col}
+                  draggable="true"
+                  title="Arrastra para reordenar columnas"
+                  ondragstart={(e) => onColDragStart(col, e)}
+                  ondragover={(e) => onColDragOver(col, e)}
+                  ondragleave={(e) => onColDragLeave(col, e)}
+                  ondrop={(e) => onColDrop(col, e)}
+                  ondragend={onColDragEnd}
+                >
+                  {COLUMN_LABELS[col]}
+                </th>
+              {/each}
             </tr>
           </thead>
           <tbody>
@@ -390,50 +492,57 @@
                 onclick={() => selectCommit(c.commit_hash)}
                 oncontextmenu={(e) => openMenu(e, c)}
               >
-                <td class="col-message">
-                  <div class="message-cell" style="padding-left: {showGraph && g ? graphWidth + 4 : 0}px">
-                    {#if showGraph && g}
-                      <span class="graph" style="width: {graphWidth}px">
-                        <svg viewBox="0 0 {graphWidth} 100" preserveAspectRatio="none" aria-hidden="true">
-                          {#each g.segments as seg, k (k)}
-                            <line
-                              x1={laneX(seg.from)}
-                              y1={seg.half === 'top' ? 0 : 50}
-                              x2={laneX(seg.to)}
-                              y2={seg.half === 'top' ? 50 : 100}
-                              stroke={color(seg.color)}
-                              stroke-width="2"
-                              vector-effect="non-scaling-stroke"
-                            />
-                          {/each}
-                        </svg>
-                        <span
-                          class="graph-dot"
-                          class:head={c.commit_hash === head}
-                          style="left: {laneX(g.col)}px; --dot: {color(g.color)}"
-                        ></span>
-                      </span>
-                    {/if}
-                    {#if c.commit_hash === head}
-                      <span
-                        class="head-label"
-                        title={headBranch ? `Estás aquí: HEAD en la rama ${headBranch}` : 'Estás aquí: HEAD separado (sin rama)'}
-                      >
-                        HEAD{headBranch ? '' : ' (separado)'}
-                      </span>
-                    {/if}
-                    {#each c.refs as r (r.kind + r.name)}
-                      <span class="ref-label {r.kind}" class:head={r.is_head} title={r.is_head ? `HEAD → ${r.name}` : r.name}>
-                        {#if r.kind === 'tag'}<Tag size={10} />{:else if r.kind === 'remote'}<Cloud size={10} />{:else}<GitBranch size={10} />{/if}
-                        {r.name}
-                      </span>
-                    {/each}
-                    <span class="message-text" title={c.message}>{c.message}</span>
-                  </div>
-                </td>
-                <td class="col-author" title={c.author_email}>{c.author_name}</td>
-                <td class="col-date">{formatDate(c.date)}</td>
-                <td class="col-hash">{c.short_hash}</td>
+                {#each columns as col (col)}
+                  {#if col === 'message'}
+                    <td class="col-message">
+                      <div class="message-cell" style="padding-left: {showGraph && g ? graphWidth + 4 : 0}px">
+                        {#if showGraph && g}
+                          <span class="graph" style="width: {graphWidth}px">
+                            <svg viewBox="0 0 {graphWidth} 100" preserveAspectRatio="none" aria-hidden="true">
+                              {#each g.segments as seg, k (k)}
+                                <line
+                                  x1={laneX(seg.from)}
+                                  y1={seg.half === 'top' ? 0 : 50}
+                                  x2={laneX(seg.to)}
+                                  y2={seg.half === 'top' ? 50 : 100}
+                                  stroke={color(seg.color)}
+                                  stroke-width="2"
+                                  vector-effect="non-scaling-stroke"
+                                />
+                              {/each}
+                            </svg>
+                            <span
+                              class="graph-dot"
+                              class:head={c.commit_hash === head}
+                              style="left: {laneX(g.col)}px; --dot: {color(g.color)}"
+                            ></span>
+                          </span>
+                        {/if}
+                        {#if c.commit_hash === head}
+                          <span
+                            class="head-label"
+                            title={headBranch ? `Estás aquí: HEAD en la rama ${headBranch}` : 'Estás aquí: HEAD separado (sin rama)'}
+                          >
+                            HEAD{headBranch ? '' : ' (separado)'}
+                          </span>
+                        {/if}
+                        {#each c.refs as r (r.kind + r.name)}
+                          <span class="ref-label {r.kind}" class:head={r.is_head} title={r.is_head ? `HEAD → ${r.name}` : r.name}>
+                            {#if r.kind === 'tag'}<Tag size={10} />{:else if r.kind === 'remote'}<Cloud size={10} />{:else}<GitBranch size={10} />{/if}
+                            {r.name}
+                          </span>
+                        {/each}
+                        <span class="message-text" title={c.message}>{c.message}</span>
+                      </div>
+                    </td>
+                  {:else if col === 'author'}
+                    <td class="col-author" title={c.author_email}>{c.author_name}</td>
+                  {:else if col === 'date'}
+                    <td class="col-date">{formatDate(c.date)}</td>
+                  {:else}
+                    <td class="col-hash">{c.short_hash}</td>
+                  {/if}
+                {/each}
               </tr>
             {/each}
           </tbody>
@@ -712,6 +821,17 @@
     color: var(--text-secondary);
     padding: 5px 10px;
     border-bottom: 1px solid var(--border-secondary);
+    cursor: grab;
+    user-select: none;
+  }
+  .repo-log-table th.dragging {
+    opacity: 0.45;
+  }
+  .repo-log-table th.drag-over-before {
+    box-shadow: inset 2px 0 0 0 var(--accent, #0969da);
+  }
+  .repo-log-table th.drag-over-after {
+    box-shadow: inset -2px 0 0 0 var(--accent, #0969da);
   }
   .repo-log-table td {
     padding: 0 10px;
@@ -734,6 +854,8 @@
   }
   .col-hash {
     width: 80px;
+  }
+  .repo-log-table td.col-hash {
     font-family: monospace;
   }
   .repo-log-row {
