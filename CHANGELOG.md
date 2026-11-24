@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.9] - 2026-11-24
+
 ### Added
 
 - Command palette (Ctrl+P): names follow the interface language, and commands can be found in both English and Spanish (`update`, `upgrade`, `cerrar pestaña`…). The closest match comes first.
@@ -1152,6 +1154,7 @@ No heavy dependencies need to be installed; just download and run:
 > [!NOTE]
 > This is an **Alpha** version. If you find any unexpected behavior or have suggestions, you are welcome to open an issue in the repository.
 
+[1.0.0-beta.9]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.9
 [1.0.0-beta.8]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7
 [1.0.0-beta.6]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.6

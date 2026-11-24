@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+## [1.0.0-beta.9] - 2026-11-24
+
 ### Añadido
 
 - Paleta de comandos (Ctrl+P): los nombres salen en el idioma de la interfaz y los comandos se encuentran en inglés y en español (`update`, `upgrade`, `cerrar pestaña`…). El más parecido queda primero.
@@ -1152,6 +1154,7 @@ No requieren instalación de dependencias pesadas; simplemente descarga y ejecut
 > [!NOTE]
 > Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
 
+[1.0.0-beta.9]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.9
 [1.0.0-beta.8]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7
 [1.0.0-beta.6]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.6
