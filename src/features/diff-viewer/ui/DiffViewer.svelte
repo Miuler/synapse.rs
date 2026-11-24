@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
-  import CodeMirrorDiffView from './CodeMirrorDiffView.svelte';
+  import { onDestroy, untrack } from 'svelte';
+  import CodeMirrorDiffView, { type DiffChunksInfo } from './CodeMirrorDiffView.svelte';
   import { vaultRepository, type GitDiffResponse } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
   import {
@@ -29,6 +29,9 @@
     FileCode,
     ChevronsUpDown,
     ChevronsDownUp,
+    ChevronUp,
+    ChevronDown,
+    Search,
     AlertCircle,
     CheckCircle2,
     Eye,
@@ -60,6 +63,13 @@
   let error = $state<string | null>(null);
   let diffData = $state<GitDiffResponse | null>(null);
   let collapseUnchanged = $state(true);
+  let cmDiffRef = $state<CodeMirrorDiffView | null>(null);
+  let chunkInfo = $state<DiffChunksInfo>({ total: 0, current: 0 });
+  let isSavingLocal = $state(false);
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  let latestEditedContent: string | null = null;
+
+  const isEditable = $derived(!isStaged && !baseRevision && !commitRevision && !compareWith);
 
   const isDrawing = $derived(isDrawingFile(filePath));
   const isDiagram = $derived(isDiagramFile(filePath));
@@ -114,7 +124,51 @@
     ownVisualTab = tab;
     workspaceDiffSettings.setVisualTab(tab);
   }
+  function syncEditedIntoDiffData() {
+    if (latestEditedContent !== null && diffData && diffData.new_content !== latestEditedContent) {
+      diffData = { ...diffData, new_content: latestEditedContent };
+    }
+  }
+
+  async function flushPendingSave() {
+    if (!saveTimeout || latestEditedContent === null) return;
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+    const contentToSave = latestEditedContent;
+    try {
+      isSavingLocal = true;
+      await vaultRepository.saveNote({
+        relativePath: filePath,
+        title: fileName,
+        content: contentToSave,
+        encoding: 'UTF-8',
+      });
+    } catch (err) {
+      console.error('Error al guardar cambios locales desde diff:', err);
+    } finally {
+      isSavingLocal = false;
+    }
+  }
+
+  function handleEditorContentChange(newContent: string) {
+    if (!isEditable) return;
+    latestEditedContent = newContent;
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      void flushPendingSave();
+    }, 400);
+  }
+
+  onDestroy(() => {
+    void flushPendingSave();
+  });
+
   function chooseTextMode(mode: typeof workspaceDiffSettings.textMode) {
+    if (mode === 'raw' && latestEditedContent !== null) {
+      void flushPendingSave().then(() => fetchDiff());
+    } else {
+      syncEditedIntoDiffData();
+    }
     ownTextMode = mode;
     workspaceDiffSettings.setTextMode(mode);
   }
@@ -150,6 +204,8 @@
   async function fetchDiff() {
     loading = true;
     error = null;
+    latestEditedContent = null;
+    chunkInfo = { total: 0, current: 0 };
     try {
       const data = compareWith
         ? await vaultRepository.diffVaultFiles(compareWith, filePath)
@@ -211,11 +267,18 @@
   );
 
   function handleExpandAll() {
+    syncEditedIntoDiffData();
     collapseUnchanged = false;
   }
 
   function handleCollapseAll() {
+    syncEditedIntoDiffData();
     collapseUnchanged = true;
+  }
+
+  function handleToggleWrap() {
+    syncEditedIntoDiffData();
+    enableWrap = !enableWrap;
   }
 </script>
 
@@ -262,6 +325,9 @@
           {/if}
           {#if diffStats.deleted > 0}
             <span class="stat-deleted">-{diffStats.deleted}</span>
+          {/if}
+          {#if isSavingLocal}
+            <span class="diff-saving-indicator">Guardando…</span>
           {/if}
         </div>
       {/if}
@@ -349,6 +415,44 @@
         </div>
 
         {#if !showRawDiff && hasDiff}
+          <!-- NAVEGACIÓN ENTRE CAMBIOS -->
+          {#if chunkInfo.total > 0}
+            <div class="chunk-nav" role="group" aria-label="Navegación de cambios">
+              <button
+                type="button"
+                class="chunk-nav-btn"
+                onclick={() => cmDiffRef?.prevChunk()}
+                title="Cambio anterior"
+                aria-label="Cambio anterior"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <span class="chunk-counter" title="Bloques de cambio">
+                {chunkInfo.current > 0 ? `${chunkInfo.current}/${chunkInfo.total}` : `${chunkInfo.total}`}
+              </span>
+              <button
+                type="button"
+                class="chunk-nav-btn"
+                onclick={() => cmDiffRef?.nextChunk()}
+                title="Siguiente cambio"
+                aria-label="Siguiente cambio"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+          {/if}
+
+          <!-- BUSCAR EN EL DIFF -->
+          <button
+            type="button"
+            class="action-btn"
+            onclick={() => cmDiffRef?.openSearch()}
+            title="Buscar en el diff (Ctrl+F)"
+            aria-label="Buscar en el diff"
+          >
+            <Search size={14} />
+          </button>
+
           <!-- EXPANDIR / COLAPSAR TODO -->
           <button
             type="button"
@@ -373,7 +477,7 @@
           type="button"
           class="action-btn"
           class:active={enableWrap}
-          onclick={() => (enableWrap = !enableWrap)}
+          onclick={handleToggleWrap}
           title={enableWrap ? 'Desactivar ajuste de línea' : 'Activar ajuste de línea'}
         >
           <WrapText size={14} />
@@ -473,6 +577,7 @@
       {:else}
         <div class="diff-view-scroller">
           <CodeMirrorDiffView
+            bind:this={cmDiffRef}
             oldContent={diffData.old_content ?? ''}
             newContent={diffData.new_content ?? ''}
             {fileName}
@@ -480,6 +585,9 @@
             wrap={enableWrap}
             {collapseUnchanged}
             theme={currentTheme}
+            editable={isEditable}
+            onContentChange={handleEditorContentChange}
+            onChunksChange={(info) => (chunkInfo = info)}
           />
         </div>
       {/if}
@@ -624,6 +732,51 @@
 
   .stat-deleted {
     color: var(--danger);
+  }
+
+  .diff-saving-indicator {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+
+  .chunk-nav {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 5px;
+    height: 28px;
+    padding: 0 2px;
+    gap: 2px;
+  }
+
+  .chunk-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .chunk-nav-btn:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+  }
+
+  .chunk-counter {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0 4px;
+    font-variant-numeric: tabular-nums;
   }
 
   .diff-toolbar-right {
