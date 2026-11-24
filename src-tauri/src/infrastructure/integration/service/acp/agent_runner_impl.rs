@@ -1359,7 +1359,8 @@ mod tests {
             )
             .await;
         approver.abort();
-        let events = events.lock().unwrap();
+        // Copia: el bloqueo no debe seguir vivo durante el `await` de abajo
+        let events = events.lock().unwrap().clone();
         let reply: String = events
             .iter()
             .filter(|(n, p)| n == "acp://stream" && p["kind"] == "message")

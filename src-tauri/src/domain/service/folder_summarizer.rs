@@ -18,7 +18,7 @@ impl FolderSummarizer {
         let clean_folder = folder_path.trim_matches('/').replace('\\', "/");
         let name = clean_folder
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&clean_folder)
             .to_string();
 
@@ -72,7 +72,7 @@ impl FolderSummarizer {
                     let display_title = if !title_or_name.trim().is_empty() {
                         title_or_name.to_string()
                     } else {
-                        f_clean.split('/').last().unwrap_or(&f_clean).to_string()
+                        f_clean.split('/').next_back().unwrap_or(&f_clean).to_string()
                     };
                     sample_notes.push(display_title);
                 }

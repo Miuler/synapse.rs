@@ -135,8 +135,6 @@ impl AssetPath {
         String::from_utf8(bytes).unwrap_or_else(|_| s.to_string())
     }
 
-    /// Limpia y normaliza una fuente de recurso/asset eliminando wrappers `![[...]` o `[[...]]`,
-    /// fragmentos `#...`, query params `?...` y esquemas `asset://`.
     /// Quita el prefijo `\\?\` de las rutas largas de Windows (`\\?\C:\a` → `C:\a`,
     /// `\\?\UNC\servidor\a` → `\\servidor\a`): el resto del código y el webview esperan la forma normal.
     pub fn simplify_windows_path(path: &str) -> String {
@@ -147,6 +145,8 @@ impl AssetPath {
         }
     }
 
+    /// Limpia y normaliza una fuente de recurso/asset eliminando wrappers `![[...]` o `[[...]]`,
+    /// fragmentos `#...`, query params `?...` y esquemas `asset://`.
     pub fn clean_source(src: &str) -> Option<String> {
         let raw = src.trim().trim_matches('\'').trim_matches('"');
         // Antes de cortar por `?`: en Windows es parte del prefijo de la ruta, no una consulta
