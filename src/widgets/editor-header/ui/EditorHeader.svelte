@@ -729,6 +729,14 @@
                 >
                   <span>Cerrar pestañas a la derecha</span>
                 </ContextMenu.Item>
+                {#if onCloseAllTabs}
+                  <ContextMenu.Item
+                    class="context-menu-item tab-close-all"
+                    onSelect={() => onCloseAllTabs()}
+                  >
+                    <span>Cerrar todas las pestañas</span>
+                  </ContextMenu.Item>
+                {/if}
                 {#if !isSyntheticTab(tab.path)}
                   <ContextMenu.Separator class="context-menu-divider" />
                   <ContextMenu.Item

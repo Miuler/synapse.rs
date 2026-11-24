@@ -16,6 +16,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Barra de pestañas: opción «Cerrar todas las pestañas» en el menú contextual de cada pestaña.
 - Chat del agente (ACP): sonido al terminar un turno (`Burbuja FM` por defecto), configurable en Ajustes → Agentes de IA con opciones `Burbuja FM`, `Sonar orgánico` o `Sin sonido` y botón «Probar».
 - Chat del agente (ACP): soporte completo para `elicitation/create` en modos `form` (formulario interactivo generado desde JSON Schema con botones/selects para enums, booleanos, números, texto y validación de obligatorios) y `url` (muestra dominio, URL y botón «Abrir enlace»), anunciando `clientCapabilities.elicitation` en `initialize` y respondiendo con `accept`, `decline` o `cancel`.
 - Visor de diff de texto (`@codemirror/merge`): navegación entre bloques de cambio (↑/↓ con contador), búsqueda integrada (`Ctrl+F` y botón en la barra), edición directa del archivo en disco en diffs del árbol de trabajo sincronizada con el botón Lectura/Edición (`Ctrl+E`) con botones para revertir bloques individuales (`→` en vista dividida, «Revertir» / «Mantener» en unificada), autoguardado y soporte completo del editor CodeMirror (modo Vim, plegado, comentarios, renombrar ocurrencias, atajos de línea, autocompletado e historial `Ctrl+Z`), además de resaltado de sintaxis y colores de diff adaptados a tema claro y oscuro.
