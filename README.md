@@ -4,6 +4,7 @@
 [![Security](https://github.com/Miuler/synapse.rs/actions/workflows/security.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/security.yml)
 [![CodeQL](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml/badge.svg)](https://github.com/Miuler/synapse.rs/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Miuler/synapse.rs/badge)](https://scorecard.dev/viewer/?uri=github.com/Miuler/synapse.rs)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17082/badge)](https://www.bestpractices.dev/projects/17082)
 
 > **Espacio de trabajo local-first con baterías incluidas para pensar, documentar arquitecturas y colaborar con agentes de IA.**  
 > Desarrollado en **Rust (Tauri v2)** y **Svelte 5**.  
