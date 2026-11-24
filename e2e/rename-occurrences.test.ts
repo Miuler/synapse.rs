@@ -52,7 +52,7 @@ it('Shift+F6 y escribir cambia todas las coincidencias exactas', async () => {
   await s.browser.$('.cm-cursor-secondary').waitForExist({ timeout: 5_000 });
   await s.browser.keys('web'.split(''));
   await s.browser.waitUntil(async () => (await editorText()).startsWith('web -> db'), { timeout: 5_000 });
-  expect(await editorText()).toBe('web -> db\nservers: x\nclient -> web\n'.replace(/\n$/, '\n'));
+  expect(await editorText()).toBe('web -> db\nservers: x\nclient -> web\n');
   // Un solo Ctrl+Z deshace el cambio en todas.
   await s.browser.keys(['Escape']);
   await s.browser.keys(['Control', 'z']);

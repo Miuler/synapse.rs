@@ -134,7 +134,8 @@ fn extract(archive: &str, bytes: &[u8], cmd: &str, dest: &Path) -> Result<(), St
             #[cfg(unix)]
             if let Some(mode) = file.unix_mode() {
                 use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&out, std::fs::Permissions::from_mode(mode));
+                // Sin SUID/SGID/sticky: un paquete no debe poder concederlos
+                let _ = std::fs::set_permissions(&out, std::fs::Permissions::from_mode(mode & 0o777));
             }
         }
         Ok(())
@@ -203,6 +204,28 @@ mod tests {
         extract("https://x/a.tar.gz", &tar_bytes, "./agente", &dir).unwrap();
         make_executable(&dir.join("agente")).unwrap();
         assert_eq!(std::fs::read(dir.join("agente")).unwrap(), b"#!sh");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn el_zip_no_concede_suid() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("synapse-acp-zip-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        w.start_file("agente", zip::write::SimpleFileOptions::default()).unwrap();
+        w.write_all(b"#!sh").unwrap();
+        let mut bytes = w.finish().unwrap().into_inner();
+        // `unix_permissions` descarta los bits especiales: se escriben en el directorio central
+        let central = bytes.windows(4).position(|b| b == b"PK\x01\x02").unwrap();
+        bytes[central + 5] = 3; // creado en Unix
+        bytes[central + 38..central + 42].copy_from_slice(&(0o106755u32 << 16).to_le_bytes());
+        extract("https://x/a.zip", &bytes, "./agente", &dir).unwrap();
+        let mode = std::fs::metadata(dir.join("agente")).unwrap().permissions().mode();
+        assert_eq!(mode & 0o7777, 0o755);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

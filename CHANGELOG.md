@@ -7,6 +7,13 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Seguridad
+
+- Dibujos Excalidraw en la API de plugins: un archivo manipulado podía ejecutar código al mostrarse. `toSVG` escapa sus valores y la vista sanea el SVG.
+- API de plugins: `sanitizeHTMLToDom` sanea de verdad el HTML y `htmlToMarkdown` ya no deja etiquetas reconstruidas.
+- Instalador de agentes: los permisos especiales (SUID/SGID/sticky) de un ZIP se descartan.
+- Dependencias con vulnerabilidades conocidas y parche compatible, actualizadas (`url`, `cookie` y `lodash-es`).
+
 ### Corregido
 
 - Git Log de todas las ramas: el menú contextual aparecía un instante en otro sitio y saltaba a su posición, así que un clic rápido podía caer en otra opción.

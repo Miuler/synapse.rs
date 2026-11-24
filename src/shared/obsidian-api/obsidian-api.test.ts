@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import lzString from 'lz-string';
 import { createSynapseApp } from './app';
+import { htmlToMarkdown } from './utils';
 import {
   type Command,
   Component,
@@ -1386,6 +1387,34 @@ theme: solarized
       const pngBuffer = await ea.toPNG();
       expect(pngBuffer).toBeInstanceOf(ArrayBuffer);
       expect(pngBuffer.byteLength).toBeGreaterThan(0);
+    });
+
+    it('35a. htmlToMarkdown no deja etiquetas reconstruidas', () => {
+      expect(htmlToMarkdown('<b>hola</b>')).toBe('hola');
+      expect(htmlToMarkdown('<scr<b>ipt>alert(1)</scr</b>ipt>')).not.toMatch(/<[^>]+>/);
+    });
+
+    it('35b. toSVG no deja que un dibujo inyecte HTML', () => {
+      const evil = '"/></svg><img src=x onerror="alert(1)">';
+      const base = { x: evil, y: evil, width: evil, height: evil, strokeWidth: evil, fontSize: evil };
+      const colors = { strokeColor: evil, backgroundColor: evil };
+      const elements = [
+        ...['rectangle', 'diamond', 'ellipse', 'text'].map((type) => ({ type, ...base, ...colors, text: evil })),
+        { type: 'arrow', ...base, ...colors, points: [[evil, evil]] },
+        { type: 'image', ...base, fileId: '<img o' },
+        { type: 'image', ...base, fileId: 'js' },
+        { type: 'image', ...base, fileId: 'png' },
+      ];
+      const svg = new ExcalidrawAutomate(app).toSVG(elements, {
+        js: { dataURL: 'javascript:alert(1)' },
+        png: { dataURL: `data:image/png;base64,AA${evil}` },
+      });
+      expect(svg).not.toContain('<img');
+      expect(svg).not.toContain('onerror="');
+      expect(svg).not.toContain('javascript:');
+      expect(svg).not.toContain('NaN');
+      expect(svg.match(/<\/svg>/g)).toHaveLength(1);
+      expect(svg).toContain('href="data:image/png;base64,AA');
     });
 
     it('36. ExcalidrawView gestiona ciclo de vida y conmutación entre modo visual y texto', async () => {

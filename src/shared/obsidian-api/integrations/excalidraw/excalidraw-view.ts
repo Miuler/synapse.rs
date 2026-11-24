@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { TextFileView } from '../../view';
 import type { WorkspaceLeaf } from '../../leaf';
 import { createDiv, createEl, empty } from '../../dom';
@@ -230,7 +231,10 @@ export class ExcalidrawView extends TextFileView {
     const svgContent = ea.toSVG(this.scene.elements);
 
     const svgWrapper = createDiv({ cls: 'excalidraw-svg-stage', parent: this.canvasContainerEl });
-    svgWrapper.innerHTML = svgContent;
+    // Segunda barrera: el dibujo puede venir de terceros
+    svgWrapper.innerHTML = DOMPurify.isSupported
+      ? DOMPurify.sanitize(svgContent, { USE_PROFILES: { svg: true, svgFilters: true } })
+      : '';
     svgWrapper.style.width = '100%';
     svgWrapper.style.height = '100%';
     svgWrapper.style.display = 'flex';

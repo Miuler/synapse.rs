@@ -28,6 +28,41 @@ function randomId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
+/** Escapa un valor para insertarlo como texto o atributo del SVG. */
+function escapeXml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Número finito o 0: los dibujos son JSON ajeno y pueden traer texto donde va un número. */
+function num(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Copia del elemento con sus medidas convertidas a número. */
+function withSafeNumbers(el: any): any {
+  return {
+    ...el,
+    x: num(el.x),
+    y: num(el.y),
+    width: num(el.width),
+    height: num(el.height),
+    strokeWidth: num(el.strokeWidth ?? 1),
+    fontSize: num(el.fontSize ?? 20),
+  };
+}
+
+/** Solo imágenes incrustadas o `blob:`; cualquier otra URL se descarta. */
+function safeImageUrl(value: unknown): string {
+  const url = String(value ?? '');
+  return /^(data:image\/|blob:)/i.test(url) ? url : '';
+}
+
 /**
  * Motor de automatización y scripting ExcalidrawAutomate (`ea`).
  * Es la API universal utilizada por scripts comunitarios, macros y plugins de Obsidian
@@ -353,7 +388,7 @@ export class ExcalidrawAutomate {
    * Soporta mapas de archivos resueltos (dataUrl o urls) para elementos de tipo 'image'.
    */
   toSVG(elements?: any[], files?: Record<string, any>): string {
-    const targetElements = (elements || this.elements).filter((el) => !el.isDeleted);
+    const targetElements = (elements || this.elements).filter((el) => !el.isDeleted).map(withSafeNumbers);
     if (targetElements.length === 0) {
       return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`;
     }
@@ -385,14 +420,14 @@ export class ExcalidrawAutomate {
     for (const el of targetElements) {
       if (el.type === 'rectangle') {
         svgParts.push(
-          `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" rx="8" fill="${el.backgroundColor}" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" />`
+          `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" rx="8" fill="${escapeXml(el.backgroundColor)}" stroke="${escapeXml(el.strokeColor)}" stroke-width="${el.strokeWidth}" />`
         );
       } else if (el.type === 'diamond') {
         const cx = el.x + el.width / 2;
         const cy = el.y + el.height / 2;
         const points = `${cx},${el.y} ${el.x + el.width},${cy} ${cx},${el.y + el.height} ${el.x},${cy}`;
         svgParts.push(
-          `<polygon points="${points}" fill="${el.backgroundColor}" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" />`
+          `<polygon points="${points}" fill="${escapeXml(el.backgroundColor)}" stroke="${escapeXml(el.strokeColor)}" stroke-width="${el.strokeWidth}" />`
         );
       } else if (el.type === 'ellipse') {
         const cx = el.x + el.width / 2;
@@ -400,19 +435,19 @@ export class ExcalidrawAutomate {
         const rx = el.width / 2;
         const ry = el.height / 2;
         svgParts.push(
-          `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${el.backgroundColor}" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" />`
+          `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${escapeXml(el.backgroundColor)}" stroke="${escapeXml(el.strokeColor)}" stroke-width="${el.strokeWidth}" />`
         );
       } else if (el.type === 'arrow') {
-        const pts = (el.points || []).map(([px, py]: [number, number]) => `${el.x + px},${el.y + py}`).join(' ');
+        const pts = (el.points || []).map(([px, py]: [unknown, unknown]) => `${el.x + num(px)},${el.y + num(py)}`).join(' ');
         svgParts.push(
-          `<polyline points="${pts}" fill="none" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" marker-end="url(#arrow)" />`
+          `<polyline points="${pts}" fill="none" stroke="${escapeXml(el.strokeColor)}" stroke-width="${el.strokeWidth}" marker-end="url(#arrow)" />`
         );
       } else if (el.type === 'image') {
         const fileRecord = files?.[el.fileId];
-        const dataUrl = fileRecord?.dataURL || fileRecord?.url || '';
+        const dataUrl = safeImageUrl(fileRecord?.dataURL || fileRecord?.url);
         if (dataUrl) {
           svgParts.push(
-            `<image href="${dataUrl}" xlink:href="${dataUrl}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" />`
+            `<image href="${escapeXml(dataUrl)}" xlink:href="${escapeXml(dataUrl)}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" />`
           );
         } else {
           // Placeholder para imagen mientras carga o si no se encuentra
@@ -420,16 +455,12 @@ export class ExcalidrawAutomate {
             `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="#f1f5f9" stroke="#94a3b8" stroke-dasharray="4" rx="4" />`
           );
           svgParts.push(
-            `<text x="${el.x + 8}" y="${el.y + 20}" font-size="12" fill="#64748b">🖼 [Imagen ${el.fileId ? el.fileId.slice(0, 8) : ''}]</text>`
+            `<text x="${el.x + 8}" y="${el.y + 20}" font-size="12" fill="#64748b">🖼 [Imagen ${escapeXml(String(el.fileId ?? '').slice(0, 8))}]</text>`
           );
         }
       } else if (el.type === 'text') {
-        const escaped = (el.text || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
         svgParts.push(
-          `<text x="${el.x}" y="${el.y + el.fontSize}" font-size="${el.fontSize}" fill="${el.strokeColor}">${escaped}</text>`
+          `<text x="${el.x}" y="${el.y + el.fontSize}" font-size="${el.fontSize}" fill="${escapeXml(el.strokeColor)}">${escapeXml(el.text)}</text>`
         );
       }
     }

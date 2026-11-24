@@ -1,3 +1,5 @@
+import DOMPurify from 'dompurify';
+
 /**
  * Utilidades globales estándar provistas por Obsidian.
  */
@@ -733,9 +735,7 @@ export function resolveSubpath(cache: any, subpath: string): any {
  */
 export function sanitizeHTMLToDom(html: string): DocumentFragment {
   if (typeof document !== 'undefined') {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    return template.content;
+    return DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT: true });
   }
   return {} as DocumentFragment;
 }
@@ -759,7 +759,17 @@ export function prepareFuzzySearch(query: string): (text: string) => { score: nu
  */
 export function htmlToMarkdown(html: string): string {
   if (!html) return '';
-  return html.replace(/<[^>]+>/g, '');
+  if (typeof DOMParser !== 'undefined') {
+    // Un documento de DOMParser no ejecuta scripts ni carga recursos
+    return new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';
+  }
+  // Sin DOM: repetir hasta que no quede ninguna etiqueta (`<scr<b>ipt>` reaparece tras una pasada)
+  let text = html;
+  for (let previous = ''; previous !== text; ) {
+    previous = text;
+    text = text.replace(/<[^>]+>/g, '');
+  }
+  return text;
 }
 
 const iconsRegistry = new Map<string, string>();
