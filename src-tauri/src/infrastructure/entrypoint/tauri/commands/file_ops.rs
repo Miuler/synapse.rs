@@ -89,16 +89,13 @@ pub fn move_vault_items(
             paths,
             dest_dir,
         });
-    let moved: Vec<MovedItem> = {
-        let items = result?;
-        items
-    .into_iter()
-    .map(|m| MovedItem {
-        from: m.from,
-        to: m.to,
-    })
-    .collect()
-    };
+    let moved: Vec<MovedItem> = result?
+        .into_iter()
+        .map(|m| MovedItem {
+            from: m.from,
+            to: m.to,
+        })
+        .collect();
 
     if !moved.is_empty()
         && let Ok(guard) = state.navigation_engine.lock()

@@ -1324,7 +1324,7 @@ fn test_duplicate_filenames_resolution() {
     let engine = Arc::new(NavigationEngine::new(test_dir.clone(), cache_file));
 
     // Register multiple files with the SAME filename "foto.png" in different folders
-    let paths = vec![
+    let paths = [
         "foto.png",                        // id 1: raíz
         "docs/foto.png",                   // id 2: docs
         "docs/sub/foto.png",               // id 3: docs/sub (misma carpeta que la nota)
@@ -1455,9 +1455,9 @@ fn test_get_note_meta_o1_and_streaming_files() {
             path: CompactString::new("diagramas/esquema.excalidraw"),
             title: CompactString::new("Esquema General"),
             tags: Vec::new(),
-            mtime_nanos: 1700000000_000_000_000,
+            mtime_nanos: 1_700_000_000_000_000_000,
             size_bytes: 1024,
-            created_nanos: Some(1690000000_000_000_000),
+            created_nanos: Some(1_690_000_000_000_000_000),
             last_opened_nanos: None,
             is_open: false,
             tab_order: None,

@@ -451,6 +451,7 @@ impl Drop for FtsIndexer {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn perform_full_sync(
     vault_path: &Path,
     file_types: &SupportedFileTypes,

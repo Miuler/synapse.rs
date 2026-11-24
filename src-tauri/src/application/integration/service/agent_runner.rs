@@ -9,6 +9,7 @@ pub trait AgentRunner: Send + Sync {
     /// Lanza el agente y abre una conversación con acceso a `tools`. `instructions` se envían al
     /// agente una sola vez, junto con el primer mensaje. Con `resume` retoma esa sesión si el agente
     /// sabe cargarla; si no, abre una nueva.
+    #[allow(clippy::too_many_arguments)]
     fn start(
         &self,
         agent_id: &str,

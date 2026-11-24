@@ -62,6 +62,7 @@ fn get_disk_cache_path() -> PathBuf {
 #[derive(Clone)]
 pub struct CommunityPluginDownloaderImpl {
     client: reqwest::Client,
+    #[allow(clippy::type_complexity)]
     cache: Arc<RwLock<Option<(Instant, Vec<CommunityPlugin>)>>>,
 }
 
@@ -163,7 +164,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             }
 
             // Ordenar por popularidad (más descargas primero)
-            plugins.sort_by(|a, b| b.downloads.unwrap_or(0).cmp(&a.downloads.unwrap_or(0)));
+            plugins.sort_by_key(|p| std::cmp::Reverse(p.downloads.unwrap_or(0)));
 
             // Actualizar caché en memoria
             if let Ok(mut guard) = cache_arc.write() {

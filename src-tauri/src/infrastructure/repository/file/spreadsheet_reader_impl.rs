@@ -50,6 +50,7 @@ struct Entry {
 
 #[derive(Clone, Default)]
 pub struct SpreadsheetReaderImpl {
+    #[allow(clippy::type_complexity)]
     cache: Arc<Mutex<Vec<(PathBuf, Arc<Mutex<Entry>>)>>>,
 }
 

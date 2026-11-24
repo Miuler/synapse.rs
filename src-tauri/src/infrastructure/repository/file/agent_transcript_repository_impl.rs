@@ -53,7 +53,7 @@ impl AgentTranscriptRepository for AgentTranscriptRepositoryImpl {
             .filter_map(|data| serde_json::from_slice::<AgentTranscript>(&data).ok())
             .map(|t| AgentTranscriptSummary::from(&t))
             .collect();
-        all.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        all.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
         Ok(all)
     }
 

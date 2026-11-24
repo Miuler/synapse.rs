@@ -221,8 +221,10 @@ Este es el cuerpo principal."#;
 
     #[test]
     fn test_roundtrip_frontmatter() {
-        let mut fm = NoteFrontmatter::default();
-        fm.title = Some("Roundtrip Title".to_string());
+        let mut fm = NoteFrontmatter {
+            title: Some("Roundtrip Title".to_string()),
+            ..Default::default()
+        };
         fm.tags = vec!["sync".to_string(), "okf".to_string()];
 
         let body = "# Cuerpo\nProbando roundtrip.";

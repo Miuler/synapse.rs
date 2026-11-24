@@ -59,6 +59,7 @@ pub fn should_ignore_path(rel_path: &Path) -> bool {
 /// Desde este tamaño, al terminar el lote se devuelve al sistema la memoria liberada.
 const LARGE_BATCH_PATHS: usize = 200;
 
+#[allow(clippy::too_many_arguments)]
 pub fn process_paths_batch(
     vault_path: &Path,
     file_types: &SupportedFileTypes,

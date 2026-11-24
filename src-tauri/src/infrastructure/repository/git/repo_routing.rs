@@ -85,6 +85,7 @@ pub fn prefixed(prefix: &str, inner: &str) -> String {
 
 /// Repositorios de subcarpetas de la bóveda (relativos a ella, sin la raíz), en orden.
 pub fn nested_repos(vault: &Path) -> Vec<String> {
+    #[allow(clippy::type_complexity)]
     static CACHE: OnceLock<Mutex<HashMap<PathBuf, (Instant, Vec<String>)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
     if let Ok(guard) = cache.lock()

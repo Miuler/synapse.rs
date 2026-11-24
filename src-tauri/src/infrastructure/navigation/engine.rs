@@ -659,7 +659,7 @@ impl NavigationEngine {
             })
             .collect();
 
-        recent.sort_by(|a, b| b.last_opened_nanos.cmp(&a.last_opened_nanos));
+        recent.sort_by_key(|n| std::cmp::Reverse(n.last_opened_nanos));
         recent.into_iter().take(limit).collect()
     }
 
@@ -1575,6 +1575,7 @@ impl NavigationEngine {
             })
             .collect();
 
+        #[allow(clippy::type_complexity)]
         let extracted_results: Vec<(String, String, Vec<String>, Vec<(String, String)>)> = md_items
             .into_par_iter()
             .map(|(p_str, title, full)| {

@@ -1,5 +1,5 @@
-/// Servicio de dominio para análisis y normalización de enlaces estilo WikiLink (`[[...]]`)
-/// y renderizado de enlaces en documentos Markdown.
+//! Servicio de dominio para análisis y normalización de enlaces estilo WikiLink (`[[...]]`)
+//! y renderizado de enlaces en documentos Markdown.
 
 /// Representa un token de WikiLink extraído de un texto.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,6 +195,7 @@ impl LinkTarget {
     /// Normaliza el objetivo de un enlace:
     /// - Separa el ancla `#` si está presente.
     /// - Si no tiene extensión, le añade automáticamente `.md`.
+    ///
     /// Retorna `(target_con_extension, anchor_opcional)`.
     pub fn normalize(raw_target: &str) -> (String, Option<String>) {
         let clean = raw_target

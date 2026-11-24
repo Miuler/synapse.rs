@@ -57,7 +57,7 @@ impl NoteSearchRepository for NoteSearchRepositoryImpl {
         }
 
         // Ordenar de mayor a menor puntuación
-        results.sort_by(|a, b| b.score.cmp(&a.score));
+        results.sort_by_key(|r| std::cmp::Reverse(r.score));
         results
     }
 
@@ -116,7 +116,7 @@ impl NoteSearchRepository for NoteSearchRepositoryImpl {
             }
         }
 
-        results.sort_by(|a, b| b.score.cmp(&a.score));
+        results.sort_by_key(|r| std::cmp::Reverse(r.score));
         results
     }
 }

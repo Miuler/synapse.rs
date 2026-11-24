@@ -142,6 +142,7 @@ pub trait McpContextProvider: Send + Sync {
         None
     }
     /// Otras bóvedas consultables y a quién pedir permiso (la ventana).
+    #[allow(clippy::type_complexity)]
     fn vault_access(
         &self,
     ) -> (

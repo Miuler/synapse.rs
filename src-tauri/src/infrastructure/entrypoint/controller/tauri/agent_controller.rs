@@ -121,6 +121,7 @@ pub(crate) fn session_instructions(feedback: bool) -> String {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn agent_start_session(
     state: State<'_, AgentState>,
     app: State<'_, AppState>,

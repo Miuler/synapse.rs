@@ -162,7 +162,7 @@ impl SystemShellImpl {
                 ];
 
                 for (cmd, args) in fallback_commands {
-                    if let Ok(_) = std::process::Command::new(cmd).args(&args).spawn() {
+                    if std::process::Command::new(cmd).args(&args).spawn().is_ok() {
                         opened = true;
                         break;
                     }
