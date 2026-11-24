@@ -91,6 +91,7 @@ fn engine(tag: &str) -> NavigationEngine {
         note(12, "imagenes/diagrama.png", "diagrama.png", &[], None),
     ];
     for n in notes {
+        engine.path_index.insert(n.path.clone(), n.id);
         engine.notes.insert(n.id, n);
     }
     engine

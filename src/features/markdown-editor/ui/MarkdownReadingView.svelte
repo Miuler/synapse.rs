@@ -1445,15 +1445,20 @@
     list-style: none;
     padding-left: 0;
     margin: 4px 0 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    /* Columnas comunes a todas las filas: icono, nombre (el más largo), insignias y descripción */
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) auto minmax(0, 1fr);
+    row-gap: 2px;
+  }
+
+  .markdown-body :global(ul.okf-explorer-list > li) {
+    grid-column: 1 / -1;
   }
 
   .markdown-body :global(.okf-explorer-row) {
-    display: flex;
+    display: grid;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 8px;
     padding: 5px 10px;
     margin: 0;
     border-radius: 5px;
@@ -1476,7 +1481,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    grid-column: 1;
+    grid-row: 1;
+    margin-right: 8px;
+  }
+
+  .markdown-body :global(.okf-explorer-row > a) {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .markdown-body :global(.okf-explorer-row a) {
@@ -1523,16 +1535,20 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex-shrink: 1;
+    grid-column: 4;
+    grid-row: 1;
+    margin-left: 8px;
   }
 
   .markdown-body :global(.okf-explorer-badges) {
-    margin-left: auto;
-    padding-left: 8px;
+    grid-column: 3;
+    grid-row: 1;
+    margin-left: 8px;
     display: inline-flex;
     align-items: center;
+    /* Al final de su columna: la insignia de Git queda alineada haya o no candado */
+    justify-content: flex-end;
     gap: 6px;
-    flex-shrink: 0;
   }
 
   .markdown-body :global(.okf-explorer-lock) {

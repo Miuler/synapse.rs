@@ -173,7 +173,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"backlinks\": [\n    {\n      \"context_snippet\": \"Enlace a [[arquitectura]].\",\n      \"source_path\": \"agentes.md\",\n      \"title\": \"agentes\"\n    }\n  ],\n  \"backlinks_count\": 1,\n  \"outlinks\": [\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"target\": \"agentes\"\n    },\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"target\": \"docs/fsd\"\n    }\n  ],\n  \"outlinks_count\": 2,\n  \"shared_tags_neighbors\": [\n    {\n      \"jaccard_score\": 0.5,\n      \"path\": \"docs/fsd.md\"\n    },\n    {\n      \"jaccard_score\": 0.25,\n      \"path\": \"agentes.md\"\n    }\n  ],\n  \"target_note\": \"arquitectura.md\"\n}"
+      "text": "{\n  \"backlinks\": [\n    {\n      \"context_snippet\": \"Enlace a [[arquitectura]].\",\n      \"source_path\": \"agentes.md\",\n      \"title\": \"agentes\"\n    }\n  ],\n  \"backlinks_count\": 1,\n  \"outlinks\": [\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"resolved_path\": \"agentes.md\",\n      \"target\": \"agentes\"\n    },\n    {\n      \"alias\": null,\n      \"is_embed\": false,\n      \"is_resolved\": true,\n      \"resolved_path\": \"docs/fsd.md\",\n      \"target\": \"docs/fsd\"\n    }\n  ],\n  \"outlinks_count\": 2,\n  \"shared_tags_neighbors\": [\n    {\n      \"jaccard_score\": 0.5,\n      \"path\": \"docs/fsd.md\"\n    },\n    {\n      \"jaccard_score\": 0.25,\n      \"path\": \"agentes.md\"\n    }\n  ],\n  \"target_note\": \"arquitectura.md\"\n}"
     }
   ],
   "isError": false
@@ -363,7 +363,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"new_content_hash\": \"sha256:e2b4a8d0d3cb13ff6222e2ac459fa8f68a24d45969dbd693f7301e6ba7786482\",\n  \"relative_path\": \"arquitectura.md\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"new_content_hash\": \"sha256:76fb36d5877622e9f6f7c0bb4014e9c8635636ae55f90f2ddcaa81fffd110312\",\n  \"relative_path\": \"arquitectura.md\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false
@@ -393,7 +393,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"content\": \"---\\ntitle: Arquitectura Synapse\\ntags:\\n- rust\\n- tauri\\n- onion\\naliases:\\n- arq\\ndescription: Capas del backend\\n---\\n# Arquitectura\\nDetalles del backend. Ver [[agentes]] y [[docs/fsd]].\\n\\n## Capas\\nAl inicio\\nDominio, aplicación e infraestructura.\\n\\n### Dominio\\nEntidades puras.\\n\\nNueva línea\\n## Diagramas\\n```mermaid\\ngraph TD\\nA-->B\\n```\\n```d2\\nx -> y\\n```\\nFin.\",\n  \"content_hash\": \"sha256:e2b4a8d0d3cb13ff6222e2ac459fa8f68a24d45969dbd693f7301e6ba7786482\",\n  \"detected_blocks\": {\n    \"d2_count\": 1,\n    \"mermaid_count\": 1\n  },\n  \"estimated_tokens\": 87,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 11,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 14,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 18,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 22,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 30\n}"
+      "text": "{\n  \"content\": \"---\\ntitle: Arquitectura Synapse\\ntags: [rust, tauri, onion]\\naliases: [arq]\\ndescription: Capas del backend\\n---\\n# Arquitectura\\nDetalles del backend. Ver [[agentes]] y [[docs/fsd]].\\n\\n## Capas\\nAl inicio\\nDominio, aplicación e infraestructura.\\n\\n### Dominio\\nEntidades puras.\\n\\nNueva línea\\n## Diagramas\\n```mermaid\\ngraph TD\\nA-->B\\n```\\n```d2\\nx -> y\\n```\\nFin.\",\n  \"content_hash\": \"sha256:76fb36d5877622e9f6f7c0bb4014e9c8635636ae55f90f2ddcaa81fffd110312\",\n  \"detected_blocks\": {\n    \"d2_count\": 1,\n    \"mermaid_count\": 1\n  },\n  \"estimated_tokens\": 87,\n  \"okf_metadata\": {\n    \"aliases\": [\n      \"arq\"\n    ],\n    \"description\": \"Capas del backend\",\n    \"tags\": [\n      \"rust\",\n      \"tauri\",\n      \"onion\"\n    ],\n    \"title\": \"Arquitectura Synapse\"\n  },\n  \"relative_path\": \"arquitectura.md\",\n  \"title\": \"Arquitectura Synapse\",\n  \"toc\": [\n    {\n      \"level\": 1,\n      \"line\": 7,\n      \"text\": \"Arquitectura\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 10,\n      \"text\": \"Capas\"\n    },\n    {\n      \"level\": 3,\n      \"line\": 14,\n      \"text\": \"Dominio\"\n    },\n    {\n      \"level\": 2,\n      \"line\": 18,\n      \"text\": \"Diagramas\"\n    }\n  ],\n  \"total_lines\": 26\n}"
     }
   ],
   "isError": false

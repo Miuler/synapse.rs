@@ -1311,7 +1311,7 @@ fn test_dashmap_link_resolution_and_markdown_rendering() {
 }
 
 #[test]
-fn test_duplicate_filenames_proximity_resolution() {
+fn test_duplicate_filenames_resolution() {
     let test_dir = std::env::temp_dir().join("synapse_test_duplicate_proximity");
     let _ = fs::remove_dir_all(&test_dir);
     let _ = fs::create_dir_all(&test_dir);
@@ -1363,13 +1363,12 @@ fn test_duplicate_filenames_proximity_resolution() {
 
     // Caso 3: Si no existe en la misma carpeta (por ejemplo desde una carpeta intermedia sin archivo directo):
     // Desde "docs/sub/nested_folder/nota.md":
-    // Entre "docs/sub/adjuntos/foto.png", "docs/sub/foto.png", "docs/foto.png", "foto.png", "otro/foto.png":
-    // "docs/sub/foto.png" es el ancestro más cercano (1 nivel arriba) vs "docs/foto.png" (2 niveles arriba)
+    // se usa la de la raíz de la bóveda, no la del ancestro más cercano
     let res3 =
         engine.resolve_link_path_with_base("foto.png", Some("docs/sub/nested_folder/nota.md"));
-    assert_eq!(res3, Some("docs/sub/foto.png".to_string()));
+    assert_eq!(res3, Some("foto.png".to_string()));
 
-    // Caso 4: Preferencia de subcarpetas sobre carpetas padre:
+    // Caso 4: Sin coincidencia exacta y con varios del mismo nombre, el enlace es ambiguo:
     // Creamos un escenario donde sólo hay una subcarpeta y una carpeta padre
     let engine_sub = Arc::new(NavigationEngine::new(
         test_dir.clone(),
@@ -1422,9 +1421,16 @@ fn test_duplicate_filenames_proximity_resolution() {
         .insert(CompactString::new("docs/sub/adjuntos/foto.png"), 2);
 
     // Desde "docs/sub/nota.md":
-    // Debe preferir "docs/sub/adjuntos/foto.png" (subcarpeta) sobre "docs/foto.png" (padre)
+    // no se elige ni "docs/sub/adjuntos/foto.png" (subcarpeta) ni "docs/foto.png" (padre)
     let res_sub = engine_sub.resolve_link_path_with_base("foto.png", Some("docs/sub/nota.md"));
-    assert_eq!(res_sub, Some("docs/sub/adjuntos/foto.png".to_string()));
+    assert_eq!(res_sub, None);
+    assert_eq!(
+        engine_sub.resolve_link_detailed_with_base("foto.png", Some("docs/sub/nota.md")),
+        app_lib::domain::service::link_resolver::LinkResolution::Ambiguous(vec![
+            "docs/foto.png".to_string(),
+            "docs/sub/adjuntos/foto.png".to_string(),
+        ])
+    );
 
     engine.shutdown();
     engine_sub.shutdown();

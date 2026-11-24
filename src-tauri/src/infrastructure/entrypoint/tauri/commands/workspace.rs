@@ -122,6 +122,48 @@ pub async fn save_shortcut(
     )
 }
 
+/// Icono de las notificaciones del sistema (el pulpo kawaii). El demonio de notificaciones lee un
+/// archivo real, no un recurso embebido en el ejecutable: se vuelca a la caché de la app al usarlo.
+const NOTIFICATION_ICON: &[u8] = include_bytes!("../../../../../icons/notification-pulpo.png");
+const NOTIFICATION_ICON_FILE: &str = "notification-pulpo.png";
+
+/// Escribe el icono en `dir` si falta o cambió (otra versión de la app) y devuelve su ruta.
+fn materialize_notification_icon(dir: &std::path::Path) -> Option<PathBuf> {
+    let path = dir.join(NOTIFICATION_ICON_FILE);
+    let up_to_date = std::fs::read(&path).is_ok_and(|bytes| bytes == NOTIFICATION_ICON);
+    if !up_to_date {
+        std::fs::create_dir_all(dir).ok()?;
+        std::fs::write(&path, NOTIFICATION_ICON).ok()?;
+    }
+    Some(path)
+}
+
+/// En Linux el cuerpo admite marcado: un `<` o `&` de la consulta del usuario lo rompería.
+fn escape_notification_body(body: String) -> String {
+    if cfg!(target_os = "linux") {
+        body.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    } else {
+        body
+    }
+}
+
+/// Notificación del sistema con el icono de Synapse (sin él, el demonio muestra uno genérico).
+fn show_notification(window: &tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+    use tauri::Manager;
+    use tauri_plugin_notification::NotificationExt;
+    let mut builder = window.notification().builder().title(title).body(escape_notification_body(body));
+    let icon = window
+        .app_handle()
+        .path()
+        .app_cache_dir()
+        .ok()
+        .and_then(|dir| materialize_notification_icon(&dir));
+    if let Some(icon) = icon {
+        builder = builder.icon(icon.to_string_lossy().into_owned());
+    }
+    builder.show().map_err(|e| e.to_string())
+}
+
 /// Pide la atención del usuario cuando Synapse espera una respuesta (un permiso, una pregunta) y la
 /// ventana no está al frente: la marca como urgente en la barra de tareas y avisa con una
 /// notificación del sistema. No le quita el foco a lo que el usuario esté haciendo.
@@ -131,14 +173,24 @@ pub fn request_attention(window: tauri::WebviewWindow, title: String, body: Stri
         return Ok(());
     }
     let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
-    use tauri_plugin_notification::NotificationExt;
-    window
-        .notification()
-        .builder()
-        .title(title)
-        .body(body)
-        .show()
-        .map_err(|e| e.to_string())
+    show_notification(&window, title, body)
+}
+
+/// Avisa con una notificación del sistema solo si ninguna ventana de este proceso tiene el foco (por
+/// ejemplo, cuando el agente termina y el usuario está en otra aplicación). Sin marca de urgencia.
+/// Otra instancia de Synapse con otra bóveda es otro proceso y no cuenta.
+#[tauri::command]
+pub fn notify_if_unfocused(window: tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
+    use tauri::Manager;
+    let focused = window
+        .app_handle()
+        .webview_windows()
+        .values()
+        .any(|w| w.is_focused().unwrap_or(false));
+    if focused {
+        return Ok(());
+    }
+    show_notification(&window, title, body)
 }
 
 /// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.
@@ -406,4 +458,25 @@ pub fn list_vault_directory(
     }
 
     Ok(VaultDirectoryList { files, folders })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_materialize_notification_icon_writes_and_refreshes() {
+        let dir = std::env::temp_dir().join("synapse_notification_icon_test");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let path = materialize_notification_icon(&dir).expect("debe volcar el icono");
+        assert_eq!(std::fs::read(&path).unwrap(), NOTIFICATION_ICON);
+
+        // El de otra versión se reemplaza, aunque tenga el mismo tamaño
+        std::fs::write(&path, vec![0u8; NOTIFICATION_ICON.len()]).unwrap();
+        materialize_notification_icon(&dir).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), NOTIFICATION_ICON);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -1,8 +1,8 @@
-"notas" desde None => Some("a/notas.md")
+"notas" desde None => None
 "notas" desde Some("a/sub/x.md") => Some("a/sub/notas.md")
 "notas" desde Some("a/x.md") => Some("a/notas.md")
 "notas" desde Some("b/x.md") => Some("b/notas.md")
-"notas" desde Some("c/x.md") => Some("a/notas.md")
+"notas" desde Some("c/x.md") => None
 "notas.md#seccion" desde Some("b/x.md") => Some("b/notas.md#seccion")
 "pan" desde Some("a/x.md") => Some("recetas/pan.md")
 "diagrama.png" desde None => Some("imagenes/diagrama.png")

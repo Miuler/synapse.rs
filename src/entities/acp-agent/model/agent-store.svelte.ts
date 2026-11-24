@@ -1,5 +1,6 @@
-import { requestAttention } from '@shared/lib/attention';
+import { notifyIfUnfocused, requestAttention } from '@shared/lib/attention';
 import { playAgentCompletionSound } from '@shared/lib/sound';
+import { completionNotice } from './completion-notice';
 import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
 import { load, save } from './storage';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
@@ -516,6 +517,8 @@ export class Conversation {
       this.#turnHops = 0;
       if (stopReason !== 'cancelled' && !opts.replyTo && !this.ephemeral && this.queue.length === 0) {
         void playAgentCompletionSound();
+        const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error');
+        notifyIfUnfocused(notice.title, notice.body);
       }
       this.deliverNext();
     }

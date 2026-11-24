@@ -1,6 +1,7 @@
 // Índice OKF: Synapse mantiene un index.md (OKF v0.3) en cada carpeta; un index.md propio pasa a
 // index.deprecado.md; al crear una nota se actualiza; en Synapse se abre en solo lectura.
 import { afterAll, beforeAll, expect, it } from 'bun:test';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type Session } from './harness';
@@ -253,3 +254,36 @@ it('renderiza las filas de index.md al estilo del explorador sin cambiar el arch
     { timeout: 10_000, timeoutMsg: 'clic en la fila no abrió plan.md' },
   );
 }, 45_000);
+
+it('las insignias de Git quedan alineadas en columna y pegadas al nombre más largo', async () => {
+  writeFileSync(join(s.vault, 'proyecto/un nombre bastante más largo que los demás.d2'), 'a -> b\n');
+  execFileSync('git', ['init', '-q'], { cwd: s.vault });
+  await s.browser.waitUntil(async () => read('proyecto/index.md').includes('bastante'), { timeout: 20_000, timeoutMsg: 'el índice no listó el archivo nuevo' });
+  await s.browser.refresh();
+  await s.browser.$('.file-tree-item.folder[data-path="proyecto"]').waitForExist({ timeout: 30_000 });
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  const measure = () =>
+    s.browser.execute(() =>
+      [...document.querySelectorAll('.tab-pane:not(.hidden) ul.okf-explorer-list')].map((ul) => ({
+        width: ul.getBoundingClientRect().width,
+        nameRight: Math.max(...[...ul.querySelectorAll('.okf-explorer-row > a')].map((a) => a.getBoundingClientRect().right)),
+        badges: [...ul.querySelectorAll('.okf-explorer-badges')].map((b) => ({
+          left: b.getBoundingClientRect().left,
+          right: b.getBoundingClientRect().right,
+        })),
+      })),
+    ) as Promise<{ width: number; nameRight: number; badges: { left: number; right: number }[] }[]>;
+  await s.browser.waitUntil(async () => (await measure()).some((l) => l.badges.length >= 2), {
+    timeout: 20_000,
+    timeoutMsg: 'no aparecieron las insignias de Git',
+  });
+  if (process.env.SHOT) await s.browser.saveScreenshot(process.env.SHOT);
+  for (const list of await measure()) {
+    if (list.badges.length === 0) continue;
+    const rights = list.badges.map((b) => b.right);
+    expect(Math.max(...rights) - Math.min(...rights)).toBeLessThan(1);
+    const gap = Math.min(...list.badges.map((b) => b.left)) - list.nameRight;
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThan(20);
+  }
+}, 80_000);

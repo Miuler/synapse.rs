@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Índices de carpeta (`index.md`): el candado y el estado de Git quedan junto a los nombres y alineados en columna, en vez de en el borde derecho; la descripción va a continuación.
 - Pruebas unitarias (`bun test`): el plugin que compila los `.svelte.ts` quita los tipos con el transpilador de Bun, porque TypeScript 7 ya no trae `transpileModule`; el script `test` solo mira `./src` (ya no recoge la carpeta `zennotes/`).
 - Chat del agente: lo escrito sin enviar ya no se pierde al cerrarse el panel (por ejemplo, sin fijar, al hacer clic fuera) ni al plegar la conversación.
 - Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
@@ -19,6 +20,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Al terminar el agente, además del sonido, Synapse envía una **notificación del sistema con el pulpo kawaii** y la consulta que terminó (`Terminó la consulta: "…"`) si la instancia que lo ejecuta no tiene el foco (por ejemplo, si estás en otra aplicación). Los avisos de permisos y preguntas del agente usan ahora el mismo icono.
 - Los archivos **`.sql`** son un tipo soportado: aparecen en el explorador y en Ctrl+O, se indexan en la búsqueda de contenido como código y se editan con resaltado de sintaxis SQL (también en el diff de Git).
 - Tema integrado **GitHub** (títulos verdes sobre fondo casi negro en oscuro; blanco en claro), también como «GitHub Islas».
 - Tema integrado **Solarized** (crema en claro, azul petróleo en oscuro, títulos cian), también como «Solarized Islas».

@@ -7,3 +7,11 @@ import { invokeTauri } from '@shared/api';
 export function requestAttention(title: string, body: string): void {
   invokeTauri('request_attention', { title, body }).catch(() => {});
 }
+
+/**
+ * Avisa con una notificación del sistema solo si ninguna ventana de esta instancia tiene el foco (el
+ * usuario está en otra aplicación o en otra instancia de Synapse). No marca la ventana como urgente.
+ */
+export function notifyIfUnfocused(title: string, body: string): void {
+  invokeTauri('notify_if_unfocused', { title, body }).catch(() => {});
+}
