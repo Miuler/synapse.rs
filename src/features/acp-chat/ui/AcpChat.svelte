@@ -401,12 +401,12 @@
         });
       }
       // `/btw` y `/fork` los resuelve Synapse aunque el agente tenga los suyos
-      const how = conv.session?.capabilities.fork_session
-        ? 'contexto completo: el agente bifurca su sesión'
-        : 'contexto reenviado como texto: el agente no bifurca sesiones';
+      const native = !!conv.session?.capabilities.fork_session;
+      const how = native ? 'contexto completo' : 'contexto reenviado como texto';
+      // «Synapse» marca lo que resuelve Synapse; con `session/fork`, la bifurcación es del agente
       for (const [name, detail] of [
         ['btw', `Synapse · pregunta aparte, sin interrumpir al agente (${how})`],
-        ['fork', `Synapse · abre otra conversación a partir de esta (${how})`],
+        ['fork', `${native ? '' : 'Synapse · '}abre otra conversación a partir de esta (${how})`],
       ]) {
         if (!name.startsWith(slash)) continue;
         own.push({

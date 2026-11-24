@@ -92,7 +92,7 @@ Synapse está diseñado desde la base para que los agentes de IA trabajen con tu
 - **Plugins de Obsidian:** Compatibilidad con extensiones comunitarias verificadas a través de una fachada de su API.
 
 ### 8. 🎨 Temas por Defecto
-Synapse incluye temas integrados listos para usar con variantes clara y oscura:
+Synapse incluye temas integrados listos para usar con variantes clara y oscura. Con `` Ctrl+` `` eliges uno de la lista sin entrar a Configuración:
 
 #### Neón
 Inspiración cyberpunk con acentos luminosos sobre fondo oscuro:

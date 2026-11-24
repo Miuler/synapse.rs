@@ -1,0 +1,91 @@
+/*
+ * @nombre Willemstad
+ *
+ * Tema integrado «Willemstad», inspirado en el tema del mismo nombre para Obsidian. Oscuro: negro cálido
+ * con barra lateral café y texto crema. Claro: blanco con paneles salvia. En lectura, los títulos 2 y 3
+ * son franjas verdes. Para modificarlo, copiar a <bóveda>/.synapse/themes/willemstad.css.
+ */
+
+html[data-theme='light'] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #e3eadb;
+  --bg-tertiary: #d3ddc8;
+  --text-primary: #1b2a1c;
+  --text-secondary: #55654f;
+  --border-primary: #c3d0b6;
+  --border-subtle: rgba(45, 90, 45, 0.12);
+  --accent: #2f7d45;
+  --accent-bg: rgba(47, 125, 69, 0.12);
+  --accent-border: rgba(47, 125, 69, 0.45);
+  --on-accent: #ffffff;
+  --hover-bg: rgba(45, 90, 45, 0.07);
+  --active-bg: rgba(45, 90, 45, 0.14);
+  --code-inline-bg: #eef2e9;
+  --table-alt-row: #f5f8f2;
+  --h2-color: #2f7d45;
+  --h3-color: #217a63;
+  --h4-color: #2f7d45;
+  --willemstad-h2-bg: #37814a;
+  --willemstad-h3-bg: #8fd3bd;
+  --willemstad-h3-text: #10382c;
+}
+
+html[data-theme='dark'] {
+  --bg-primary: #040201;
+  --bg-secondary: #140a05;
+  --bg-tertiary: #20130b;
+  --text-primary: #f2e6d6;
+  --text-secondary: #b9a58f;
+  --border-primary: #33231a;
+  --border-subtle: rgba(242, 230, 214, 0.08);
+  --accent: #5fb878;
+  --accent-bg: rgba(95, 184, 120, 0.14);
+  --accent-border: rgba(95, 184, 120, 0.45);
+  --on-accent: #040201;
+  --hover-bg: rgba(242, 230, 214, 0.06);
+  --active-bg: rgba(242, 230, 214, 0.12);
+  --code-inline-bg: #170e08;
+  --table-alt-row: #0d0704;
+  --h2-color: #5fb878;
+  --h3-color: #66c2a5;
+  --h4-color: #5fb878;
+  --syntax-keyword: #f08fb0;
+  --syntax-string: #7ddb8f;
+  --syntax-function: #f2e6a0;
+  --syntax-comment: #8a7766;
+  --willemstad-h2-bg: #37814a;
+  --willemstad-h3-bg: #66c2a5;
+  --willemstad-h3-text: #0c3026;
+}
+
+html[data-theme] {
+  --h1-weight: 600;
+  --h2-weight: 500;
+  --h3-weight: 500;
+  --icon-folder-color: var(--text-secondary);
+}
+
+.synapse-tab.active {
+  border-radius: 0;
+}
+
+html .markdown-body h2,
+html .markdown-body h3 {
+  padding: 2px 8px;
+  border-bottom: none;
+}
+
+html .markdown-body h2 {
+  background: var(--willemstad-h2-bg);
+  color: #ffffff;
+}
+
+html .markdown-body h3 {
+  background: var(--willemstad-h3-bg);
+  color: var(--willemstad-h3-text);
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+}

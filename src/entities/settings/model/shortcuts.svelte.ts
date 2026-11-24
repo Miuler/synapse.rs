@@ -25,6 +25,8 @@ export interface WorkspaceShortcutsConfig {
   nav_back: string;
   nav_forward: string;
   toggle_theme: string;
+  /** Lista de temas para cambiar directo. */
+  pick_theme: string;
   toggle_devtools: string;
   /** Índice de la nota o de las claves de un YAML/JSON. */
   toggle_outline: string;
@@ -69,6 +71,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     nav_back: 'Alt+ArrowLeft',
     nav_forward: 'Alt+ArrowRight',
     toggle_theme: 'Ctrl+Shift+T',
+    pick_theme: 'Ctrl+`',
     toggle_devtools: 'F12, Ctrl+Shift+I',
     toggle_outline: 'Ctrl+F12',
     toggle_edit_mode: 'F2',
@@ -189,6 +192,11 @@ function matchesSingleCombo(e: KeyboardEvent, combo: ParsedCombo): boolean {
   // Normalizar barra invertida (Ctrl+\ o Ctrl+|)
   if (targetKey === '\\' || targetKey === 'backslash') {
     return eventKey === '\\' || eventKey === '|' || eventCode === 'backslash';
+  }
+
+  // Normalizar el acento grave (en distribuciones con tecla muerta, e.key = "Dead")
+  if (targetKey === '`' || targetKey === 'backquote') {
+    return eventKey === '`' || eventCode === 'backquote';
   }
 
   return eventKey === targetKey;

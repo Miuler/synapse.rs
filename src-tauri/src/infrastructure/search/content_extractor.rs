@@ -512,6 +512,17 @@ Base de Datos PostgreSQL ^db1
     }
 
     #[test]
+    fn test_extract_sql_file() {
+        let sql = "SELECT id, nombre FROM clientes WHERE activo = TRUE;";
+        let file_types = SupportedFileTypes::default();
+        let (kind, title, body, _) =
+            extract(Path::new("consultas/clientes.sql"), sql.as_bytes(), &file_types).unwrap();
+        assert_eq!(kind, DocumentKind::Code);
+        assert_eq!(title, "clientes.sql");
+        assert!(body.contains("FROM clientes"));
+    }
+
+    #[test]
     fn test_extract_cobol_file() {
         let cobol_src = "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO-WORLD.\n       PROCEDURE DIVISION.\n           DISPLAY 'HELLO COBOL'.\n           STOP RUN.";
         let file_types = SupportedFileTypes::default();

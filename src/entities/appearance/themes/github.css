@@ -1,0 +1,74 @@
+/*
+ * @nombre GitHub
+ *
+ * Tema integrado «GitHub», inspirado en el tema GitHub de krios2146 para Obsidian. Oscuro: fondo casi
+ * negro, paneles azulados y títulos verdes. Claro: blanco con títulos oscuros. Para modificarlo, copiar
+ * a <bóveda>/.synapse/themes/github.css.
+ */
+
+html[data-theme='light'] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --border-primary: #d1d9e0;
+  --border-subtle: rgba(31, 35, 40, 0.08);
+  --accent: #1a7f37;
+  --accent-bg: rgba(26, 127, 55, 0.1);
+  --accent-border: rgba(26, 127, 55, 0.4);
+  --hover-bg: rgba(31, 35, 40, 0.05);
+  --active-bg: rgba(31, 35, 40, 0.09);
+  --code-inline-bg: rgba(129, 139, 152, 0.14);
+  --table-alt-row: #f6f8fa;
+  --github-link: #0969da;
+  --github-title: #1f2328;
+}
+
+html[data-theme='dark'] {
+  --bg-primary: #010409;
+  --bg-secondary: #0d1117;
+  --bg-tertiary: #161b22;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --border-primary: #21262d;
+  --border-subtle: rgba(240, 246, 252, 0.07);
+  --accent: #7ee787;
+  --accent-bg: rgba(126, 231, 135, 0.12);
+  --accent-border: rgba(126, 231, 135, 0.4);
+  --on-accent: #010409;
+  --hover-bg: rgba(177, 186, 196, 0.08);
+  --active-bg: rgba(177, 186, 196, 0.14);
+  --code-inline-bg: rgba(110, 118, 129, 0.3);
+  --table-alt-row: #0d1117;
+  --success: #7ee787;
+  --github-link: #58a6ff;
+  --github-title: #7ee787;
+}
+
+html[data-theme] {
+  --h1-color: var(--github-title);
+  --h2-color: var(--github-title);
+  --h3-color: var(--github-title);
+  --h4-color: var(--github-title);
+  --h5-color: var(--github-title);
+  --h6-color: var(--github-title);
+  --h1-weight: 600;
+  --h2-weight: 600;
+  --icon-folder-color: var(--text-secondary);
+}
+
+.synapse-tab.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Los enlaces son azules, en lectura y en el editor (usan --accent) */
+.markdown-body a,
+.synapse-editor .cm-content {
+  --accent: var(--github-link);
+}
+
+.markdown-body blockquote {
+  border-left-color: var(--border-primary);
+  color: var(--text-secondary);
+}

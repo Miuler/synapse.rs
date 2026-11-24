@@ -244,6 +244,7 @@ mod tests {
         assert_eq!(types.kind_name("foto.png"), Some("image"));
         assert_eq!(types.kind_name("flujo.mermaid"), Some("mermaid"));
         assert_eq!(types.kind_name("payroll.cbl"), Some("code"));
+        assert_eq!(types.kind_name("migraciones/001_crear_tablas.SQL"), Some("code"));
         assert_eq!(types.kind_name("dibujo.excalidraw"), Some("excalidraw"));
         // Un dibujo guardado como Markdown es un dibujo, no una nota
         assert_eq!(types.kind_name("dibujo.excalidraw.md"), Some("excalidraw"));
@@ -261,6 +262,7 @@ mod tests {
         assert!(all.contains(&"cbl".to_string()));
         assert!(types.is_supported_file("program.cbl"));
         assert!(types.is_supported_file("payroll.CBL"));
+        assert!(types.is_supported_file("consulta.sql"));
         assert!(types.is_supported_file("pom.xml"));
         assert!(types.is_supported_file("modelo.archimate"));
     }

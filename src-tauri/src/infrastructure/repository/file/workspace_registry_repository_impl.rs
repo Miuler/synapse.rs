@@ -225,6 +225,8 @@ impl WorkspaceRegistryRepositoryImpl {
     "nav_forward": "Alt+ArrowRight",
     // Alternar entre tema Claro y Oscuro
     "toggle_theme": "Ctrl+Shift+T",
+    // Abrir la lista de temas para cambiar directo
+    "pick_theme": "Ctrl+`",
     // Abrir o cerrar herramientas de desarrollo (DevTools)
     "toggle_devtools": "F12, Ctrl+Shift+I",
     // Abrir o cerrar el índice de la nota (títulos) o de un YAML/JSON (claves)

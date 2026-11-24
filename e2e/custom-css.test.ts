@@ -154,3 +154,45 @@ it('los temas globales de ~/.config/synapsers/themes y de carpetas agregadas apa
   });
   await s.browser.keys('Escape');
 });
+
+it('Ctrl+` abre la lista de temas y aplica el elegido', async () => {
+  const selected = () =>
+    s.browser.execute(() => document.querySelector('.theme-picker .command-item[data-selected]')?.getAttribute('data-theme-id'));
+  const openPicker = async () => {
+    // Por el código de la tecla: el acento grave es tecla muerta en algunas distribuciones
+    await s.browser.execute(() =>
+      document.body.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Dead', code: 'Backquote', ctrlKey: true, bubbles: true, cancelable: true }),
+      ),
+    );
+    await s.browser.$('.theme-picker').waitForDisplayed({ timeout: 5_000 });
+  };
+  await openPicker();
+  await s.browser.keys('github'.split(''));
+  await s.browser.waitUntil(async () => (await selected()) === 'github', { timeout: 5_000, timeoutMsg: 'no se resaltó GitHub' });
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())) ===
+      ((await s.browser.execute(() => document.documentElement.dataset.theme)) === 'dark' ? '#7ee787' : '#1a7f37'),
+    { timeout: 5_000, timeoutMsg: 'no se aplicó el tema GitHub' },
+  );
+  expect(await s.browser.$('.theme-picker').isExisting()).toBe(false);
+  // Búsqueda literal: «rosa» no resalta otro tema (y Neón se encuentra sin tilde)
+  await openPicker();
+  for (const [q, id] of [['rosa', 'rosa'], ['neon', 'neon'], ['stad', 'willemstad']]) {
+    await s.browser.keys(['Control', 'a']);
+    await s.browser.keys(q.split(''));
+    await s.browser.waitUntil(async () => (await selected()) === id, { timeout: 5_000, timeoutMsg: `«${q}» no resaltó ${id}` });
+  }
+  await s.browser.keys('Escape');
+  await s.browser.waitUntil(async () => !(await s.browser.$('.theme-picker').isExisting()), { timeout: 5_000 });
+  // Al volver a abrirla, la fila del tema en uso está resaltada; ↓ pasa a la siguiente
+  await openPicker();
+  await s.browser.waitUntil(async () => (await selected()) === 'github', { timeout: 5_000, timeoutMsg: 'no se resaltó el tema en uso' });
+  await s.browser.keys('ArrowDown');
+  await s.browser.waitUntil(async () => (await selected()) === 'github-islas', { timeout: 5_000, timeoutMsg: '↓ no avanzó' });
+  if (process.env.SHOT_DIR) await s.browser.saveScreenshot(`${process.env.SHOT_DIR}/picker.png`);
+  await s.browser.keys('Escape');
+  await s.browser.waitUntil(async () => !(await s.browser.$('.theme-picker').isExisting()), { timeout: 5_000 });
+}, 30_000);

@@ -20,6 +20,7 @@
   import { tags } from '@lezer/highlight';
   import { yaml } from '@codemirror/lang-yaml';
   import { json } from '@codemirror/lang-json';
+  import { sql } from '@codemirror/lang-sql';
   import { markdown } from '@codemirror/lang-markdown';
   import { vim } from '@replit/codemirror-vim';
   import { undoRedoExtension } from '@shared/lib/editor-history';
@@ -96,6 +97,7 @@
     const lower = name.toLowerCase();
     if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return [yaml()];
     if (lower.endsWith('.json') || lower.endsWith('.jsonc')) return [json()];
+    if (lower.endsWith('.sql')) return [sql()];
     if (lower.endsWith('.md') || lower.endsWith('.markdown')) return [markdown()];
     return [];
   }

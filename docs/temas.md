@@ -9,6 +9,7 @@ valen para todas:
 | `.synapse/themes/*.css` | Temas. Se usa uno a la vez. | Configuración → Apariencia → **Tema personalizado** |
 | `.synapse/snippets/*.css` | Fragmentos: retoques sueltos. | Configuración → Apariencia, un interruptor por fragmento |
 
+- **Cambio rápido:** `` Ctrl+` `` (o el comando «Elegir tema…» de la paleta) abre la lista de temas.
 - Lo elegido se guarda en `.synapse/appearance.json` de la bóveda.
 - **Carpetas globales:** `~/.config/synapsers/themes` se lee siempre. Puedes sumar carpetas extra
   en Configuración → Apariencia → *Carpetas de temas globales* (agregar, quitar y **Reescanear**),
@@ -28,6 +29,11 @@ valen para todas:
   - **Papiro** (`papiro.css`): papel kraft envejecido con fibras, hoja de bordes rotos y tostados
     y tinta sepia; en oscuro, cuero curtido.
   - **Rosa** (`rosa.css`): tonos rosa suaves, frambuesa en claro y ciruela en oscuro.
+  - **GitHub** (`github.css`): inspirado en el tema GitHub de Obsidian; en oscuro, fondo casi negro y títulos
+    verdes; en claro, blanco con títulos oscuros.
+  - **Solarized** (`solarized.css`): paleta Solarized, crema en claro y azul petróleo en oscuro, con títulos cian.
+  - **Willemstad** (`willemstad.css`): negro cálido con texto crema en oscuro, blanco y salvia en claro; en lectura,
+    los títulos 2 y 3 son franjas verdes.
   - **Islas** (`islas.css`): paneles flotantes con esquinas redondeadas sobre un marco más oscuro.
     No trae colores propios; se combina con los demás en **Papel Islas**, **Neón Islas** y **Rosa Islas**.
     Se ajusta con `--island-gap`, `--island-radius`, `--island-frame` y `--island-border`.

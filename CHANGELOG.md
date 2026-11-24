@@ -19,6 +19,11 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Los archivos **`.sql`** son un tipo soportado: aparecen en el explorador y en Ctrl+O, se indexan en la búsqueda de contenido como código y se editan con resaltado de sintaxis SQL (también en el diff de Git).
+- Tema integrado **GitHub** (títulos verdes sobre fondo casi negro en oscuro; blanco en claro), también como «GitHub Islas».
+- Tema integrado **Solarized** (crema en claro, azul petróleo en oscuro, títulos cian), también como «Solarized Islas».
+- Tema integrado **Willemstad** (negro cálido en oscuro, blanco y salvia en claro, títulos en franjas verdes), también como «Willemstad Islas».
+- Cambio rápido de tema: `` Ctrl+` `` o el comando «Elegir tema…» abre la lista de temas con búsqueda, sin entrar a Configuración. El atajo se puede cambiar (`pick_theme`).
 - Búsqueda global y Quick Open: al abrir un resultado, el buscador del editor (Markdown en lectura y edición, YAML/JSON y texto) queda cargado con el término buscado y posicionado en la primera coincidencia.
 - Chat del agente (ACP): `/btw <pregunta>` hace una pregunta aparte sin interrumpir el turno en curso. La respuesta sale en un panel flotante sobre la caja de texto, no entra en la conversación ni en el historial y se cierra con Esc; «Convertir en conversación» la continúa aparte. Rechaza los permisos que pida el agente.
 - Chat del agente (ACP): `/fork [mensaje]` abre otra conversación con el contexto de la actual, también con el turno en curso. `/btw` y `/fork` usan `session/fork` si el agente lo anuncia (Claude) y, si no, le reenvían la conversación como texto (agy); la sugerencia del comando dice cuál de las dos.

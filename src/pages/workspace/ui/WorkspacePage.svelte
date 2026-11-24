@@ -5,6 +5,7 @@
   import WorkspacePane from "./WorkspacePane.svelte";
   import {StatusBar} from "@widgets/status-bar";
   import {CommandPalette} from "@widgets/command-palette";
+  import { ThemePicker } from "@widgets/theme-picker";
   import {ShortcutsPanel} from "@widgets/shortcuts-panel";
   import {QuickOpen} from "@widgets/quick-open";
   import {FullTextSearch} from "@widgets/full-text-search";
@@ -258,6 +259,15 @@
   }
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
+  let isThemePickerOpen = $state(false);
+  /** Lista de temas; el tema se guarda en la bóveda, así que sin bóveda no se abre. */
+  function toggleThemePicker() {
+    if (showWelcomeScreen || isStandaloneMode) return;
+    isQuickOpenOpen = false;
+    isFullTextSearchOpen = false;
+    isPaletteOpen = false;
+    isThemePickerOpen = !isThemePickerOpen;
+  }
   let isShortcutsPanelOpen = $state(false);
   let isQuickOpenOpen = $state(false);
 
@@ -4087,6 +4097,13 @@
         action: () => appSettings.toggleTheme(),
       },
       {
+        id: "cmd-pick-theme",
+        name: "Elegir tema…",
+        category: "Apariencia",
+        shortcut: shortcutsConfig.workspace.pick_theme,
+        action: toggleThemePicker,
+      },
+      {
         id: "cmd-theme-system",
         name: "Tema: Seguir sistema operativo (Auto)",
         category: "Apariencia",
@@ -4165,7 +4182,7 @@
       }
 
       // Si un modal de búsqueda o paleta está abierto, no robar teclas de navegación con modificadores
-      if (isQuickOpenOpen || isFullTextSearchOpen || isPaletteOpen) {
+      if (isQuickOpenOpen || isFullTextSearchOpen || isPaletteOpen || isThemePickerOpen) {
         if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           return;
         }
@@ -4249,6 +4266,11 @@
       if (matchesShortcut(e, ws.open_vault_folder)) {
         stopEvent();
         handleOpenVaultFolder();
+        return;
+      }
+      if (matchesShortcut(e, ws.pick_theme)) {
+        stopEvent();
+        toggleThemePicker();
         return;
       }
       if (matchesShortcut(e, ws.toggle_theme)) {
@@ -5181,7 +5203,7 @@
                       {content}
                       readOnly={!paneEditing}
                       vimMode={isVimMode}
-                      mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : 'markdown'}
+                      mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : /\.sql$/i.test(tabFile) ? 'sql' : 'markdown'}
                       filePath={tabFile}
                       gitBaseContent={gitBaseContents[tabFile] ?? null}
                       scrollToTerms={pendingScrollTerms[tabPath]}
@@ -5446,6 +5468,7 @@
 
   <!-- 4. PALETA DE COMANDOS (OVERLAY CTRL+P) -->
   <CommandPalette bind:isOpen={isPaletteOpen}/>
+  <ThemePicker bind:isOpen={isThemePickerOpen} />
   <GitMissingDialog bind:open={gitMissingOpen} />
   {#if linkChoice}
   <LinkChooser

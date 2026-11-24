@@ -1,0 +1,81 @@
+/*
+ * @nombre Solarized
+ *
+ * Tema integrado «Solarized», con la paleta de Ethan Schoonover. Claro: crema. Oscuro: azul petróleo.
+ * Títulos en cian, enlaces azules y citas con borde naranja. Para modificarlo, copiar a
+ * <bóveda>/.synapse/themes/solarized.css.
+ */
+
+html[data-theme='light'] {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #fdf6e3;
+  --bg-tertiary: #eee8d5;
+  --text-primary: #586e75;
+  --text-secondary: #657b83;
+  --border-primary: #d5cdb6;
+  --border-subtle: rgba(88, 110, 117, 0.15);
+  --on-accent: #fdf6e3;
+  --hover-bg: rgba(88, 110, 117, 0.08);
+  --active-bg: rgba(88, 110, 117, 0.14);
+  --code-inline-bg: #eee8d5;
+  --table-alt-row: rgba(238, 232, 213, 0.5);
+  --syntax-comment: #93a1a1;
+}
+
+html[data-theme='dark'] {
+  --bg-primary: #002b36;
+  --bg-secondary: #002b36;
+  --bg-tertiary: #073642;
+  --text-primary: #93a1a1;
+  --text-secondary: #839496;
+  --border-primary: #0f4a58;
+  --border-subtle: rgba(147, 161, 161, 0.15);
+  --on-accent: #002b36;
+  --hover-bg: rgba(147, 161, 161, 0.08);
+  --active-bg: rgba(147, 161, 161, 0.15);
+  --code-inline-bg: #073642;
+  --table-alt-row: rgba(7, 54, 66, 0.6);
+  --syntax-comment: #586e75;
+}
+
+html[data-theme] {
+  --accent: #2aa198;
+  --accent-bg: rgba(42, 161, 152, 0.14);
+  --accent-border: rgba(42, 161, 152, 0.45);
+  --success: #859900;
+  --warning: #b58900;
+  --danger: #dc322f;
+  --purple: #6c71c4;
+  --syntax-keyword: #859900;
+  --syntax-string: #2aa198;
+  --syntax-function: #268bd2;
+  --syntax-variable: #cb4b16;
+  --syntax-type: #b58900;
+  --syntax-number: #d33682;
+  --h1-color: #2aa198;
+  --h2-color: #2aa198;
+  --h3-color: #2aa198;
+  --h4-color: #2aa198;
+  --h5-color: #2aa198;
+  --h6-color: #2aa198;
+  --icon-folder-color: var(--text-secondary);
+}
+
+.synapse-tab.active {
+  box-shadow: inset 0 -2px 0 #cb4b16;
+}
+
+/* Los enlaces son azules, en lectura y en el editor (usan --accent) */
+.markdown-body a,
+.synapse-editor .cm-content {
+  --accent: #268bd2;
+}
+
+.markdown-body a {
+  color: var(--accent);
+}
+
+.markdown-body blockquote {
+  border-left-color: #cb4b16;
+  color: var(--text-primary);
+}

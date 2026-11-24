@@ -91,7 +91,8 @@
         entries: [
           { label: 'Recargar archivo activo', shortcut: ws.reload_active_file },
           { label: 'Recargar bóveda', shortcut: ws.reload_vault },
-          { label: 'Cambiar tema', shortcut: ws.toggle_theme },
+          { label: 'Alternar tema claro / oscuro', shortcut: ws.toggle_theme },
+          { label: 'Elegir tema', shortcut: ws.pick_theme },
           { label: 'Índice de la nota o de las claves', shortcut: ws.toggle_outline },
           { label: 'Herramientas de desarrollo', shortcut: ws.toggle_devtools },
           { label: 'Git: push', shortcut: ws.git_push },

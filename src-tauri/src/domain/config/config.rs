@@ -141,6 +141,9 @@ pub struct WorkspaceShortcutsConfig {
     pub nav_forward: String,
     #[serde(default = "default_ws_toggle_theme")]
     pub toggle_theme: String,
+    /// Abre la lista de temas para cambiar directo
+    #[serde(default = "default_ws_pick_theme")]
+    pub pick_theme: String,
     #[serde(default = "default_ws_toggle_devtools")]
     pub toggle_devtools: String,
     #[serde(default = "default_ws_toggle_edit_mode")]
@@ -210,6 +213,10 @@ fn default_ws_nav_back() -> String {
 fn default_ws_nav_forward() -> String {
     "Alt+ArrowRight".to_string()
 }
+fn default_ws_pick_theme() -> String {
+    "Ctrl+`".to_string()
+}
+
 fn default_ws_toggle_theme() -> String {
     "Ctrl+Shift+T".to_string()
 }
@@ -263,6 +270,7 @@ impl Default for WorkspaceShortcutsConfig {
             nav_back: default_ws_nav_back(),
             nav_forward: default_ws_nav_forward(),
             toggle_theme: default_ws_toggle_theme(),
+            pick_theme: default_ws_pick_theme(),
             toggle_devtools: default_ws_toggle_devtools(),
             toggle_edit_mode: default_ws_toggle_edit_mode(),
             next_tab: default_ws_next_tab(),
