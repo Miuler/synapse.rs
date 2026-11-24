@@ -65,7 +65,7 @@ it('zoom: Ctrl++ y el control agrandan la página entera; «Ajustar al ancho» l
       })) as boolean,
     { timeout: 5_000, timeoutMsg: 'no se ajustó al ancho' },
   );
-  await s.browser.saveScreenshot('/tmp/claude-1000/-home-miuler-src-github-com-Miuler-synapse-rs/47a613e4-73f4-47e2-9153-fa7e86d7bbd0/scratchpad/docx-fit.png');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/docx-fit.png`);
   // Con mucho zoom la página no se corta por la izquierda: se llega a su borde desplazando
   for (let i = 0; i < 12; i++) await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-in') as HTMLElement).click());
   await s.browser.pause(300);

@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Chat del agente: corregido un error por el que los mensajes encolados mientras el agente trabajaba no se enviaban al terminar el turno.
 - Diálogos redimensionables (Índice de la nota `Ctrl+F12` y diálogos de Git): se muestra el indicador de redimensionado en la esquina inferior derecha, se amplían las áreas de agarre en bordes y esquinas y se captura el puntero durante el arrastre para redimensionar de forma fiable.
 - Chat del agente: al colapsar un bloque de razonamiento ahora muestra «Razonamiento…» junto al icono en lugar de solo el emoji, y al expandirlo se elimina el espacio en blanco sobrante antes de las tarjetas de herramientas.
 - Chat del agente: los enlaces `file://` de sus respuestas no abrían nada (el saneado del HTML les quitaba el destino). Ahora abren el archivo de la bóveda y un ancla `#L56-L65` lo abre en el editor con esas líneas seleccionadas. Si la ruta no cae en la bóveda (otra raíz u otra copia del repositorio), se busca por el final de la ruta en el índice: uno se abre, varios dan a elegir.

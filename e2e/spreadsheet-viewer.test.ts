@@ -175,7 +175,7 @@ it('zoom: Ctrl++ agranda toda la rejilla (anchos, altos y letra), Ctrl+0 vuelve'
   const b120 = await box();
   expect(b120.h / b100.h).toBeCloseTo(1.2, 1);
   expect(b120.font / b100.font).toBeCloseTo(1.2, 1);
-  await s.browser.saveScreenshot('/tmp/claude-1000/-home-miuler-src-github-com-Miuler-synapse-rs/47a613e4-73f4-47e2-9153-fa7e86d7bbd0/scratchpad/sheet-120.png');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/sheet-120.png`);
   await s.browser.keys(['Control', '0']);
   await s.browser.waitUntil(async () => Math.abs((await box()).w - b100.w) < 1, { timeout: 5_000, timeoutMsg: 'Ctrl+0 no volvió al 100 %' });
 }, 60_000);

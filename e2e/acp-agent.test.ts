@@ -538,7 +538,7 @@ it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ 
 
   // ↑ con la caja vacía saca el último de la cola para editarlo; Detener devuelve la cola a la caja
   await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 10_000 });
-  await say('trabajo lento');
+  await say('trabajo muy lento');
   await s.browser.$('.acp-send[title^="Detener"]').waitForExist({ timeout: 5_000 });
   await say('eco: tres');
   await s.browser.waitUntil(async () => (await queued()).length === 1, { timeout: 5_000 });

@@ -494,7 +494,7 @@ export class Conversation {
         }
       }
       this.#turnHops = 0;
-      if (stopReason !== 'cancelled' && !opts.replyTo && this.queued.length === 0) {
+      if (stopReason !== 'cancelled' && !opts.replyTo && this.queue.length === 0) {
         void playAgentCompletionSound();
       }
       this.deliverNext();

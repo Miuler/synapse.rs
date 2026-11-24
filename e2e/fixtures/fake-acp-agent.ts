@@ -132,8 +132,9 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }
-    // «trabajo lento»: el turno dura 2,5 s sin bloquear la lectura (para encolar y cancelar)
-    if (said.includes('trabajo lento')) {
+    // «trabajo lento» / «trabajo muy lento»: el turno tarda sin bloquear la lectura (para encolar y cancelar)
+    if (said.includes('trabajo lento') || said.includes('trabajo muy lento')) {
+      const delay = said.includes('muy lento') ? 10_000 : 2_500;
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Empiezo un trabajo lento…' } });
       const id = msg.id;
       slow = {
@@ -142,7 +143,7 @@ for await (const line of createInterface({ input: process.stdin })) {
           update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ' terminado.' } });
           send({ jsonrpc: '2.0', id, result: { stopReason: 'end_turn' } });
           slow = null;
-        }, 2_500),
+        }, delay),
       };
       continue;
     }
