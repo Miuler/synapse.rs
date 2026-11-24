@@ -26,7 +26,6 @@ src-tauri/target
 *.sln
 *.sw?
 
-/bun.lock
 .synapse
 
 # Archivos generados por herramientas, no del proyecto
