@@ -59,7 +59,7 @@ Línea de comandos, formatos, configuración y servidor MCP: [referencia de la i
 
 ### 4. 🔋 Baterías Incluidas: Notas, Tablas, Documentos y Diagramas
 Todo viene integrado de serie, sin instalar plugins para trabajar con documentación técnica real:
-- **Markdown fluido y tablas mejoradas:** Editor híbrido (CodeMirror 6), alternancia rápida lectura/edición (`F2`), enlaces a encabezados (`[[nota#Título]]`) y transclusión (`![[nota#Título]]`). Las **tablas en modo En vivo** se mantienen como texto real del documento con columnas alineadas al ancho real del texto, navegación fila por fila (`↑`/`↓`) sin desfasar líneas y editor visual bajo demanda. Además, atajo `Ctrl+Enter` para tareas y copia de listas como `☐` / `✅` para correo o Teams.
+- **Markdown fluido y tablas mejoradas:** Editor híbrido (CodeMirror 6), alternancia rápida lectura/edición (`F2` o `Alt+E`), enlaces a encabezados (`[[nota#Título]]`) y transclusión (`![[nota#Título]]`). Las **tablas en modo En vivo** se mantienen como texto real del documento con columnas alineadas al ancho real del texto, navegación fila por fila (`↑`/`↓`) sin desfasar líneas y editor visual bajo demanda. Además, atajo `Ctrl+Enter` para tareas y copia de listas como `☐` / `✅` para correo o Teams.
 - **Todos los diagramas de arquitectura integrados:**
   - **D2 Lang** (motores ELK/TALA), **Mermaid & Merman** (con puntero láser) y **PlantUML** (`.puml`, `.plantuml`).
   - **Excalidraw** (`.excalidraw.md`) y **draw.io** (`.drawio`, `.drawio.png`, `.drawio.svg`).

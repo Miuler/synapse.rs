@@ -74,7 +74,7 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     pick_theme: 'Ctrl+`',
     toggle_devtools: 'F12, Ctrl+Shift+I',
     toggle_outline: 'Ctrl+F12',
-    toggle_edit_mode: 'F2',
+    toggle_edit_mode: 'F2, Alt+E',
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
     git_push: 'Ctrl+Shift+K',

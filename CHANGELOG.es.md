@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Atajo `Alt+E` para alternar entre lectura y edición (además de `F2`): una pulsación entra a edición y la siguiente vuelve a lectura.
 - Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
 
 ### Seguridad

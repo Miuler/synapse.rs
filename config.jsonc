@@ -244,7 +244,7 @@
       // Abrir o cerrar herramientas de desarrollo (DevTools)
       "toggle_devtools": "F12, Ctrl+Shift+I",
       // Alternar entre modo Edición y modo Lectura de la nota activa
-      "toggle_edit_mode": "F2",
+      "toggle_edit_mode": "F2, Alt+E",
       // Cambiar a la pestaña siguiente
       "next_tab": "Ctrl+PageDown, Ctrl+Tab",
       // Cambiar a la pestaña anterior

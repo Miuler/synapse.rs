@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Shortcut `Alt+E` toggles between reading and editing (besides `F2`): one press enters editing and the next returns to reading.
 - License: Synapse.rs is now free software under GPL-3.0-or-later. `synapse-server/` (only a proof of concept), the name and the logos are not included.
 
 ### Security

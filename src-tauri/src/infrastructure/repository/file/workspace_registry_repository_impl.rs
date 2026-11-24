@@ -234,7 +234,7 @@ impl WorkspaceRegistryRepositoryImpl {
     // Cambiar a la pestaña anterior
     "prev_tab": "Ctrl+PageUp, Ctrl+Shift+Tab",
     // Alternar entre modo Edición y modo Lectura de la nota activa
-    "toggle_edit_mode": "F2",
+    "toggle_edit_mode": "F2, Alt+E",
     // Enviar commits locales al repositorio remoto (Git Push)
     "git_push": "Ctrl+Shift+K",
     // Aumentar el tamaño del texto en el editor y la previsualización
