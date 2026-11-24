@@ -45,6 +45,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Índice de carpeta (`index.md` OKF): las listas de carpetas, conceptos y archivos se renderizan en vista de lectura con aspecto similar al explorador (iconos de carpeta y tipo de archivo, metadatos discretos, estado Git y candado, y fila completa clickeable) sin modificar el archivo físico OKF en disco.
 - Visor de diff de texto: migrado de `@git-diff-view/svelte` a `@codemirror/merge` para mejorar el rendimiento en archivos grandes.
 - Menús contextuales del explorador de bóveda y breadcrumb: todas las opciones de Git ahora aparecen agrupadas juntas en la parte superior.
 - Diálogos redimensionables unificados sobre `@shared/ui/dialog-resize` en `QuickOpen`, `FullTextSearch`, `CommandPalette`, `SettingsPanel`, `ShortcutsPanel` y `CommunityPluginsModal` (conserva tamaños guardados, grip en esquina inferior derecha y arrastre desde la cabecera en plugins comunitarios).

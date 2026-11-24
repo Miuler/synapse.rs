@@ -161,3 +161,63 @@ it('Ctrl+Alt+1 en un index.md selecciona su carpeta sin desplegarla', async () =
   );
   expect(await childVisible()).toBe(false);
 }, 30_000);
+
+it('renderiza las filas de index.md al estilo del explorador sin cambiar el archivo físico OKF', async () => {
+  // 1. Raíz (index.md): tiene carpeta «proyecto/» y archivo «nota.md»
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="index.md"]') as HTMLElement)?.click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'index.md',
+    { timeout: 10_000 },
+  );
+  await s.browser.$('.tab-pane:not(.hidden) .okf-explorer-row.okf-explorer-folder .okf-explorer-icon svg').waitForExist({
+    timeout: 10_000,
+    timeoutMsg: 'no se renderizó la carpeta proyecto/ al estilo del explorador en index.md',
+  });
+  const rootFolderRows = await s.browser.execute(
+    () => document.querySelectorAll('.tab-pane:not(.hidden) .okf-explorer-row.okf-explorer-folder').length,
+  );
+  expect(rootFolderRows).toBeGreaterThanOrEqual(1);
+
+  // 2. Carpeta (proyecto/index.md): conceptos y archivos con icono + descripción sin modificar el OKF físico
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md',
+    { timeout: 10_000 },
+  );
+  await s.browser.$('.tab-pane:not(.hidden) .okf-explorer-row .okf-explorer-icon svg').waitForExist({
+    timeout: 10_000,
+    timeoutMsg: 'no se renderizaron los iconos tipo explorador en proyecto/index.md',
+  });
+
+  const rendered = (await s.browser.execute(() => {
+    const pane = document.querySelector('.tab-pane:not(.hidden)')!;
+    const lists = pane.querySelectorAll('ul.okf-explorer-list').length;
+    const planLink = [...pane.querySelectorAll('.okf-explorer-row a')].find((a) => a.getAttribute('href') === 'plan.md');
+    const planRow = planLink?.closest('.okf-explorer-row');
+    return {
+      lists,
+      hasFileSvg: !!planRow?.querySelector('.okf-explorer-icon svg'),
+      metaText: planRow?.querySelector('.okf-explorer-meta')?.textContent?.trim() ?? '',
+    };
+  })) as { lists: number; hasFileSvg: boolean; metaText: string };
+
+  expect(rendered.lists).toBeGreaterThanOrEqual(2);
+  expect(rendered.hasFileSvg).toBe(true);
+  expect(rendered.metaText).toBe('El plan del trimestre');
+
+  // El archivo físico en disco conserva el formato estándar OKF
+  expect(read('proyecto/index.md')).toContain('* [Plan](plan.md) - El plan del trimestre');
+  expect(read('index.md')).toContain('* [proyecto](proyecto/)');
+
+  // Hacer clic en la descripción de la fila también abre la nota
+  await s.browser.execute(() => {
+    const pane = document.querySelector('.tab-pane:not(.hidden)')!;
+    const planLink = [...pane.querySelectorAll('.okf-explorer-row a')].find((a) => a.getAttribute('href') === 'plan.md');
+    const meta = planLink?.closest('.okf-explorer-row')?.querySelector('.okf-explorer-meta') as HTMLElement;
+    meta.click();
+  });
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/plan.md',
+    { timeout: 10_000, timeoutMsg: 'clic en la fila no abrió plan.md' },
+  );
+}, 30_000);

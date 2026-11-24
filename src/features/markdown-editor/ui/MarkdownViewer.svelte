@@ -16,6 +16,7 @@
   import { youtubeLivePreviewField } from '../lib/youtube-extension';
   import { tableLivePreviewField, tableRawField } from '../lib/table-extension';
   import type { MarkdownViewMode } from '@entities/vault-item';
+  import type { GitFileStatusKind } from '@shared/repositories';
   import { wikilinkLivePreviewField, onNavigateFacet } from '../lib/wikilink-extension';
   import { findHeadingLine, extractHeadingTree, flattenHeadings, normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { wikilinkAutocomplete } from '../lib/wikilink-autocomplete';
@@ -55,6 +56,8 @@
     onHeadingLineChange?: (line: number) => void;
     /** Contenido base de Git (HEAD) para mostrar indicadores de líneas nuevas/modificadas en el gutter. */
     gitBaseContent?: string | null;
+    gitStatuses?: Record<string, GitFileStatusKind>;
+    lockedFiles?: Set<string>;
   }
 
   let {
@@ -73,6 +76,8 @@
     onSelectionChange,
     onHeadingLineChange,
     gitBaseContent = null,
+    gitStatuses = {},
+    lockedFiles,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -1218,7 +1223,7 @@
 
 <div class="editor-wrapper synapse-editor" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} {gitStatuses} {lockedFiles} />
   {/if}
   <div
     class="editor-container"

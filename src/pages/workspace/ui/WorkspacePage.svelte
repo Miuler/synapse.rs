@@ -5080,6 +5080,8 @@
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                       editorExtensions={pluginEditorExtensions}
                       gitBaseContent={gitBaseContents[tabFile] ?? null}
+                      {gitStatuses}
+                      {lockedFiles}
                       isMarkdown={true}
                     />
                   </div>

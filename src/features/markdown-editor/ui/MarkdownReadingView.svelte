@@ -7,7 +7,7 @@
   import { resolveIncludes } from '../lib/include-resolver';
   import { appSettings } from '@entities/settings';
   import { renderUnifiedDiagramSvg, renderExcalidrawToSvg } from '@shared/lib/diagrams';
-  import { vaultRepository } from '@shared/repositories';
+  import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
   import { normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
@@ -25,6 +25,8 @@
     onNavigate?: (path: string) => void;
     isActive?: boolean;
     vimMode?: boolean;
+    gitStatuses?: Record<string, GitFileStatusKind>;
+    lockedFiles?: Set<string>;
   }
 
   let {
@@ -35,11 +37,14 @@
     onNavigate,
     isActive = true,
     vimMode = false,
+    gitStatuses = {},
+    lockedFiles,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let renderedHtml = $state('');
   let frontmatterData = $state<Record<string, any>>({});
+  let cleanupFolderIndex: (() => void) | null = null;
 
   export function focus() {
     tick().then(() => {
@@ -110,7 +115,11 @@
     if (searchTimer) performSearch();
   }
 
-  onDestroy(cancelScheduledSearch);
+  onDestroy(() => {
+    cancelScheduledSearch();
+    cleanupFolderIndex?.();
+    cleanupFolderIndex = null;
+  });
 
   export function triggerSearch() {
     showSearchBar = true;
@@ -730,11 +739,15 @@
       if (!isCurrent) return;
       renderDiagrams();
       renderImages();
-      // Índice de carpeta generado: botones para crear archivos y subcarpetas en ella
+      // Índice de carpeta generado: botones de acción y vista tipo explorador
       const body = containerRef?.querySelector<HTMLElement>('.markdown-body');
+      cleanupFolderIndex?.();
+      cleanupFolderIndex = null;
       if (body && isGeneratedFolderIndex(filePath, raw)) {
         const folder = filePath!.includes('/') ? filePath!.slice(0, filePath!.lastIndexOf('/')) : '';
-        decorateFolderIndex(body, folder);
+        cleanupFolderIndex = decorateFolderIndex(body, folder, untrack(() => ({ gitStatuses, lockedFiles })));
+      } else {
+        body?.classList.remove('okf-folder-index');
       }
       if (scrollToHeading) {
         goToHeading(scrollToHeading.text);
@@ -775,6 +788,23 @@
       });
     }
   });
+  $effect(() => {
+    // Re-decorar badges de Git y candados al actualizarse sin regenerar el HTML
+    const statuses = gitStatuses;
+    const locked = lockedFiles;
+    const path = filePath;
+    const raw = content;
+    const html = renderedHtml;
+    if (!html || !isGeneratedFolderIndex(path, raw)) return;
+    tick().then(() => {
+      const body = containerRef?.querySelector<HTMLElement>('.markdown-body');
+      if (!body) return;
+      cleanupFolderIndex?.();
+      const folder = path!.includes('/') ? path!.slice(0, path!.lastIndexOf('/')) : '';
+      cleanupFolderIndex = decorateFolderIndex(body, folder, { gitStatuses: statuses, lockedFiles: locked });
+    });
+  });
+
   $effect(() => {
     // Si se re-renderiza el HTML y la barra de búsqueda está abierta, refrescar
     if (renderedHtml && untrack(() => showSearchBar && searchQuery)) {
@@ -1391,5 +1421,107 @@
   .markdown-body :global(.folder-index-actions select:hover),
   .markdown-body :global(.folder-index-actions button:hover) {
     border-color: var(--accent);
+  }
+
+  /* Render tipo VaultExplorer para los index.md OKF */
+  .markdown-body :global(ul.okf-explorer-list) {
+    list-style: none;
+    padding-left: 0;
+    margin: 4px 0 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .markdown-body :global(.okf-explorer-row) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    margin: 0;
+    border-radius: 5px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+    min-width: 0;
+  }
+
+  .markdown-body :global(.okf-explorer-row:hover) {
+    background-color: var(--hover-bg, rgba(127, 127, 127, 0.08));
+  }
+
+  .markdown-body :global(.okf-explorer-row.okf-explorer-folder) {
+    font-weight: 600;
+  }
+
+  .markdown-body :global(.okf-explorer-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .markdown-body :global(.okf-explorer-row a) {
+    color: var(--text-secondary, #656d76);
+    text-decoration: none;
+    font-weight: inherit;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .markdown-body :global(.okf-explorer-row.okf-explorer-folder a) {
+    color: var(--text-primary, #1f2328);
+  }
+
+  .markdown-body :global(.okf-explorer-row:hover a) {
+    color: var(--text-primary, #1f2328);
+    text-decoration: none;
+    opacity: 1;
+  }
+
+  .markdown-body :global(.okf-explorer-row.git-modified a) {
+    color: var(--git-modified, #d97706);
+  }
+
+  .markdown-body :global(.okf-explorer-row.git-staged a) {
+    color: var(--git-staged, #16a34a);
+  }
+
+  .markdown-body :global(.okf-explorer-row.git-untracked a) {
+    color: var(--git-untracked, #ca8a04);
+  }
+
+  .markdown-body :global(.okf-explorer-row.git-stashed a) {
+    color: var(--git-stashed, var(--purple, #7c3aed));
+  }
+
+  .markdown-body :global(.okf-explorer-meta) {
+    color: var(--text-muted, #8c959f);
+    font-size: 0.86em;
+    font-weight: 400;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 1;
+  }
+
+  .markdown-body :global(.okf-explorer-badges) {
+    margin-left: auto;
+    padding-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .markdown-body :global(.okf-explorer-lock) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #8c959f);
   }
 </style>
