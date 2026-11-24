@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { commandRegistry, type AppCommand } from '@entities/command';
-  import { Command, Dialog } from 'bits-ui';
+  import { commandKeywords, commandRegistry, type AppCommand } from '@entities/command';
+  import { Command, computeCommandScore, Dialog } from 'bits-ui';
   import { SearchBox } from '@shared/ui/search-box';
   import { Kbd } from '@shared/ui/kbd';
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
@@ -34,7 +34,29 @@
     closePalette();
   }
 
-  let allCommands = $derived(commandRegistry.all);
+  // bits-ui filtra pero no reordena los elementos sin grupo: se ordenan aquí, del más parecido al menos
+  let shownCommands = $derived.by(() => {
+    const query = searchValue.trim();
+    if (!query) return commandRegistry.all;
+    return commandRegistry.all
+      .map((cmd) => ({
+        cmd,
+        score: computeCommandScore(itemValue(cmd), query, commandKeywords(cmd.id)),
+      }))
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((r) => r.cmd);
+  });
+
+  // Al escribir, queda elegido el primer resultado
+  let selected = $state('');
+  $effect(() => {
+    selected = searchValue.trim() && shownCommands.length ? itemValue(shownCommands[0]) : selected;
+  });
+
+  function itemValue(cmd: AppCommand): string {
+    return `${cmd.name} ${cmd.category} ${cmd.shortcut || ''}`;
+  }
 </script>
 
 <Dialog.Root
@@ -54,7 +76,7 @@
     >
       <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
       <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
-      <Command.Root class="command-root" loop>
+      <Command.Root class="command-root" loop shouldFilter={false} bind:value={selected}>
         <SearchBox
           bind:value={searchValue}
           placeholder="Escribe un comando o busca..."
@@ -63,10 +85,10 @@
         <Command.List class="results-container">
           <Command.Empty class="empty-state">No se encontraron comandos</Command.Empty>
 
-          {#each allCommands as cmd (cmd.id)}
+          {#each shownCommands as cmd (cmd.id)}
             <Command.Item
               class="command-item"
-              value={`${cmd.name} ${cmd.category} ${cmd.shortcut || ''}`}
+              value={itemValue(cmd)}
               onSelect={() => executeCommand(cmd)}
             >
               <span class="category-tag">{cmd.category}</span>

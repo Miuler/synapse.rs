@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- Paleta de comandos (Ctrl+P): los comandos también se encuentran escribiendo en inglés (`update` o `upgrade`, `close tab`, `dark mode`…).
+
 ## [1.0.0-beta.8] - 2026-11-24
 
 ### Seguridad
