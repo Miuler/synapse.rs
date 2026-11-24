@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { lineOfTableRow, tableLineRanges, tableRowAtLine } from '../lib/table-anchor';
   import { onMount, onDestroy, untrack, tick } from 'svelte';
   import { basicSetup } from 'codemirror';
   import { EditorView, keymap } from '@codemirror/view';
@@ -185,7 +186,15 @@
   }
 
   // Primer bloque visible en lectura: al pasar a edición, el cursor va a esa línea del archivo.
-  let readingAnchor: { headingLine: number; text: string } | null = null;
+  let readingAnchor: { headingLine: number; text: string; tableRow?: { table: number; row: number } } | null = null;
+
+  /** Tablas de la nota en lectura (sin las de notas incrustadas); vacío si no casan con las del archivo. */
+  function readingTables(lines: string[]): HTMLTableElement[] {
+    const tables = [...(wrapperRef?.querySelectorAll<HTMLTableElement>('.markdown-body table') ?? [])].filter(
+      (t) => !t.closest('.note-embed'),
+    );
+    return tables.length === tableLineRanges(lines).length ? tables : [];
+  }
 
   function captureReadingAnchor() {
     const root = wrapperRef?.querySelector('.markdown-body');
@@ -194,7 +203,14 @@
     for (const block of root.children) {
       if (block.getBoundingClientRect().bottom <= top) continue;
       const text = (block.textContent ?? '').trim().split('\n')[0].trim();
-      readingAnchor = { headingLine: currentHeadingLine(), text };
+      // En una tabla larga, la primera fila visible y no el principio de la tabla
+      const tables = block.matches('table') || block.querySelector('table') ? readingTables(content.split('\n')) : [];
+      const table = tables.findIndex((t) => {
+        const r = t.getBoundingClientRect();
+        return block.contains(t) && r.top <= top && r.bottom > top;
+      });
+      const row = table < 0 ? -1 : [...tables[table].rows].findIndex((tr) => tr.getBoundingClientRect().bottom > top);
+      readingAnchor = { headingLine: currentHeadingLine(), text, tableRow: row > 0 ? { table, row } : undefined };
       return;
     }
   }
@@ -216,7 +232,8 @@
     if (!editorView || !anchor) return;
     const doc = editorView.state.doc;
     const lines = doc.toString().split('\n');
-    const index = findAnchorLine(lines, anchor);
+    const rowLine = anchor.tableRow ? lineOfTableRow(lines, anchor.tableRow.table, anchor.tableRow.row) : null;
+    const index = rowLine ?? findAnchorLine(lines, anchor);
     if (index === 0 && anchor.headingLine < 0 && !anchor.text) return;
     const line = doc.line(Math.min(index + 1, doc.lines));
     editorView.dispatch({
@@ -244,6 +261,13 @@
     if (lineNo === null || !root) return;
     if (lineNo === 0) return;
     const lines = content.split('\n');
+    const tableRow = tableRowAtLine(lines, lineNo);
+    const rowEl = tableRow && tableRow.row > 0 ? readingTables(lines)[tableRow.table]?.rows[tableRow.row] : undefined;
+    if (rowEl) {
+      readingViewRef?.reveal(rowEl);
+      rowEl.scrollIntoView({ block: 'start' });
+      return;
+    }
     // Texto de la primera línea con contenido desde la línea visible
     let wanted = '';
     for (let i = lineNo; i < lines.length && !wanted; i++) wanted = plainText(lines[i]).slice(0, 30);
