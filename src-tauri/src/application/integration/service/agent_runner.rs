@@ -1,5 +1,5 @@
 use crate::domain::agent::{
-    AgentLaunch, AgentSession, ElicitationDecision, PermissionDecision, PromptBlock, ToolServer,
+    AgentConfig, AgentLaunch, AgentSession, ElicitationDecision, PermissionDecision, PromptBlock, ToolServer,
 };
 use std::future::Future;
 
@@ -55,6 +55,14 @@ pub trait AgentRunner: Send + Sync {
         session_id: &str,
         model_id: &str,
     ) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Cambia una opción de configuración y devuelve el modelo y el esfuerzo resultantes.
+    fn set_option(
+        &self,
+        session_id: &str,
+        option_id: &str,
+        value: &str,
+    ) -> impl Future<Output = Result<AgentConfig, String>> + Send;
 
     fn stop(&self, session_id: &str) -> impl Future<Output = Result<(), String>> + Send;
 

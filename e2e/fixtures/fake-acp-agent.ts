@@ -17,6 +17,18 @@ let slow: { id: unknown; timer: ReturnType<typeof setTimeout> } | null = null;
 /** Pregunta aparte esperando la respuesta a su permiso */
 let side: { id: unknown; sessionId: string; context: boolean } | null = null;
 let mcp: string[] = [];
+/** Con `--config`, anuncia modelo y esfuerzo en `configOptions` (sin `models`), como Claude */
+const withConfig = process.argv.includes('--config');
+let fakeModel = 'uno';
+let fakeEffort = 'default';
+const choice = (id: string, category: string, currentValue: string, values: string[]) => ({
+  id, category, type: 'select', name: id, currentValue, options: values.map((v) => ({ value: v, name: v === 'dos' ? 'Modelo dos' : v === 'uno' ? 'Modelo uno' : v })),
+});
+// «Modelo dos» no ofrece esfuerzo
+const configOptions = () => [
+  choice('model', 'model', fakeModel, ['uno', 'dos']),
+  ...(fakeModel === 'uno' ? [choice('effort', 'thought_level', fakeEffort, ['default', 'low', 'high'])] : []),
+];
 let mcpTools = 'sin-probar';
 /** Resultado de pedir un diagrama como imagen al MCP (marca de read_note + render_diagram). */
 let diagramInfo = 'sin-probar';
@@ -102,6 +114,8 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (msg.method === 'session/new') {
     cwd = msg.params?.cwd ?? cwd;
     current = `ses-e2e-${++opened}`;
+    fakeModel = 'uno';
+    fakeEffort = 'default';
     const servers = msg.params.mcpServers ?? [];
     mcp = servers.map((s: { name: string; command?: string }) => `${s.name}:${s.command ? 'stdio' : 'http'}`);
     const stdio = servers.find((s: { command?: string }) => s.command);
@@ -112,6 +126,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       id: msg.id,
       result: {
         sessionId: current,
+        ...(withConfig ? { configOptions: configOptions() } : {}),
         modes: { currentModeId: 'ask', availableModes: [{ id: 'ask', name: 'Preguntar' }, { id: 'code', name: 'Programar' }] },
       },
     });
@@ -122,6 +137,10 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: slow.id, result: { stopReason: 'cancelled' } });
       slow = null;
     }
+  } else if (msg.method === 'session/set_config_option') {
+    if (msg.params.configId === 'model') fakeModel = msg.params.value;
+    else fakeEffort = msg.params.value;
+    send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: configOptions() } });
   } else if (msg.method === 'session/set_mode') {
     send({ jsonrpc: '2.0', id: msg.id, result: {} });
   } else if (msg.method === 'session/prompt') {

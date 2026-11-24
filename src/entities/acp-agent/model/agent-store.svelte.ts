@@ -5,10 +5,12 @@ import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
 import { load, save } from './storage';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
+import { savedModelChoice } from './legacy-model';
 import { replayText } from './replay-text';
 import { btwPrompt, conversationTitle, forkItems, PROMOTED_NOTE, readOnlyMode, rejectOption } from './side-question';
 import type {
   AgentCommand,
+  AgentConfig,
   AgentConnection,
   AgentProfile,
   AgentSession,
@@ -76,6 +78,8 @@ export class Conversation {
   usage = $state<Usage | null>(null);
   currentMode = $state<string | null>(null);
   currentModel = $state<string | null>(null);
+  /** Nivel de esfuerzo, si el agente lo ofrece para el modelo actual. */
+  currentEffort = $state<string | null>(null);
   attachments = $state<Attachment[]>([]);
   dismissedActiveNote = $state<string | null>(null);
   /** Lo escrito sin enviar (y las menciones elegidas en ello): sobrevive a cerrar el panel. */
@@ -122,6 +126,7 @@ export class Conversation {
   #turnReplay: string | null = null;
   /** Modelo de la conversación de origen (manda sobre el recordado para el agente). */
   #inheritedModel: string | null = null;
+  #inheritedEffort: string | null = null;
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(store: AgentStore, agentId: string, cwd: string, id: string = crypto.randomUUID()) {
@@ -236,12 +241,17 @@ export class Conversation {
       if (resume && !this.session.resumed && this.items.length) this.#replay = replayText(this.items);
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
+      this.currentEffort = this.session.current_effort;
       this.commands = this.#store.takeEarlyCommands(this.session.id);
       this.connection = 'ready';
       // Modelo recordado para este agente: no hay que elegirlo en cada conversación nueva
       const savedModel = this.#inheritedModel ?? load(`synapse.agent.model.${agent.id}`);
-      if (savedModel && savedModel !== this.currentModel && this.session.models.some((m) => m.id === savedModel)) {
-        await this.setModel(savedModel, !this.#inheritedModel);
+      const choice = savedModel ? savedModelChoice(savedModel, this.session.models, this.session.efforts) : null;
+      if (choice && choice.model !== this.currentModel) await this.setModel(choice.model, !this.#inheritedModel);
+      // El esfuerzo va después: los niveles dependen del modelo
+      const effort = this.#inheritedEffort ?? load(`synapse.agent.effort.${agent.id}`) ?? choice?.effort;
+      if (effort && effort !== this.currentEffort && this.session?.efforts.some((e) => e.id === effort)) {
+        await this.setEffort(effort, !this.#inheritedEffort);
       }
       if (resume) this.persist(true);
       this.deliverNext();
@@ -357,6 +367,9 @@ export class Conversation {
     const rows = [
       ['Agente', this.agent?.name ?? this.agentId],
       ['Modelo', model ?? '—'],
+      ...(this.currentEffort
+        ? [['Esfuerzo', this.session?.efforts.find((e) => e.id === this.currentEffort)?.name ?? this.currentEffort]]
+        : []),
       ['Modo', mode ?? '—'],
       ['Contexto', u ? `${fmt(u.used)} de ${fmt(u.size)} tokens (${((u.used / u.size) * 100).toFixed(1)} %)` : 'el agente no lo informó'],
       ['Costo', u?.cost ? `${u.cost.amount} ${u.cost.currency}` : 'el agente no lo informó'],
@@ -477,6 +490,7 @@ export class Conversation {
               turn_index: turnIndex,
               model: this.currentModel,
               mode: this.currentMode,
+              effort: this.currentEffort === 'default' ? null : this.currentEffort,
               started_at: turnStartedAt,
               ended_at: turnEndedAt,
               duration_ms: Math.max(0, turnEndedAt - turnStartedAt),
@@ -547,11 +561,41 @@ export class Conversation {
     const previous = this.currentModel;
     this.currentModel = modelId;
     try {
-      await agentApi.setModel(this.session.id, modelId);
+      const option = this.session.model_option;
+      if (option) this.applyConfig(await agentApi.setOption(this.session.id, option, modelId));
+      else await agentApi.setModel(this.session.id, modelId);
     } catch (e) {
       this.currentModel = previous;
       this.error(e);
     }
+  }
+
+  async setEffort(effortId: string, remember = true) {
+    const option = this.session?.effort_option;
+    if (!this.session || !option) return;
+    if (remember) save(`synapse.agent.effort.${this.session.agent_id}`, effortId);
+    const previous = this.currentEffort;
+    this.currentEffort = effortId;
+    try {
+      this.applyConfig(await agentApi.setOption(this.session.id, option, effortId));
+    } catch (e) {
+      this.currentEffort = previous;
+      this.error(e);
+    }
+  }
+
+  /** Modelos y esfuerzos tal como los deja el agente (cambiar de modelo puede cambiar los niveles). */
+  applyConfig(config: AgentConfig) {
+    if (!this.session) return;
+    // Una actualización sin modelos (opciones ajenas) no borra los que ya se conocían
+    if (config.models.length) {
+      this.session.models = config.models;
+      this.session.model_option = config.model_option;
+      this.currentModel = config.current_model;
+    }
+    this.session.efforts = config.efforts;
+    this.session.effort_option = config.effort_option;
+    this.currentEffort = config.current_effort;
   }
 
   async cancel() {
@@ -615,6 +659,7 @@ export class Conversation {
     this.#base = items.length ? [...items, { type: 'fork', id: this.#nextId++, handle: parent.handle, title: parent.title }] : [];
     if (items.some((i) => i.type === 'user')) this.#replay = replayText(items);
     this.#inheritedModel = parent.currentModel;
+    this.#inheritedEffort = parent.currentEffort;
     if (!this.#replay) return;
     // Si la original aún no le envió su contexto al agente, bifurcar su sesión lo perdería
     this.#forkOf = parent.#replay ? null : (parent.session?.id ?? null);
@@ -797,6 +842,7 @@ export class AgentStore {
         const c = this.#bySession(e.sessionId);
         if (c) c.currentMode = e.modeId;
       },
+      onConfig: (e) => this.#bySession(e.sessionId)?.applyConfig(e.config),
       onStream: (e) => this.#bySession(e.sessionId)?.onStream(e.kind, e.text),
       onToolCall: (e) => {
         const c = this.#bySession(e.sessionId);

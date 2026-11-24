@@ -14,7 +14,7 @@ pub mod tool_server;
 
 pub use agent_profile::{AgentLaunch, AgentProfile, AgentSource};
 pub use agent_profile_repository::AgentProfileRepository;
-pub use agent_session::{AgentCapabilities, AgentOption, AgentSession};
+pub use agent_session::{AgentCapabilities, AgentConfig, AgentOption, AgentSession};
 pub use agent_telemetry::{
     AgentSessionTelemetry, AgentUsageRecord, IterationTelemetry, McpCallTelemetry,
     ToolCallTelemetry,

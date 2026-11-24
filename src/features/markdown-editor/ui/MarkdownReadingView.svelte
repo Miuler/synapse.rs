@@ -10,6 +10,7 @@
   import { vaultRepository, type GitFileStatusKind } from '@shared/repositories';
   import { resolveVaultImageUrl, parseImageDimensions } from '../lib/image-resolver';
   import { resolveMarkdownWikilinks } from '../lib/link-resolver';
+  import { applyFolds, revealFolded, setAllFolds, toggleFold } from '../lib/reading-fold';
   import { normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { expandSectionEmbeds, type EmbedLoader } from '../lib/section-embed';
   import { vaultApi } from '@entities/vault-item';
@@ -45,6 +46,20 @@
   let renderedHtml = $state('');
   let frontmatterData = $state<Record<string, any>>({});
   let cleanupFolderIndex: (() => void) | null = null;
+
+  const article = () => containerRef?.querySelector<HTMLElement>('.markdown-body') ?? null;
+
+  /** Pliega o despliega todos los títulos de la nota. */
+  export function foldAllHeadings(fold: boolean) {
+    const el = article();
+    if (el) setAllFolds(el, filePath, fold);
+  }
+
+  /** Despliega las secciones que ocultan a `target`. */
+  export function reveal(target: Element) {
+    const el = article();
+    if (el) revealFolded(el, filePath, target);
+  }
 
   export function focus() {
     tick().then(() => {
@@ -250,6 +265,7 @@
     activeMark?.classList.remove('reading-search-active');
     activeMark = matchesNodes[currentMatchIndex - 1] ?? null;
     activeMark?.classList.add('reading-search-active');
+    if (activeMark) reveal(activeMark);
     activeMark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -284,6 +300,7 @@
   }
 
   let lastGPressTime = 0;
+  let lastZPressTime = 0;
 
   function handleWrapperKeyDown(e: KeyboardEvent) {
     const isFind = (e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F');
@@ -387,6 +404,18 @@
       } else {
         lastGPressTime = now;
       }
+      return;
+    }
+
+    // 'zM' / 'zR': plegar y desplegar todos los títulos
+    if ((e.key === 'M' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey && Date.now() - lastZPressTime < 500) {
+      e.preventDefault();
+      foldAllHeadings(e.key === 'M');
+      lastZPressTime = 0;
+      return;
+    }
+    if (e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      lastZPressTime = Date.now();
       return;
     }
 
@@ -661,6 +690,7 @@
     const wanted = normalizeHeadingText(heading);
     for (const el of containerRef.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')) {
       if (normalizeHeadingText(el.textContent ?? '') === wanted) {
+        reveal(el);
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
       }
@@ -690,6 +720,7 @@
         if (node.textContent && node.textContent.toLowerCase().includes(cleanTerm)) {
           const parent = node.parentElement;
           if (parent) {
+            reveal(parent);
             parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
             loadSearchTerm(terms, term.trim());
             return;
@@ -701,6 +732,11 @@
   }
 
   function handleContainerClick(event: MouseEvent) {
+    const foldButton = (event.target as HTMLElement).closest<HTMLElement>('.reading-fold');
+    if (foldButton) {
+      toggleFold(event.currentTarget as HTMLElement, filePath, foldButton, event.altKey);
+      return;
+    }
     // «Elegir cuál» de una imagen incrustada ambigua: el espacio de trabajo pregunta y puede fijarla
     const ambiguous = (event.target as HTMLElement).closest<HTMLElement>('[data-ambiguous-target]');
     if (ambiguous) {
@@ -756,6 +792,8 @@
       if (!isCurrent) return;
       renderDiagrams();
       renderImages();
+      const folds = article();
+      if (folds) applyFolds(folds, filePath);
       // Índice de carpeta generado: botones de acción y vista tipo explorador
       const body = containerRef?.querySelector<HTMLElement>('.markdown-body');
       cleanupFolderIndex?.();
@@ -1130,6 +1168,65 @@
     max-width: 100%;
     margin: 0;
     font-size: calc(15px * var(--content-zoom, 1));
+  }
+
+  /* Plegado por títulos */
+  .markdown-body :global(> :is(h1, h2, h3, h4, h5, h6)) {
+    position: relative;
+  }
+
+  .markdown-body :global(.reading-fold-hidden) {
+    display: none !important;
+  }
+
+  .markdown-body :global(.reading-fold) {
+    position: absolute;
+    left: -26px;
+    top: 0;
+    width: 24px;
+    height: 1lh;
+    font: inherit;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .markdown-body :global(.reading-fold::before) {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: calc(50% - 6px);
+    width: 7px;
+    height: 7px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .markdown-body :global(.reading-fold[aria-expanded='false']::before) {
+    top: calc(50% - 4px);
+    left: 6px;
+    transform: rotate(-45deg);
+  }
+
+  .markdown-body :global(:is(h1, h2, h3, h4, h5, h6):hover > .reading-fold),
+  .markdown-body :global(.reading-fold:focus-visible),
+  .markdown-body :global(.reading-folded > .reading-fold) {
+    opacity: 1;
+  }
+
+  .markdown-body :global(.reading-fold:hover) {
+    color: var(--accent);
+  }
+
+  /* Señal de que hay contenido oculto */
+  .markdown-body :global(.reading-folded::after) {
+    content: ' …';
+    color: var(--text-muted, var(--text-secondary));
   }
 
   .empty-doc {

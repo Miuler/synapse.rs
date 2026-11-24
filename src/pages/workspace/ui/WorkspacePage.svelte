@@ -260,6 +260,10 @@
   let vaultExplorerRef = $state<any>(null);
   let isPaletteOpen = $state(false);
   let isThemePickerOpen = $state(false);
+  const focusedMarkdownViewer = () => {
+    const path = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
+    return path ? markdownViewers[path] : undefined;
+  };
   /** Lista de temas; el tema se guarda en la bóveda, así que sin bóveda no se abre. */
   function toggleThemePicker() {
     if (showWelcomeScreen || isStandaloneMode) return;
@@ -3945,6 +3949,18 @@
           const tab = activeTabPath;
           if (tab && /\.(md|markdown|ya?ml|json)$/i.test(tab)) toggleOutlineDialog(tab);
         },
+      },
+      {
+        id: "cmd-fold-headings",
+        name: "Plegar todos los títulos de la nota",
+        category: "Vista",
+        action: () => focusedMarkdownViewer()?.foldAllHeadings(true),
+      },
+      {
+        id: "cmd-unfold-headings",
+        name: "Desplegar todos los títulos de la nota",
+        category: "Vista",
+        action: () => focusedMarkdownViewer()?.foldAllHeadings(false),
       },
       {
         id: "cmd-content-zoom",

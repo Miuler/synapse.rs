@@ -612,6 +612,11 @@
     const i = models.findIndex((m) => m.id === conv.currentModel);
     return i >= 0 ? shortModelLabels(models.map((m) => m.name || m.id))[i] : '';
   });
+  const currentEffortName = $derived(
+    conv.session?.efforts.find((e) => e.id === conv.currentEffort)?.name || conv.currentEffort || '',
+  );
+  /** El esfuerzo por defecto del modelo no se muestra en la etiqueta. */
+  const effortShown = $derived(conv.currentEffort === 'default' ? '' : currentEffortName);
   const currentModeName = $derived(
     conv.session?.modes.find((m) => m.id === conv.currentMode)?.name || conv.currentMode || '',
   );
@@ -620,7 +625,7 @@
     conv.currentMode && conv.currentMode !== conv.session?.current_mode ? modeBadge(conv.currentMode, currentModeName) : '',
   );
   const optsTitle = $derived(
-    [currentModelName && `Modelo: ${currentModelName}`, currentModeName && `Modo: ${currentModeName}`].filter(Boolean).join('\n'),
+    [currentModelName && `Modelo: ${currentModelName}`, currentEffortName && `Esfuerzo: ${currentEffortName}`, currentModeName && `Modo: ${currentModeName}`].filter(Boolean).join('\n'),
   );
 
   const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
@@ -819,13 +824,13 @@
 
     {#if conv.session || conv.usage}
       <div class="acp-usage-row">
-        {#if conv.session && (conv.session.models.length || conv.session.modes.length)}
+        {#if conv.session && (conv.session.models.length || conv.session.efforts.length || conv.session.modes.length)}
           <div class="acp-agent-opts">
             <button
               type="button"
               class="acp-opts-btn"
               title={optsTitle}
-              aria-label="Modelo y modo del agente"
+              aria-label="Modelo, esfuerzo y modo del agente"
               aria-haspopup="menu"
               aria-expanded={optsOpen}
               onclick={(e) => {
@@ -834,7 +839,7 @@
               }}
             >
               {#if modeShown}<span class="acp-mode-chip">{modeShown}</span>{/if}
-              {#if modelShort}<span class="acp-model-chip">{modelShort}</span>{/if}
+              {#if modelShort}<span class="acp-model-chip">{modelShort}{effortShown ? ` · ${effortShown}` : ''}</span>{/if}
               <ChevronDown size={11} />
             </button>
             {#if optsOpen}
@@ -851,6 +856,22 @@
                         optsOpen = false;
                         conv.setModel(m.id);
                       }}>{m.name || m.id}</button
+                    >
+                  {/each}
+                {/if}
+                {#if conv.session.efforts.length}
+                  <div class="acp-opts-head">Esfuerzo</div>
+                  {#each conv.session.efforts as e (e.id)}
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={e.id === conv.currentEffort}
+                      class:selected={e.id === conv.currentEffort}
+                      title={e.description ?? ''}
+                      onclick={() => {
+                        optsOpen = false;
+                        conv.setEffort(e.id);
+                      }}>{e.name || e.id}</button
                     >
                   {/each}
                 {/if}

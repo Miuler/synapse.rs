@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Corregido
 
 - Índices de carpeta (`index.md`): el candado y el estado de Git quedan junto a los nombres y alineados en columna, en vez de en el borde derecho; la descripción va a continuación.
+- Chat del agente: con Claude no aparecía el selector de modelo, porque ya lo anuncia en `configOptions`. Synapse lee ese formato y cambia el modelo con `session/set_config_option`.
 - Pruebas unitarias (`bun test`): el plugin que compila los `.svelte.ts` quita los tipos con el transpilador de Bun, porque TypeScript 7 ya no trae `transpileModule`; el script `test` solo mira `./src` (ya no recoge la carpeta `zennotes/`).
 - Chat del agente: lo escrito sin enviar ya no se pierde al cerrarse el panel (por ejemplo, sin fijar, al hacer clic fuera) ni al plegar la conversación.
 - Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
@@ -20,6 +21,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente: selector de nivel de esfuerzo junto al modelo, con los agentes que lo ofrecen (Claude, agy). Se recuerda por agente. Con agy, el esfuerzo ya no se repite en la lista de modelos.
+- Notas Markdown: en lectura, los títulos y subtítulos se pliegan con la flecha de su izquierda (Alt+clic, todos los de ese nivel; `zM`/`zR`, todos). La búsqueda, el índice y los enlaces a un título despliegan lo necesario. Comandos «Plegar / Desplegar todos los títulos de la nota», también en edición.
 - Al terminar el agente, además del sonido, Synapse envía una **notificación del sistema con el pulpo kawaii** y la consulta que terminó (`Terminó la consulta: "…"`) si la instancia que lo ejecuta no tiene el foco (por ejemplo, si estás en otra aplicación). Los avisos de permisos y preguntas del agente usan ahora el mismo icono.
 - Los archivos **`.sql`** son un tipo soportado: aparecen en el explorador y en Ctrl+O, se indexan en la búsqueda de contenido como código y se editan con resaltado de sintaxis SQL (también en el diff de Git).
 - Tema integrado **GitHub** (títulos verdes sobre fondo casi negro en oscuro; blanco en claro), también como «GitHub Islas».

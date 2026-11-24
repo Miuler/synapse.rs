@@ -3,6 +3,7 @@
 use crate::application::use_case::cancel_agent_prompt_use_case::CancelAgentPromptUseCase;
 use crate::application::use_case::change_agent_mode_use_case::ChangeAgentModeUseCase;
 use crate::application::use_case::change_agent_model_use_case::ChangeAgentModelUseCase;
+use crate::application::use_case::change_agent_option_use_case::ChangeAgentOptionUseCase;
 use crate::application::use_case::delete_agent_profile_use_case::DeleteAgentProfileUseCase;
 use crate::application::use_case::delete_agent_transcript_use_case::DeleteAgentTranscriptUseCase;
 use crate::application::use_case::delete_all_agent_transcripts_use_case::DeleteAllAgentTranscriptsUseCase;
@@ -42,6 +43,7 @@ pub struct AgentState {
     pub respond_elicitation: RespondElicitationUseCase<AgentRunnerImpl>,
     pub change_agent_mode: ChangeAgentModeUseCase<AgentRunnerImpl>,
     pub change_agent_model: ChangeAgentModelUseCase<AgentRunnerImpl>,
+    pub change_agent_option: ChangeAgentOptionUseCase<AgentRunnerImpl>,
     pub stop_agent_session: StopAgentSessionUseCase<AgentRunnerImpl>,
     pub set_agent_process_limit: SetAgentProcessLimitUseCase<AgentRunnerImpl>,
     pub save_agent_transcript: SaveAgentTranscriptUseCase<AgentTranscriptRepositoryImpl>,
@@ -76,6 +78,7 @@ impl AgentState {
             respond_elicitation: RespondElicitationUseCase::new(runner.clone()),
             change_agent_mode: ChangeAgentModeUseCase::new(runner.clone()),
             change_agent_model: ChangeAgentModelUseCase::new(runner.clone()),
+            change_agent_option: ChangeAgentOptionUseCase::new(runner.clone()),
             set_agent_process_limit: SetAgentProcessLimitUseCase::new(runner.clone()),
             stop_agent_session: StopAgentSessionUseCase::new(runner),
             save_agent_transcript: SaveAgentTranscriptUseCase::new(transcripts.clone()),

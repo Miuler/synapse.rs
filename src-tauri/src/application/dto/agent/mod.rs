@@ -42,6 +42,13 @@ pub struct ChangeAgentModeCommand {
     pub mode_id: String,
 }
 
+/// Cambia una opción de configuración del agente (modelo, esfuerzo…).
+pub struct ChangeAgentOptionCommand {
+    pub session_id: String,
+    pub option_id: String,
+    pub value: String,
+}
+
 pub struct ChangeAgentModelCommand {
     pub session_id: String,
     pub model_id: String,

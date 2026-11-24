@@ -24,7 +24,7 @@
   import { taskToggleExtension } from '../lib/task-toggle';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
   import { recordSpan } from '@shared/lib/perf-probe';
-  import { lineKeymap, minimalChange, registerVimFolding, renameOccurrencesKeymap, gitDiffGutter, setGitBaseContent } from '@shared/ui/code-editor';
+  import { lineKeymap, minimalChange, foldAllLevels, registerVimFolding, unfoldAll, renameOccurrencesKeymap, gitDiffGutter, setGitBaseContent } from '@shared/ui/code-editor';
 
   registerVimFolding();
 
@@ -117,6 +117,12 @@
     }
   }
 
+  /** Pliega o despliega todos los títulos, en lectura o en edición. */
+  export function foldAllHeadings(fold: boolean) {
+    if (viewMode === 'reading') readingViewRef?.foldAllHeadings(fold);
+    else if (editorView) (fold ? foldAllLevels : unfoldAll)(editorView);
+  }
+
   /** Lleva al título o subtítulo con ese texto; si no hay ninguno, busca el texto como cualquier otro término. */
   export function goToHeading(heading: string) {
     if (!heading) return;
@@ -154,11 +160,14 @@
       let k = 0;
       for (const el of root.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')) {
         if (el.closest('.note-embed')) continue;
+        // Dentro de una sección plegada: no está en pantalla
+        const folded = el.getClientRects().length === 0;
         const text = normalizeHeadingText(el.textContent ?? '');
         let j = k;
         while (j < flatHeadings.length && normalizeHeadingText(flatHeadings[j].raw) !== text) j++;
         if (j === flatHeadings.length) continue;
         k = j + 1;
+        if (folded) continue;
         if (el.getBoundingClientRect().top > top) break;
         line = flatHeadings[j].line;
       }
@@ -267,6 +276,7 @@
         rest.find((el) => plainText(el.textContent ?? '').includes(wanted)) ??
         target;
     }
+    if (target) readingViewRef?.reveal(target);
     target?.scrollIntoView({ block: 'start' });
   }
 

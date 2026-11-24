@@ -3,6 +3,7 @@
 pub mod cancel_agent_prompt_use_case;
 pub mod change_agent_mode_use_case;
 pub mod change_agent_model_use_case;
+pub mod change_agent_option_use_case;
 pub mod delete_agent_profile_use_case;
 pub mod delete_agent_transcript_use_case;
 pub mod delete_all_agent_transcripts_use_case;

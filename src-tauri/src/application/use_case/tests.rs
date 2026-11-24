@@ -106,6 +106,14 @@ impl AgentRunner for MockAgentRunnerImpl {
     async fn set_model(&self, _s: &str, _m: &str) -> Result<(), String> {
         Ok(())
     }
+    async fn set_option(
+        &self,
+        _s: &str,
+        _o: &str,
+        _v: &str,
+    ) -> Result<crate::domain::agent::AgentConfig, String> {
+        Ok(Default::default())
+    }
     async fn stop(&self, _session_id: &str) -> Result<(), String> {
         Ok(())
     }

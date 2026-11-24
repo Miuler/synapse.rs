@@ -1,6 +1,6 @@
 //! Conexión JSON-RPC 2.0 delimitada por líneas con un agente ACP.
 
-use super::agent_runner_impl::AgentEventSink;
+use super::agent_runner_impl::{AgentEventSink, config_of};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -305,6 +305,10 @@ fn update_events(params: &Value) -> Vec<(&'static str, Value)> {
         "current_mode_update" => vec![(
             "acp://mode",
             json!({"sessionId": session_id, "modeId": update.get("currentModeId").cloned().unwrap_or(Value::Null)}),
+        )],
+        "config_option_update" => vec![(
+            "acp://config",
+            json!({"sessionId": session_id, "config": config_of(update)}),
         )],
         _ => vec![],
     }

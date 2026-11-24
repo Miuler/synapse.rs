@@ -9,6 +9,8 @@ import type {
   ElicitationAction,
   ElicitationRequestEvent,
   ModeEvent,
+  ConfigEvent,
+  AgentConfig,
   PermissionRequestEvent,
   PlanEvent,
   PromptBlock,
@@ -37,6 +39,9 @@ export const agentApi = {
   sendPrompt: (sessionId: string, blocks: PromptBlock[]) => invokeTauri<string>('agent_send_prompt', { sessionId, blocks }),
   setMode: (sessionId: string, modeId: string) => invokeTauri<void>('agent_set_mode', { sessionId, modeId }),
   setModel: (sessionId: string, modelId: string) => invokeTauri<void>('agent_set_model', { sessionId, modelId }),
+  /** Cambia una opción de configuración (modelo, esfuerzo) y devuelve cómo quedó. */
+  setOption: (sessionId: string, optionId: string, value: string) =>
+    invokeTauri<AgentConfig>('agent_set_option', { sessionId, optionId, value }),
   cancelPrompt: (sessionId: string) => invokeTauri<void>('agent_cancel_prompt', { sessionId }),
   respondPermission: (sessionId: string, requestId: string, optionId: string | null) =>
     invokeTauri<void>('agent_respond_permission', { sessionId, requestId, optionId }),
@@ -70,6 +75,7 @@ export interface AgentEventHandlers {
   onCommands: (e: CommandsEvent) => void;
   onUsage: (e: UsageEvent) => void;
   onMode: (e: ModeEvent) => void;
+  onConfig: (e: ConfigEvent) => void;
 }
 
 /** Escucha los eventos de los agentes; devuelve la función para dejar de escuchar. */
@@ -84,6 +90,7 @@ export async function listenAgentEvents(h: AgentEventHandlers): Promise<Unlisten
     listen<CommandsEvent>('acp://commands', (e) => h.onCommands(e.payload)),
     listen<UsageEvent>('acp://usage', (e) => h.onUsage(e.payload)),
     listen<ModeEvent>('acp://mode', (e) => h.onMode(e.payload)),
+    listen<ConfigEvent>('acp://config', (e) => h.onConfig(e.payload)),
   ]);
   return () => offs.forEach((off) => off());
 }

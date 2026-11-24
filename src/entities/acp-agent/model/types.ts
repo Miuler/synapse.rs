@@ -31,15 +31,25 @@ export interface AgentOption {
   description?: string | null;
 }
 
-export interface AgentSession {
+/** Modelo y esfuerzo de una sesión, y con qué opción se cambia cada uno. */
+export interface AgentConfig {
+  models: AgentOption[];
+  current_model: string | null;
+  /** Opción de configuración del modelo; sin ella se cambia con `session/set_model`. */
+  model_option: string | null;
+  /** Niveles de esfuerzo (vacío si el agente o el modelo no lo ofrecen). */
+  efforts: AgentOption[];
+  current_effort: string | null;
+  effort_option: string | null;
+}
+
+export interface AgentSession extends AgentConfig {
   id: string;
   agent_id: string;
   cwd: string;
   capabilities: AgentCapabilities;
   modes: AgentOption[];
   current_mode: string | null;
-  models: AgentOption[];
-  current_model: string | null;
   tool_servers: string[];
   /** El agente retomó la sesión anterior y conserva su historial. */
   resumed: boolean;
@@ -230,6 +240,11 @@ export interface UsageEvent {
 export interface ModeEvent {
   sessionId: string;
   modeId: string;
+}
+
+export interface ConfigEvent {
+  sessionId: string;
+  config: AgentConfig;
 }
 
 export interface StatusEvent {

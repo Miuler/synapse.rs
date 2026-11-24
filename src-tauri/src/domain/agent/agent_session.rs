@@ -25,6 +25,19 @@ pub struct AgentOption {
     pub description: Option<String>,
 }
 
+/// Modelo y esfuerzo de una sesión, y con qué opción se cambia cada uno.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub models: Vec<AgentOption>,
+    pub current_model: Option<String>,
+    /// Opción de configuración del modelo; sin ella se cambia con `session/set_model`.
+    pub model_option: Option<String>,
+    /// Niveles de esfuerzo (vacío si el agente o el modelo no lo ofrecen).
+    pub efforts: Vec<AgentOption>,
+    pub current_effort: Option<String>,
+    pub effort_option: Option<String>,
+}
+
 /// Una conversación abierta con un agente sobre una carpeta de trabajo.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentSession {
@@ -34,8 +47,8 @@ pub struct AgentSession {
     pub capabilities: AgentCapabilities,
     pub modes: Vec<AgentOption>,
     pub current_mode: Option<String>,
-    pub models: Vec<AgentOption>,
-    pub current_model: Option<String>,
+    #[serde(flatten)]
+    pub config: AgentConfig,
     /// Nombres de los servidores de herramientas conectados a la sesión.
     pub tool_servers: Vec<String>,
     /// La conversación se retomó en el agente (`session/load` o `session/fork`) y él conserva su historial.

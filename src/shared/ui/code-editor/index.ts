@@ -1,6 +1,7 @@
 export { default as CodeEditor } from './ui/CodeEditor.svelte';
 export * from './ui/CodeEditor.svelte';
-export { registerVimFolding } from './lib/vim-folding';
+export { foldAllLevels, registerVimFolding } from './lib/vim-folding';
+export { unfoldAll } from '@codemirror/language';
 export { renameOccurrencesKeymap } from './lib/rename-occurrences';
 export { lineKeymap } from './lib/line-keymap';
 export { documentWordsCompletion, withDocumentWords } from './lib/document-words';

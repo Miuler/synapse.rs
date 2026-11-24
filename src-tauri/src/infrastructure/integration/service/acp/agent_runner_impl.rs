@@ -1,7 +1,7 @@
 use super::connection::Connection;
 use crate::application::integration::service::AgentRunner;
 use crate::domain::agent::{
-    AgentCapabilities, AgentLaunch, AgentOption, AgentSession, ElicitationDecision,
+    AgentCapabilities, AgentConfig, AgentLaunch, AgentOption, AgentSession, ElicitationDecision,
     PermissionDecision, PromptBlock,
     ToolServer,
 };
@@ -256,12 +256,7 @@ impl AgentRunnerImpl {
             .to_string();
         let (modes, current_mode) =
             options_of(result.get("modes"), "availableModes", "currentModeId", "id");
-        let (models, current_model) = options_of(
-            result.get("models"),
-            "availableModels",
-            "currentModelId",
-            "modelId",
-        );
+        let config = config_of(&result);
         if let Some(process) = self.processes.lock().await.get_mut(key) {
             process.sessions.insert(id.clone());
         }
@@ -284,8 +279,7 @@ impl AgentRunnerImpl {
             capabilities,
             modes,
             current_mode,
-            models,
-            current_model,
+            config,
             tool_servers: tools.iter().map(|t| t.name.clone()).collect(),
             resumed,
         })
@@ -520,6 +514,22 @@ impl AgentRunner for AgentRunnerImpl {
             .map(|_| ())
     }
 
+    async fn set_option(
+        &self,
+        session_id: &str,
+        option_id: &str,
+        value: &str,
+    ) -> Result<AgentConfig, String> {
+        self.conn(session_id)
+            .await?
+            .request(
+                "session/set_config_option",
+                json!({"sessionId": session_id, "configId": option_id, "value": value}),
+            )
+            .await
+            .map(|r| config_of(&r))
+    }
+
     fn set_process_limit(&self, agent_id: &str, limit: usize) {
         if let Ok(mut l) = self.limits.lock() {
             l.insert(agent_id.to_string(), limit.max(1));
@@ -661,6 +671,59 @@ fn options_of(
         })
         .unwrap_or_default();
     (options, block[current].as_str().map(str::to_string))
+}
+
+/// Modelo y esfuerzo de una respuesta con `configOptions`; si el agente no los anuncia ahí, el modelo
+/// sale del bloque `models`. Los agentes que mandan ambos mezclan el esfuerzo en `models`.
+pub(super) fn config_of(v: &Value) -> AgentConfig {
+    let select = |category: &str, ids: &[&str]| {
+        let all = v["configOptions"].as_array()?;
+        let found = all
+            .iter()
+            .find(|o| o["category"] == category)
+            .or_else(|| all.iter().find(|o| ids.iter().any(|id| o["id"] == *id)))?;
+        let id = found["id"].as_str()?.to_string();
+        // Las opciones pueden venir agrupadas
+        let options: Vec<AgentOption> = found["options"]
+            .as_array()?
+            .iter()
+            .flat_map(|o| match o["options"].as_array() {
+                Some(group) => group.iter().collect::<Vec<_>>(),
+                None => vec![o],
+            })
+            .filter_map(|o| {
+                Some(AgentOption {
+                    id: o["value"].as_str()?.to_string(),
+                    name: o["name"].as_str().unwrap_or_default().to_string(),
+                    description: o["description"].as_str().map(str::to_string),
+                })
+            })
+            .collect();
+        let current = found["currentValue"].as_str().map(str::to_string);
+        Some((id, options, current))
+    };
+    let mut config = AgentConfig::default();
+    match select("model", &["model"]) {
+        Some((id, options, current)) => {
+            config.model_option = Some(id);
+            config.models = options;
+            config.current_model = current;
+        }
+        None => {
+            (config.models, config.current_model) = options_of(
+                v.get("models"),
+                "availableModels",
+                "currentModelId",
+                "modelId",
+            );
+        }
+    }
+    if let Some((id, options, current)) = select("thought_level", &["thought_level", "effort"]) {
+        config.effort_option = Some(id);
+        config.efforts = options;
+        config.current_effort = current;
+    }
+    config
 }
 
 fn file_uri(path: &str) -> String {
@@ -1114,6 +1177,29 @@ mod tests {
     }
 
     #[test]
+    fn lee_modelo_y_esfuerzo_de_config_options() {
+        let r = json!({
+            "models": {"currentModelId": "m-high", "availableModels": [{"modelId": "m-high", "name": "M (High)"}]},
+            "configOptions": [
+                {"id": "model", "category": "model", "type": "select", "currentValue": "m",
+                 "options": [{"group": "g", "name": "G", "options": [{"value": "m", "name": "M"}]}, {"value": "n", "name": "N"}]},
+                {"id": "effort", "category": "thought_level", "type": "select", "currentValue": "high",
+                 "options": [{"value": "low", "name": "Low"}, {"value": "high", "name": "High"}]}]});
+        let c = config_of(&r);
+        assert_eq!(c.models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["m", "n"]);
+        assert_eq!(c.current_model.as_deref(), Some("m"));
+        assert_eq!(c.model_option.as_deref(), Some("model"));
+        assert_eq!(c.efforts.len(), 2);
+        assert_eq!(c.current_effort.as_deref(), Some("high"));
+        assert_eq!(c.effort_option.as_deref(), Some("effort"));
+
+        // Sin configOptions: el modelo del bloque `models` y sin esfuerzo
+        let old = config_of(&json!({"models": r["models"]}));
+        assert_eq!(old.current_model.as_deref(), Some("m-high"));
+        assert_eq!((old.model_option, old.efforts.len()), (None, 0));
+    }
+
+    #[test]
     fn lee_modos_y_modelos() {
         let r = json!({"models": {"currentModelId": "m2", "availableModels": [{"modelId": "m1", "name": "Uno"}, {"modelId": "m2", "name": "Dos"}]}});
         let (models, current) = options_of(
@@ -1124,6 +1210,46 @@ mod tests {
         );
         assert_eq!(models.len(), 2);
         assert_eq!(current.as_deref(), Some("m2"));
+    }
+
+    /// Modelo y esfuerzo con un agente real, sin enviarle mensajes:
+    /// `SYNAPSE_REAL_AGENT=claude-acp cargo test -- --ignored --nocapture modelo_real`.
+    #[tokio::test]
+    #[ignore]
+    async fn modelo_real() {
+        use crate::application::integration::service::AgentInstaller;
+        use crate::infrastructure::integration::service::acp::{
+            AgentInstallerImpl, registry::RegistryClient,
+        };
+        let agent = std::env::var("SYNAPSE_REAL_AGENT").unwrap_or_else(|_| "claude-acp".into());
+        let launch = AgentInstallerImpl::new(RegistryClient::new())
+            .ensure_installed(&agent)
+            .await
+            .unwrap();
+        let vault = tempfile::tempdir().unwrap();
+        let cwd = vault.path().to_string_lossy().into_owned();
+        let runner = AgentRunnerImpl::new(Arc::new(|_, _| {}));
+        let s = runner
+            .start(&agent, launch, &cwd, vec![], None, None, false)
+            .await
+            .unwrap();
+        let c = s.config;
+        println!("modelo {:?} de {}", c.current_model, c.models.len());
+        println!("esfuerzo {:?} de {}", c.current_effort, c.efforts.len());
+        let option = c.model_option.expect("sin opción de modelo");
+        for m in &c.models {
+            match runner.set_option(&s.id, &option, &m.id).await {
+                Ok(n) => {
+                    println!("{} -> {:?}, esfuerzos {}", m.id, n.current_model, n.efforts.len());
+                    if let Some((o, e)) = n.effort_option.zip(n.efforts.first()) {
+                        let r = runner.set_option(&s.id, &o, &e.id).await.unwrap();
+                        println!("   {} -> {:?}", e.id, r.current_effort);
+                    }
+                }
+                Err(e) => println!("{} -> ERROR {e}", m.id),
+            }
+        }
+        runner.stop(&s.id).await.unwrap();
     }
 
     /// Prueba real con un agente instalado: `SYNAPSE_REAL_AGENT=claude-acp|antigravity|github-copilot`,
@@ -1179,8 +1305,8 @@ mod tests {
         );
         println!(
             "modelos: {:?} (actual {:?})",
-            session.models.iter().map(|m| &m.id).collect::<Vec<_>>(),
-            session.current_model
+            session.config.models.iter().map(|m| &m.id).collect::<Vec<_>>(),
+            session.config.current_model
         );
 
         // Aprueba automáticamente lo que pida, para no bloquear la prueba

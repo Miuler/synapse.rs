@@ -37,7 +37,7 @@ function toggleEnclosing(view: EditorView): boolean {
  * zM: pliega todos los bloques de todos los niveles. foldAll de CodeMirror solo pliega los
  * exteriores, y al abrir uno con zo los internos aparecían abiertos (en Vim siguen cerrados).
  */
-function foldAllLevels(view: EditorView): boolean {
+export function foldAllLevels(view: EditorView): boolean {
   const ranges = allFoldRanges(view.state);
   if (!ranges.length) return false;
   view.dispatch({ effects: ranges.map((r) => foldEffect.of(r)) });

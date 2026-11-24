@@ -184,6 +184,23 @@ pub async fn agent_set_model(
 }
 
 #[tauri::command]
+pub async fn agent_set_option(
+    state: State<'_, AgentState>,
+    session_id: String,
+    option_id: String,
+    value: String,
+) -> Result<crate::domain::agent::AgentConfig, String> {
+    state
+        .change_agent_option
+        .execute(ChangeAgentOptionCommand {
+            session_id,
+            option_id,
+            value,
+        })
+        .await
+}
+
+#[tauri::command]
 pub async fn agent_cancel_prompt(
     state: State<'_, AgentState>,
     session_id: String,

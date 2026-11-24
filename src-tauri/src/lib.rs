@@ -228,6 +228,7 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_stop_session,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_mode,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_model,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_option,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_save_transcript,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_list_transcripts,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_load_transcript,
