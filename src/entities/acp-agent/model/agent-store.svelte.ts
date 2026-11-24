@@ -1,4 +1,5 @@
 import { requestAttention } from '@shared/lib/attention';
+import { playAgentCompletionSound } from '@shared/lib/sound';
 import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
 import { load, save } from './storage';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
@@ -493,6 +494,9 @@ export class Conversation {
         }
       }
       this.#turnHops = 0;
+      if (stopReason !== 'cancelled' && !opts.replyTo && this.queued.length === 0) {
+        void playAgentCompletionSound();
+      }
       this.deliverNext();
     }
   }

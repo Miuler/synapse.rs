@@ -1,5 +1,6 @@
 import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
 import { i18n, type SupportedLocale } from '@shared/lib/i18n';
+import { setAgentCompletionSound, type AgentCompletionSound } from '@shared/lib/sound';
 
 export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -8,7 +9,7 @@ export type ExcalidrawViewerType = 'native' | 'obsidian';
 export type PropertiesViewMode = 'expanded' | 'collapsed' | 'hidden';
 /** Clic en una carpeta del explorador: abre su `index.md` (por defecto) o la despliega */
 export type FolderClickMode = 'index' | 'expand';
-export type { SupportedLocale };
+export type { SupportedLocale, AgentCompletionSound };
 
 export interface AppSettings {
   mermaidRenderer: MermaidRendererType;
@@ -33,6 +34,8 @@ export interface AppSettings {
   sheetZoom: number;
   /** Zoom del chat del agente (mensajes y caja de texto). */
   chatZoom: number;
+  /** Sonido al terminar un turno del agente ACP. */
+  agentCompletionSound: AgentCompletionSound;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
@@ -70,6 +73,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   docxZoom: 1, // Zoom del visor de Word
   sheetZoom: 1, // Zoom del visor de hojas de cálculo
   chatZoom: 1, // Zoom del chat del agente
+  agentCompletionSound: 'burbuja_fm', // Sonido al terminar un turno del agente ACP
 };
 
 function clampZoom(zoom: number): number {
@@ -122,6 +126,13 @@ function loadInitialSettings(): AppSettings {
       if (parsed.folderClick === 'index' || parsed.folderClick === 'expand') {
         settings.folderClick = parsed.folderClick;
       }
+      if (
+        parsed.agentCompletionSound === 'burbuja_fm' ||
+        parsed.agentCompletionSound === 'sonar_organico' ||
+        parsed.agentCompletionSound === 'none'
+      ) {
+        settings.agentCompletionSound = parsed.agentCompletionSound;
+      }
       if (parsed.wallpapers && typeof parsed.wallpapers === 'object') {
         settings.wallpapers = Object.fromEntries(
           Object.entries(parsed.wallpapers).filter(([k, v]) => k && typeof v === 'string' && v.trim()),
@@ -154,6 +165,7 @@ class SettingsManager {
     if (this.settings.locale) {
       i18n.setLocale(this.settings.locale);
     }
+    setAgentCompletionSound(this.settings.agentCompletionSound || 'burbuja_fm');
 
     if (typeof window !== 'undefined') {
       if (window.matchMedia) {
@@ -418,6 +430,16 @@ class SettingsManager {
 
   setFolderClick(mode: FolderClickMode) {
     this.settings = { ...this.settings, folderClick: mode };
+    this.persist();
+  }
+
+  get agentCompletionSound(): AgentCompletionSound {
+    return this.settings.agentCompletionSound || 'burbuja_fm';
+  }
+
+  setAgentCompletionSound(sound: AgentCompletionSound) {
+    this.settings = { ...this.settings, agentCompletionSound: sound };
+    setAgentCompletionSound(sound);
     this.persist();
   }
 

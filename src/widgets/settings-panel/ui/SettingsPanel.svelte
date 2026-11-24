@@ -10,7 +10,9 @@
     type ExcalidrawViewerType,
     type PropertiesViewMode,
     type FolderClickMode,
+    type AgentCompletionSound,
   } from '@entities/settings';
+  import { AGENT_SOUND_OPTIONS, playAgentCompletionSound } from '@shared/lib/sound';
   import type { SupportedLocale } from '@shared/lib/i18n';
   import { invokeTauri } from '@shared/repositories/tauri';
   import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
@@ -481,6 +483,32 @@
               {/each}
             </select>
           </label>
+          <div class="row">
+            <span class="row-label">
+              Sonido al terminar un turno
+              <span class="hint">Se reproduce cuando el agente termina de responder.</span>
+            </span>
+            <div class="inline">
+              <select
+                aria-label="Sonido al terminar un turno"
+                value={appSettings.agentCompletionSound}
+                onchange={(e) => {
+                  const chosen = e.currentTarget.value as AgentCompletionSound;
+                  appSettings.setAgentCompletionSound(chosen);
+                  void playAgentCompletionSound(chosen);
+                }}
+              >
+                {#each AGENT_SOUND_OPTIONS as opt (opt.id)}
+                  <option value={opt.id}>{opt.label}</option>
+                {/each}
+              </select>
+              <button
+                type="button"
+                disabled={appSettings.agentCompletionSound === 'none'}
+                onclick={() => void playAgentCompletionSound(appSettings.agentCompletionSound)}
+              >Probar</button>
+            </div>
+          </div>
           <div class="row peer-decisions">
             <span class="row-label">
               Bóvedas que pueden conversar con esta
