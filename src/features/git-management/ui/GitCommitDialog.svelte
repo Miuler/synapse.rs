@@ -12,15 +12,9 @@
     Folder,
     ChevronRight,
   } from 'lucide-svelte';
+  import type { GitCommitFileItem } from '@entities/git';
   import GitRepoSelect from './GitRepoSelect.svelte';
   import { buildCommitTree, type CommitTreeNode } from '../lib/commit-tree';
-
-  export interface GitCommitFileItem {
-    path: string;
-    statusKind?: 'modified' | 'deleted' | 'untracked' | 'added' | 'staged';
-    statusLabel?: string;
-    isDeleted?: boolean;
-  }
 
   export interface GitCommitDialogProps {
     open?: boolean;

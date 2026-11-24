@@ -1,21 +1,6 @@
 <script lang="ts">
-  import { type Snippet, type Component } from 'svelte';
+  import type { ConfirmDialogProps } from '../model/types';
   import { AlertDialog } from 'bits-ui';
-
-  export interface ConfirmDialogProps {
-    open?: boolean;
-    title: string;
-    description?: string;
-    confirmText?: string;
-    loadingText?: string;
-    cancelText?: string;
-    variant?: 'danger' | 'default';
-    icon?: any;
-    loading?: boolean;
-    onConfirm: () => void | Promise<void>;
-    onCancel?: () => void;
-    children?: Snippet;
-  }
 
   let {
     open = $bindable(false),

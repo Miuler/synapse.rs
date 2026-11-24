@@ -9,10 +9,11 @@ const marked = new Marked({ gfm: true, breaks: true });
 const ALLOWED_URIS = /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
 /** De los `<input>`, solo se dejan las casillas de tarea de las listas, desactivadas */
-function keepOnlyTaskCheckboxes(node: Element) {
+function keepOnlyTaskCheckboxes(node: Node) {
   if (node.nodeName !== 'INPUT') return;
-  if ((node as HTMLInputElement).type !== 'checkbox') node.remove();
-  else node.setAttribute('disabled', '');
+  const input = node as HTMLInputElement;
+  if (input.type !== 'checkbox') input.remove();
+  else input.setAttribute('disabled', '');
 }
 
 /** Markdown de las respuestas del agente, ya saneado para insertarlo como HTML. */

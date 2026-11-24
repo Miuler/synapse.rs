@@ -1,7 +1,6 @@
 <!-- Bordes y esquinas para cambiar el tamaño de un diálogo; el padre debe tener posición fija o relativa. -->
 <script lang="ts">
-  export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
-
+  import type { ResizeEdge } from '../model/types';
   interface Props {
     onStart: (e: PointerEvent, dx: -1 | 0 | 1, dy: -1 | 0 | 1) => void;
     edges?: ResizeEdge[];

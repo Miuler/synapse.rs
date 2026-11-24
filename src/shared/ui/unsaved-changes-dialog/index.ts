@@ -1,3 +1,3 @@
 import UnsavedChangesDialog from './ui/UnsavedChangesDialog.svelte';
-export type { UnsavedChangesDialogProps } from './ui/UnsavedChangesDialog.svelte';
 export { UnsavedChangesDialog };
+export type { UnsavedChangesDialogProps } from './model/types';
