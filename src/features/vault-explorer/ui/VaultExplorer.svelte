@@ -2939,14 +2939,14 @@
       ondragend={() => (dragOverPath = null)}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
-      style="padding-left: {12 + depth * 14}px;"
       onclick={(e) => handleFolderClick(e, node, () => openFolderOrIndex(node))}
       oncontextmenu={(e) => handleItemContextMenu(e, node)}
     >
-      <!-- La flecha y el icono de carpeta siempre despliegan/pliegan (el clic en el nombre puede abrir su índice) -->
+      <!-- Todo desde el borde izquierdo hasta el icono de carpeta despliega/pliega (el clic en el nombre puede abrir su índice) -->
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <span
         class="chevron-toggle"
+        style="padding-left: {12 + depth * 14}px;"
         onclick={(e) => {
           e.stopPropagation();
           handleFolderClick(e, node, () => toggleFolder(node.relativePath, node.deleted));
@@ -3338,6 +3338,7 @@
   .file-tree-item.folder {
     font-weight: 600;
     color: var(--text-primary, #1f2328);
+    padding-left: 0;
   }
 
   .file-tree-item.is-ghost {
@@ -3673,6 +3674,8 @@
     align-items: center;
     gap: 6px;
     align-self: stretch;
+    margin: -5px 0;
+    padding: 5px 0;
     cursor: pointer;
   }
 </style>
