@@ -95,6 +95,12 @@ export async function startApp(files: Record<string, string>): Promise<Session> 
   return launch(base, vault);
 }
 
+/** Abre un archivo suelto (`synapsers --file`), sin bóveda. */
+export async function startAppOnFile(file: string): Promise<Session> {
+  const base = mkdtempSync(join(tmpdir(), 'synapse-e2e-'));
+  return launch(base, dirname(file), ['--file', file]);
+}
+
 /**
  * Abre una bóveda existente (p. ej. la real del usuario) con un HOME temporal. No escribe archivos
  * de prueba ni borra nada de la bóveda al cerrar; la app sí actualiza su `.synapse/` como en uso
@@ -155,7 +161,7 @@ function guardBrowser(
 let ownVite: ChildProcess | null = null;
 let viteOut: ReturnType<ReturnType<typeof Bun.file>['writer']> | null = null;
 
-async function launch(base: string, vault: string): Promise<Session> {
+async function launch(base: string, vault: string, args = ['--vault', vault]): Promise<Session> {
   const home = join(base, 'home');
   mkdirSync(home, { recursive: true });
 
@@ -226,7 +232,7 @@ async function launch(base: string, vault: string): Promise<Session> {
     connectionRetryTimeout: 30_000,
     capabilities: {
       // @ts-expect-error capacidad propia de tauri-driver
-      'tauri:options': { application: APP, args: ['--vault', vault] },
+      'tauri:options': { application: APP, args },
     },
   });
 
@@ -248,7 +254,7 @@ async function launch(base: string, vault: string): Promise<Session> {
       } catch {}
       await waitForPortFree(DRIVER_PORT, 10_000).catch(() => {});
       // Si la sesión se cortó, la app puede quedar abierta: cerrar la de esta bóveda de prueba
-      spawnSync('pkill', ['-f', `synapsers --vault ${vault}`]);
+      spawnSync('pkill', ['-f', `synapsers ${args.join(' ')}`]);
       // El log de Vite de este archivo termina aquí; el siguiente abre el suyo
       await viteOut?.end();
       viteOut = null;

@@ -30,7 +30,13 @@ pub async fn get_vault_git_status(
     folder_path: Option<String>,
 ) -> Result<VaultVersionState, String> {
     let vault_path = match folder_path {
-        Some(p) => PathBuf::from(p),
+        Some(p) => {
+            let p = PathBuf::from(p);
+            if !state.allows_path(&p) && !state.is_known_vault(&p) {
+                return Err(format!("Ruta no autorizada: {}", p.display()));
+            }
+            p
+        }
         None => {
             let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
             match *guard {

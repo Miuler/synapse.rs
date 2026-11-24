@@ -19,7 +19,40 @@ pub fn get_image_mime_type(ext: &str) -> &'static str {
     }
 }
 
+/// Imagen que un archivo suelto autorizado muestra: solo dentro de su carpeta o subcarpetas.
+fn resolve_standalone_asset(state: &AppState, src: &str, base_file: &str) -> Option<PathBuf> {
+    let base = Path::new(base_file);
+    if !state.allowed_paths.has_file(base) {
+        return None;
+    }
+    let dir = base.parent()?.canonicalize().ok()?;
+    let path = dir.join(src).canonicalize().ok()?;
+    let ext = path.extension()?.to_str()?.to_lowercase();
+    let is_image = get_image_mime_type(&ext).starts_with("image/");
+    (path.is_file() && is_image && path.starts_with(&dir)).then_some(path)
+}
+
+/// Ruta absoluta de un recurso, solo si está autorizado (bóveda, archivo suelto o sus imágenes).
 pub fn resolve_asset_file_path_internal(
+    state: &AppState,
+    src: &str,
+    base_file: Option<&str>,
+) -> Result<Option<String>, String> {
+    let Some(path) = find_asset_file_path(state, src, base_file)? else {
+        return Ok(None);
+    };
+    if !state.allows_path(Path::new(&path)) {
+        let image = base_file.and_then(|b| resolve_standalone_asset(state, &path, b));
+        if image.is_none() {
+            log::warn!("Recurso no autorizado: {path}");
+            return Ok(None);
+        }
+    }
+    state.allow_asset(Path::new(&path));
+    Ok(Some(path))
+}
+
+fn find_asset_file_path(
     state: &AppState,
     src: &str,
     base_file: Option<&str>,
@@ -49,6 +82,10 @@ pub fn resolve_asset_file_path_internal(
     let path_buf = PathBuf::from(check_str);
     if path_buf.is_absolute() && path_buf.is_file() {
         return Ok(Some(path_buf.to_string_lossy().to_string()));
+    }
+
+    if let Some(path) = base_file.and_then(|b| resolve_standalone_asset(state, check_str, b)) {
+        return Ok(Some(path.to_string_lossy().to_string()));
     }
 
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
@@ -280,5 +317,42 @@ mod tests {
         let bytes = std::fs::read(&resolved).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(get_image_mime_type("png"), "image/png");
+    }
+
+    #[test]
+    fn no_resuelve_fuera_de_lo_autorizado() {
+        let dir = tempdir().unwrap();
+        let vault = dir.path().join("boveda");
+        std::fs::create_dir_all(vault.join("sub")).unwrap();
+        std::fs::create_dir_all(dir.path().join("suelto/img")).unwrap();
+        for f in ["fuera.png", "boveda/a.png", "suelto/nota.md", "suelto/img/b.png", "suelto/secreto.txt"] {
+            std::fs::write(dir.path().join(f), "x").unwrap();
+        }
+        let state = AppState::empty(
+            SupportedFileTypes::default(),
+            crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl::new(),
+        );
+        let get = |src: &str, base: Option<&str>| resolve_asset_file_path_internal(&state, src, base).unwrap();
+        let abs = |f: &str| dir.path().join(f).to_string_lossy().to_string();
+
+        // Con bóveda
+        *state.active_vault_path.lock().unwrap() = Some(vault.clone());
+        assert!(get(&abs("boveda/a.png"), None).is_some());
+        assert!(get("../a.png", Some("sub/nota.md")).is_some());
+        assert_eq!(get(&abs("fuera.png"), None), None);
+        assert_eq!(get("../fuera.png", None), None);
+        assert_eq!(get("../../fuera.png", Some("sub/nota.md")), None);
+
+        // Archivo suelto: sus imágenes de la carpeta, y nada más
+        *state.active_vault_path.lock().unwrap() = None;
+        let note = abs("suelto/nota.md");
+        assert_eq!(get("img/b.png", Some(&note)), None, "aún no elegido");
+        state.grant_file(Path::new(&note));
+        assert!(get("img/b.png", Some(&note)).is_some());
+        assert!(get(&abs("suelto/img/b.png"), Some(&note)).is_some());
+        assert!(get(&note, None).is_some());
+        assert_eq!(get("secreto.txt", Some(&note)), None);
+        assert_eq!(get("../fuera.png", Some(&note)), None);
+        assert_eq!(get(&abs("fuera.png"), Some(&note)), None);
     }
 }

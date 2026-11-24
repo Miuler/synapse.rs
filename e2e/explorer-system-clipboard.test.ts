@@ -4,6 +4,8 @@ import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { startAppOnVault, type Session } from './harness';
 
 let s: Session;
@@ -36,6 +38,17 @@ const invoke = (cmd: string, args?: Record<string, unknown>) =>
     args,
   );
 
+/** Otro programa copia el archivo (la app no puede: solo copia lo de su bóveda). */
+function copyFromOutside(file: string) {
+  const uri = `${pathToFileURL(file)}\r\n`;
+  const [cmd, ...args] =
+    process.env.WAYLAND_DISPLAY && Bun.which('wl-copy')
+      ? ['wl-copy', '--type', 'text/uri-list']
+      : ['xclip', '-selection', 'clipboard', '-t', 'text/uri-list'];
+  // Sin heredar la salida: el programa queda vivo como dueño del portapapeles
+  execFileSync(cmd, args, { input: uri, stdio: ['pipe', 'ignore', 'ignore'] });
+}
+
 async function menuOn(path: string, item: RegExp) {
   await s.browser.execute((p: string) => {
     const el = document.querySelector(`.file-tree-item[data-path="${p}"]`)!;
@@ -66,7 +79,12 @@ it('«Copiar» pone el archivo en el portapapeles del sistema', async () => {
 
 it('«Pegar» trae los archivos copiados fuera de la instancia', async () => {
   // Como si se hubiera copiado en otra instancia o en el gestor de archivos
-  await invoke('copy_files_to_system_clipboard', { paths: [join(outside, 'informe con espacios.md')] });
+  const file = join(outside, 'informe con espacios.md');
+  copyFromOutside(file);
+  await s.browser.waitUntil(async () => ((await invoke('read_system_clipboard_files')) as string[])[0] === file, {
+    timeout: 5_000,
+    timeoutMsg: 'el portapapeles del sistema no recibió el archivo',
+  });
   const label = await menuOn('destino', /^Pegar/);
   expect(label).toContain('Pegar (1 archivo de fuera)');
   await s.browser.waitUntil(async () => existsSync(join(vault, 'destino', 'informe con espacios.md')), {

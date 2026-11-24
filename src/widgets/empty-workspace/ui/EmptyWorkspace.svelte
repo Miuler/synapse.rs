@@ -29,12 +29,27 @@
   }: Props = $props();
 
   let searchQuery = $state('');
-  let wallpaperUrl = $derived(appSettings.wallpaper ? convertFileSrc(appSettings.wallpaper) : null);
+  // Si el fondo ya no se puede leer (se borró o no está autorizado), queda el de por defecto
+  let brokenWallpaper = $state<string | null>(null);
+  let wallpaperUrl = $derived(
+    appSettings.wallpaper && appSettings.wallpaper !== brokenWallpaper ? convertFileSrc(appSettings.wallpaper) : null,
+  );
+  $effect(() => {
+    const path = appSettings.wallpaper;
+    if (!path) return;
+    const probe = new Image();
+    probe.onerror = () => (brokenWallpaper = path);
+    probe.src = convertFileSrc(path);
+    return () => (probe.onerror = null);
+  });
 
   async function chooseWallpaper() {
     try {
       const path = await invokeTauri<string | null>('pick_image_file');
-      if (path) appSettings.setWallpaper(path);
+      if (path) {
+        brokenWallpaper = null;
+        appSettings.setWallpaper(path);
+      }
     } catch (err) {
       console.warn('No se pudo elegir el fondo:', err);
     }

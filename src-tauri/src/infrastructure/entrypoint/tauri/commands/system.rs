@@ -31,6 +31,7 @@ pub fn toggle_devtools(window: tauri::WebviewWindow) {
 
 #[tauri::command]
 pub fn open_file_with_default_app(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state.check_path(&path)?;
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
@@ -46,6 +47,7 @@ pub fn open_file_with_default_app(state: State<'_, AppState>, path: String) -> R
 
 #[tauri::command]
 pub fn show_item_in_folder(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state.check_path(&path)?;
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
         return Err("No hay ninguna bóveda abierta".to_string());
@@ -231,14 +233,7 @@ pub async fn select_standalone_file(state: State<'_, AppState>) -> Result<Option
 
         if let Some(handle) = file {
             let path = handle.path().to_string_lossy().to_string();
-            if let Ok(guard) = state.app_handle.lock() {
-                if let Some(ref app_h) = *guard {
-                    if let Some(parent) = handle.path().parent() {
-                        use tauri::Manager;
-                        let _ = app_h.asset_protocol_scope().allow_directory(parent, true);
-                    }
-                }
-            }
+            state.grant_file(handle.path());
             Ok(Some(path))
         } else {
             Ok(None)

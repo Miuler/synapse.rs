@@ -195,7 +195,7 @@ pub fn notify_if_unfocused(window: tauri::WebviewWindow, title: String, body: St
 
 /// Diálogo nativo para elegir una imagen; devuelve su ruta absoluta.
 #[tauri::command]
-pub async fn pick_image_file() -> Result<Option<String>, String> {
+pub async fn pick_image_file(state: State<'_, AppState>) -> Result<Option<String>, String> {
     #[cfg(feature = "desktop")]
     {
         let file = rfd::AsyncFileDialog::new()
@@ -206,10 +206,18 @@ pub async fn pick_image_file() -> Result<Option<String>, String> {
             )
             .pick_file()
             .await;
-        Ok(file.map(|f| f.path().to_string_lossy().into_owned()))
+        let Some(file) = file else { return Ok(None) };
+        let path = file.path();
+        crate::infrastructure::config::allowed_paths::remember_wallpaper(
+            &crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir(),
+            path,
+        )?;
+        state.allow_asset(path);
+        Ok(Some(path.to_string_lossy().into_owned()))
     }
     #[cfg(not(feature = "desktop"))]
     {
+        let _ = state;
         Ok(None)
     }
 }
@@ -399,6 +407,9 @@ pub fn check_vault_path_exists(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<bool, String> {
+    if relative_path.split(['/', '\\']).any(|c| c == "..") {
+        return Ok(false);
+    }
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *vault_guard else {
         return Ok(false);
@@ -416,6 +427,9 @@ pub fn list_vault_directory(
     state: State<'_, AppState>,
     relative_path: Option<String>,
 ) -> Result<VaultDirectoryList, String> {
+    if relative_path.as_deref().is_some_and(|p| p.split(['/', '\\']).any(|c| c == "..")) {
+        return Err("Ruta no permitida con '..'".to_string());
+    }
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *vault_guard else {
         return Ok(VaultDirectoryList {

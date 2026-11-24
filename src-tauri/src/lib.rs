@@ -291,11 +291,16 @@ pub fn run() {
                 if let Some(domain::config::startup::StartupTarget::Standalone(ref path_str)) =
                     *guard
                 {
-                    let p = std::path::Path::new(path_str);
-                    if let Some(parent) = p.parent() {
-                        let _ = handle.asset_protocol_scope().allow_directory(parent, true);
-                    }
+                    state.grant_file(std::path::Path::new(path_str));
                 }
+                if let Some(domain::config::startup::StartupTarget::Vault(ref path_str)) = *guard {
+                    state.allowed_paths.grant_vault(std::path::Path::new(path_str));
+                }
+            }
+            for wallpaper in infrastructure::config::allowed_paths::load_wallpapers(
+                &infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir(),
+            ) {
+                state.allow_asset(&wallpaper);
             }
             if let Ok(guard) = state.navigation_engine.lock() {
                 if let Some(ref engine) = *guard {

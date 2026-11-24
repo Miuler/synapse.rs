@@ -153,6 +153,11 @@ pub fn import_external_items(
     paths: Vec<String>,
     dest_dir: String,
 ) -> Result<Vec<String>, String> {
+    // Solo lo que la persona copió: si no, la interfaz podría traerse cualquier archivo del disco
+    let copied = read_system_clipboard_files()?;
+    if let Some(p) = paths.iter().find(|p| !copied.contains(p)) {
+        return Err(format!("No está en el portapapeles: {p}"));
+    }
     let vault_path = {
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
         match *guard {
@@ -182,7 +187,13 @@ pub fn import_external_items(
 /// se pueden pegar en otra instancia, en el explorador del sistema o en otras aplicaciones.
 // async: fuera del hilo principal (en X11 leer el portapapeles puede esperar a su dueño)
 #[tauri::command(async)]
-pub fn copy_files_to_system_clipboard(paths: Vec<String>) -> Result<(), String> {
+pub fn copy_files_to_system_clipboard(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    for p in &paths {
+        state.check_path(p)?;
+    }
     #[cfg(feature = "desktop")]
     {
         let mut guard = system_clipboard()?;

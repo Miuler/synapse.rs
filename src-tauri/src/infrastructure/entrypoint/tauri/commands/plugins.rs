@@ -24,7 +24,8 @@ pub fn get_installed_community_plugins(
     vault_path: Option<String>,
 ) -> Result<Vec<InstalledPluginInfo>, String> {
     let resolved_path = match vault_path {
-        Some(p) => PathBuf::from(p),
+        Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
+        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
         None => state
             .active_vault_path
             .lock()
@@ -63,7 +64,8 @@ pub async fn install_community_plugin(
     repo: String,
 ) -> Result<CommunityPluginInstallResult, String> {
     let resolved_path = match vault_path {
-        Some(p) => PathBuf::from(p),
+        Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
+        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
         None => state
             .active_vault_path
             .lock()
@@ -91,7 +93,8 @@ pub async fn uninstall_community_plugin(
     plugin_id: String,
 ) -> Result<(), String> {
     let resolved_path = match vault_path {
-        Some(p) => PathBuf::from(p),
+        Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
+        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
         None => state
             .active_vault_path
             .lock()

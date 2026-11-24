@@ -187,6 +187,9 @@ pub fn read_note_content(
 
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
+        if !state.allowed_paths.allows(vault_guard.as_deref(), p) {
+            return Err(format!("Ruta no autorizada: {relative_path}"));
+        }
         return state.read_standalone_note_use_case.execute(
             crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery {
                 path: p.to_path_buf(),
@@ -272,6 +275,9 @@ pub fn save_note_content(
 
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
+        if !state.allowed_paths.allows(vault_guard.as_deref(), p) {
+            return Err(format!("Ruta no autorizada: {relative_path}"));
+        }
         return state.save_standalone_note_use_case.execute(crate::application::dto::note::save_standalone_note_command::SaveStandaloneNoteCommand {
             path: p.to_path_buf(),
             title,
@@ -318,7 +324,28 @@ pub async fn set_active_vault_path(
         return Err("Ruta de bóveda inválida o no existe".to_string());
     }
 
+    // La ruta llega de la interfaz: si no es una bóveda conocida, lo confirma la persona
+    let known = state.is_known_vault(&target_dir);
+    #[cfg(not(feature = "desktop"))]
+    if !known {
+        return Err("Bóveda no autorizada".to_string());
+    }
     let synapse_dir = target_dir.join(".synapse");
+    #[cfg(feature = "desktop")]
+    if !known && synapse_dir.exists() {
+        let confirmed = rfd::AsyncMessageDialog::new()
+            .set_title("Abrir bóveda")
+            .set_description(format!(
+                "¿Abrir esta carpeta como bóveda?\n{}\n\nSynapse podrá leer y modificar sus archivos.",
+                target_dir.display()
+            ))
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .show()
+            .await;
+        if confirmed != rfd::MessageDialogResult::Yes {
+            return Err("Apertura de bóveda cancelada por el usuario".to_string());
+        }
+    }
     if !synapse_dir.exists() {
         #[cfg(feature = "desktop")]
         {
@@ -370,6 +397,7 @@ pub async fn spreadsheet_open(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<crate::domain::spreadsheet::WorkbookInfo, String> {
+    state.check_path(&path)?;
     let vault_path = active_vault(&state)?;
     let use_case = state.read_spreadsheet_use_case.clone();
     tauri::async_runtime::spawn_blocking(move || use_case.open(&vault_path, &path))
@@ -384,6 +412,7 @@ pub async fn spreadsheet_layout(
     path: String,
     sheet: usize,
 ) -> Result<crate::domain::spreadsheet::SheetLayout, String> {
+    state.check_path(&path)?;
     let vault_path = active_vault(&state)?;
     let use_case = state.read_spreadsheet_use_case.clone();
     tauri::async_runtime::spawn_blocking(move || use_case.layout(&vault_path, &path, sheet))
@@ -400,6 +429,7 @@ pub async fn spreadsheet_cells(
     from_row: u32,
     to_row: u32,
 ) -> Result<crate::domain::spreadsheet::CellBlock, String> {
+    state.check_path(&path)?;
     let vault_path = active_vault(&state)?;
     let use_case = state.read_spreadsheet_use_case.clone();
     tauri::async_runtime::spawn_blocking(move || use_case.cells(&vault_path, &path, sheet, from_row, to_row))

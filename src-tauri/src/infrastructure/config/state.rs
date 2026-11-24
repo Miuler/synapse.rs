@@ -1,3 +1,4 @@
+use crate::infrastructure::config::allowed_paths::AllowedPaths;
 use crate::application::dto::search::index_vault_change_command::IndexVaultChangeCommand;
 use crate::application::dto::workspace::get_shortcuts_config_query::GetShortcutsConfigQuery;
 use crate::application::dto::workspace::get_workspace_registry_query::GetWorkspaceRegistryQuery;
@@ -91,7 +92,7 @@ use crate::infrastructure::integration::service::webview_diagram_renderer_impl::
 use crate::infrastructure::integration::service::webview_user_prompter_impl::WebviewUserPrompterImpl;
 use dashmap::DashMap;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 pub struct FullTextComponents {
@@ -208,6 +209,8 @@ pub struct AppState {
     pub app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
     pub detached_tabs: Arc<Mutex<HashMap<String, String>>>,
     pub startup_target: Arc<Mutex<Option<StartupTarget>>>,
+    /// Rutas que la persona eligió: lo único fuera de la bóveda que la interfaz puede leer o escribir.
+    pub allowed_paths: Arc<AllowedPaths>,
     pub mcp_runtime: Arc<McpBackgroundRuntime>,
     /// Proporción (porcentaje) del panel de código en los visores de diagramas, por archivo. Solo en memoria.
     pub diagram_split_ratios: Arc<DashMap<String, f32>>,
@@ -456,6 +459,7 @@ impl AppState {
             app_handle,
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
             startup_target: Arc::new(Mutex::new(None)),
+            allowed_paths: Arc::new(AllowedPaths::default()),
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
@@ -633,6 +637,7 @@ impl AppState {
             app_handle,
             detached_tabs: Arc::new(Mutex::new(HashMap::new())),
             startup_target: Arc::new(Mutex::new(None)),
+            allowed_paths: Arc::new(AllowedPaths::default()),
             mcp_runtime,
             diagram_split_ratios: Arc::new(DashMap::new()),
             diagram_renderer,
@@ -641,12 +646,68 @@ impl AppState {
         }
     }
 
+    /// ¿Puede la interfaz usar esta ruta absoluta? (elegida por la persona o dentro de la bóveda)
+    pub fn allows_path(&self, path: &Path) -> bool {
+        let vault = self.active_vault_path.lock().ok().and_then(|g| g.clone());
+        self.allowed_paths.allows(vault.as_deref(), path)
+    }
+
+    /// Error si una ruta de la interfaz (relativa a la bóveda o absoluta) se sale de lo autorizado.
+    pub fn check_path(&self, path: &str) -> Result<(), String> {
+        let vault = self.active_vault_path.lock().ok().and_then(|g| g.clone());
+        let p = Path::new(path);
+        let abs = match vault {
+            Some(ref v) if !p.is_absolute() => v.join(p),
+            _ => p.to_path_buf(),
+        };
+        if self.allowed_paths.allows(vault.as_deref(), &abs) {
+            Ok(())
+        } else {
+            Err(format!("Ruta no autorizada: {path}"))
+        }
+    }
+
+    /// Deja que el webview muestre un archivo ya autorizado (`asset:`).
+    pub fn allow_asset(&self, path: &Path) {
+        if let Ok(guard) = self.app_handle.lock() {
+            if let Some(ref handle) = *guard {
+                use tauri::Manager;
+                let scope = handle.asset_protocol_scope();
+                if !scope.is_allowed(path) {
+                    let _ = scope.allow_file(path);
+                }
+            }
+        }
+    }
+
+    /// La persona eligió este archivo suelto (diálogo o línea de comandos).
+    pub fn grant_file(&self, path: &Path) {
+        self.allowed_paths.grant_file(path);
+        self.allow_asset(path);
+    }
+
+    /// Bóveda ya abierta en esta sesión o de la lista de recientes (la escribe solo Rust).
+    pub fn is_known_vault(&self, path: &Path) -> bool {
+        self.allowed_paths.has_vault(path)
+            || self
+                .list_workspaces_use_case
+                .execute(crate::application::dto::workspace::list_workspaces_query::ListWorkspacesQuery {})
+                .is_ok_and(|all| {
+                    let real = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+                    all.iter().any(|w| {
+                        let w = Path::new(&w.path);
+                        w.canonicalize().unwrap_or_else(|_| w.to_path_buf()) == real
+                    })
+                })
+    }
+
     pub fn activate_vault(
         &self,
         path: PathBuf,
         is_git: Option<bool>,
     ) -> Result<SelectVaultFolderResult, String> {
         let folder_path_str = path.to_string_lossy().to_string();
+        self.allowed_paths.grant_vault(&path);
 
         {
             let mut vault_path = self.active_vault_path.lock().map_err(|e| e.to_string())?;
