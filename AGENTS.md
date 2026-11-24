@@ -177,6 +177,20 @@ Adicionalmente, antes de realizar cualquier commit, verificar si los cambios son
 
 El inglés es el idioma base de la interfaz: los textos nuevos se añaden primero en inglés y luego en español (`src/shared/lib/i18n/locales`, `src/entities/command/lib`), nunca fijos en un componente. Los comentarios y los mensajes de commit siguen en español.
 
+### Publicar una versión
+
+`ci/release.py <versión>` prepara el commit y el tag. **Nunca subir `main` y el tag a la vez**:
+
+1. Subir primero `main` (`git push origin main`), sin el tag.
+2. Comprobar si ese push lanzó «Rust Release» en `main` (lo hace si cambian `src-tauri/Cargo.lock`,
+   `src-tauri/Cargo.toml` o `.github/workflows/release.yml`): `gh run list --workflow "Rust Release" --branch main`.
+3. Si se lanzó, **esperar a que termine entera, también macOS** (`gh run watch <id>`). Si falla o se cancela,
+   resolverlo antes de seguir.
+4. Solo entonces subir el tag: `git push origin refs/tags/<versión>` (no `--tags`).
+
+Motivo: el tag aprovecha la caché que guarda `main`. Si corren a la vez compila desde cero y ambos compiten por
+las máquinas de macOS; además, un fallo de compilación se ve en `main` antes de etiquetar.
+
 ### Pruebas E2E (siempre en la pantalla embebida)
 
 Las e2e abren la app real; **nunca** se ejecutan en el escritorio del usuario, sino en la pantalla
