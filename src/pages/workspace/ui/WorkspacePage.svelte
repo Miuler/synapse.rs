@@ -51,7 +51,7 @@
   import {ZoomDialog} from "@features/ui-zoom";
   import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
   import {appearance} from "@entities/appearance";
-  import { t } from "@shared/lib/i18n";
+  import { i18n, t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
   import { stepViewerZoom } from "@shared/lib/viewer-zoom";
   import { loadVaultFlag, saveVaultFlag } from "@shared/lib/vault-prefs";
@@ -2981,10 +2981,10 @@
   /** Notas de la versión nueva disponible (las publica la release en latest.json) */
   function updateNotesMarkdown(): string {
     const u = appUpdates.available;
-    if (!u) return "# Novedades\n\nNo hay ninguna versión nueva pendiente.";
+    if (!u) return `# ${t('news.tab')}\n\n${t('news.nothingPending')}`;
     // La release ya trae «## versión»: se quita para no repetir el título
-    const notes = (u.notes ?? "").replace(/^##[^\n]*\n+/, "").trim();
-    return `# Novedades de Synapse ${u.version}\n\n${notes || "Sin notas para esta versión."}\n`;
+    const notes = ((i18n.locale === "es" ? u.notesEs : null) ?? u.notes ?? "").replace(/^##[^\n]*\n+/, "").trim();
+    return `# ${t('news.titleVersion', { version: u.version })}\n\n${notes || t('news.noNotes')}\n`;
   }
   onMount(() => {
     if (isDetachedWindow || !isTauriEnvironment()) return;
@@ -3002,7 +3002,7 @@
       } catch {
         /* sin almacenamiento: no se abre nada */
       }
-      const news = newsToOpenOnStartup(CHANGELOG_RAW, version, lastSeen, hadSettings);
+      const news = newsToOpenOnStartup(CHANGELOG_RAW[i18n.locale], version, lastSeen, hadSettings);
       if (news) selectTab(news.since ? `${NEWS_TAB}:${news.since}` : NEWS_TAB);
     });
     if (appSettings.autoCheckUpdates && !import.meta.env.DEV) {
@@ -3659,50 +3659,43 @@
     commandRegistry.registerMany([
       {
         id: "cmd-agent-panel",
-        name: "Agente: mostrar u ocultar el panel",
-        category: "Agente",
+        category: "agent",
         shortcut: shortcutsConfig.workspace.toggle_agent,
         action: () => setAgentPanelOpen(!isAgentPanelOpen),
       },
       {
         id: "cmd-agent-send-selection",
-        name: "Agente: adjuntar la selección al mensaje",
-        category: "Agente",
+        category: "agent",
         shortcut: "Ctrl+Alt+A",
         action: sendSelectionToAgent,
       },
       {
         id: "cmd-split-view",
-        name: "Dividir panel verticalmente (Split View)",
-        category: "Vista",
+        category: "view",
         shortcut: shortcutsConfig.workspace.split_view,
         action: () => handleSplitView(),
       },
       {
         id: "cmd-new-tab",
-        name: "Nueva pestaña vacía",
-        category: "Pestañas",
+        category: "tabs",
         shortcut: shortcutsConfig.workspace.new_tab,
         action: handleNewEmptyTab,
       },
       {
         id: "cmd-next-tab",
-        name: "Pestaña siguiente",
-        category: "Pestañas",
+        category: "tabs",
         shortcut: shortcutsConfig.workspace.next_tab,
         action: switchToNextTab,
       },
       {
         id: "cmd-prev-tab",
-        name: "Pestaña anterior",
-        category: "Pestañas",
+        category: "tabs",
         shortcut: shortcutsConfig.workspace.prev_tab,
         action: switchToPrevTab,
       },
       {
         id: "cmd-open-in-new-window",
-        name: "Abrir pestaña activa en nueva ventana",
-        category: "Pestañas",
+        category: "tabs",
         action: () => {
           if (activeTabPath && !isSyntheticTab(activeTabPath)) {
             handleOpenInNewWindow(activeTabPath, false);
@@ -3711,31 +3704,27 @@
       },
       {
         id: "cmd-open-folder",
-        name: "Abrir carpeta / bóveda",
-        category: "Archivo",
+        category: "file",
         shortcut: shortcutsConfig.workspace.open_vault_folder,
         action: handleOpenVaultFolder,
       },
       {
         id: "cmd-welcome-screen",
-        name: "Bóvedas recientes / Pantalla de bienvenida",
-        category: "Bóveda",
+        category: "vault",
         action: () => {
           showWelcomeScreen = true;
         },
       },
       {
         id: "cmd-community-plugins",
-        name: "Plugins de la comunidad: Explorar e instalar plugins de Obsidian",
-        category: "Plugins",
+        category: "plugins",
         action: () => {
           isPluginsModalOpen = true;
         },
       },
       {
         id: "cmd-new-file",
-        name: "Crear nuevo archivo Markdown",
-        category: "Archivo",
+        category: "file",
         shortcut: shortcutsConfig.workspace.new_file,
         action: () => {
           createNewVaultItem();
@@ -3743,48 +3732,42 @@
       },
       {
         id: "cmd-new-mermaid",
-        name: "Crear nuevo diagrama Mermaid (.mmd)",
-        category: "Archivo",
+        category: "file",
         action: () => {
           createNewVaultItem(undefined, 'mermaid');
         },
       },
       {
         id: "cmd-new-d2",
-        name: "Crear nuevo archivo D2 (.d2)",
-        category: "Archivo",
+        category: "file",
         action: () => {
           createNewVaultItem(undefined, 'd2');
         },
       },
       {
         id: "cmd-new-plantuml",
-        name: "Crear nuevo diagrama PlantUML (.puml)",
-        category: "Archivo",
+        category: "file",
         action: () => {
           createNewVaultItem(undefined, 'plantuml');
         },
       },
       {
         id: "cmd-new-excalidraw",
-        name: "Crear nuevo dibujo Excalidraw (.excalidraw)",
-        category: "Archivo",
+        category: "file",
         action: () => {
           createNewVaultItem(undefined, 'excalidraw');
         },
       },
       {
         id: "cmd-new-obsidian-excalidraw",
-        name: "Excalidraw: Crear nuevo dibujo (.excalidraw.md)",
-        category: "Excalidraw",
+        category: "excalidraw",
         action: () => {
           createNewVaultItem(undefined, 'obsidian-excalidraw');
         },
       },
       {
         id: "cmd-close-tab",
-        name: "Cerrar pestaña actual",
-        category: "Pestañas",
+        category: "tabs",
         shortcut: shortcutsConfig.workspace.close_tab,
         action: () => {
           if (activeTabPath) requestCloseTab(activeTabPath);
@@ -3792,28 +3775,24 @@
       },
       {
         id: "cmd-close-all-tabs",
-        name: "Cerrar todas las pestañas",
-        category: "Pestañas",
+        category: "tabs",
         action: requestCloseAllTabs,
       },
       {
         id: "cmd-toggle-vim",
-        name: "Alternar modo Vim",
-        category: "Editor",
+        category: "editor",
         action: () => {
           appSettings.toggleVimMode();
         },
       },
       {
         id: "cmd-toggle-markdown-view",
-        name: "Alternar vista Markdown (En vivo / Fuente / Lectura)",
-        category: "Vista",
+        category: "view",
         action: toggleMarkdownViewMode,
       },
       {
         id: "cmd-toggle-edit-mode",
-        name: "Alternar modo Edición / Lectura",
-        category: "Vista",
+        category: "view",
         shortcut: shortcutsConfig.workspace.toggle_edit_mode,
         action: () => {
           if (activeFocusedPane === 'right' && isSplit && activeSplitTabPath) {
@@ -3825,82 +3804,72 @@
       },
       {
         id: "cmd-toggle-sidebar",
-        name: "Mostrar u ocultar explorador de archivos",
-        category: "Vista",
+        category: "view",
         shortcut: shortcutsConfig.workspace.toggle_sidebar,
         action: toggleExplorer,
       },
       {
         id: "cmd-switch-language",
-        name: t('commands.switchLanguage'),
-        category: t('commands.categories.settings'),
+        category: "settings",
         action: () => {
           appSettings.toggleLocale();
         },
       },
       {
         id: "cmd-set-plantuml-server",
-        name: "PlantUML: cambiar servidor",
-        category: t('commands.categories.settings'),
+        category: "settings",
         action: () => {
-          const server = window.prompt('URL del servidor PlantUML:', appSettings.settings.plantumlServer)?.trim();
+          const server = window.prompt(t('palette.plantumlPrompt'), appSettings.settings.plantumlServer)?.trim();
           if (!server) return;
           if (/^https?:\/\//i.test(server)) appSettings.setPlantumlServer(server);
-          else window.alert('La URL debe empezar por http:// o https://');
+          else window.alert(t('palette.plantumlInvalid'));
         },
       },
       {
         id: "cmd-toggle-mermaid-engine",
-        name: t('commands.toggleMermaidEngine'),
-        category: t('commands.categories.settings'),
+        category: "settings",
         action: () => {
           appSettings.toggleMermaidRenderer();
         },
       },
       {
         id: "cmd-set-mermaid-engine-mermaidjs",
-        name: "Configurar motor Mermaid: Usar Mermaid.js",
-        category: "Configuración",
+        category: "settings",
         action: () => {
           appSettings.setMermaidRenderer("mermaidjs");
         },
       },
       {
         id: "cmd-set-mermaid-engine-merman",
-        name: "Configurar motor Mermaid: Usar Merman (WASM)",
-        category: "Configuración",
+        category: "settings",
         action: () => {
           appSettings.setMermaidRenderer("merman");
         },
       },
       {
         id: "cmd-toggle-default-excalidraw-viewer",
-        name: "Alternar visor por defecto de Excalidraw (Nativo / Obsidian)",
-        category: "Configuración",
+        category: "settings",
         action: () => {
           appSettings.toggleDefaultExcalidrawViewer();
         },
       },
       {
         id: "cmd-set-default-excalidraw-native",
-        name: "Configurar visor por defecto de Excalidraw: Usar Excalidraw nativo",
-        category: "Configuración",
+        category: "settings",
         action: () => {
           appSettings.setDefaultExcalidrawViewer("native");
         },
       },
       {
         id: "cmd-set-default-excalidraw-obsidian",
-        name: "Configurar visor por defecto de Excalidraw: Usar plugin de Excalidraw para Obsidian",
-        category: "Configuración",
+        category: "settings",
         action: () => {
           appSettings.setDefaultExcalidrawViewer("obsidian");
         },
       },
       {
         id: "cmd-switch-current-excalidraw-viewer",
-        name: "Excalidraw: Alternar visor de la pestaña actual (Nativo / Obsidian)",
-        category: "Excalidraw",
+        category: "excalidraw",
         action: () => {
           const targetPath = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
           if (targetPath && isDrawingTab(targetPath, openedNotes[targetPath]?.content)) {
@@ -3911,8 +3880,7 @@
       },
       {
         id: "cmd-save-file",
-        name: "Guardar / Grabar archivo actual",
-        category: "Archivo",
+        category: "file",
         shortcut: shortcutsConfig.workspace.save_file,
         action: () => {
           if (currentFocusedTabPath && currentFocusedVaultItem.relative_path) {
@@ -3922,28 +3890,24 @@
       },
       {
         id: "cmd-show-shortcuts",
-        name: "Mostrar atajos de teclado",
-        category: "Ayuda",
+        category: "help",
         shortcut: "F1",
         action: () => (isShortcutsPanelOpen = true),
       },
       {
         id: "cmd-toggle-devtools",
-        name: "Alternar herramientas de desarrollo (DevTools)",
-        category: "Desarrollo",
+        category: "development",
         shortcut: shortcutsConfig.workspace.toggle_devtools,
         action: toggleDevtools,
       },
       {
         id: "cmd-refresh-git",
-        name: "Actualizar estado de Git",
-        category: "Git",
+        category: "git",
         action: refreshGitStatus,
       },
       {
         id: "cmd-toggle-outline",
-        name: "Índice de la nota o de las claves (YAML/JSON)",
-        category: "Vista",
+        category: "view",
         shortcut: shortcutsConfig.workspace.toggle_outline,
         action: () => {
           const tab = activeTabPath;
@@ -3952,51 +3916,43 @@
       },
       {
         id: "cmd-fold-headings",
-        name: "Plegar todos los títulos de la nota",
-        category: "Vista",
+        category: "view",
         action: () => focusedMarkdownViewer()?.foldAllHeadings(true),
       },
       {
         id: "cmd-unfold-headings",
-        name: "Desplegar todos los títulos de la nota",
-        category: "Vista",
+        category: "view",
         action: () => focusedMarkdownViewer()?.foldAllHeadings(false),
       },
       {
         id: "cmd-content-zoom",
-        name: "Zoom: toda la interfaz",
-        category: "Synapse",
+        category: "synapse",
         action: () => (zoomDialogOpen = true),
       },
       {
         id: "cmd-app-news",
-        name: "Synapse: Novedades (changelog)",
-        category: "Synapse",
+        category: "synapse",
         action: () => selectTab(NEWS_TAB),
       },
       {
         id: "cmd-app-check-updates",
-        name: "Synapse: Buscar actualizaciones",
-        category: "Synapse",
+        category: "synapse",
         action: () => void appUpdates.check(false),
       },
       {
         id: "cmd-git-repo-log",
-        name: "Git: Log de todas las ramas (git log --all)",
-        category: "Git",
+        category: "git",
         action: () => gitDialogState.openRepoLog(repoOf(activeTabPath, gitDialogState.repos)),
       },
       {
         id: "cmd-git-push",
-        name: "Git: Enviar cambios al remoto (git push)",
-        category: "Git",
+        category: "git",
         shortcut: shortcutsConfig.workspace.git_push,
         action: () => handleGitPush(),
       },
       {
         id: "cmd-git-add-active",
-        name: "Git: Preparar archivo actual (git add)",
-        category: "Git",
+        category: "git",
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
@@ -4010,8 +3966,7 @@
       },
       {
         id: "cmd-git-restore-staged-active",
-        name: "Git: Despreparar archivo actual (git restore --staged)",
-        category: "Git",
+        category: "git",
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
@@ -4024,8 +3979,7 @@
       },
       {
         id: "cmd-git-restore-active",
-        name: "Git: Restaurar archivo actual (git restore)",
-        category: "Git",
+        category: "git",
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
           try {
@@ -4041,8 +3995,7 @@
       },
       {
         id: "cmd-reload-active-file",
-        name: "Archivo: Recargar archivo actual desde el disco",
-        category: "Archivo",
+        category: "file",
         shortcut: shortcutsConfig.workspace.reload_active_file,
         action: async () => {
           if (!activeTabPath || isSyntheticTab(activeTabPath)) return;
@@ -4051,8 +4004,7 @@
       },
       {
         id: "cmd-reload-vault",
-        name: "Bóveda: Recargar toda la bóveda y refrescar metadatos",
-        category: "Bóveda",
+        category: "vault",
         shortcut: shortcutsConfig.workspace.reload_vault,
         action: async () => {
           await handleReloadItems(['']);
@@ -4060,8 +4012,7 @@
       },
       {
         id: "cmd-search-fulltext",
-        name: "Buscar en el contenido de las notas (FTS)",
-        category: "Búsqueda",
+        category: "search",
         shortcut: shortcutsConfig.workspace.search_fulltext,
         action: () => {
           openFullTextSearchModal();
@@ -4069,16 +4020,14 @@
       },
       {
         id: "cmd-rebuild-fts-index",
-        name: "Reconstruir índice de búsqueda full-text",
-        category: "Búsqueda",
+        category: "search",
         action: async () => {
           await searchRepository.rebuildIndex();
         },
       },
       {
         id: "cmd-locate-active-file",
-        name: "Explorador: Ubicar archivo actual en el árbol",
-        category: "Navegación",
+        category: "navigation",
         shortcut: shortcutsConfig.workspace.locate_active_file,
         action: async () => {
           if (activeRibbonTab !== 'files') {
@@ -4093,60 +4042,51 @@
       },
       {
         id: "cmd-nav-back",
-        name: "Navegar atrás entre pestañas",
-        category: "Navegación",
+        category: "navigation",
         shortcut: shortcutsConfig.workspace.nav_back,
         action: navigateBack,
       },
       {
         id: "cmd-nav-forward",
-        name: "Navegar adelante entre pestañas",
-        category: "Navegación",
+        category: "navigation",
         shortcut: shortcutsConfig.workspace.nav_forward,
         action: navigateForward,
       },
       {
         id: "cmd-toggle-theme",
-        name: "Alternar tema (Claro / Oscuro)",
-        category: "Apariencia",
+        category: "appearance",
         shortcut: shortcutsConfig.workspace.toggle_theme,
         action: () => appSettings.toggleTheme(),
       },
       {
         id: "cmd-pick-theme",
-        name: "Elegir tema…",
-        category: "Apariencia",
+        category: "appearance",
         shortcut: shortcutsConfig.workspace.pick_theme,
         action: toggleThemePicker,
       },
       {
         id: "cmd-theme-system",
-        name: "Tema: Seguir sistema operativo (Auto)",
-        category: "Apariencia",
+        category: "appearance",
         action: () => appSettings.setTheme('system'),
       },
       {
         id: "cmd-theme-dark",
-        name: "Tema: Modo oscuro",
-        category: "Apariencia",
+        category: "appearance",
         action: () => appSettings.setTheme('dark'),
       },
       {
         id: "cmd-theme-light",
-        name: "Tema: Modo claro",
-        category: "Apariencia",
+        category: "appearance",
         action: () => appSettings.setTheme('light'),
       },
       {
         id: "cmd-toggle-mcp-server",
-        name: "MCP: Alternar servidor MCP local (Activar / Desactivar)",
-        category: "MCP",
+        category: "mcp",
         action: handleToggleMcp,
       },
       {
         id: "cmd-copy-mcp-endpoint",
-        name: "MCP: Copiar URL del servidor MCP al portapapeles",
-        category: "MCP",
+        category: "mcp",
         action: copyMcpUrlToClipboard,
       },
     ]);
@@ -4835,7 +4775,7 @@
                 markdown={updateNotesMarkdown()}
               />
             {:else}
-              <NewsTab markdown={newsMarkdown(CHANGELOG_RAW, appVersion, tabFile.slice(NEWS_TAB.length).replace(/^:/, "") || undefined)} />
+              <NewsTab markdown={newsMarkdown(CHANGELOG_RAW[i18n.locale], appVersion, tabFile.slice(NEWS_TAB.length).replace(/^:/, "") || undefined)} />
             {/if}
           </div>
         {:else if tabFile.startsWith("rev:")}

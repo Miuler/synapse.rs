@@ -1,1145 +1,1156 @@
-# Registro de cambios
+# Changelog
 
-Todos los cambios notables en este proyecto serán documentados en este archivo.
+_[Español](CHANGELOG.es.md)_
 
-El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
-y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to this project are documented in this file.
 
-## [Sin publicar] (Unreleased)
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Añadido
+## [Unreleased]
 
-- Paleta de comandos (Ctrl+P): los comandos también se encuentran escribiendo en inglés (`update` o `upgrade`, `close tab`, `dark mode`…).
+### Added
+
+- Command palette (Ctrl+P): names follow the interface language, and commands can be found in both English and Spanish (`update`, `upgrade`, `cerrar pestaña`…). The closest match comes first.
+- What's new and update notes in English or Spanish, following the interface. The changelog now has both versions.
+
+### Fixed
+
+- Windows: images opened as a file were not displayed when the vault was opened from recent vaults or the terminal, because its path carried the `\\?\` long-path prefix.
+
+### Changed
+
+- English is the base language: text missing in Spanish is shown in English, and Synapse starts in English when the system uses any other language.
 
 ## [1.0.0-beta.8] - 2026-11-24
 
-### Seguridad
+### Security
 
-- Dibujos Excalidraw en la API de plugins: un archivo manipulado podía ejecutar código al mostrarse. `toSVG` escapa sus valores y la vista sanea el SVG.
-- API de plugins: `sanitizeHTMLToDom` sanea de verdad el HTML y `htmlToMarkdown` ya no deja etiquetas reconstruidas.
-- Acceso a archivos: la interfaz solo puede leer y escribir en la bóveda abierta y en los archivos que eliges (diálogo o línea de comandos); antes, en cualquier ruta. Un archivo suelto muestra además las imágenes de su carpeta y subcarpetas. Una bóveda que no esté en recientes pide confirmación. Un fondo de pantalla elegido en una versión anterior hay que volver a elegirlo, y las imágenes con ruta absoluta de fuera de la bóveda ya no se muestran.
-- Guardar un agente personalizado o escribir otra ruta de Git pide confirmación con un diálogo del sistema que muestra el programa que se ejecutará.
-- Instalador de agentes: los permisos especiales (SUID/SGID/sticky) de un ZIP se descartan.
-- Dependencias con vulnerabilidades conocidas y parche compatible, actualizadas (`url`, `cookie` y `lodash-es`).
+- Excalidraw drawings in the plugin API: a tampered file could run code when displayed. `toSVG` escapes its values and the view sanitizes the SVG.
+- Plugin API: `sanitizeHTMLToDom` now truly sanitizes HTML and `htmlToMarkdown` no longer leaves reconstructed tags behind.
+- File access: the interface can only read and write inside the open vault and the files you choose (dialog or command line); before, any path. A loose file also shows the images from its folder and subfolders. A vault that is not in the recent list asks for confirmation. A wallpaper chosen in a previous version has to be chosen again, and images with an absolute path outside the vault are no longer shown.
+- Saving a custom agent or entering a different Git path asks for confirmation with a system dialog that shows the program that will be run.
+- Agent installer: special permissions (SUID/SGID/sticky) in a ZIP are discarded.
+- Dependencies with known vulnerabilities and a compatible patch, updated (`url`, `cookie` and `lodash-es`).
 
-### Corregido
+### Fixed
 
-- Git Log de todas las ramas: el menú contextual aparecía un instante en otro sitio y saltaba a su posición, así que un clic rápido podía caer en otra opción.
-- Explorador con muchos archivos y zoom de interfaz distinto de 100 %: moverse por la lista o abrir un archivo bloqueaba la app varios segundos, porque la altura de fila oscilaba y la lista se volvía a montar cientos de veces.
-- Índices de carpeta (`index.md`): el candado y el estado de Git quedan junto a los nombres y alineados en columna, en vez de en el borde derecho; la descripción va a continuación.
-- Chat del agente: con Claude no aparecía el selector de modelo, porque ya lo anuncia en `configOptions`. Synapse lee ese formato y cambia el modelo con `session/set_config_option`.
-- Pruebas unitarias (`bun test`): el plugin que compila los `.svelte.ts` quita los tipos con el transpilador de Bun, porque TypeScript 7 ya no trae `transpileModule`; el script `test` solo mira `./src` (ya no recoge la carpeta `zennotes/`).
-- Chat del agente: lo escrito sin enviar ya no se pierde al cerrarse el panel (por ejemplo, sin fijar, al hacer clic fuera) ni al plegar la conversación.
-- Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
-- Chat del agente: corregido un error por el que los mensajes encolados mientras el agente trabajaba no se enviaban al terminar el turno.
-- Diálogos redimensionables (Índice de la nota `Ctrl+F12` y diálogos de Git): se muestra el indicador de redimensionado en la esquina inferior derecha, se amplían las áreas de agarre en bordes y esquinas y se captura el puntero durante el arrastre para redimensionar de forma fiable.
-- Chat del agente: al colapsar un bloque de razonamiento ahora muestra «Razonamiento…» junto al icono en lugar de solo el emoji, y al expandirlo se elimina el espacio en blanco sobrante antes de las tarjetas de herramientas.
-- Chat del agente: los enlaces `file://` de sus respuestas no abrían nada (el saneado del HTML les quitaba el destino). Ahora abren el archivo de la bóveda y un ancla `#L56-L65` lo abre en el editor con esas líneas seleccionadas. Si la ruta no cae en la bóveda (otra raíz u otra copia del repositorio), se busca por el final de la ruta en el índice: uno se abre, varios dan a elegir.
+- Git Log of all branches: the context menu briefly appeared in the wrong place and then jumped to its position, so a quick click could land on a different option.
+- Explorer with many files and an interface zoom other than 100%: moving through the list or opening a file froze the app for several seconds, because the row height oscillated and the list was remounted hundreds of times.
+- Folder indexes (`index.md`): the lock and the Git status stay next to the names and aligned in a column, instead of at the right edge; the description follows.
+- Agent chat: with Claude the model selector did not appear, because it already announces it in `configOptions`. Synapse reads that format and changes the model with `session/set_config_option`.
+- Unit tests (`bun test`): the plugin that compiles the `.svelte.ts` files strips the types with Bun's transpiler, because TypeScript 7 no longer ships `transpileModule`; the `test` script only looks at `./src` (it no longer picks up the `zennotes/` folder).
+- Agent chat: text typed but not sent is no longer lost when the panel closes (for example, when unpinned, on clicking outside) or when the conversation is folded.
+- Internal links with reserved characters (`%2C`, etc.) in reading view and OKF `index.md`: they are decoded with `decodeURIComponent` instead of `decodeURI` so that files with commas or other special characters in the name (such as `.excalidraw`) open correctly.
+- Agent chat: fixed a bug where messages queued while the agent was working were not sent when the turn finished.
+- Resizable dialogs (note Outline `Ctrl+F12` and Git dialogs): the resize indicator is shown in the bottom-right corner, the grab areas on edges and corners are enlarged and the pointer is captured while dragging so that resizing is reliable.
+- Agent chat: collapsing a reasoning block now shows "Reasoning…" next to the icon instead of just the emoji, and expanding it removes the excess whitespace before the tool cards.
+- Agent chat: the `file://` links in its replies did not open anything (the HTML sanitizer stripped their target). Now they open the vault file, and a `#L56-L65` anchor opens it in the editor with those lines selected. If the path does not fall inside the vault (another root or another copy of the repository), it is looked up by the end of the path in the index: one match opens, several let you choose.
 
-### Añadido
+### Added
 
-- Chat del agente: selector de nivel de esfuerzo junto al modelo, con los agentes que lo ofrecen (Claude, agy). Se recuerda por agente. Con agy, el esfuerzo ya no se repite en la lista de modelos.
-- Notas Markdown: en lectura, los títulos y subtítulos se pliegan con la flecha de su izquierda (Alt+clic, todos los de ese nivel; `zM`/`zR`, todos). La búsqueda, el índice y los enlaces a un título despliegan lo necesario. Comandos «Plegar / Desplegar todos los títulos de la nota», también en edición.
-- Al terminar el agente, además del sonido, Synapse envía una **notificación del sistema con el pulpo kawaii** y la consulta que terminó (`Terminó la consulta: "…"`) si la instancia que lo ejecuta no tiene el foco (por ejemplo, si estás en otra aplicación). Los avisos de permisos y preguntas del agente usan ahora el mismo icono.
-- Los archivos **`.sql`** son un tipo soportado: aparecen en el explorador y en Ctrl+O, se indexan en la búsqueda de contenido como código y se editan con resaltado de sintaxis SQL (también en el diff de Git).
-- Tema integrado **GitHub** (títulos verdes sobre fondo casi negro en oscuro; blanco en claro), también como «GitHub Islas».
-- Tema integrado **Solarized** (crema en claro, azul petróleo en oscuro, títulos cian), también como «Solarized Islas».
-- Tema integrado **Willemstad** (negro cálido en oscuro, blanco y salvia en claro, títulos en franjas verdes), también como «Willemstad Islas».
-- Cambio rápido de tema: `` Ctrl+` `` o el comando «Elegir tema…» abre la lista de temas con búsqueda, sin entrar a Configuración. El atajo se puede cambiar (`pick_theme`).
-- Búsqueda global y Quick Open: al abrir un resultado, el buscador del editor (Markdown en lectura y edición, YAML/JSON y texto) queda cargado con el término buscado y posicionado en la primera coincidencia.
-- Chat del agente (ACP): `/btw <pregunta>` hace una pregunta aparte sin interrumpir el turno en curso. La respuesta sale en un panel flotante sobre la caja de texto, no entra en la conversación ni en el historial y se cierra con Esc; «Convertir en conversación» la continúa aparte. Rechaza los permisos que pida el agente.
-- Chat del agente (ACP): `/fork [mensaje]` abre otra conversación con el contexto de la actual, también con el turno en curso. `/btw` y `/fork` usan `session/fork` si el agente lo anuncia (Claude) y, si no, le reenvían la conversación como texto (agy); la sugerencia del comando dice cuál de las dos.
-- Barra de pestañas: opción «Cerrar todas las pestañas» en el menú contextual de cada pestaña.
-- Chat del agente (ACP): sonido al terminar un turno (`Burbuja FM` por defecto), configurable en Ajustes → Agentes de IA con opciones `Burbuja FM`, `Sonar orgánico` o `Sin sonido` y botón «Probar».
-- Chat del agente (ACP): soporte completo para `elicitation/create` en modos `form` (formulario interactivo generado desde JSON Schema con botones/selects para enums, booleanos, números, texto y validación de obligatorios) y `url` (muestra dominio, URL y botón «Abrir enlace»), anunciando `clientCapabilities.elicitation` en `initialize` y respondiendo con `accept`, `decline` o `cancel`.
-- Visor de diff de texto (`@codemirror/merge`): navegación entre bloques de cambio (↑/↓ con contador), búsqueda integrada (`Ctrl+F` y botón en la barra), edición directa del archivo en disco en diffs del árbol de trabajo sincronizada con el botón Lectura/Edición (`Ctrl+E`) con botones para revertir bloques individuales (`→` en vista dividida, «Revertir» / «Mantener» en unificada), autoguardado y soporte completo del editor CodeMirror (modo Vim, plegado, comentarios, renombrar ocurrencias, atajos de línea, autocompletado e historial `Ctrl+Z`), además de resaltado de sintaxis y colores de diff adaptados a tema claro y oscuro.
-- Git Log del repositorio: las columnas se pueden reordenar arrastrando sus cabeceras (orden guardado) y «Hash» pasa a ser la primera columna por defecto.
-- Pantalla de bienvenida: las bóvedas fijadas se pueden reordenar con drag and drop (orden guardado en `workspaces.json`) y las fijadas con repositorio Git conservan el icono de carpeta Git con el color de fijado.
-- Índice de Markdown y claves YAML/JSON: el popover del índice reutiliza `@shared/ui/dialog-resize` para redimensionarse arrastrando sus bordes o esquinas y recordar su tamaño.
-- Índice de carpeta (`index.md`): «+ Nuevo…» (desplegable: nota Markdown, Mermaid, D2, PlantUML, Excalidraw) junto a «Archivos»/«Conceptos» y «+ Carpeta» junto a «Carpetas», que crean dentro de esa carpeta; si falta la sección, los botones van arriba.
-- Explorador: clic en una carpeta abre su `index.md` (hacer clic en el icono de carpeta o en cualquier zona a su izquierda —flecha o indentación— la despliega/contrae; sin `index.md`, se despliega como antes). Ajustes → «Clic en una carpeta del explorador» permite volver a «Desplegarla». En ese modo el `index.md` no se lista dentro de su carpeta (el de la raíz sí); sigue en disco y en el MCP. «Localizar archivo activo» (Ctrl+Alt+1) sobre un `index.md` selecciona su carpeta sin desplegarla.
-- Editor: al pasar el ratón por una marca del margen de Git aparece un tooltip con lo que había en Git y lo que hay ahora (−/+), con las letras que cambiaron resaltadas (aunque sea una sola); en un borrado, las líneas que se quitaron. Botones «Revertir» (devuelve el bloque a como está en Git; Ctrl+Z lo deshace) y «Copiar original». Colores propios en claro y oscuro (como el diff de GitHub), legibles con cualquier tema. El tooltip sale junto a la línea bajo el ratón y sigue abierto al pasar a él.
-- Telemetría de agentes: registro global de uso por iteración en `~/.config/synapsers/agent-usage.jsonl` (modelo, sesión, duración, tokens/costo y referencias a los JSON de cada bóveda) y sidecar detallado por conversación en `<bóveda>/.synapse/agent-sessions/telemetry/<id>.json` con tiempos de iteración, uso de herramientas y correlación de request/response de llamadas al MCP de Synapse.
-- Tablas Markdown: las celdas con `[ ]`, `[x]` o `[X]` se renderizan como checkboxes interactivos en el editor en vivo, el editor visual de celdas y la vista de lectura.
-- Chat del agente: tus mensajes se muestran en Markdown (negrita, listas, código, enlaces…) con las menciones resaltadas, y tienen un botón «Copiar» que copia el texto tal como lo escribiste para reusar el prompt.
-- La pestaña de un `index.md` muestra el nombre de su carpeta (el de la bóveda para el de la raíz) con un icono de carpeta.
-- Imágenes y adjuntos (todo enlace que no es una nota `.md`) se buscan también en la carpeta `attachments/` junto a la nota: para `a/b/c/NOTA.md`, primero `a/b/c/imagen.png`, luego `a/b/c/attachments/imagen.png`, y después la regla de siempre (raíz de la bóveda, único por nombre o elegir).
-- Panel del agente con pin, como el explorador: fijado ocupa su espacio a la derecha; suelto flota sobre el editor sin quitarle espacio y se oculta al hacer clic fuera o con Esc.
-- Índice OKF (Open Knowledge Format v0.3) en cada carpeta: Synapse mantiene un `index.md` con sus subcarpetas, conceptos (notas con `type`, con su `description`) y demás archivos, para que un agente pueda recorrer la bóveda desde el disco. Se regenera al cambiar la carpeta y solo se escribe si cambia (pensado para commitearse); en la raíz lleva `okf_version: "0.3"` y conserva `title`, `description`, `license` y `x-…`. Un `index.md` propio se renombra a `index.deprecado.md`. En Synapse se abre en solo lectura (sin el botón de lectura/escritura) y no sale en la búsqueda; un enlace a una carpeta (`carpeta/`) abre su `index.md`. `SYNAPSE_OKF_INDEX=0` lo desactiva.
-- MCP: `read_note` devuelve además el `index.md` de la raíz y el de la carpeta de la nota.
-- Diff de texto: una línea indica qué es cada lado (◀ antes · después ▶, o − antes / + después).
-- Enlaces con una sola regla en notas (wikilinks y enlaces Markdown), panel de relaciones y chat del agente: si la ruta existe tal cual (relativa a la nota o a la raíz) se usa esa; si no, el único archivo con ese nombre; si hay varios, una lista para elegir (↑/↓; Enter o clic abre; Ctrl+Enter, Ctrl+clic o «Fijar» abre y corrige el enlace en la nota con la ruta completa). Una imagen incrustada ambigua muestra un aviso con «Elegir cuál».
-- Chat del agente: las imágenes se abren en una pestaña («Agente · …», con el icono del agente) con el visor de imágenes (zoom, mover, ajustar) y el botón «Guardar en la bóveda».
-- MCP: `get_backlinks_and_relations` indica en cada enlace saliente `resolved_path` y, si es ambiguo, `ambiguous` con los candidatos.
-- Chat del agente: mientras el agente trabaja, Enter deja el mensaje en cola (con sus adjuntos y menciones) y se envía solo al terminar el turno, en orden. Cada mensaje en cola tiene ✕ para quitarlo, ↑ con la caja vacía saca el último para editarlo, y «Detener» corta el turno y devuelve lo encolado a la caja sin enviarlo. Funciona con cualquier agente ACP (la cola la lleva Synapse).
-- Chat del agente: las respuestas muestran las casillas de tarea (antes el saneado del HTML las quitaba); bajo cada respuesta, «Markdown» copia el texto tal cual y «Con formato» lo copia para un correo o Teams, con las tareas como ☐ / ✅; copiar una selección con tareas hace lo mismo.
-- Chat del agente: zoom de los mensajes y la caja de texto con Ctrl+rueda, Ctrl++, Ctrl+− y Ctrl+0 (se recuerda).
-- Chat del agente: la caja de texto crece con lo que escribes, hasta el 40 % de la altura de la ventana; después tiene su propio scroll.
+- Agent chat: effort level selector next to the model, with the agents that offer it (Claude, agy). It is remembered per agent. With agy, the effort is no longer repeated in the model list.
+- Markdown notes: in reading view, headings and subheadings fold with the arrow to their left (Alt+click, all of that level; `zM`/`zR`, all of them). Search, the outline and links to a heading unfold what is needed. "Fold / Unfold all headings of the note" commands, also in edit mode.
+- When the agent finishes, besides the sound, Synapse sends a **system notification with the kawaii octopus** and the query that finished (`Query finished: "…"`) if the instance running it does not have focus (for example, if you are in another application). The agent's permission and question prompts now use the same icon.
+- **`.sql`** files are a supported type: they appear in the explorer and in Ctrl+O, are indexed in content search as code and are edited with SQL syntax highlighting (also in the Git diff).
+- Built-in **GitHub** theme (green headings on a near-black background in dark; white in light), also as "GitHub Islands".
+- Built-in **Solarized** theme (cream in light, teal in dark, cyan headings), also as "Solarized Islands".
+- Built-in **Willemstad** theme (warm black in dark, white and sage in light, headings in green stripes), also as "Willemstad Islands".
+- Quick theme switching: `` Ctrl+` `` or the "Pick theme…" command opens the theme list with search, without going into Settings. The shortcut can be changed (`pick_theme`).
+- Global search and Quick Open: when opening a result, the editor's finder (Markdown in reading and edit modes, YAML/JSON and text) is loaded with the searched term and positioned on the first match.
+- Agent chat (ACP): `/btw <question>` asks a side question without interrupting the current turn. The answer appears in a floating panel above the text box, does not enter the conversation or the history and is closed with Esc; "Convert to conversation" continues it separately. It rejects any permissions the agent requests.
+- Agent chat (ACP): `/fork [message]` opens another conversation with the context of the current one, also while a turn is in progress. `/btw` and `/fork` use `session/fork` if the agent announces it (Claude) and, if not, forward the conversation to it as text (agy); the command hint says which of the two applies.
+- Tab bar: "Close all tabs" option in each tab's context menu.
+- Agent chat (ACP): sound when a turn finishes (`Burbuja FM` by default), configurable in Settings → AI Agents with the options `Burbuja FM`, `Sonar orgánico` or `Sin sonido` and a "Test" button.
+- Agent chat (ACP): full support for `elicitation/create` in `form` mode (interactive form generated from JSON Schema with buttons/selects for enums, booleans, numbers, text and required-field validation) and `url` mode (shows the domain, URL and an "Open link" button), announcing `clientCapabilities.elicitation` in `initialize` and replying with `accept`, `decline` or `cancel`.
+- Text diff viewer (`@codemirror/merge`): navigation between change blocks (↑/↓ with a counter), built-in search (`Ctrl+F` and a button in the bar), direct editing of the file on disk in working-tree diffs synchronized with the Reading/Edit button (`Ctrl+E`) with buttons to revert individual blocks (`→` in split view, "Revert" / "Keep" in unified), autosave and full support for the CodeMirror editor (Vim mode, folding, comments, rename occurrences, line shortcuts, autocompletion and `Ctrl+Z` history), plus syntax highlighting and diff colors adapted to light and dark themes.
+- Repository Git Log: columns can be reordered by dragging their headers (order saved) and "Hash" becomes the first column by default.
+- Welcome screen: pinned vaults can be reordered with drag and drop (order saved in `workspaces.json`) and pinned ones with a Git repository keep the Git folder icon with the pinned color.
+- Markdown outline and YAML/JSON keys: the outline popover reuses `@shared/ui/dialog-resize` so it can be resized by dragging its edges or corners and remembers its size.
+- Folder index (`index.md`): "+ New…" (dropdown: Markdown note, Mermaid, D2, PlantUML, Excalidraw) next to "Files"/"Concepts" and "+ Folder" next to "Folders", which create inside that folder; if the section is missing, the buttons go at the top.
+- Explorer: clicking a folder opens its `index.md` (clicking the folder icon or any area to its left —arrow or indentation— expands/collapses it; without an `index.md`, it expands as before). Settings → "Click on an explorer folder" lets you go back to "Expand it". In that mode the `index.md` is not listed inside its folder (the root's is); it remains on disk and in the MCP. "Locate active file" (Ctrl+Alt+1) on an `index.md` selects its folder without expanding it.
+- Editor: hovering over a Git gutter mark shows a tooltip with what was in Git and what is there now (−/+), with the characters that changed highlighted (even if just one); for a deletion, the lines that were removed. "Revert" buttons (returns the block to how it is in Git; Ctrl+Z undoes it) and "Copy original". Own colors in light and dark (like the GitHub diff), readable with any theme. The tooltip appears next to the line under the mouse and stays open when you move onto it.
+- Agent telemetry: global per-iteration usage log in `~/.config/synapsers/agent-usage.jsonl` (model, session, duration, tokens/cost and references to each vault's JSON files) and a detailed per-conversation sidecar in `<vault>/.synapse/agent-sessions/telemetry/<id>.json` with iteration times, tool usage and request/response correlation of calls to the Synapse MCP.
+- Markdown tables: cells with `[ ]`, `[x]` or `[X]` are rendered as interactive checkboxes in the live editor, the visual cell editor and reading view.
+- Agent chat: your messages are shown in Markdown (bold, lists, code, links…) with mentions highlighted, and have a "Copy" button that copies the text exactly as you wrote it so you can reuse the prompt.
+- The tab of an `index.md` shows the name of its folder (the vault's for the root one) with a folder icon.
+- Images and attachments (any link that is not a `.md` note) are also looked up in the `attachments/` folder next to the note: for `a/b/c/NOTE.md`, first `a/b/c/image.png`, then `a/b/c/attachments/image.png`, and then the usual rule (vault root, unique by name or choose).
+- Agent panel with pin, like the explorer: pinned, it takes up its space on the right; unpinned, it floats over the editor without taking space from it and hides when you click outside or press Esc.
+- OKF index (Open Knowledge Format v0.3) in every folder: Synapse maintains an `index.md` with its subfolders, concepts (notes with `type`, with their `description`) and other files, so an agent can walk the vault from disk. It is regenerated when the folder changes and only written if it changes (meant to be committed); at the root it carries `okf_version: "0.3"` and keeps `title`, `description`, `license` and `x-…`. A custom `index.md` is renamed to `index.deprecado.md`. In Synapse it opens read-only (without the read/write button) and does not appear in search; a link to a folder (`folder/`) opens its `index.md`. `SYNAPSE_OKF_INDEX=0` disables it.
+- MCP: `read_note` also returns the root `index.md` and the one of the note's folder.
+- Text diff: a line indicates what each side is (◀ before · after ▶, or − before / + after).
+- Single-rule links in notes (wikilinks and Markdown links), relations panel and agent chat: if the path exists as written (relative to the note or to the root) it is used; if not, the only file with that name; if there are several, a list to choose from (↑/↓; Enter or click opens; Ctrl+Enter, Ctrl+click or "Pin" opens and fixes the link in the note with the full path). An ambiguous embedded image shows a notice with "Choose which".
+- Agent chat: images open in a tab ("Agent · …", with the agent's icon) with the image viewer (zoom, pan, fit) and the "Save to vault" button.
+- MCP: `get_backlinks_and_relations` reports `resolved_path` on each outgoing link and, if it is ambiguous, `ambiguous` with the candidates.
+- Agent chat: while the agent is working, Enter queues the message (with its attachments and mentions) and it is sent automatically when the turn finishes, in order. Each queued message has ✕ to remove it, ↑ with an empty box pulls out the last one to edit it, and "Stop" cuts the turn and returns the queued messages to the box without sending them. It works with any ACP agent (Synapse manages the queue).
+- Agent chat: replies show task checkboxes (the HTML sanitizer used to strip them); under each reply, "Markdown" copies the text as is and "Formatted" copies it for an email or Teams, with tasks as ☐ / ✅; copying a selection with tasks does the same.
+- Agent chat: zoom for messages and the text box with Ctrl+wheel, Ctrl++, Ctrl+− and Ctrl+0 (remembered).
+- Agent chat: the text box grows as you type, up to 40% of the window height; after that it has its own scroll.
 
-### Cambiado
+### Changed
 
-- Índice de carpeta (`index.md` OKF): las listas de carpetas, conceptos y archivos se renderizan en vista de lectura con aspecto similar al explorador (iconos de carpeta y tipo de archivo, metadatos discretos, estado Git y candado, y fila completa clickeable) sin modificar el archivo físico OKF en disco.
-- Visor de diff de texto: migrado de `@git-diff-view/svelte` a `@codemirror/merge` para mejorar el rendimiento en archivos grandes.
-- Menús contextuales del explorador de bóveda y breadcrumb: todas las opciones de Git ahora aparecen agrupadas juntas en la parte superior.
-- Diálogos redimensionables unificados sobre `@shared/ui/dialog-resize` en `QuickOpen`, `FullTextSearch`, `CommandPalette`, `SettingsPanel`, `ShortcutsPanel` y `CommunityPluginsModal` (conserva tamaños guardados, grip en esquina inferior derecha y arrastre desde la cabecera en plugins comunitarios).
-- Si el explorador y el panel del agente están fijados se recuerda por bóveda (la primera vez cada bóveda toma el último valor global).
-- Diff visual «2 Paneles»: izquierda = antes (Git, versión anterior, primer archivo) y derecha = después (disco, versión nueva), igual que el diff de texto; el panel editable del disco pasa a la derecha.
-- Al guardar una nota Markdown ya no se añade `title` al frontmatter (ni se crea un frontmatter solo para eso): el título por defecto es el nombre del archivo. Al renombrar, el `title` solo cambia si ya existía y coincidía con el nombre anterior; un título propio se respeta. El `write_note` del MCP solo escribe `title` si se le pasa.
-- El diff de texto se abre colapsado, mostrando solo los cambios («Expandir todo» en la barra para verlo entero). `diff.max_expand_lines` en config.jsonc vale ahora 0; con un número mayor, los archivos de hasta esas líneas se abren expandidos como antes.
-- Un enlace con varios archivos del mismo nombre ya no lleva al «más cercano» sin avisar: se pregunta. Esos enlaces ambiguos no cuentan en backlinks, grafo ni relaciones hasta que se fijan.
-- Visor OpenAPI: Scalar ya no usa la URL de la ventana (`#…`); con varias pestañas de OpenAPI cada una va por su cuenta (antes una pestaña nueva saltaba a la sección de la otra).
+- Folder index (`index.md` OKF): the lists of folders, concepts and files are rendered in reading view with an appearance similar to the explorer (folder and file-type icons, subtle metadata, Git status and lock, and a fully clickable row) without modifying the physical OKF file on disk.
+- Text diff viewer: migrated from `@git-diff-view/svelte` to `@codemirror/merge` to improve performance on large files.
+- Context menus of the vault explorer and breadcrumb: all Git options now appear grouped together at the top.
+- Resizable dialogs unified on `@shared/ui/dialog-resize` in `QuickOpen`, `FullTextSearch`, `CommandPalette`, `SettingsPanel`, `ShortcutsPanel` and `CommunityPluginsModal` (keeps saved sizes, a grip in the bottom-right corner and dragging from the header in community plugins).
+- Whether the explorer and the agent panel are pinned is remembered per vault (the first time, each vault takes the last global value).
+- Visual diff "2 Panels": left = before (Git, previous version, first file) and right = after (disk, new version), like the text diff; the editable disk panel moves to the right.
+- Saving a Markdown note no longer adds `title` to the frontmatter (nor creates a frontmatter just for that): the default title is the file name. On rename, the `title` only changes if it already existed and matched the previous name; a custom title is respected. The MCP's `write_note` only writes `title` if it is passed.
+- The text diff opens collapsed, showing only the changes ("Expand all" in the bar to see it in full). `diff.max_expand_lines` in config.jsonc is now 0; with a larger number, files up to that many lines open expanded as before.
+- A link with several files of the same name no longer silently goes to the "closest" one: it asks. Those ambiguous links do not count in backlinks, graph or relations until they are pinned.
+- OpenAPI viewer: Scalar no longer uses the window URL (`#…`); with several OpenAPI tabs each one works on its own (before, a new tab would jump to the other's section).
 
 ## [1.0.0-beta.7] - 2026-11-20
 
-### Añadido
+### Added
 
-- Zoom en los visores de Word y de hojas de cálculo que agranda todo, como en un PDF (no solo la letra): en Word la página entera, con «Ajustar al ancho»; en las hojas, anchos de columna, altos de fila, letra y cabeceras, sin dejar de pintar solo lo visible. De 50 % a 300 % con el control de la barra, Ctrl+rueda o los atajos de tamaño (Ctrl++, Ctrl+−, Ctrl+0), que dentro de estos visores hacen este zoom. Se recuerda un zoom para todos los Word y otro para todas las hojas.
-- Al copiar desde el modo lectura de Markdown una selección con tareas, las casillas se copian como ☐ (pendiente) y ✅ (hecha), con la lista y la negrita, para pegarlas en un correo o en Teams web (que quitan las casillas HTML); también en texto plano (`- ☐ tarea`). Sin tareas se copia como siempre.
-- Atajo configurable «Marcar / desmarcar tarea» (`toggle_task`, Ctrl+Enter por defecto) en el editor de Markdown, como en Obsidian: alterna `- [ ]` ↔ `- [x]` en la línea del cursor (o en todas las de la selección), añade la casilla a un elemento de lista que no la tiene y convierte una línea normal en tarea. Funciona también con Vim, en modo normal e inserción.
-- Visor de documentos Word (`.docx`, `.docm`, `.dotx`) dentro de Synapse, en solo lectura, con docx-preview (se carga al abrir el primero): páginas, fuentes, colores, tablas, imágenes, encabezados y pies. El `.doc` antiguo sigue abriéndose con la aplicación del sistema.
-- Botón «Abrir en la aplicación» en los visores de Word y de hojas de cálculo, para editar con la aplicación del sistema.
-- Visor de hojas de cálculo dentro de Synapse (antes se abrían con la aplicación del sistema), en solo lectura: `.xlsx`, `.xlsm`, `.xltx`, `.xltm` con estilos (negrita, colores, rellenos, bordes, alineación), celdas combinadas y anchos/altos; `.xls`, `.xlsb`, `.ods` solo con valores y fórmulas. Los libros grandes se abren sin cortar: cada hoja se lee al abrirla, las celdas llegan por tramos de filas según te desplazas, solo se pintan las filas y columnas a la vista, y el libro leído queda en caché mientras se usa; un `.xlsx` de más de 10 MB se lee sin estilos para abrir el doble de rápido. Barra de fórmulas con la celda seleccionada, botón «Fórmulas» (Ctrl+`) para verlas en la rejilla, aviso en las fórmulas sin resultado guardado, pestañas de hojas abajo (las ocultas solo al pedirlas; Alt+RePág/AvPág cambia de hoja), navegación con flechas y Ctrl+C para copiar la celda.
-- Actualizar una rama que va por detrás de su remota sin salir de Synapse (fast-forward, sin crear commits): el badge de la rama muestra ↓N / ↑N, el diálogo de ramas tiene «Actualizar desde origin/…», y el menú del Git Log ofrece «Avanzar «rama» hasta aquí» en los commits posteriores. Si las ramas divergieron no se toca nada y se explica por qué.
-- Comando «Zoom: toda la interfaz» en la paleta (Ctrl+P): un selector pequeño de 70 % a 200 % que se maneja con ↑/↓, Enter y Esc, con vista previa al moverse; se guarda en los ajustes. El zoom del texto del contenido sigue en Ajustes y ahora también lo sigue el visor OpenAPI (solo la letra, como Markdown y el editor).
-- El visor OpenAPI sigue los `$ref` a otros archivos de la bóveda (`./paths/x.yaml`, `../schemas.yaml#/Pet`), también en las revisiones de Git; avisa de las referencias que faltan y se actualiza al guardar un archivo referenciado.
+- Zoom in the Word and spreadsheet viewers that enlarges everything, as in a PDF (not just the font): in Word the whole page, with "Fit to width"; in spreadsheets, column widths, row heights, font and headers, while still painting only what is visible. From 50% to 300% with the bar control, Ctrl+wheel or the size shortcuts (Ctrl++, Ctrl+−, Ctrl+0), which inside these viewers perform this zoom. One zoom is remembered for all Word files and another for all spreadsheets.
+- When copying a selection with tasks from Markdown reading mode, the checkboxes are copied as ☐ (pending) and ✅ (done), with the list and bold, to paste into an email or Teams web (which strip HTML checkboxes); also in plain text (`- ☐ task`). Without tasks it is copied as usual.
+- Configurable shortcut "Toggle task" (`toggle_task`, Ctrl+Enter by default) in the Markdown editor, as in Obsidian: toggles `- [ ]` ↔ `- [x]` on the cursor line (or on all lines of the selection), adds the checkbox to a list item that lacks one and turns a normal line into a task. It also works with Vim, in normal and insert mode.
+- Word document viewer (`.docx`, `.docm`, `.dotx`) inside Synapse, read-only, with docx-preview (loaded when the first one is opened): pages, fonts, colors, tables, images, headers and footers. The old `.doc` still opens with the system application.
+- "Open in application" button in the Word and spreadsheet viewers, to edit with the system application.
+- Spreadsheet viewer inside Synapse (before, they opened with the system application), read-only: `.xlsx`, `.xlsm`, `.xltx`, `.xltm` with styles (bold, colors, fills, borders, alignment), merged cells and widths/heights; `.xls`, `.xlsb`, `.ods` with values and formulas only. Large workbooks open without freezing: each sheet is read when opened, cells arrive in row chunks as you scroll, only the rows and columns in view are painted, and the parsed workbook is cached while in use; an `.xlsx` over 10 MB is read without styles to open twice as fast. Formula bar with the selected cell, "Formulas" button (Ctrl+`) to see them in the grid, a notice on formulas without a saved result, sheet tabs at the bottom (hidden ones only when requested; Alt+PageUp/PageDown switches sheets), arrow-key navigation and Ctrl+C to copy the cell.
+- Update a branch that is behind its remote without leaving Synapse (fast-forward, without creating commits): the branch badge shows ↓N / ↑N, the branches dialog has "Update from origin/…", and the Git Log menu offers "Fast-forward "branch" to here" on later commits. If the branches have diverged nothing is touched and the reason is explained.
+- "Zoom: entire interface" command in the palette (Ctrl+P): a small selector from 70% to 200% operated with ↑/↓, Enter and Esc, with a preview as you move; it is saved in settings. The content text zoom remains in Settings and the OpenAPI viewer now follows it too (font only, like Markdown and the editor).
+- The OpenAPI viewer follows `$ref`s to other vault files (`./paths/x.yaml`, `../schemas.yaml#/Pet`), also in Git revisions; it warns about missing references and refreshes when a referenced file is saved.
 
-### Cambiado
+### Changed
 
-- El visor OpenAPI ya no muestra «Ask AI» de Scalar: el chat enviaba la especificación a servidores externos.
-- **Icono de la app**: los iconos de `src-tauri/icons/` se regeneran desde `src/shared/assets/synapsers.svg`.
-- **CI de Windows**: el paso de dependencias de compilación cruzada instala solo `clang lld llvm nasm` (el destino es Windows; sobraban las bibliotecas GTK/WebKit de Linux) y se retira el caché de APT, que no tenía efecto. Ahorra unos 7 minutos por release.
-- **Caché de xwin**: la ruta cacheada era `~/.cache/xwin`, que `cargo-xwin` no usa; ahora es `~/.cache/cargo-xwin`, así la CRT y el SDK de MSVC (~8 min de descarga) se reutilizan entre ejecuciones.
+- The OpenAPI viewer no longer shows Scalar's "Ask AI": the chat sent the specification to external servers.
+- **App icon**: the icons in `src-tauri/icons/` are regenerated from `src/shared/assets/synapsers.svg`.
+- **Windows CI**: the cross-compilation dependencies step installs only `clang lld llvm nasm` (the target is Windows; the Linux GTK/WebKit libraries were unnecessary) and the APT cache, which had no effect, is removed. It saves about 7 minutes per release.
+- **xwin cache**: the cached path was `~/.cache/xwin`, which `cargo-xwin` does not use; it is now `~/.cache/cargo-xwin`, so the CRT and the MSVC SDK (~8 min download) are reused between runs.
 
-### Corregido
+### Fixed
 
-- El `Buffer` que Synapse ofrece a los plugins de Obsidian tomaba cualquier `Uint8Array` por un `Buffer`, lo que hacía que JSZip leyera mal los nombres de los archivos dentro de un zip (por ejemplo al abrir un `.docx`).
-- El menú contextual del Git Log sale junto al puntero (antes aparecía desplazado) y no se sale de la ventana.
-- «Checkout de este commit» del Git Log fallaba al confirmar porque leía el commit del menú ya cerrado.
+- The `Buffer` that Synapse offers to Obsidian plugins took any `Uint8Array` for a `Buffer`, which made JSZip misread the file names inside a zip (for example when opening a `.docx`).
+- The Git Log context menu appears next to the pointer (before, it appeared offset) and does not go off the window.
+- "Checkout this commit" in the Git Log failed on confirming because it read the commit from the already closed menu.
 
 ## [1.0.0-beta.6] - 2026-11-20
 
-### Añadido
+### Added
 
-- **Actualizaciones desde la app**: al iniciar (desactivable en *Ajustes → Actualizaciones*) o con «Synapse: Buscar actualizaciones» en la paleta, Synapse consulta la última release y, si hay una versión nueva, avisa abajo a la derecha con «Ver novedades», «Más tarde» y «Actualizar». La descarga se verifica con la firma de la release y el ejecutable se reemplaza (en Linux y Windows la release publica el binario suelto, que el instalador de Tauri no sabe instalar); después, «Reiniciar ahora». `latest.json` lleva ahora las novedades de la versión.
-- **Novedades**: «Synapse: Novedades (changelog)» abre el historial de cambios en una pestaña en memoria (no es un archivo del vault). La primera vez que se abre una versión nueva, se abren solas las novedades desde la versión que se usaba.
-- **Ejecutable de Git configurable**: si la bóveda es un repositorio y no se encuentra Git, un diálogo permite elegir el ejecutable (o «No volver a preguntar»); la ruta se guarda en `config.jsonc` (`git.path`) y se cambia en *Ajustes → Git*, que muestra la versión en uso y permite volver al del sistema. Todas las operaciones que usan el Git real la respetan, y en Windows ya no abren una ventana de consola por comando.
+- **In-app updates**: at startup (can be disabled in *Settings → Updates*) or with "Synapse: Check for updates" in the palette, Synapse checks the latest release and, if there is a new version, notifies at the bottom right with "See what's new", "Later" and "Update". The download is verified with the release signature and the executable is replaced (on Linux and Windows the release publishes the bare binary, which the Tauri installer does not know how to install); afterwards, "Restart now". `latest.json` now carries the version's release notes.
+- **What's new**: "Synapse: What's new (changelog)" opens the change history in an in-memory tab (not a vault file). The first time a new version is opened, what's new since the version you were using opens automatically.
+- **Configurable Git executable**: if the vault is a repository and Git is not found, a dialog lets you choose the executable (or "Don't ask again"); the path is saved in `config.jsonc` (`git.path`) and changed in *Settings → Git*, which shows the version in use and lets you go back to the system one. All operations that use the real Git respect it, and on Windows they no longer open a console window per command.
 
-### Corregido
+### Fixed
 
-- **Bóveda con Git que no se detectaba (Windows)**: si gix abre el repositorio pero falla al leer el estado de los archivos, la bóveda se sigue mostrando como repositorio (rama y acciones de Git, sin las marcas de cambios) y el motivo queda en el log de la app. Las rutas de los archivos cambiados usan `/` también en Windows (salían con `\` y el explorador no las marcaba).
-- **Clave pública del actualizador**: estaba en `tauri.conf.json` como la línea interior de minisign (`RWQ…`) en vez del formato de Tauri (el archivo de clave en base64), así que ninguna descarga se habría podido verificar e instalar. Es la misma clave: las releases ya publicadas se verifican con ella.
+- **Vault with Git not detected (Windows)**: if gix opens the repository but fails to read the file status, the vault is still shown as a repository (branch and Git actions, without change marks) and the reason is left in the app log. The paths of changed files use `/` on Windows too (they came out with `\` and the explorer did not mark them).
+- **Updater public key**: it was in `tauri.conf.json` as the inner minisign line (`RWQ…`) instead of Tauri's format (the key file in base64), so no download could have been verified and installed. It is the same key: already published releases verify with it.
 
-- **e2e de agentes sin red**: la lista de agentes esperaba hasta 30 s al registro público de ACP (sin red o con el CDN colgado), y la prueba del panel del agente fallaba. Las e2e apuntan `SYNAPSE_ACP_REGISTRY_URL` a un puerto cerrado y usan solo los agentes locales y personalizados.
+- **Agent e2e without network**: the agent list waited up to 30 s for the public ACP registry (with no network or a hung CDN), and the agent panel test failed. The e2e tests point `SYNAPSE_ACP_REGISTRY_URL` to a closed port and use only local and custom agents.
 
-### Cambiado
+### Changed
 
-- **e2e**: el puerto de WebDriver se configura con `E2E_DRIVER_PORT` (por defecto 4444; WebKitWebDriver usa el siguiente), para poder correr varios procesos de pruebas a la vez.
+- **e2e**: the WebDriver port is configured with `E2E_DRIVER_PORT` (default 4444; WebKitWebDriver uses the next one), so that several test processes can run at once.
 
 ## [1.0.0-beta.5] - 2026-11-20
 
-### Añadido
+### Added
 
-- **Release verificable**: cada release adjunta `SHA256SUMS.txt`, el SBOM CycloneDX del backend Rust y del frontend, y una attestation de procedencia (Sigstore, `gh attestation verify`) de cada paquete. No cambian los paquetes ni las firmas del actualizador.
-- **Workflow `Security`**: `cargo audit`, `cargo deny` (avisos, licencias compatibles con GPL y fuentes, con `src-tauri/deny.toml`) y `bun audit` en cada push a `main`, en los PR y una vez por semana. CodeQL (JavaScript/TypeScript y Rust; Rust no bloquea) y OpenSSF Scorecard en workflows propios.
-- **Dependabot semanal** para Cargo, bun y GitHub Actions, con las actualizaciones menores y de parche agrupadas en un PR por ecosistema.
-- **Vista en árbol en el diálogo de commit**: un botón junto a «Seleccionar todos» cambia la lista de archivos a un árbol de carpetas (las cadenas de una sola carpeta se compactan, como `docs/guias/`). Cada carpeta se pliega y tiene su casilla, que marca o desmarca todo lo que contiene; la vista elegida se recuerda.
-- **«Git Log…» y «Ramas…» en el explorador**: el clic derecho en el espacio vacío del explorador, en el nombre del vault o en el badge de la rama abre el log del repositorio o sus ramas. Antes, si el vault era un único repositorio, el log solo se abría desde la paleta de comandos.
-- **`SECURITY.md`** (cómo reportar y cómo verificar un binario) y una sección «Seguridad y privacidad» en el README con el mapa de conexiones de red de la app.
+- **Verifiable release**: each release attaches `SHA256SUMS.txt`, the CycloneDX SBOM of the Rust backend and the frontend, and a provenance attestation (Sigstore, `gh attestation verify`) for each package. The packages and the updater signatures do not change.
+- **`Security` workflow**: `cargo audit`, `cargo deny` (advisories, GPL-compatible licenses and sources, with `src-tauri/deny.toml`) and `bun audit` on every push to `main`, on PRs and once a week. CodeQL (JavaScript/TypeScript and Rust; Rust does not block) and OpenSSF Scorecard in their own workflows.
+- **Weekly Dependabot** for Cargo, bun and GitHub Actions, with minor and patch updates grouped into one PR per ecosystem.
+- **Tree view in the commit dialog**: a button next to "Select all" switches the file list to a folder tree (single-folder chains are compacted, like `docs/guides/`). Each folder folds and has its checkbox, which checks or unchecks everything it contains; the chosen view is remembered.
+- **"Git Log…" and "Branches…" in the explorer**: right-clicking the empty space in the explorer, the vault name or the branch badge opens the repository log or its branches. Before, if the vault was a single repository, the log could only be opened from the command palette.
+- **`SECURITY.md`** (how to report and how to verify a binary) and a "Security and privacy" section in the README with the map of the app's network connections.
 
-### Cambiado
+### Changed
 
-- **README de presentación**: el README es ahora la presentación del producto (antes `docs/about.md`, que queda como enlace a él); la documentación de desarrollo pasa a `CONTRIBUTING.md`. Ya no dice «100 % local»: Synapse es local-first y una sección nueva, «Qué sale de tu equipo», detalla qué funciones usan la red (draw.io, PlantUML, agentes de IA, plugins, Git) y qué viaja en cada una. La landing (`docs/index.html`) se corrige igual.
-- **Workflows con permisos mínimos**: `contents: read` por defecto y `contents: write`, `id-token` y `attestations` solo en el job que publica la release. Las acciones están fijadas por SHA de commit y `dtolnay/rust-toolchain` y `taiki-e/install-action` reciben ahora `toolchain` y `tool` explícitos.
-- `src-tauri/Cargo.toml`: `publish = false` (el crate no se publica en crates.io; lo necesita cargo-deny para no exigirle licencia).
+- **Presentation README**: the README is now the product presentation (before `docs/about.md`, which remains as a link to it); the development documentation moves to `CONTRIBUTING.md`. It no longer says "100% local": Synapse is local-first and a new section, "What leaves your machine", details which features use the network (draw.io, PlantUML, AI agents, plugins, Git) and what travels in each. The landing page (`docs/index.html`) is corrected the same way.
+- **Workflows with minimal permissions**: `contents: read` by default and `contents: write`, `id-token` and `attestations` only in the job that publishes the release. Actions are pinned by commit SHA and `dtolnay/rust-toolchain` and `taiki-e/install-action` now receive explicit `toolchain` and `tool`.
+- `src-tauri/Cargo.toml`: `publish = false` (the crate is not published to crates.io; cargo-deny needs it so as not to require a license from it).
 
-### Corregido
+### Fixed
 
-- **SBOM del frontend en la release**: se genera con syft sobre las dependencias de producción. `cyclonedx-npm` no funcionaba con bun (`Unexpected npmJsPath`) ni con npm (conflicto con los `overrides`), y el job «SBOM» bloqueaba la publicación.
-- **Versiones de un OpenAPI en el historial de Git**: «Ver archivo» muestra la API con Scalar, como en Lectura, en vez del YAML/JSON en texto plano; el botón Raw sigue mostrando el texto.
-- **Checkout de ramas remotas**: «Checkout» en una rama remota sin rama local crea la local con seguimiento (`git checkout -b feature/x --track origin/feature/x`) en vez de dejar HEAD suelto. Y una rama local con `/` (`feat/y`) ya no puede saltar a otra local llamada `y`.
-- **Vista Raw de una versión**: ya no dibuja una línea horizontal bajo cada línea de texto (heredaba el estilo de `code` en línea).
+- **Frontend SBOM in the release**: it is generated with syft over the production dependencies. `cyclonedx-npm` did not work with bun (`Unexpected npmJsPath`) nor with npm (conflict with the `overrides`), and the "SBOM" job blocked publication.
+- **Versions of an OpenAPI in Git history**: "View file" shows the API with Scalar, as in Reading, instead of the YAML/JSON as plain text; the Raw button still shows the text.
+- **Remote branch checkout**: "Checkout" on a remote branch without a local branch creates the local one with tracking (`git checkout -b feature/x --track origin/feature/x`) instead of leaving HEAD detached. And a local branch with `/` (`feat/y`) can no longer jump to another local branch called `y`.
+- **Raw view of a version**: it no longer draws a horizontal line under each line of text (it inherited the inline `code` style).
 
 ## [1.0.0-beta.4] - 2026-11-19
 
-### Añadido
+### Added
 
-- **Búsqueda en diagramas BPMN**: de un `.bpmn` se indexa el nombre de cada paso con su tipo (tarea, evento, compuerta…), su documentación y las anotaciones, sin las coordenadas del dibujo; nuevo filtro `kind:bpmn`. El índice se reconstruye solo al abrir la bóveda.
-- **El grafo y el láser siguen el tema**: nodos, nombres y enlaces del grafo (2D y 3D) y el trazo del láser toman sus colores de variables del tema (`--graph-*`, `--laser`) y se repintan al cambiar de tema. En tema oscuro los nombres de las notas del grafo ya se leen (antes gris oscuro sobre fondo oscuro).
-- **Agente GitHub Copilot por ACP**: aparece en la lista de agentes junto a Claude y Antigravity. Usa el CLI `copilot` ya instalado (`copilot --acp`); si falta, indica cómo instalarlo (`npm install -g @github/copilot`).
+- **Search in BPMN diagrams**: from a `.bpmn` file the name of each step is indexed with its type (task, event, gateway…), its documentation and the annotations, without the drawing coordinates; new `kind:bpmn` filter. The index is rebuilt automatically when the vault is opened.
+- **The graph and the laser follow the theme**: nodes, names and links of the graph (2D and 3D) and the laser trail take their colors from theme variables (`--graph-*`, `--laser`) and are repainted when the theme changes. In the dark theme the note names in the graph are now readable (before, dark gray on a dark background).
+- **GitHub Copilot agent via ACP**: appears in the agent list next to Claude and Antigravity. It uses the already installed `copilot` CLI (`copilot --acp`); if missing, it says how to install it (`npm install -g @github/copilot`).
 
-### Cambiado
+### Changed
 
-- **Botón Láser**: el punto ya no sale estirado como una píldora y, activo, usa el color del láser del tema.
-- **Pruebas e2e 6 veces más rápidas (`syna-7qa9`)**: cada archivo esperaba 30 s de más porque se buscaba Vite en 127.0.0.1 y Vite escucha en ::1. Ahora arranca en ~2 s, Vite se reutiliza entre archivos y se cierra solo al terminar; la suite completa pasa de ~34 min a ~5,5 min (160/160). `test:e2e:quick` corre todo en un proceso. Si el WebDriver se cae, sus procesos se cierran todos (antes WebKitWebDriver quedaba huérfano).
-- **CI y release**: un workflow nuevo (`ci.yml`) comprueba tipos y corre las unitarias del frontend y de Rust en cada push a `main` y en los PR. El release compila Linux, Windows y macOS en paralelo (antes en serie) y publica la release de una vez al final, con `latest.json` armado con las plataformas que compilaron; si falla Mac se publica sin él. El caché de Rust se calienta desde `main` (al cambiar `Cargo.lock` y cada lunes): el que guardaba cada tag no lo podía usar el siguiente, así que cada release compilaba todas las dependencias desde cero. La validación del tag también comprueba tipos y unitarias. Los e2e siguen siendo locales.
-- **Pruebas e2e sin pausas fijas (`syna-7qa9`)**: `diagram-pan-zoom`, `compare-diagrams`, `compare-files-git`, `compare-images`, `explorer-keyboard-focus`, `editor-tab`, `document-words` y `drawio` esperan la condición real (diagrama quieto, zoom aplicado, selección del árbol, texto del diff, PNG reescrito) en vez de pausas fijas. Nuevo `bun run test:e2e:quick [nombre…]`: smoke más las e2e tocadas o nombradas.
+- **Laser button**: the dot is no longer stretched like a pill and, when active, uses the theme's laser color.
+- **e2e tests 6 times faster (`syna-7qa9`)**: each file waited an extra 30 s because Vite was looked up on 127.0.0.1 and Vite listens on ::1. It now starts in ~2 s, Vite is reused between files and shuts down by itself at the end; the full suite goes from ~34 min to ~5.5 min (160/160). `test:e2e:quick` runs everything in one process. If the WebDriver goes down, all its processes are closed (before, WebKitWebDriver was left orphaned).
+- **CI and release**: a new workflow (`ci.yml`) checks types and runs the frontend and Rust unit tests on every push to `main` and on PRs. The release builds Linux, Windows and macOS in parallel (before, in series) and publishes the release at once at the end, with `latest.json` assembled with the platforms that built; if Mac fails it is published without it. The Rust cache is warmed from `main` (when `Cargo.lock` changes and every Monday): the one each tag saved could not be used by the next one, so every release compiled all dependencies from scratch. Tag validation also checks types and unit tests. The e2e tests remain local.
+- **e2e tests without fixed pauses (`syna-7qa9`)**: `diagram-pan-zoom`, `compare-diagrams`, `compare-files-git`, `compare-images`, `explorer-keyboard-focus`, `editor-tab`, `document-words` and `drawio` wait for the real condition (diagram still, zoom applied, tree selection, diff text, PNG rewritten) instead of fixed pauses. New `bun run test:e2e:quick [name…]`: smoke plus the touched or named e2e tests.
 
 ## [1.0.0-beta.3] - 2026-11-19
 
-### Añadido
+### Added
 
-- **Índice de claves en YAML y JSON**: el editor de código de `.yaml`, `.yml` y `.json` tiene el mismo botón de índice que las notas: las claves en árbol (hasta 4 niveles; los elementos de lista como `- valor`, sin las `$ref`), con búsqueda rápida, plegado y la sección del cursor resaltada. Al elegir una clave, el cursor salta a ella. **Ctrl+F12** (configurable como `toggle_outline`, también en la paleta) abre y cierra el índice de la pestaña activa (el de claves en YAML/JSON y el de títulos en las notas) en un diálogo centrado que se mueve arrastrando la cabecera (doble clic lo recentra) y cambia de tamaño desde bordes y esquinas, recordando su tamaño; el botón del editor sigue abriendo el desplegable junto a él. En ambos índices, desde la búsqueda, ↑/↓ (y RePág/AvPág) recorren las entradas visibles, →/← despliegan y pliegan la activa y Enter va a ella.
-- **Seguir los `$ref` de YAML y JSON**: en el editor de código, los valores de `$ref` (OpenAPI, JSON Schema) se subrayan; con Ctrl+clic o Ctrl+Enter se abre el archivo referido (ruta relativa al archivo actual) y se salta a la clave del puntero (`./paths/a.yaml#/post/responses`, también con `~1` en rutas de OpenAPI e índices de lista). Los punteros internos (`#/components/schemas/Error`) saltan dentro del mismo archivo, y una referencia rota avisa en vez de abrir nada.
-- **Git Log de todas las ramas**: un diálogo al estilo de la ventana Git Log de JetBrains con los commits de todas las ramas y tags del repositorio (`git log --all`), el grafo de ramas en colores, columnas de mensaje, autor, fecha y hash, y etiquetas de ramas locales, remotas y tags en cada commit. Al elegir un commit se ven su mensaje completo, autor y archivos cambiados; doble clic (o Enter) en un archivo abre su diff en ese commit. Filtra por rama o tag y por texto (mensaje, autor, hash o rama). El commit de HEAD se marca con una etiqueta «HEAD» (o «HEAD (separado)») y un punto hueco. Con clic derecho en un commit: checkout de sus ramas locales, checkout del commit (HEAD separado, con confirmación), nueva rama ahí (con o sin checkout, como `checkout -b`), crear tag (simple o anotado), borrar sus tags y ramas locales (con confirmación; una rama sin fusionar pide confirmar `git branch -D`) y copiar el hash. No borra nada del remoto. Se abre desde la paleta de comandos («Git: Log de todas las ramas») y desde el menú de una carpeta-repositorio; con varios repositorios tiene selector.
-- **Diff píxel a píxel entre archivos de tipos distintos y entre draw.io**: «Comparar archivos» y los diffs de git/historial ofrecen «2 Paneles» y «Diferencias» siempre que los dos lados se puedan convertir en imagen, aunque sean de tipos distintos (una imagen contra un Excalidraw, Mermaid contra D2, draw.io contra Mermaid…). Dos `.drawio` se dibujan con draw.io (iframe oculto, export a PNG) y se comparan, sin perder el diff de texto del XML. draw.io necesita la URL de los ajustes: sin red solo funciona con un draw.io local. Si un lado no se puede dibujar, queda el diff de texto como antes.
-- **La búsqueda de texto completo entiende mejor los identificadores y más formatos**: `AchOperationCrService` o `sendTransferRequest` se encuentran enteros y también por sus partes («operation», «transfer request»); `snake_case` y `kebab-case` ya se partían. Los XML (también `.xsd`, `.wsdl`, `.bpmn`) se indexan sin etiquetas, ids, coordenadas ni colores, en vez de crudos y cortados; las planillas Excel/OpenDocument por hojas y filas; y JSON/YAML con cada valor bajo su ruta de claves (`info.title: …`). El índice se reconstruye una vez.
-- **Caché de análisis del MCP**: un modelo ArchiMate se recorre una vez y las consultas siguientes (`inspect_archimate_element`, `read_note` con `outline_only`) lo toman de memoria (de ~14 ms a ~0,3 ms con un modelo de 3,2 MB). Se invalida sola si el archivo cambia, guarda solo análisis costosos y tiene un límite de 64 MB con descarte del menos usado.
-- **Modelos ArchiMate (`.archimate`) en el MCP**: `read_note` con `mode: "outline_only"` devuelve el índice del modelo (carpetas y vistas con su línea), y la herramienta nueva `inspect_archimate_element` busca un elemento por id o nombre y devuelve en una respuesta su tipo, documentación, propiedades (p. ej. `UNIQUECODE`), relaciones entrantes y salientes con el nombre del otro extremo, y las vistas donde aparece. La búsqueda de texto completo indexa sus nombres, documentación y propiedades (antes, el XML crudo se cortaba y se perdían).
-- **Estructura de los diagramas de draw.io en el MCP**: `extract_note_diagrams` sobre un `.drawio`, `.drawio.png` o `.drawio.svg` (también con `revision`) devuelve por página los contenedores con sus figuras, las figuras sueltas y las conexiones (desde → hasta, con su texto); `read_note` devuelve el texto del diagrama, y sobre una imagen indica usar `render_diagram`, que ahora también devuelve imágenes (.png, .jpg, .svg…).
-- **Filtros en las búsquedas del MCP**: `search_notes` y `full_text_search` aceptan `extensions` (p. ej. `["archimate"]`); por defecto `search_notes` sigue buscando solo Markdown. `search_in_note` acepta `max_matches`.
-- **Fecha legible en `feedback.md`**: cada entrada lleva la fecha y hora además de la fecha unix.
-- **Varios repositorios Git en una bóveda**: las subcarpetas que son repositorios muestran su rama junto al nombre (con un punto si tienen cambios), y sus archivos tienen estado de git, diff e historial como los de la raíz. La cabecera del explorador muestra la rama del repositorio del archivo activo. Los diálogos de commit y de ramas tienen un selector de repositorio, y el menú de la carpeta-repositorio ofrece Ramas, Commit y Push de ese repositorio. Un commit nunca mezcla repositorios. Las herramientas MCP de git (`get_vault_git_status`, `git_file_history`, `git_diff_revisions`, `git_read_revision`) usan el repositorio más cercano que contiene el archivo. Los repositorios se consultan en paralelo y la lista se reutiliza unos segundos.
+- **Key outline in YAML and JSON**: the code editor for `.yaml`, `.yml` and `.json` has the same outline button as notes: keys in a tree (up to 4 levels; list items as `- value`, without the `$ref`s), with quick search, folding and the cursor's section highlighted. Choosing a key jumps the cursor to it. **Ctrl+F12** (configurable as `toggle_outline`, also in the palette) opens and closes the outline of the active tab (the key outline in YAML/JSON and the heading outline in notes) in a centered dialog that moves by dragging the header (double-click recenters it) and resizes from edges and corners, remembering its size; the editor button still opens the dropdown next to it. In both outlines, from the search box, ↑/↓ (and PageUp/PageDown) move through the visible entries, →/← expand and fold the active one and Enter goes to it.
+- **Follow YAML and JSON `$ref`s**: in the code editor, `$ref` values (OpenAPI, JSON Schema) are underlined; with Ctrl+click or Ctrl+Enter the referenced file is opened (path relative to the current file) and it jumps to the pointer's key (`./paths/a.yaml#/post/responses`, also with `~1` in OpenAPI paths and list indexes). Internal pointers (`#/components/schemas/Error`) jump within the same file, and a broken reference warns instead of opening anything.
+- **Git Log of all branches**: a dialog in the style of JetBrains' Git Log window with the commits of all the repository's branches and tags (`git log --all`), the branch graph in colors, message, author, date and hash columns, and labels for local branches, remote branches and tags on each commit. Selecting a commit shows its full message, author and changed files; double-click (or Enter) on a file opens its diff at that commit. Filter by branch or tag and by text (message, author, hash or branch). The HEAD commit is marked with a "HEAD" label (or "HEAD (detached)") and a hollow dot. Right-clicking a commit offers: checkout of its local branches, checkout of the commit (detached HEAD, with confirmation), new branch there (with or without checkout, like `checkout -b`), create tag (lightweight or annotated), delete its tags and local branches (with confirmation; an unmerged branch asks to confirm `git branch -D`) and copy the hash. It deletes nothing on the remote. It is opened from the command palette ("Git: Log of all branches") and from a repository folder's menu; with several repositories it has a selector.
+- **Pixel-by-pixel diff between files of different types and between draw.io files**: "Compare files" and the git/history diffs offer "2 Panels" and "Differences" whenever both sides can be converted to an image, even if they are of different types (an image against an Excalidraw, Mermaid against D2, draw.io against Mermaid…). Two `.drawio` files are drawn with draw.io (hidden iframe, export to PNG) and compared, without losing the XML text diff. draw.io needs the URL from the settings: without a network it only works with a local draw.io. If one side cannot be drawn, the text diff remains as before.
+- **Full-text search understands identifiers better and more formats**: `AchOperationCrService` or `sendTransferRequest` are found whole and also by their parts ("operation", "transfer request"); `snake_case` and `kebab-case` were already split. XML files (also `.xsd`, `.wsdl`, `.bpmn`) are indexed without tags, ids, coordinates or colors, instead of raw and truncated; Excel/OpenDocument spreadsheets by sheets and rows; and JSON/YAML with each value under its key path (`info.title: …`). The index is rebuilt once.
+- **MCP analysis cache**: an ArchiMate model is traversed once and later queries (`inspect_archimate_element`, `read_note` with `outline_only`) take it from memory (from ~14 ms to ~0.3 ms with a 3.2 MB model). It invalidates itself if the file changes, stores only expensive analyses and has a 64 MB limit with least-recently-used eviction.
+- **ArchiMate models (`.archimate`) in the MCP**: `read_note` with `mode: "outline_only"` returns the model's outline (folders and views with their line), and the new tool `inspect_archimate_element` looks up an element by id or name and returns in a single response its type, documentation, properties (e.g. `UNIQUECODE`), incoming and outgoing relations with the name of the other end, and the views where it appears. Full-text search indexes their names, documentation and properties (before, the raw XML was truncated and they were lost).
+- **Structure of draw.io diagrams in the MCP**: `extract_note_diagrams` on a `.drawio`, `.drawio.png` or `.drawio.svg` (also with `revision`) returns per page the containers with their shapes, the loose shapes and the connections (from → to, with their text); `read_note` returns the diagram's text, and on an image it tells you to use `render_diagram`, which now also returns images (.png, .jpg, .svg…).
+- **Filters in MCP searches**: `search_notes` and `full_text_search` accept `extensions` (e.g. `["archimate"]`); by default `search_notes` still searches only Markdown. `search_in_note` accepts `max_matches`.
+- **Readable date in `feedback.md`**: each entry carries the date and time in addition to the unix date.
+- **Several Git repositories in one vault**: subfolders that are repositories show their branch next to the name (with a dot if they have changes), and their files have git status, diff and history like those at the root. The explorer header shows the branch of the active file's repository. The commit and branch dialogs have a repository selector, and the repository folder's menu offers Branches, Commit and Push for that repository. A commit never mixes repositories. The git MCP tools (`get_vault_git_status`, `git_file_history`, `git_diff_revisions`, `git_read_revision`) use the closest repository that contains the file. Repositories are queried in parallel and the list is reused for a few seconds.
 
-- **Visor de especificaciones OpenAPI/Swagger con Scalar**: los `.yaml`, `.yml` y `.json` cuya clave raíz es `openapi` (3.x) o `swagger` (2.0) se abren en Lectura como documentación navegable, y en Edición con el editor de código. Toma los colores del tema activo de la app (también al cambiar entre claro y oscuro) y se recarga al cambiar el archivo en disco. Scalar va empaquetado y se carga solo al abrir uno de estos archivos: sin CDN, fuentes externas ni telemetría.
+- **OpenAPI/Swagger specification viewer with Scalar**: `.yaml`, `.yml` and `.json` files whose root key is `openapi` (3.x) or `swagger` (2.0) open in Reading as browsable documentation, and in Edit with the code editor. It takes the colors of the app's active theme (also when switching between light and dark) and reloads when the file changes on disk. Scalar is bundled and loads only when one of these files is opened: no CDN, external fonts or telemetry.
 
-- **Resaltado de sintaxis YAML y JSON** en el editor de código para `.yaml`, `.yml` y `.json` (antes se coloreaban como Markdown).
-- **El release también compila para macOS** (Apple Silicon e Intel) en un job aparte que corre después de publicar: sube `synapsers-darwin-*.app.tar.gz` firmados para el actualizador y suma las plataformas a `latest.json`. Sin firma de Apple, macOS pide abrirlo con clic derecho → Abrir.
-- **Los archivos `.xml` y `.archimate` (modelos de Archi) se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
+- **YAML and JSON syntax highlighting** in the code editor for `.yaml`, `.yml` and `.json` (before they were colored as Markdown).
+- **The release also builds for macOS** (Apple Silicon and Intel) in a separate job that runs after publishing: it uploads signed `synapsers-darwin-*.app.tar.gz` files for the updater and adds the platforms to `latest.json`. Without an Apple signature, macOS asks you to open it with right-click → Open.
+- **`.xml` and `.archimate` files (Archi models) are visible in the vault explorer**, are indexed in full-text search and the agent can read and search them like the rest of the code.
 
-### Cambiado
+### Changed
 
-- **Tablas en el editor de Markdown (modo En vivo)**: las líneas de la tabla ya no se reemplazan por un widget: siguen siendo texto del documento y se pintan como tabla (bordes, encabezado, filas alternas, `|` tenues), con las columnas alineadas midiendo el ancho real del texto (funciona con fuentes proporcionales y con enlaces dentro de las celdas). Así la numeración de las líneas de debajo ya no se desfasa, y con ↑/↓ el cursor entra en la tabla fila por fila en vez de saltarla entera. El editor de celdas sigue disponible con el botón «Editor visual» que aparece al pasar por el encabezado.
-- **En Linux, la interfaz usa el renderizado rápido de WebKitGTK (DMABUF)**: draw.io y el resto de la app van más fluidos. Si con algún driver la ventana sale en blanco o parpadea, `SYNAPSE_DMABUF=0` vuelve al modo anterior.
+- **Tables in the Markdown editor (Live mode)**: table lines are no longer replaced by a widget: they remain document text and are painted as a table (borders, header, alternating rows, faint `|`), with the columns aligned by measuring the real width of the text (works with proportional fonts and with links inside cells). This way the numbering of the lines below no longer goes out of sync, and with ↑/↓ the cursor enters the table row by row instead of skipping it entirely. The cell editor is still available with the "Visual editor" button that appears when hovering over the header.
+- **On Linux, the interface uses WebKitGTK's fast rendering (DMABUF)**: draw.io and the rest of the app run more smoothly. If with some driver the window comes out blank or flickers, `SYNAPSE_DMABUF=0` goes back to the previous mode.
 
-### Corregido
+### Fixed
 
-- **Foco al reabrir una bóveda**: la pestaña activa que se restaura en Edición recibe el foco en cuanto se carga su contenido, así que se puede escribir y moverse por el código (CodeMirror) sin hacer clic antes.
-- **Una imagen PNG guardada desde draw.io sale nítida**: se exporta a escala 2 en lugar de 1, que se veía pixelada al ampliarla.
-- **El texto que se edita en Excalidraw con zoom ya no se ve borroso**: el cuadro de edición se amplía con su tamaño de letra real y no con una escala, que WebKitGTK (con DMABUF) dibujaba a baja resolución y estiraba.
-- **«Diff» comparaba con HEAD en vez de con el stage**: como `git diff`, ahora compara lo local con lo que está en stage, también en imágenes y diagramas (2 Paneles y Diferencias), y el lado «antes» se llama «Stage / Index». Si todos los cambios ya están en stage, ya no muestra en silencio el diff contra HEAD: avisa «Sin cambios fuera de stage» con un botón para abrir «Diff --staged».
-- **`full_text_search` con `folder_path` devolvía `hits` vacío con `total_matches` > 0**: el filtro de carpeta se aplicaba después de recortar los mejores resultados de toda la bóveda; ahora se piden más candidatos y `total_matches` cuenta solo los de la carpeta o extensiones pedidas.
-- **El contexto de los adjuntos pedía leer imágenes con `read_note`**: ahora, si se adjunta una imagen o un diagrama, indica `render_diagram` para verlo y `extract_note_diagrams` para la estructura de un draw.io.
-- **El índice de texto completo se reconstruye una vez** (versión 4) para pasar los `.drawio` y `.archimate` ya indexados por los extractores nuevos.
-- **Los archivos de código (xml, json, archimate, …) se pueden editar al pasar a Edición**: el editor quedaba en solo lectura aunque el botón dijera «Edición».
-- **En modo Lectura, los archivos de código y diagramas se pueden buscar con Ctrl+F**: el editor ahora recibe el foco (cursor y selección) aunque no deje escribir.
-- **Al guardar en draw.io, las otras pestañas con la imagen se recargan sin perder el zoom ni la posición**; tampoco al salir del editor.
+- **Focus when reopening a vault**: the active tab restored in Edit mode receives focus as soon as its content loads, so you can type and move around the code (CodeMirror) without clicking first.
+- **A PNG image saved from draw.io comes out sharp**: it is exported at scale 2 instead of 1, which looked pixelated when enlarged.
+- **Text edited in Excalidraw with zoom no longer looks blurry**: the edit box is enlarged with its real font size and not with a scale, which WebKitGTK (with DMABUF) drew at low resolution and stretched.
+- **"Diff" compared against HEAD instead of the stage**: like `git diff`, it now compares the local version with what is staged, also in images and diagrams (2 Panels and Differences), and the "before" side is called "Stage / Index". If all changes are already staged, it no longer silently shows the diff against HEAD: it warns "No unstaged changes" with a button to open "Diff --staged".
+- **`full_text_search` with `folder_path` returned an empty `hits` with `total_matches` > 0**: the folder filter was applied after trimming the best results from the whole vault; now more candidates are requested and `total_matches` counts only those in the requested folder or extensions.
+- **The attachment context asked to read images with `read_note`**: now, if an image or a diagram is attached, it points to `render_diagram` to view it and `extract_note_diagrams` for the structure of a draw.io.
+- **The full-text index is rebuilt once** (version 4) to re-process the `.drawio` and `.archimate` files already indexed with the new extractors.
+- **Code files (xml, json, archimate, …) can be edited when switching to Edit**: the editor stayed read-only even though the button said "Edit".
+- **In Reading mode, code files and diagrams can be searched with Ctrl+F**: the editor now receives focus (cursor and selection) even though it does not allow typing.
+- **When saving in draw.io, the other tabs with the image reload without losing zoom or position**; nor when leaving the editor.
 
 ## [1.0.0-beta.2] - 2026-11-17
 
-### Añadido
+### Added
 
-- **Los archivos `.xml` se ven en el explorador de la bóveda**, se indexan en la búsqueda de texto completo y el agente los puede leer y buscar como el resto del código.
+- **`.xml` files are visible in the vault explorer**, are indexed in full-text search and the agent can read and search them like the rest of the code.
 
-- **Copias de pestaña con modo propio y un solo editor por dibujo**: cada copia de una pestaña (`Duplicar pestaña`) tiene su propio botón Lectura/Edición, así una nota puede estar en edición en una pestaña y en lectura en la otra. Los dibujos (Excalidraw y draw.io) solo se editan en una pestaña a la vez, para no pisarse al guardar: pasar a edición en otra copia lleva a la pestaña que ya lo edita; al cerrarla o pasarla a lectura, cualquier copia puede editar. Las copias de una imagen de draw.io se actualizan con cada guardado del editor.
-- **«Abrir en otra pestaña (solo lectura)»** en el menú contextual del explorador, cuando el archivo ya está abierto: abre una copia en lectura junto a la original.
-- **Arrastrar a otra ventana también las pestañas de una versión, de un diff y las copias** (antes solo las de archivos).
-- **La búsqueda de texto completo encuentra el texto de los diagramas de draw.io**: los `.drawio` y las imágenes PNG/SVG con un diagrama dentro se indexan con los textos de sus figuras y los nombres de sus páginas (también los diagramas comprimidos), como documentos de tipo `drawio`. Las imágenes sin diagrama siguen sin indexarse; para saberlo se leen solo las cabeceras del PNG.
-- **Las imágenes de draw.io se marcan al indexar**: el índice de la bóveda guarda si cada PNG/SVG lleva un diagrama, así el botón Lectura/Edición aparece al abrirla sin leer el archivo otra vez. La caché pasa a `.synapse/cache-v2.bin`; la anterior (`cache.bin`) se importa sola la primera vez, sin perder las pestañas abiertas.
-- **Imágenes de draw.io: botón Lectura/Edición y detección por contenido**: en una imagen de draw.io, el botón Lectura/Edición de la cabecera abre el editor de draw.io (Edición) o vuelve a la imagen (Lectura), como con las notas; el botón del visor ahora dice «Abrir en draw.io». Un PNG cuenta como de draw.io por su nombre (`.drawio.png`) o porque lleva el diagrama dentro (el bloque `mxfile` que draw.io guarda al exportar con «incluir una copia del diagrama»), aunque se llame `foto.png`. Lo mismo con los SVG: un `.drawio.svg`, o cualquier SVG con el diagrama en su atributo `content`, se edita en draw.io y se guarda como SVG (formato `xmlsvg`).
-- **Revisar las bóvedas que pueden conversar con esta**: en Ajustes → Agentes de IA se ve qué bóvedas se aceptaron (✅) o rechazaron (🚫) y se puede quitar cada una; la próxima vez se vuelve a preguntar.
-- **El registro de depuración incluye el canal entre Synapses**: además de los mensajes ACP, anota los pedidos `/peer` que salen y llegan (`peer-out`, `peer-reply`, `peer-in`, `peer-answer`), sin los `ping`.
-- **Documentación de la comunicación entre Synapses** (`docs/comunicacion_entre_synapses.md`): quién le escribe a quién, el canal `/peer`, los permisos y los límites.
-- **Mencionar conversaciones y bóvedas en el chat del agente**: `#` sugiere las otras conversaciones de esta ventana y `@` también las otras bóvedas de Synapse (además de los archivos). Cada conversación se muestra con su estado (🧠 trabajando, ⏸ libre, ⚠ esperando un permiso), título, agente y última actividad; el tooltip trae su última respuesta y la última pregunta. Las bóvedas se marcan 🟢 abierta, 🟡 ocupada o ⚪ apagada; `@Bóveda#` elige una de sus conversaciones o `#nueva`. Elegir una bóveda apagada la abre en otra ventana y el mensaje espera a que responda. Se inserta el número (`#2`, `@Bóveda#2`) y, al enviar, Synapse le explica al agente a quién apunta cada mención; en el mensaje enviado se ve como chip con su título en el tooltip.
-- **Filtros en las menciones con `@`**: `@agent:` (o `@a:`) muestra solo agentes, es decir otras bóvedas de Synapse y las conversaciones de esta ventana, y `@file:` (o `@f:`) solo archivos; el prefijo solo filtra y al elegir se inserta la mención sin él. Sin prefijo, si lo escrito es el comienzo del nombre de una bóveda (`@main` → MAINFRAME), las bóvedas aparecen primero; cuando se ven archivos y bóvedas juntos, cada grupo indica su atajo.
-- **Agente por defecto**: en Ajustes → Agentes de IA se elige un agente para todas las bóvedas. Se usa en una bóveda que todavía no usó ninguno (por ejemplo, cuando otra bóveda le escribe por primera vez) y en «＋ Nueva conversación»; si no hay ninguno elegido ni instalado, se usa el primero de la lista y se descarga solo. Antes, una bóveda nueva no podía atender conversaciones de otra.
-- **Synapse pide atención cuando espera tu respuesta**: con un permiso del agente o una pregunta (por ejemplo, otra bóveda que quiere conversar), si la ventana no está al frente se marca como urgente en la barra de tareas y aparece una notificación del sistema. No le quita el foco a lo que estés haciendo.
-- **Los mensajes de otro agente llegan cerrados**: «De Agente · #2 · 2,3 KB ▸»; al abrirlos se ven renderizados (no en crudo), con un botón para copiar el texto tal como llegó. Tu agente los recibe completos igual.
-- **Registro de depuración de ACP**: en Ajustes → Agentes de IA, guarda sin filtrar cada mensaje que entra y sale de los agentes en `acp-debug.jsonl` de la configuración, para ver qué manda cada agente (por ejemplo, si incluye el resultado de sus herramientas).
-- **Alt+2 abre y cierra el panel del agente**: nueva acción «Mostrar / ocultar el agente» (`toggle_agent`) en los atajos configurables, que también aparece en la paleta de comandos, en el panel de atajos y en el tooltip del botón de la barra lateral.
-- **Copiar y pegar archivos con otras aplicaciones**: «Copiar» en el explorador deja los archivos en el portapapeles del sistema, como un explorador de archivos, así se pegan en otra instancia de Synapse, en el gestor de archivos o en otra aplicación; «Pegar» trae lo copiado fuera (otra instancia, el gestor de archivos) a la carpeta elegida («Pegar (N archivos de fuera)»).
-- **Arrastrar archivos del explorador a otras aplicaciones**: soltarlos en Telegram, el gestor de archivos u otra aplicación los adjunta o copia, como desde un explorador de archivos; dentro del árbol arrastrar sigue moviendo.
-- **El Historial de Git de un archivo dibuja sus ramas**: una columna a la izquierda muestra el grafo (como `git log --graph`), con las fusiones que unen ramas que también tocaron el archivo. Cada commit se marca «nuevo» (creó el archivo: punto hueco y sin «Ver cambios», porque no hay versión anterior en su rama), «borrado», «renombrado», «fusión» u «otra rama» (no es la versión anterior del commit de arriba).
-- **El agente entiende el historial de Git de un archivo**: herramientas nuevas del MCP `git_file_history` (commits del archivo, siguiendo renombres), `git_diff_revisions` (qué cambió entre dos commits, o contra la versión local, con líneas agregadas y quitadas) y `git_read_revision` (el archivo como era en un commit); `render_diagram` acepta `revision` para ver un diagrama o una imagen (p. ej. un `.drawio.png`) tal como era. En el Historial de Git, con dos commits elegidos (o uno solo, para preguntar por ese commit), «Preguntar al agente qué cambió» abre el panel con el archivo adjunto y la pregunta escrita.
-- **Elegir commits en el Historial de Git**: clic elige un commit, `Ctrl`+clic suma o quita otros y `Shift`+clic elige el rango desde el último clic. Con el clic derecho: «Diff entre estas 2 versiones» (con exactamente dos elegidas) y copiar sus hashes, completos o cortos, separados por coma.
-- **Duplicar pestaña**: en el menú de cada pestaña, «Duplicar pestaña» abre otra pestaña con lo mismo, junto a la original y en el mismo panel; cada copia tiene su propia vista (modo del diff, zoom, desplazamiento).
-- **El visor de diff recuerda las vistas ya calculadas**: «2 Paneles», «Diferencias» (píxel a píxel) y texto se calculan la primera vez que los eliges y quedan en memoria hasta cerrar la pestaña, así cambiar entre ellos es inmediato. Las vistas ocultas conservan su tamaño y sus imágenes ya dibujadas, así «2 Paneles» no se ve cargar de nuevo al volver. Cada pestaña de diff tiene su propio modo: con «Duplicar pestaña» puedes ver «Diferencias» en una pestaña y «2 Paneles» en la otra; el último modo elegido es el inicial de los diffs nuevos.
-- **`Shift+Escape` cierra el último panel lateral que abriste**: el explorador (u otro panel de la barra izquierda) o el del agente, el que hayas abierto más recientemente; si lo vuelves a pulsar, cierra el anterior.
-- **Mostrar el explorador con el teclado le da el foco**: `Alt+1` / `Ctrl+B` (además de «ubicar», `Ctrl+Alt+1`) dejan el foco en el árbol, sobre el archivo abierto o el primero, para moverse con las flechas y abrir con Enter.
-- **Explorador fijado o suelto**: una chincheta en la cabecera del explorador. Fijado (como siempre) ocupa su espacio al lado del editor; suelto, el editor usa todo el ancho y el explorador flota encima, pegado a la barra lateral, cuando lo abres desde ella. Se oculta al abrir un archivo, con Esc o al hacer clic fuera. La elección se recuerda.
-- **Diff entre dos versiones de un archivo**: en el Historial de Git, «Diff entre versiones» cambia las acciones de cada commit por casillas; eliges exactamente dos y «Comparar» abre sus diferencias (de la más antigua a la más nueva) en los visores de siempre: texto, imágenes y diagramas. Al desactivarlo vuelven las acciones.
-- **Los diálogos de Git se mueven**: el historial (log), el de commit y el de ramas se mueven arrastrando su cabecera, sin salir de la ventana; recuerdan la posición mientras la app está abierta y un doble clic en la cabecera los vuelve a centrar.
-- **Agente de IA en un panel lateral (ACP)**: nuevo botón «Agente de IA» en la barra lateral y en la cabecera del editor (junto a los controles de la ventana) que abre un panel acoplado a la derecha o flotante (movible y redimensionable). Conversa con agentes compatibles con ACP (Agent Client Protocol) sobre la bóveda abierta: respuestas en streaming, herramientas que usa el agente y peticiones de permiso con botones para aprobar o rechazar. Los agentes verificados son **Claude**, que se descarga del registro público de ACP (el mismo que usa Zed) y se verifica con su sha256, y **Google Antigravity**, que usa el CLI `agy` ya instalado; también se pueden registrar agentes propios (comando, argumentos y variables de entorno) en Ajustes → Agentes de IA.
-- **El agente trabaja con tu bóveda**: cada sesión recibe el MCP de la ventana de Synapse abierta como `synapse_instance` (notas, búsqueda, enlaces, Git…), que se enciende solo si estaba apagado; los agentes que no hablan MCP por HTTP llegan a la misma instancia a través de un puente (`synapsers --mcp-proxy`). Al empezar se le pide al agente que use ese MCP y que cree y edite las notas con él en lugar de escribir los archivos. En las compilaciones con la feature `develop` hay además un **modo feedback** (Ajustes → Agentes de IA): el agente anota en `~/.config/synapsers/feedback.md` lo que le falte al MCP, con el agente, el modelo y la conversación de la que salió. Además, `/feedback [indicaciones]` en el mensaje le pide al agente que revise la conversación y registre con `report_feedback` qué mejorar del MCP y del panel. En el mensaje puedes adjuntar notas con `@` (`@this` adjunta el archivo de la pestaña que estás viendo), arrastrarlas desde el explorador o mandar la selección del editor con `Ctrl+Alt+A`; la nota abierta se adjunta sola como etiqueta que puedes quitar. El panel muestra el plan del agente, los archivos que toca con su diff, los comandos que ofrece (con `/`), el uso de contexto y, si el agente los tiene, selectores de modo y de modelo (por ejemplo, los modelos Gemini y Claude de Antigravity).
-- **Un cliente MCP externo puede hablar con los agentes del panel**: por ejemplo, Claude Code usando el MCP de Synapse. `send_to_conversation` funciona sin conversación propia (el mensaje llega marcado como «Cliente MCP externo») y, si era una pregunta, la respuesta se recoge con la herramienta nueva `read_replies`.
-- **`/usage` en el panel del agente**: lo responde Synapse con un resumen de la conversación (agente, modelo, modo, contexto, costo, mensajes, herramientas usadas por tipo, compactados y duración), salvo que el agente tenga su propio `/usage`.
-- **Conversaciones por proceso, por agente**: en Ajustes → Agentes de IA eliges cuántas conversaciones comparte un proceso de cada agente (por defecto 4; usa 1 para un agente que atiende una a la vez).
-- **Ícono propio del pulpo**: un pulpo robot en SVG, que sigue el color del tema, marca las conversaciones y los mensajes que vienen de otra bóveda.
-- **Los agentes conversan con los de otra bóveda abierta en otra ventana** (🐙): «pregúntale a mainframe…» llega a la otra ventana de Synapse por un canal local con token, y allí abre una conversación nueva y limpia con su agente (o sigue el hilo de la misma conversación de origen, o usa `mainframe#1` si se pide). La primera vez, la bóveda de destino pregunta si acepta conversaciones de la otra. La respuesta vuelve sola a quien preguntó. Las conversaciones abiertas por otra bóveda y sus mensajes llevan un pulpo. Si la bóveda de destino está entre tus recientes pero no abierta, Synapse la abre en otra ventana. En Ajustes → Agentes de IA eliges qué agente atiende esas conversaciones; en ellas, las lecturas del agente se permiten solas y lo demás se rechaza si nadie responde en 2 minutos. `render_diagram` también dibuja diagramas de otra bóveda.
-- **Los agentes consultan otras bóvedas**: con `list_vaults` y el parámetro `vault` en las herramientas de lectura del MCP (`search_notes`, `read_note`…), el agente de una bóveda puede buscar y leer las notas de otra (por ejemplo, validar los diagramas contra la documentación de mainframe), esté o no abierta. Es solo lectura; la primera vez Synapse pregunta si esa bóveda puede consultar la otra y lo recuerda (`.synapse/vault-access.json`). La respuesta se marca con 📚 y el nombre de la bóveda.
-- **Los agentes se hablan entre conversaciones**: cada conversación del panel tiene un número (#1, #2…). Si le pides a un agente «pregúntale a #2…» o «avísale a Gemini…», usa las herramientas nuevas del MCP `list_conversations` y `send_to_conversation`, aunque sean agentes distintos (Claude, Gemini…): Synapse entrega el mensaje, y si el destino está trabajando lo recibe al terminar su turno (✉ en su fila). Si era una pregunta, la respuesta vuelve sola a quien preguntó («esperando a #2» mientras tanto). Los mensajes de otro agente se ven marcados con su origen, y hay un límite de 3 idas y vueltas seguidas sin intervención del usuario.
-- **Panel del agente más compacto**: modelo y modo pasan a un ▾ junto a la línea de contexto, en corto («Argon·L», y el modo solo si no es el de inicio; un modelo que Synapse no reconoce se muestra con su nombre completo), con los nombres completos en el tooltip y en el menú; la línea de contexto muestra solo el porcentaje (el detalle va en el tooltip). «MCP Synapse» y ⋯ pasan al título de la conversación, junto al 📌, y desaparece la barra de la conversación.
-- **`/compact` en el panel del agente**: si el agente ofrece `/compact`, la línea de uso de contexto muestra «Compactar» (desde el 60 % o al pasar el mouse, y en ámbar desde el 80 %). Al compactar, el chat marca «— contexto compactado —» y la barra baja con el siguiente dato de uso. Al retomar con un agente que no sabe cargar sesiones, el resumen de reemplazo empieza en el último compactado. «Ver en crudo» y «Borrar conversación» pasan a un menú ⋯ en la barra de la conversación.
-- **Cada bóveda recuerda su panel de agentes**: si el panel estaba abierto o cerrado, el último agente y las conversaciones abiertas (desplegadas y fijada). Al volver a esa bóveda se retoman con sus mensajes. Una bóveda que nunca usó agentes empieza con el panel cerrado y sin agente.
-- **Varias conversaciones con agentes a la vez, en acordeón**: «Nueva conversación con…» abre otra arriba del panel sin cerrar las demás (del mismo agente o de otro); como mucho dos quedan desplegadas y, al desplegar una tercera, se pliega la que lleva más tiempo abierta. Cada fila muestra su estado (🧠 pensando, «permiso» si espera tu respuesta) y se marca si terminó mientras estaba plegada. 📌 fija una conversación al costado del panel, en su propia columna; ✕ la cierra y pasa al historial, desde donde se reabre. Mientras el agente piensa, el chat lo muestra con 🧠, y el razonamiento contraído es solo un 🧠 que se despliega al hacer clic. Las conversaciones con un mismo agente comparten su proceso (hasta 4 por proceso; con más se lanza otro), así abrir una nueva es casi inmediato; el proceso se cierra 30 s después de cerrar su última conversación. Las imágenes pegadas se ven ampliadas al hacer clic en su miniatura (Esc, clic fuera o ✕ para cerrar).
-- **Diagramas como imagen por el MCP**: al leer un diagrama (Excalidraw, Mermaid, D2, PlantUML), `read_note` lo marca con `diagram.render_tool`, y la herramienta nueva `render_diagram` lo devuelve dibujado como PNG, igual que se ve en Synapse (lo dibuja la ventana abierta). Así el agente puede ver el diagrama y no solo su código.
-- **Pegar imágenes en el mensaje al agente**: `Ctrl+V` con una imagen en el portapapeles (por ejemplo, una captura) la adjunta con su miniatura; si el agente no acepta imágenes, se le avisa que había una. Cada agente recuerda el último modelo elegido, así una conversación nueva empieza con él.
-- **Historial de conversaciones con el agente**: cada conversación se guarda en la bóveda (`.synapse/agent-sessions/`) y se retoma desde el desplegable de historial del panel; cada conversación recuerda su agente y retomarla cambia a ese agente; al elegir un agente se retoma su última conversación (el panel empieza cerrado y sin agente elegido); si el agente sabe cargar sesiones (`session/load`) continúa con su propio contexto, y si no, recibe un resumen de lo hablado. Hay botones para empezar una conversación nueva, abrir la conversación en crudo (JSON) con la aplicación por defecto y borrar una conversación o todas. Debajo del mensaje se ve el uso de la ventana de contexto del modelo (tokens usados, total y porcentaje, y el costo si el agente lo informa). Las respuestas del agente se ven como markdown (los enlaces a notas de la bóveda las abren en Synapse) y cada herramienta se expande para ver su entrada y su salida. La cabecera del panel se alinea con la barra de pestañas y el panel acoplado sigue el tema Islas.
-- **Historial de Git más ancho y redimensionable**: el diálogo se agranda arrastrando sus bordes o esquinas, como una ventana, y recuerda el tamaño para todos los archivos. Los dos botones de diff van uno sobre otro y el mensaje del commit ocupa hasta dos líneas. Los commits con tag muestran el nombre del tag como etiqueta junto al mensaje.
-- **Diálogos de commit y de ramas más grandes y redimensionables**: abren más anchos y altos, se agrandan arrastrando sus bordes o esquinas y recuerdan su tamaño; la lista de archivos o de ramas usa el alto extra. Los tres diálogos de Git (commit, ramas e historial) comparten ahora el mismo marco, cabecera y pie.
-- **Ver los cambios de un commit**: en el Historial de Git, «Ver cambios» abre el parche de ese commit para el archivo (contra su commit padre). Texto en Dividida, Unificada o Parche; imágenes, dibujos y diagramas con 2 Paneles y Diferencias.
-- **Diff píxel por píxel de diagramas**: Mermaid, D2 y PlantUML tienen el modo **Diferencias** en el diff de Git, en el stage, en el parche de un commit y al comparar dos archivos. Las dos versiones se renderizan y se comparan en memoria, sin escribir nada en disco.
-- **Comparar dos dibujos o diagramas**: «Comparar archivos» con dos Excalidraw o dos diagramas del mismo lenguaje ofrece 2 Paneles, Texto y Diferencias.
-- **Comparar dos imágenes**: «Comparar archivos» con dos imágenes (o dos dibujos, diagramas o PDF del mismo tipo) muestra el modo visual: **2 Paneles** lado a lado y, para imágenes raster y dibujos de Excalidraw, **Diferencias** píxel por píxel. Si las imágenes tienen distinto tamaño, se comparan desde la esquina superior izquierda.
-- **Menú de la pestaña completo**: además de abrir en nueva ventana, con la app por defecto y mostrar en carpeta, ahora permite **Renombrar archivo** (abre la edición en el breadcrumb de esa pestaña), **Copiar ruta relativa** y **Copiar ruta completa**, igual que el menú del breadcrumb.
-- **Editor de draw.io embebido**: los `.drawio` se abren en el editor de draw.io dentro de una pestaña y al guardar se escribe el XML del diagrama. Los `.drawio.png` se siguen viendo como imagen y se editan con **Abrir con draw.io** en el menú contextual del explorador o con el botón **draw.io** del visor de imágenes; al guardar se reescribe el PNG con el diagrama incrustado, que sigue siendo editable. Respeta el tema claro u oscuro. Se carga desde `embed.diagrams.net` (el diagrama no sale del equipo: viaja por `postMessage`); la dirección se puede cambiar con `drawioUrl` en los ajustes para usar un draw.io propio sin red.
-- **Los `.drawio.png` vuelven a abrirse como imagen**: el modo draw.io solo dura mientras la pestaña está abierta; abrir el archivo desde el explorador o la apertura rápida, o cerrar la pestaña, lo devuelve al visor de imágenes.
+- **Tab copies with their own mode and a single editor per drawing**: each copy of a tab (`Duplicate tab`) has its own Reading/Edit button, so a note can be in edit mode in one tab and in reading mode in the other. Drawings (Excalidraw and draw.io) are only edited in one tab at a time, so they do not overwrite each other when saving: switching to edit in another copy takes you to the tab that is already editing it; when it is closed or switched to reading, any copy can edit. Copies of a draw.io image are updated with each save in the editor.
+- **"Open in another tab (read-only)"** in the explorer's context menu, when the file is already open: opens a reading copy next to the original.
+- **Drag to another window also the tabs of a version, a diff and copies** (before, only those of files).
+- **Full-text search finds the text of draw.io diagrams**: `.drawio` files and PNG/SVG images with a diagram inside are indexed with the texts of their shapes and the names of their pages (also compressed diagrams), as documents of type `drawio`. Images without a diagram are still not indexed; to know this, only the PNG headers are read.
+- **draw.io images are marked when indexing**: the vault index stores whether each PNG/SVG carries a diagram, so the Reading/Edit button appears when opening it without reading the file again. The cache moves to `.synapse/cache-v2.bin`; the previous one (`cache.bin`) is imported automatically the first time, without losing open tabs.
+- **draw.io images: Reading/Edit button and content-based detection**: on a draw.io image, the header's Reading/Edit button opens the draw.io editor (Edit) or goes back to the image (Reading), as with notes; the viewer's button now says "Open in draw.io". A PNG counts as a draw.io one by its name (`.drawio.png`) or because it carries the diagram inside (the `mxfile` block that draw.io saves when exporting with "include a copy of the diagram"), even if it is called `photo.png`. The same with SVGs: a `.drawio.svg`, or any SVG with the diagram in its `content` attribute, is edited in draw.io and saved as SVG (`xmlsvg` format).
+- **Review the vaults that can talk to this one**: in Settings → AI Agents you can see which vaults were accepted (✅) or rejected (🚫) and remove each one; the next time it is asked again.
+- **The debug log includes the channel between Synapses**: besides ACP messages, it records the `/peer` requests that go out and come in (`peer-out`, `peer-reply`, `peer-in`, `peer-answer`), without the `ping`s.
+- **Documentation of communication between Synapses** (`docs/comunicacion_entre_synapses.md`): who writes to whom, the `/peer` channel, permissions and limits.
+- **Mention conversations and vaults in the agent chat**: `#` suggests the other conversations in this window and `@` also the other Synapse vaults (in addition to files). Each conversation is shown with its status (🧠 working, ⏸ idle, ⚠ waiting for a permission), title, agent and last activity; the tooltip carries its last reply and the last question. Vaults are marked 🟢 open, 🟡 busy or ⚪ off; `@Vault#` picks one of its conversations or `#new`. Choosing an off vault opens it in another window and the message waits for it to respond. The number is inserted (`#2`, `@Vault#2`) and, when sending, Synapse explains to the agent what each mention points to; in the sent message it appears as a chip with its title in the tooltip.
+- **Filters in `@` mentions**: `@agent:` (or `@a:`) shows only agents, that is other Synapse vaults and this window's conversations, and `@file:` (or `@f:`) only files; the prefix only filters and when choosing, the mention is inserted without it. Without a prefix, if what is typed is the beginning of a vault name (`@main` → MAINFRAME), vaults appear first; when files and vaults are shown together, each group indicates its shortcut.
+- **Default agent**: in Settings → AI Agents you choose an agent for all vaults. It is used in a vault that has not used any yet (for example, when another vault writes to it for the first time) and in "＋ New conversation"; if none is chosen or installed, the first in the list is used and downloaded automatically. Before, a new vault could not handle conversations from another.
+- **Synapse asks for attention when it is waiting for your response**: with an agent permission or a question (for example, another vault that wants to talk), if the window is not in front it is marked as urgent in the taskbar and a system notification appears. It does not take focus away from what you are doing.
+- **Messages from another agent arrive collapsed**: "From Agent · #2 · 2.3 KB ▸"; when opened they are shown rendered (not raw), with a button to copy the text as it arrived. Your agent still receives them in full.
+- **ACP debug log**: in Settings → AI Agents, it saves unfiltered every message that goes in and out of the agents to `acp-debug.jsonl` in the configuration folder, to see what each agent sends (for example, whether it includes the result of its tools).
+- **Alt+2 opens and closes the agent panel**: new action "Show / hide the agent" (`toggle_agent`) in the configurable shortcuts, which also appears in the command palette, in the shortcuts panel and in the tooltip of the sidebar button.
+- **Copy and paste files with other applications**: "Copy" in the explorer puts the files on the system clipboard, like a file manager, so they can be pasted into another Synapse instance, the file manager or another application; "Paste" brings what was copied outside (another instance, the file manager) into the chosen folder ("Paste (N files from outside)").
+- **Drag files from the explorer to other applications**: dropping them into Telegram, the file manager or another application attaches or copies them, as from a file manager; inside the tree, dragging still moves.
+- **A file's Git History draws its branches**: a column on the left shows the graph (like `git log --graph`), with the merges that join branches that also touched the file. Each commit is marked "new" (created the file: hollow dot and no "View changes", because there is no previous version on its branch), "deleted", "renamed", "merge" or "other branch" (it is not the previous version of the commit above).
+- **The agent understands a file's Git history**: new MCP tools `git_file_history` (the file's commits, following renames), `git_diff_revisions` (what changed between two commits, or against the local version, with added and removed lines) and `git_read_revision` (the file as it was at a commit); `render_diagram` accepts `revision` to view a diagram or an image (e.g. a `.drawio.png`) as it was. In Git History, with two commits selected (or just one, to ask about that commit), "Ask the agent what changed" opens the panel with the file attached and the question written.
+- **Selecting commits in Git History**: click selects a commit, `Ctrl`+click adds or removes others and `Shift`+click selects the range from the last click. With right-click: "Diff between these 2 versions" (with exactly two selected) and copy their hashes, full or short, comma-separated.
+- **Duplicate tab**: in each tab's menu, "Duplicate tab" opens another tab with the same content, next to the original and in the same pane; each copy has its own view (diff mode, zoom, scroll).
+- **The diff viewer remembers views already computed**: "2 Panels", "Differences" (pixel by pixel) and text are computed the first time you choose them and stay in memory until the tab is closed, so switching between them is immediate. Hidden views keep their size and their already drawn images, so "2 Panels" is not seen loading again when you return. Each diff tab has its own mode: with "Duplicate tab" you can see "Differences" in one tab and "2 Panels" in the other; the last mode chosen is the initial one for new diffs.
+- **`Shift+Escape` closes the last side panel you opened**: the explorer (or another left-bar panel) or the agent's, whichever you opened most recently; if you press it again, it closes the previous one.
+- **Showing the explorer with the keyboard gives it focus**: `Alt+1` / `Ctrl+B` (in addition to "locate", `Ctrl+Alt+1`) leave the focus on the tree, on the open file or the first one, to move with the arrows and open with Enter.
+- **Pinned or unpinned explorer**: a pin in the explorer header. Pinned (as always) it takes up its space next to the editor; unpinned, the editor uses the whole width and the explorer floats on top, attached to the sidebar, when you open it from there. It hides when opening a file, with Esc or on clicking outside. The choice is remembered.
+- **Diff between two versions of a file**: in Git History, "Diff between versions" replaces each commit's actions with checkboxes; you choose exactly two and "Compare" opens their differences (from oldest to newest) in the usual viewers: text, images and diagrams. When turned off, the actions come back.
+- **Git dialogs can be moved**: the history (log), commit and branches dialogs move by dragging their header, without leaving the window; they remember the position while the app is open and a double-click on the header recenters them.
+- **AI agent in a side panel (ACP)**: new "AI Agent" button in the sidebar and in the editor header (next to the window controls) that opens a panel docked to the right or floating (movable and resizable). It converses with ACP (Agent Client Protocol) compatible agents about the open vault: streaming responses, tools the agent uses and permission requests with buttons to approve or reject. The verified agents are **Claude**, which is downloaded from the public ACP registry (the same one Zed uses) and verified with its sha256, and **Google Antigravity**, which uses the already installed `agy` CLI; you can also register your own agents (command, arguments and environment variables) in Settings → AI Agents.
+- **The agent works with your vault**: each session receives the open Synapse window's MCP as `synapse_instance` (notes, search, links, Git…), which turns on by itself if it was off; agents that do not speak MCP over HTTP reach the same instance through a bridge (`synapsers --mcp-proxy`). At the start the agent is asked to use that MCP and to create and edit notes with it instead of writing the files. In builds with the `develop` feature there is also a **feedback mode** (Settings → AI Agents): the agent records in `~/.config/synapsers/feedback.md` what the MCP is missing, with the agent, the model and the conversation it came from. In addition, `/feedback [instructions]` in the message asks the agent to review the conversation and record with `report_feedback` what to improve in the MCP and the panel. In the message you can attach notes with `@` (`@this` attaches the file of the tab you are viewing), drag them from the explorer or send the editor selection with `Ctrl+Alt+A`; the open note is attached automatically as a tag you can remove. The panel shows the agent's plan, the files it touches with their diff, the commands it offers (with `/`), context usage and, if the agent has them, mode and model selectors (for example, Antigravity's Gemini and Claude models).
+- **An external MCP client can talk to the panel's agents**: for example, Claude Code using Synapse's MCP. `send_to_conversation` works without a conversation of its own (the message arrives marked "External MCP client") and, if it was a question, the reply is collected with the new tool `read_replies`.
+- **`/usage` in the agent panel**: answered by Synapse with a summary of the conversation (agent, model, mode, context, cost, messages, tools used by type, compactions and duration), unless the agent has its own `/usage`.
+- **Conversations per process, per agent**: in Settings → AI Agents you choose how many conversations share one process of each agent (default 4; use 1 for an agent that handles one at a time).
+- **Own octopus icon**: a robot octopus in SVG, which follows the theme color, marks the conversations and messages that come from another vault.
+- **Agents converse with those of another vault open in another window** (🐙): "ask mainframe…" reaches the other Synapse window through a local channel with a token, and there it opens a new, clean conversation with its agent (or continues the thread of the same originating conversation, or uses `mainframe#1` if requested). The first time, the destination vault asks whether it accepts conversations from the other. The reply returns on its own to whoever asked. Conversations opened by another vault and their messages carry an octopus. If the destination vault is among your recents but not open, Synapse opens it in another window. In Settings → AI Agents you choose which agent handles those conversations; in them, the agent's reads are allowed automatically and everything else is rejected if nobody responds within 2 minutes. `render_diagram` also draws diagrams from another vault.
+- **Agents query other vaults**: with `list_vaults` and the `vault` parameter in the MCP's read tools (`search_notes`, `read_note`…), one vault's agent can search and read another's notes (for example, validate the diagrams against the mainframe documentation), whether it is open or not. It is read-only; the first time Synapse asks whether that vault may query the other and remembers it (`.synapse/vault-access.json`). The reply is marked with 📚 and the vault name.
+- **Agents talk to each other between conversations**: each conversation in the panel has a number (#1, #2…). If you ask an agent "ask #2…" or "notify Gemini…", it uses the new MCP tools `list_conversations` and `send_to_conversation`, even if they are different agents (Claude, Gemini…): Synapse delivers the message, and if the target is working it receives it when its turn ends (✉ on its row). If it was a question, the reply returns on its own to whoever asked ("waiting for #2" in the meantime). Messages from another agent are shown marked with their origin, and there is a limit of 3 consecutive round trips without user intervention.
+- **More compact agent panel**: model and mode move to a ▾ next to the context line, in short form ("Argon·L", and the mode only if it is not the initial one; a model Synapse does not recognize is shown with its full name), with the full names in the tooltip and in the menu; the context line shows only the percentage (the detail goes in the tooltip). "MCP Synapse" and ⋯ move to the conversation title, next to the 📌, and the conversation bar disappears.
+- **`/compact` in the agent panel**: if the agent offers `/compact`, the context usage line shows "Compact" (from 60% or on mouse hover, and in amber from 80%). On compacting, the chat marks "— context compacted —" and the bar drops with the next usage data. When resuming with an agent that cannot load sessions, the replacement summary starts at the last compaction. "View raw" and "Delete conversation" move to a ⋯ menu in the conversation bar.
+- **Each vault remembers its agent panel**: whether the panel was open or closed, the last agent and the open conversations (expanded and pinned). When returning to that vault they are resumed with their messages. A vault that never used agents starts with the panel closed and no agent.
+- **Several conversations with agents at once, in an accordion**: "New conversation with…" opens another at the top of the panel without closing the others (of the same agent or another); at most two stay expanded and, when expanding a third, the one that has been open longest is folded. Each row shows its status (🧠 thinking, "permission" if waiting for your response) and is marked if it finished while folded. 📌 pins a conversation to the side of the panel, in its own column; ✕ closes it and moves it to history, from where it is reopened. While the agent thinks, the chat shows it with 🧠, and the collapsed reasoning is just a 🧠 that expands on click. Conversations with the same agent share its process (up to 4 per process; with more, another is launched), so opening a new one is almost immediate; the process shuts down 30 s after its last conversation is closed. Pasted images are shown enlarged when clicking their thumbnail (Esc, click outside or ✕ to close).
+- **Diagrams as images through the MCP**: when reading a diagram (Excalidraw, Mermaid, D2, PlantUML), `read_note` marks it with `diagram.render_tool`, and the new tool `render_diagram` returns it drawn as a PNG, just as it looks in Synapse (the open window draws it). This way the agent can see the diagram and not just its code.
+- **Pasting images into the message to the agent**: `Ctrl+V` with an image on the clipboard (for example, a screenshot) attaches it with its thumbnail; if the agent does not accept images, it is told there was one. Each agent remembers the last model chosen, so a new conversation starts with it.
+- **Agent conversation history**: each conversation is saved in the vault (`.synapse/agent-sessions/`) and resumed from the panel's history dropdown; each conversation remembers its agent and resuming it switches to that agent; when choosing an agent its last conversation is resumed (the panel starts closed and with no agent chosen); if the agent can load sessions (`session/load`) it continues with its own context, and if not, it receives a summary of what was said. There are buttons to start a new conversation, open the conversation raw (JSON) with the default application and delete one conversation or all. Below the message you can see the model's context window usage (tokens used, total and percentage, and the cost if the agent reports it). The agent's replies are shown as markdown (links to vault notes open them in Synapse) and each tool expands to show its input and output. The panel header aligns with the tab bar and the docked panel follows the Islands theme.
+- **Wider, resizable Git History**: the dialog is enlarged by dragging its edges or corners, like a window, and remembers the size for all files. The two diff buttons stack one above the other and the commit message takes up to two lines. Commits with a tag show the tag name as a label next to the message.
+- **Larger, resizable commit and branches dialogs**: they open wider and taller, are enlarged by dragging their edges or corners and remember their size; the file or branch list uses the extra height. The three Git dialogs (commit, branches and history) now share the same frame, header and footer.
+- **View a commit's changes**: in Git History, "View changes" opens that commit's patch for the file (against its parent commit). Text in Split, Unified or Patch; images, drawings and diagrams with 2 Panels and Differences.
+- **Pixel-by-pixel diff of diagrams**: Mermaid, D2 and PlantUML have the **Differences** mode in the Git diff, in the stage, in a commit's patch and when comparing two files. The two versions are rendered and compared in memory, without writing anything to disk.
+- **Compare two drawings or diagrams**: "Compare files" with two Excalidraw files or two diagrams of the same language offers 2 Panels, Text and Differences.
+- **Compare two images**: "Compare files" with two images (or two drawings, diagrams or PDFs of the same type) shows the visual mode: **2 Panels** side by side and, for raster images and Excalidraw drawings, pixel-by-pixel **Differences**. If the images have different sizes, they are compared from the top-left corner.
+- **Complete tab menu**: besides open in a new window, with the default app and show in folder, it now allows **Rename file** (opens editing in that tab's breadcrumb), **Copy relative path** and **Copy full path**, just like the breadcrumb menu.
+- **Embedded draw.io editor**: `.drawio` files open in the draw.io editor inside a tab and on saving the diagram's XML is written. `.drawio.png` files are still viewed as an image and edited with **Open with draw.io** in the explorer's context menu or with the viewer's **draw.io** button; on saving, the PNG is rewritten with the embedded diagram, which remains editable. It respects the light or dark theme. It is loaded from `embed.diagrams.net` (the diagram does not leave the machine: it travels via `postMessage`); the address can be changed with `drawioUrl` in the settings to use your own draw.io without a network.
+- **`.drawio.png` files open as an image again**: draw.io mode lasts only while the tab is open; opening the file from the explorer or quick open, or closing the tab, returns it to the image viewer.
 
-### Cambiado
+### Changed
 
-- **Pruebas más rápidas**: las pruebas de integración de Rust van en un solo binario (`src-tauri/tests/integration/`; un grupo se corre con `cargo test --test integration <módulo>::`), los perfiles `dev` y `test` guardan menos información de depuración y se enlaza con `mold`. Recompilar las pruebas tras un cambio pasa de minutos a unos segundos. Las e2e usan el mismo binario de desarrollo (`target/debug`, Vite en el 5173) en lugar de una compilación aparte en `target/e2e`.
-- **«Bóveda» en lugar de «Workspace»**: la pantalla de bienvenida, los recientes, los atajos y la paleta dicen «bóveda» (en inglés, «vault»), igual que el resto de la app.
+- **Faster tests**: the Rust integration tests are built into a single binary (`src-tauri/tests/integration/`; a group is run with `cargo test --test integration <module>::`), the `dev` and `test` profiles keep less debug information, and linking uses `mold`. Recompiling the tests after a change goes from minutes to a few seconds. The e2e tests use the same development binary (`target/debug`, Vite on 5173) instead of a separate build in `target/e2e`.
+- **"Vault" instead of "Workspace"**: the welcome screen, recents, shortcuts and palette say "vault" (in Spanish, "bóveda"), like the rest of the app.
 
-### Corregido
+### Fixed
 
-- **La publicación de versiones vuelve a compilar en Linux**: el flujo de release instala `mold`, el enlazador que usa `src-tauri/.cargo/config.toml` (faltaba en el runner y fallaba con «cannot find ld»).
-- **Hacer clic en el explorador sobre una imagen abierta en draw.io ya no cierra ni redibuja el editor**: solo activa su pestaña.
-- **Una imagen abierta se refresca cuando el archivo cambia en disco**, también en sus copias de pestaña; antes el webview seguía mostrando la versión en caché.
-- **Guardar en draw.io una imagen (PNG/SVG) ya no redibuja el editor**: el archivo que reescribe su propio guardado se tomaba como un cambio externo y el editor se volvía a montar. Ahora, mientras la imagen está en el editor, un cambio en disco no la recarga, y al salir del editor el visor muestra lo guardado.
-- **Pruebas e2e más robustas (en curso, `syna-7qa9`)**: si el WebDriver se cae, las pruebas que quedan fallan al instante en vez de esperar su tiempo límite; el arranque espera a que el WebDriver anterior libere el puerto 4444 (causa probable de las caídas en cadena con ECONNREFUSED); varias pruebas cambian pausas fijas por esperas de la condición real.
-- **Shift+F6 (cambiar todas las coincidencias) no hacía nada si la ventana no tenía el foco del sistema**: el atajo comprobaba `hasFocus`, que en WebKit depende de `document.hasFocus()`; ahora basta con que la tecla llegue al editor.
-- **Pestañas de una versión o de un diff en una ventana nueva**: «Abrir en nueva ventana», «Mover a nueva ventana» y el botón de la cabecera ahora también funcionan con la pestaña de «Ver archivo» de un commit y con las de diff (antes solo con archivos); la ventana nueva muestra la misma versión.
-- **Fondo por defecto de la pestaña vacía en blanco**: los fondos claro y oscuro venían en AVIF, que el WebView de algunos Linux (WebKitGTK sin soporte AVIF) no decodifica; por eso se veía en blanco al abrir la app y al quitar un fondo propio. Ahora van en WebP.
-- **«Renombrar archivo» desde el menú de una pestaña**: la edición del nombre ya no se cierra sola. Al activarse la pestaña, su vista de lectura tomaba el foco, el campo del nombre lo perdía y la edición se confirmaba sin cambios; ahora la vista de lectura no le quita el foco a un campo de texto, y el menú no devuelve el foco a la pestaña al elegir renombrar.
-- **Historial de Git de archivos renombrados**: «Ver archivo», «Ver cambios», «Diff con local» y el diff entre versiones de un commit anterior a un renombre o a mover el archivo de carpeta ya muestran su contenido, en vez de «El archivo no existía en la revisión». En esa revisión se busca el nombre que tenía entonces, igual que el historial sigue al archivo.
-- **Zoom y arrastre de diagramas e imágenes**: en los diagramas (Mermaid, D2, PlantUML) arrastrar ya mueve el diagrama lo mismo que el mouse con cualquier zoom (antes, con zoom, se desfasaba), y la rueda hace zoom con el cursor como ancla. El zoom del diff de imágenes y del visor de Excalidraw también se ancla ahora en el cursor, como ya hacía el visor de imágenes.
-- **`bun run check` sin errores ni advertencias**: el tipo de los píxeles en el diff de Excalidraw y el esquema de títulos, que tomaba a propósito solo el valor inicial.
-- **Abrir una conversación mientras la bóveda restaura las suyas ya no la repliega** al terminar la restauración.
-- **El agente ya no sigue en la bóveda anterior al cambiar de bóveda**: la conversación se cierra (queda guardada en su bóveda) y el panel vuelve a empezar sin agente elegido, con el historial de la bóveda nueva.
-- **`Shift+F6` vuelve a seleccionar todas las coincidencias en el editor de código**: había dos copias de CodeMirror y el atajo quedaba registrado en una que el editor no leía; ahora se usa una sola versión.
-- **La caché de la bóveda ya no se corrompe si la app se cierra mientras guarda**: `.synapse/cache.bin` se guarda con `object_store`, que escribe en un archivo temporal y lo renombra al terminar; si el guardado se interrumpe, queda la versión anterior.
-- **Volver a lectura conserva la posición**: al pasar de edición a lectura en una nota Markdown, la lectura se abre en la parte del documento que se estaba editando en lugar de volver al inicio.
-- **Diff visual en stage**: comparaba el disco contra el stage; ahora compara el stage contra HEAD, como `git diff --staged`.
-- **Fechas del Historial de Git**: mostraban «Invalid Date».
-- **PlantUML en el diff lado a lado**: el panel de la versión de Git lo dibujaba como Mermaid.
-- **«Diff» con dos archivos seleccionados**: en una bóveda con Git, el «Diff» del menú del explorador hacía el diff de Git de un solo archivo (y solía mostrar «Sin diferencias»). Ahora, con dos archivos seleccionados, se llama «Diff entre los 2 archivos» y los compara entre sí.
+- **Publishing releases builds on Linux again**: the release workflow installs `mold`, the linker used by `src-tauri/.cargo/config.toml` (it was missing on the runner and failed with "cannot find ld").
+- **Clicking in the explorer on an image open in draw.io no longer closes or redraws the editor**: it only activates its tab.
+- **An open image refreshes when the file changes on disk**, including in its tab copies; before, the webview kept showing the cached version.
+- **Saving an image (PNG/SVG) in draw.io no longer redraws the editor**: the file rewritten by its own save was taken as an external change and the editor was mounted again. Now, while the image is in the editor, a change on disk does not reload it, and when leaving the editor the viewer shows what was saved.
+- **More robust e2e tests (in progress, `syna-7qa9`)**: if the WebDriver goes down, the remaining tests fail instantly instead of waiting for their timeout; startup waits for the previous WebDriver to release port 4444 (probable cause of the chained crashes with ECONNREFUSED); several tests replace fixed pauses with waits for the real condition.
+- **Shift+F6 (change all occurrences) did nothing if the window did not have system focus**: the shortcut checked `hasFocus`, which in WebKit depends on `document.hasFocus()`; now it is enough for the key to reach the editor.
+- **Tabs of a version or a diff in a new window**: "Open in new window", "Move to new window" and the header button now also work with a commit's "View file" tab and with diff tabs (before, only with files); the new window shows the same version.
+- **Default background of the empty tab was blank**: the light and dark backgrounds came in AVIF, which the WebView on some Linux systems (WebKitGTK without AVIF support) cannot decode; so it appeared blank when opening the app and when removing a custom background. Now they are WebP.
+- **"Rename file" from a tab's menu**: the name editing no longer closes by itself. When the tab was activated, its reading view took the focus, the name field lost it and the edit was confirmed unchanged; now the reading view does not take the focus away from a text field, and the menu does not return the focus to the tab when choosing rename.
+- **Git history of renamed files**: "View file", "View changes", "Diff with local" and the diff between versions of a commit prior to a rename or to moving the file to another folder now show their content, instead of "The file did not exist in the revision". In that revision the name it had at the time is looked up, just as the history follows the file.
+- **Zoom and dragging of diagrams and images**: in diagrams (Mermaid, D2, PlantUML) dragging now moves the diagram in step with the mouse at any zoom (before, with zoom, it drifted), and the wheel zooms anchored at the cursor. The zoom of the image diff and of the Excalidraw viewer is also now anchored at the cursor, as the image viewer already did.
+- **`bun run check` without errors or warnings**: the type of the pixels in the Excalidraw diff and the title schema, which deliberately took only the initial value.
+- **Opening a conversation while the vault restores its own no longer folds it** when the restoration finishes.
+- **The agent no longer stays in the previous vault when switching vaults**: the conversation is closed (it stays saved in its vault) and the panel starts over with no agent chosen, with the history of the new vault.
+- **`Shift+F6` selects all occurrences in the code editor again**: there were two copies of CodeMirror and the shortcut was registered in one that the editor did not read; now a single version is used.
+- **The vault cache is no longer corrupted if the app is closed while saving**: `.synapse/cache.bin` is saved with `object_store`, which writes to a temporary file and renames it when done; if the save is interrupted, the previous version remains.
+- **Going back to reading keeps the position**: when switching from editing to reading in a Markdown note, reading opens at the part of the document that was being edited instead of going back to the start.
+- **Visual diff on stage**: it compared the disk against the stage; now it compares the stage against HEAD, like `git diff --staged`.
+- **Git History dates**: they showed "Invalid Date".
+- **PlantUML in the side-by-side diff**: the Git version panel drew it as Mermaid.
+- **"Diff" with two files selected**: in a vault with Git, the explorer menu's "Diff" did the Git diff of a single file (and often showed "No differences"). Now, with two files selected, it is called "Diff between the 2 files" and compares them with each other.
 
 ## [1.0.0-beta.1] - 2026-11-12
 
-### Añadido
+### Added
 
-- **Tema integrado «Papiro»**: papel kraft envejecido con fibras y manchas, la nota como una hoja de bordes rotos y tostados, y tinta sepia con títulos en serif. En oscuro, cuero curtido con letras de pergamino. También en «Papiro Islas».
-- **Carpetas de temas globales**: los `.css` de `~/.config/synapsers/themes` (que se lee siempre) y de las carpetas extra que agregues en Configuración → Apariencia aparecen como temas en todas las bóvedas, sin recompilar. Las carpetas extra se guardan en `appearance.theme_dirs` del nuevo `~/.config/synapsers/config.jsonc`; se leen al iniciar y con el botón **Reescanear**. Admiten `@nombre`, `@capa` y `@base` como los integrados.
-- **Tema integrado «Neón CRT» y temas integrados automáticos**: «Neón CRT» es Neón con líneas de barrido tipo monitor viejo en la lectura (en Linux pueden dar lag al desplazarse, por eso «Neón» ya no las trae). Para sumar un tema integrado basta con dejar su `.css` en `src/entities/appearance/themes/`, con `@nombre`, `@capa` o `@base` en su comentario inicial.
-- **Actualizador automático (Auto-updater)**:
-  - Integración del plugin `tauri-plugin-updater` para detectar y aplicar actualizaciones firmadas desde GitHub Releases.
-  - Firma digital criptográfica de los paquetes y generación automática del manifiesto `latest.json` en los flujos de CI/CD para Linux (`.tar.gz`) y Windows (`.zip`).
+- **Built-in "Papyrus" theme**: aged kraft paper with fibers and stains, the note as a sheet with torn and toasted edges, and sepia ink with serif headings. In dark, tanned leather with parchment lettering. Also in "Papyrus Islands".
+- **Global theme folders**: the `.css` files in `~/.config/synapsers/themes` (which is always read) and in the extra folders you add in Settings → Appearance show up as themes in all vaults, without recompiling. The extra folders are saved in `appearance.theme_dirs` of the new `~/.config/synapsers/config.jsonc`; they are read at startup and with the **Rescan** button. They support `@nombre`, `@capa` and `@base` like the built-in ones.
+- **Built-in "Neon CRT" theme and automatic built-in themes**: "Neon CRT" is Neon with old-monitor-style scan lines in reading view (on Linux they can lag when scrolling, which is why "Neon" no longer includes them). To add a built-in theme, just drop its `.css` in `src/entities/appearance/themes/`, with `@nombre`, `@capa` or `@base` in its initial comment.
+- **Automatic updater (Auto-updater)**:
+  - Integration of the `tauri-plugin-updater` plugin to detect and apply signed updates from GitHub Releases.
+  - Cryptographic digital signing of the packages and automatic generation of the `latest.json` manifest in the CI/CD workflows for Linux (`.tar.gz`) and Windows (`.zip`).
 
-### Cambiado
+### Changed
 
-- **Una sola carpeta de configuración global, `~/.config/synapsers`**: el registro de puertos MCP (`mcp-ports.json`) ya no se escribe también en `~/.config/synapse`. Esa carpeta ya no se usa y se puede borrar.
-- **Caché de navegación a `postcard`**:
-  - Reemplazo de la biblioteca desmantenida `bincode` por `postcard` (`v1.1` con `use-std`) para la serialización binaria en disco de la caché del motor de navegación (`DashMap<NoteId, NoteMeta>`), reduciendo huella y garantizando compatibilidad moderna de tipos.
-- **Optimización de compilación**:
-  - Compilación con *ThinLTO* en modo release y uso del enlazador `lld` en Linux para acelerar los tiempos de enlazado y empaquetado en CI.
+- **A single global configuration folder, `~/.config/synapsers`**: the MCP port registry (`mcp-ports.json`) is no longer also written to `~/.config/synapse`. That folder is no longer used and can be deleted.
+- **Navigation cache moved to `postcard`**:
+  - Replaced the unmaintained `bincode` library with `postcard` (`v1.1` with `use-std`) for the binary on-disk serialization of the navigation engine cache (`DashMap<NoteId, NoteMeta>`), reducing footprint and ensuring modern type compatibility.
+- **Build optimization**:
+  - Compilation with *ThinLTO* in release mode and use of the `lld` linker on Linux to speed up linking and packaging times in CI.
 
 ## [1.0.0-alpha.5] - 2026-11-11
 
-### Añadido
+### Added
 
-- **Página web de presentación** (`docs/index.html`): landing estática basada en `docs/about.md`, con capturas ampliables (visor con zoom a tamaño real y navegación con flechas), comparativa, temas, arquitectura y la mascota (pulpo kawaii) fija en la esquina inferior derecha.
+- **Presentation web page** (`docs/index.html`): static landing page based on `docs/about.md`, with enlargeable screenshots (viewer with full-size zoom and arrow-key navigation), comparison, themes, architecture and the mascot (kawaii octopus) fixed in the bottom right corner.
 
-- **Temas integrados «Rosa» e «Islas»**: «Rosa» en tonos rosa suaves; «Islas» muestra los paneles como islas flotantes con esquinas redondeadas sobre un marco más oscuro, y se combina con los demás en «Papel Islas», «Neón Islas» y «Rosa Islas».
-- **Temas integrados «Papel» y «Neón»**: vienen con la app y aparecen en Configuración → Apariencia → Tema personalizado sin copiar archivos. Un archivo `.synapse/themes/` con el mismo nombre los reemplaza. «Neón» es cyberpunk con fondo de rejilla, paneles translúcidos con desenfoque, títulos con brillo magenta, cian y amarillo, íconos de carpeta propios y desplegables dibujados a mano. Tiene versión oscura y una clara «amanecer».
+- **Built-in "Rose" and "Islands" themes**: "Rose" in soft pink tones; "Islands" shows the panels as floating islands with rounded corners on a darker frame, and combines with the others in "Paper Islands", "Neon Islands" and "Rose Islands".
+- **Built-in "Paper" and "Neon" themes**: they come with the app and appear in Settings → Appearance → Custom theme without copying files. A file in `.synapse/themes/` with the same name replaces them. "Neon" is cyberpunk with a grid background, translucent panels with blur, headings with a magenta glow, cyan and yellow, its own folder icons and hand-drawn dropdowns. It has a dark version and a light "dawn" one.
 
-- **Temas: todo el color en variables, zonas públicas y tema de ejemplo**: los colores de la interfaz salen de variables CSS (nuevas: `--success`, `--warning`, `--danger`, `--purple`, `--on-accent`, `--overlay-bg`…), así un tema cambia toda la app. Las zonas principales tienen clases estables `synapse-*` (barra lateral, filas del explorador, pestañas, editor, lectura, barra de estado, diálogos). Guía en `docs/temas.md` y tema de ejemplo «Papel». Algunos tonos cambian levemente al seguir las variables del tema, sobre todo en la pantalla de bienvenida.
+- **Themes: all color in variables, public zones and example theme**: the interface colors come from CSS variables (new: `--success`, `--warning`, `--danger`, `--purple`, `--on-accent`, `--overlay-bg`…), so a theme changes the whole app. The main zones have stable `synapse-*` classes (sidebar, explorer rows, tabs, editor, reading, status bar, dialogs). Guide in `docs/temas.md` and example theme "Paper". Some tones change slightly by following the theme variables, especially on the welcome screen.
 
-- **Temas y fragmentos CSS por bóveda**: en Configuración → Apariencia se elige un tema de `.synapse/themes/` y se activan fragmentos de `.synapse/snippets/` (archivos `.css`). Se aplican sin reiniciar y cada bóveda guarda los suyos en `.synapse/appearance.json`. Los temas pueden cambiar los títulos por nivel en lectura y edición (`--h1-font`, `--h1-size`, `--h1-weight`, `--h1-color`… hasta `h6`), la fuente del texto de las notas (`--font-text`) y el ícono de carpeta (`--icon-folder`, `--icon-folder-open`).
+- **Per-vault themes and CSS snippets**: in Settings → Appearance you choose a theme from `.synapse/themes/` and activate snippets from `.synapse/snippets/` (`.css` files). They apply without restarting and each vault stores its own in `.synapse/appearance.json`. Themes can change the headings per level in reading and editing (`--h1-font`, `--h1-size`, `--h1-weight`, `--h1-color`… up to `h6`), the font of the notes' text (`--font-text`) and the folder icon (`--icon-folder`, `--icon-folder-open`).
 
-- **Diff de Excalidraw por píxeles**: el diff visual de un dibujo tiene el modo «Diferencias», como las imágenes. Las dos versiones se exportan a imagen con el mismo marco y se resaltan en magenta los píxeles que cambiaron.
+- **Pixel-based Excalidraw diff**: the visual diff of a drawing has the "Differences" mode, like images. Both versions are exported to an image with the same frame and the pixels that changed are highlighted in magenta.
 
-- Fondo por defecto en la pestaña vacía: una imagen para el tema claro y otra para el oscuro, incluidas en la app. Se usan mientras no se elija un fondo propio.
-- El fondo propio de la pestaña vacía ahora es de cada bóveda, no general. El que ya estaba elegido pasa a la bóveda abierta.
+- Default background in the empty tab: one image for the light theme and another for the dark one, included in the app. They are used until a custom background is chosen.
+- The empty tab's custom background is now per vault, not global. The one already chosen moves to the open vault.
 
-- **Explorador: expandir y contraer todo**: dos botones en la cabecera del explorador. Con el filtro de Git activo solo afectan a las carpetas del filtro; al quitarlo, las demás siguen como estaban.
-- **Explorador: archivos borrados**: un archivo borrado que Git todavía tiene sigue apareciendo en el árbol, en rojo y tachado; al hacer clic se abre su diff.
-- **Filtro de Git completo**: con el filtro de Git el explorador muestra todo lo que entraría en un commit (sin seguimiento, modificado, añadido o borrado), aunque sea un tipo de archivo que normalmente no se ve en el explorador.
-- **Índice de la nota**: al hacer clic en el título de una nota Markdown (o en el botón de índice a su lado) se abre un índice con todos sus títulos y subtítulos, contraído por defecto (solo se ven los de primer nivel), con botones para expandir y contraer todo; al elegir uno, la nota va a ese título. El índice abre desplegado hasta el título donde estás, que aparece resaltado, y tiene arriba una búsqueda rápida de títulos (Enter va al primero que coincide).
-- **Ubicación en la nota**: junto al título de una nota Markdown, entre paréntesis, se ve la ruta de títulos de la parte que estás viendo (p. ej. `(Inicio › Parte A › Detalle)`), que se actualiza al desplazarte; al hacer clic en un tramo se va a ese título.
-- **De lectura a edición sin perder el sitio**: al pasar del modo lectura a un modo de edición, el cursor queda en la primera línea que se estaba viendo en lectura.
-- **Breadcrumb: copiar ruta completa**: el menú contextual del archivo en el breadcrumb ofrece «Copiar ruta relativa» y «Copiar ruta completa».
+- **Explorer: expand and collapse all**: two buttons in the explorer header. With the Git filter active they only affect the folders in the filter; when it is removed, the others stay as they were.
+- **Explorer: deleted files**: a deleted file that Git still has keeps appearing in the tree, in red and struck through; clicking it opens its diff.
+- **Complete Git filter**: with the Git filter the explorer shows everything that would go into a commit (untracked, modified, added or deleted), even if it is a file type that is normally not shown in the explorer.
+- **Note outline**: clicking the title of a Markdown note (or the outline button next to it) opens an outline with all its headings and subheadings, collapsed by default (only first-level ones are visible), with buttons to expand and collapse all; choosing one takes the note to that heading. The outline opens expanded down to the heading where you are, which is highlighted, and has a quick heading search at the top (Enter goes to the first match).
+- **Location in the note**: next to the title of a Markdown note, in parentheses, you see the heading path of the part you are viewing (e.g. `(Inicio › Parte A › Detalle)`), which updates as you scroll; clicking a segment goes to that heading.
+- **From reading to editing without losing your place**: when switching from reading mode to an editing mode, the cursor is left on the first line that was being viewed in reading.
+- **Breadcrumb: copy full path**: the file's context menu in the breadcrumb offers "Copy relative path" and "Copy full path".
 
-### Corregido
+### Fixed
 
-- **Cabeceras alineadas**: la línea inferior de la cabecera del explorador ahora coincide con la de la barra de pestañas.
-- **Bloques de código en lectura**: dentro de un bloque de código aparecía una línea horizontal bajo cada línea de texto (heredaba el borde del código en línea).
-- **Commit con archivos borrados**: hacer commit de un archivo borrado cuyo borrado ya estaba en stage (o de una carpeta borrada entera) fallaba con «git add falló: … no concordó con ningún archivo».
+- **Aligned headers**: the bottom line of the explorer header now matches that of the tab bar.
+- **Code blocks in reading**: inside a code block a horizontal line appeared under each line of text (it inherited the inline code border).
+- **Commit with deleted files**: committing a deleted file whose deletion was already staged (or a whole deleted folder) failed with "git add failed: … did not match any files".
 
 ## [1.0.0-alpha.4] - 2026-11-09
 
-### Añadido
+### Added
 
-- **Panel de configuración**: el botón de engranaje del ribbon abre un panel para cambiar el tema, el idioma, el tamaño del texto, el fondo de la pestaña vacía, el modo Vim, las propiedades de la nota, los visores de Mermaid y Excalidraw, el servidor de PlantUML y todos los atajos de teclado. Los atajos se guardan en `shortcuts.jsonc` sin perder sus comentarios.
-- **Pestaña vacía con buscador y fondo**: la pestaña vacía muestra arriba el buscador de `Ctrl+O`, con el foco puesto para empezar a escribir, y permite elegir una imagen de fondo con «Cambiar fondo».
-- **Abreviatura `hs:` para `headings:` en la búsqueda de contenido**, y la guía de búsqueda ahora explica este filtro.
-- **`hs:` y `headings:` también funcionan en Quick Open (`Ctrl+O`)**: buscan en los encabezados sin tener que escribir `?` delante.
-- **Al filtrar por `headings:` o `hs:`, el resultado muestra el encabezado encontrado con formato de título** y, en la línea siguiente, el texto que le sigue. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
-- **MCP: `write_note` informa de lo que hizo**: la respuesta indica con `created` si la nota se creó o se sobrescribió, y añade `warning` si su carpeta no existía.
-- **MCP: `write_note` ya no pisa notas sin permiso** (cambio incompatible): para reemplazar una nota existente hay que enviar `expected_hash` u `overwrite: true`; si no, falla y explica cómo seguir. También falla si se envía `expected_hash` y la nota no existe.
-- **Tamaño del texto en el editor y la previsualización**: `Ctrl+rueda`, `Ctrl++` y `Ctrl+-` lo cambian, y `Ctrl+0` lo restablece. Los atajos se configuran en `shortcuts.jsonc` (`zoom_in`, `zoom_out`, `zoom_reset`) y admiten varias combinaciones separadas por comas.
-- **Comparar dos archivos desde VaultExplorer**: al seleccionar exactamente dos archivos, el menú contextual ofrece «Comparar archivos» y abre un diff entre ellos, sin necesidad de git. Solo admite archivos de texto.
-- **La búsqueda en el contenido indexa los títulos y subtítulos de las notas Markdown** y les da más peso que al resto del texto: una nota con el término en un encabezado sale antes que una que solo lo menciona en un párrafo. También se puede filtrar con `headings:término`. El índice se reconstruye solo la primera vez que se abre la bóveda tras actualizar.
-- **Filtro `kind:` en Quick Open (`Ctrl+O`)**: `kind:pdf informe` busca solo entre los PDF; `kind:markdown`, `word`, `excel`, `code`, `image`, `mermaid` y `excalidraw` funcionan igual, basta con escribir el comienzo (`kind:pd`). Solo `kind:pdf` lista todos los PDF.
-- **Los enlaces `[[nota#Título]]` llevan al encabezado**, como en Obsidian: al pulsarlos (en el editor y en modo lectura) se abre la nota y se va a ese título o subtítulo, no a la primera vez que aparece el texto. Con `[[nota#Título#Subtítulo]]` vale el último.
-- **`![[nota#Título]]` incrusta esa sección en el modo lectura**: muestra el título y todo lo que le pertenece, hasta el siguiente encabezado del mismo nivel o superior (los subtítulos de nivel inferior van incluidos). También se expanden los embeds dentro de lo incrustado, hasta 3 niveles y sin repetir ciclos. Si la nota o el título no existen, queda como enlace a la nota (antes se mostraba una imagen rota). En el editor sigue siendo un enlace al encabezado. Las imágenes y demás recursos con `![[...]]` no cambian.
-- **Atajo `Shift+F6` en VaultExplorer para renombrar**: permite renombrar el archivo o carpeta seleccionado cuando el explorador de archivos tiene el foco.
+- **Settings panel**: the ribbon's gear button opens a panel to change the theme, the language, the text size, the empty tab background, Vim mode, the note properties, the Mermaid and Excalidraw viewers, the PlantUML server and all the keyboard shortcuts. The shortcuts are saved in `shortcuts.jsonc` without losing their comments.
+- **Empty tab with search and background**: the empty tab shows the `Ctrl+O` search at the top, with the focus set to start typing, and lets you choose a background image with "Change background".
+- **Abbreviation `hs:` for `headings:` in content search**, and the search guide now explains this filter.
+- **`hs:` and `headings:` also work in Quick Open (`Ctrl+O`)**: they search in the headings without having to type `?` first.
+- **When filtering by `headings:` or `hs:`, the result shows the heading found formatted as a title** and, on the next line, the text that follows it. The index is rebuilt only the first time the vault is opened after updating.
+- **MCP: `write_note` reports what it did**: the response indicates with `created` whether the note was created or overwritten, and adds `warning` if its folder did not exist.
+- **MCP: `write_note` no longer overwrites notes without permission** (breaking change): to replace an existing note you have to send `expected_hash` or `overwrite: true`; otherwise it fails and explains how to proceed. It also fails if `expected_hash` is sent and the note does not exist.
+- **Text size in the editor and the preview**: `Ctrl+wheel`, `Ctrl++` and `Ctrl+-` change it, and `Ctrl+0` resets it. The shortcuts are configured in `shortcuts.jsonc` (`zoom_in`, `zoom_out`, `zoom_reset`) and support several combinations separated by commas.
+- **Compare two files from VaultExplorer**: when selecting exactly two files, the context menu offers "Compare files" and opens a diff between them, with no need for git. It only supports text files.
+- **Content search indexes the headings and subheadings of Markdown notes** and gives them more weight than the rest of the text: a note with the term in a heading comes before one that only mentions it in a paragraph. You can also filter with `headings:term`. The index is rebuilt only the first time the vault is opened after updating.
+- **`kind:` filter in Quick Open (`Ctrl+O`)**: `kind:pdf report` searches only among PDFs; `kind:markdown`, `word`, `excel`, `code`, `image`, `mermaid` and `excalidraw` work the same way, just type the beginning (`kind:pd`). `kind:pdf` alone lists all PDFs.
+- **`[[note#Heading]]` links go to the heading**, as in Obsidian: when clicked (in the editor and in reading mode) the note opens and goes to that heading or subheading, not to the first time the text appears. With `[[note#Heading#Subheading]]` the last one is used.
+- **`![[note#Heading]]` embeds that section in reading mode**: it shows the heading and everything that belongs to it, up to the next heading of the same or higher level (lower-level subheadings are included). Embeds inside the embedded content are also expanded, up to 3 levels and without repeating cycles. If the note or the heading does not exist, it stays as a link to the note (before, a broken image was shown). In the editor it is still a link to the heading. Images and other resources with `![[...]]` do not change.
+- **`Shift+F6` shortcut in VaultExplorer to rename**: it lets you rename the selected file or folder when the file explorer has the focus.
 
-### Corregido
+### Fixed
 
-- **La búsqueda en el contenido ya no pierde resultados cuando la última palabra es completa** y su raíz es más corta, como «para» en `hs:Prompts para`.
-- **`Tab` en los editores de código y Markdown inserta 4 espacios** en vez de sacar el foco del editor; con texto seleccionado sangra las líneas, y `Shift+Tab` quita la sangría. Con Vim, solo en modo inserción.
-- **La búsqueda en modo lectura ya no congela la app al escribir** en notas grandes: se busca una sola vez al dejar de escribir, y limpiar los resaltados es mucho más rápido.
-- **`Ctrl+Shift+F` abre la búsqueda en el contenido** también con una nota abierta; antes abría la búsqueda dentro de la nota.
-- **`Ctrl+R` en un editor abre buscar y reemplazar** con el foco en el campo de reemplazo. Con Vim sigue siendo rehacer, salvo con el foco en el panel de búsqueda. Fuera del editor sigue recargando.
-- **Las propiedades de la nota reconocen listas en línea** como `tags: [uno, dos, tres]`.
-- **`Shift+F6` en CodeMirror solo se activa si tiene el foco**, evitando capturar la combinación o seleccionar ocurrencias cuando el editor no está enfocado.
+- **Content search no longer loses results when the last word is complete** and its stem is shorter, like "para" in `hs:Prompts para`.
+- **`Tab` in the code and Markdown editors inserts 4 spaces** instead of taking the focus out of the editor; with selected text it indents the lines, and `Shift+Tab` removes the indentation. With Vim, only in insert mode.
+- **Search in reading mode no longer freezes the app while typing** in large notes: it searches only once after you stop typing, and clearing the highlights is much faster.
+- **`Ctrl+Shift+F` opens content search** also with a note open; before, it opened the search within the note.
+- **`Ctrl+R` in an editor opens find and replace** with the focus in the replace field. With Vim it is still redo, except with the focus in the search panel. Outside the editor it still reloads.
+- **Note properties recognize inline lists** like `tags: [uno, dos, tres]`.
+- **`Shift+F6` in CodeMirror only activates if it has the focus**, avoiding capturing the combination or selecting occurrences when the editor is not focused.
 
-- **Los mensajes de error del editor de código ya no quedan cortados o tapados por la barra superior**, por ejemplo en un error de la primera línea de un diagrama.
-- **`Ctrl+R` en un editor con Vim rehace** (como en Vim) en vez de recargar el archivo; fuera de Vim sigue recargando.
-- **El render de D2 y Mermaid ya no se atrasa al editar**: antes cada tecla lanzaba un render y, con un layout lento como TALA (~3 s por render), se encolaban y el diagrama tardaba decenas de segundos en ponerse al día. Ahora se espera a que se deje de escribir (más tiempo si el render es lento) y nunca hay más de uno pendiente.
-- **Render de D2 y Mermaid al editar**: ya no se lanza un render por tecla (con TALA se acumulaban y el diagrama llegaba muy tarde); se espera una pausa al escribir y nunca hay más de un render en cola. `Ctrl+Enter` fuerza el redibujado y la barra de estado muestra el render en curso y lo que tardó.
-- **El editor de diagramas (D2/Mermaid) recupera el foco y el cursor al volver a su pestaña**, y una recarga del archivo desde disco ya no recrea el editor ni manda el cursor al inicio: solo se aplica el tramo que cambió.
-- **Búsqueda de Vim (`/`) y cursor invisibles en el tema oscuro** del editor de código.
-- **Una segunda instancia de la app ya no reescribe el puerto MCP de la bóveda** ni la marca como detenida.
-- **Título editable** de la nota: se guardaba sobre una propiedad no reactiva.
-- **Quick Open**: separadores coherentes y orden estable en los empates.
-- **Persistencia del estado de MCP al cerrar y abrir workspaces**:
-  - Se desacopló el ciclo de vida del runtime y socket TCP efímero (`running`) de la preferencia configurada por el usuario en la bóveda (`enabled`).
-  - Al cerrar la aplicación, ventana o alternar entre bóvedas, el servidor MCP detiene su proceso/socket sin sobrescribir ni apagar `enabled: false` en `.synapse/mcp.json`.
-  - Al abrir un workspace donde MCP estaba activo, el servidor se reactiva automáticamente.
-  - Se introdujo el trait de dominio `McpConfigRepository` y su implementación de infraestructura `FileMcpConfigRepository` siguiendo la Arquitectura Cebolla.
+- **The code editor's error messages are no longer cut off or covered by the top bar**, for example in an error on the first line of a diagram.
+- **`Ctrl+R` in an editor with Vim redoes** (as in Vim) instead of reloading the file; outside Vim it still reloads.
+- **D2 and Mermaid rendering no longer lags while editing**: before, every keystroke launched a render and, with a slow layout like TALA (~3 s per render), they queued up and the diagram took tens of seconds to catch up. Now it waits until you stop typing (longer if the render is slow) and there is never more than one pending.
+- **D2 and Mermaid rendering while editing**: a render is no longer launched per keystroke (with TALA they piled up and the diagram arrived very late); it waits for a pause in typing and there is never more than one render queued. `Ctrl+Enter` forces the redraw and the status bar shows the render in progress and how long it took.
+- **The diagram editor (D2/Mermaid) regains focus and the cursor when returning to its tab**, and a reload of the file from disk no longer recreates the editor or sends the cursor to the start: only the part that changed is applied.
+- **Vim search (`/`) and cursor invisible in the dark theme** of the code editor.
+- **A second instance of the app no longer rewrites the vault's MCP port** or marks it as stopped.
+- **Editable title** of the note: it was saved onto a non-reactive property.
+- **Quick Open**: consistent separators and stable order in ties.
+- **Persistence of MCP state when closing and opening workspaces**:
+  - The lifecycle of the runtime and ephemeral TCP socket (`running`) was decoupled from the preference configured by the user in the vault (`enabled`).
+  - When closing the application, window or switching between vaults, the MCP server stops its process/socket without overwriting or turning off `enabled: false` in `.synapse/mcp.json`.
+  - When opening a workspace where MCP was active, the server is reactivated automatically.
+  - The domain trait `McpConfigRepository` and its infrastructure implementation `FileMcpConfigRepository` were introduced following the Onion Architecture.
 
-### Cambiado
+### Changed
 
-- **`F2` alterna entre edición y lectura** (antes `Ctrl+E`).
-- **En el editor, `Ctrl+E` y `Ctrl+Y` desplazan la pantalla una línea y `Ctrl+D` duplica la línea**, también con Vim (en Vim, `Ctrl+D` deja de ser media página).
-- **Rendimiento**:
-  - Arranque más rápido: las pestañas se montan al activarse, el explorador ya no usa un árbol de respaldo y los comandos de lectura salen del hilo principal (bloqueo de JS al arrancar de ~1250 a ~750 ms).
-  - El backend devuelve al sistema la memoria liberada tras abrir la bóveda (de ~800 a ~400 MB).
-  - Explorador virtualizado: solo se pintan las filas visibles.
-  - Imágenes servidas con el protocolo de assets de Tauri en vez de base64 por IPC.
-  - Una sola lista de la bóveda en el frontend, sin avalancha de IPC al abrir.
-  - Búsqueda de texto completo: consultar las versiones indexadas ya no carga cada documento (19 ms → 3 ms con 3 740 documentos).
+- **`F2` toggles between editing and reading** (before `Ctrl+E`).
+- **In the editor, `Ctrl+E` and `Ctrl+Y` scroll the screen one line and `Ctrl+D` duplicates the line**, also with Vim (in Vim, `Ctrl+D` stops being half a page).
+- **Performance**:
+  - Faster startup: tabs are mounted when activated, the explorer no longer uses a fallback tree and the read commands are moved off the main thread (JS blocking at startup from ~1250 to ~750 ms).
+  - The backend returns freed memory to the system after opening the vault (from ~800 to ~400 MB).
+  - Virtualized explorer: only the visible rows are painted.
+  - Images served with Tauri's asset protocol instead of base64 over IPC.
+  - A single vault list in the frontend, with no IPC flood on opening.
+  - Full-text search: querying the indexed versions no longer loads every document (19 ms → 3 ms with 3 740 documents).
 
-### Añadido
+### Added
 
-- **Soporte para PlantUML (`.puml`, `.plantuml`)**: editor con resaltado y autocompletado, vista previa, errores marcados en su línea, `Ctrl+Enter` para redibujar, creación desde el explorador y la paleta, y exportación a PNG/SVG. El render lo hace un servidor PlantUML (por defecto `plantuml.com`, por lo que el código del diagrama sale de tu máquina); se cambia con el comando «PlantUML: cambiar servidor». El SVG recibido se limpia antes de mostrarlo.
-- **`Ctrl+Enter` en el editor de D2 y Mermaid fuerza el redibujado** del diagrama.
-- **Estado del render de diagramas en la barra de estado**: «Renderizando D2… 1,2 s» mientras dura y el tiempo que tardó al terminar.
-- **Autocompletado con las palabras del documento** en todos los editores (markdown, D2 y Mermaid): los nombres que ya usas (variables, nodos…) se sugieren aunque el lenguaje no los conozca, detrás de las sugerencias del lenguaje.
-- **Exportar diagramas a PNG y SVG** desde el menú contextual del explorador, para Excalidraw, Mermaid y D2. El archivo se guarda junto al diagrama con el tema actual.
-- **`Shift+F6` cambia todas las coincidencias de una palabra** (como renombrar en JetBrains, pero textual): selecciona las coincidencias exactas de palabra completa y lo que se escribe las cambia todas. Con Vim, se cambian con `c`.
-- **Plegado entre llaves en D2 y Mermaid**, desde el margen del editor de código.
-- **Atajos de plegado de Vim** con el comportamiento de Vim: `zc`, `zo`, `za`, `zC`, `zO`, `zM` y `zR`. `zc` pliega el bloque que contiene al cursor y `zM` pliega todos los niveles.
-- **Copiar la ruta de la bóveda** desde el menú contextual del explorador; copiar ruta se desactiva si no hay archivos seleccionados.
-- **Compatibilidad con la API de Obsidian para plugins**:
-  - La fachada responde de forma síncrona como en Obsidian: `getAbstractFileByPath`, `getActiveFile` y `metadataCache.getFileCache`.
-  - `SynapseVault` mantiene un índice ruta → metadatos (sin contenido) que se actualiza con las mutaciones locales y los eventos del vigilante. Los plugins se cargan cuando el índice está listo.
-  - Lo específico de Excalidraw pasa a `integrations/excalidraw`.
+- **PlantUML support (`.puml`, `.plantuml`)**: editor with highlighting and autocompletion, preview, errors marked on their line, `Ctrl+Enter` to redraw, creation from the explorer and the palette, and export to PNG/SVG. Rendering is done by a PlantUML server (by default `plantuml.com`, so the diagram code leaves your machine); it is changed with the "PlantUML: change server" command. The received SVG is sanitized before being shown.
+- **`Ctrl+Enter` in the D2 and Mermaid editor forces the redraw** of the diagram.
+- **Diagram render status in the status bar**: "Rendering D2… 1.2 s" while it lasts and the time it took when finished.
+- **Autocompletion with the document's words** in all editors (markdown, D2 and Mermaid): the names you already use (variables, nodes…) are suggested even if the language does not know them, after the language's suggestions.
+- **Export diagrams to PNG and SVG** from the explorer's context menu, for Excalidraw, Mermaid and D2. The file is saved next to the diagram with the current theme.
+- **`Shift+F6` changes all occurrences of a word** (like renaming in JetBrains, but textual): it selects the exact whole-word occurrences and whatever you type changes them all. With Vim, they are changed with `c`.
+- **Folding between braces in D2 and Mermaid**, from the code editor's gutter.
+- **Vim folding shortcuts** with Vim's behavior: `zc`, `zo`, `za`, `zC`, `zO`, `zM` and `zR`. `zc` folds the block containing the cursor and `zM` folds all levels.
+- **Copy the vault path** from the explorer's context menu; copy path is disabled if no files are selected.
+- **Compatibility with the Obsidian plugin API**:
+  - The facade responds synchronously as in Obsidian: `getAbstractFileByPath`, `getActiveFile` and `metadataCache.getFileCache`.
+  - `SynapseVault` maintains a path → metadata index (without content) that is updated with local mutations and the watcher's events. Plugins are loaded when the index is ready.
+  - What is specific to Excalidraw moves to `integrations/excalidraw`.
 
-- **Filtro "Solo compatibles" en el catálogo de plugins comunitarios**:
-  - Activo por defecto: muestra solo los plugins comprobados manualmente, listados en `verified-plugins.jsonc` (`verified_plugins`).
-  - Nuevo archivo `verified-plugins.jsonc` en la raíz del proyecto, importado en build con `?raw` y parseado en `community-plugins.svelte.ts`.
-  - Se puede desactivar con la casilla junto al selector de orden.
+- **"Compatible only" filter in the community plugins catalog**:
+  - Active by default: it shows only the manually verified plugins, listed in `verified-plugins.jsonc` (`verified_plugins`).
+  - New file `verified-plugins.jsonc` at the project root, imported at build time with `?raw` and parsed in `community-plugins.svelte.ts`.
+  - It can be disabled with the checkbox next to the sort selector.
 
 ## [1.0.0-alpha.3] - 2026-10-30
 
-### Añadido
+### Added
 
-- **Deshacer y rehacer en el editor**:
-  - `Ctrl+Z` para deshacer y `Ctrl+Shift+Z` o `Ctrl+Y` para rehacer.
-  - Atajos de vim: `u` para deshacer, `Ctrl+R` para rehacer y `U` para revertir la última línea editada.
-  - Módulo reutilizable `shared/lib/editor-history`.
+- **Undo and redo in the editor**:
+  - `Ctrl+Z` to undo and `Ctrl+Shift+Z` or `Ctrl+Y` to redo.
+  - Vim shortcuts: `u` to undo, `Ctrl+R` to redo and `U` to revert the last edited line.
+  - Reusable module `shared/lib/editor-history`.
 
-- **Comentar/descomentar líneas con `Ctrl+/`** (`Cmd+/` en macOS):
-  - Nuevo módulo `shared/lib/editor-comment`, disponible en el editor de Markdown y en el editor de código de diagramas.
-  - Usa los tokens de comentario del lenguaje: `#` para D2, `%%` para Mermaid y `<!-- -->` para Markdown.
+- **Comment/uncomment lines with `Ctrl+/`** (`Cmd+/` on macOS):
+  - New module `shared/lib/editor-comment`, available in the Markdown editor and in the diagram code editor.
+  - It uses the language's comment tokens: `#` for D2, `%%` for Mermaid and `<!-- -->` for Markdown.
 
-- **Deshacer de línea (`U`) en el editor**:
-  - Nuevo módulo `shared/lib/editor-history` que replica el `U` de vim: revierte los cambios de la última línea editada, y vuelve a aplicarlos si se repite.
-  - Disponible en el editor de Markdown y en el editor de código de diagramas.
+- **Line undo (`U`) in the editor**:
+  - New module `shared/lib/editor-history` that replicates vim's `U`: it reverts the changes of the last edited line, and reapplies them if repeated.
+  - Available in the Markdown editor and in the diagram code editor.
 
-- **Versión de compilación derivada de Git**:
-  - Nuevo módulo `version.rs` que compone la versión SemVer a partir de `git describe` (por ejemplo `1.0.0-alpha.2+4.g09ab330`), y añade la marca de tiempo si el árbol está sucio.
-  - `build.rs` emite la información con `vergen`. El comando `get_app_version` y la opción `--version` usan esta versión en lugar de `package_info()`.
+- **Build version derived from Git**:
+  - New module `version.rs` that composes the SemVer version from `git describe` (for example `1.0.0-alpha.2+4.g09ab330`), and adds the timestamp if the tree is dirty.
+  - `build.rs` emits the information with `vergen`. The `get_app_version` command and the `--version` option use this version instead of `package_info()`.
 
-- **Guardado de cambios pendientes antes de operaciones sobre archivos**:
-  - Nuevo puente `shared/lib/pending-writes`: el explorador, el breadcrumb y el menú de Git persisten el buffer del editor antes de renombrar o hacer `git add`.
-  - Con esto, renombrar o añadir al stage un archivo abierto ya no opera sobre una versión desactualizada en disco.
+- **Saving pending changes before file operations**:
+  - New bridge `shared/lib/pending-writes`: the explorer, the breadcrumb and the Git menu persist the editor buffer before renaming or doing `git add`.
+  - With this, renaming or staging an open file no longer operates on an outdated version on disk.
 
-- **Panel de código redimensionable en diagramas D2 y Mermaid**:
-  - Nueva barra `SplitResizer` entre el código y el visor del diagrama.
-  - La proporción elegida se recuerda por archivo durante la sesión, en memoria del backend (comandos `get_diagram_split_ratio` y `set_diagram_split_ratio`). No se persiste a disco.
+- **Resizable code panel in D2 and Mermaid diagrams**:
+  - New `SplitResizer` bar between the code and the diagram viewer.
+  - The chosen proportion is remembered per file during the session, in backend memory (commands `get_diagram_split_ratio` and `set_diagram_split_ratio`). It is not persisted to disk.
 
-- **Renombrado de archivos versionados en Git**:
-  - Si el archivo está en el índice, el renombrado se prepara en el índice (`git add` de la ruta antigua y la nueva), de modo que Git lo detecta como renombrado.
-  - Nuevo método `GitService::is_tracked` para comprobar si una ruta tiene archivos versionados.
+- **Renaming of Git-versioned files**:
+  - If the file is in the index, the rename is prepared in the index (`git add` of the old and the new path), so that Git detects it as a rename.
+  - New method `GitService::is_tracked` to check whether a path has versioned files.
 
-- **Mover archivos y carpetas en el explorador con `Ctrl+X` y `Ctrl+V`**:
-  - Nuevo comando `move_vault_items`: mueve elementos a la carpeta destino, sin sobrescribir ni mover una carpeta dentro de sí misma.
-  - Las pestañas abiertas siguen a sus archivos tras el movimiento, y los archivos versionados quedan preparados en el índice de Git.
-  - Si un elemento está bloqueado y tiene cambios sin guardar, se pide confirmación antes de moverlo.
+- **Move files and folders in the explorer with `Ctrl+X` and `Ctrl+V`**:
+  - New command `move_vault_items`: moves items to the destination folder, without overwriting or moving a folder into itself.
+  - Open tabs follow their files after the move, and versioned files are staged in the Git index.
+  - If an item is locked and has unsaved changes, confirmation is requested before moving it.
 
-- **Panel de atajos de teclado** (`F1` o el comando "Mostrar atajos de teclado"):
-  - Lista los atajos configurables de `shortcuts.jsonc` y los fijos del editor, con búsqueda.
-  - Nuevo componente `Kbd` para mostrar combinaciones, usado también en la paleta de comandos.
+- **Keyboard shortcuts panel** (`F1` or the "Show keyboard shortcuts" command):
+  - It lists the configurable shortcuts from `shortcuts.jsonc` and the editor's fixed ones, with search.
+  - New `Kbd` component to display combinations, also used in the command palette.
 
-- **Confirmación al renombrar archivos bloqueados**: si el archivo bloqueado tiene cambios sin guardar, el diálogo de cambios pendientes ofrece guardar y continuar, o cancelar.
+- **Confirmation when renaming locked files**: if the locked file has unsaved changes, the pending changes dialog offers to save and continue, or cancel.
 
-### Cambiado
+### Changed
 
-- **Ancho mínimo del panel de código de diagramas**: baja de 280 a 160 px.
+- **Minimum width of the diagram code panel**: goes down from 280 to 160 px.
 
-- **Atajos en la barra lateral**: los rótulos del Ribbon muestran solo la combinación principal, mediante `primaryShortcutText`.
+- **Shortcuts in the sidebar**: the Ribbon labels show only the main combination, via `primaryShortcutText`.
 
-- **Autoguardado al quitar el bloqueo**: un archivo con cambios pendientes al desbloquearse se vuelve a guardar automáticamente.
+- **Autosave when removing the lock**: a file with pending changes when unlocked is automatically saved again.
 
-- **Metadatos y edición de Rust**: `Cargo.toml` pasa a `edition = "2024"` y `rust-version = "1.93.0"`, con autor, descripción y repositorio del proyecto. La línea `version` queda comentada, así que la versión ya no sale de `Cargo.toml`.
+- **Rust metadata and edition**: `Cargo.toml` moves to `edition = "2024"` and `rust-version = "1.93.0"`, with the project's author, description and repository. The `version` line is left commented out, so the version no longer comes from `Cargo.toml`.
 
-- **Rendimiento del editor de notas**:
-  - Autoguardado a los 4 s de dejar de escribir. También se guarda al perder el foco, al cambiar de pestaña o al pasar a solo lectura, respetando los archivos bloqueados.
-  - Ya no se reconcilia toda la bóveda en cada guardado.
-  - Refresco de `git status` agrupado con un debounce de 5 s.
-  - Debounce del indexador de texto completo (FTS) de 5 s.
-  - Nuevas claves en `config.jsonc`: `editor.git_status_refresh_debounce_ms`, `indexing.debounce_ms` y `drawing_change_debounce_ms` (2500 ms por defecto).
+- **Note editor performance**:
+  - Autosave 4 s after you stop typing. It also saves on losing focus, on switching tabs or on switching to read-only, respecting locked files.
+  - The whole vault is no longer reconciled on every save.
+  - `git status` refresh grouped with a 5 s debounce.
+  - Full-text indexer (FTS) debounce of 5 s.
+  - New keys in `config.jsonc`: `editor.git_status_refresh_debounce_ms`, `indexing.debounce_ms` and `drawing_change_debounce_ms` (2500 ms by default).
 
 - **Excalidraw**:
-  - Detección de cambios por firma de elementos, de modo que el scroll, el zoom y la selección no serializan la escena.
-  - Debounce de 2500 ms y propagación inmediata de los cambios pendientes al perder el foco.
-  - Nueva clave `drawing_max_wait_ms` (15000 ms): tope de edición continua sin pausas, pasado el cual el dibujo se propaga y se guarda igualmente.
-  - El indexador omite el reindexado si el texto del dibujo no ha cambiado.
+  - Change detection by element signature, so that scrolling, zooming and selection do not serialize the scene.
+  - 2500 ms debounce and immediate propagation of pending changes on losing focus.
+  - New key `drawing_max_wait_ms` (15000 ms): cap on continuous editing without pauses, after which the drawing is propagated and saved anyway.
+  - The indexer skips reindexing if the drawing's text has not changed.
 
-- **Diagramas D2 y Mermaid**: los bloques ```` ```d2 ```` y ```` ```mermaid ```` ya no se re-renderizan al editar texto cercano.
+- **D2 and Mermaid diagrams**: the ```` ```d2 ```` and ```` ```mermaid ```` blocks are no longer re-rendered when editing nearby text.
 
-### Corregido
+### Fixed
 
-- **`Ctrl+R` ya no recarga la ventana** de la aplicación.
-- **Tamaño del SVG de D2**: el SVG recibe `width` y `height` a partir de su `viewBox`, evitando que colapse en las tarjetas de lectura.
-- **Renombrar o hacer `git add` con cambios sin guardar**: el buffer del editor se persiste antes de la operación, para no trabajar con el archivo desactualizado en disco.
-- **Pestañas tras renombrar una carpeta o un archivo**: se reasignan todas las referencias abiertas (pestañas principales y divididas, selección, historial, cierre, bloqueos y rutas recientes), incluidas las notas dentro de una carpeta renombrada.
-- **Guardado tardío recreaba el archivo antiguo**: un guardado pendiente o un visor que cerraba después de un renombrado volvía a crear la ruta anterior. Ya no ocurre.
-- **Dibujos sin guardar al perder el foco**: al ocultarse la ventana o perder el foco, se guardan también los dibujos con cambios aún sin propagar.
-- **Renombrar o mover un archivo bloqueado sin confirmación**: ahora se pide confirmación si el archivo está protegido.
+- **`Ctrl+R` no longer reloads the application window**.
+- **D2 SVG size**: the SVG gets `width` and `height` from its `viewBox`, preventing it from collapsing in reading cards.
+- **Renaming or doing `git add` with unsaved changes**: the editor buffer is persisted before the operation, to avoid working with the outdated file on disk.
+- **Tabs after renaming a folder or a file**: all open references are reassigned (main and split tabs, selection, history, closing, locks and recent paths), including notes inside a renamed folder.
+- **Late save recreated the old file**: a pending save or a viewer that closed after a rename would recreate the old path. It no longer happens.
+- **Drawings unsaved on losing focus**: when the window is hidden or loses focus, drawings with changes not yet propagated are also saved.
+- **Renaming or moving a locked file without confirmation**: confirmation is now requested if the file is protected.
 
 ## [1.0.0-alpha.2] - 2026-10-30
 
-### Añadido
+### Added
 
-- **Componente reutilizable `GitStatusBadge` y soporte de tokens CSS para Git**:
-  - Creación del componente `GitStatusBadge.svelte` en la entidad `@entities/git` para centralizar la presentación visual de insignias de estado Git (`M` modificado/staged, `A` añadido, `?` untracked, `S` stashed).
-  - Integración del componente `GitStatusBadge` tanto en `VaultExplorer` como en `BreadCrumb`, unificando su diseño e interacción en toda la interfaz.
-  - Adición de variables semánticas CSS para estados Git en el tema claro y oscuro (`--git-modified`, `--git-staged`, `--git-untracked`, `--git-stashed` y sus respectivas variantes `-bg` y `-border`).
+- **Reusable `GitStatusBadge` component and CSS token support for Git**:
+  - Creation of the `GitStatusBadge.svelte` component in the `@entities/git` entity to centralize the visual presentation of Git status badges (`M` modified/staged, `A` added, `?` untracked, `S` stashed).
+  - Integration of the `GitStatusBadge` component in both `VaultExplorer` and `BreadCrumb`, unifying their design and interaction across the interface.
+  - Addition of semantic CSS variables for Git states in the light and dark themes (`--git-modified`, `--git-staged`, `--git-untracked`, `--git-stashed` and their respective `-bg` and `-border` variants).
 
-- **Pegado inteligente de imágenes en notas Markdown**:
-  - Intercepción de eventos de pegado (`paste`) en CodeMirror cuando el portapapeles contiene una imagen (archivo o datos binarios).
-  - Detección automática del formato de imagen correspondiente (`webp`, `png`, `jpg`, `svg`, `gif`, etc., con fallback por defecto a `webp`).
-  - Guardado físico de la imagen en la subcarpeta `attachments/` relativa a la carpeta de la nota actual (o en la raíz si la nota reside en ella), con timestamp `image_YYYYMMDD_HHmmss.[ext]` y resolución de colisiones.
-  - Inserción automática del enlace transcluido `![[image_...]]` en la posición del cursor de la nota, renderizándose visualmente de forma inmediata gracias al soporte de imágenes del editor.
+- **Smart image pasting in Markdown notes**:
+  - Interception of paste events (`paste`) in CodeMirror when the clipboard contains an image (file or binary data).
+  - Automatic detection of the corresponding image format (`webp`, `png`, `jpg`, `svg`, `gif`, etc., with a default fallback to `webp`).
+  - Physical saving of the image in the `attachments/` subfolder relative to the current note's folder (or at the root if the note lives there), with a `image_YYYYMMDD_HHmmss.[ext]` timestamp and collision resolution.
+  - Automatic insertion of the transcluded link `![[image_...]]` at the note's cursor position, rendering visually right away thanks to the editor's image support.
 
-- **Versión dinámica de la aplicación y visualización adaptativa**:
-  - Exposición del comando IPC Tauri `get_app_version` en el backend para obtener la versión de forma fidedigna desde `package_info().version`.
-  - Conexión de la versión dinámica en la pantalla de bienvenida (`WelcomeScreen`) reemplazando valores codificados en duro.
-  - Indicador de versión integrado en la barra de estado inferior (`StatusBar`), con visibilidad adaptativa mediante estilos CSS que la ocultan automáticamente si no hay espacio horizontal suficiente.
+- **Dynamic application version and adaptive display**:
+  - Exposure of the Tauri IPC command `get_app_version` in the backend to obtain the version reliably from `package_info().version`.
+  - Connection of the dynamic version in the welcome screen (`WelcomeScreen`), replacing hard-coded values.
+  - Version indicator integrated in the bottom status bar (`StatusBar`), with adaptive visibility through CSS styles that hide it automatically if there is not enough horizontal space.
 
-- **Reorganización de herramientas en la barra lateral Ribbon**:
-  - Reordenamiento de las herramientas situando directamente debajo de las carpetas el acceso a la búsqueda de archivos por nombre (`quick-open`) y la búsqueda full-text en el contenido de las notas (`search`).
+- **Reorganization of tools in the Ribbon sidebar**:
+  - Reordering of the tools, placing right below the folders the access to file search by name (`quick-open`) and full-text search in the notes' content (`search`).
 
-- **Puntaje compuesto en Quick Open (`Ctrl+O`)**:
-  - Nuevo módulo `ranking.rs` (`QuickOpenScorer`) construido sobre `nucleo_matcher`, que puntúa por campo (nombre de archivo, título, tags y ruta) con pesos: nombre > título > tags > ruta.
-  - Bonus de recencia acotado (último día, última semana o alguna vez abierta) y bonus por coincidencia exacta del nombre, de modo que una coincidencia dispersa reciente no supera a una coincidencia limpia.
-  - Pruebas de integración en `navigation_tests.rs` para el nuevo orden de resultados.
+- **Composite score in Quick Open (`Ctrl+O`)**:
+  - New module `ranking.rs` (`QuickOpenScorer`) built on `nucleo_matcher`, which scores per field (file name, title, tags and path) with weights: name > title > tags > path.
+  - Bounded recency bonus (last day, last week or opened at some point) and a bonus for an exact name match, so that a recent scattered match does not outrank a clean match.
+  - Integration tests in `navigation_tests.rs` for the new result order.
 
-- **Miniaturas de videos de YouTube en notas Markdown**:
-  - Los links a YouTube (`youtube.com`, `youtu.be`, `youtube-nocookie.com`, incluidos `shorts`, `embed` y `live`) muestran una miniatura clicable en el modo de lectura y en el editor en vivo.
-  - Nuevo módulo `youtube.ts` con extracción del ID de video y pruebas unitarias en `youtube.test.ts`.
-  - La miniatura se oculta automáticamente si no se puede cargar.
+- **YouTube video thumbnails in Markdown notes**:
+  - Links to YouTube (`youtube.com`, `youtu.be`, `youtube-nocookie.com`, including `shorts`, `embed` and `live`) show a clickable thumbnail in reading mode and in the live editor.
+  - New module `youtube.ts` with video ID extraction and unit tests in `youtube.test.ts`.
+  - The thumbnail is hidden automatically if it cannot be loaded.
 
-- **Sincronización del título en el frontmatter**:
-  - Nueva función `sync_frontmatter_title` que actualiza o crea el campo `title` en el frontmatter YAML de una nota Markdown, conservando el resto de campos y el cuerpo.
+- **Title synchronization in the frontmatter**:
+  - New function `sync_frontmatter_title` that updates or creates the `title` field in the YAML frontmatter of a Markdown note, preserving the rest of the fields and the body.
 
-- **Extensión `.txt` tratada como código**:
-  - Los archivos `.txt` se añaden a la lista de extensiones de código en `config.jsonc` y se muestran con el icono de código en lugar del de Markdown.
+- **`.txt` extension treated as code**:
+  - `.txt` files are added to the list of code extensions in `config.jsonc` and are shown with the code icon instead of the Markdown one.
 
-### Cambiado
+### Changed
 
-- **Guardado automático con temporizador por archivo**:
-  - Cada nota tiene su propio temporizador de guardado, por lo que editar una nota ya no cancela el guardado pendiente de otra.
-  - Se guarda de inmediato al perder el foco de la ventana, al ocultarse, al cambiar de pestaña o al pasar a solo lectura, respetando siempre el bloqueo de archivo.
-  - `auto_save_delay_ms` pasa de 600 a 4000 ms y `fs_watcher_recent_save_grace_ms` de 3000 a 8000 ms.
+- **Autosave with a per-file timer**:
+  - Each note has its own save timer, so editing one note no longer cancels another's pending save.
+  - It saves immediately when the window loses focus, when it is hidden, when switching tabs or when switching to read-only, always respecting the file lock.
+  - `auto_save_delay_ms` goes from 600 to 4000 ms and `fs_watcher_recent_save_grace_ms` from 3000 to 8000 ms.
 
-- **Refresco de Git agrupado**: nueva clave `git_status_refresh_debounce_ms` (5000 ms) en `config.jsonc`. Los guardados agrupan el `git status` en lugar de lanzar uno por guardado.
+- **Grouped Git refresh**: new key `git_status_refresh_debounce_ms` (5000 ms) in `config.jsonc`. Saves group the `git status` instead of launching one per save.
 
-- **Reindexación Full-Text configurable**: nueva clave `indexing.debounce_ms` (5000 ms por defecto, antes fijo en 350 ms). Ya no se reconstruye toda la bóveda en cada guardado: el watcher detecta el cambio.
+- **Configurable Full-Text reindexing**: new key `indexing.debounce_ms` (5000 ms by default, previously fixed at 350 ms). The whole vault is no longer rebuilt on every save: the watcher detects the change.
 
-- **Orden del explorador de la bóveda**: las carpetas con emoji al inicio van primero, seguidas del resto de carpetas y luego archivos, todo en orden alfabético sin distinguir mayúsculas (`sortSiblings` en `VaultExplorer.svelte`).
+- **Vault explorer order**: folders with an emoji at the start come first, followed by the rest of the folders and then files, all in case-insensitive alphabetical order (`sortSiblings` in `VaultExplorer.svelte`).
 
-- **Motor D2 migrado a `@d2lang/d2`**:
-  - Se reemplaza el paquete `@terrastruct/d2` por `@d2lang/d2` (v0.1.34) en `package.json` y en el servicio `d2-service.ts`.
-  - Nuevo motor de layout `tala` disponible en el selector de D2 junto a `dagre` y `elk`.
+- **D2 engine migrated to `@d2lang/d2`**:
+  - The `@terrastruct/d2` package is replaced by `@d2lang/d2` (v0.1.34) in `package.json` and in the `d2-service.ts` service.
+  - New `tala` layout engine available in the D2 selector alongside `dagre` and `elk`.
 
-- **Ordenamiento de Quick Open reescrito**: se sustituye el sistema de niveles (tiers) y el ordenamiento manual por el puntaje compuesto de `QuickOpenScorer`, y el escaneo lineal de respaldo solo se ejecuta cuando nucleo no termina a tiempo o no ha inyectado todas las notas.
+- **Quick Open sorting rewritten**: the tier system and manual sorting are replaced by `QuickOpenScorer`'s composite score, and the fallback linear scan only runs when nucleo does not finish in time or has not injected all the notes.
 
-### Corregido
+### Fixed
 
-- **Filtrado de Quick Open por palabras**: cada palabra de la consulta debe aparecer en el campo, en cualquier orden (por ejemplo, `bcp ttib` encuentra `BCP - TTIB ...`).
-- **Bucle de `nucleo.tick` en búsqueda**: el bucle ya no ejecuta un `tick` de más tras terminar el trabajo de nucleo.
-- **Diagramas Mermaid que se re-renderizaban al escribir**: el widget ya no compara posiciones absolutas, así que escribir antes de un diagrama no lo destruye y vuelve a renderizar en cada pulsación.
-- **Diagramas D2 con altura cero en WebKit**: el SVG generado recibe `width` y `height` derivados de su `viewBox`, evitando que colapse dentro de las tarjetas de lectura.
+- **Quick Open word filtering**: each word of the query must appear in the field, in any order (for example, `bcp ttib` finds `BCP - TTIB ...`).
+- **`nucleo.tick` loop in search**: the loop no longer runs an extra `tick` after nucleo's work finishes.
+- **Mermaid diagrams that re-rendered while typing**: the widget no longer compares absolute positions, so typing before a diagram does not destroy it and render it again on every keystroke.
+- **D2 diagrams with zero height in WebKit**: the generated SVG gets `width` and `height` derived from its `viewBox`, preventing it from collapsing inside the reading cards.
 
 ## [1.0.0-alpha.1] - 2026-10-28
 
-### Añadido
+### Added
 
-- **Integración del plugin CLI de Tauri (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:
-  - Incorporación de soporte CLI formal en la aplicación de escritorio mediante el plugin oficial de Tauri v2.
-  - Opciones de consulta de versión (`--version`, `-V`) y ayuda detallada (`--help`, `-h`) que imprimen información directamente en la terminal y finalizan la ejecución de forma inmediata sin instanciar la interfaz gráfica.
-  - Documentación en `--help` de las opciones de apertura de bóveda/archivo (`--vault`/`-v`, `--file`/`-f`, ruta posicional) y de inicio de servidor local stdio MCP (`--mcp`).
+- **Integration of the Tauri CLI plugin (`@tauri-apps/plugin-cli` / `tauri-plugin-cli`)**:
+  - Addition of formal CLI support in the desktop application through the official Tauri v2 plugin.
+  - Version query (`--version`, `-V`) and detailed help (`--help`, `-h`) options that print information directly in the terminal and end execution immediately without instantiating the graphical interface.
+  - Documentation in `--help` of the vault/file opening options (`--vault`/`-v`, `--file`/`-f`, positional path) and of starting the local MCP stdio server (`--mcp`).
 
-- **Preservación y reapertura de pestañas cerradas en la navegación del historial**:
-  - Al cerrar una pestaña activa o en segundo plano, su registro se mantiene en `tabHistory` de forma desacoplada y con bajo consumo de memoria.
-  - Al utilizar la navegación hacia atrás o adelante (incluyendo los botones laterales del ratón o <kbd>Alt+Left</kbd>/<kbd>Alt+Right</kbd>), si la pestaña destino había sido cerrada, se reabre automáticamente restituyendo su posición física original en la barra de pestañas y conservando el estado de selección del cursor.
+- **Preservation and reopening of closed tabs in history navigation**:
+  - When closing an active or background tab, its record is kept in `tabHistory` in a decoupled, low-memory way.
+  - When using back or forward navigation (including the mouse side buttons or <kbd>Alt+Left</kbd>/<kbd>Alt+Right</kbd>), if the target tab had been closed, it is reopened automatically, restoring its original physical position in the tab bar and preserving the cursor selection state.
 
-- **Parámetros de temporización de editor y Excalidraw configurables en `config.jsonc`**:
-  - Nuevas propiedades bajo el bloque `"editor"` tipadas y validadas tanto en el modelo de dominio Rust (`EditorConfig`) como en la entidad frontend (`file-types.svelte.ts`):
-    - `drawing_auto_save_delay_ms`: Tiempo de inactividad antes de persistir dibujos a disco (3000 ms por defecto).
-    - `drawing_change_debounce_ms`: Tiempo de espera para propagar cambios de escena hacia la pestaña (400 ms por defecto).
-    - `fs_watcher_recent_save_grace_ms`: Ventana de gracia para ignorar eventos del watcher originados por guardados propios (3000 ms por defecto).
+- **Editor and Excalidraw timing parameters configurable in `config.jsonc`**:
+  - New properties under the `"editor"` block, typed and validated both in the Rust domain model (`EditorConfig`) and in the frontend entity (`file-types.svelte.ts`):
+    - `drawing_auto_save_delay_ms`: Idle time before persisting drawings to disk (3000 ms by default).
+    - `drawing_change_debounce_ms`: Wait time to propagate scene changes to the tab (400 ms by default).
+    - `fs_watcher_recent_save_grace_ms`: Grace window to ignore watcher events originating from our own saves (3000 ms by default).
 
-- **Capa de compatibilidad Obsidian API: Entorno global, emulación Node.js y stubs CodeMirror**:
-  - **Emulación de módulos en `require()`**: Soporte para paquetes `@codemirror/search` y `@codemirror/autocomplete`, así como módulos esenciales de Node.js requeridos por plugins comunitarios (`path`, `events`, `constants`, `url`, `punycode`, `crypto` con `createHash` y `randomBytes`, `stream`, `process`, `util` y `querystring`), junto a stubs seguros para dependencias de escritorio (`electron`, `child_process`, `fs`, `http`, `https`, `os`).
-  - **Polyfill nativo de `Buffer`**: Implementación basada en `Uint8Array` con codificación y decodificación binaria UTF-8 y Base64 (`Buffer.from`, `isBuffer`, `toString`).
-  - **Entorno global y objetos canónicos**: Exposición de `activeWindow`, `global`, `process` y `CodeMirror.defineMode` / `defineSimpleMode` en el contexto global de ejecución.
-  - **Nuevas exportaciones en bundle Obsidian**: Incorporación de la clase `Vault` (`SynapseVault`), `Workspace` (`SynapseWorkspace`), `SuggestModal`, `loadMermaid` (con import dinámico seguro), `loadMathJax` y función `getIconIds`.
+- **Obsidian API compatibility layer: Global environment, Node.js emulation and CodeMirror stubs**:
+  - **Module emulation in `require()`**: Support for the `@codemirror/search` and `@codemirror/autocomplete` packages, as well as essential Node.js modules required by community plugins (`path`, `events`, `constants`, `url`, `punycode`, `crypto` with `createHash` and `randomBytes`, `stream`, `process`, `util` and `querystring`), along with safe stubs for desktop dependencies (`electron`, `child_process`, `fs`, `http`, `https`, `os`).
+  - **Native `Buffer` polyfill**: Implementation based on `Uint8Array` with binary UTF-8 and Base64 encoding and decoding (`Buffer.from`, `isBuffer`, `toString`).
+  - **Global environment and canonical objects**: Exposure of `activeWindow`, `global`, `process` and `CodeMirror.defineMode` / `defineSimpleMode` in the global execution context.
+  - **New exports in the Obsidian bundle**: Addition of the `Vault` class (`SynapseVault`), `Workspace` (`SynapseWorkspace`), `SuggestModal`, `loadMermaid` (with a safe dynamic import), `loadMathJax` and the `getIconIds` function.
 
-- **Capa de compatibilidad Obsidian API: Soporte para Vault, Workspace y App**:
-  - **Opciones y recorrido en `SynapseVault`**: Métodos `vault.getConfig` (`vimMode`, `theme`, `legacyEditor`, `livePreview`), `vault.getName` y `recurseChildren(folder, callback)` para iteración recursiva de jerarquías de archivos.
-  - **Extensiones en `SynapseWorkspace`**: Propiedad `containerEl`, métodos `getMostRecentLeaf()` e `iterateAllLeaves(callback)`, disparo de eventos con `updateOptions()` y registro de fuentes de vista previa flotante (`registerHoverLinkSource` / `unregisterHoverLinkSource`).
-  - **Persistencia local y propiedades en `SynapseApp`**: Métodos `loadLocalStorage` y `saveLocalStorage` para plugins que almacenan ajustes temporales, objeto `app.foldManager` (`load`, `save`) para soporte de plegado de código/secciones y bandera `app.isMobile = false` para compatibilidad con plugins de calendario y vistas de notas diarias.
-  - **Caché de metadatos**: Método `metadataCache.getCachedFiles()` para consultar todas las rutas registradas en la caché.
+- **Obsidian API compatibility layer: Support for Vault, Workspace and App**:
+  - **Options and traversal in `SynapseVault`**: Methods `vault.getConfig` (`vimMode`, `theme`, `legacyEditor`, `livePreview`), `vault.getName` and `recurseChildren(folder, callback)` for recursive iteration of file hierarchies.
+  - **Extensions in `SynapseWorkspace`**: `containerEl` property, methods `getMostRecentLeaf()` and `iterateAllLeaves(callback)`, event firing with `updateOptions()` and registration of hover preview sources (`registerHoverLinkSource` / `unregisterHoverLinkSource`).
+  - **Local persistence and properties in `SynapseApp`**: Methods `loadLocalStorage` and `saveLocalStorage` for plugins that store temporary settings, `app.foldManager` object (`load`, `save`) for code/section folding support and `app.isMobile = false` flag for compatibility with calendar plugins and daily note views.
+  - **Metadata cache**: Method `metadataCache.getCachedFiles()` to query all the paths registered in the cache.
 
-- **Capa de compatibilidad Obsidian API: Ecosistema de Plugins, UI y Barra de Estado**:
-  - **Ciclo de vida en `Plugin`**: Métodos `registerObsidianProtocolHandler`, `registerEditorSuggest` y `registerHoverLinkSource` con limpieza automática en `onunload`.
-  - **Registro centralizado en `PluginLoader`**: Exposición del mapa `app.plugins.plugins[pluginId]` asignado antes de la inicialización de cada plugin y limpieza al descargarse.
-  - **Gestor `SynapseInternalPluginsManager` (`app.internalPlugins`)**: Soporte para plugins nativos (`app.internalPlugins.getPluginById` y `getEnabledPluginById`), requerido por plugins comunitarios como `Calendar`, `Periodic Notes` y la biblioteca `obsidian-daily-notes-interface`.
-  - **Soporte nativo de `daily-notes`**: Registro del plugin interno `daily-notes` con configuración predeterminada (`YYYY-MM-DD`, carpeta y plantilla), cargando asíncronamente las opciones de `.obsidian/daily-notes.json` o `.synapse/daily-notes.json`.
-  - **Plugins internos y stubs**: Registro de `workspaces`, `file-recovery` (con manejadores asíncronos seguros) y stubs para `backlink`, `outgoing-link`, `tag-pane`, `page-preview` y `graph`.
-  - **Integración con la barra de estado**: `SynapseStatusBarManager` conecta directamente los elementos `.status-bar-item.plugin-status-item` creados por plugins con el componente visual `StatusBar.svelte` en la parte inferior del espacio de trabajo.
-  - **Componentes de UI y modales**: Clase base `SuggestModal<T>` con contenedor de resultados y `FuzzySuggestModal<T>` conectada; métodos fluidos `setPlaceholder` y `setInstructions` en `Modal`.
+- **Obsidian API compatibility layer: Plugin ecosystem, UI and Status Bar**:
+  - **Lifecycle in `Plugin`**: Methods `registerObsidianProtocolHandler`, `registerEditorSuggest` and `registerHoverLinkSource` with automatic cleanup in `onunload`.
+  - **Centralized registry in `PluginLoader`**: Exposure of the `app.plugins.plugins[pluginId]` map assigned before the initialization of each plugin and cleaned up on unload.
+  - **`SynapseInternalPluginsManager` manager (`app.internalPlugins`)**: Support for native plugins (`app.internalPlugins.getPluginById` and `getEnabledPluginById`), required by community plugins such as `Calendar`, `Periodic Notes` and the `obsidian-daily-notes-interface` library.
+  - **Native `daily-notes` support**: Registration of the internal `daily-notes` plugin with default settings (`YYYY-MM-DD`, folder and template), asynchronously loading the options from `.obsidian/daily-notes.json` or `.synapse/daily-notes.json`.
+  - **Internal plugins and stubs**: Registration of `workspaces`, `file-recovery` (with safe asynchronous handlers) and stubs for `backlink`, `outgoing-link`, `tag-pane`, `page-preview` and `graph`.
+  - **Status bar integration**: `SynapseStatusBarManager` directly connects the `.status-bar-item.plugin-status-item` elements created by plugins with the `StatusBar.svelte` visual component at the bottom of the workspace.
+  - **UI components and modals**: Base class `SuggestModal<T>` with a results container and a connected `FuzzySuggestModal<T>`; fluent methods `setPlaceholder` and `setInstructions` in `Modal`.
 
-- **Capa de compatibilidad Obsidian API: Extensiones DOM nativas y biblioteca `moment()`**:
-  - **Extensiones DOM nativas en `HTMLElement.prototype`**: Métodos canónicos de Obsidian (`setText`, `getText`, `addClass`, `removeClass`, `addClasses`, `removeClasses`, `toggleClass`, `hasClass`, `setAttr`, `getAttr`) en el prototipo global del DOM para manipulación segura sin excepciones en tiempo de ejecución.
-  - **Soporte ampliado de fechas y locales en `moment()`**: Métodos de comparación y límites (`isSame`, `isBefore`, `isAfter`, `startOf`, `endOf`), manipulación de unidades (`year`, `month`, `date`, `day`, `weekday`, `isoWeekday`, `week`, `set`, `get`), formateo relativo (`calendar()`), métodos de internacionalización (`locale`, `localeData`, `moment.locale`, `moment.localeData`, `moment.updateLocale`, `moment.locales`, `moment.weekdays`, `moment.weekdaysShort`, `moment.weekdaysMin`) y spec global `_bundledLocaleWeekSpec`.
+- **Obsidian API compatibility layer: Native DOM extensions and `moment()` library**:
+  - **Native DOM extensions in `HTMLElement.prototype`**: Canonical Obsidian methods (`setText`, `getText`, `addClass`, `removeClass`, `addClasses`, `removeClasses`, `toggleClass`, `hasClass`, `setAttr`, `getAttr`) in the global DOM prototype for safe manipulation without runtime exceptions.
+  - **Extended date and locale support in `moment()`**: Comparison and boundary methods (`isSame`, `isBefore`, `isAfter`, `startOf`, `endOf`), unit manipulation (`year`, `month`, `date`, `day`, `weekday`, `isoWeekday`, `week`, `set`, `get`), relative formatting (`calendar()`), internationalization methods (`locale`, `localeData`, `moment.locale`, `moment.localeData`, `moment.updateLocale`, `moment.locales`, `moment.weekdays`, `moment.weekdaysShort`, `moment.weekdaysMin`) and the global spec `_bundledLocaleWeekSpec`.
 
-- **Indexación en memoria de carpetas (`DashSet`) y navegación rápida**:
-  - **`NavigationEngine` (Backend Rust)**: Nueva colección concurrente `folders: Arc<DashSet<CompactString>>` para registrar directorios de la bóveda (incluidas carpetas vacías).
-  - **Hidratación en frío (< 1 ms)**: Pre-poblado instantáneo de carpetas ancestros al arrancar desde las rutas en RAM de las notas sin romper la compatibilidad binaria del caché `bincode`.
-  - **Watcher reactivo de filesystem**: Sincronización en vivo de carpetas ante eventos de creación, eliminación y renombrado en disco.
-  - **Servicio de dominio puro (`domain/services/folder_service.rs`)**: Métodos `extract_ancestor_folders` y `summarize_folder` para cálculo de huella semántica (`notes_count`, `subfolders_count`, `dominant_tags` y `sample_notes`) en memoria sin I/O directo.
-  - **Comando Tauri `search_folders_command`**: Búsqueda difusa y paginada de carpetas con retorno de huella semántica.
+- **In-memory folder indexing (`DashSet`) and fast navigation**:
+  - **`NavigationEngine` (Rust backend)**: New concurrent collection `folders: Arc<DashSet<CompactString>>` to register the vault's directories (including empty folders).
+  - **Cold hydration (< 1 ms)**: Instant pre-population of ancestor folders at startup from the notes' in-RAM paths without breaking the binary compatibility of the `bincode` cache.
+  - **Reactive filesystem watcher**: Live synchronization of folders on creation, deletion and rename events on disk.
+  - **Pure domain service (`domain/services/folder_service.rs`)**: Methods `extract_ancestor_folders` and `summarize_folder` to compute the semantic footprint (`notes_count`, `subfolders_count`, `dominant_tags` and `sample_notes`) in memory with no direct I/O.
+  - **Tauri command `search_folders_command`**: Fuzzy, paginated folder search returning the semantic footprint.
 
-- **Herramientas Agénticas MCP avanzadas para carpetas**:
-  - **`search_folders`**: Permite a los LLMs buscar carpetas con coincidencia difusa y recibir su huella semántica (conteo, tags más frecuentes y notas de muestra) para desambiguar carpetas homónimas en una sola llamada sin sobrecargar la ventana de contexto.
-  - **`move_folder_contents`**: Mueve de forma masiva notas entre directorios con prevención de path traversal y bucles infinitos, filtro opcional por extensión, estrategia de resolución de conflictos (`skip`, `rename`, `overwrite`) y soporte de simulacro `dry_run`.
-  - **Paginación en `list_folder_contents`**: Soporte de `limit` y `offset` con `has_more` y `next_offset` para directorios con cientos de notas.
-  - **Filtro de ruta en `full_text_search`**: Soporte de coincidencias parciales por segmento de carpeta con alto recall.
+- **Advanced agentic MCP tools for folders**:
+  - **`search_folders`**: Lets LLMs search folders with fuzzy matching and receive their semantic footprint (count, most frequent tags and sample notes) to disambiguate same-named folders in a single call without overloading the context window.
+  - **`move_folder_contents`**: Moves notes in bulk between directories with prevention of path traversal and infinite loops, optional filter by extension, a conflict resolution strategy (`skip`, `rename`, `overwrite`) and `dry_run` support.
+  - **Pagination in `list_folder_contents`**: Support for `limit` and `offset` with `has_more` and `next_offset` for directories with hundreds of notes.
+  - **Path filter in `full_text_search`**: Support for partial matches by folder segment with high recall.
 
-- **UX mejorada en `Ctrl+O` (Quick Open)**:
-  - **Modo `/` (`DIR`)**: Escribir `/` filtra exclusivamente carpetas en la bóveda con badge indicador visual.
-  - **Colapso inteligente a Top 3 en búsqueda normal**: En consultas generales, las carpetas coincidentes se limitan a las 3 más relevantes para evitar desplazar las notas y archivos hacia abajo.
-  - **Elemento interactivo "Ver X carpetas más..."**: Alternancia expandir/colapsar con soporte completo de clic de ratón o teclado (`Enter`).
-  - **Drill-down interactivo y botón Revelar**: Presionar Enter sobre una carpeta autocompleta la búsqueda a `ruta/carpeta/`, o botón para revelarla directamente en el explorador lateral.
+- **Improved UX in `Ctrl+O` (Quick Open)**:
+  - **`/` mode (`DIR`)**: Typing `/` filters exclusively folders in the vault with a visual indicator badge.
+  - **Smart collapse to Top 3 in normal search**: In general queries, matching folders are limited to the 3 most relevant ones to avoid pushing notes and files down.
+  - **Interactive "See X more folders..." element**: Expand/collapse toggle with full mouse click or keyboard (`Enter`) support.
+  - **Interactive drill-down and Reveal button**: Pressing Enter on a folder autocompletes the search to `path/folder/`, or a button to reveal it directly in the side explorer.
 
-- **Navegación unificada por páginas con retención de altura relativa (`PageDown` / `PageUp`)**:
-  - **Módulo compartido `shared/lib/navigation` (`relative-page-navigator.ts`)**: Utilidad modular reusable que calcula el vector $\Delta Y = Y_{\text{target}} - Y_{\text{current}}$ y desplaza el contenedor asegurando que el elemento seleccionado mantenga la misma fila visual o altura en pantalla (Relative Viewport Retention).
-  - **QuickOpen (`Ctrl+O`)**: Navegación adaptativa a 60 FPS fijos que preserva la posición vertical del elemento seleccionado o hace clamping seguro en los extremos.
-  - **Búsqueda Full-Text (`Ctrl+Shift+F`)**: Soporte completo de `PageDown` y `PageUp` en `FullTextSearch` con retención de posición relativa y sincronización de foco.
-  - **VaultExplorer (Explorador lateral)**: Soporte de `PageDown` y `PageUp` con navegación relativa tanto para selección simple como por bloques de rango con `Shift`.
+- **Unified page navigation with relative height retention (`PageDown` / `PageUp`)**:
+  - **Shared module `shared/lib/navigation` (`relative-page-navigator.ts`)**: Reusable modular utility that computes the vector $\Delta Y = Y_{\text{target}} - Y_{\text{current}}$ and scrolls the container ensuring that the selected element keeps the same visual row or height on screen (Relative Viewport Retention).
+  - **QuickOpen (`Ctrl+O`)**: Adaptive navigation at a fixed 60 FPS that preserves the vertical position of the selected element or safely clamps at the ends.
+  - **Full-Text Search (`Ctrl+Shift+F`)**: Full support for `PageDown` and `PageUp` in `FullTextSearch` with relative position retention and focus synchronization.
+  - **VaultExplorer (side explorer)**: Support for `PageDown` and `PageUp` with relative navigation for both single selection and range blocks with `Shift`.
 
-### Corregido
+### Fixed
 
-- **Optimización de rendimiento y fluidez en la edición de Excalidraw**:
-  - **Eliminación del retardo al escribir texto**: Se suspendió la serialización de escena y compresión LZ en el hilo principal mientras el usuario edita activamente texto (`appState.editingTextElement`), evitando que los caracteres se retengan en búfer y se dibujen con desfase.
-  - **Desacoplamiento del Proxy reactivo de Svelte 5**: Sustitución de `$state<any>(null)` por variable plana no reactiva para `excalidrawAPI` en `ExcalidrawViewer`, eliminando sobrecostos de intercepción por Proxy sobre métodos y estructuras internas complejas de Excalidraw.
-  - **Protección contra sobreescritura destructiva de escena**: En el `$effect` sincronizador, se evita llamar a `excalidrawAPI.updateScene()` durante la edición de texto activa para impedir el bloqueo y congelamiento momentáneo del textarea WYSIWYG.
-  - **Eliminación de doble compresión y serialización en `isTabDirty`**: `WorkspacePage` ahora verifica el estado sucio mediante comparación directa en memoria (`note.content !== note.savedContent`), prescindiendo de llamadas síncronas a `getCurrentSerializedScene()` en cada re-renderizado reactivo de la barra de pestañas.
-  - **Omisión de conteo de palabras en dibujos**: `docWordCount` y `docCharCount` se omiten cuando la pestaña activa es de tipo dibujo (`isDrawingTab`), ahorrando costosas ejecuciones de expresiones regulares sobre JSON y base64.
-  - **Generación perezosa de SVG en Obsidian Excalidraw**: En `ObsidianExcalidrawViewer`, la generación vectorial con `ExcalidrawAutomate.toSVG` ahora se ejecuta exclusivamente en modo visual (`viewMode === 'visual'`), evitando cálculos pesados en cada pulsación del modo código.
-  - **Supresión de recargas redundantes del backend en `vault:files-changed`**: Si todos los archivos notificados por el watcher del sistema provienen de guardados propios recientes dentro de la ventana de gracia y no hay archivos eliminados, se omite `fetchNotesFromBackend()` y `refreshTree()`, refrescando únicamente el estado de Git de manera desacoplada.
+- **Performance and smoothness optimization in Excalidraw editing**:
+  - **Elimination of typing delay**: Scene serialization and LZ compression on the main thread were suspended while the user is actively editing text (`appState.editingTextElement`), preventing characters from being held in a buffer and drawn with a lag.
+  - **Decoupling from Svelte 5's reactive Proxy**: Replacement of `$state<any>(null)` with a plain non-reactive variable for `excalidrawAPI` in `ExcalidrawViewer`, eliminating Proxy interception overhead on Excalidraw's methods and complex internal structures.
+  - **Protection against destructive scene overwriting**: In the synchronizing `$effect`, calling `excalidrawAPI.updateScene()` during active text editing is avoided to prevent the momentary blocking and freezing of the WYSIWYG textarea.
+  - **Elimination of double compression and serialization in `isTabDirty`**: `WorkspacePage` now checks the dirty state through a direct in-memory comparison (`note.content !== note.savedContent`), dispensing with synchronous calls to `getCurrentSerializedScene()` on every reactive re-render of the tab bar.
+  - **Skipping word count in drawings**: `docWordCount` and `docCharCount` are skipped when the active tab is a drawing (`isDrawingTab`), saving costly regular expression runs over JSON and base64.
+  - **Lazy SVG generation in Obsidian Excalidraw**: In `ObsidianExcalidrawViewer`, vector generation with `ExcalidrawAutomate.toSVG` now runs exclusively in visual mode (`viewMode === 'visual'`), avoiding heavy computations on every keystroke in code mode.
+  - **Suppression of redundant backend reloads on `vault:files-changed`**: If all the files notified by the system watcher come from our own recent saves within the grace window and there are no deleted files, `fetchNotesFromBackend()` and `refreshTree()` are skipped, refreshing only the Git state in a decoupled way.
 
-- **Eliminación de la doble ejecución de `onload()` en el ciclo de vida de plugins**:
-  - En `PluginLoader`, corrección de la invocación redundante de `instance.onload()` tras `instance.load()`, asegurando que `onload()` se ejecute una única vez por plugin activo.
-  - Soporte para métodos de ciclo de vida asíncronos en `Component.prototype.load()` y `Component.prototype.unload()`, aguardando adecuadamente promesas devueltas por `onload()` y `onunload()`.
+- **Elimination of the double execution of `onload()` in the plugin lifecycle**:
+  - In `PluginLoader`, fix of the redundant invocation of `instance.onload()` after `instance.load()`, ensuring that `onload()` runs only once per active plugin.
+  - Support for asynchronous lifecycle methods in `Component.prototype.load()` and `Component.prototype.unload()`, properly awaiting promises returned by `onload()` and `onunload()`.
 
-- **Protección defensiva contra desbordamiento de pila (`Maximum call stack size exceeded`) por monkey-patching**:
-  - **`SynapseDataAdapter` (`adapter.read`, `readBinary`, `write`)**: Detección y corte automático de ciclos recursivos en lecturas y escrituras simultáneas sobre la misma ruta activa provocados por plugins comunitarios (ej. `gpg-crypt`), delegando de manera segura en el repositorio base sin agotar la pila de llamadas.
-  - **Plugin interno `file-recovery`**: Guardianes de reingreso por archivo (`activeFileRecoveryPaths`) en `onFileChanged` y `forceAdd`, garantizando que intercepciones circulares sobre eventos de modificación se resuelvan sin recursión infinita.
+- **Defensive protection against stack overflow (`Maximum call stack size exceeded`) from monkey-patching**:
+  - **`SynapseDataAdapter` (`adapter.read`, `readBinary`, `write`)**: Detection and automatic cutting of recursive cycles in simultaneous reads and writes on the same active path caused by community plugins (e.g. `gpg-crypt`), safely delegating to the base repository without exhausting the call stack.
+  - **Internal `file-recovery` plugin**: Per-file re-entry guards (`activeFileRecoveryPaths`) in `onFileChanged` and `forceAdd`, ensuring that circular interceptions of modification events are resolved without infinite recursion.
 
-- **Aislamiento de plugins comunitarios en `.synapse/plugins`**:
-  - Restricción del descubrimiento, escaneo, carga y desinstalación de plugins para operar de manera autónoma en el directorio `.synapse/plugins/` de la bóveda, evitando colisiones o interferencias con la configuración nativa de `.obsidian/plugins/`.
+- **Isolation of community plugins in `.synapse/plugins`**:
+  - Restriction of plugin discovery, scanning, loading and uninstallation to operate autonomously in the vault's `.synapse/plugins/` directory, avoiding collisions or interference with the native `.obsidian/plugins/` configuration.
 
-- **Estabilidad y robustez en el editor Markdown (CodeMirror 6)**:
-  - **Recuperación transparente ante reconfiguración de extensiones**: Detección del error `Field is not present in this state` al inyectar dinámicamente StateFields de plugins, recreando el `EditorState` completo sin interrumpir al usuario y preservando la posición de selección y el documento activo.
-  - **Debounce en actualización de extensiones de plugins**: Debounce de 150 ms en `WorkspacePage` para el evento `editor-extensions-change`, agrupando la inicialización concurrente de múltiples plugins comunitarios.
+- **Stability and robustness in the Markdown editor (CodeMirror 6)**:
+  - **Transparent recovery from extension reconfiguration**: Detection of the `Field is not present in this state` error when dynamically injecting plugin StateFields, recreating the full `EditorState` without interrupting the user and preserving the selection position and the active document.
+  - **Debounce on plugin extension updates**: 150 ms debounce in `WorkspacePage` for the `editor-extensions-change` event, grouping the concurrent initialization of multiple community plugins.
 
 ## [2026.10.27.04-alpha] - 2026-10-27
 
-### Añadido
+### Added
 
-- **Creación y visibilidad de carpetas en VaultExplorer**:
-  - **Creación directa de carpetas**: Botón de acceso rápido con icono `FolderPlus` en la cabecera del explorador de la bóveda y opción "Nueva carpeta" en el menú contextual del árbol de archivos.
-  - **Soporte y persistencia de carpetas vacías**: Se garantiza que las carpetas vacías se listen y permanezcan visibles en la jerarquía del explorador sin ser ocultadas ni descartadas en el filtrado de archivos.
-  - **Soporte para renombrar carpetas**: Integración fluida del renombrado en línea para nodos de tipo carpeta en el árbol.
+- **Folder creation and visibility in VaultExplorer**:
+  - **Direct folder creation**: Quick-access button with a `FolderPlus` icon in the vault explorer header and a "New folder" option in the file tree's context menu.
+  - **Support and persistence of empty folders**: It is guaranteed that empty folders are listed and remain visible in the explorer hierarchy without being hidden or discarded in file filtering.
+  - **Support for renaming folders**: Seamless inline renaming for folder-type nodes in the tree.
 
-- **Comando Git Push y atajo de teclado (`Ctrl+Shift+K`)**:
-  - **Paleta de comandos (`Ctrl+P`)**: Nuevo comando "Bóveda: Empujar cambios a Git (Push)" registrado en la paleta de comandos del espacio de trabajo.
-  - **Atajo global configurable**: Asignado por defecto a `Ctrl+Shift+K`, configurable en `config.jsonc` y gestionado mediante el store de atajos de la aplicación.
-  - **Backend y Arquitectura Cebolla**:
-    - Puerto `git_push` en el trait `GitPort` en `domain/services/git_service.rs`.
-    - Caso de uso `git_push` en `application/use_cases/git_use_cases.rs`.
-    - Adaptador de infraestructura en `infrastructure/services/git_service.rs` invocando `git push` con manejo seguro de errores.
-    - Exposición del comando Tauri `git_push_vault` en `infrastructure/tauri/commands/git.rs`.
-  - **Feedback visual**: Notificaciones toast contextuales de éxito y error en la interfaz de usuario al sincronizar con el repositorio remoto.
+- **Git Push command and keyboard shortcut (`Ctrl+Shift+K`)**:
+  - **Command palette (`Ctrl+P`)**: New command "Vault: Push changes to Git (Push)" registered in the workspace command palette.
+  - **Configurable global shortcut**: Assigned by default to `Ctrl+Shift+K`, configurable in `config.jsonc` and managed through the application's shortcut store.
+  - **Backend and Onion Architecture**:
+    - `git_push` port in the `GitPort` trait in `domain/services/git_service.rs`.
+    - `git_push` use case in `application/use_cases/git_use_cases.rs`.
+    - Infrastructure adapter in `infrastructure/services/git_service.rs` invoking `git push` with safe error handling.
+    - Exposure of the Tauri command `git_push_vault` in `infrastructure/tauri/commands/git.rs`.
+  - **Visual feedback**: Contextual success and error toast notifications in the user interface when syncing with the remote repository.
 
-- **Creación de archivos de diagramas D2 (`.d2`)**:
-  - **Opción en menú contextual y paleta de comandos**: Acción "Nuevo diagrama D2" añadida al menú contextual de archivos/carpetas y en la paleta de comandos (`cmd-new-d2`).
-  - **Plantilla predeterminada**: Generación automática de código fuente inicial (`x -> y: conexión\n`) y apertura directa en el visor de diagramas D2.
+- **Creation of D2 diagram files (`.d2`)**:
+  - **Option in context menu and command palette**: "New D2 diagram" action added to the file/folder context menu and to the command palette (`cmd-new-d2`).
+  - **Default template**: Automatic generation of initial source code (`x -> y: conexión\n`) and direct opening in the D2 diagram viewer.
 
 ## [2026.10.27.03-alpha] - 2026-10-27
 
-### Añadido
+### Added
 
-- **Menú contextual y copiado de URL del Servidor MCP en la barra de estado**:
-  - **Menú contextual accesible con Bits-UI (`ContextMenu.Root`)**: Permite hacer clic derecho sobre el indicador MCP en la barra de estado para acceder rápidamente a acciones clave.
-  - **Acción para copiar URL de MCP**: Opción "Copiar URL del servidor MCP" (`/mcp` endpoint con puerto dinámico) al portapapeles con feedback visual mediante toast en la barra de estado.
-  - **Acción rápida para alternar servidor**: Alternar activación/desactivación del servidor MCP para la bóveda actual directamente desde el menú contextual.
-  - **Sincronización de estado reactiva en WorkspacePage**: Llamadas a `refreshMcpStatus()` en la apertura de la bóveda, al cargar carpetas recientes y al inicializar pestañas de workspace.
+- **Context menu and URL copying for the MCP Server in the status bar**:
+  - **Accessible context menu with Bits-UI (`ContextMenu.Root`)**: Lets you right-click the MCP indicator in the status bar to quickly access key actions.
+  - **Action to copy the MCP URL**: "Copy MCP server URL" option (`/mcp` endpoint with dynamic port) to the clipboard with visual feedback through a toast in the status bar.
+  - **Quick action to toggle the server**: Toggle activation/deactivation of the MCP server for the current vault directly from the context menu.
+  - **Reactive state synchronization in WorkspacePage**: Calls to `refreshMcpStatus()` on vault opening, on loading recent folders and on initializing workspace tabs.
 
-### Cambiado
+### Changed
 
-- **Actualización de dependencias del Backend (Rust / Cargo)**:
-  - Actualización del motor de búsqueda de texto completo `tantivy` a `0.27.0`.
-  - Actualización del parser XML `quick-xml` a `0.42.0`, adaptando `docx_extractor.rs` al nuevo tipado `&str` de nombres de elementos y eventos de texto.
-  - Actualización de `lopdf` a `0.46.0` para extracción e indexación de PDFs.
-  - Fijada la dependencia de `bincode` en `2.0.1` (con feature `serde`) garantizando serialización binaria estable y compatible en caché.
+- **Backend dependency updates (Rust / Cargo)**:
+  - Update of the full-text search engine `tantivy` to `0.27.0`.
+  - Update of the XML parser `quick-xml` to `0.42.0`, adapting `docx_extractor.rs` to the new `&str` typing of element names and text events.
+  - Update of `lopdf` to `0.46.0` for PDF extraction and indexing.
+  - Pinned the `bincode` dependency at `2.0.1` (with the `serde` feature), guaranteeing stable and compatible binary serialization in the cache.
 
-### Añadido
+### Added
 
-- **Búsqueda y Exploración por Etiquetas (#tags) en Quick Open (`Ctrl+O`)**:
-  - **Integración en Memoria RAM (`DashMap<NoteId, NoteMeta>`)**:
-    - Persistencia de `tags: Vec<CompactString>` directamente en la estructura caliente `NoteMeta`, extrayendo etiquetas automáticamente (tanto YAML frontmatter como hashtags `#tag` inline) durante la reconciliación y el monitoreo de cambios (`watcher`).
-    - Consumo de memoria ultra-reducido (< 1 MB de RAM para 10,000 notas) mediante `CompactString` inline sin asignaciones en heap para tags de hasta 24 bytes.
-    - `get_vault_tags()` y `get_notes_by_tag()` ahora resuelven en memoria en **< 0.5 ms** (eliminando I/O y lecturas sincrónicas a disco).
-  - **Indexación Multihilo en `nucleo`**:
-    - Inyección de etiquetas en el motor difuso `nucleo` para permitir coincidencias a 60 FPS al buscar por nombre de tag con o sin el símbolo `#`.
-    - Soporte completo a sub-etiquetas jerárquicas con coincidencia flexible (`linux/cachyos` responde a consultas como `#linux` o `#cachyos`).
-    - Búsqueda combinada de texto y etiqueta (ej. `kernel #cachyos`).
-  - **Experiencia de Usuario en Frontend (`QuickOpen.svelte`)**:
-    - Modo de exploración de etiquetas: al escribir `#`, sugiere la lista de tags disponibles con conteo dinámico de notas asociadas y autocompletado en un clic.
-    - Badges/pills de etiquetas interactivos en los resultados de búsqueda: permiten re-enfocar la consulta en una etiqueta específica al hacer clic.
-    - Indicador visual y badge `TAG` en la caja de búsqueda.
+- **Search and Exploration by Tags (#tags) in Quick Open (`Ctrl+O`)**:
+  - **In-RAM Integration (`DashMap<NoteId, NoteMeta>`)**:
+    - Persistence of `tags: Vec<CompactString>` directly in the hot `NoteMeta` structure, automatically extracting tags (both YAML frontmatter and inline `#tag` hashtags) during reconciliation and change monitoring (`watcher`).
+    - Ultra-reduced memory consumption (< 1 MB of RAM for 10,000 notes) through inline `CompactString` with no heap allocations for tags of up to 24 bytes.
+    - `get_vault_tags()` and `get_notes_by_tag()` now resolve in memory in **< 0.5 ms** (eliminating I/O and synchronous disk reads).
+  - **Multithreaded Indexing in `nucleo`**:
+    - Injection of tags into the `nucleo` fuzzy engine to allow matches at 60 FPS when searching by tag name with or without the `#` symbol.
+    - Full support for hierarchical sub-tags with flexible matching (`linux/cachyos` responds to queries like `#linux` or `#cachyos`).
+    - Combined text and tag search (e.g. `kernel #cachyos`).
+  - **Frontend User Experience (`QuickOpen.svelte`)**:
+    - Tag exploration mode: when typing `#`, it suggests the list of available tags with a dynamic count of associated notes and one-click autocompletion.
+    - Interactive tag badges/pills in the search results: they let you refocus the query on a specific tag by clicking.
+    - Visual indicator and `TAG` badge in the search box.
 
-- **Visualización de Frontmatter en Modo Lectura (Reading View)**:
-  - **Panel de Propiedades Interactivo (`NoteProperties.svelte`)**:
-    - Visualización limpia y estructurada de metadatos YAML en la parte superior del documento Markdown en modo lectura, evitando renderizar bloques de código o triples guiones crudos.
-    - Detección inteligente de tipos de propiedades: etiquetas interactivas (`#tag`) con acción de búsqueda, fechas con iconos contextuales, enlaces y wikilinks (`[[Nota]]`), badges booleanos (`Verdadero` / `Falso`) y arrays/listas en chips compactos.
-    - Botón de copiado al portapapeles en hover para cada propiedad y cabecera colapsable con recuento dinámico de metadatos.
-  - **Aislamiento y Extracción Limpia (`frontmatter-extractor.ts`)**:
-    - Separación atómica de metadatos YAML y del cuerpo Markdown antes del procesamiento con `marked`, asegurando que el contenido del documento no muestre duplicaciones de frontmatter.
-    - Suite de pruebas unitarias exhaustiva con Bun/Vitest (`frontmatter-extractor.test.ts`).
-  - **Preferencias de Usuario (`propertiesViewMode`)**:
-    - Soporte en `appSettings` y `settings.svelte.ts` para modos `'expanded'` (expandido por defecto), `'collapsed'` (colapsado por defecto) y `'hidden'` (oculto).
+- **Frontmatter Display in Reading Mode (Reading View)**:
+  - **Interactive Properties Panel (`NoteProperties.svelte`)**:
+    - Clean, structured display of YAML metadata at the top of the Markdown document in reading mode, avoiding rendering code blocks or raw triple dashes.
+    - Smart detection of property types: interactive tags (`#tag`) with a search action, dates with contextual icons, links and wikilinks (`[[Nota]]`), boolean badges (`Verdadero` / `Falso`) and arrays/lists in compact chips.
+    - Copy-to-clipboard button on hover for each property and a collapsible header with a dynamic metadata count.
+  - **Isolation and Clean Extraction (`frontmatter-extractor.ts`)**:
+    - Atomic separation of YAML metadata and the Markdown body before processing with `marked`, ensuring that the document content does not show frontmatter duplication.
+    - Exhaustive unit test suite with Bun/Vitest (`frontmatter-extractor.test.ts`).
+  - **User Preferences (`propertiesViewMode`)**:
+    - Support in `appSettings` and `settings.svelte.ts` for the modes `'expanded'` (expanded by default), `'collapsed'` (collapsed by default) and `'hidden'` (hidden).
 
-- **Optimización de Capacidades MCP (Sub-tags, Tolerancia de Espacios y Ergonomía)**:
-  - **Sub-tag Matching Jerárquico en `search_notes` y `full_text_search`**:
-    - Incorporación de `matches_tag` y `any_tag_matches` en [`tag_service.rs`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/domain/services/tag_service.rs), permitiendo que búsquedas por tags como `cachyos` o `linux` coincidan automáticamente con sub-etiquetas jerárquicas como `linux/cachyos` u `os/linux/cachyos`.
-    - Soporte unificado de etiquetas YAML e inline hashtags (`#etiqueta`) extraídos del cuerpo de la nota.
-    - Argumento `query` opcional en `search_notes`, facilitando el filtrado exclusivo por etiquetas.
-  - **Snippets Limpios y Métricas en `search_notes`**:
-    - Retorno de `snippet` (primeros 200 caracteres limpios de cuerpo sin frontmatter ni delimitadores de código), `description` (desde `extra_properties`), `total_lines` y `estimated_tokens`, evitando lecturas completas innecesarias con `read_note`.
-    - Carga en memoria del contenido Markdown en `FileNoteRepository::walk_directory` para entregar resultados instantáneos.
-  - **Parche Quirúrgico Tolerante y Anclaje Difuso en `patch_note`**:
-    - Función pura `apply_surgical_patch` con reemplazo en múltiples niveles de tolerancia: coincidencia exacta, normalización `\r\n` a `\n` (CRLF/LF), y anclaje difuso por líneas ignorando espacios en blanco finales (`.trim_end()`) e indentación (`.trim()`).
-    - Desambiguación automática de múltiples ocurrencias utilizando `start_line`.
-    - Mensajes de error enriquecidos que muestran las líneas reales circundantes más parecidas en caso de fallo de coincidencia.
-  - **Ergonomía de Lectura en `read_note`**:
-    - Parámetro `outline_only: true` (y modo `outline_only`) para obtener la estructura TOC y metadatos sin descargar el contenido completo.
-    - Parámetro `section` como alias de `section_heading` con inferencia automática del modo `section`, y reporte de secciones disponibles en caso de no encontrar el encabezado solicitado.
+- **MCP Capabilities Optimization (Sub-tags, Whitespace Tolerance and Ergonomics)**:
+  - **Hierarchical Sub-tag Matching in `search_notes` and `full_text_search`**:
+    - Addition of `matches_tag` and `any_tag_matches` in [`tag_service.rs`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/domain/services/tag_service.rs), allowing searches by tags like `cachyos` or `linux` to automatically match hierarchical sub-tags like `linux/cachyos` or `os/linux/cachyos`.
+    - Unified support for YAML tags and inline hashtags (`#etiqueta`) extracted from the note body.
+    - Optional `query` argument in `search_notes`, making filtering exclusively by tags easier.
+  - **Clean Snippets and Metrics in `search_notes`**:
+    - Return of `snippet` (first 200 clean characters of the body without frontmatter or code delimiters), `description` (from `extra_properties`), `total_lines` and `estimated_tokens`, avoiding unnecessary full reads with `read_note`.
+    - In-memory loading of the Markdown content in `FileNoteRepository::walk_directory` to deliver instant results.
+  - **Tolerant Surgical Patch and Fuzzy Anchoring in `patch_note`**:
+    - Pure function `apply_surgical_patch` with replacement at multiple tolerance levels: exact match, `\r\n` to `\n` normalization (CRLF/LF), and fuzzy line anchoring ignoring trailing whitespace (`.trim_end()`) and indentation (`.trim()`).
+    - Automatic disambiguation of multiple occurrences using `start_line`.
+    - Enriched error messages that show the closest actual surrounding lines in case of a match failure.
+  - **Reading Ergonomics in `read_note`**:
+    - Parameter `outline_only: true` (and `outline_only` mode) to obtain the TOC structure and metadata without downloading the full content.
+    - Parameter `section` as an alias of `section_heading` with automatic inference of the `section` mode, and a report of available sections if the requested heading is not found.
 
-- **Herramienta MCP `delete_note` y Estandarización de Anotaciones Normativas**:
-  - **`delete_note` (Nuevo)**: Eliminación permanente y segura de notas en disco con validación estricta de límites de la bóveda (prevención de Path Traversal) y soporte de Control Optimista de Concurrencia mediante `expected_hash`.
-  - **Estandarización Normativa de Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint`, `idempotentHint` y `openWorldHint` alineados con la especificación oficial de MCP y el estándar de facto de `@modelcontextprotocol/server-filesystem`:
-    - `openWorldHint: false` en todo el catálogo (entorno local cerrado).
-    - `destructiveHint: true` en operaciones que sobrescriben o eliminan datos (`write_note`, `patch_note`, `update_note_metadata`, `move_notes`, `delete_note`).
-    - `append_to_note` catalogada como la única operación de escritura puramente aditiva (`destructiveHint: false`, `idempotentHint: false`).
-    - `idempotentHint: false` para operaciones relativas, dependientes de estado o de un solo uso (`patch_note`, `move_notes`, `delete_note`, `append_to_note`).
+- **MCP `delete_note` Tool and Standardization of Normative Annotations**:
+  - **`delete_note` (New)**: Permanent and safe deletion of notes on disk with strict validation of vault boundaries (Path Traversal prevention) and support for Optimistic Concurrency Control through `expected_hash`.
+  - **Normative Standardization of MCP Annotations (`McpToolAnnotations`)**: `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` metadata aligned with the official MCP specification and the de facto standard of `@modelcontextprotocol/server-filesystem`:
+    - `openWorldHint: false` across the whole catalog (closed local environment).
+    - `destructiveHint: true` on operations that overwrite or delete data (`write_note`, `patch_note`, `update_note_metadata`, `move_notes`, `delete_note`).
+    - `append_to_note` classified as the only purely additive write operation (`destructiveHint: false`, `idempotentHint: false`).
+    - `idempotentHint: false` for relative, state-dependent or single-use operations (`patch_note`, `move_notes`, `delete_note`, `append_to_note`).
 
 ## [2026.10.27.02-alpha] - 2026-10-27
 
-### Añadido
+### Added
 
-- **Evolución del Catálogo Unificado de Herramientas MCP para Synapse**:
-  - **Catálogo de 14 Herramientas de Precisión Quirúrgica y Multimodalidad**:
-    - **Control Optimista de Concurrencia (OCC) y Hashing Criptográfico**: Incorporación de `calculate_content_hash` con SHA-256 (`sha256:<hex>`) en `read_note`, `write_note`, `patch_note`, `append_to_note` y `update_note_metadata` para prevenir sobreescrituras ciegas entre agentes y la UI de edición.
-    - **`read_note` Extendido**: Modos `full`, `chunk` (rango acotado con `start_line` y `line_count`), `section` (extracción aislada de encabezados) y `metadata_only`. Generación de Tabla de Contenidos (TOC) con números de línea, conteo de bloques `mermaid`/`d2`, estimación de tokens (`estimated_tokens`) y prefijo opcional de números de línea (`include_line_numbers`).
-    - **`write_note` Robusto**: Título opcional conservando metadatos OKF preexistentes, freno anti-truncamiento (>150 líneas y >40% de reducción), validación `expected_hash` y previsualización con `dry_run` generando `unified_diff`.
-    - **`patch_note` (Nuevo)**: Edición quirúrgica de fragmentos con reemplazo atómico, anclaje difuso tolerante a desfases, control de concurrencia OCC y generación de diffs unificados (`similar`).
-    - **`search_in_note` (Nuevo)**: Grep contextual dentro de una nota que retorna número de línea, coincidencia y líneas de contexto circundantes (`context_lines`).
-    - **`append_to_note` (Nuevo)**: Inserción directa al final del documento o en secciones de encabezado específicas (`start_of_section` o `end_of_section`).
-    - **`update_note_metadata` (Nuevo)**: Mutación atómica exclusiva de frontmatter YAML (añadir/quitar etiquetas sin duplicados, actualizar título, aliases y propiedades personalizadas) preservando el cuerpo intacto.
-    - **`read_pdf_document` (Nuevo)**: Inspección de documentos PDF con `lopdf` (modos `outline_only`, lectura por rango de páginas con límite estricto de 5 páginas para proteger la ventana de contexto, y búsqueda interna `search`).
-    - **`extract_note_diagrams` (Nuevo)**: Extracción especializada de diagramas Mermaid y D2lang con líneas de inicio/fin o lectura directa de archivos `.d2` y `.mmd`.
-    - **`get_backlinks_and_relations` Enriquecido**: Inclusión de snippets contextuales de la línea que contiene el enlace, detección de enlaces huérfanos/no resueltos (`unresolved_links`) y cálculo de similitud Jaccard de etiquetas para el top 5 de notas conceptualmente afines (`shared_tags_neighbors`).
-    - **`move_notes` con Reescritura de Wikilinks**: Reescritura automática de referencias `[[...]]` en la bóveda cuando `update_wikilinks: true`.
-    - **Anotaciones MCP (`McpToolAnnotations`)**: Metadatos `readOnlyHint`, `destructiveHint` e `idempotentHint` para gobernanza segura Human-in-the-Loop en clientes ACP y UI.
+- **Evolution of the Unified MCP Tool Catalog for Synapse**:
+  - **Catalog of 14 Surgically Precise, Multimodal Tools**:
+    - **Optimistic Concurrency Control (OCC) and Cryptographic Hashing**: Added `calculate_content_hash` with SHA-256 (`sha256:<hex>`) in `read_note`, `write_note`, `patch_note`, `append_to_note` and `update_note_metadata` to prevent blind overwrites between agents and the editing UI.
+    - **Extended `read_note`**: `full`, `chunk` (bounded range with `start_line` and `line_count`), `section` (isolated heading extraction) and `metadata_only` modes. Generates a Table of Contents (TOC) with line numbers, a count of `mermaid`/`d2` blocks, a token estimate (`estimated_tokens`) and an optional line-number prefix (`include_line_numbers`).
+    - **Robust `write_note`**: Optional title that preserves existing OKF metadata, an anti-truncation brake (>150 lines and >40% reduction), `expected_hash` validation and a `dry_run` preview that generates a `unified_diff`.
+    - **`patch_note` (New)**: Surgical snippet editing with atomic replacement, fuzzy anchoring that tolerates offsets, OCC concurrency control and unified diff generation (`similar`).
+    - **`search_in_note` (New)**: Contextual grep inside a note that returns the line number, the match and the surrounding context lines (`context_lines`).
+    - **`append_to_note` (New)**: Direct insertion at the end of the document or in specific heading sections (`start_of_section` or `end_of_section`).
+    - **`update_note_metadata` (New)**: Atomic mutation of the YAML frontmatter only (add/remove tags without duplicates, update the title, aliases and custom properties) while leaving the body intact.
+    - **`read_pdf_document` (New)**: PDF document inspection with `lopdf` (`outline_only` mode, reading by page range with a strict limit of 5 pages to protect the context window, and internal `search`).
+    - **`extract_note_diagrams` (New)**: Specialized extraction of Mermaid and D2lang diagrams with start/end lines, or direct reading of `.d2` and `.mmd` files.
+    - **Enriched `get_backlinks_and_relations`**: Includes contextual snippets of the line containing the link, detection of orphan/unresolved links (`unresolved_links`) and Jaccard similarity of tags to find the top 5 conceptually related notes (`shared_tags_neighbors`).
+    - **`move_notes` with Wikilink Rewriting**: Automatic rewriting of `[[...]]` references in the vault when `update_wikilinks: true`.
+    - **MCP Annotations (`McpToolAnnotations`)**: `readOnlyHint`, `destructiveHint` and `idempotentHint` metadata for safe Human-in-the-Loop governance in ACP clients and the UI.
 
-- **Menú Contextual y Estado Git en Breadcrumbs de Archivo**:
-  - **Indicadores Visuales de Estado Git en Breadcrumbs**:
-    - Se muestran insignias con código de colores según el estado de Git en la barra de ruta (`BreadCrumb.svelte`) junto al archivo activo:
-      - `M` verde para cambios staged / preparados (`index: 'M'`).
-      - `A` verde para archivos nuevos staged (`index: 'A'`).
-      - `M` rojo para modificaciones locales sin preparar en el worktree (`worktree: 'M'`).
-      - `?` ámbar para archivos sin rastrear (`worktree: '?'`).
-      - `S` púrpura para archivos con cambios guardados en stash (`is_stashed: true`).
-    - Lógica de normalización desacoplada y compartida en `@entities/git` (`parseGitStatusInfo`, `NormalizedGitStatus`) respetando FSD y evitando duplicación de código.
-  - **Menú Contextual Extendido con Soporte Completo de Git**:
-    - Al hacer clic derecho sobre el segmento del archivo activo en el breadcrumb, se despliega un menú contextual accesible (`bits-ui ContextMenu`) con opciones clave del archivo y suite completa de acciones Git:
-      - *Hacer commit...*: Abre directamente el diálogo de confirmación de Git para el archivo actual.
-      - *Ver diferencias (Diff / Diff staged)*: Soporte para diff de texto y visual (2 paneles) para archivos gráficos, diagramas o PDFs.
-      - *Historial de Git (Log)...*: Abre el diálogo de historial de revisiones del archivo activo.
-      - *Git Add*: Prepara el archivo activo directamente al índice/stage de Git con notificación toast.
-      - *Git Restore --staged*: Desmarca el archivo del stage (`git restore --staged`).
-      - *Git Restore*: Abre diálogo de confirmación seguro y descarta las modificaciones locales en el árbol de trabajo.
-      - *Abrir en nueva ventana* (desacopla o abre una ventana independiente del archivo).
-      - *Abrir con la app por defecto* del sistema operativo.
-      - *Mostrar en carpeta* (revela el archivo en el explorador de archivos nativo).
-      - *Renombrar archivo* (activa la edición directa inline del breadcrumb).
-      - *Copiar ruta* (copia la ruta relativa del archivo al portapapeles).
-    - **Reutilización y Arquitectura FSD**: Componente [`GitRestoreDialog`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src/shared/ui/git-restore-dialog/) promovido a `@shared/ui` para ser reutilizado tanto por el explorador de la bóveda (`VaultExplorer`) como por el breadcrumb (`BreadCrumb`).
+- **Context Menu and Git Status in File Breadcrumbs**:
+  - **Visual Git Status Indicators in Breadcrumbs**:
+    - Color-coded badges according to the Git status are shown in the path bar (`BreadCrumb.svelte`) next to the active file:
+      - Green `M` for staged changes (`index: 'M'`).
+      - Green `A` for new staged files (`index: 'A'`).
+      - Red `M` for unstaged local modifications in the worktree (`worktree: 'M'`).
+      - Amber `?` for untracked files (`worktree: '?'`).
+      - Purple `S` for files with stashed changes (`is_stashed: true`).
+    - Decoupled normalization logic shared in `@entities/git` (`parseGitStatusInfo`, `NormalizedGitStatus`), respecting FSD and avoiding code duplication.
+  - **Extended Context Menu with Full Git Support**:
+    - Right-clicking the active file segment in the breadcrumb opens an accessible context menu (`bits-ui ContextMenu`) with key file options and a full suite of Git actions:
+      - *Commit...*: Directly opens the Git commit dialog for the current file.
+      - *View differences (Diff / Diff staged)*: Support for text diffs and visual (2-pane) diffs for image files, diagrams or PDFs.
+      - *Git history (Log)...*: Opens the revision history dialog of the active file.
+      - *Git Add*: Stages the active file directly into the Git index/stage with a toast notification.
+      - *Git Restore --staged*: Unstages the file (`git restore --staged`).
+      - *Git Restore*: Opens a safe confirmation dialog and discards the local modifications in the working tree.
+      - *Open in new window* (detaches the file or opens it in an independent window).
+      - *Open with the default app* of the operating system.
+      - *Show in folder* (reveals the file in the native file explorer).
+      - *Rename file* (enables direct inline editing of the breadcrumb).
+      - *Copy path* (copies the file's relative path to the clipboard).
+    - **Reuse and FSD Architecture**: The [`GitRestoreDialog`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src/shared/ui/git-restore-dialog/) component was promoted to `@shared/ui` so it can be reused by both the vault explorer (`VaultExplorer`) and the breadcrumb (`BreadCrumb`).
 
-- **Persistencia Per-Vault y Registro Global de Puertos del Servidor MCP**:
-  - **Estado y Puerto Recordado por Bóveda**:
-    - Cada bóveda almacena su preferencia de activación (`enabled: true/false`) y su puerto TCP asignado en `<vault>/.synapse/mcp.json`.
-    - Al abrir o cambiar de bóveda (`activate_vault`), Synapse sincroniza automáticamente el servidor MCP, iniciando o apagando el runtime según corresponda para esa bóveda concreta sin interferir con otras.
-  - **Registro Global en `~/.config/synapse/mcp-ports.json`**:
-    - Se registra el mapeo de todas las bóvedas, puertos asignados, PID del proceso activo y estado de ejecución en `~/.config/synapse/mcp-ports.json` (y `~/.config/synapsers/mcp-ports.json`).
-    - Permite a múltiples instancias concurrentes de `synapsers` / MCP coordinar y descubrir qué puertos están en uso activo.
-    - **Prevención Inteligente de Conflictos**: Algoritmo de asignación que detecta procesos muertos y busca el siguiente puerto TCP disponible (rango `27182-28000`) cuando el puerto preferido ya está ocupado por otra bóveda o servicio.
-    - Limpieza automática al cerrar la ventana principal de Synapse para liberar el puerto registrado.
-    - Nuevo comando Tauri `get_mcp_port_registry` y tipos actualizados en `system.api.ts`.
+- **Per-Vault Persistence and Global Port Registry for the MCP Server**:
+  - **Per-Vault Remembered State and Port**:
+    - Each vault stores its activation preference (`enabled: true/false`) and its assigned TCP port in `<vault>/.synapse/mcp.json`.
+    - When opening or switching vaults (`activate_vault`), Synapse automatically synchronizes the MCP server, starting or stopping the runtime as appropriate for that specific vault without interfering with others.
+  - **Global Registry in `~/.config/synapse/mcp-ports.json`**:
+    - The mapping of all vaults, assigned ports, active process PID and run state is recorded in `~/.config/synapse/mcp-ports.json` (and `~/.config/synapsers/mcp-ports.json`).
+    - Lets multiple concurrent `synapsers` / MCP instances coordinate and discover which ports are actively in use.
+    - **Smart Conflict Prevention**: An assignment algorithm that detects dead processes and looks for the next available TCP port (range `27182-28000`) when the preferred port is already taken by another vault or service.
+    - Automatic cleanup when the main Synapse window is closed to release the registered port.
+    - New Tauri command `get_mcp_port_registry` and updated types in `system.api.ts`.
 
-- **Navegación con Atajos de Vim en Modo Lectura (Reading Mode)**:
-  - Soporte completo para desplazarse por notas Markdown en modo lectura utilizando teclas de movimiento estándar de Vim / *pager*:
-    - **Desplazamiento vertical**: <kbd>j</kbd> (bajar) y <kbd>k</kbd> (subir) con paso continuo sin retardo al mantener la tecla pulsada; <kbd>d</kbd> / <kbd>Ctrl+D</kbd> (media página abajo) y <kbd>u</kbd> / <kbd>Ctrl+U</kbd> (media página arriba) con scroll suave; <kbd>Ctrl+E</kbd> / <kbd>Ctrl+Y</kbd> (desplazamiento línea a línea).
-    - **Salto al inicio y fin**: <kbd>gg</kbd> (doble pulsación rápida de `g`) para desplazarse al inicio del documento y <kbd>G</kbd> (<kbd>Shift+G</kbd>) para ir directamente al final.
-    - **Desplazamiento horizontal**: <kbd>h</kbd> (izquierda), <kbd>l</kbd> (derecha), <kbd>0</kbd> (inicio horizontal) y <kbd>$</kbd> (fin horizontal).
-    - **Búsqueda interactiva estilo Vim**: <kbd>/</kbd> para abrir la barra de búsqueda en el documento, <kbd>n</kbd> / <kbd>N</kbd> para navegar entre coincidencias y <kbd>Escape</kbd> para cerrar la búsqueda devolviendo el foco inmediatamente al documento para continuar navegando.
-    - **Aislamiento seguro**: no se interceptan teclas cuando el usuario escribe en un campo de texto, `<input>` o `<textarea>`.
+- **Vim Shortcut Navigation in Reading Mode**:
+  - Full support for scrolling through Markdown notes in reading mode using standard Vim / *pager* motion keys:
+    - **Vertical scrolling**: <kbd>j</kbd> (down) and <kbd>k</kbd> (up) with continuous, delay-free stepping while the key is held down; <kbd>d</kbd> / <kbd>Ctrl+D</kbd> (half page down) and <kbd>u</kbd> / <kbd>Ctrl+U</kbd> (half page up) with smooth scrolling; <kbd>Ctrl+E</kbd> / <kbd>Ctrl+Y</kbd> (line-by-line scrolling).
+    - **Jump to start and end**: <kbd>gg</kbd> (quick double press of `g`) to scroll to the start of the document and <kbd>G</kbd> (<kbd>Shift+G</kbd>) to go straight to the end.
+    - **Horizontal scrolling**: <kbd>h</kbd> (left), <kbd>l</kbd> (right), <kbd>0</kbd> (horizontal start) and <kbd>$</kbd> (horizontal end).
+    - **Interactive Vim-style search**: <kbd>/</kbd> to open the in-document search bar, <kbd>n</kbd> / <kbd>N</kbd> to move between matches and <kbd>Escape</kbd> to close the search, immediately returning focus to the document so you can keep navigating.
+    - **Safe isolation**: keys are not intercepted when the user is typing in a text field, `<input>` or `<textarea>`.
 
-### Corregido
+### Fixed
 
-- **Foco Automático en el Contenido Markdown al Cambiar de Pestaña**:
-  - Se corrigió la pérdida de foco al alternar pestañas (mediante clic en pestaña, atajos <kbd>Ctrl+Tab</kbd> / <kbd>Ctrl+PageDown</kbd> o desde QuickOpen): el foco se transfiere automáticamente al contenido principal de la nota (`.markdown-reading-wrapper` en modo lectura y `editorView` de CodeMirror en modo edición).
-  - Permite utilizar las flechas de teclado (<kbd>ArrowDown</kbd>, <kbd>ArrowUp</kbd>, <kbd>PageDown</kbd>, <kbd>PageUp</kbd>) inmediatamente sin necesidad de hacer clic manual con el ratón sobre el documento.
-  - Sincronización precisa con el ciclo de vida de Svelte 5 y `ResizeObserver` para otorgar el foco en el momento exacto en que la pestaña pasa de `display: none` (`.tab-pane.hidden`) a visible, respetando diálogos modales activos (`[role="dialog"]`).
+- **Automatic Focus on Markdown Content When Switching Tabs**:
+  - Fixed the loss of focus when switching tabs (by clicking a tab, using the <kbd>Ctrl+Tab</kbd> / <kbd>Ctrl+PageDown</kbd> shortcuts or from QuickOpen): focus is now automatically transferred to the main content of the note (`.markdown-reading-wrapper` in reading mode and the CodeMirror `editorView` in edit mode).
+  - Lets you use the keyboard arrows (<kbd>ArrowDown</kbd>, <kbd>ArrowUp</kbd>, <kbd>PageDown</kbd>, <kbd>PageUp</kbd>) immediately without having to click the document with the mouse.
+  - Precise synchronization with the Svelte 5 lifecycle and `ResizeObserver` to grant focus at the exact moment the tab goes from `display: none` (`.tab-pane.hidden`) to visible, respecting active modal dialogs (`[role="dialog"]`).
 
 ## [2026.10.27.01-alpha] - 2026-10-27
 
-### Añadido
+### Added
 
-- **Soporte Multilenguaje (i18n) con Svelte 5 Runes**:
-  - Implementación nativa de internacionalización en `src/shared/lib/i18n/` sin dependencias externas:
-    - Diccionarios en español (`es.ts`) e inglés (`en.ts`) con tipado estricto en TypeScript (`TranslationKey`, `LocaleSchema`) y verificación de paridad de claves en tiempo de compilación.
-    - Gestor reactivo `I18nManager` (`i18n.svelte.ts`) usando `$state` de Svelte 5 y función de traducción `t(...)` con soporte para interpolación dinámica de variables (`{param}`).
-    - Detección automática del idioma preferido del sistema/navegador y persistencia en `localStorage` sincronizada con `AppSettings`.
-  - Integración completa en el modelo de configuración global (`appSettings.locale`, `setLocale`, `toggleLocale`).
-  - Botón de cambio rápido de idioma en la barra de herramientas lateral (`Ribbon`) con el icono de `Languages`, y en la barra superior de la pantalla de bienvenida (`WelcomeScreen`).
-  - Nuevo comando en la paleta de comandos (<kbd>Ctrl+P</kbd>): *"Cambiar idioma de la interfaz (Español / English)"* bajo la categoría *"Configuración"*.
-  - Internacionalización reactiva de la barra lateral (`Ribbon`), pantalla de bienvenida (`WelcomeScreen`), formateador de tiempo relativo y plurales de conteo de notas.
+- **Multilanguage Support (i18n) with Svelte 5 Runes**:
+  - Native internationalization in `src/shared/lib/i18n/` with no external dependencies:
+    - Spanish (`es.ts`) and English (`en.ts`) dictionaries with strict TypeScript typing (`TranslationKey`, `LocaleSchema`) and compile-time key parity checking.
+    - Reactive `I18nManager` (`i18n.svelte.ts`) using Svelte 5 `$state` and a `t(...)` translation function that supports dynamic variable interpolation (`{param}`).
+    - Automatic detection of the preferred system/browser language and persistence in `localStorage` synchronized with `AppSettings`.
+  - Full integration into the global settings model (`appSettings.locale`, `setLocale`, `toggleLocale`).
+  - Quick language switch button in the side toolbar (`Ribbon`) with the `Languages` icon, and in the top bar of the welcome screen (`WelcomeScreen`).
+  - New command in the command palette (<kbd>Ctrl+P</kbd>): *"Change interface language (Español / English)"* under the *"Settings"* category.
+  - Reactive internationalization of the sidebar (`Ribbon`), the welcome screen (`WelcomeScreen`), the relative time formatter and note count plurals.
 
-- **Búsqueda en Vista de Markdown de Solo Lectura (Reading Mode)**:
-  - Soporte para buscar texto dentro de notas Markdown en modo lectura interactivo:
-    - Barra de búsqueda flotante accesible con <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd>.
-    - Resaltado visual en el documento (`<mark class="reading-search-highlight">`) con scroll automático suave hacia la coincidencia seleccionada (`.reading-search-active`).
-    - Contador de coincidencias en tiempo real (`X de N` o `Sin coincidencias`).
-    - Navegación bidireccional entre resultados mediante <kbd>Enter</kbd> (siguiente), <kbd>Shift+Enter</kbd> (anterior) o botones de interfaz.
-    - Alternancia de coincidencia de mayúsculas y minúsculas (*case-sensitive*) con el botón `Aa`.
-    - Cierre rápido y limpieza de resaltados mediante tecla <kbd>Escape</kbd> o botón de cierre.
-  - Integración transparente en `MarkdownViewer.svelte` y el despachador de atajos globales de `WorkspacePage.svelte`.
-- **Navegación Circular entre Pestañas con Atajos de Teclado**:
-  - Soporte para alternar rápidamente entre pestañas abiertas:
-    - **Pestaña siguiente**: <kbd>Ctrl+PageDown</kbd> o <kbd>Ctrl+Tab</kbd>.
-    - **Pestaña anterior**: <kbd>Ctrl+PageUp</kbd> o <kbd>Ctrl+Shift+Tab</kbd>.
-  - Comportamiento circular infinito (al llegar al final rota a la primera pestaña y viceversa).
-  - Consciencia de panel en vista dividida (*Split View*), rotando en el panel activo (`activeFocusedPane`).
-  - Normalización robusta de combinaciones y alias de teclas en `matchesShortcut` (`pageup`, `pgup`, `prior`, `pagedown`, `pgdn`, `next`).
-  - Configurable en `shortcuts.jsonc` y registrado en la paleta de comandos (`Ctrl+P`).
-- **Cierre en Cascada de Ventanas Desacopladas al Cerrar la Ventana Principal**:
-  - Al cerrar la ventana principal (`main`) de Synapse, tanto desde los controles de ventana como por atajos o eventos del sistema, todas las ventanas secundarias desacopladas (`detached windows`) se cierran automáticamente.
-  - Implementación coordinada a nivel de ciclo de vida del backend Tauri (`on_window_event` en `Destroyed` de la ventana `main`) y en el frontend de `WorkspacePage` (`onCloseRequested` y confirmación de cierre de ventana).
+- **Search in the Read-Only Markdown View (Reading Mode)**:
+  - Support for searching text inside Markdown notes in interactive reading mode:
+    - Floating search bar available with <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd>.
+    - Visual highlighting in the document (`<mark class="reading-search-highlight">`) with smooth automatic scrolling to the selected match (`.reading-search-active`).
+    - Real-time match counter (`X of N` or `No matches`).
+    - Bidirectional navigation between results using <kbd>Enter</kbd> (next), <kbd>Shift+Enter</kbd> (previous) or interface buttons.
+    - Case-sensitive matching toggle with the `Aa` button.
+    - Quick close and highlight cleanup using the <kbd>Escape</kbd> key or the close button.
+  - Transparent integration in `MarkdownViewer.svelte` and the global shortcut dispatcher of `WorkspacePage.svelte`.
+- **Circular Tab Navigation with Keyboard Shortcuts**:
+  - Support for quickly switching between open tabs:
+    - **Next tab**: <kbd>Ctrl+PageDown</kbd> or <kbd>Ctrl+Tab</kbd>.
+    - **Previous tab**: <kbd>Ctrl+PageUp</kbd> or <kbd>Ctrl+Shift+Tab</kbd>.
+  - Endless circular behavior (at the end it wraps around to the first tab and vice versa).
+  - Pane awareness in split view (*Split View*), cycling within the active pane (`activeFocusedPane`).
+  - Robust normalization of key combinations and aliases in `matchesShortcut` (`pageup`, `pgup`, `prior`, `pagedown`, `pgdn`, `next`).
+  - Configurable in `shortcuts.jsonc` and registered in the command palette (`Ctrl+P`).
+- **Cascade Closing of Detached Windows When the Main Window Is Closed**:
+  - When the main Synapse window (`main`) is closed, whether from the window controls or by shortcuts or system events, all detached secondary windows (`detached windows`) are closed automatically.
+  - Coordinated implementation at the Tauri backend lifecycle level (`on_window_event` on `Destroyed` of the `main` window) and in the `WorkspacePage` frontend (`onCloseRequested` and window close confirmation).
 
-### Corregido
+### Fixed
 
-- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
-  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
-  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
-  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
-  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
-  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
-  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+- **Keyboard Navigation Smoothness, Search Performance and Reactive Loop Fixes**:
+  - **Fix for `effect_update_depth_exceeded`**: Removed infinite update cycles in `QuickOpen.svelte` and `WorkspacePage.svelte` by isolating reactive state mutations with Svelte 5's `untrack()` and previous-change guards in the `$effect` blocks (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **`O(1)` Shortcut Precompilation**: In `shortcuts.svelte.ts`, a cache of parsed combinations (`comboCache`) was implemented to avoid running `.split(',')`, `.split('+')` and `.toLowerCase()` on every key press.
+  - **Fast-Reject in the Keyboard Dispatcher**: In `WorkspacePage.svelte`, an immediate `O(1)` check was added that ignores keys without modifiers (`Ctrl`/`Meta`/`Alt`/`F12`), avoiding the evaluation of all 19 shortcut checks when navigating with arrows or typing text.
+  - **Listener Isolation and Centralization**: Removed the redundant `window.addEventListener('keydown')` listener in `CommandPalette.svelte`, centralizing global shortcuts in `WorkspacePage`.
+  - **Rendering Optimization in WebKitGTK**: Replaced the costly full-screen `backdrop-filter: blur(10px)` with semi-transparent solid backgrounds in `QuickOpen.svelte`, `CommandPalette.svelte` and `FullTextSearch.svelte`, removing the `transition` on result rows and adding `contain: layout style paint` for instant row changes (a single frame).
+  - **Indexed Search in the QuickOpen Fallback**: Indexed the `vaultItems` in a `Map` to resolve lookups in $O(1)$ instead of running repeated $O(N)$ `.find()` calls.
 
-- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
-  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
-  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+- **Async Rust Backend Off the GTK Main Thread**:
+  - Converted to `pub async fn` and `tauri::async_runtime::spawn_blocking` the blocking Tauri commands that ran on the UI main thread: `get_system_theme` (OS detection via `busctl`/`gsettings`), `search_notes_command` (fuzzy search in Nucleo), `get_vault_git_status` (Git status check on window focus) and the workspace management commands (`workspace.rs`).
+  - Derived `Clone` on `GitUseCases` and `GitService`, respecting the Onion Architecture.
 
-- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
-  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
-  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+- **Cleanup of False Console Errors for Community Plugins**:
+  - Silenced the error messages in `TauriVaultRepository.readNote` for optional configuration files (`.synapse/` and `.obsidian/`) that do not exist in newly opened vaults.
+  - Fixed the default value of `getEnabledPlugins()` to return an empty list `[]` if the vault has no community plugins configured or installed, avoiding unnecessary load attempts.
 
-- **Optimización de Rendimiento y Eliminación de Congelamientos ("Micro-Stutters") al Guardar y Modificar Archivos**:
-  - **Backend Rust Asíncrono**: Se reemplazaron las llamadas sincrónicas y bloqueantes de `reconcile_sync()` por [`spawn_reconciliation()`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/infrastructure/navigation/engine.rs#L313) en los comandos Tauri de guardado de notas (`save_note_content`), creación de carpetas (`create_vault_folder`), operaciones de archivos (`delete_vault_item`, `rename_vault_item`, `write_binary_file`, `save_binary_asset`) y cambio de ramas Git (`git_checkout_branch`, `git_create_branch`). Esto evita que el hilo de comandos de Tauri quede bloqueado esperando recorridos completos de disco (`jwalk`).
-  - **Debounce en Eventos del Frontend**: Se añadió un temporizador de debounce (350 ms) en el listener de `vault:files-changed` dentro de `WorkspacePage.svelte`, evitando re-renderizados en cascada, recálculos pesados de Git y llamadas continuas a `fetchNotesFromBackend()` durante operaciones rápidas o ráfagas de auto-guardado.
+- **Performance Optimization and Removal of Freezes ("Micro-Stutters") When Saving and Modifying Files**:
+  - **Async Rust Backend**: Replaced the synchronous, blocking `reconcile_sync()` calls with [`spawn_reconciliation()`](file:///home/miuler/src/github.com/Miuler/synapse.rs/src-tauri/src/infrastructure/navigation/engine.rs#L313) in the Tauri commands for saving notes (`save_note_content`), creating folders (`create_vault_folder`), file operations (`delete_vault_item`, `rename_vault_item`, `write_binary_file`, `save_binary_asset`) and Git branch switching (`git_checkout_branch`, `git_create_branch`). This keeps the Tauri command thread from being blocked waiting for full disk traversals (`jwalk`).
+  - **Debounce on Frontend Events**: Added a debounce timer (350 ms) to the `vault:files-changed` listener in `WorkspacePage.svelte`, avoiding cascading re-renders, heavy Git recalculations and continuous `fetchNotesFromBackend()` calls during rapid operations or bursts of auto-save.
 
-- **Rendimiento y Prevención de Congelamiento en Visor de Diff de Texto (Excalidraw y Archivos Grandes)**:
-  - Se condicionó la expansión automática de líneas en `DiffViewer.svelte` mediante un nuevo parámetro configurable `diff.max_expand_lines` (por defecto `800` líneas) en `config.jsonc`.
-  - En archivos que superen este umbral (como dibujos Excalidraw o JSONs extensos), se renderizan únicamente los fragmentos modificados (*hunks* y líneas de contexto circundantes), evitando la saturación del hilo principal y la creación innecesaria de decenas de miles de nodos DOM reactivos.
-  - La expansión o colapso completo permanece disponible bajo demanda mediante los controles de la barra de herramientas.
-- **Restauración de la Acción Nativa de Escape en Excalidraw**:
-  - Al presionar <kbd>Escape</kbd>, se deseleccionan completamente todos los elementos y grupos seleccionados, cancelando herramientas de dibujo activas y retornando a la herramienta de selección (`selection`), replicando fielmente la experiencia de Excalidraw web.
-  - Preservación inmediata del foco en el canvas interactivo `.excalidraw` para permitir que atajos directos posteriores de una sola tecla sigan respondiendo sin requerir clics adicionales.
-- **Protección de Guardado Manual y Manejo de Candado en Archivos Bloqueados**:
-  - Se corrigió el comportamiento al presionar <kbd>Ctrl+S</kbd> o pulsar el botón de guardar en notas o diagramas bloqueados con candado: ahora se solicita confirmación explícita mediante un diálogo dedicado en vez de sobreescribir silenciosamente en disco.
-  - Al descartar cambios en el diálogo de archivo bloqueado, se restaura en memoria el contenido original guardado en disco (`savedContent`).
-  - El campo de título superior del editor se bloquea como de solo lectura (`readonly`) cuando el panel no está en modo de edición o el archivo está bloqueado.
-  - Normalización estricta de rutas de bloqueo (`normalizeLockPath`) para evitar discrepancias entre prefijos de ruta relativa (`./` vs rutas limpias).
-- **Estabilidad y Prevención de Bloqueo de Edición en Excalidraw**:
-  - Optimización en `ExcalidrawViewer` actualizando dinámicamente las propiedades del componente React (`viewModeEnabled`) para evitar desincronizaciones de herramientas internas o bloqueos del canvas tras pulsar <kbd>Esc</kbd>.
-  - Prevención de ciclos de auto-guardado redundantes y actualización protegida del visor.
+- **Performance and Freeze Prevention in the Text Diff Viewer (Excalidraw and Large Files)**:
+  - Made the automatic line expansion in `DiffViewer.svelte` conditional on a new configurable parameter `diff.max_expand_lines` (default `800` lines) in `config.jsonc`.
+  - In files that exceed this threshold (such as Excalidraw drawings or large JSONs), only the modified fragments (*hunks* and surrounding context lines) are rendered, avoiding saturation of the main thread and the needless creation of tens of thousands of reactive DOM nodes.
+  - Full expansion or collapse remains available on demand through the toolbar controls.
+- **Restored Native Escape Behavior in Excalidraw**:
+  - Pressing <kbd>Escape</kbd> fully deselects all selected elements and groups, cancels active drawing tools and returns to the selection tool (`selection`), faithfully replicating the Excalidraw web experience.
+  - Immediate preservation of focus on the interactive `.excalidraw` canvas so that subsequent direct single-key shortcuts keep responding without additional clicks.
+- **Manual Save Protection and Lock Handling for Locked Files**:
+  - Fixed the behavior when pressing <kbd>Ctrl+S</kbd> or clicking the save button in notes or diagrams locked with a padlock: explicit confirmation is now requested through a dedicated dialog instead of silently overwriting on disk.
+  - When discarding changes in the locked file dialog, the original content saved on disk (`savedContent`) is restored in memory.
+  - The editor's top title field is locked as read-only (`readonly`) when the pane is not in edit mode or the file is locked.
+  - Strict normalization of lock paths (`normalizeLockPath`) to avoid discrepancies between relative path prefixes (`./` vs clean paths).
+- **Stability and Prevention of Edit Lock-Up in Excalidraw**:
+  - Optimization in `ExcalidrawViewer` that dynamically updates the React component's properties (`viewModeEnabled`) to avoid desynchronization of internal tools or canvas lock-ups after pressing <kbd>Esc</kbd>.
+  - Prevention of redundant auto-save cycles and protected viewer updates.
 
 ## [2026.10.26.01-alpha] - 2026-10-26
 
-### Añadido
+### Added
 
-- **Renderizado Embebido de Dibujos Excalidraw en Markdown con Caché**:
-  - Soporte completo para renderizar visualmente archivos de dibujo Excalidraw (`.excalidraw`, `.excalidraw.json`, `.excalidraw.md`) como gráficos vectoriales SVG directamente dentro de las notas Markdown.
-  - Compatibilidad total con transclusiones de wikilinks (`![[dibujo.excalidraw]]`, `![[esquema.excalidraw.md|500]]`), sintaxis estándar de imagen (`![](./diagrama.excalidraw)`) y bloques de código dedicados (````excalidraw ...````) con soporte para directivas `{{#include ...}}`.
-  - **Sistema de Caché Multinivel de Alto Rendimiento**:
-    - **Nivel 1 (RAM)**: Caché en memoria LRU de 0 ms para visualización instantánea.
-    - **Nivel 2 (Disco)**: Persistencia de SVGs prerenderizados en `<vault>/.synapse/cache/excalidraw/<hash>_<theme>.svg`. Lee el SVG en menos de 2 ms sin invocar React ni volver a calcular la geometría si el contenido no ha cambiado.
-    - **Nivel 3 (Motor)**: Renderizado bajo demanda con `exportToSvg` adaptado al tema activo claro u oscuro de Synapse.
-  - Integración transparente en el editor en vivo CodeMirror (sustitución interactiva al salir del cursor con botón de edición) y en la vista de lectura `MarkdownReadingView`.
-- **Visualizador y Editor de Diagramas D2 (`.d2`) con WebAssembly (`@terrastruct/d2`)**:
-  - Soporte completo para abrir, editar y previsualizar archivos de diagramas `.d2` con renderizado SVG nativo de alto rendimiento vía WASM.
-  - Reconocimiento de la extensión `.d2` en la categoría `diagrams` tanto en el backend Rust (`file_types.rs`) como en la configuración (`config.jsonc`) y entidades frontend (`file-types.svelte.ts`).
-  - **Configuración Declarativa In-File**: Soporte nativo del bloque `vars: { d2-config: { ... } }` para definir motor de layout (`dagre`, `elk`), tema (`theme-id`), tema oscuro (`dark-theme-id`), modo boceto (`sketch`) y padding directamente en el código fuente.
-  - Detección automática del tema claro u oscuro de Synapse como fallback si el archivo no especifica un `theme-id`.
-  - Integración en `WorkspacePage`, comparador de diff (`VisualDiffViewer`), visor de revisiones Git (`RevisionViewer`) y renderizado de bloques de código ````d2` en notas Markdown (tanto en lectura como en edición en vivo).
-- **Refactorización Unificada `DiagramSplitViewer` (`src/shared/ui/diagram-viewer/`)**:
-  - Extracción de componentes comunes de visualización de diagramas en un único componente base reutilizable, reduciendo más de 1,300 líneas de código duplicado entre `MermaidViewer`, `MermanViewer` y `D2Viewer`.
-  - Lienzo SVG unificado con zoom y paneo interactivo sobre `viewBox`, motor gráfico de Puntero Láser sobre canvas 2D con estela y controles flotantes con `bits-ui`.
-- **Autocompletado y Linter Sintáctico en Tiempo Real para D2 y Mermaid (`CodeEditor.svelte`)**:
-  - **Autocompletado Contextual (`@codemirror/autocomplete`)**:
-    - En **D2**: sugerencias para motores (`dagre`, `elk`), catálogo de 20 temas oficiales con nombre descriptivo (`0` Neutral, `3` Flagship, `200` Dark Mauve, `300` Terminal, `303` C4, etc.), formas geométricas (`shape:`), direcciones (`direction:`), estilos (`style.*`) y snippets de `d2-config`.
-    - En **Mermaid**: sugerencias para directivas `%%{init: ...}%%`, frontmatter `config:`, catálogo de temas de Mermaid.js y Merman, `look` (`classic`, `handDrawn`), `layout` (`dagre`, `elk`), `curve` y tipos de diagrama (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `erDiagram`, `architecture-beta`, etc.).
-  - **Linter y Diagnóstico en Línea (`@codemirror/lint` + `lintGutter`)**:
-    - Subrayado rojo ondulado en la línea y columna exacta del error sintáctico devuelto por los parsers de D2 (rangos AST) y Mermaid (`err.hash.loc`), con marcadores en el margen de línea y tooltips informativos.
-- **Atajo de Teclado para Alternar/Entrar en Modo Edición**:
-  - Nuevo atajo de teclado por defecto `Ctrl+E` (`toggle_edit_mode`) para alternar instantáneamente entre el modo lectura y el modo edición en el visor Markdown activo sin necesidad de hacer clic con el ratón.
-  - Registro del atajo en la configuración global y en el mapa de atajos (`shortcuts.svelte.ts`).
-- **Persistencia Global del Modo Vim**:
-  - El estado del modo Vim (`vimMode`) ahora se almacena y recuerda permanentemente a través de `localStorage` y la configuración de la aplicación (`appSettings.vimMode`), manteniéndose activo al recargar o reiniciar Synapse.
-- **Sincronización Bidireccional entre Modales de Búsqueda**:
-  - Al presionar `Ctrl+Shift+F` teniendo abierto `QuickOpen` (`Ctrl+O`), el texto introducido se transfiere automáticamente a `FullTextSearch` y la ventana de `QuickOpen` se cierra.
-  - De forma recíproca, al pulsar `Ctrl+O` desde `FullTextSearch`, la consulta se traslada instantáneamente a `QuickOpen` cerrando el diálogo de búsqueda full-text.
-- **Autocompletado de Wikilinks (`[[...]]`)**:
-  - Ventana emergente (*popup*) en tiempo real al escribir `[[` en el editor CodeMirror con sugerencias contextuales de notas de la bóveda.
-  - Formateo limpio: la lista desplegable muestra únicamente el nombre base del archivo sin rutas de directorios ni extensión `.md`.
-  - Ampliación de dimensiones visuales del menú emergente (`.cm-tooltip-autocomplete`) a 460px de ancho y hasta 420px de altura con scrolling suave.
-- **Knowledge Graph 2D y 3D con Aceleración WebGL**:
-  - Visualizador de grafo de conocimiento bidireccional local y global con simulación de fuerzas (*force-directed*).
-  - Modo 3D WebGL impulsado por Three.js con botón conmutador 2D/3D accesible en la cabecera del visor de grafos.
-  - Soporte de nodos fantasma (*ghost nodes*) para wikilinks referenciados pendientes de creación.
-  - Paralelización multi-hilo con Rayon en Rust para análisis y cálculo ultra-rápido de enlaces y física de grafos en bóvedas masivas.
-- **Explorador de Etiquetas e Inspector de Relaciones**:
-  - Vista lateral `TagsExplorer` para explorar, contar y filtrar notas rápidamente según sus etiquetas (`#etiqueta`).
-  - Panel `RelationsInspector` para auditar backlinks, enlaces salientes e hijos/padres de la nota activa.
-- **Servidor MCP Local (Model Context Protocol)**:
-  - Servidor stdio MCP integrado en Rust (`synapse-mcp`) para conectar agentes de IA locales con la bóveda de forma dedicada desde CLI (`synapsers --mcp`).
-  - **Servidor MCP en Proceso (`in-process`) con Transporte HTTP**: Soporte para ejecutar el servidor MCP en segundo plano en la misma instancia activa de escritorio de Synapse (`http://127.0.0.1:27182/mcp`), vinculándose dinámicamente a la bóveda abierta en pantalla y compartiendo en memoria el índice de búsqueda Tantivy.
-  - **Indicador e Interruptor en `StatusBar`**: Botón interactivo en la barra de estado inferior que muestra el estado en vivo (`MCP ON :27182` / `MCP OFF`), permite activar o apagar el servidor con un clic y expone información de la bóveda activa y peticiones atendidas vía tooltip.
-  - **Comandos en Paleta (`Ctrl+P`)**: Acciones rápidas para alternar el servidor MCP local y copiar la URL de conexión al portapapeles.
-  - **Persistencia de Estado**: Opción recordada en `localStorage` (`appSettings.mcpServerEnabled`) para restaurar automáticamente el servidor encendido al reabrir la app.
-  - Herramientas MCP avanzadas para búsqueda full-text, inspección de relaciones/backlinks, lectura de notas, listado de contenido de carpetas (`list_folder_contents`), listado de notas vecinas en la misma carpeta (`list_sibling_notes`), movimiento en lote de notas entre carpetas (`move_notes`) y estado Git.
-- **Soporte de Frontmatter YAML según OKF**:
-  - Parseo, indexación y preservación bidireccional de metadatos YAML frontmatter alineados con las especificaciones Open Knowledge Format (OKF) y herramientas de IA.
+- **Embedded Rendering of Excalidraw Drawings in Markdown with Caching**:
+  - Full support for visually rendering Excalidraw drawing files (`.excalidraw`, `.excalidraw.json`, `.excalidraw.md`) as SVG vector graphics directly inside Markdown notes.
+  - Full compatibility with wikilink transclusions (`![[dibujo.excalidraw]]`, `![[esquema.excalidraw.md|500]]`), standard image syntax (`![](./diagrama.excalidraw)`) and dedicated code blocks (````excalidraw ...````) with support for `{{#include ...}}` directives.
+  - **High-Performance Multi-Level Cache System**:
+    - **Level 1 (RAM)**: 0 ms in-memory LRU cache for instant display.
+    - **Level 2 (Disk)**: Persistence of pre-rendered SVGs in `<vault>/.synapse/cache/excalidraw/<hash>_<theme>.svg`. Reads the SVG in under 2 ms without invoking React or recomputing the geometry if the content has not changed.
+    - **Level 3 (Engine)**: On-demand rendering with `exportToSvg`, adapted to Synapse's active light or dark theme.
+  - Transparent integration in the CodeMirror live editor (interactive replacement when the cursor moves away, with an edit button) and in the `MarkdownReadingView` reading view.
+- **D2 (`.d2`) Diagram Viewer and Editor with WebAssembly (`@terrastruct/d2`)**:
+  - Full support for opening, editing and previewing `.d2` diagram files with high-performance native SVG rendering via WASM.
+  - Recognition of the `.d2` extension in the `diagrams` category in the Rust backend (`file_types.rs`), in the configuration (`config.jsonc`) and in the frontend entities (`file-types.svelte.ts`).
+  - **Declarative In-File Configuration**: Native support for the `vars: { d2-config: { ... } }` block to define the layout engine (`dagre`, `elk`), theme (`theme-id`), dark theme (`dark-theme-id`), sketch mode (`sketch`) and padding directly in the source code.
+  - Automatic detection of Synapse's light or dark theme as a fallback if the file does not specify a `theme-id`.
+  - Integration in `WorkspacePage`, the diff comparator (`VisualDiffViewer`), the Git revision viewer (`RevisionViewer`) and the rendering of ````d2` code blocks in Markdown notes (both in reading and live editing).
+- **Unified `DiagramSplitViewer` Refactoring (`src/shared/ui/diagram-viewer/`)**:
+  - Extraction of common diagram viewing components into a single reusable base component, removing more than 1,300 lines of duplicated code between `MermaidViewer`, `MermanViewer` and `D2Viewer`.
+  - Unified SVG canvas with interactive zoom and panning over `viewBox`, a Laser Pointer graphics engine on a 2D canvas with a trail, and floating controls with `bits-ui`.
+- **Real-Time Autocompletion and Syntax Linter for D2 and Mermaid (`CodeEditor.svelte`)**:
+  - **Contextual Autocompletion (`@codemirror/autocomplete`)**:
+    - In **D2**: suggestions for engines (`dagre`, `elk`), a catalog of 20 official themes with descriptive names (`0` Neutral, `3` Flagship, `200` Dark Mauve, `300` Terminal, `303` C4, etc.), geometric shapes (`shape:`), directions (`direction:`), styles (`style.*`) and `d2-config` snippets.
+    - In **Mermaid**: suggestions for `%%{init: ...}%%` directives, `config:` frontmatter, the catalog of Mermaid.js and Merman themes, `look` (`classic`, `handDrawn`), `layout` (`dagre`, `elk`), `curve` and diagram types (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `erDiagram`, `architecture-beta`, etc.).
+  - **Inline Linter and Diagnostics (`@codemirror/lint` + `lintGutter`)**:
+    - Red wavy underline at the exact line and column of the syntax error returned by the D2 parsers (AST ranges) and Mermaid (`err.hash.loc`), with gutter markers and informative tooltips.
+- **Keyboard Shortcut to Toggle/Enter Edit Mode**:
+  - New default keyboard shortcut `Ctrl+E` (`toggle_edit_mode`) to instantly switch between reading mode and edit mode in the active Markdown viewer without clicking with the mouse.
+  - Registration of the shortcut in the global configuration and in the shortcut map (`shortcuts.svelte.ts`).
+- **Global Persistence of Vim Mode**:
+  - The Vim mode state (`vimMode`) is now permanently stored and remembered through `localStorage` and the application settings (`appSettings.vimMode`), staying active when Synapse is reloaded or restarted.
+- **Bidirectional Synchronization Between Search Modals**:
+  - Pressing `Ctrl+Shift+F` while `QuickOpen` (`Ctrl+O`) is open automatically transfers the entered text to `FullTextSearch` and closes the `QuickOpen` window.
+  - Conversely, pressing `Ctrl+O` from `FullTextSearch` instantly moves the query to `QuickOpen` and closes the full-text search dialog.
+- **Wikilink Autocompletion (`[[...]]`)**:
+  - Real-time popup when typing `[[` in the CodeMirror editor, with contextual suggestions of vault notes.
+  - Clean formatting: the dropdown list shows only the file's base name, without directory paths or the `.md` extension.
+  - Enlarged visual dimensions of the popup menu (`.cm-tooltip-autocomplete`) to 460px wide and up to 420px tall with smooth scrolling.
+- **2D and 3D Knowledge Graph with WebGL Acceleration**:
+  - Local and global bidirectional knowledge graph viewer with force-directed simulation (*force-directed*).
+  - WebGL 3D mode powered by Three.js with an accessible 2D/3D toggle button in the graph viewer header.
+  - Support for ghost nodes (*ghost nodes*) for referenced wikilinks that are yet to be created.
+  - Multithreaded parallelization with Rayon in Rust for ultra-fast link analysis and graph physics calculation in massive vaults.
+- **Tag Explorer and Relations Inspector**:
+  - `TagsExplorer` side view to quickly explore, count and filter notes by their tags (`#etiqueta`).
+  - `RelationsInspector` panel to audit backlinks, outgoing links and children/parents of the active note.
+- **Local MCP Server (Model Context Protocol)**:
+  - Built-in MCP stdio server in Rust (`synapse-mcp`) to connect local AI agents to the vault in a dedicated way from the CLI (`synapsers --mcp`).
+  - **In-Process (`in-process`) MCP Server with HTTP Transport**: Support for running the MCP server in the background within the same active Synapse desktop instance (`http://127.0.0.1:27182/mcp`), dynamically binding to the vault open on screen and sharing the Tantivy search index in memory.
+  - **Indicator and Switch in `StatusBar`**: An interactive button in the bottom status bar that shows the live state (`MCP ON :27182` / `MCP OFF`), lets you turn the server on or off with one click and exposes information about the active vault and requests served via tooltip.
+  - **Commands in the Palette (`Ctrl+P`)**: Quick actions to toggle the local MCP server and copy the connection URL to the clipboard.
+  - **State Persistence**: Option remembered in `localStorage` (`appSettings.mcpServerEnabled`) to automatically restore the server as on when the app is reopened.
+  - Advanced MCP tools for full-text search, relation/backlink inspection, note reading, folder content listing (`list_folder_contents`), listing of neighboring notes in the same folder (`list_sibling_notes`), batch moving of notes between folders (`move_notes`) and Git status.
+- **YAML Frontmatter Support According to OKF**:
+  - Parsing, indexing and bidirectional preservation of YAML frontmatter metadata aligned with the Open Knowledge Format (OKF) specifications and AI tools.
 
-### Corregido
+### Fixed
 
-- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
-  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
-  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
-  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
-  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
-  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
-  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+- **Keyboard Navigation Smoothness, Search Performance and Reactive Loop Fixes**:
+  - **Fix for `effect_update_depth_exceeded`**: Removed infinite update cycles in `QuickOpen.svelte` and `WorkspacePage.svelte` by isolating reactive state mutations with Svelte 5's `untrack()` and previous-change guards in the `$effect` blocks (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **`O(1)` Shortcut Precompilation**: In `shortcuts.svelte.ts`, a cache of parsed combinations (`comboCache`) was implemented to avoid running `.split(',')`, `.split('+')` and `.toLowerCase()` on every key press.
+  - **Fast-Reject in the Keyboard Dispatcher**: In `WorkspacePage.svelte`, an immediate `O(1)` check was added that ignores keys without modifiers (`Ctrl`/`Meta`/`Alt`/`F12`), avoiding the evaluation of all 19 shortcut checks when navigating with arrows or typing text.
+  - **Listener Isolation and Centralization**: Removed the redundant `window.addEventListener('keydown')` listener in `CommandPalette.svelte`, centralizing global shortcuts in `WorkspacePage`.
+  - **Rendering Optimization in WebKitGTK**: Replaced the costly full-screen `backdrop-filter: blur(10px)` with semi-transparent solid backgrounds in `QuickOpen.svelte`, `CommandPalette.svelte` and `FullTextSearch.svelte`, removing the `transition` on result rows and adding `contain: layout style paint` for instant row changes (a single frame).
+  - **Indexed Search in the QuickOpen Fallback**: Indexed the `vaultItems` in a `Map` to resolve lookups in $O(1)$ instead of running repeated $O(N)$ `.find()` calls.
 
-- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
-  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
-  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+- **Async Rust Backend Off the GTK Main Thread**:
+  - Converted to `pub async fn` and `tauri::async_runtime::spawn_blocking` the blocking Tauri commands that ran on the UI main thread: `get_system_theme` (OS detection via `busctl`/`gsettings`), `search_notes_command` (fuzzy search in Nucleo), `get_vault_git_status` (Git status check on window focus) and the workspace management commands (`workspace.rs`).
+  - Derived `Clone` on `GitUseCases` and `GitService`, respecting the Onion Architecture.
 
-- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
-  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
-  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+- **Cleanup of False Console Errors for Community Plugins**:
+  - Silenced the error messages in `TauriVaultRepository.readNote` for optional configuration files (`.synapse/` and `.obsidian/`) that do not exist in newly opened vaults.
+  - Fixed the default value of `getEnabledPlugins()` to return an empty list `[]` if the vault has no community plugins configured or installed, avoiding unnecessary load attempts.
 
-- **Prevención de Recarga Redundante y Bloqueo de Edición en Excalidraw al presionar Esc**:
-  - Se corrigió un bug en `ExcalidrawViewer` donde al pulsar <kbd>Esc</kbd> o producirse una deselección con pérdida de foco (`focusout`), la serialización y guardado del archivo desencadenaba una actualización externa reactiva que sobreescribía la escena de Excalidraw (`updateScene`). Esto provocaba la pérdida del puntero interactivo del canvas y requería alternar a modo lectura y volver a edición para reactivar el dibujo.
-  - Implementación de discriminación de cambios locales (`isLocalChange`) y comparación semántica con hash de versión de escena (`hasSceneDiverged` utilizando `getSceneVersion`) para impedir reescrituras de la escena viva generadas por el propio visor.
-  - Restauración automática y garantizada de la herramienta de selección (`setActiveTool({ type: 'selection' })`) tras la captura del evento `Escape`.
-- **Foco Automático en el Editor al Reabrir o Alternar Notas**:
-  - Al abrir o reabrir una nota que quedó en modo edición, o alternar entre pestañas editables, el editor CodeMirror recibe el foco de entrada automáticamente (`focus()`), permitiendo escribir o desplazarse inmediatamente con las teclas sin necesidad de hacer clic manual previo.
-- **Precisión y Ranking en Búsqueda Difusa (`search_with_stats`)**:
-  - Corrección del algoritmo de ranking en el motor de navegación Nucleo: se otorgan prioridades y bonificaciones estrictas a coincidencias exactas y subcadenas completas en nombres de archivo y títulos, eliminando resultados espurios irrelevantes al buscar palabras en minúsculas comunes (ej. `todo`).
-- **Respuesta Instantánea de QuickOpen (`Ctrl+O`)**:
-  - Eliminación de listeners redundantes y configuración de `forceMount={true}` en los elementos de `Command.Item` para evitar que la lista se quede en blanco.
-  - Retorno en memoria en 0 ms si la búsqueda en backend no ha completado la primera respuesta.
-- **Aislamiento de Pestañas Sintéticas de Grafos**:
-  - Se corrigió la asociación de rutas para evitar que URIs sintéticas como `synapse://graph` sean identificadas erróneamente como notas Markdown vacías.
-  - Preservación de la nota activa previa (`lastActiveDocumentPath`) para centrar correctamente el grafo local incluso en notas aisladas sin enlaces.
-- **Alineación Visual en Búsqueda Full-Text**:
-  - Corrección de la posición y alineación del icono de lupa dentro de `FullTextSearch` y extracción del componente reutilizable `SearchBox`.
-- **Prevención de Deadlock al Abrir o Alternar Bóvedas**:
-  - Se corrigió un bloqueo de hilos (*mutex deadlock*) en `activate_vault` donde el bloqueo de `active_vault_path` y la notificación sincrónica del evento `"mcp:status-changed"` a través de `app_handle` competían por los recursos en Tauri, causando que la ventana se congelara al seleccionar una bóveda. La emisión de eventos MCP ahora se despacha desacoplada en segundo plano tras liberar los locks.
+- **Prevention of Redundant Reload and Edit Lock-Up in Excalidraw When Pressing Esc**:
+  - Fixed a bug in `ExcalidrawViewer` where, when pressing <kbd>Esc</kbd> or on a deselection with loss of focus (`focusout`), serializing and saving the file triggered a reactive external update that overwrote the Excalidraw scene (`updateScene`). This caused the canvas's interactive pointer to be lost and required switching to reading mode and back to edit mode to reactivate drawing.
+  - Implementation of local change discrimination (`isLocalChange`) and semantic comparison with a scene version hash (`hasSceneDiverged` using `getSceneVersion`) to prevent rewrites of the live scene generated by the viewer itself.
+  - Automatic, guaranteed restoration of the selection tool (`setActiveTool({ type: 'selection' })`) after capturing the `Escape` event.
+- **Automatic Focus on the Editor When Reopening or Switching Notes**:
+  - When opening or reopening a note that was left in edit mode, or switching between editable tabs, the CodeMirror editor automatically receives input focus (`focus()`), letting you type or scroll with the keys immediately without a prior manual click.
+- **Accuracy and Ranking in Fuzzy Search (`search_with_stats`)**:
+  - Fixed the ranking algorithm in the Nucleo navigation engine: strict priorities and bonuses are given to exact matches and full substrings in file names and titles, eliminating irrelevant spurious results when searching for common lowercase words (e.g. `todo`).
+- **Instant QuickOpen Response (`Ctrl+O`)**:
+  - Removed redundant listeners and set `forceMount={true}` on the `Command.Item` elements to prevent the list from going blank.
+  - In-memory return in 0 ms if the backend search has not completed its first response.
+- **Isolation of Synthetic Graph Tabs**:
+  - Fixed path association to prevent synthetic URIs such as `synapse://graph` from being mistakenly identified as empty Markdown notes.
+  - Preservation of the previously active note (`lastActiveDocumentPath`) to correctly center the local graph even on isolated notes with no links.
+- **Visual Alignment in Full-Text Search**:
+  - Fixed the position and alignment of the magnifying glass icon inside `FullTextSearch` and extracted the reusable `SearchBox` component.
+- **Deadlock Prevention When Opening or Switching Vaults**:
+  - Fixed a thread lock (*mutex deadlock*) in `activate_vault` where the lock on `active_vault_path` and the synchronous notification of the `"mcp:status-changed"` event through `app_handle` competed for resources in Tauri, causing the window to freeze when selecting a vault. MCP event emission is now dispatched decoupled in the background after the locks are released.
 
-### Cambiado
+### Changed
 
-- **Refactorización de Arquitectura Backend y Frontend**:
-  - Descomposición modular de comandos Tauri en `session`, `file_ops`, `assets`, `search`, `git` y `workspace` respetando estrictamente la Arquitectura Cebolla.
-  - Purificación del servicio de dominio `link_resolution` desacoplándolo de capas externas.
-  - Reorganización del frontend bajo principios canónicos de Feature-Sliced Design (FSD), extrayendo diálogos modulares (`VaultDeleteDialog`, `VaultRestoreDialog`, `GitManagementDialogs`), APIs canónicas y modelos composables con Runes de Svelte 5.
+- **Backend and Frontend Architecture Refactoring**:
+  - Modular decomposition of Tauri commands into `session`, `file_ops`, `assets`, `search`, `git` and `workspace`, strictly respecting the Onion Architecture.
+  - Purification of the `link_resolution` domain service by decoupling it from external layers.
+  - Reorganization of the frontend under canonical Feature-Sliced Design (FSD) principles, extracting modular dialogs (`VaultDeleteDialog`, `VaultRestoreDialog`, `GitManagementDialogs`), canonical APIs and composable models with Svelte 5 Runes.
 
 ## [2026.10.24.02-alpha] - 2026-10-24
 
-### Corregido
+### Fixed
 
-- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
-  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
-  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
-  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
-  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
-  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
-  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+- **Keyboard Navigation Smoothness, Search Performance and Reactive Loop Fixes**:
+  - **Fix for `effect_update_depth_exceeded`**: Removed infinite update cycles in `QuickOpen.svelte` and `WorkspacePage.svelte` by isolating reactive state mutations with Svelte 5's `untrack()` and previous-change guards in the `$effect` blocks (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **`O(1)` Shortcut Precompilation**: In `shortcuts.svelte.ts`, a cache of parsed combinations (`comboCache`) was implemented to avoid running `.split(',')`, `.split('+')` and `.toLowerCase()` on every key press.
+  - **Fast-Reject in the Keyboard Dispatcher**: In `WorkspacePage.svelte`, an immediate `O(1)` check was added that ignores keys without modifiers (`Ctrl`/`Meta`/`Alt`/`F12`), avoiding the evaluation of all 19 shortcut checks when navigating with arrows or typing text.
+  - **Listener Isolation and Centralization**: Removed the redundant `window.addEventListener('keydown')` listener in `CommandPalette.svelte`, centralizing global shortcuts in `WorkspacePage`.
+  - **Rendering Optimization in WebKitGTK**: Replaced the costly full-screen `backdrop-filter: blur(10px)` with semi-transparent solid backgrounds in `QuickOpen.svelte`, `CommandPalette.svelte` and `FullTextSearch.svelte`, removing the `transition` on result rows and adding `contain: layout style paint` for instant row changes (a single frame).
+  - **Indexed Search in the QuickOpen Fallback**: Indexed the `vaultItems` in a `Map` to resolve lookups in $O(1)$ instead of running repeated $O(N)$ `.find()` calls.
 
-- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
-  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
-  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+- **Async Rust Backend Off the GTK Main Thread**:
+  - Converted to `pub async fn` and `tauri::async_runtime::spawn_blocking` the blocking Tauri commands that ran on the UI main thread: `get_system_theme` (OS detection via `busctl`/`gsettings`), `search_notes_command` (fuzzy search in Nucleo), `get_vault_git_status` (Git status check on window focus) and the workspace management commands (`workspace.rs`).
+  - Derived `Clone` on `GitUseCases` and `GitService`, respecting the Onion Architecture.
 
-- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
-  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
-  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+- **Cleanup of False Console Errors for Community Plugins**:
+  - Silenced the error messages in `TauriVaultRepository.readNote` for optional configuration files (`.synapse/` and `.obsidian/`) that do not exist in newly opened vaults.
+  - Fixed the default value of `getEnabledPlugins()` to return an empty list `[]` if the vault has no community plugins configured or installed, avoiding unnecessary load attempts.
 
-- **Auto-guardado al perder foco y persistencia del modo edición en Excalidraw y Obsidian Excalidraw**:
-  - Se implementó guardado automático instantáneo al perder foco (`onfocusout`, `onblur` y `<svelte:window onblur>`) tanto en el editor interactivo de Excalidraw como en el visor/editor de Obsidian Excalidraw.
-  - Se corrigió el bug por el cual, al guardar o desenfocar la pestaña, el modo activo de edición (`isEditing`) se revertía a solo lectura (`reading`) obligando al usuario a volver a pulsar el botón de lectura/edición.
-  - Sincronización reactiva del `viewMode` de las notas abiertas en memoria con el estado activo de edición del panel, evitando desajustes con el observador del sistema de archivos (`vault:files-changed`).
-  - Salvaguarda automática del contenido no persistido al desmontar componentes (`onDestroy`) y al alternar entre la vista de lienzo y código fuente en Obsidian Excalidraw.
+- **Auto-save on focus loss and edit mode persistence in Excalidraw and Obsidian Excalidraw**:
+  - Implemented instant automatic saving on focus loss (`onfocusout`, `onblur` and `<svelte:window onblur>`) in both the interactive Excalidraw editor and the Obsidian Excalidraw viewer/editor.
+  - Fixed the bug where, when saving or blurring the tab, the active edit mode (`isEditing`) reverted to read-only (`reading`), forcing the user to press the reading/edit button again.
+  - Reactive synchronization of the `viewMode` of notes open in memory with the pane's active edit state, avoiding mismatches with the file system watcher (`vault:files-changed`).
+  - Automatic safeguarding of unpersisted content when components are unmounted (`onDestroy`) and when switching between the canvas view and the source code in Obsidian Excalidraw.
 
 ## [2026.10.24.01-alpha] - 2026-10-24
 
-### Añadido
+### Added
 
-- **Bloqueo de Archivos contra Modificaciones Accidentales (*File Lock*)**:
-  - Opción de bloquear y desbloquear archivos desde el menú contextual de `VaultExplorer`.
-  - Iconos de candado visibles en el árbol de archivos, en las pestañas (`EditorHeader`) y en la barra superior.
-  - Inhibición estricta de auto-guardado en archivos bloqueados con persistencia en `VaultUiState.locked_files`.
-  - Diálogo de confirmación accesible al intentar cerrar pestañas o la aplicación con cambios pendientes en archivos bloqueados, ofreciendo opciones para abortar, descartar cambios o forzar el guardado.
-- **Modo Lectura por Defecto en Archivos Excalidraw**:
-  - Tanto los dibujos de Excalidraw nativo como los de Obsidian Excalidraw (`.excalidraw`, `.excalidraw.md`) ahora se abren por defecto en modo lectura, evitando mutaciones o disparos accidentales en memoria.
-- **Acciones del Sistema en Menús Contextuales**:
-  - **"Abrir con la app por defecto"**: Permite abrir cualquier archivo con la aplicación configurada por omisión en el sistema operativo (Word, Excel, etc.) tanto desde `VaultExplorer` como desde las pestañas.
-  - **"Mostrar en carpeta"**: Abre el gestor de archivos nativo del sistema y resalta el archivo o carpeta seleccionada.
-  - Implementación multiplataforma en Rust siguiendo la especificación estándar FreeDesktop D-Bus (`org.freedesktop.FileManager1.ShowItems` con `busctl`/`dbus-send` y fallbacks en Linux, `explorer /select` en Windows y `open -R` en macOS).
-- **Control de Lectura y Escritura Local en Visor de Diff**:
-  - En `VisualDiffViewer`, el panel de trabajo local ahora inicia en modo lectura por defecto con un interruptor para alternar entre modo lectura y escritura exclusiva para el archivo local en disco, mientras que el panel de revisión Git permanece estrictamente en modo solo lectura.
-- **Soporte de Imágenes y Archivos Incrustados en Diagramas Excalidraw**:
-  - Reconocimiento y parseo bidireccional de la sección `## Embedded Files` en archivos Markdown de Obsidian Excalidraw (`.excalidraw.md`).
-  - Resolución automática de rutas relativas y wikilinks (`fileId: [[ruta/a/imagen.png]]`) a URLs de datos (`dataURL`) leídas desde la bóveda activa.
-  - Inyección dinámica en el registro de archivos del lienzo tanto en el visor de Excalidraw nativo (`api.addFiles`) como en el generador vectorial SVG de `ObsidianExcalidrawViewer` (`ExcalidrawAutomate.toSVG`), permitiendo la correcta visualización de imágenes y gráficos incrustados.
-  - Preservación íntegra de la sección `## Embedded Files` durante el guardado y serialización de archivos.
+- **File Locking Against Accidental Modifications (*File Lock*)**:
+  - Option to lock and unlock files from the `VaultExplorer` context menu.
+  - Padlock icons visible in the file tree, in the tabs (`EditorHeader`) and in the top bar.
+  - Strict inhibition of auto-save on locked files, with persistence in `VaultUiState.locked_files`.
+  - Accessible confirmation dialog when trying to close tabs or the application with pending changes in locked files, offering options to abort, discard changes or force the save.
+- **Reading Mode by Default for Excalidraw Files**:
+  - Both native Excalidraw drawings and Obsidian Excalidraw drawings (`.excalidraw`, `.excalidraw.md`) now open in reading mode by default, avoiding accidental in-memory mutations or triggers.
+- **System Actions in Context Menus**:
+  - **"Open with the default app"**: Lets you open any file with the application configured by default in the operating system (Word, Excel, etc.) from both `VaultExplorer` and the tabs.
+  - **"Show in folder"**: Opens the system's native file manager and highlights the selected file or folder.
+  - Cross-platform implementation in Rust following the standard FreeDesktop D-Bus specification (`org.freedesktop.FileManager1.ShowItems` with `busctl`/`dbus-send` and fallbacks on Linux, `explorer /select` on Windows and `open -R` on macOS).
+- **Local Read and Write Control in the Diff Viewer**:
+  - In `VisualDiffViewer`, the local working pane now starts in reading mode by default with a switch to toggle between reading and writing mode exclusively for the local file on disk, while the Git revision pane remains strictly read-only.
+- **Support for Embedded Images and Files in Excalidraw Diagrams**:
+  - Bidirectional recognition and parsing of the `## Embedded Files` section in Obsidian Excalidraw Markdown files (`.excalidraw.md`).
+  - Automatic resolution of relative paths and wikilinks (`fileId: [[ruta/a/imagen.png]]`) to data URLs (`dataURL`) read from the active vault.
+  - Dynamic injection into the canvas file registry both in the native Excalidraw viewer (`api.addFiles`) and in the SVG vector generator of `ObsidianExcalidrawViewer` (`ExcalidrawAutomate.toSVG`), allowing embedded images and graphics to display correctly.
+  - Full preservation of the `## Embedded Files` section when saving and serializing files.
 
-### Corregido
+### Fixed
 
-- **Fluidez de Navegación por Teclado, Rendimiento de Búsqueda y Corrección de Bucles Reactivos**:
-  - **Corrección de `effect_update_depth_exceeded`**: Se eliminaron los ciclos de actualización infinita en `QuickOpen.svelte` y `WorkspacePage.svelte` aislando las mutaciones de estado reactivo mediante `untrack()` de Svelte 5 y guardas de cambio previo en los bloques `$effect` (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
-  - **Precompilación de Atajos `O(1)`**: En `shortcuts.svelte.ts`, se implementó un caché de combinaciones parseadas (`comboCache`) para evitar ejecutar `.split(',')`, `.split('+')` y `.toLowerCase()` en cada pulsación de tecla.
-  - **Fast-Reject en Despachador de Teclado**: En `WorkspacePage.svelte`, se añadió una comprobación inmediata en `O(1)` que ignora teclas sin modificadores (`Ctrl`/`Meta`/`Alt`/`F12`), evitando evaluar las 19 comprobaciones de atajos al navegar con flechas o escribir texto.
-  - **Aislamiento y Centralización de Listeners**: Se eliminó el listener redundante de `window.addEventListener('keydown')` en `CommandPalette.svelte`, centralizando los atajos globales en `WorkspacePage`.
-  - **Optimización de Renderizado en WebKitGTK**: Se reemplazó el costoso `backdrop-filter: blur(10px)` de pantalla completa por fondos sólidos semitransparentes en `QuickOpen.svelte`, `CommandPalette.svelte` y `FullTextSearch.svelte`, suprimiendo la `transition` en filas de resultados y añadiendo `contain: layout style paint` para cambios de fila instantáneos (1 solo frame).
-  - **Búsqueda Indexada en Fallback de QuickOpen**: Se indexaron los `vaultItems` en un `Map` para resolver búsquedas en $O(1)$ en lugar de ejecutar `.find()` en $O(N)$ repetidos.
+- **Keyboard Navigation Smoothness, Search Performance and Reactive Loop Fixes**:
+  - **Fix for `effect_update_depth_exceeded`**: Removed infinite update cycles in `QuickOpen.svelte` and `WorkspacePage.svelte` by isolating reactive state mutations with Svelte 5's `untrack()` and previous-change guards in the `$effect` blocks (`searchQuery`, `isOpen`, `activeTabPath`, `viewMode`).
+  - **`O(1)` Shortcut Precompilation**: In `shortcuts.svelte.ts`, a cache of parsed combinations (`comboCache`) was implemented to avoid running `.split(',')`, `.split('+')` and `.toLowerCase()` on every key press.
+  - **Fast-Reject in the Keyboard Dispatcher**: In `WorkspacePage.svelte`, an immediate `O(1)` check was added that ignores keys without modifiers (`Ctrl`/`Meta`/`Alt`/`F12`), avoiding the evaluation of all 19 shortcut checks when navigating with arrows or typing text.
+  - **Listener Isolation and Centralization**: Removed the redundant `window.addEventListener('keydown')` listener in `CommandPalette.svelte`, centralizing global shortcuts in `WorkspacePage`.
+  - **Rendering Optimization in WebKitGTK**: Replaced the costly full-screen `backdrop-filter: blur(10px)` with semi-transparent solid backgrounds in `QuickOpen.svelte`, `CommandPalette.svelte` and `FullTextSearch.svelte`, removing the `transition` on result rows and adding `contain: layout style paint` for instant row changes (a single frame).
+  - **Indexed Search in the QuickOpen Fallback**: Indexed the `vaultItems` in a `Map` to resolve lookups in $O(1)$ instead of running repeated $O(N)$ `.find()` calls.
 
-- **Backend Rust Asíncrono fuera del Hilo Principal de GTK**:
-  - Se convirtieron a `pub async fn` y `tauri::async_runtime::spawn_blocking` los comandos Tauri bloqueantes que operaban en el hilo principal de la UI: `get_system_theme` (detección del SO vía `busctl`/`gsettings`), `search_notes_command` (búsqueda difusa en Nucleo), `get_vault_git_status` (verificación de estado de Git en foco de ventana) y comandos de gestión de espacios de trabajo (`workspace.rs`).
-  - Se derivó `Clone` en `GitUseCases` y `GitService` respetando la Arquitectura Cebolla.
+- **Async Rust Backend Off the GTK Main Thread**:
+  - Converted to `pub async fn` and `tauri::async_runtime::spawn_blocking` the blocking Tauri commands that ran on the UI main thread: `get_system_theme` (OS detection via `busctl`/`gsettings`), `search_notes_command` (fuzzy search in Nucleo), `get_vault_git_status` (Git status check on window focus) and the workspace management commands (`workspace.rs`).
+  - Derived `Clone` on `GitUseCases` and `GitService`, respecting the Onion Architecture.
 
-- **Limpieza de Errores Falsos en Consola para Plugins de Comunidad**:
-  - Se silenciaron los mensajes de error en `TauriVaultRepository.readNote` para archivos de configuración opcionales (`.synapse/` y `.obsidian/`) que no existen en bóvedas recién abiertas.
-  - Se corrigió el valor por defecto de `getEnabledPlugins()` para retornar una lista vacía `[]` si la bóveda no tiene plugins comunitarios configurados ni instalados, evitando intentos de carga innecesarios.
+- **Cleanup of False Console Errors for Community Plugins**:
+  - Silenced the error messages in `TauriVaultRepository.readNote` for optional configuration files (`.synapse/` and `.obsidian/`) that do not exist in newly opened vaults.
+  - Fixed the default value of `getEnabledPlugins()` to return an empty list `[]` if the vault has no community plugins configured or installed, avoiding unnecessary load attempts.
 
-- **Prevención de Congelamiento y Optimización de Memoria en Obsidian Excalidraw**:
-  - Se eliminó el filtro CSS `drop-shadow` en el contenedor SVG del visor de Obsidian Excalidraw, evitando que WebKitGTK asigne búfers rasterizados masivos de varios gigabytes (hasta 4 GB) para diagramas vectoriales extensos.
-  - Se configuró el SVG generado con `width="100%" height="100%"` acoplado a su `viewBox`, permitiendo un renderizado vectorial escalado por GPU sin límites fijos hipertrofiados.
-  - Se implementó un debounce de 300 ms en el evento `onChange` del editor nativo de Excalidraw para evitar ejecutar la compresión LZ de miles de elementos en cada micro-movimiento del puntero.
-  - Se protegieron las imágenes cargadas para no persistir URLs de datos o activos en el bloque de archivos del JSON en documentos Markdown, respetando el formato estándar de `## Embedded Files`.
-- **Apertura de Diagramas Excalidraw en Modo Lectura por Defecto**:
-  - Detección precisa de archivos de dibujo a través de su metadata YAML frontmatter (`--- \n excalidraw-plugin: parsed \n ---`) independientemente del nombre o extensión `.md`.
-  - Los diagramas se abren por omisión en modo lectura (`readOnly` y botón en modo "Lectura") para evitar modificaciones accidentales y consumo innecesario de recursos.
+- **Freeze Prevention and Memory Optimization in Obsidian Excalidraw**:
+  - Removed the CSS `drop-shadow` filter on the SVG container of the Obsidian Excalidraw viewer, preventing WebKitGTK from allocating massive multi-gigabyte rasterized buffers (up to 4 GB) for large vector diagrams.
+  - Configured the generated SVG with `width="100%" height="100%"` tied to its `viewBox`, allowing GPU-scaled vector rendering without oversized fixed limits.
+  - Implemented a 300 ms debounce on the native Excalidraw editor's `onChange` event to avoid running LZ compression of thousands of elements on every micro-movement of the pointer.
+  - Protected loaded images from persisting data URLs or assets in the JSON files block in Markdown documents, respecting the standard `## Embedded Files` format.
+- **Opening Excalidraw Diagrams in Reading Mode by Default**:
+  - Precise detection of drawing files through their YAML frontmatter metadata (`--- \n excalidraw-plugin: parsed \n ---`) regardless of the name or `.md` extension.
+  - Diagrams open by default in reading mode (`readOnly` and button in "Reading" mode) to avoid accidental modifications and unnecessary resource consumption.
 
-- **Persistencia del Modo Edición durante el Auto-guardado en Excalidraw**:
-  - Se corrigió un bug donde, al guardar automáticamente un dibujo abierto en Excalidraw, la recarga del archivo y la actualización interna de escena revertían el visor al modo lectura o dejaban la herramienta activa en modo mano (`hand`), impidiendo continuar editando sin alternar el botón de la cabecera.
-- **Protección Estricta contra Guardado en Archivos Bloqueados**:
-  - Se corrigió un bug donde `persistVaultItemToRust` persistía archivos bloqueados al cerrar la ventana, desmontar componentes o disparar callbacks automáticos de visores. Ahora se exige `force = true` explícito (únicamente activable vía diálogo de confirmación, atajo `Ctrl+S` o botón Guardar manual).
+- **Edit Mode Persistence During Auto-save in Excalidraw**:
+  - Fixed a bug where, when automatically saving a drawing open in Excalidraw, the file reload and the internal scene update reverted the viewer to reading mode or left the active tool in hand mode (`hand`), preventing further editing without toggling the header button.
+- **Strict Protection Against Saving Locked Files**:
+  - Fixed a bug where `persistVaultItemToRust` persisted locked files when closing the window, unmounting components or firing automatic viewer callbacks. An explicit `force = true` is now required (which can only be triggered via the confirmation dialog, the `Ctrl+S` shortcut or the manual Save button).
 
 ## [2026.10.23.04-alpha] - 2026-10-23
 
-### Añadido
+### Added
 
-- **Plugins Comunitarios de Obsidian** (SOLO SE VALIDO EL PLUGIN DE EXCALIDRAW DE OBSIDIAN):
-  - Explorador e instalador integrado de plugins comunitarios desde el catálogo oficial de Obsidian.
-  - Soporte de instalación, habilitación, deshabilitación, desinstalación y ejecución en entorno seguro.
-  - Caché de doble nivel (RAM y disco) con TTL para navegación instantánea del catálogo sin saturar la red.
-  - Detección automática de plugins instalados mediante escaneo directo en disco del vault.
-  - Comandos y soporte en interfaz para verificar actualizaciones y actualizar plugins automáticamente.
-- **Búsqueda Full-Text en Documentos PDF y Word (DOCX)**:
-  - Extracción e indexación automática de texto para archivos `.pdf` y `.docx` en el motor Tantivy en Rust.
-  - Configuración detallada en `config.jsonc` (`indexing`): límites de tamaño (`max_pdf_file_size`, `max_docx_file_size`), límite de páginas (`max_pdf_pages`), límite de caracteres (`max_extracted_chars`) y filtrado de palabras corruptas (`max_word_length`).
-- **Navegación Fluida y Expansión desde Breadcrumb**:
-  - Al hacer clic en un directorio dentro del `BreadCrumb` de una nota activa, `VaultExplorer` se expande y se muestra automáticamente si la barra lateral estaba colapsada u oculta.
-  - La carpeta seleccionada en el breadcrumb despliega inmediatamente sus subdirectorios y archivos en el árbol del explorador.
-- **Regiones de Arrastre de Ventana en Windows y Sistemas de Escritorio**:
-  - Se habilitaron regiones de arrastre nativas de Tauri (`data-tauri-drag-region`) en las zonas vacías de la cabecera de pestañas (`EditorHeader`) y en la cabecera del explorador (`VaultExplorer`).
-  - Espaciador de arrastre dedicado de 24px junto a los controles de ventana para garantizar un punto de agarre cómodo incluso con decenas de pestañas abiertas.
-  - Soporte para maximizar y restaurar la ventana mediante doble clic en las áreas libres de la cabecera sin interferir con las pestañas ni los botones interactivos.
+- **Obsidian Community Plugins** (ONLY THE OBSIDIAN EXCALIDRAW PLUGIN WAS VALIDATED):
+  - Built-in explorer and installer for community plugins from the official Obsidian catalog.
+  - Support for installing, enabling, disabling, uninstalling and running in a secure environment.
+  - Two-level cache (RAM and disk) with TTL for instant catalog browsing without saturating the network.
+  - Automatic detection of installed plugins by scanning the vault directly on disk.
+  - Commands and interface support to check for updates and update plugins automatically.
+- **Full-Text Search in PDF and Word (DOCX) Documents**:
+  - Automatic text extraction and indexing for `.pdf` and `.docx` files in the Tantivy engine in Rust.
+  - Detailed configuration in `config.jsonc` (`indexing`): size limits (`max_pdf_file_size`, `max_docx_file_size`), page limit (`max_pdf_pages`), character limit (`max_extracted_chars`) and filtering of corrupt words (`max_word_length`).
+- **Smooth Navigation and Expansion from the Breadcrumb**:
+  - Clicking a directory in the `BreadCrumb` of an active note automatically expands and shows `VaultExplorer` if the sidebar was collapsed or hidden.
+  - The folder selected in the breadcrumb immediately unfolds its subdirectories and files in the explorer tree.
+- **Window Drag Regions on Windows and Desktop Systems**:
+  - Enabled native Tauri drag regions (`data-tauri-drag-region`) in the empty areas of the tab header (`EditorHeader`) and in the explorer header (`VaultExplorer`).
+  - Dedicated 24px drag spacer next to the window controls to guarantee a comfortable grab point even with dozens of open tabs.
+  - Support for maximizing and restoring the window by double-clicking the free areas of the header without interfering with the tabs or the interactive buttons.
 
 ## [2026.10.23.03-alpha] - 2026-10-23
 
-### Añadido
+### Added
 
-- Explorador, instalador y gestor de plugins comunitarios de Obsidian con optimizaciones de rendimiento y caché.
+- Explorer, installer and manager for Obsidian community plugins with performance and cache optimizations.
 
 ## [0.1.0-alpha] - 2026-10-23
 
-### Primer Release Alpha
+### First Alpha Release
 
-**Synapse.rs** es una aplicación de gestión de notas, conocimiento y diagramas hiper-rápida, privada y *offline-first*, construida con **Tauri v2**, **Rust** y **Svelte 5**. Diseñada para ser liviana, extensible y compatible con el ecosistema de Markdown y Obsidian.
+**Synapse.rs** is a hyper-fast, private, *offline-first* app for managing notes, knowledge and diagrams, built with **Tauri v2**, **Rust** and **Svelte 5**. Designed to be lightweight, extensible and compatible with the Markdown and Obsidian ecosystem.
 
-### Añadido
+### Added
 
-- **Velocidad Extrema en Rust**: Indexación y navegación instantánea con búsqueda difusa en memoria (*Nucleo fuzzy matching*).
-- **Editor Markdown y Diagramas**: Soporte nativo para Markdown, diagramas Mermaid, Merman y dibujos Excalidraw (`.excalidraw.md`).
-- **Control de Versiones Git Integrado**: Historial de cambios, diff visual por archivo, branching y stashing directo desde la app.
-- **Modo Archivo Puntual (*Standalone*)**: Abre y edita archivos individuales (`.md`, `.mermaid`, `.excalidraw`) directamente sin necesidad de crear un espacio de trabajo.
-- **Soporte de Formatos**: Vista previa de imágenes, documentos PDF y acceso rápido a archivos externos (Word, Excel) con tu visor de sistema preferido.
-- **Tema Dinámico**: Modo Oscuro, Claro y sincronización automática con el sistema operativo.
-- **100% Privado y Local**: Tus notas nunca salen de tu máquina; tus archivos son simplemente carpetas en tu disco.
+- **Extreme Speed in Rust**: Instant indexing and navigation with in-memory fuzzy search (*Nucleo fuzzy matching*).
+- **Markdown and Diagram Editor**: Native support for Markdown, Mermaid diagrams, Merman and Excalidraw drawings (`.excalidraw.md`).
+- **Integrated Git Version Control**: Change history, visual per-file diff, branching and stashing directly from the app.
+- **Standalone File Mode (*Standalone*)**: Open and edit individual files (`.md`, `.mermaid`, `.excalidraw`) directly without needing to create a workspace.
+- **Format Support**: Preview of images, PDF documents and quick access to external files (Word, Excel) with your preferred system viewer.
+- **Dynamic Theme**: Dark and Light modes and automatic synchronization with the operating system.
+- **100% Private and Local**: Your notes never leave your machine; your files are simply folders on your disk.
 
-### Descargas portables (Sin instalador)
+### Portable downloads (No installer)
 
-No requieren instalación de dependencias pesadas; simplemente descarga y ejecuta:
+No heavy dependencies need to be installed; just download and run:
 
-| Plataforma | Archivo | Instrucciones |
+| Platform | File | Instructions |
 | :--- | :--- | :--- |
-| **Linux (x64)** | `synapsers` | Dar permisos de ejecución: `chmod +x synapsers` y ejecutar `./synapsers` |
-| **Windows (x64)** | `synapsers.exe` | Doble clic para ejecutar directamente |
+| **Linux (x64)** | `synapsers` | Grant execute permission: `chmod +x synapsers` and run `./synapsers` |
+| **Windows (x64)** | `synapsers.exe` | Double-click to run directly |
 
 > [!NOTE]
-> Esta es una versión **Alpha**. Si encuentras algún comportamiento inesperado o tienes sugerencias, eres bienvenido a abrir un issue en el repositorio.
+> This is an **Alpha** version. If you find any unexpected behavior or have suggestions, you are welcome to open an issue in the repository.
 
 [1.0.0-beta.8]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/Miuler/synapse.rs/releases/tag/1.0.0-beta.7

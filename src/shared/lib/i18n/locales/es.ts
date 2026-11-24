@@ -1,4 +1,6 @@
-export const es = {
+import type { TranslationSchema } from './index';
+
+export const es: TranslationSchema = {
   common: {
     save: 'Guardar',
     cancel: 'Cancelar',
@@ -103,22 +105,23 @@ export const es = {
     hintOpen: 'para abrir',
     hintRemove: 'quitar',
   },
-  commands: {
-    categories: {
-      view: 'Vista',
-      settings: 'Configuración',
-      navigation: 'Navegación',
-      editor: 'Editor',
-      file: 'Archivo',
-      excalidraw: 'Excalidraw',
-    },
-    switchLanguage: 'Cambiar idioma de la interfaz (Español / English)',
-    toggleExplorer: 'Mostrar u ocultar explorador de archivos',
-    toggleMermaidEngine: 'Alternar motor de diagramas Mermaid (Mermaid.js / Merman)',
-    setMermaidMermaidjs: 'Configurar motor Mermaid: Usar Mermaid.js',
-    setMermaidMerman: 'Configurar motor Mermaid: Usar Merman (WASM)',
-    toggleExcalidrawViewer: 'Alternar visor por defecto de Excalidraw (Nativo / Obsidian)',
-    setExcalidrawNative: 'Configurar visor por defecto de Excalidraw: Usar Excalidraw nativo',
-    setExcalidrawObsidian: 'Configurar visor por defecto de Excalidraw: Usar plugin de Excalidraw para Obsidian',
+  palette: {
+    title: 'Paleta de Comandos',
+    placeholder: 'Escribe un comando o busca...',
+    empty: 'No se encontraron comandos',
+    navigate: 'Navegar',
+    run: 'Ejecutar',
+    close: 'Cerrar',
+    plantumlPrompt: 'URL del servidor PlantUML:',
+    plantumlInvalid: 'La URL debe empezar por http:// o https://',
   },
-} as const;
+  news: {
+    tab: 'Novedades',
+    updateTab: 'Novedades de la nueva versión',
+    title: 'Novedades de Synapse',
+    titleSince: 'Novedades de Synapse desde {version}',
+    titleVersion: 'Novedades de Synapse {version}',
+    nothingPending: 'No hay ninguna versión nueva pendiente.',
+    noNotes: 'Sin notas para esta versión.',
+  },
+};

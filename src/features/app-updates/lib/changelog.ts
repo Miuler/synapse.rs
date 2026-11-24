@@ -1,5 +1,7 @@
 // Novedades a partir del CHANGELOG.md (empaquetado con la app) y cuándo abrirlas al arrancar.
 
+import { t } from '@shared/lib/i18n';
+
 export interface ChangelogSection {
   version: string;
   /** Sección completa, con su encabezado «## [x] - fecha» */
@@ -40,7 +42,7 @@ export function newsMarkdown(raw: string, current: string, since?: string): stri
   let end = since ? sections.findIndex((s) => s.version === since) : -1;
   if (end <= start) end = sections.length;
   const picked = sections.slice(start, end);
-  const title = since && end < sections.length ? `# Novedades de Synapse desde ${since}` : '# Novedades de Synapse';
+  const title = `# ${since && end < sections.length ? t('news.titleSince', { version: since }) : t('news.title')}`;
   return [title, ...picked.map((s) => s.markdown)].join('\n\n') + '\n';
 }
 

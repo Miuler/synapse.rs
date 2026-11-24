@@ -204,6 +204,8 @@ async function launch(base: string, vault: string, args = ['--vault', vault]): P
     // Con la escala de texto de GNOME (p. ej. 1,25), WebKit agranda la página y WebKitWebDriver
     // hace clic en coordenadas sin escalar (cae en otro elemento): se compensa a escala 1.
     GDK_DPI_SCALE: process.env.E2E_GDK_DPI_SCALE ?? String(1 / gnomeTextScale()),
+    // Las pruebas buscan los textos en español
+    LANGUAGE: process.env.E2E_LANGUAGE ?? 'es',
     // Diálogos nativos de confirmación: WebDriver no los maneja; «yes» acepta y otro valor cancela
     SYNAPSE_E2E_CONFIRM: process.env.SYNAPSE_E2E_CONFIRM ?? 'yes',
     // El registro público de agentes ACP: sin red (o con el CDN colgado) la lista de agentes tardaba

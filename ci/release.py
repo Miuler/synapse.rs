@@ -157,6 +157,30 @@ def validate_changelog_after_release(changelog_path: Path, clean_version: str) -
     print(f"✓ Validación exitosa: exactamente 1 sección para {clean_version} en CHANGELOG.md y con contenido.")
 
 
+def validate_changelog_parity(paths: list[Path]) -> None:
+    """Los CHANGELOG en inglés y español deben tener las mismas versiones y el mismo número de notas."""
+    def outline(path: Path) -> list[tuple[str, int]]:
+        if not path.is_file():
+            sys.exit(f"ERROR: {path.name} does not exist")
+        return [
+            (
+                "unreleased" if name.lower() in ("unreleased", "sin publicar") else name.lstrip("v"),
+                len(re.findall(r"^\s*[-*] ", body, re.MULTILINE)),
+            )
+            for name, body in parse_changelog_sections(path.read_text(encoding="utf-8"))
+        ]
+
+    base, other = outline(paths[0]), outline(paths[1])
+    for a, b in zip(base, other):
+        if a != b:
+            sys.exit(
+                f"ERROR: {paths[0].name} y {paths[1].name} no coinciden: "
+                f"{a[0]} ({a[1]} notas) frente a {b[0]} ({b[1]} notas)"
+            )
+    if len(base) != len(other):
+        sys.exit(f"ERROR: {paths[0].name} y {paths[1].name} no tienen las mismas versiones")
+
+
 def get_previous_release() -> dict | None:
     try:
         result = subprocess.run(
@@ -269,7 +293,7 @@ def update_changelog(changelog_path: Path, version: str) -> None:
             "ERROR: La sección 'Sin publicar' / 'Unreleased' no contiene notas para publicar."
         )
 
-    new_header = f"## [Sin publicar] (Unreleased)\n\n## [{version}] - {today}\n\n"
+    new_header = f"{target_match.group(0).strip()}\n\n## [{version}] - {today}\n\n"
     content = content[: target_match.start()] + new_header + content[target_match.end():].lstrip("\r\n")
 
     link_line = f"[{version}]: https://github.com/Miuler/synapse.rs/releases/tag/{version}"
@@ -341,7 +365,7 @@ def replace_latest_changelog(changelog_path: Path, new_version: str) -> tuple[st
         old_heading = target_match.group(0).rstrip()
         unr_match = matches[unreleased_idx]
         new_block = (
-            f"## [Sin publicar] (Unreleased)\n\n"
+            f"{matches[unreleased_idx].group(0).strip()}\n\n"
             f"## [{new_version}] - {today}\n\n"
             f"{unreleased_body_str}\n\n"
             f"{old_heading}\n\n"
@@ -478,7 +502,9 @@ def main():
     tag_name = version
 
     root_dir = Path(__file__).resolve().parent.parent
-    changelog_path = root_dir / "CHANGELOG.md"
+    # Dos versiones con el mismo contenido: inglés (por defecto) y español
+    changelogs = [root_dir / "CHANGELOG.md", root_dir / "CHANGELOG.es.md"]
+    changelog_path = changelogs[0]
     package_path = root_dir / "package.json"
     tauri_conf_path = root_dir / "src-tauri" / "tauri.conf.json"
 
@@ -487,7 +513,9 @@ def main():
         output_file = Path(args.generate_notes)
         if not output_file.is_absolute():
             output_file = Path.cwd() / output_file
-        generate_release_notes(changelog_path, clean_version, tag_name, output_file)
+        generate_release_notes(changelogs[0], clean_version, tag_name, output_file)
+        generate_release_notes(changelogs[1], clean_version, tag_name, output_file.with_suffix(".es.md"))
+        validate_changelog_parity(changelogs)
         return
 
     old_latest_version = None
@@ -521,7 +549,10 @@ def main():
                     sys.exit(f"ERROR: Git tag '{t}' already exists in the repository")
 
         # 3. Validar estado previo de CHANGELOG.md (evita duplicar la versión y detecta duplicados existentes)
-        validate_changelog_before_release(changelog_path, clean_version)
+        for path in changelogs:
+            validate_changelog_before_release(path, clean_version)
+
+    validate_changelog_parity(changelogs)
 
     if args.check:
         mode_desc = f"reemplazo de '{old_latest_version}' por '{version}'" if args.replace_latest else f"nueva versión '{version}'"
@@ -549,7 +580,7 @@ def main():
         print(f"[DRY-RUN] {action_msg}")
         print("[DRY-RUN] Validaría CHANGELOG.md post-edición")
         print(f"[DRY-RUN] Modificaría package.json -> {version}")
-        print("[DRY-RUN] Ejecutaría: git add CHANGELOG.md package.json")
+        print("[DRY-RUN] Ejecutaría: git add CHANGELOG.md CHANGELOG.es.md package.json")
         print(f"[DRY-RUN] Ejecutaría: {' '.join(commit_cmd)}")
         if not args.no_tag:
             if args.replace_latest and old_latest_version and old_latest_version != clean_version:
@@ -558,12 +589,12 @@ def main():
         return
 
     # 4. Modificar CHANGELOG.md y validar
-    if args.replace_latest:
-        replace_latest_changelog(changelog_path, version)
-    else:
-        update_changelog(changelog_path, version)
-
-    validate_changelog_after_release(changelog_path, clean_version)
+    for path in changelogs:
+        if args.replace_latest:
+            replace_latest_changelog(path, version)
+        else:
+            update_changelog(path, version)
+        validate_changelog_after_release(path, clean_version)
 
     # 5. Modificar versiones en archivos de proyecto
     update_package_json(package_path, version)
@@ -574,7 +605,7 @@ def main():
         return
 
     # 6. Git add
-    files_to_add = ["CHANGELOG.md", "package.json"]
+    files_to_add = ["CHANGELOG.md", "CHANGELOG.es.md", "package.json"]
     if tauri_conf_path.exists():
         files_to_add.append("src-tauri/tauri.conf.json")
 

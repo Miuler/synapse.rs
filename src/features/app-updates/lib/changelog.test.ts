@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'bun:test';
+import { i18n } from '@shared/lib/i18n';
 import { newsMarkdown, newsToOpenOnStartup, parseChangelog, previousVersion } from './changelog';
 
 const RAW = `# Changelog
@@ -26,6 +28,8 @@ Intro.
 [1.0.0-beta.3]: https://github.com/x/y/compare/a...b
 `;
 
+i18n.setLocale('es');
+
 describe('changelog', () => {
   it('lee las versiones publicadas, sin «Sin publicar» ni los enlaces del final', () => {
     const s = parseChangelog(RAW);
@@ -47,6 +51,18 @@ describe('changelog', () => {
     expect(newsMarkdown(RAW, '1.0.0-beta.2')).toContain('- uno');
     expect(newsMarkdown(RAW, '1.0.0-beta.2')).not.toContain('- tres');
     expect(newsMarkdown(RAW, '9.9.9')).toContain('- tres');
+  });
+
+  it('el título sale en el idioma de la interfaz', () => {
+    i18n.setLocale('en');
+    expect(newsMarkdown(RAW, '1.0.0-beta.3', '1.0.0-beta.1')).toStartWith("# What's new in Synapse since 1.0.0-beta.1");
+    i18n.setLocale('es');
+  });
+
+  it('inglés y español tienen las mismas versiones y notas', () => {
+    const read = (f: string) => parseChangelog(readFileSync(new URL(`../../../../${f}`, import.meta.url), 'utf8'));
+    const outline = (f: string) => read(f).map((s) => [s.version, s.markdown.match(/^\s*- /gm)?.length ?? 0]);
+    expect(outline('CHANGELOG.md')).toEqual(outline('CHANGELOG.es.md'));
   });
 
   it('versión anterior', () => {

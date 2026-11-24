@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { commandKeywords, commandRegistry, type AppCommand } from '@entities/command';
+  import { commandAliases, commandCategory, commandName, commandRegistry, type AppCommand } from '@entities/command';
   import { Command, computeCommandScore, Dialog } from 'bits-ui';
   import { SearchBox } from '@shared/ui/search-box';
+  import { i18n, t } from '@shared/lib/i18n';
   import { Kbd } from '@shared/ui/kbd';
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
 
@@ -41,7 +42,11 @@
     return commandRegistry.all
       .map((cmd) => ({
         cmd,
-        score: computeCommandScore(itemValue(cmd), query, commandKeywords(cmd.id)),
+        score: computeCommandScore(
+          `${commandName(cmd.id, i18n.locale)} ${commandCategory(cmd.category, i18n.locale)} ${cmd.shortcut || ''}`,
+          query,
+          commandAliases(cmd.id, cmd.category, i18n.locale),
+        ),
       }))
       .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score)
@@ -51,12 +56,8 @@
   // Al escribir, queda elegido el primer resultado
   let selected = $state('');
   $effect(() => {
-    selected = searchValue.trim() && shownCommands.length ? itemValue(shownCommands[0]) : selected;
+    selected = searchValue.trim() && shownCommands.length ? shownCommands[0].id : selected;
   });
-
-  function itemValue(cmd: AppCommand): string {
-    return `${cmd.name} ${cmd.category} ${cmd.shortcut || ''}`;
-  }
 </script>
 
 <Dialog.Root
@@ -75,24 +76,24 @@
       style={dialogSize.style}
     >
       <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
-      <Dialog.Title class="sr-only">Paleta de Comandos</Dialog.Title>
+      <Dialog.Title class="sr-only">{t('palette.title')}</Dialog.Title>
       <Command.Root class="command-root" loop shouldFilter={false} bind:value={selected}>
         <SearchBox
           bind:value={searchValue}
-          placeholder="Escribe un comando o busca..."
+          placeholder={t('palette.placeholder')}
         />
 
         <Command.List class="results-container">
-          <Command.Empty class="empty-state">No se encontraron comandos</Command.Empty>
+          <Command.Empty class="empty-state">{t('palette.empty')}</Command.Empty>
 
           {#each shownCommands as cmd (cmd.id)}
             <Command.Item
               class="command-item"
-              value={itemValue(cmd)}
+              value={cmd.id}
               onSelect={() => executeCommand(cmd)}
             >
-              <span class="category-tag">{cmd.category}</span>
-              <span class="command-name">{cmd.name}</span>
+              <span class="category-tag">{commandCategory(cmd.category, i18n.locale)}</span>
+              <span class="command-name">{commandName(cmd.id, i18n.locale)}</span>
               {#if cmd.shortcut}
                 <Kbd shortcut={cmd.shortcut} />
               {/if}
@@ -101,9 +102,9 @@
         </Command.List>
 
         <footer class="palette-footer">
-          <span><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
-          <span><kbd>↵</kbd> Ejecutar</span>
-          <span><kbd>esc</kbd> Cerrar</span>
+          <span><kbd>↑</kbd> <kbd>↓</kbd> {t('palette.navigate')}</span>
+          <span><kbd>↵</kbd> {t('palette.run')}</span>
+          <span><kbd>esc</kbd> {t('palette.close')}</span>
         </footer>
       </Command.Root>
     </Dialog.Content>

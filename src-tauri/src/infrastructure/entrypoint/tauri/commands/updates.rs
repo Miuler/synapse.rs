@@ -17,6 +17,8 @@ pub struct UpdateInfo {
     pub current_version: String,
     /// Novedades de la versión (Markdown del CHANGELOG)
     pub notes: Option<String>,
+    /// Las mismas en español (`notes_es` de latest.json)
+    pub notes_es: Option<String>,
     pub date: Option<String>,
 }
 
@@ -46,6 +48,7 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, Stri
             version: u.version.clone(),
             current_version: u.current_version.clone(),
             notes: u.body.clone(),
+            notes_es: u.raw_json.get("notes_es").and_then(|n| n.as_str()).map(String::from),
             date: u.date.map(|d| d.to_string()),
         }))
     }

@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vimMode: false, // Por defecto modo Vim desactivado
   mcpServerEnabled: false, // Por defecto servidor MCP desactivado
   autoCheckUpdates: true, // Por defecto busca actualizaciones al iniciar (se puede desactivar)
-  locale: 'es', // Por defecto español
+  locale: 'en', // Idioma base; al arrancar se usa el detectado
   propertiesViewMode: 'expanded', // Por defecto visible y expandido
   folderClick: 'index', // Clic en carpeta: abre su index.md
   plantumlServer: 'https://www.plantuml.com/plantuml', // Servidor público de PlantUML
@@ -269,7 +269,7 @@ class SettingsManager {
   }
 
   get locale(): SupportedLocale {
-    return this.settings.locale || 'es';
+    return this.settings.locale || 'en';
   }
 
   setLocale(locale: SupportedLocale) {

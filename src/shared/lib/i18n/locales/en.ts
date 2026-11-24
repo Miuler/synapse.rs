@@ -1,6 +1,5 @@
-import type { TranslationSchema } from './index';
-
-export const en: TranslationSchema = {
+/** Idioma base: un texto nuevo se añade primero aquí. */
+export const en = {
   common: {
     save: 'Save',
     cancel: 'Cancel',
@@ -105,22 +104,23 @@ export const en: TranslationSchema = {
     hintOpen: 'to open',
     hintRemove: 'remove',
   },
-  commands: {
-    categories: {
-      view: 'View',
-      settings: 'Settings',
-      navigation: 'Navigation',
-      editor: 'Editor',
-      file: 'File',
-      excalidraw: 'Excalidraw',
-    },
-    switchLanguage: 'Switch interface language (Español / English)',
-    toggleExplorer: 'Show or hide file explorer',
-    toggleMermaidEngine: 'Toggle Mermaid diagram engine (Mermaid.js / Merman)',
-    setMermaidMermaidjs: 'Configure Mermaid engine: Use Mermaid.js',
-    setMermaidMerman: 'Configure Mermaid engine: Use Merman (WASM)',
-    toggleExcalidrawViewer: 'Toggle default Excalidraw viewer (Native / Obsidian)',
-    setExcalidrawNative: 'Configure default Excalidraw viewer: Use native Excalidraw',
-    setExcalidrawObsidian: 'Configure default Excalidraw viewer: Use Obsidian Excalidraw plugin',
+  palette: {
+    title: 'Command palette',
+    placeholder: 'Type a command or search...',
+    empty: 'No commands found',
+    navigate: 'Navigate',
+    run: 'Run',
+    close: 'Close',
+    plantumlPrompt: 'PlantUML server URL:',
+    plantumlInvalid: 'The URL must start with http:// or https://',
   },
-};
+  news: {
+    tab: "What's new",
+    updateTab: "What's new in the new version",
+    title: "What's new in Synapse",
+    titleSince: "What's new in Synapse since {version}",
+    titleVersion: "What's new in Synapse {version}",
+    nothingPending: 'There is no new version pending.',
+    noNotes: 'No notes for this version.',
+  },
+} as const;

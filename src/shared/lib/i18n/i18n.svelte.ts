@@ -13,19 +13,19 @@ export const SUPPORTED_LOCALES: Array<{ id: SupportedLocale; label: string }> = 
 ];
 
 function getInitialLocale(): SupportedLocale {
-  if (typeof window === 'undefined') return 'es';
+  if (typeof window === 'undefined') return 'en';
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'es' || saved === 'en') {
       return saved;
     }
-    if (navigator.language && navigator.language.toLowerCase().startsWith('en')) {
-      return 'en';
+    if (navigator.language && navigator.language.toLowerCase().startsWith('es')) {
+      return 'es';
     }
   } catch (e) {
-    // fallback a español
+    // sin almacenamiento: idioma base
   }
-  return 'es';
+  return 'en';
 }
 
 class I18nManager {
@@ -51,7 +51,7 @@ class I18nManager {
   t(key: TranslationKey, params?: Record<string, string | number>): string {
     // Referenciar this.locale para registrar reactividad en Svelte 5 Runes
     const currentLocale = this.locale;
-    const dict = dictionaries[currentLocale] || dictionaries.es;
+    const dict = dictionaries[currentLocale] || dictionaries.en;
 
     const segments = key.split('.');
     let value: any = dict;
@@ -82,7 +82,7 @@ class I18nManager {
 
   private getFallbackValue(key: TranslationKey): any {
     const segments = key.split('.');
-    let value: any = dictionaries.es;
+    let value: any = dictionaries.en;
     for (const segment of segments) {
       if (value && typeof value === 'object' && segment in value) {
         value = value[segment];

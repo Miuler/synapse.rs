@@ -5,7 +5,7 @@ export type LocaleSchema<T> = {
   [K in keyof T]: T[K] extends object ? LocaleSchema<T[K]> : string;
 };
 
-export type TranslationSchema = LocaleSchema<typeof es>;
+export type TranslationSchema = LocaleSchema<typeof en>;
 export type SupportedLocale = 'es' | 'en';
 
 export const dictionaries: Record<SupportedLocale, TranslationSchema> = {
@@ -23,4 +23,4 @@ export type DeepKeys<T> = T extends object
     }[keyof T]
   : never;
 
-export type TranslationKey = DeepKeys<typeof es>;
+export type TranslationKey = DeepKeys<typeof en>;

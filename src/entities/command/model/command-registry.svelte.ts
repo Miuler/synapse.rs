@@ -1,7 +1,8 @@
+import type { CommandCategory, CommandId } from '../lib/texts';
+
 export interface AppCommand {
-  id: string;
-  name: string;
-  category: string;
+  id: CommandId;
+  category: CommandCategory;
   icon?: string; // Nombre del icono SVG
   shortcut?: string;
   action: () => void;
@@ -34,42 +35,6 @@ class CommandRegistry {
     if (index >= 0) {
       this.commands.splice(index, 1);
     }
-  }
-
-  // Algoritmo de búsqueda difusa (Fuzzy Search) liviano y rápido
-  search(query: string): AppCommand[] {
-    if (!query || query.trim() === '') {
-      return this.commands;
-    }
-
-    const cleanQuery = query.toLowerCase().trim();
-
-    return this.commands
-      .map((cmd) => {
-        const text = `${cmd.category} ${cmd.name}`.toLowerCase();
-        let score = 0;
-        let queryIdx = 0;
-
-        // Puntuación por coincidencia de subcadena exacta
-        if (text.includes(cleanQuery)) {
-          score += 100 - text.indexOf(cleanQuery);
-        }
-
-        // Puntuación por coincidencia difusa de caracteres ordenados
-        for (let i = 0; i < text.length && queryIdx < cleanQuery.length; i++) {
-          if (text[i] === cleanQuery[queryIdx]) {
-            score += 10;
-            queryIdx++;
-          }
-        }
-
-        const matchesAll = queryIdx === cleanQuery.length;
-
-        return { cmd, score: matchesAll ? score : -1 };
-      })
-      .filter((item) => item.score > -1)
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.cmd);
   }
 }
 

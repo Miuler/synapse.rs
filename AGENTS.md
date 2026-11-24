@@ -17,7 +17,7 @@ Este documento establece las **reglas de oro, principios arquitectónicos y est�
    - Prohibido agregar wrappers, funciones helpers intermedias o validaciones defensivas redundantes si la plataforma (DOM, Svelte 5, Rust) ya garantiza el comportamiento.
    - Reutilizar el estado reactivo existente en lugar de recrear lógica de búsqueda o captura de nodos.
 6. **Registro en CHANGELOG.md**:
-   - Antes de hacer commit, si los cambios son relevantes para el usuario o el proyecto (nuevas funcionalidades, correcciones visibles o cambios de arquitectura/infraestructura importantes), **DEBE actualizarse la sección `## [Sin publicar] (Unreleased)` en `CHANGELOG.md`** siguiendo el formato establecido (Keep a Changelog).
+   - Antes de hacer commit, si los cambios son relevantes para el usuario o el proyecto (nuevas funcionalidades, correcciones visibles o cambios de arquitectura/infraestructura importantes), **DEBE actualizarse la sección sin publicar en las dos versiones, con las mismas notas: `CHANGELOG.md` (inglés, la versión por defecto, `## [Unreleased]`) y `CHANGELOG.es.md` (español, `## [Sin publicar] (Unreleased)`)** siguiendo el formato establecido (Keep a Changelog).
 
 ---
 
@@ -171,7 +171,11 @@ bun run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-Adicionalmente, antes de realizar cualquier commit, verificar si los cambios son relevantes e incluirlos en `CHANGELOG.md` bajo `## [Sin publicar] (Unreleased)`.
+Adicionalmente, antes de realizar cualquier commit, verificar si los cambios son relevantes e incluirlos en `CHANGELOG.md` (inglés, `## [Unreleased]`) y en `CHANGELOG.es.md` (español, `## [Sin publicar] (Unreleased)`), con las mismas notas.
+
+### Idiomas
+
+El inglés es el idioma base de la interfaz: los textos nuevos se añaden primero en inglés y luego en español (`src/shared/lib/i18n/locales`, `src/entities/command/lib`), nunca fijos en un componente. Los comentarios y los mensajes de commit siguen en español.
 
 ### Pruebas E2E (siempre en la pantalla embebida)
 

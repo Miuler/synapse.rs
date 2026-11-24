@@ -6,6 +6,8 @@ export interface UpdateInfo {
   version: string;
   currentVersion: string;
   notes?: string | null;
+  /** Las mismas notas en español; las releases antiguas no las traen */
+  notesEs?: string | null;
   date?: string | null;
 }
 
