@@ -63,6 +63,8 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
           shared-key: "synapse-ci"
+          # Un fallo de clippy o de una prueba no invalida las dependencias ya compiladas
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         run: |
