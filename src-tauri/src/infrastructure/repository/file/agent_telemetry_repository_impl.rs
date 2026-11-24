@@ -346,9 +346,9 @@ mod tests {
         assert_eq!(rec.model.as_deref(), Some("claude-sonnet-4-high"));
         assert_eq!(rec.effort.as_deref(), Some("high"));
         assert!(!rec.vault_name.is_empty());
-        assert!(rec.tags.contains(&"agent:claude-acp".to_string()));
-        assert!(rec.tags.contains(&"effort:high".to_string()));
-        assert!(rec.tags.contains(&"custom:test".to_string()));
+        assert!(rec.tags.iter().any(|i| i == "agent:claude-acp"));
+        assert!(rec.tags.iter().any(|i| i == "effort:high"));
+        assert!(rec.tags.iter().any(|i| i == "custom:test"));
         assert_eq!(rec.tool_calls_count, 1);
         assert_eq!(rec.mcp_calls_count, 1);
         assert!(rec.transcript_path.ends_with(".synapse/agent-sessions/conv-1.json"));

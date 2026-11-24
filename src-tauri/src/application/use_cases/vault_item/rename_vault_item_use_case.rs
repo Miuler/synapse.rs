@@ -27,16 +27,17 @@ impl<A: VaultItemRepository, B: VersionControl> RenameVaultItemUseCase<A, B> {
             &command.relative_path,
             &command.new_name,
         )?;
-        if was_tracked && renamed_path != command.relative_path {
-            if let Err(err) = self.version_control.track(
+        if was_tracked
+            && renamed_path != command.relative_path
+            && let Err(err) = self.version_control.track(
                 &command.vault_path,
                 &[command.relative_path.clone(), renamed_path.clone()],
-            ) {
-                log::warn!(
-                    "[rename_vault_item] No se pudo preparar el renombrado en git: {}",
-                    err
-                );
-            }
+            )
+        {
+            log::warn!(
+                "[rename_vault_item] No se pudo preparar el renombrado en git: {}",
+                err
+            );
         }
         Ok(renamed_path)
     }

@@ -744,7 +744,7 @@ fn acp_block(block: &PromptBlock, caps: &AgentCapabilities) -> Value {
             end_line,
         } => {
             // Línea 0: fragmento de la vista de lectura, sin números de línea
-            let lines = (*start_line > 0).then(|| (start_line, end_line));
+            let lines = (*start_line > 0).then_some((start_line, end_line));
             if caps.embedded_context {
                 let uri = match lines {
                     Some((s, e)) => format!("{}#L{s}-L{e}", file_uri(path)),

@@ -96,15 +96,14 @@ fn find_asset_file_path(
 
     // 2. Intentar buscar en el DashMap (resolución O(1) e indexada de WikiLinks y subdirectorios con proximidad)
     let engine_guard = state.navigation_engine.lock().map_err(|e| e.to_string())?;
-    if let Some(ref engine) = *engine_guard {
-        if let Some(resolved_rel) = engine.resolve_link_path_with_base(check_str, base_file) {
+    if let Some(ref engine) = *engine_guard
+        && let Some(resolved_rel) = engine.resolve_link_path_with_base(check_str, base_file) {
             let (rel_without_anchor, _) = LinkTarget::normalize(&resolved_rel);
             let abs = vault_path.join(&rel_without_anchor);
             if abs.is_file() {
                 return Ok(Some(abs.to_string_lossy().to_string()));
             }
         }
-    }
 
     // 3. Intentar ruta relativa directa a la raíz de la bóveda
     let clean_rel = check_str.trim_start_matches("./").trim_start_matches('/');
@@ -187,11 +186,10 @@ pub fn save_binary_asset(
         },
     )?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
 
     Ok(())
 }

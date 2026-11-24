@@ -87,13 +87,11 @@ pub fn prefixed(prefix: &str, inner: &str) -> String {
 pub fn nested_repos(vault: &Path) -> Vec<String> {
     static CACHE: OnceLock<Mutex<HashMap<PathBuf, (Instant, Vec<String>)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
-    if let Ok(guard) = cache.lock() {
-        if let Some((at, list)) = guard.get(vault) {
-            if at.elapsed() < CACHE_TTL {
+    if let Ok(guard) = cache.lock()
+        && let Some((at, list)) = guard.get(vault)
+            && at.elapsed() < CACHE_TTL {
                 return list.clone();
             }
-        }
-    }
     let mut found = Vec::new();
     scan(vault, "", 0, &mut found);
     found.sort();

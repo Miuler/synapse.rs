@@ -359,8 +359,8 @@ impl WikilinkToken {
         while i < len {
             // Manejo de bloques de código cercados (``` o ~~~)
             let is_line_start = i == 0 || bytes[i - 1] == b'\n';
-            if is_line_start && !in_inline_code {
-                if (bytes[i] == b'`' || bytes[i] == b'~')
+            if is_line_start && !in_inline_code
+                && (bytes[i] == b'`' || bytes[i] == b'~')
                     && i + 2 < len
                     && bytes[i + 1] == bytes[i]
                     && bytes[i + 2] == bytes[i]
@@ -384,7 +384,6 @@ impl WikilinkToken {
                         }
                     }
                 }
-            }
 
             if in_fenced_block {
                 i += 1;

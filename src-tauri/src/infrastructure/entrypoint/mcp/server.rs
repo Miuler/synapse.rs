@@ -34,13 +34,12 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
         let mut line = String::new();
         while reader.read_line(&mut line)? > 0 {
             let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                if let Some(response_json) = self.handle_line(trimmed) {
+            if !trimmed.is_empty()
+                && let Some(response_json) = self.handle_line(trimmed) {
                     writer.write_all(response_json.as_bytes())?;
                     writer.write_all(b"\n")?;
                     writer.flush()?;
                 }
-            }
             line.clear();
         }
         Ok(())
@@ -195,11 +194,10 @@ impl McpBackgroundRuntime {
 
     fn notify_status_change(&self) {
         let status = self.get_status();
-        if let Ok(lock) = self.on_status_change.lock() {
-            if let Some(ref cb) = *lock {
+        if let Ok(lock) = self.on_status_change.lock()
+            && let Some(ref cb) = *lock {
                 cb(status);
             }
-        }
     }
 
     pub fn get_status(&self) -> McpRuntimeStatus {
@@ -296,13 +294,12 @@ impl McpBackgroundRuntime {
 
                             // Procesar la conexión en hilo separado o inline
                             thread::spawn(move || {
-                                if let Err(e) = Self::handle_http_client(stream, provider_cloned) {
-                                    if let Ok(mut lock) = err_lock.lock() {
+                                if let Err(e) = Self::handle_http_client(stream, provider_cloned)
+                                    && let Ok(mut lock) = err_lock.lock() {
                                         *lock = Some(e.to_string());
                                     }
-                                }
-                                if let Ok(lock) = cb_lock.lock() {
-                                    if let Some(ref cb) = *lock {
+                                if let Ok(lock) = cb_lock.lock()
+                                    && let Some(ref cb) = *lock {
                                         let (vault_opt, _) = provider_for_status.get_context();
                                         cb(McpRuntimeStatus {
                                             running: is_run.load(Ordering::SeqCst),
@@ -317,7 +314,6 @@ impl McpBackgroundRuntime {
                                                 .and_then(|g| g.clone()),
                                         });
                                     }
-                                }
                             });
                         }
                         Err(ref e)
@@ -372,11 +368,10 @@ impl McpBackgroundRuntime {
         // Despertar al TcpListener intentando una conexión rápida local para salir del accept()
         let _ = TcpStream::connect(format!("127.0.0.1:{}", port));
 
-        if let Ok(mut lock) = self.worker_handle.lock() {
-            if let Some(handle) = lock.take() {
+        if let Ok(mut lock) = self.worker_handle.lock()
+            && let Some(handle) = lock.take() {
                 let _ = handle.join();
             }
-        }
 
         self.notify_status_change();
         Ok(self.get_status())

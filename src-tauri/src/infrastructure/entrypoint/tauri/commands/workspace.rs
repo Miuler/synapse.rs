@@ -450,8 +450,8 @@ pub fn list_vault_directory(
     let mut files = Vec::new();
     let mut folders = Vec::new();
 
-    if target_dir.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(&target_dir) {
+    if target_dir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&target_dir) {
             for entry in entries.flatten() {
                 let file_name = entry.file_name().to_string_lossy().to_string();
                 let full_rel = if clean.is_empty() {
@@ -469,7 +469,6 @@ pub fn list_vault_directory(
                 }
             }
         }
-    }
 
     Ok(VaultDirectoryList { files, folders })
 }

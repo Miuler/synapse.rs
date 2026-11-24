@@ -67,13 +67,12 @@ impl LinkResolver {
         let is_note = target_with_ext.to_lowercase().ends_with(".md");
         if let Some(base) = base_file {
             let base_dir = LinkTarget::parent_directory(base);
-            if !base_dir.is_empty() {
-                if let Some(path) = Self::join(&base_dir, &target_with_ext).and_then(|p| find_exact(&p)) {
+            if !base_dir.is_empty()
+                && let Some(path) = Self::join(base_dir, &target_with_ext).and_then(|p| find_exact(&p)) {
                     return LinkResolution::Resolved(attach_anchor(&path));
                 }
-            }
             if !is_note {
-                let in_attachments = Self::join(&base_dir, &format!("{ATTACHMENTS_DIR}/{target_with_ext}"));
+                let in_attachments = Self::join(base_dir, &format!("{ATTACHMENTS_DIR}/{target_with_ext}"));
                 if let Some(path) = in_attachments.and_then(|p| find_exact(&p)) {
                     return LinkResolution::Resolved(attach_anchor(&path));
                 }

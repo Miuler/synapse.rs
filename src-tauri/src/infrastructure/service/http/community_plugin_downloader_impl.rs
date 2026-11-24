@@ -28,7 +28,7 @@ struct ManifestVersionExtract {
 fn parse_version_parts(v: &str) -> Vec<u64> {
     let clean = v.trim().trim_start_matches('v').trim_start_matches('V');
     clean
-        .split(|c: char| c == '.' || c == '-' || c == '+')
+        .split(['.', '-', '+'])
         .filter_map(|s| s.parse::<u64>().ok())
         .collect()
 }
@@ -99,29 +99,26 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             // Si no se fuerza recarga, intentar leer de memoria primero
             if !force_refresh {
-                if let Ok(guard) = cache_arc.read() {
-                    if let Some((instant, ref list)) = *guard {
-                        // Caché en memoria válida por 6 horas
-                        if instant.elapsed() < Duration::from_secs(3600 * 6) {
-                            return Ok(list.clone());
-                        }
+                if let Ok(guard) = cache_arc.read()
+                    && let Some((instant, ref list)) = *guard
+                {
+                    // Caché en memoria válida por 6 horas
+                    if instant.elapsed() < Duration::from_secs(3600 * 6) {
+                        return Ok(list.clone());
                     }
                 }
 
                 // Fallback a caché en disco persistente
-                if cache_file.exists() {
-                    if let Ok(bytes) = fs::read(&cache_file) {
-                        if let Ok(cached_plugins) =
-                            serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
-                        {
-                            if !cached_plugins.is_empty() {
-                                if let Ok(mut guard) = cache_arc.write() {
-                                    *guard = Some((Instant::now(), cached_plugins.clone()));
-                                }
-                                return Ok(cached_plugins);
-                            }
-                        }
+                if cache_file.exists()
+                    && let Ok(bytes) = fs::read(&cache_file)
+                    && let Ok(cached_plugins) =
+                        serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
+                    && !cached_plugins.is_empty()
+                {
+                    if let Ok(mut guard) = cache_arc.write() {
+                        *guard = Some((Instant::now(), cached_plugins.clone()));
                     }
+                    return Ok(cached_plugins);
                 }
             }
 
@@ -134,16 +131,13 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             if !res.status().is_success() {
                 // Si falla la red pero tenemos caché en disco previa, devolverla como salvaguarda
-                if cache_file.exists() {
-                    if let Ok(bytes) = fs::read(&cache_file) {
-                        if let Ok(cached_plugins) =
-                            serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
-                        {
-                            if !cached_plugins.is_empty() {
-                                return Ok(cached_plugins);
-                            }
-                        }
-                    }
+                if cache_file.exists()
+                    && let Ok(bytes) = fs::read(&cache_file)
+                    && let Ok(cached_plugins) =
+                        serde_json::from_slice::<Vec<CommunityPlugin>>(&bytes)
+                    && !cached_plugins.is_empty()
+                {
+                    return Ok(cached_plugins);
                 }
                 return Err(format!(
                     "Respuesta fallida de GitHub al obtener catálogo: HTTP {}",
@@ -157,14 +151,13 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                 .map_err(|e| format!("Error al decodificar catálogo de plugins: {e}"))?;
 
             // 2. Descargar estadísticas de descargas de forma opcional
-            if let Ok(stats_res) = client.get(COMMUNITY_PLUGIN_STATS_URL).send().await {
-                if stats_res.status().is_success() {
-                    if let Ok(stats) = stats_res.json::<HashMap<String, PluginStatItem>>().await {
-                        for p in plugins.iter_mut() {
-                            if let Some(st) = stats.get(&p.id) {
-                                p.downloads = st.downloads;
-                            }
-                        }
+            if let Ok(stats_res) = client.get(COMMUNITY_PLUGIN_STATS_URL).send().await
+                && stats_res.status().is_success()
+                && let Ok(stats) = stats_res.json::<HashMap<String, PluginStatItem>>().await
+            {
+                for p in plugins.iter_mut() {
+                    if let Some(st) = stats.get(&p.id) {
+                        p.downloads = st.downloads;
                     }
                 }
             }
@@ -212,15 +205,13 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             let mut manifest_bytes: Option<Vec<u8>> = None;
             for url in &manifest_urls {
-                if let Ok(res) = self.client.get(url).send().await {
-                    if res.status().is_success() {
-                        if let Ok(bytes) = res.bytes().await {
-                            if !bytes.is_empty() {
-                                manifest_bytes = Some(bytes.to_vec());
-                                break;
-                            }
-                        }
-                    }
+                if let Ok(res) = self.client.get(url).send().await
+                    && res.status().is_success()
+                    && let Ok(bytes) = res.bytes().await
+                    && !bytes.is_empty()
+                {
+                    manifest_bytes = Some(bytes.to_vec());
+                    break;
                 }
             }
 
@@ -232,10 +223,10 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             // Extraer versión de manifest.json
             let mut detected_version = "latest".to_string();
-            if let Ok(parsed) = serde_json::from_slice::<ManifestVersionExtract>(&manifest_bytes) {
-                if let Some(v) = parsed.version {
-                    detected_version = v;
-                }
+            if let Ok(parsed) = serde_json::from_slice::<ManifestVersionExtract>(&manifest_bytes)
+                && let Some(v) = parsed.version
+            {
+                detected_version = v;
             }
 
             // Guardar manifest.json
@@ -254,15 +245,13 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             let mut main_bytes: Option<Vec<u8>> = None;
             for url in &main_urls {
-                if let Ok(res) = self.client.get(url).send().await {
-                    if res.status().is_success() {
-                        if let Ok(bytes) = res.bytes().await {
-                            if !bytes.is_empty() {
-                                main_bytes = Some(bytes.to_vec());
-                                break;
-                            }
-                        }
-                    }
+                if let Ok(res) = self.client.get(url).send().await
+                    && res.status().is_success()
+                    && let Ok(bytes) = res.bytes().await
+                    && !bytes.is_empty()
+                {
+                    main_bytes = Some(bytes.to_vec());
+                    break;
                 }
             }
 
@@ -289,18 +278,16 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             let mut has_styles = false;
             for url in &styles_urls {
-                if let Ok(res) = self.client.get(url).send().await {
-                    if res.status().is_success() {
-                        if let Ok(bytes) = res.bytes().await {
-                            if !bytes.is_empty() {
-                                let styles_path = target_dir.join("styles.css");
-                                if fs::write(&styles_path, &bytes).is_ok() {
-                                    has_styles = true;
-                                }
-                                break;
-                            }
-                        }
+                if let Ok(res) = self.client.get(url).send().await
+                    && res.status().is_success()
+                    && let Ok(bytes) = res.bytes().await
+                    && !bytes.is_empty()
+                {
+                    let styles_path = target_dir.join("styles.css");
+                    if fs::write(&styles_path, &bytes).is_ok() {
+                        has_styles = true;
                     }
+                    break;
                 }
             }
 
@@ -360,15 +347,12 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                         .timeout(Duration::from_secs(6))
                         .send()
                         .await
+                        && res.status().is_success()
+                        && let Ok(parsed) = res.json::<ManifestVersionExtract>().await
+                        && let Some(v) = parsed.version
                     {
-                        if res.status().is_success() {
-                            if let Ok(parsed) = res.json::<ManifestVersionExtract>().await {
-                                if let Some(v) = parsed.version {
-                                    latest_version = v;
-                                    break;
-                                }
-                            }
-                        }
+                        latest_version = v;
+                        break;
                     }
                 }
 

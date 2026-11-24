@@ -166,50 +166,50 @@ impl NoteRepositoryImpl {
                         || (e.contains('.')
                             && file_name.to_lowercase().ends_with(&e.to_lowercase()))
                 });
-                if is_supported {
-                    if let Ok(rel_path_buf) = path.strip_prefix(base_vault) {
-                        if let Some(rel_str) = rel_path_buf.to_str() {
-                            if let Ok(rel_path) = NoteRelativePath::new(rel_str) {
-                                let mut content = String::new();
-                                let mut note_title = path
-                                    .file_stem()
-                                    .and_then(|s| s.to_str())
-                                    .unwrap_or(file_name)
-                                    .to_string();
+                if is_supported
+                    && let Ok(rel_path_buf) = path.strip_prefix(base_vault)
+                    && let Some(rel_str) = rel_path_buf.to_str()
+                    && let Ok(rel_path) = NoteRelativePath::new(rel_str)
+                {
+                    let mut content = String::new();
+                    let mut note_title = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(file_name)
+                        .to_string();
 
-                                let mut note_fm = None;
-                                // Para archivos markdown, inspeccionar rápidamente si tiene frontmatter
-                                let file_types = SupportedFileTypes::default();
-                                if file_types.is_markdown_file(file_name) {
-                                    if let Ok(file_prefix) = fs::read_to_string(&path) {
-                                        let (fm, _) = crate::domain::note::frontmatter::NoteFrontmatter::parse(&file_prefix);
-                                        if let Some(ref parsed_fm) = fm {
-                                            if let Some(ref explicit_title) = parsed_fm.title {
-                                                note_title = explicit_title.clone();
-                                            }
-                                        }
-                                        note_fm = fm;
-                                        content = file_prefix;
-                                    }
-                                }
-
-                                notes.push(
-                                    Note::new(
-                                        rel_path,
-                                        path.into_string().unwrap(),
-                                        note_title,
-                                        content,
-                                    )
-                                    .with_frontmatter(note_fm),
-                                );
-                            }
+                    let mut note_fm = None;
+                    // Para archivos markdown, inspeccionar rápidamente si tiene frontmatter
+                    let file_types = SupportedFileTypes::default();
+                    if file_types.is_markdown_file(file_name)
+                        && let Ok(file_prefix) = fs::read_to_string(&path)
+                    {
+                        let (fm, _) =
+                            crate::domain::note::frontmatter::NoteFrontmatter::parse(&file_prefix);
+                        if let Some(ref parsed_fm) = fm
+                            && let Some(ref explicit_title) = parsed_fm.title
+                        {
+                            note_title = explicit_title.clone();
                         }
+                        note_fm = fm;
+                        content = file_prefix;
                     }
+
+                    notes.push(
+                        Note::new(rel_path, path.into_string().unwrap(), note_title, content)
+                            .with_frontmatter(note_fm),
+                    );
                 }
             }
         }
 
         Ok(())
+    }
+}
+
+impl Default for NoteRepositoryImpl {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -223,7 +223,7 @@ impl NoteRepository for NoteRepositoryImpl {
         Self::walk_directory(vault_path, vault_path, &mut notes, extensions)?;
 
         // Ordenar notas alfabéticamente por título
-        notes.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+        notes.sort_by_key(|a| a.title.to_lowercase());
         Ok(notes)
     }
 
@@ -537,9 +537,9 @@ mod tests {
         assert_eq!(notes.len(), 4);
 
         let titles: Vec<String> = notes.iter().map(|n| n.title.clone()).collect();
-        assert!(titles.contains(&"note1".to_string()));
-        assert!(titles.contains(&"note2".to_string()));
-        assert!(titles.contains(&"diagram".to_string()));
+        assert!(titles.iter().any(|i| i == "note1"));
+        assert!(titles.iter().any(|i| i == "note2"));
+        assert!(titles.iter().any(|i| i == "diagram"));
     }
 
     #[test]

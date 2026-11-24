@@ -280,13 +280,12 @@ pub fn run() {
             if let Ok(mut h) = state.app_handle.lock() {
                 *h = Some(handle.clone());
             }
-            if let Ok(guard) = state.active_vault_path.lock() {
-                if let Some(ref vault_path) = *guard {
+            if let Ok(guard) = state.active_vault_path.lock()
+                && let Some(ref vault_path) = *guard {
                     let _ = handle
                         .asset_protocol_scope()
                         .allow_directory(vault_path, true);
                 }
-            }
             if let Ok(guard) = state.startup_target.lock() {
                 if let Some(domain::config::startup::StartupTarget::Standalone(ref path_str)) =
                     *guard
@@ -302,21 +301,20 @@ pub fn run() {
             ) {
                 state.allow_asset(&wallpaper);
             }
-            if let Ok(guard) = state.navigation_engine.lock() {
-                if let Some(ref engine) = *guard {
+            if let Ok(guard) = state.navigation_engine.lock()
+                && let Some(ref engine) = *guard {
                     let h = handle.clone();
                     engine.set_on_fs_change(std::sync::Arc::new(move |evt| {
                         use tauri::Emitter;
                         let _ = h.emit("vault:files-changed", &evt);
                     }));
                 }
-            }
 
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "main" {
-                if let tauri::WindowEvent::Destroyed = event {
+            if window.label() == "main"
+                && let tauri::WindowEvent::Destroyed = event {
                     let app = window.app_handle();
                     let state = app.state::<AppState>();
                     let _ = state.mcp_runtime.stop();
@@ -326,7 +324,6 @@ pub fn run() {
                         }
                     }
                 }
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

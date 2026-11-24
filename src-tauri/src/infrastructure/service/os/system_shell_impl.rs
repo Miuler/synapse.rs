@@ -107,17 +107,15 @@ impl SystemShellImpl {
                     "",
                 ])
                 .spawn()
+                && let Ok(status) = child.wait()
+                && status.success()
             {
-                if let Ok(status) = child.wait() {
-                    if status.success() {
-                        opened = true;
-                    }
-                }
+                opened = true;
             }
 
             // 1b. Si busctl falló o no está, intentar con dbus-send
-            if !opened {
-                if let Ok(mut child) = std::process::Command::new("dbus-send")
+            if !opened
+                && let Ok(mut child) = std::process::Command::new("dbus-send")
                     .args([
                         "--session",
                         "--dest=org.freedesktop.FileManager1",
@@ -128,13 +126,10 @@ impl SystemShellImpl {
                         "string:\"\"",
                     ])
                     .spawn()
-                {
-                    if let Ok(status) = child.wait() {
-                        if status.success() {
-                            opened = true;
-                        }
-                    }
-                }
+                && let Ok(status) = child.wait()
+                && status.success()
+            {
+                opened = true;
             }
 
             // 2. Fallbacks directos por CLI si D-Bus no respondió o no está presente el servicio

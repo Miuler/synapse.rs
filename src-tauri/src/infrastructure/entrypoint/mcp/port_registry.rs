@@ -127,12 +127,11 @@ pub fn get_vault_mcp_config_path(vault_path: &Path) -> PathBuf {
 /// Lee la configuración específica de MCP de la bóveda
 pub fn read_vault_config(vault_path: &Path) -> Option<McpVaultConfig> {
     let p = get_vault_mcp_config_path(vault_path);
-    if p.exists() {
-        if let Ok(content) = std::fs::read_to_string(&p) {
-            if let Ok(cfg) = serde_json::from_str::<McpVaultConfig>(&content) {
-                return Some(cfg);
-            }
-        }
+    if p.exists()
+        && let Ok(content) = std::fs::read_to_string(&p)
+        && let Ok(cfg) = serde_json::from_str::<McpVaultConfig>(&content)
+    {
+        return Some(cfg);
     }
     None
 }
@@ -225,14 +224,13 @@ pub fn allocate_and_bind_port(
     // 1. Limpiar procesos muertos de instancias caídas en el registro global
     let mut cleaned_any = false;
     for entry in registry.vaults.values_mut() {
-        if entry.running {
-            if let Some(pid) = entry.pid {
-                if !is_process_alive(pid) {
-                    entry.running = false;
-                    entry.pid = None;
-                    cleaned_any = true;
-                }
-            }
+        if entry.running
+            && let Some(pid) = entry.pid
+            && !is_process_alive(pid)
+        {
+            entry.running = false;
+            entry.pid = None;
+            cleaned_any = true;
         }
     }
     if cleaned_any {
@@ -254,10 +252,10 @@ pub fn allocate_and_bind_port(
         .unwrap_or(DEFAULT_MCP_PORT);
 
     // 4. Intentar primero con el puerto preferido si no está reclamado por otra bóveda activa
-    if !occupied_ports.contains(&preferred) {
-        if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", preferred)) {
-            return Ok((listener, preferred));
-        }
+    if !occupied_ports.contains(&preferred)
+        && let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", preferred))
+    {
+        return Ok((listener, preferred));
     }
 
     // 5. Si el preferido está ocupado, buscar el siguiente puerto libre en el rango

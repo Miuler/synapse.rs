@@ -80,8 +80,7 @@ pub async fn get_system_theme(window: tauri::WebviewWindow) -> String {
                     "color-scheme",
                 ])
                 .output()
-            {
-                if output.status.success() {
+                && output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     if stdout.contains("u 1") {
                         return Some("dark".to_string());
@@ -89,14 +88,12 @@ pub async fn get_system_theme(window: tauri::WebviewWindow) -> String {
                         return Some("light".to_string());
                     }
                 }
-            }
 
             // 2. Try gsettings color-scheme (GNOME / Hyde / desktop interface)
             if let Ok(output) = std::process::Command::new("gsettings")
                 .args(["get", "org.gnome.desktop.interface", "color-scheme"])
                 .output()
-            {
-                if output.status.success() {
+                && output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout)
                         .trim()
                         .to_lowercase();
@@ -106,14 +103,12 @@ pub async fn get_system_theme(window: tauri::WebviewWindow) -> String {
                         return Some("light".to_string());
                     }
                 }
-            }
 
             // 3. Try gsettings gtk-theme
             if let Ok(output) = std::process::Command::new("gsettings")
                 .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
                 .output()
-            {
-                if output.status.success() {
+                && output.status.success() {
                     let theme = String::from_utf8_lossy(&output.stdout)
                         .trim()
                         .to_lowercase();
@@ -124,7 +119,6 @@ pub async fn get_system_theme(window: tauri::WebviewWindow) -> String {
                         return Some("light".to_string());
                     }
                 }
-            }
 
             None
         })
@@ -186,11 +180,10 @@ pub fn open_tab_in_new_window(
     let tabs_map = Arc::clone(&state.detached_tabs);
     let label_for_event = window_label.clone();
     win.on_window_event(move |event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            if let Ok(mut map) = tabs_map.lock() {
+        if let tauri::WindowEvent::Destroyed = event
+            && let Ok(mut map) = tabs_map.lock() {
                 map.remove(&label_for_event);
             }
-        }
     });
 
     Ok(())

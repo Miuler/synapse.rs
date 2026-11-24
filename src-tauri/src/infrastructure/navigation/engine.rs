@@ -139,9 +139,9 @@ impl NavigationEngine {
 
         if let Some(parent) = cache_path.parent() {
             let workspace_file = parent.join("workspace.json");
-            if workspace_file.exists() {
-                if let Ok(content) = std::fs::read_to_string(&workspace_file) {
-                    if let Ok(ui_state) = serde_json::from_str::<VaultUiState>(&content) {
+            if workspace_file.exists()
+                && let Ok(content) = std::fs::read_to_string(&workspace_file)
+                    && let Ok(ui_state) = serde_json::from_str::<VaultUiState>(&content) {
                         if let Some(w) = ui_state.sidebar_width {
                             initial_sidebar_width = w;
                         }
@@ -154,8 +154,6 @@ impl NavigationEngine {
                         initial_diff_visual_mode = ui_state.diff_visual_mode;
                         initial_diff_text_mode = ui_state.diff_text_mode;
                     }
-                }
-            }
         }
 
         Self {
@@ -216,11 +214,10 @@ impl NavigationEngine {
         if paths.is_empty() && deleted.is_empty() {
             return;
         }
-        if let Ok(guard) = self.on_fs_change.lock() {
-            if let Some(ref cb) = *guard {
+        if let Ok(guard) = self.on_fs_change.lock()
+            && let Some(ref cb) = *guard {
                 cb(crate::infrastructure::entrypoint::subscriber::vault_watcher::VaultFsChangeEvent { paths, deleted });
             }
-        }
     }
 
     /// Creates and starts the engine with secondary thread reconciliation and persistence debounce.
@@ -842,16 +839,14 @@ impl NavigationEngine {
                 self.locked_files.insert(CompactString::new(file), true);
             }
         }
-        if let Some(dvm) = diff_visual_mode {
-            if let Ok(mut lock) = self.diff_visual_mode.write() {
+        if let Some(dvm) = diff_visual_mode
+            && let Ok(mut lock) = self.diff_visual_mode.write() {
                 *lock = Some(dvm);
             }
-        }
-        if let Some(dtm) = diff_text_mode {
-            if let Ok(mut lock) = self.diff_text_mode.write() {
+        if let Some(dtm) = diff_text_mode
+            && let Ok(mut lock) = self.diff_text_mode.write() {
                 *lock = Some(dtm);
             }
-        }
         self.save_workspace_ui_disk();
         self.mark_dirty();
     }
@@ -1094,11 +1089,10 @@ impl NavigationEngine {
     /// Requests background threads to terminate.
     pub fn shutdown(&self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
-        if let Ok(mut lock) = self.fs_watcher.lock() {
-            if let Some(mut watcher) = lock.take() {
+        if let Ok(mut lock) = self.fs_watcher.lock()
+            && let Some(mut watcher) = lock.take() {
                 watcher.stop();
             }
-        }
         let _ = self.save_cache();
     }
 }
@@ -1344,7 +1338,7 @@ impl NavigationEngine {
                     is_active_tab: prev_is_active,
                     view_mode: prev_view_mode,
                     sync_state: prev_sync_state,
-                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
+                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(path),
                 },
             )
         } else {
@@ -1366,7 +1360,7 @@ impl NavigationEngine {
                     is_active_tab: false,
                     view_mode: Some(CompactString::new("reading")),
                     sync_state: NoteSyncState::Local,
-                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(&path),
+                    is_drawio: crate::infrastructure::search::drawio_extractor::file_has_drawio(path),
                 },
             )
         };
@@ -1588,8 +1582,8 @@ impl NavigationEngine {
                 let mut resolved_links = Vec::new();
                 let mut ghosts = Vec::new();
 
-                if is_md {
-                    if let Ok(content) = std::fs::read_to_string(&full) {
+                if is_md
+                    && let Ok(content) = std::fs::read_to_string(&full) {
                         let wlinks = WikilinkToken::extract_all(&content);
                         for wl in wlinks {
                             if let Some(target) =
@@ -1620,7 +1614,6 @@ impl NavigationEngine {
                             }
                         }
                     }
-                }
                 (p_str, title, resolved_links, ghosts)
             })
             .collect();

@@ -29,16 +29,15 @@ impl<A: VaultItemRepository, B: VersionControl> MoveVaultItemsUseCase<A, B> {
                 &command.dest_dir,
             ) {
                 Ok(to) if &to != source => {
-                    if was_tracked {
-                        if let Err(err) = self
+                    if was_tracked
+                        && let Err(err) = self
                             .version_control
                             .track(&command.vault_path, &[source.clone(), to.clone()])
-                        {
-                            log::warn!(
-                                "[move_vault_items] No se pudo preparar el movimiento en git: {}",
-                                err
-                            );
-                        }
+                    {
+                        log::warn!(
+                            "[move_vault_items] No se pudo preparar el movimiento en git: {}",
+                            err
+                        );
                     }
                     moved.push(MovedVaultItem {
                         from: source.clone(),

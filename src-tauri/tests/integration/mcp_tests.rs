@@ -614,11 +614,10 @@ A[Cliente ACP] --> B[Servidor MCP]
     .unwrap();
     assert_eq!(search_in_obj["total_matches"], 1);
     assert!(
-        search_in_obj["matches"][0]["context"]
+        !search_in_obj["matches"][0]["context"]
             .as_array()
             .unwrap()
-            .len()
-            >= 1
+            .is_empty()
     );
 
     // 3. Probar patch_note con dry_run y luego aplicación real con expected_hash
@@ -751,9 +750,9 @@ A[Cliente ACP] --> B[Servidor MCP]
     assert!(!resp_meta_up.contains(r#""isError":true"#));
     let after_meta = repo.read_note(&vault_path, &rel_path).unwrap();
     let tags = after_meta.frontmatter.unwrap().tags;
-    assert!(tags.contains(&"onion-architecture".to_string()));
-    assert!(tags.contains(&"tested".to_string()));
-    assert!(!tags.contains(&"acp".to_string()));
+    assert!(tags.iter().any(|i| i == "onion-architecture"));
+    assert!(tags.iter().any(|i| i == "tested"));
+    assert!(!tags.iter().any(|i| i == "acp"));
 
     // 7. Probar extract_note_diagrams
     let req_diagrams = json!({

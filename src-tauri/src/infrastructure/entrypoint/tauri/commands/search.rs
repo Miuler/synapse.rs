@@ -94,7 +94,9 @@ pub async fn full_text_search(
     };
 
     let start = std::time::Instant::now();
-    let res = tauri::async_runtime::spawn_blocking(move || {
+    
+
+    tauri::async_runtime::spawn_blocking(move || {
         let (hits, total_hits) = ft_components.search_use_case.execute(
             crate::application::dto::search::search_full_text_query::SearchFullTextQuery {
                 text: query,
@@ -111,9 +113,7 @@ pub async fn full_text_search(
         })
     })
     .await
-    .map_err(|e| format!("Error en tarea de búsqueda: {}", e))?;
-
-    res
+    .map_err(|e| format!("Error en tarea de búsqueda: {}", e))?
 }
 
 #[tauri::command(async)]

@@ -123,19 +123,17 @@ impl WorkspaceRegistryRepositoryImpl {
                 });
             })
         {
-            if let Ok(entry) = entry_res {
-                if entry.file_type.is_file() {
+            if let Ok(entry) = entry_res
+                && entry.file_type.is_file() {
                     let abs = entry.path();
-                    if let Ok(rel) = abs.strip_prefix(path) {
-                        if !should_ignore_path(rel) {
+                    if let Ok(rel) = abs.strip_prefix(path)
+                        && !should_ignore_path(rel) {
                             let file_name = entry.file_name.to_string_lossy();
                             if file_types.is_supported_file(&file_name) {
                                 count += 1;
                             }
                         }
-                    }
                 }
-            }
         }
         count
     }
@@ -558,11 +556,10 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
         });
         if cfg.workspaces.len() != initial_len {
             changed = true;
-            if let Some(ref last) = cfg.last_active_workspace {
-                if !cfg.workspaces.iter().any(|w| &w.path == last) {
+            if let Some(ref last) = cfg.last_active_workspace
+                && !cfg.workspaces.iter().any(|w| &w.path == last) {
                     cfg.last_active_workspace = cfg.workspaces.first().map(|w| w.path.clone());
                 }
-            }
         }
 
         for w in cfg.workspaces.iter_mut() {
@@ -579,13 +576,12 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
             }
             if exists {
                 let (is_git, branch) = Self::detect_git_metadata(&p);
-                if is_git {
-                    if !w.is_git_repo || (branch.is_some() && w.git_branch != branch) {
+                if is_git
+                    && (!w.is_git_repo || (branch.is_some() && w.git_branch != branch)) {
                         w.is_git_repo = true;
                         w.git_branch = branch;
                         changed = true;
                     }
-                }
                 if w.notes_count == 0 {
                     let c = self.count_supported_notes(&p);
                     if c > 0 {
@@ -611,13 +607,11 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
             let _ = std::fs::write(&shortcuts_path, Self::default_shortcuts_jsonc_template());
         }
 
-        if let Ok(raw) = std::fs::read_to_string(&shortcuts_path) {
-            if !raw.trim().is_empty() {
-                if let Ok(parsed) = serde_json_lenient::from_str::<ShortcutsConfig>(&raw) {
+        if let Ok(raw) = std::fs::read_to_string(&shortcuts_path)
+            && !raw.trim().is_empty()
+                && let Ok(parsed) = serde_json_lenient::from_str::<ShortcutsConfig>(&raw) {
                     return Ok(parsed);
                 }
-            }
-        }
 
         Ok(AppConfig::default().shortcuts)
     }

@@ -282,11 +282,10 @@ fn cell_style(style: &umya_spreadsheet::Style, theme: &umya_spreadsheet::structs
             out.size10 = Some(size);
         }
     }
-    if let Some(pf) = style.fill().and_then(|f| f.pattern_fill()) {
-        if pf.pattern_type().value_string() != "none" {
+    if let Some(pf) = style.fill().and_then(|f| f.pattern_fill())
+        && pf.pattern_type().value_string() != "none" {
             out.bg = pf.foreground_color().and_then(|c| css_color(&c.argb_with_theme(theme)));
         }
-    }
     if let Some(al) = style.alignment() {
         out.align = match al.horizontal().value_string() {
             "left" => Some("left"),

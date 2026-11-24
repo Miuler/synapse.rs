@@ -186,8 +186,8 @@ impl OkfIndexer {
             return;
         }
         // Un `index.md` del usuario se conserva como `index.deprecado.md`
-        if let Some(text) = existing.as_deref() {
-            if !is_generated(text) {
+        if let Some(text) = existing.as_deref()
+            && !is_generated(text) {
                 let target = Self::free_name(&dir, "index.deprecado", "md");
                 if let Err(e) = std::fs::rename(&path, &target) {
                     log::warn!("No se pudo renombrar {:?}: {}", path, e);
@@ -195,7 +195,6 @@ impl OkfIndexer {
                 }
                 log::info!("index.md propio renombrado a {:?}", target);
             }
-        }
         let previous_root_fm = if folder.is_empty() {
             existing.as_deref().filter(|t| is_generated(t)).and_then(frontmatter_block).map(String::from)
         } else {

@@ -1730,7 +1730,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 Ok(d) => (
                     d.old_content,
                     d.new_content,
-                    format!("{from}"),
+                    from.to_string(),
                     "local".to_string(),
                 ),
                 Err(e) => return McpCallToolResult::error(e),
@@ -1940,9 +1940,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .data_url
             .as_deref()
             .filter(|u| u.starts_with("data:image/"))
-        {
-            if r.is_binary || diagram_kind(rel).is_none() {
-                if let Some((meta, data)) = data_url.split_once(',') {
+            && (r.is_binary || diagram_kind(rel).is_none())
+                && let Some((meta, data)) = data_url.split_once(',') {
                     let mime = meta
                         .trim_start_matches("data:")
                         .trim_end_matches(";base64")
@@ -1955,8 +1954,6 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         is_error: false,
                     };
                 }
-            }
-        }
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
                 "'{rel}' no es una imagen ni un diagrama que Synapse sepa dibujar; léelo con git_read_revision"

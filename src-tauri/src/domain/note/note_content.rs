@@ -284,7 +284,7 @@ impl NoteContent {
     }
     /// Estima los tokens de texto usando la heurística ceil(bytes / 4).
     pub fn estimate_tokens(text: &str) -> usize {
-        (text.len() + 3) / 4
+        text.len().div_ceil(4)
     }
 
     /// Índice de encabezados (`#` a `######` seguidos de espacio).
@@ -294,7 +294,7 @@ impl NoteContent {
             let trimmed = line.trim_start();
             if trimmed.starts_with('#') {
                 let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                if hashes >= 1 && hashes <= 6 && trimmed.chars().nth(hashes) == Some(' ') {
+                if (1..=6).contains(&hashes) && trimmed.chars().nth(hashes) == Some(' ') {
                     toc.push(Heading {
                         level: hashes,
                         text: trimmed[hashes..].trim().to_string(),
@@ -329,8 +329,7 @@ impl NoteContent {
             let trimmed = line.trim_start();
             if trimmed.starts_with('#') {
                 let hashes = trimmed.chars().take_while(|&c| c == '#').count();
-                if hashes >= 1
-                    && hashes <= 6
+                if (1..=6).contains(&hashes)
                     && trimmed[hashes..]
                         .trim()
                         .to_lowercase()

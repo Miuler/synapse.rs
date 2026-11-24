@@ -248,20 +248,17 @@ impl VaultItemRepositoryImpl {
             let file_types = crate::domain::vault::file_types::SupportedFileTypes::default();
             let target_name = target.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if file_types.is_markdown_file(target_name) && !file_types.is_drawing_file(target_name)
-            {
-                if let Ok(raw_content) = fs::read_to_string(&target) {
+                && let Ok(raw_content) = fs::read_to_string(&target) {
                     let old_stem = source.file_stem().and_then(|s| s.to_str());
-                    if let (Some(old_stem), Some(new_stem)) = (old_stem, target.file_stem().and_then(|s| s.to_str())) {
-                        if let Some(updated) = crate::domain::note::frontmatter::NoteFrontmatter::rename_title(
+                    if let (Some(old_stem), Some(new_stem)) = (old_stem, target.file_stem().and_then(|s| s.to_str()))
+                        && let Some(updated) = crate::domain::note::frontmatter::NoteFrontmatter::rename_title(
                             &raw_content,
                             old_stem,
                             new_stem,
                         ) {
                             let _ = fs::write(&target, updated);
                         }
-                    }
                 }
-            }
         }
 
         Ok(Self::to_relative(vault_path, &target))
@@ -456,11 +453,10 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
             .map_err(|e| e.to_string())?;
         let mut files = Vec::new();
         for entry in entries {
-            if entry.file_type.is_file() {
-                if let Ok(rel) = entry.path().strip_prefix(&source_dir) {
+            if entry.file_type.is_file()
+                && let Ok(rel) = entry.path().strip_prefix(&source_dir) {
                     files.push(rel.to_string_lossy().replace('\\', "/"));
                 }
-            }
         }
         Ok(files)
     }
@@ -486,8 +482,8 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
             .map_err(|e| e.to_string())?;
         let mut folders = Vec::new();
         for entry in entries {
-            if entry.file_type.is_dir() {
-                if let Ok(rel) = entry.path().strip_prefix(vault_path) {
+            if entry.file_type.is_dir()
+                && let Ok(rel) = entry.path().strip_prefix(vault_path) {
                     let clean = rel
                         .to_string_lossy()
                         .replace('\\', "/")
@@ -497,7 +493,6 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
                         folders.push(clean);
                     }
                 }
-            }
         }
         Ok(folders)
     }

@@ -280,12 +280,10 @@ impl VersionControlImpl {
 
         let mut platform = stash_ref.log_iter();
         if let Ok(Some(iter)) = platform.all() {
-            for line_res in iter {
-                if let Ok(line) = line_res {
-                    let oid = line.new_oid();
-                    if !commit_ids.contains(&oid) {
-                        commit_ids.push(oid);
-                    }
+            for line in iter.flatten() {
+                let oid = line.new_oid();
+                if !commit_ids.contains(&oid) {
+                    commit_ids.push(oid);
                 }
             }
         }
@@ -310,9 +308,8 @@ impl VersionControlImpl {
                 .find_object(parents[0])
                 .ok()
                 .and_then(|o| o.try_into_commit().ok())
-            {
-                if let (Ok(p_tree), Ok(s_tree)) = (parent0.tree(), commit.tree()) {
-                    if let Ok(mut diff) = p_tree.changes() {
+                && let (Ok(p_tree), Ok(s_tree)) = (parent0.tree(), commit.tree())
+                    && let Ok(mut diff) = p_tree.changes() {
                         let _ = diff.for_each_to_obtain_tree(&s_tree, |change| {
                             let rel_str = change.location().to_string();
                             let abs_path = work_dir.join(&rel_str);
@@ -325,17 +322,14 @@ impl VersionControlImpl {
                             Ok(std::ops::ControlFlow::Continue(()))
                         });
                     }
-                }
-            }
 
             // Parent 2 (if present) contains untracked files stashed with `git stash -u`
-            if parents.len() > 2 {
-                if let Some(parent2) = repo
+            if parents.len() > 2
+                && let Some(parent2) = repo
                     .find_object(parents[2])
                     .ok()
                     .and_then(|o| o.try_into_commit().ok())
-                {
-                    if let Ok(u_tree) = parent2.tree() {
+                    && let Ok(u_tree) = parent2.tree() {
                         let empty_tree = repo.empty_tree();
                         if let Ok(mut diff) = empty_tree.changes() {
                             let _ = diff.for_each_to_obtain_tree(&u_tree, |change| {
@@ -351,8 +345,6 @@ impl VersionControlImpl {
                             });
                         }
                     }
-                }
-            }
         }
 
         stashed
@@ -859,8 +851,8 @@ impl VersionControlImpl {
             let mut show_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_cmd.current_dir(work_dir);
             show_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
-            if let Ok(out) = show_cmd.output() {
-                if out.status.success() {
+            if let Ok(out) = show_cmd.output()
+                && out.status.success() {
                     let resolved = Self::resolve_git_lfs_bytes_if_needed(
                         work_dir,
                         Some(repo.path()),
@@ -868,13 +860,11 @@ impl VersionControlImpl {
                     );
                     old_content = String::from_utf8_lossy(&resolved).to_string();
                 }
-            }
 
-            if abs_path.is_file() {
-                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+            if abs_path.is_file()
+                && let Ok(c) = std::fs::read_to_string(&abs_path) {
                     new_content = c;
                 }
-            }
 
             if renamed {
                 // `git diff rev -- ruta` no ve el archivo con su nombre viejo: se arma el diff a mano
@@ -920,8 +910,8 @@ impl VersionControlImpl {
             let mut show_head_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_head_cmd.current_dir(work_dir);
             show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
-            if let Ok(out) = show_head_cmd.output() {
-                if out.status.success() {
+            if let Ok(out) = show_head_cmd.output()
+                && out.status.success() {
                     let resolved = Self::resolve_git_lfs_bytes_if_needed(
                         work_dir,
                         Some(repo.path()),
@@ -929,13 +919,12 @@ impl VersionControlImpl {
                     );
                     old_content = String::from_utf8_lossy(&resolved).to_string();
                 }
-            }
 
             let mut show_index_cmd = crate::infrastructure::service::os::git_binary::git_command();
             show_index_cmd.current_dir(work_dir);
             show_index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
-            if let Ok(out) = show_index_cmd.output() {
-                if out.status.success() {
+            if let Ok(out) = show_index_cmd.output()
+                && out.status.success() {
                     let resolved = Self::resolve_git_lfs_bytes_if_needed(
                         work_dir,
                         Some(repo.path()),
@@ -943,7 +932,6 @@ impl VersionControlImpl {
                     );
                     new_content = String::from_utf8_lossy(&resolved).to_string();
                 }
-            }
 
             let mut diff_cmd = crate::infrastructure::service::os::git_binary::git_command();
             diff_cmd.current_dir(work_dir);
@@ -968,8 +956,8 @@ impl VersionControlImpl {
                     let mut show_head_cmd = crate::infrastructure::service::os::git_binary::git_command();
                     show_head_cmd.current_dir(work_dir);
                     show_head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
-                    if let Ok(head_out) = show_head_cmd.output() {
-                        if head_out.status.success() {
+                    if let Ok(head_out) = show_head_cmd.output()
+                        && head_out.status.success() {
                             let resolved = Self::resolve_git_lfs_bytes_if_needed(
                                 work_dir,
                                 Some(repo.path()),
@@ -977,15 +965,13 @@ impl VersionControlImpl {
                             );
                             old_content = String::from_utf8_lossy(&resolved).to_string();
                         }
-                    }
                 }
             }
 
-            if abs_path.is_file() {
-                if let Ok(c) = std::fs::read_to_string(&abs_path) {
+            if abs_path.is_file()
+                && let Ok(c) = std::fs::read_to_string(&abs_path) {
                     new_content = c;
                 }
-            }
 
             let mut diff_cmd = crate::infrastructure::service::os::git_binary::git_command();
             diff_cmd.current_dir(work_dir);
@@ -1062,8 +1048,8 @@ impl VersionControlImpl {
                 use std::io::Write;
                 let _ = stdin.write_all(raw_bytes);
             }
-            if let Ok(output) = child.wait_with_output() {
-                if output.status.success()
+            if let Ok(output) = child.wait_with_output()
+                && output.status.success()
                     && !output.stdout.is_empty()
                     && !output
                         .stdout
@@ -1071,7 +1057,6 @@ impl VersionControlImpl {
                 {
                     return output.stdout;
                 }
-            }
         }
 
         // 2. Fallback directo: buscar el blob en el almacenamiento local .git/lfs/objects/
@@ -1085,19 +1070,17 @@ impl VersionControlImpl {
 
                         if let Some(gd) = git_dir {
                             let candidate = gd.join(&subpath);
-                            if candidate.is_file() {
-                                if let Ok(bytes) = std::fs::read(&candidate) {
+                            if candidate.is_file()
+                                && let Ok(bytes) = std::fs::read(&candidate) {
                                     return bytes;
                                 }
-                            }
                         }
 
                         let candidate = work_dir.join(".git").join(&subpath);
-                        if candidate.is_file() {
-                            if let Ok(bytes) = std::fs::read(&candidate) {
+                        if candidate.is_file()
+                            && let Ok(bytes) = std::fs::read(&candidate) {
                                 return bytes;
                             }
-                        }
                     }
                 }
             }
@@ -1228,8 +1211,7 @@ impl VersionControlImpl {
             };
             if let Some(old) = Self::path_at_revision(work_dir, rev, &repo_rel_path)
                 .filter(|p| *p != repo_rel_path)
-            {
-                if let Ok(out) = crate::infrastructure::service::os::git_binary::git_command()
+                && let Ok(out) = crate::infrastructure::service::os::git_binary::git_command()
                     .current_dir(work_dir)
                     .args(["show", &format!("{rev}:{old}")])
                     .output()
@@ -1245,7 +1227,6 @@ impl VersionControlImpl {
                     }
                     output = out;
                 }
-            }
         }
 
         if !output.status.success() {
@@ -1374,30 +1355,27 @@ impl VersionControlImpl {
             let mut rev_cmd = crate::infrastructure::service::os::git_binary::git_command();
             rev_cmd.current_dir(work_dir);
             rev_cmd.args(["show", &format!("{}:{}", rev, rev_path)]);
-            if let Ok(out) = rev_cmd.output() {
-                if out.status.success() {
+            if let Ok(out) = rev_cmd.output()
+                && out.status.success() {
                     old_bytes = out.stdout;
                 }
-            }
         } else {
             let mut head_cmd = crate::infrastructure::service::os::git_binary::git_command();
             head_cmd.current_dir(work_dir);
             head_cmd.args(["show", &format!("HEAD:{}", repo_rel_path)]);
-            if let Ok(out) = head_cmd.output() {
-                if out.status.success() {
+            if let Ok(out) = head_cmd.output()
+                && out.status.success() {
                     old_bytes = out.stdout;
                 }
-            }
 
             if old_bytes.is_empty() && !staged {
                 let mut index_cmd = crate::infrastructure::service::os::git_binary::git_command();
                 index_cmd.current_dir(work_dir);
                 index_cmd.args(["show", &format!(":{}", repo_rel_path)]);
-                if let Ok(out) = index_cmd.output() {
-                    if out.status.success() {
+                if let Ok(out) = index_cmd.output()
+                    && out.status.success() {
                         old_bytes = out.stdout;
                     }
-                }
             }
         }
 
@@ -1481,11 +1459,10 @@ impl VersionControlImpl {
                     }
                 }
             };
-            if reader.format().is_none() {
-                if let Some(fmt) = image::ImageFormat::from_extension(&ext) {
+            if reader.format().is_none()
+                && let Some(fmt) = image::ImageFormat::from_extension(&ext) {
                     reader.set_format(fmt);
                 }
-            }
             reader
                 .decode()
                 .map(|img| img.to_rgba8())
@@ -1922,11 +1899,10 @@ impl VersionControlImpl {
             .args(["rev-parse", "--verify", &format!("refs/heads/{new_branch}")])
             .output();
 
-        if let Ok(out) = check_exists {
-            if out.status.success() {
+        if let Ok(out) = check_exists
+            && out.status.success() {
                 return Err(format!("La rama '{new_branch}' ya existe"));
             }
-        }
 
         let output = if checkout {
             if base_branch.is_empty() {
@@ -2565,7 +2541,7 @@ mod tests {
 
         let img_path = temp_dir.join("photo.png");
         let png_bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG signature
-        std::fs::write(&img_path, &png_bytes).unwrap();
+        std::fs::write(&img_path, png_bytes).unwrap();
 
         let diagram_path = temp_dir.join("flow.mermaid");
         std::fs::write(&diagram_path, "graph TD\n  A --> B").unwrap();

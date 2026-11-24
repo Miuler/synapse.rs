@@ -43,10 +43,10 @@ fn main() {
         let mut vault_path = None;
         let mut iter = args.iter().skip(1);
         while let Some(arg) = iter.next() {
-            if arg == "--vault" || arg == "-v" {
-                if let Some(target) = iter.next() {
-                    vault_path = Some(PathBuf::from(target));
-                }
+            if (arg == "--vault" || arg == "-v")
+                && let Some(target) = iter.next()
+            {
+                vault_path = Some(PathBuf::from(target));
             }
         }
 

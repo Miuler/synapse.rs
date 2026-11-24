@@ -456,11 +456,10 @@ pub fn git_checkout_branch(
         })?;
 
     // Sincronizar el árbol de navegación ya que los archivos cambiaron en disco
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
 
     Ok(result)
 }
@@ -481,13 +480,11 @@ pub fn git_create_branch(
         checkout,
     })?;
 
-    if checkout {
-        if let Ok(guard) = state.navigation_engine.lock() {
-            if let Some(ref engine) = *guard {
+    if checkout
+        && let Ok(guard) = state.navigation_engine.lock()
+            && let Some(ref engine) = *guard {
                 engine.spawn_reconciliation();
             }
-        }
-    }
 
     Ok(result)
 }

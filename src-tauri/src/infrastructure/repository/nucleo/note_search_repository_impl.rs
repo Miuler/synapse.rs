@@ -11,6 +11,12 @@ impl NoteSearchRepositoryImpl {
     }
 }
 
+impl Default for NoteSearchRepositoryImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoteSearchRepository for NoteSearchRepositoryImpl {
     fn search_items(&self, query: &str, items: &[String]) -> Vec<SearchResult> {
         if query.trim().is_empty() {
@@ -40,8 +46,8 @@ impl NoteSearchRepository for NoteSearchRepositoryImpl {
             if let Some(score) = pattern.indices(utf32_item, &mut matcher, &mut indices) {
                 results.push(SearchResult {
                     text: item.clone(),
-                    score: score as u32,
-                    match_indices: indices.into_iter().map(|idx| idx as u32).collect(),
+                    score,
+                    match_indices: indices.into_iter().collect(),
                     note_path: None,
                     is_recent: None,
                     last_opened_nanos: None,
@@ -100,8 +106,8 @@ impl NoteSearchRepository for NoteSearchRepositoryImpl {
 
                 results.push(SearchResult {
                     text: format!("{} - {}", note.title, note.relative_path.as_str()),
-                    score: score as u32,
-                    match_indices: indices.into_iter().map(|idx| idx as u32).collect(),
+                    score,
+                    match_indices: indices.into_iter().collect(),
                     note_path: Some(note.relative_path.as_str().to_string()),
                     is_recent: None,
                     last_opened_nanos: None,

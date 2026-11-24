@@ -657,41 +657,35 @@ pub fn snippet_to_segments(
         let start = r.start.min(fragment.len());
         let end = r.end.min(fragment.len());
 
-        if start > current_idx && current_idx < fragment.len() {
-            if let Some(slice) = fragment.get(current_idx..start) {
-                if !slice.is_empty() {
+        if start > current_idx && current_idx < fragment.len()
+            && let Some(slice) = fragment.get(current_idx..start)
+                && !slice.is_empty() {
                     segments.push(HighlightSegment {
                         text: slice.to_string(),
                         highlighted: false,
                     });
                 }
-            }
-        }
 
-        if start < end {
-            if let Some(slice) = fragment.get(start..end) {
-                if !slice.is_empty() {
+        if start < end
+            && let Some(slice) = fragment.get(start..end)
+                && !slice.is_empty() {
                     segments.push(HighlightSegment {
                         text: slice.to_string(),
                         highlighted: true,
                     });
                 }
-            }
-        }
 
         current_idx = end.max(current_idx);
     }
 
-    if current_idx < fragment.len() {
-        if let Some(slice) = fragment.get(current_idx..) {
-            if !slice.is_empty() {
+    if current_idx < fragment.len()
+        && let Some(slice) = fragment.get(current_idx..)
+            && !slice.is_empty() {
                 segments.push(HighlightSegment {
                     text: slice.to_string(),
                     highlighted: false,
                 });
             }
-        }
-    }
 
     segments
 }

@@ -901,8 +901,8 @@ fn test_reload_paths_files_and_directories() {
     writeln!(f1_mod, "# Guide v2 Recharged\nFresh guide content").unwrap();
 
     let reloaded_dir = engine.reload_paths(&["docs".to_string()]).unwrap();
-    assert!(reloaded_dir.contains(&"docs/guide.md".to_string()));
-    assert!(reloaded_dir.contains(&"docs/sub/deep.md".to_string()));
+    assert!(reloaded_dir.iter().any(|i| i == "docs/guide.md"));
+    assert!(reloaded_dir.iter().any(|i| i == "docs/sub/deep.md"));
     let guide_id = *engine.path_index.get("docs/guide.md").unwrap().value();
     let guide_title = engine.notes.get(&guide_id).unwrap().title.clone();
     assert_eq!(guide_title.as_str(), "Guide v2 Recharged");
@@ -910,7 +910,11 @@ fn test_reload_paths_files_and_directories() {
     // 3. Test directory reload with deleted file: remove deep.md
     fs::remove_file(&deep_file).unwrap();
     let reloaded_after_delete = engine.reload_paths(&["docs".to_string()]).unwrap();
-    assert!(!reloaded_after_delete.contains(&"docs/sub/deep.md".to_string()));
+    assert!(
+        !reloaded_after_delete
+            .iter()
+            .any(|i| i == "docs/sub/deep.md")
+    );
     assert!(!engine.path_index.contains_key("docs/sub/deep.md"));
     assert_eq!(engine.notes.len(), 2);
 
@@ -1519,10 +1523,10 @@ fn test_vault_graph_local_and_global() {
     let global_graph = engine.get_vault_graph(None, None);
     assert!(global_graph.nodes.len() >= 4);
     let node_ids: Vec<String> = global_graph.nodes.iter().map(|n| n.id.clone()).collect();
-    assert!(node_ids.contains(&"NoteA.md".to_string()));
-    assert!(node_ids.contains(&"NoteB.md".to_string()));
-    assert!(node_ids.contains(&"NoteC.md".to_string()));
-    assert!(node_ids.contains(&"NoteD.md".to_string()));
+    assert!(node_ids.iter().any(|i| i == "NoteA.md"));
+    assert!(node_ids.iter().any(|i| i == "NoteB.md"));
+    assert!(node_ids.iter().any(|i| i == "NoteC.md"));
+    assert!(node_ids.iter().any(|i| i == "NoteD.md"));
 
     // Verificar aristas globales
     assert!(
@@ -1541,18 +1545,18 @@ fn test_vault_graph_local_and_global() {
     // 2. Grafo Local para NoteA con max_depth = 1 (vecindario directo: A y B)
     let local_graph_a1 = engine.get_vault_graph(Some("NoteA.md"), Some(1));
     let local_ids_a1: Vec<String> = local_graph_a1.nodes.iter().map(|n| n.id.clone()).collect();
-    assert!(local_ids_a1.contains(&"NoteA.md".to_string()));
-    assert!(local_ids_a1.contains(&"NoteB.md".to_string()));
-    assert!(!local_ids_a1.contains(&"NoteC.md".to_string()));
-    assert!(!local_ids_a1.contains(&"NoteD.md".to_string()));
+    assert!(local_ids_a1.iter().any(|i| i == "NoteA.md"));
+    assert!(local_ids_a1.iter().any(|i| i == "NoteB.md"));
+    assert!(!local_ids_a1.iter().any(|i| i == "NoteC.md"));
+    assert!(!local_ids_a1.iter().any(|i| i == "NoteD.md"));
 
     // 3. Grafo Local para NoteA con max_depth = 2 (debe alcanzar C: A -> B -> C)
     let local_graph_a2 = engine.get_vault_graph(Some("NoteA.md"), Some(2));
     let local_ids_a2: Vec<String> = local_graph_a2.nodes.iter().map(|n| n.id.clone()).collect();
-    assert!(local_ids_a2.contains(&"NoteA.md".to_string()));
-    assert!(local_ids_a2.contains(&"NoteB.md".to_string()));
-    assert!(local_ids_a2.contains(&"NoteC.md".to_string()));
-    assert!(!local_ids_a2.contains(&"NoteD.md".to_string()));
+    assert!(local_ids_a2.iter().any(|i| i == "NoteA.md"));
+    assert!(local_ids_a2.iter().any(|i| i == "NoteB.md"));
+    assert!(local_ids_a2.iter().any(|i| i == "NoteC.md"));
+    assert!(!local_ids_a2.iter().any(|i| i == "NoteD.md"));
 
     // 4. Grafo Local para nota aislada (NoteD): solo debe contener NoteD y 0 enlaces
     let local_graph_d = engine.get_vault_graph(Some("NoteD.md"), Some(1));
@@ -1597,8 +1601,8 @@ fn test_vault_tags_extraction_and_search() {
     // Búsqueda de notas por tag
     let rust_notes = engine.get_notes_by_tag("rust");
     assert_eq!(rust_notes.len(), 2);
-    assert!(rust_notes.contains(&"Note1.md".to_string()));
-    assert!(rust_notes.contains(&"Note2.md".to_string()));
+    assert!(rust_notes.iter().any(|i| i == "Note1.md"));
+    assert!(rust_notes.iter().any(|i| i == "Note2.md"));
 
     let frontend_notes = engine.get_notes_by_tag("frontend");
     assert_eq!(frontend_notes, vec!["Note2.md"]);

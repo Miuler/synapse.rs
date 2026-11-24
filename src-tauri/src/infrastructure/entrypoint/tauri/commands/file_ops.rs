@@ -23,11 +23,10 @@ pub fn delete_vault_item(state: State<'_, AppState>, relative_path: String) -> R
             relative_path,
         })?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
 
     Ok(())
 }
@@ -53,11 +52,10 @@ pub fn rename_vault_item(
             relative_path,
             new_name,
         })?;
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
     Ok(renamed_path)
 }
 
@@ -91,24 +89,22 @@ pub fn move_vault_items(
             paths,
             dest_dir,
         });
-    let moved: Vec<MovedItem> = match result {
-        Ok(items) => items
-            .into_iter()
-            .map(|m| MovedItem {
-                from: m.from,
-                to: m.to,
-            })
-            .collect(),
-        Err(err) => return Err(err),
+    let moved: Vec<MovedItem> = {
+        let items = result?;
+        items
+    .into_iter()
+    .map(|m| MovedItem {
+        from: m.from,
+        to: m.to,
+    })
+    .collect()
     };
 
-    if !moved.is_empty() {
-        if let Ok(guard) = state.navigation_engine.lock() {
-            if let Some(ref engine) = *guard {
+    if !moved.is_empty()
+        && let Ok(guard) = state.navigation_engine.lock()
+            && let Some(ref engine) = *guard {
                 engine.spawn_reconciliation();
             }
-        }
-    }
     Ok(moved)
 }
 
@@ -136,11 +132,10 @@ pub fn copy_vault_items(
             dest_dir,
         })?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             let _ = engine.reload_paths(&created);
         }
-    }
 
     Ok(created)
 }
@@ -174,11 +169,10 @@ pub fn import_external_items(
             dest_dir,
         })?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             let _ = engine.reload_paths(&created);
         }
-    }
 
     Ok(created)
 }
@@ -317,11 +311,10 @@ pub fn write_binary_file(
             bytes: data,
         })?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
 
     Ok(())
 }
@@ -341,11 +334,10 @@ pub fn create_vault_folder(
         relative_path,
     })?;
 
-    if let Ok(guard) = state.navigation_engine.lock() {
-        if let Some(ref engine) = *guard {
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();
         }
-    }
 
     Ok(())
 }

@@ -99,11 +99,10 @@ pub fn load(config_dir: &Path) {
 /// Guarda (o borra, con `None`) la ruta de Git. Comprueba antes que es un Git que funciona.
 pub fn save(config_dir: &Path, path: Option<&str>) -> Result<GitInfo, String> {
     let path = path.map(str::trim).filter(|p| !p.is_empty()).map(PathBuf::from);
-    if let Some(p) = &path {
-        if version_of(p).is_none() {
+    if let Some(p) = &path
+        && version_of(p).is_none() {
             return Err(format!("{} no es un ejecutable de Git que funcione (`git --version` falló)", p.display()));
         }
-    }
     let mut config = read_config(config_dir);
     let root = config.as_object_mut().expect("read_config devuelve un objeto");
     match &path {

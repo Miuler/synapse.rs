@@ -47,32 +47,31 @@ impl InstalledPluginRepository for InstalledPluginRepositoryImpl {
                 let folder_name = entry.file_name().to_string_lossy().to_string();
                 let manifest_path = entry_path.join("manifest.json");
 
-                if manifest_path.exists() {
-                    if let Ok(content) = fs::read_to_string(&manifest_path) {
-                        if let Ok(manifest) = serde_json::from_str::<ManifestExtract>(&content) {
-                            let id = manifest.id.unwrap_or_else(|| folder_name.clone());
-                            if seen_ids.contains(&id) {
-                                continue;
-                            }
-                            seen_ids.insert(id.clone());
-
-                            let name = manifest.name.unwrap_or_else(|| id.clone());
-                            let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
-                            let has_styles = entry_path.join("styles.css").exists();
-                            let dir = format!("{rel_prefix}/{folder_name}");
-
-                            results.push(InstalledPluginInfo {
-                                id,
-                                name,
-                                version,
-                                description: manifest.description,
-                                author: manifest.author,
-                                dir,
-                                has_styles,
-                                repo: None,
-                            });
-                        }
+                if manifest_path.exists()
+                    && let Ok(content) = fs::read_to_string(&manifest_path)
+                    && let Ok(manifest) = serde_json::from_str::<ManifestExtract>(&content)
+                {
+                    let id = manifest.id.unwrap_or_else(|| folder_name.clone());
+                    if seen_ids.contains(&id) {
+                        continue;
                     }
+                    seen_ids.insert(id.clone());
+
+                    let name = manifest.name.unwrap_or_else(|| id.clone());
+                    let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
+                    let has_styles = entry_path.join("styles.css").exists();
+                    let dir = format!("{rel_prefix}/{folder_name}");
+
+                    results.push(InstalledPluginInfo {
+                        id,
+                        name,
+                        version,
+                        description: manifest.description,
+                        author: manifest.author,
+                        dir,
+                        has_styles,
+                        repo: None,
+                    });
                 }
             }
         }

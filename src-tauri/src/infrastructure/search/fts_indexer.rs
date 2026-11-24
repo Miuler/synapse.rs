@@ -102,8 +102,8 @@ impl FtsIndexer {
                     let rec_f = Arc::clone(&worker_recent_files);
                     let cb_l = Arc::clone(&worker_on_status_change);
                     move || {
-                        if let Ok(guard) = cb_l.lock() {
-                            if let Some(ref cb) = *guard {
+                        if let Ok(guard) = cb_l.lock()
+                            && let Some(ref cb) = *guard {
                                 let status = FullTextIndexStatus {
                                     indexed_docs: idx.num_docs(),
                                     pending: pend.load(Ordering::SeqCst),
@@ -117,7 +117,6 @@ impl FtsIndexer {
                                 };
                                 cb(status);
                             }
-                        }
                     }
                 };
 
@@ -159,11 +158,10 @@ impl FtsIndexer {
                             final_deletions = to_remove;
                         }
 
-                        if let Err(e) = idx.delete(&final_deletions) {
-                            if let Ok(mut l) = err_lock.lock() {
+                        if let Err(e) = idx.delete(&final_deletions)
+                            && let Ok(mut l) = err_lock.lock() {
                                 *l = Some(format!("Error en delete FTS: {}", e));
                             }
-                        }
                     }
 
                     // 2. Procesar inserciones / modificaciones concurrentemente
@@ -202,14 +200,13 @@ impl FtsIndexer {
                                 if let Ok(mut l) = cur_f.lock() {
                                     *l = Some(rel_str.clone());
                                 }
-                                if let Ok(mut r) = rec_f.lock() {
-                                    if !r.contains(&rel_str) {
+                                if let Ok(mut r) = rec_f.lock()
+                                    && !r.contains(&rel_str) {
                                         if r.len() >= 10 {
                                             r.remove(0);
                                         }
                                         r.push(rel_str.clone());
                                     }
-                                }
                                 if count % 5 == 0 || count == targets_len {
                                     notify_fn();
                                 }
@@ -243,21 +240,18 @@ impl FtsIndexer {
                             })
                             .collect();
 
-                        if !docs.is_empty() {
-                            if let Err(e) = idx.upsert(docs) {
-                                if let Ok(mut l) = err_lock.lock() {
+                        if !docs.is_empty()
+                            && let Err(e) = idx.upsert(docs)
+                                && let Ok(mut l) = err_lock.lock() {
                                     *l = Some(format!("Error en upsert FTS: {}", e));
                                 }
-                            }
-                        }
                     }
 
                     // 3. Commit unificado
-                    if let Err(e) = idx.commit() {
-                        if let Ok(mut l) = err_lock.lock() {
+                    if let Err(e) = idx.commit()
+                        && let Ok(mut l) = err_lock.lock() {
                             *l = Some(format!("Error en commit FTS: {}", e));
                         }
-                    }
 
                     if let Ok(mut l) = cur_f.lock() {
                         *l = None;
@@ -449,10 +443,10 @@ impl IndexedDocumentRepository for FtsIndexer {
 impl Drop for FtsIndexer {
     fn drop(&mut self) {
         let _ = self.tx.send(IndexerCmd::Shutdown);
-        if let Ok(mut lock) = self.worker_handle.lock() {
-            if let Some(handle) = lock.take() {
-                let _ = handle.join();
-            }
+        if let Ok(mut lock) = self.worker_handle.lock()
+            && let Some(handle) = lock.take()
+        {
+            let _ = handle.join();
         }
     }
 }
@@ -557,12 +551,11 @@ fn perform_full_sync(
         .cloned()
         .collect();
 
-    if !to_delete.is_empty() {
-        if let Err(e) = index.delete(&to_delete) {
-            if let Ok(mut l) = error_lock.lock() {
-                *l = Some(format!("Error en delete de sync: {}", e));
-            }
-        }
+    if !to_delete.is_empty()
+        && let Err(e) = index.delete(&to_delete)
+        && let Ok(mut l) = error_lock.lock()
+    {
+        *l = Some(format!("Error en delete de sync: {}", e));
     }
 
     // 2. Indexar archivos nuevos o modificados en paralelo con rayon
@@ -588,13 +581,13 @@ fn perform_full_sync(
                 if let Ok(mut l) = cur_f.lock() {
                     *l = Some(rel_str.clone());
                 }
-                if let Ok(mut r) = rec_f.lock() {
-                    if !r.contains(&rel_str) {
-                        if r.len() >= 10 {
-                            r.remove(0);
-                        }
-                        r.push(rel_str.clone());
+                if let Ok(mut r) = rec_f.lock()
+                    && !r.contains(&rel_str)
+                {
+                    if r.len() >= 10 {
+                        r.remove(0);
                     }
+                    r.push(rel_str.clone());
                 }
                 if count % 5 == 0 || count == total {
                     notify_fn();
@@ -611,12 +604,11 @@ fn perform_full_sync(
             })
             .collect();
 
-        if !docs.is_empty() {
-            if let Err(e) = index.upsert(docs) {
-                if let Ok(mut l) = error_lock.lock() {
-                    *l = Some(format!("Error en upsert de sync: {}", e));
-                }
-            }
+        if !docs.is_empty()
+            && let Err(e) = index.upsert(docs)
+            && let Ok(mut l) = error_lock.lock()
+        {
+            *l = Some(format!("Error en upsert de sync: {}", e));
         }
     }
 

@@ -100,21 +100,19 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
                 }
                 if let Ok(mut note_to_patch) =
                     self.note_repository.read_note(vault, &other.relative_path)
-                {
-                    if note_to_patch.content.contains(&format!("[[{}]]", old_stem))
+                    && (note_to_patch.content.contains(&format!("[[{}]]", old_stem))
                         || note_to_patch
                             .content
-                            .contains(&format!("[[{}]]", clean_src))
-                    {
-                        note_to_patch.content = note_to_patch
-                            .content
-                            .replace(
-                                &format!("[[{}]]", clean_src),
-                                &format!("[[{}]]", target_rel),
-                            )
-                            .replace(&format!("[[{}]]", old_stem), &format!("[[{}]]", target_rel));
-                        let _ = self.note_repository.save_note(vault, &note_to_patch);
-                    }
+                            .contains(&format!("[[{}]]", clean_src)))
+                {
+                    note_to_patch.content = note_to_patch
+                        .content
+                        .replace(
+                            &format!("[[{}]]", clean_src),
+                            &format!("[[{}]]", target_rel),
+                        )
+                        .replace(&format!("[[{}]]", old_stem), &format!("[[{}]]", target_rel));
+                    let _ = self.note_repository.save_note(vault, &note_to_patch);
                 }
             }
         }

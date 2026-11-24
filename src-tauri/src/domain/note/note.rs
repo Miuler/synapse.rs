@@ -28,12 +28,12 @@ impl Note {
     pub fn title_from_content(content: &str, file_stem: &str) -> String {
         // Si contiene frontmatter YAML con propiedad title, priorizarla
         let (fm, body) = crate::domain::note::frontmatter::NoteFrontmatter::parse(content);
-        if let Some(fm) = fm {
-            if let Some(explicit_title) = fm.title {
-                let trimmed = explicit_title.trim();
-                if !trimmed.is_empty() {
-                    return trimmed.to_string();
-                }
+        if let Some(fm) = fm
+            && let Some(explicit_title) = fm.title
+        {
+            let trimmed = explicit_title.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
             }
         }
 

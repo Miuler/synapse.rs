@@ -24,13 +24,13 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
             .map_err(|e| format!("Error al leer nota: {}", e))?;
 
         let current_hash = NoteContent::hash(&note.content);
-        if let Some(exp) = command.expected_hash.as_deref() {
-            if exp != current_hash {
-                return Err(format!(
-                    "Conflicto OCC en patch_note: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento.",
-                    current_hash, exp
-                ));
-            }
+        if let Some(exp) = command.expected_hash.as_deref()
+            && exp != current_hash
+        {
+            return Err(format!(
+                "Conflicto OCC en patch_note: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento.",
+                current_hash, exp
+            ));
         }
 
         let patched_content = NoteContent::apply_patch(

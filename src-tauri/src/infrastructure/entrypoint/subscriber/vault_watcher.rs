@@ -132,31 +132,24 @@ pub fn process_paths_batch(
                             });
                         })
                     {
-                        if let Ok(entry) = entry_res {
-                            if entry.file_type.is_file() {
+                        if let Ok(entry) = entry_res
+                            && entry.file_type.is_file() {
                                 let entry_path = entry.path();
-                                if let Ok(sub_rel) = entry_path.strip_prefix(vault_path) {
-                                    if !should_ignore_path(sub_rel) {
-                                        if let Some(name) =
+                                if let Ok(sub_rel) = entry_path.strip_prefix(vault_path)
+                                    && !should_ignore_path(sub_rel)
+                                        && let Some(name) =
                                             entry_path.file_name().and_then(|s| s.to_str())
-                                        {
-                                            if file_types.is_supported_file(name) {
+                                            && file_types.is_supported_file(name) {
                                                 existing_paths.insert(entry_path);
                                             }
-                                        }
-                                    }
-                                }
                             }
-                        }
                     }
                 }
-            } else if abs_path.is_file() {
-                if let Some(file_name) = abs_path.file_name().and_then(|n| n.to_str()) {
-                    if file_types.is_supported_file(file_name) {
+            } else if abs_path.is_file()
+                && let Some(file_name) = abs_path.file_name().and_then(|n| n.to_str())
+                    && file_types.is_supported_file(file_name) {
                         existing_paths.insert(abs_path.clone());
                     }
-                }
-            }
         } else {
             // Path does not exist on disk: either a deleted file or a deleted directory
             let rel_str = rel_path.to_string_lossy().replace('\\', "/");
@@ -212,11 +205,10 @@ pub fn process_paths_batch(
             if let Some(id_ref) = path_index.get(&compact_path) {
                 let id = *id_ref.value();
                 drop(id_ref);
-                if let Some(existing) = notes.get(&id) {
-                    if existing.mtime_nanos == mtime_nanos && existing.size_bytes == size_bytes {
+                if let Some(existing) = notes.get(&id)
+                    && existing.mtime_nanos == mtime_nanos && existing.size_bytes == size_bytes {
                         return None;
                     }
-                }
             }
 
             let file_stem = abs_path
@@ -423,22 +415,20 @@ pub fn process_paths_batch(
             .collect();
         let deleted_paths_list: Vec<String> = deleted_paths.into_iter().collect();
 
-        if let Ok(guard) = on_change.lock() {
-            if let Some(ref cb) = *guard {
+        if let Ok(guard) = on_change.lock()
+            && let Some(ref cb) = *guard {
                 cb(VaultFsChangeEvent {
                     paths: modified_paths.clone(),
                     deleted: deleted_paths_list.clone(),
                 });
             }
-        }
 
-        if !modified_paths.is_empty() || !deleted_paths_list.is_empty() {
-            if let Ok(lock) = observers.read() {
+        if (!modified_paths.is_empty() || !deleted_paths_list.is_empty())
+            && let Ok(lock) = observers.read() {
                 for listener in lock.iter() {
                     listener(modified_paths.clone(), deleted_paths_list.clone());
                 }
             }
-        }
     }
 
     // Los lotes grandes (p. ej. el escaneo inicial) reservan mucha memoria temporal.
@@ -484,11 +474,10 @@ impl VaultFsWatcher {
                     }
 
                     for path in event.paths {
-                        if let Ok(rel) = path.strip_prefix(&filter_vault_path) {
-                            if !should_ignore_path(rel) {
+                        if let Ok(rel) = path.strip_prefix(&filter_vault_path)
+                            && !should_ignore_path(rel) {
                                 let _ = tx.send(path);
                             }
-                        }
                     }
                 }
                 Err(err) => {
@@ -527,11 +516,10 @@ impl VaultFsWatcher {
                         true
                     }
                 });
-                if !ignored.is_empty() {
-                    if let Ok(mut lock) = roots_collector.lock() {
+                if !ignored.is_empty()
+                    && let Ok(mut lock) = roots_collector.lock() {
                         lock.extend(ignored);
                     }
-                }
             })
         {}
 

@@ -232,21 +232,19 @@ pub fn open_vault_components(
         NavigationEngine::start_with_file_types(vault_path.clone(), cache_path, file_types.clone());
 
     let handle_for_fs = Arc::clone(&app_handle);
-    if let Ok(guard) = app_handle.lock() {
-        if let Some(ref handle) = *guard {
+    if let Ok(guard) = app_handle.lock()
+        && let Some(ref handle) = *guard {
             use tauri::Manager;
             let _ = handle
                 .asset_protocol_scope()
                 .allow_directory(&vault_path, true);
         }
-    }
     engine.set_on_fs_change(Arc::new(move |evt| {
-        if let Ok(guard) = handle_for_fs.lock() {
-            if let Some(ref handle) = *guard {
+        if let Ok(guard) = handle_for_fs.lock()
+            && let Some(ref handle) = *guard {
                 use tauri::Emitter;
                 let _ = handle.emit("vault:files-changed", &evt);
             }
-        }
     }));
 
     let fts_dir = vault_path.join(".synapse").join("fts");
@@ -273,12 +271,11 @@ pub fn open_vault_components(
     let indexer = FtsIndexer::start(vault_path, file_types, Arc::clone(&tantivy_index));
     let handle_for_fts = Arc::clone(&app_handle);
     indexer.set_on_status_change(Arc::new(move |status| {
-        if let Ok(guard) = handle_for_fts.lock() {
-            if let Some(ref handle) = *guard {
+        if let Ok(guard) = handle_for_fts.lock()
+            && let Some(ref handle) = *guard {
                 use tauri::Emitter;
                 let _ = handle.emit("vault:indexing-status", &status);
             }
-        }
     }));
     let index_vault_change = IndexVaultChangeUseCase::new(Arc::clone(&indexer));
     engine.register_change_listener(Arc::new(move |upserted, removed| {
@@ -326,12 +323,11 @@ impl AppState {
         mcp_runtime.set_on_status_change(Arc::new(move |status| {
             let handle_clone = Arc::clone(&handle_for_mcp);
             std::thread::spawn(move || {
-                if let Ok(guard) = handle_clone.lock() {
-                    if let Some(ref handle) = *guard {
+                if let Ok(guard) = handle_clone.lock()
+                    && let Some(ref handle) = *guard {
                         use tauri::Emitter;
                         let _ = handle.emit("mcp:status-changed", &status);
                     }
-                }
             });
         }));
 
@@ -502,12 +498,11 @@ impl AppState {
         mcp_runtime.set_on_status_change(Arc::new(move |status| {
             let handle_clone = Arc::clone(&handle_for_mcp);
             std::thread::spawn(move || {
-                if let Ok(guard) = handle_clone.lock() {
-                    if let Some(ref handle) = *guard {
+                if let Ok(guard) = handle_clone.lock()
+                    && let Some(ref handle) = *guard {
                         use tauri::Emitter;
                         let _ = handle.emit("mcp:status-changed", &status);
                     }
-                }
             });
         }));
 
@@ -669,15 +664,14 @@ impl AppState {
 
     /// Deja que el webview muestre un archivo ya autorizado (`asset:`).
     pub fn allow_asset(&self, path: &Path) {
-        if let Ok(guard) = self.app_handle.lock() {
-            if let Some(ref handle) = *guard {
+        if let Ok(guard) = self.app_handle.lock()
+            && let Some(ref handle) = *guard {
                 use tauri::Manager;
                 let scope = handle.asset_protocol_scope();
                 if !scope.is_allowed(path) {
                     let _ = scope.allow_file(path);
                 }
             }
-        }
     }
 
     /// La persona eligió este archivo suelto (diálogo o línea de comandos).
