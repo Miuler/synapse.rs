@@ -145,6 +145,49 @@ export interface PermissionRequestEvent {
   options: PermissionOption[];
 }
 
+export interface ElicitationPropertySchema {
+  type?: 'string' | 'number' | 'integer' | 'boolean' | 'array' | string;
+  title?: string;
+  description?: string;
+  enum?: (string | number | boolean)[];
+  enumNames?: string[];
+  oneOf?: { const: string | number | boolean; title?: string }[];
+  default?: unknown;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  format?: string;
+  items?: {
+    type?: string;
+    enum?: string[];
+    anyOf?: { const: string; title?: string }[];
+  };
+}
+
+export interface ElicitationSchema {
+  type?: 'object' | string;
+  properties?: Record<string, ElicitationPropertySchema>;
+  required?: string[];
+}
+
+export type ElicitationAction = 'accept' | 'decline' | 'cancel';
+
+export interface ElicitationRequestEvent {
+  sessionId: string | null;
+  requestId: string;
+  mode: 'form' | 'url';
+  message: string;
+  requestedSchema?: ElicitationSchema | null;
+  url?: string | null;
+  elicitationId?: string | null;
+}
+
+export interface ElicitationAnswer {
+  action: ElicitationAction;
+  content?: Record<string, unknown> | null;
+}
+
 export interface StreamEvent {
   sessionId: string;
   kind: 'message' | 'thought' | 'user';
@@ -253,6 +296,7 @@ export type ChatItem =
       rawOutput?: unknown;
     }
   | { type: 'permission'; id: number; request: PermissionRequestEvent; answered: string | null }
+  | { type: 'elicitation'; id: number; request: ElicitationRequestEvent; answered: ElicitationAnswer | null }
   | { type: 'error'; id: number; text: string }
   /** El usuario compactó el contexto del agente (`/compact`): lo anterior ya no está en su memoria. */
   | { type: 'compact'; id: number }

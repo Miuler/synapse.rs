@@ -670,3 +670,57 @@ it('muestra «Razonamiento…» al colapsar y evita espacio extra al expandir an
   expect(expanded.gapPx).toBeGreaterThanOrEqual(0);
   expect(expanded.gapPx).toBeLessThanOrEqual(14);
 }, 30_000);
+
+it('soporta elicitation/create en modo form y modo url', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(
+    async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))),
+    { timeout: 15_000 },
+  );
+  await input.setValue('pedir elicitación');
+  await s.browser.keys('Enter');
+
+  // 1. Modo form: aparecen los campos del schema y el botón Aceptar está deshabilitado hasta llenar requeridos
+  await s.browser.$('.acp-elicitation[data-mode="form"]').waitForExist({ timeout: 10_000 });
+  const initiallyDisabled = await s.browser.execute(
+    () => (document.querySelector('.acp-elicitation[data-mode="form"] button[type="submit"]') as HTMLButtonElement)?.disabled,
+  );
+  expect(initiallyDisabled).toBe(true);
+
+  // Elegir opción «staging», escribir nombre y marcar checkbox
+  await s.browser.execute(() => {
+    const pill = [...document.querySelectorAll('.acp-elicitation-pill')].find((b) => b.textContent?.trim() === 'staging') as HTMLElement;
+    pill.click();
+  });
+  await s.browser.$('.acp-elicitation-field[data-field="nombre"] input').setValue('demo');
+  await s.browser.execute(() => {
+    const chk = document.querySelector('.acp-elicitation-field[data-field="confirmar"] input[type="checkbox"]') as HTMLInputElement;
+    chk.click();
+  });
+  await s.browser.execute(() => {
+    (document.querySelector('.acp-elicitation[data-mode="form"] button[type="submit"]') as HTMLButtonElement).click();
+  });
+
+  // 2. Modo url: muestra dominio y botón Abrir enlace; el usuario rechaza
+  await s.browser.$('.acp-elicitation[data-mode="url"]').waitForExist({ timeout: 10_000 });
+  const domain = await s.browser.execute(
+    () => document.querySelector('.acp-elicitation[data-mode="url"] .acp-elicitation-domain')?.textContent?.trim(),
+  );
+  expect(domain).toBe('auth.example.com');
+
+  await s.browser.execute(() => {
+    const btn = [...document.querySelectorAll('.acp-elicitation[data-mode="url"] button')].find(
+      (b) => b.textContent?.trim() === 'Rechazar',
+    ) as HTMLElement;
+    btn.click();
+  });
+
+  // 3. El agente recibe ambas respuestas y responde con el resumen
+  await s.browser.waitUntil(
+    async () =>
+      (await text('.acp-msg.agent')).some((t) =>
+        t?.includes('Elicitación OK [accept:staging:demo:true] [url:decline]'),
+      ),
+    { timeout: 10_000, timeoutMsg: 'no llegó la confirmación de elicitación del agente' },
+  );
+}, 30_000);

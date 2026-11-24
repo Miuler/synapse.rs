@@ -1,5 +1,5 @@
 use crate::domain::agent::{
-    AgentLaunch, AgentSession, PermissionDecision, PromptBlock, ToolServer,
+    AgentLaunch, AgentSession, ElicitationDecision, PermissionDecision, PromptBlock, ToolServer,
 };
 use std::future::Future;
 
@@ -34,6 +34,13 @@ pub trait AgentRunner: Send + Sync {
         session_id: &str,
         request_id: &str,
         decision: PermissionDecision,
+    ) -> impl Future<Output = Result<(), String>> + Send;
+
+    fn respond_elicitation(
+        &self,
+        session_id: &str,
+        request_id: &str,
+        decision: ElicitationDecision,
     ) -> impl Future<Output = Result<(), String>> + Send;
 
     fn set_mode(

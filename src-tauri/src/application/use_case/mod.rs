@@ -12,6 +12,7 @@ pub mod list_agents_use_case;
 pub mod load_agent_transcript_use_case;
 pub mod open_agent_transcript_use_case;
 pub mod record_agent_iteration_use_case;
+pub mod respond_elicitation_use_case;
 pub mod respond_permission_use_case;
 pub mod save_agent_profile_use_case;
 pub mod save_agent_transcript_use_case;

@@ -34,6 +34,8 @@ skills/
 __pycache__/
 
 
+zennotes
+
 # AI
 .agents
 .claude

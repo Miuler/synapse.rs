@@ -179,6 +179,29 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }
+    // «pedir elicitación»: prueba elicitation/create en modo form y luego en modo url
+    if (said.includes('pedir elicitación')) {
+      send({
+        jsonrpc: '2.0',
+        id: 'el-form-1',
+        method: 'elicitation/create',
+        params: {
+          sessionId: current,
+          mode: 'form',
+          message: 'Configura el despliegue',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              env: { type: 'string', title: 'Entorno', enum: ['dev', 'staging', 'prod'] },
+              nombre: { type: 'string', title: 'Nombre' },
+              confirmar: { type: 'boolean', title: 'Confirmar despliegue' },
+            },
+            required: ['env', 'nombre'],
+          },
+        },
+      });
+      continue;
+    }
     // «consulta en <bóveda>: <ruta>»: lee una nota de otra bóveda con el MCP de Synapse
     const consult = /consulta en (\S+): (\S+)/.exec(said);
     if (consult) {
@@ -239,6 +262,28 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (msg.id === 'perm-1') {
     const chosen = msg.result?.outcome?.optionId ?? 'cancelado';
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ` (permiso: ${chosen})` } });
+    send({ jsonrpc: '2.0', id: promptId, result: { stopReason: 'end_turn' } });
+  } else if (msg.id === 'el-form-1') {
+    const c = msg.result?.content ?? {};
+    (globalThis as any).__elFormRes = `${msg.result?.action}:${c.env}:${c.nombre}:${c.confirmar}`;
+    send({
+      jsonrpc: '2.0',
+      id: 'el-url-1',
+      method: 'elicitation/create',
+      params: {
+        sessionId: current,
+        mode: 'url',
+        message: 'Autoriza el despliegue en el navegador',
+        url: 'https://auth.example.com/device',
+        elicitationId: 'oauth-e2e',
+      },
+    });
+  } else if (msg.id === 'el-url-1') {
+    const formSummary = (globalThis as any).__elFormRes ?? 'none';
+    update({
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: `Elicitación OK [${formSummary}] [url:${msg.result?.action}]` },
+    });
     send({ jsonrpc: '2.0', id: promptId, result: { stopReason: 'end_turn' } });
   }
 }

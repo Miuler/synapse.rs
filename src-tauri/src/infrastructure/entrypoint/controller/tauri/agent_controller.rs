@@ -3,7 +3,7 @@
 use crate::application::dto::agent::*;
 use crate::domain::agent::{
     AgentLaunch, AgentProfile, AgentSession, AgentTranscript, AgentTranscriptSummary,
-    IterationTelemetry, PermissionDecision, PromptBlock, ToolServer,
+    ElicitationDecision, IterationTelemetry, PermissionDecision, PromptBlock, ToolServer,
 };
 use crate::infrastructure::config::agent_state::AgentState;
 use crate::infrastructure::config::state::AppState;
@@ -207,6 +207,31 @@ pub async fn agent_respond_permission(
     state
         .respond_permission
         .execute(RespondPermissionCommand {
+            session_id,
+            request_id,
+            decision,
+        })
+        .await
+}
+
+/// Responde una solicitud de elicitación ACP (`accept` con contenido opcional, `decline` o `cancel`).
+#[tauri::command]
+pub async fn agent_respond_elicitation(
+    state: State<'_, AgentState>,
+    session_id: String,
+    request_id: String,
+    action: String,
+    content: Option<serde_json::Value>,
+) -> Result<(), String> {
+    let decision = match action.as_str() {
+        "accept" => ElicitationDecision::Accept { content },
+        "decline" => ElicitationDecision::Decline,
+        "cancel" => ElicitationDecision::Cancel,
+        other => return Err(format!("Acción de elicitación inválida: {other}")),
+    };
+    state
+        .respond_elicitation
+        .execute(RespondElicitationCommand {
             session_id,
             request_id,
             decision,

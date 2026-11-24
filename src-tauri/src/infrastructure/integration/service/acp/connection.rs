@@ -16,6 +16,8 @@ pub(super) struct Connection {
     pending: Arc<Mutex<Pending>>,
     /// Peticiones de permiso del agente sin responder: id expuesto → id JSON-RPC original.
     permissions: Arc<Mutex<HashMap<String, Value>>>,
+    /// Solicitudes de elicitación del agente sin responder: id expuesto → id JSON-RPC original.
+    elicitations: Arc<Mutex<HashMap<String, Value>>>,
 }
 
 impl Connection {
@@ -31,6 +33,7 @@ impl Connection {
             next_id: AtomicU64::new(1),
             pending: Arc::default(),
             permissions: Arc::default(),
+            elicitations: Arc::default(),
         });
         let reader_conn = conn.clone();
         tokio::spawn(async move {
@@ -76,6 +79,13 @@ impl Connection {
                     sink(
                         "acp://permission-request",
                         permission_event(&params, &request_id),
+                    );
+                } else if method == "elicitation/create" {
+                    let request_id = id.to_string();
+                    self.elicitations.lock().await.insert(request_id.clone(), id);
+                    sink(
+                        "acp://elicitation-request",
+                        elicitation_event(&params, &request_id),
                     );
                 } else {
                     // No ofrecemos sistema de archivos ni terminal al agente
@@ -147,6 +157,22 @@ impl Connection {
         self.write(json!({"jsonrpc": "2.0", "id": id, "result": {"outcome": outcome}}))
             .await
     }
+
+    /// Responde una solicitud de elicitación pendiente (`elicitation/create`) con el resultado ACP.
+    pub(super) async fn answer_elicitation(
+        &self,
+        request_id: &str,
+        result: Value,
+    ) -> Result<(), String> {
+        let id = self
+            .elicitations
+            .lock()
+            .await
+            .remove(request_id)
+            .ok_or("La solicitud de elicitación ya no está pendiente")?;
+        self.write(json!({"jsonrpc": "2.0", "id": id, "result": result}))
+            .await
+    }
 }
 
 fn error_message(err: &Value) -> String {
@@ -191,6 +217,25 @@ fn permission_event(params: &Value, request_id: &str) -> Value {
         "title": tool.get("title").and_then(Value::as_str).unwrap_or("El agente pide permiso"),
         "toolCallId": tool.get("toolCallId").cloned().unwrap_or(Value::Null),
         "options": options,
+    })
+}
+
+fn elicitation_event(params: &Value, request_id: &str) -> Value {
+    let mode = params
+        .get("mode")
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| if params.get("url").is_some() { "url" } else { "form" });
+    json!({
+        "sessionId": params.get("sessionId").cloned().unwrap_or(Value::Null),
+        "requestId": request_id,
+        "mode": mode,
+        "message": params
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("El agente solicita información"),
+        "requestedSchema": params.get("requestedSchema").cloned().unwrap_or(Value::Null),
+        "url": params.get("url").cloned().unwrap_or(Value::Null),
+        "elicitationId": params.get("elicitationId").cloned().unwrap_or(Value::Null),
     })
 }
 
@@ -316,5 +361,41 @@ mod tests {
             &json!({"sessionId": "s", "update": {"sessionUpdate": "usage_update", "used": 10, "size": 100}}),
         );
         assert_eq!(usage[0].0, "acp://usage");
+    }
+
+    #[test]
+    fn traduce_elicitation_form_y_url() {
+        let form = elicitation_event(
+            &json!({
+                "sessionId": "ses-1",
+                "mode": "form",
+                "message": "Elige entorno",
+                "requestedSchema": {
+                    "type": "object",
+                    "properties": { "env": { "type": "string", "enum": ["dev", "prod"] } },
+                    "required": ["env"]
+                }
+            }),
+            "\"el-1\"",
+        );
+        assert_eq!(form["sessionId"], "ses-1");
+        assert_eq!(form["requestId"], "\"el-1\"");
+        assert_eq!(form["mode"], "form");
+        assert_eq!(form["message"], "Elige entorno");
+        assert_eq!(form["requestedSchema"]["properties"]["env"]["enum"][1], "prod");
+
+        let url = elicitation_event(
+            &json!({
+                "sessionId": "ses-1",
+                "mode": "url",
+                "message": "Autoriza en el navegador",
+                "url": "https://example.com/oauth",
+                "elicitationId": "oauth-42"
+            }),
+            "\"el-2\"",
+        );
+        assert_eq!(url["mode"], "url");
+        assert_eq!(url["url"], "https://example.com/oauth");
+        assert_eq!(url["elicitationId"], "oauth-42");
     }
 }

@@ -1,7 +1,8 @@
 use super::connection::Connection;
 use crate::application::integration::service::AgentRunner;
 use crate::domain::agent::{
-    AgentCapabilities, AgentLaunch, AgentOption, AgentSession, PermissionDecision, PromptBlock,
+    AgentCapabilities, AgentLaunch, AgentOption, AgentSession, ElicitationDecision,
+    PermissionDecision, PromptBlock,
     ToolServer,
 };
 use serde_json::{Value, json};
@@ -107,7 +108,11 @@ impl AgentRunnerImpl {
             "initialize",
             json!({
                 "protocolVersion": 1,
-                "clientCapabilities": {"fs": {"readTextFile": false, "writeTextFile": false}, "terminal": false},
+                "clientCapabilities": {
+                    "fs": {"readTextFile": false, "writeTextFile": false},
+                    "terminal": false,
+                    "elicitation": {"form": {}, "url": {}},
+                },
                 "clientInfo": {"name": "synapsers", "version": env!("CARGO_PKG_VERSION")},
             }),
         )
@@ -462,6 +467,26 @@ impl AgentRunner for AgentRunnerImpl {
             .await
     }
 
+    async fn respond_elicitation(
+        &self,
+        session_id: &str,
+        request_id: &str,
+        decision: ElicitationDecision,
+    ) -> Result<(), String> {
+        let result = match decision {
+            ElicitationDecision::Accept {
+                content: Some(content),
+            } => json!({"action": "accept", "content": content}),
+            ElicitationDecision::Accept { content: None } => json!({"action": "accept"}),
+            ElicitationDecision::Decline => json!({"action": "decline"}),
+            ElicitationDecision::Cancel => json!({"action": "cancel"}),
+        };
+        self.conn(session_id)
+            .await?
+            .answer_elicitation(request_id, result)
+            .await
+    }
+
     async fn set_mode(&self, session_id: &str, mode_id: &str) -> Result<(), String> {
         self.conn(session_id)
             .await?
@@ -774,6 +799,141 @@ mod tests {
             .unwrap();
         assert_eq!(perm.1["title"], "Editar nota.md");
         assert_eq!(perm.1["options"][0]["id"], "allow");
+    }
+
+    #[tokio::test]
+    async fn conversa_por_acp_con_elicitacion_form_y_url() {
+        async fn fake_elicitation_agent(stream: tokio::io::DuplexStream) {
+            let (r, mut w) = tokio::io::split(stream);
+            let mut lines = BufReader::new(r).lines();
+            let mut prompt_id = None;
+            while let Ok(Some(line)) = lines.next_line().await {
+                let msg: Value = serde_json::from_str(&line).unwrap();
+                let reply = match msg.get("method").and_then(Value::as_str) {
+                    Some("initialize") => {
+                        let cap = &msg["params"]["clientCapabilities"]["elicitation"];
+                        assert!(cap["form"].is_object(), "debe anunciar elicitation.form");
+                        assert!(cap["url"].is_object(), "debe anunciar elicitation.url");
+                        vec![json!({"jsonrpc":"2.0","id":msg["id"],"result":{"protocolVersion":1}})]
+                    }
+                    Some("session/new") => {
+                        vec![json!({"jsonrpc":"2.0","id":msg["id"],"result":{"sessionId":"ses-e"}})]
+                    }
+                    Some("session/prompt") => {
+                        prompt_id = Some(msg["id"].clone());
+                        vec![json!({
+                            "jsonrpc": "2.0",
+                            "id": "el-form",
+                            "method": "elicitation/create",
+                            "params": {
+                                "sessionId": "ses-e",
+                                "mode": "form",
+                                "message": "¿Qué entorno?",
+                                "requestedSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "env": { "type": "string", "enum": ["staging", "prod"] }
+                                    },
+                                    "required": ["env"]
+                                }
+                            }
+                        })]
+                    }
+                    None if msg["id"] == "el-form" => {
+                        assert_eq!(msg["result"]["action"], "accept");
+                        assert_eq!(msg["result"]["content"]["env"], "staging");
+                        vec![json!({
+                            "jsonrpc": "2.0",
+                            "id": "el-url",
+                            "method": "elicitation/create",
+                            "params": {
+                                "sessionId": "ses-e",
+                                "mode": "url",
+                                "message": "Abre el enlace para continuar",
+                                "url": "https://auth.example.com/device",
+                                "elicitationId": "u-1"
+                            }
+                        })]
+                    }
+                    None if msg["id"] == "el-url" => {
+                        assert_eq!(msg["result"]["action"], "decline");
+                        assert!(msg["result"].get("content").is_none());
+                        vec![json!({
+                            "jsonrpc": "2.0",
+                            "id": prompt_id.clone().unwrap(),
+                            "result": {"stopReason": "end_turn"}
+                        })]
+                    }
+                    _ => vec![],
+                };
+                for m in reply {
+                    w.write_all(format!("{m}\n").as_bytes()).await.unwrap();
+                }
+            }
+        }
+
+        let events: Arc<StdMutex<Vec<(String, Value)>>> = Arc::default();
+        let recorded = events.clone();
+        let runner = AgentRunnerImpl::new(Arc::new(move |name, payload| {
+            recorded.lock().unwrap().push((name.to_string(), payload));
+        }));
+        let (client, agent) = duplex(64 * 1024);
+        tokio::spawn(fake_elicitation_agent(agent));
+        let (r, w) = tokio::io::split(client);
+        let session = runner.open_with(r, w, "/boveda").await.unwrap();
+        assert_eq!(session.id, "ses-e");
+
+        let prompt = {
+            let runner = runner.clone();
+            tokio::spawn(async move {
+                runner
+                    .prompt(
+                        "ses-e",
+                        vec![PromptBlock::Text {
+                            text: "despliega".into(),
+                        }],
+                    )
+                    .await
+            })
+        };
+
+        let form_req = loop {
+            let found = events.lock().unwrap().iter().find_map(|(n, p)| {
+                (n == "acp://elicitation-request" && p["mode"] == "form")
+                    .then(|| p["requestId"].as_str().unwrap().to_string())
+            });
+            if let Some(id) = found {
+                break id;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        };
+        runner
+            .respond_elicitation(
+                "ses-e",
+                &form_req,
+                ElicitationDecision::Accept {
+                    content: Some(json!({"env": "staging"})),
+                },
+            )
+            .await
+            .unwrap();
+
+        let url_req = loop {
+            let found = events.lock().unwrap().iter().find_map(|(n, p)| {
+                (n == "acp://elicitation-request" && p["mode"] == "url")
+                    .then(|| p["requestId"].as_str().unwrap().to_string())
+            });
+            if let Some(id) = found {
+                break id;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        };
+        runner
+            .respond_elicitation("ses-e", &url_req, ElicitationDecision::Decline)
+            .await
+            .unwrap();
+
+        assert_eq!(prompt.await.unwrap().unwrap(), "end_turn");
     }
 
     /// Agente falso que abre una sesión distinta por cada `session/new`.

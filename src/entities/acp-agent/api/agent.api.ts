@@ -6,6 +6,8 @@ import type {
   AgentTranscript,
   AgentTranscriptSummary,
   CommandsEvent,
+  ElicitationAction,
+  ElicitationRequestEvent,
   ModeEvent,
   PermissionRequestEvent,
   PlanEvent,
@@ -38,6 +40,12 @@ export const agentApi = {
   cancelPrompt: (sessionId: string) => invokeTauri<void>('agent_cancel_prompt', { sessionId }),
   respondPermission: (sessionId: string, requestId: string, optionId: string | null) =>
     invokeTauri<void>('agent_respond_permission', { sessionId, requestId, optionId }),
+  respondElicitation: (
+    sessionId: string,
+    requestId: string,
+    action: ElicitationAction,
+    content?: Record<string, unknown> | null,
+  ) => invokeTauri<void>('agent_respond_elicitation', { sessionId, requestId, action, content: content ?? null }),
   /** Conversaciones de las otras instancias de Synapse (otras bóvedas abiertas). */
   peerList: (request: unknown) =>
     invokeTauri<{ vault: string; path: string; result: unknown; error: string | null }[]>('peer_list', { request }),
@@ -56,6 +64,7 @@ export interface AgentEventHandlers {
   onStream: (e: StreamEvent) => void;
   onToolCall: (e: ToolCallEvent) => void;
   onPermission: (e: PermissionRequestEvent) => void;
+  onElicitation: (e: ElicitationRequestEvent) => void;
   onStatus: (e: StatusEvent) => void;
   onPlan: (e: PlanEvent) => void;
   onCommands: (e: CommandsEvent) => void;
@@ -69,6 +78,7 @@ export async function listenAgentEvents(h: AgentEventHandlers): Promise<Unlisten
     listen<StreamEvent>('acp://stream', (e) => h.onStream(e.payload)),
     listen<ToolCallEvent>('acp://tool-call', (e) => h.onToolCall(e.payload)),
     listen<PermissionRequestEvent>('acp://permission-request', (e) => h.onPermission(e.payload)),
+    listen<ElicitationRequestEvent>('acp://elicitation-request', (e) => h.onElicitation(e.payload)),
     listen<StatusEvent>('acp://status', (e) => h.onStatus(e.payload)),
     listen<PlanEvent>('acp://plan', (e) => h.onPlan(e.payload)),
     listen<CommandsEvent>('acp://commands', (e) => h.onCommands(e.payload)),

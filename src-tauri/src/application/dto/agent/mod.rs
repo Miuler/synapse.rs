@@ -1,5 +1,6 @@
 use crate::domain::agent::{
-    AgentLaunch, AgentTranscript, IterationTelemetry, PermissionDecision, PromptBlock, ToolServer,
+    AgentLaunch, AgentTranscript, ElicitationDecision, IterationTelemetry, PermissionDecision,
+    PromptBlock, ToolServer,
 };
 
 pub struct ListAgentsQuery;
@@ -52,6 +53,12 @@ pub struct RespondPermissionCommand {
     pub session_id: String,
     pub request_id: String,
     pub decision: PermissionDecision,
+}
+
+pub struct RespondElicitationCommand {
+    pub session_id: String,
+    pub request_id: String,
+    pub decision: ElicitationDecision,
 }
 
 pub struct StopAgentSessionCommand {

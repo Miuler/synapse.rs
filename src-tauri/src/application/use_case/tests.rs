@@ -91,6 +91,14 @@ impl AgentRunner for MockAgentRunnerImpl {
     ) -> Result<(), String> {
         Ok(())
     }
+    async fn respond_elicitation(
+        &self,
+        _s: &str,
+        _r: &str,
+        _d: ElicitationDecision,
+    ) -> Result<(), String> {
+        Ok(())
+    }
     async fn set_mode(&self, _s: &str, _m: &str) -> Result<(), String> {
         Ok(())
     }

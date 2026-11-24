@@ -128,7 +128,9 @@ export class Conversation {
     return (first && 'text' in first ? first.text : '').replace(/\s+/g, ' ').trim().slice(0, 80);
   }
   get pendingPermissions(): number {
-    return this.items.filter((i) => i.type === 'permission' && i.answered === null).length;
+    return this.items.filter(
+      (i) => (i.type === 'permission' || i.type === 'elicitation') && i.answered === null,
+    ).length;
   }
   /** Estado resumido para el punto de color de la fila. */
   /** Primeras líneas del último mensaje del agente (`agent`) o del usuario (`user`). */
@@ -541,6 +543,23 @@ export class Conversation {
     }
   }
 
+  async answerElicitation(
+    itemId: number,
+    action: 'accept' | 'decline' | 'cancel',
+    content?: Record<string, unknown> | null,
+  ) {
+    const item = this.items.find((i) => i.id === itemId);
+    if (!item || item.type !== 'elicitation' || item.answered !== null) return;
+    item.answered = { action, content: content ?? null };
+    this.persist();
+    const sessionId = item.request.sessionId || this.session?.id || '';
+    try {
+      await agentApi.respondElicitation(sessionId, item.request.requestId, action, content ?? null);
+    } catch (e) {
+      this.error(e);
+    }
+  }
+
   /** Si el agente ofrece `/compact` (lo anuncia entre sus comandos). */
   get canCompact(): boolean {
     return this.commands.some((c) => c.name === 'compact');
@@ -723,6 +742,18 @@ export class AgentStore {
         requestAttention(
           `${c.agent?.name ?? 'El agente'} pide permiso`,
           `${c.handle}${tool && tool.type === 'tool' ? ` · ${tool.title}` : ''}`,
+        );
+      },
+      onElicitation: (e) => {
+        const c =
+          (e.sessionId ? this.#bySession(e.sessionId) : undefined) ??
+          this.conversations.find((x) => x.connection === 'busy');
+        if (!c) return;
+        c.push({ type: 'elicitation', request: e, answered: null });
+        if (!this.isVisible(c)) c.unseen = true;
+        requestAttention(
+          `${c.agent?.name ?? 'El agente'} solicita información`,
+          `${c.handle} · ${e.message}`,
         );
       },
       onStatus: (e) => {

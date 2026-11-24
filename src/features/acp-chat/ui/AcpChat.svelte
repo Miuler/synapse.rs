@@ -13,6 +13,7 @@
   } from '@entities/acp-agent';
   import { settingsApi } from '@entities/settings';
   import { vaultItemStore } from '@entities/vault-item';
+  import ElicitationCard from './ElicitationCard.svelte';
   import {
     Bot,
     Send,
@@ -763,6 +764,12 @@
               </div>
             {/if}
           </div>
+        {:else if item.type === 'elicitation'}
+          <ElicitationCard
+            request={item.request}
+            answered={item.answered}
+            onRespond={(action, content) => conv.answerElicitation(item.id, action, content)}
+          />
         {:else if item.type === 'error'}
           <div class="acp-msg error"><AlertCircle size={13} /> {item.text}</div>
         {:else if item.type === 'info'}

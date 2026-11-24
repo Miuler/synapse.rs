@@ -223,6 +223,7 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_send_prompt,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_cancel_prompt,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_respond_permission,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_respond_elicitation,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_stop_session,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_mode,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_model,
