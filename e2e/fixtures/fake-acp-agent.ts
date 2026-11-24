@@ -165,6 +165,20 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }
+    // «razonamiento y herramienta»: emite pensamiento con saltos finales seguido de una herramienta
+    if (said.includes('razonamiento y herramienta')) {
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Analizando la nota.\n\n' } });
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 't-thought-1',
+        title: 'Run read_note',
+        kind: 'read',
+        status: 'completed',
+      });
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Listo.' } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
     // «consulta en <bóveda>: <ruta>»: lee una nota de otra bóveda con el MCP de Synapse
     const consult = /consulta en (\S+): (\S+)/.exec(said);
     if (consult) {

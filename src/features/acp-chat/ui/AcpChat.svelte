@@ -700,7 +700,13 @@
             </div>
           </div>
         {:else if item.type === 'thought'}
-          <details class="acp-thought"><summary title="Razonamiento del agente" aria-label="Razonamiento">🧠<span class="acp-thought-label"> Razonamiento</span></summary>{item.text}</details>
+          <details class="acp-thought">
+            <summary title="Razonamiento del agente">
+              <span aria-hidden="true">🧠</span>
+              <span class="acp-thought-label">Razonamiento<span class="acp-thought-ellipsis" aria-hidden="true">…</span></span>
+            </summary>
+            <div class="acp-thought-body">{item.text.trim()}</div>
+          </details>
         {:else if item.type === 'tool'}
           <details class="acp-tool" data-status={item.status ?? ''}>
             <summary>
@@ -1063,10 +1069,29 @@
   .acp-thought {
     color: var(--text-muted);
     font-size: 12px;
-    white-space: pre-wrap;
+  }
+  .acp-thought:not([open]) {
+    align-self: flex-start;
   }
   .acp-thought summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
     cursor: pointer;
+    user-select: none;
+  }
+  .acp-thought summary::-webkit-details-marker {
+    display: none;
+  }
+  .acp-thought[open] .acp-thought-ellipsis {
+    display: none;
+  }
+  .acp-thought-body {
+    margin-top: 2px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
   }
   .acp-tool {
     font-size: 12px;
@@ -1328,19 +1353,6 @@
     border-radius: 6px;
     border: 1px solid var(--border-primary);
     object-fit: cover;
-  }
-  .acp-thought:not([open]) {
-    align-self: flex-start;
-  }
-  .acp-thought:not([open]) .acp-thought-label {
-    display: none;
-  }
-  .acp-thought summary {
-    list-style: none;
-    cursor: pointer;
-  }
-  .acp-thought summary::-webkit-details-marker {
-    display: none;
   }
   .acp-image-btn {
     display: inline-flex;

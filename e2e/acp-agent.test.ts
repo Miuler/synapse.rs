@@ -613,3 +613,60 @@ it('los enlaces file:// del agente abren el archivo de la bóveda y saltan a la 
     { timeout: 10_000, timeoutMsg: 'no encontró flujo.mmd por el final de la ruta' },
   );
 }, 30_000);
+
+it('muestra «Razonamiento…» al colapsar y evita espacio extra al expandir antes de herramientas', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(
+    async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))),
+    { timeout: 15_000 },
+  );
+  await input.setValue('razonamiento y herramienta');
+  await s.browser.keys('Enter');
+
+  await s.browser.$('.acp-thought').waitForExist({ timeout: 10_000 });
+  await s.browser.waitUntil(
+    async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Listo.')),
+    { timeout: 10_000 },
+  );
+
+  // Colapsado: se ve «Razonamiento…» (no solo el emoji)
+  const collapsed = (await s.browser.execute(() => {
+    const t = document.querySelector('.acp-thought') as HTMLDetailsElement | null;
+    const label = t?.querySelector('.acp-thought-label');
+    const ellipsis = t?.querySelector('.acp-thought-ellipsis');
+    const labelStyle = label ? getComputedStyle(label) : null;
+    const ellipsisStyle = ellipsis ? getComputedStyle(ellipsis) : null;
+    return {
+      open: !!t?.open,
+      summaryText: t?.querySelector('summary')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      labelVisible: labelStyle?.display !== 'none',
+      ellipsisVisible: ellipsisStyle?.display !== 'none',
+    };
+  })) as { open: boolean; summaryText: string; labelVisible: boolean; ellipsisVisible: boolean };
+
+  expect(collapsed.open).toBe(false);
+  expect(collapsed.labelVisible).toBe(true);
+  expect(collapsed.ellipsisVisible).toBe(true);
+  expect(collapsed.summaryText).toContain('Razonamiento…');
+
+  // Expandido: desaparecen los puntos suspensivos, se recorta el cuerpo y no queda hueco extra con la herramienta siguiente
+  await s.browser.execute(() => (document.querySelector('.acp-thought summary') as HTMLElement).click());
+  const expanded = (await s.browser.execute(() => {
+    const t = document.querySelector('.acp-thought') as HTMLDetailsElement;
+    const tool = t.nextElementSibling as HTMLElement | null;
+    const ellipsis = t.querySelector('.acp-thought-ellipsis')!;
+    const body = t.querySelector('.acp-thought-body')!;
+    return {
+      open: t.open,
+      ellipsisDisplay: getComputedStyle(ellipsis).display,
+      bodyText: body.textContent ?? '',
+      gapPx: tool ? tool.getBoundingClientRect().top - t.getBoundingClientRect().bottom : -1,
+    };
+  })) as { open: boolean; ellipsisDisplay: string; bodyText: string; gapPx: number };
+
+  expect(expanded.open).toBe(true);
+  expect(expanded.ellipsisDisplay).toBe('none');
+  expect(expanded.bodyText).toBe('Analizando la nota.');
+  expect(expanded.gapPx).toBeGreaterThanOrEqual(0);
+  expect(expanded.gapPx).toBeLessThanOrEqual(14);
+}, 30_000);
