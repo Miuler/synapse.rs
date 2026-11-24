@@ -5184,6 +5184,7 @@
                       mode={/\.ya?ml$/i.test(tabFile) ? 'yaml' : /\.json$/i.test(tabFile) ? 'json' : 'markdown'}
                       filePath={tabFile}
                       gitBaseContent={gitBaseContents[tabFile] ?? null}
+                      scrollToTerms={pendingScrollTerms[tabPath]}
                       onOpenRef={openJsonRef}
                       onNotify={showWorkspaceToast}
                       jumpPointer={refJumps[tabFile] ?? null}

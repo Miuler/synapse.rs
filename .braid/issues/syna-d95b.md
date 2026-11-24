@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-d95b
 title: Corregir 3 fallos en suite E2E (screenshots de Office y flake en document-words)
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - e2e
 - test
 owner: null
 created_at: 2026-11-24T02:58:00.291240404Z
+completed_at: 2026-11-24T07:35:06.51129148Z
 ---
 
 Al ejecutar la suite completa de E2E (bun run test:e2e:embedded:run) fallaron 3 pruebas no relacionadas con los cambios recientes:

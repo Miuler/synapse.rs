@@ -668,6 +668,17 @@
     scrollToMatch([heading]);
   }
 
+  // Una sola vez por búsqueda global: abre la barra de búsqueda con el término ya cargado
+  // (sin reabrirla si el usuario la cierra y el contenido se vuelve a renderizar).
+  let lastAppliedTerms: string[] | null = null;
+  function loadSearchTerm(terms: string[], term: string) {
+    if (lastAppliedTerms === terms) return;
+    lastAppliedTerms = terms;
+    searchQuery = term;
+    showSearchBar = true;
+    performSearch();
+  }
+
   export function scrollToMatch(terms: string[]) {
     if (!containerRef || !terms || terms.length === 0) return;
     for (const term of terms) {
@@ -680,6 +691,7 @@
           const parent = node.parentElement;
           if (parent) {
             parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            loadSearchTerm(terms, term.trim());
             return;
           }
         }

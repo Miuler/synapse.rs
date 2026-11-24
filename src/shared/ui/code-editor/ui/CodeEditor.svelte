@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount, untrack, tick } from 'svelte';
   import { basicSetup } from 'codemirror';
   import { EditorView, keymap, tooltips } from '@codemirror/view';
   import { EditorState, Compartment, Prec } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
   import { yaml } from '@codemirror/lang-yaml';
   import { json } from '@codemirror/lang-json';
+  import { sql } from '@codemirror/lang-sql';
   import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
-  import { searchKeymap, search, openSearchPanel } from '@codemirror/search';
+  import { searchKeymap, search, openSearchPanel, setSearchQuery, SearchQuery } from '@codemirror/search';
   import { autocompletion } from '@codemirror/autocomplete';
   import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
   import { vim } from '@replit/codemirror-vim';
@@ -55,7 +56,7 @@
     isActive?: boolean;
     /** Ctrl+Enter: acción del editor (en los diagramas, redibujar ya). */
     onRun?: () => void;
-    mode?: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'yaml' | 'json';
+    mode?: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'yaml' | 'json' | 'sql';
     diagnostics?: EditorDiagnostic[];
     onChange?: (content: string) => void;
     onSelectionChange?: (info: SelectionInfo) => void;
@@ -69,6 +70,8 @@
     onJumped?: () => void;
     /** Contenido base de Git (HEAD) para mostrar indicadores de líneas nuevas/modificadas en el gutter. */
     gitBaseContent?: string | null;
+    /** Términos de una búsqueda global: se abre el buscador del editor con el primero cargado. */
+    scrollToTerms?: string[];
   }
 
   let {
@@ -87,6 +90,7 @@
     jumpPointer = null,
     onJumped,
     gitBaseContent = null,
+    scrollToTerms = [],
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -99,6 +103,26 @@
   const editableCompartment = new Compartment();
 
   let lastContent = $state(untrack(() => content));
+
+  let lastAppliedTerms: string[] | null = null;
+  $effect(() => {
+    const terms = scrollToTerms;
+    if (!terms || terms.length === 0) return;
+    tick().then(() => {
+      if (!editorView || lastAppliedTerms === terms) return;
+      const doc = editorView.state.doc.toString().toLowerCase();
+      const term = terms.map((t) => t.trim()).find((t) => t && doc.includes(t.toLowerCase()));
+      if (!term) return;
+      lastAppliedTerms = terms;
+      const index = doc.indexOf(term.toLowerCase());
+      editorView.dispatch({
+        selection: { anchor: index, head: index + term.length },
+        scrollIntoView: true,
+        effects: setSearchQuery.of(new SearchQuery({ search: term })),
+      });
+      openSearchPanel(editorView as any);
+    });
+  });
 
   export function triggerSearch() {
     if (editorView) {
@@ -369,7 +393,9 @@
               ? yaml()
               : mode === 'json'
                 ? json()
-                : markdown();
+                : mode === 'sql'
+                  ? sql()
+                  : markdown();
 
     const autocompleteExtension =
       mode === 'd2'

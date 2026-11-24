@@ -18,6 +18,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Búsqueda global y Quick Open: al abrir un resultado, el buscador del editor (Markdown en lectura y edición, YAML/JSON y texto) queda cargado con el término buscado y posicionado en la primera coincidencia.
 - Chat del agente (ACP): `/btw <pregunta>` hace una pregunta aparte sin interrumpir el turno en curso. La respuesta sale en un panel flotante sobre la caja de texto, no entra en la conversación ni en el historial y se cierra con Esc; «Convertir en conversación» la continúa aparte. Rechaza los permisos que pida el agente.
 - Chat del agente (ACP): `/fork [mensaje]` abre otra conversación con el contexto de la actual, también con el turno en curso. `/btw` y `/fork` usan `session/fork` si el agente lo anuncia (Claude) y, si no, le reenvían la conversación como texto (agy); la sugerencia del comando dice cuál de las dos.
 - Barra de pestañas: opción «Cerrar todas las pestañas» en el menú contextual de cada pestaña.

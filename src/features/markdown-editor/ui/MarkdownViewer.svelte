@@ -10,7 +10,7 @@
   import { vim } from '@replit/codemirror-vim';
   import { undoRedoExtension } from '@shared/lib/editor-history';
   import { commentExtension } from '@shared/lib/editor-comment';
-  import { openSearchPanel, searchKeymap } from '@codemirror/search';
+  import { openSearchPanel, searchKeymap, setSearchQuery, SearchQuery } from '@codemirror/search';
   import { mermaidLivePreviewField, activeFilePathFacet } from '../lib/mermaid-extension';
   import { imageLivePreviewField } from '../lib/image-extension';
   import { youtubeLivePreviewField } from '../lib/youtube-extension';
@@ -293,6 +293,15 @@
     setTimeout(scheduleHeadingUpdate, 50);
   });
 
+  // Una sola vez por búsqueda global: abre el buscador del editor con el término cargado.
+  let lastAppliedTerms: string[] | null = null;
+  function loadSearchTerm(terms: string[], term: string) {
+    if (!editorView || lastAppliedTerms === terms) return;
+    lastAppliedTerms = terms;
+    editorView.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: term })) });
+    openSearchPanel(editorView as any);
+  }
+
   export function scrollToMatch(terms: string[]) {
     if (!terms || terms.length === 0) return;
     if (viewMode === 'reading') {
@@ -310,6 +319,7 @@
           selection: { anchor: index, head: index + cleanTerm.length },
           scrollIntoView: true,
         });
+        loadSearchTerm(terms, term.trim());
         editorView.focus();
         break;
       }
