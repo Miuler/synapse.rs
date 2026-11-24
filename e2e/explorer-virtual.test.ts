@@ -68,6 +68,41 @@ it('ubicar archivo lleva a una nota que no estaba en el DOM', async () => {
   expect(visible).toBe(true);
 });
 
+it('con zoom fraccionario, desplazarse no remonta la lista en bucle', async () => {
+  const setZoom = async (uiZoom: number) => {
+    await s.browser.execute((z: number) => {
+      const raw = JSON.parse(localStorage.getItem('synapse_settings') ?? '{}');
+      localStorage.setItem('synapse_settings', JSON.stringify({ ...raw, uiZoom: z }));
+    }, uiZoom);
+    await s.browser.refresh();
+    await s.browser.waitUntil(async () => (await rowCount()) > 10, { timeout: 30_000 });
+    await s.browser.pause(1000);
+    await s.browser.execute(() => {
+      (document.querySelector('.sidebar-content') as HTMLElement).scrollTop = 0;
+    });
+    await s.browser.waitUntil(() => hasRow(`muchas/${name(0)}`), { timeout: 10_000 });
+  };
+  await setZoom(1.1);
+  const steps = 25;
+  const mounted = (await s.browser.execute(async (n: number) => {
+    const el = document.querySelector('.sidebar-content') as HTMLElement;
+    let added = 0;
+    const obs = new MutationObserver((records) => {
+      for (const r of records) for (const node of r.addedNodes) if (node instanceof HTMLElement && node.matches('.file-tree-item')) added++;
+    });
+    obs.observe(document.querySelector('.tree-rows')!, { childList: true });
+    for (let i = 0; i < n; i++) {
+      el.scrollTop += 280;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+    obs.disconnect();
+    return added;
+  }, steps)) as number;
+  // ~11 filas nuevas por paso; con el bucle eran cientos
+  expect(mounted).toBeLessThan(steps * 40);
+  await setZoom(1);
+}, 90_000);
+
 it('contraer la carpeta deja solo las filas de primer nivel', async () => {
   await s.browser.execute(() => {
     (document.querySelector('.sidebar-content') as HTMLElement).scrollTop = 0;

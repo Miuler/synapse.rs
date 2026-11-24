@@ -10,6 +10,7 @@
   import { gitDialogState, gitApi, repoOf, repoLabel, parseGitStatusInfo, GitStatusBadge, type NormalizedGitStatus, type GitCommitFileItem } from '@entities/git';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
+  import { medianRowPitch } from '../lib/row-pitch';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
@@ -548,12 +549,20 @@
     return { first, last };
   });
 
+  // La distancia se mide al cambiar las filas, el alto o el scroll, nunca por cambiar ella misma: si
+  // dependiera de `rowWindow`, cada medición movería la ventana y volvería a medir. Con zoom las filas
+  // miden fracciones de píxel (26,449) y `offsetTop` redondea a 26, 27 o 28 según la pareja: eso
+  // oscilaba y remontaba la lista cientos de veces por movimiento (segundos de bloqueo).
   $effect(() => {
-    void rowWindow;
+    void treeRows;
+    void treeViewportHeight;
+    void treeScrollTop;
     const items = treeListEl?.children;
     if (!items || items.length < 2) return;
-    const pitch = (items[1] as HTMLElement).offsetTop - (items[0] as HTMLElement).offsetTop;
-    if (pitch > 0 && Math.abs(pitch - rowPitch) > 0.5) rowPitch = pitch;
+    untrack(() => {
+      const pitch = medianRowPitch([...items].map((el) => el.getBoundingClientRect().top));
+      if (pitch > 0 && Math.abs(pitch - rowPitch) > 0.05) rowPitch = pitch;
+    });
   });
 
   /** Lleva una fila a la vista por su índice: con la virtualización puede no estar en el DOM. */
@@ -3323,6 +3332,8 @@
     gap: 6px;
     padding: 5px 12px;
     font-size: 13px;
+    /* Fija: un emoji en el nombre (otra fuente) no hace más alta su fila, la lista virtual las supone iguales */
+    line-height: 1.2;
     color: var(--text-secondary, #656d76);
     cursor: pointer;
     transition: all 0.12s ease;

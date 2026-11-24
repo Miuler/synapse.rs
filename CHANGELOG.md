@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Explorador con muchos archivos y zoom de interfaz distinto de 100 %: moverse por la lista o abrir un archivo bloqueaba la app varios segundos, porque la altura de fila oscilaba y la lista se volvía a montar cientos de veces.
 - Índices de carpeta (`index.md`): el candado y el estado de Git quedan junto a los nombres y alineados en columna, en vez de en el borde derecho; la descripción va a continuación.
 - Chat del agente: con Claude no aparecía el selector de modelo, porque ya lo anuncia en `configOptions`. Synapse lee ese formato y cambia el modelo con `session/set_config_option`.
 - Pruebas unitarias (`bun test`): el plugin que compila los `.svelte.ts` quita los tipos con el transpilador de Bun, porque TypeScript 7 ya no trae `transpileModule`; el script `test` solo mira `./src` (ya no recoge la carpeta `zennotes/`).
