@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Dependencies updated. The Excel viewer moves to `umya-spreadsheet` 4 (beta), which drops a `zip` version with known vulnerabilities.
+
 ## [1.0.0-beta.9] - 2026-11-24
 
 ### Added

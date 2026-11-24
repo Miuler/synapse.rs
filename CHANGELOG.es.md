@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Seguridad
+
+- Dependencias actualizadas. El visor de Excel pasa a `umya-spreadsheet` 4 (beta), que deja atrás una versión de `zip` con vulnerabilidades conocidas.
+
 ## [1.0.0-beta.9] - 2026-11-24
 
 ### Añadido
