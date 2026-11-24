@@ -114,3 +114,8 @@ pub struct RecordAgentIterationCommand {
     pub acp_session_id: Option<String>,
     pub iteration: IterationTelemetry,
 }
+
+pub struct GetAgentQuotaQuery {
+    pub agent_id: String,
+    pub max_age_ms: i64,
+}

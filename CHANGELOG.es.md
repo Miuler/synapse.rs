@@ -13,6 +13,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - Atajo `Alt+E` para alternar entre lectura y edición (además de `F2`): una pulsación entra a edición y la siguiente vuelve a lectura.
 - Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
+- Chat del agente: junto al contexto se ve cuánta cuota queda en la cuenta (`● 58% sem`), con todos los límites al pasar el ratón. Claude la adjunta a la conversación; con Antigravity se pregunta a `agy`, como mucho cada 3 minutos (configurable), y `/usage` la incluye.
+- Chat del agente: al reabrir una conversación, la barra de contexto se ve sin esperar a la primera respuesta.
 - Explorador: los archivos y carpetas arrastrados desde otra aplicación (Nautilus, Explorador, Finder…) se copian en la carpeta donde se sueltan.
 
 ### Corregido

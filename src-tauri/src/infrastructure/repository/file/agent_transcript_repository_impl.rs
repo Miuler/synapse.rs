@@ -102,6 +102,7 @@ mod tests {
             acp_session_id: Some("s".into()),
             created_at: 1,
             updated_at,
+            usage: json!({"used": 1, "size": 2}),
             items: json!([{"type": "user", "text": "hola"}]),
         }
     }

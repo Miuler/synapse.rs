@@ -68,6 +68,8 @@ export interface AgentTranscriptSummary {
 }
 
 export interface AgentTranscript extends AgentTranscriptSummary {
+  /** Contexto usado la última vez */
+  usage?: { used: number; size: number; cost: { amount: number; currency: string } | null } | null;
   items: ChatItem[];
 }
 
@@ -229,12 +231,33 @@ export interface CommandsEvent {
   commands: AgentCommand[];
 }
 
+/** Cuota de la cuenta de un agente (no el contexto de una conversación). */
+export interface AgentQuota {
+  groups: QuotaGroup[];
+  /** Cuándo se obtuvo (ms). */
+  fetched_at: number;
+}
+export interface QuotaGroup {
+  name: string;
+  models: string[];
+  windows: QuotaWindow[];
+}
+export interface QuotaWindow {
+  /** `5h`, `weekly` o el identificador que dé el agente. */
+  window: string;
+  /** Parte que queda, de 0 a 1. */
+  remaining: number;
+  resets_at: number | null;
+}
+
 export interface UsageEvent {
   sessionId: string;
   used: number | null;
   size: number | null;
   /** Costo acumulado de la sesión, si el agente lo informa. */
   cost?: { amount: number; currency: string } | null;
+  /** Cuota de la cuenta, si el agente la adjunta (Claude). */
+  quota?: AgentQuota | null;
 }
 
 export interface ModeEvent {

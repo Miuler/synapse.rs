@@ -19,6 +19,9 @@ pub struct AgentTranscript {
     pub created_at: i64,
     #[serde(default)]
     pub updated_at: i64,
+    /// Contexto usado la última vez, para verlo al retomarla (el agente no lo repite hasta responder).
+    #[serde(default)]
+    pub usage: Value,
     /// Mensajes tal como los muestra la interfaz.
     #[serde(default)]
     pub items: Value,

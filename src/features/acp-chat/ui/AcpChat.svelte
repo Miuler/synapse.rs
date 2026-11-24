@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@shared/lib/i18n';
   import { internalDragPaths, NATIVE_DROP, type NativeDrop } from '@shared/lib/native-drop';
   import {
     agentStore,
@@ -11,6 +12,12 @@
     type ConversationSummary,
     type Mention,
     type ToolContent,
+    groupsForModel,
+    percent,
+    quotaLevel,
+    quotaTooltip,
+    tightestWindow,
+    windowLabel,
   } from '@entities/acp-agent';
   import { settingsApi } from '@entities/settings';
   import { vaultItemStore } from '@entities/vault-item';
@@ -39,7 +46,7 @@
     Clock,
     Check,
   } from 'lucide-svelte';
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, renderUserMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
   import { taskAwareCopy, richCopyOfElement, writeRichClipboard } from '@shared/lib/rich-copy';
@@ -385,7 +392,7 @@
       if ('usage'.startsWith(slash) && !conv.commands.some((c) => c.name === 'usage')) {
         own.push({
           label: '/usage',
-          detail: 'Synapse · resumen de uso de esta conversación (contexto, costo, herramientas)',
+          detail: 'Synapse · uso de esta conversación y, si el agente lo permite, cuota de la cuenta',
           pick: () => {
             conv.draft = '/usage';
             tick().then(() => textarea?.focus());
@@ -632,6 +639,13 @@
   const optsTitle = $derived(
     [currentModelName && `Modelo: ${currentModelName}`, currentEffortName && `Esfuerzo: ${currentEffortName}`, currentModeName && `Modo: ${currentModeName}`].filter(Boolean).join('\n'),
   );
+
+  // Cuota de la cuenta: el límite más apretado del modelo elegido
+  const quota = $derived(agentStore.quotas[conv.agentId] ?? null);
+  const quotaWindow = $derived(quota ? tightestWindow(groupsForModel(quota, currentModelName || conv.currentModel)) : null);
+  $effect(() => {
+    if (conv.session) void agentStore.refreshQuota(untrack(() => conv.agentId));
+  });
 
   const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
 </script>
@@ -911,6 +925,19 @@
           <span class="acp-usage-text" title="{compact(conv.usage.used)} / {compact(conv.usage.size)} tokens">{usagePct.toFixed(0)}%</span>
         {:else}
           <span class="acp-usage-spacer"></span>
+        {/if}
+        {#if quota && quotaWindow}
+          <button
+            type="button"
+            class="acp-quota {quotaLevel(quotaWindow.remaining)}"
+            aria-label={t('quota.label')}
+            title={quotaTooltip(quota, conv.agent?.name ?? conv.agentId)}
+            onclick={() => agentStore.refreshQuota(conv.agentId, { now: true })}
+          >
+            <span class="acp-quota-dot" aria-hidden="true"></span>
+            {percent(quotaWindow.remaining)}
+            <span class="acp-quota-window">{quotaWindow.window === 'weekly' ? t('quota.weeklyShort') : windowLabel(quotaWindow.window)}</span>
+          </button>
         {/if}
         {#if conv.canCompact && conv.usage}
           <button
@@ -1652,6 +1679,36 @@
     font-size: 11px;
     color: var(--text-muted);
     margin: 4px 0;
+  }
+  .acp-quota {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 2px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .acp-quota:hover {
+    color: var(--text-primary);
+  }
+  .acp-quota-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success, #2da44e);
+  }
+  .acp-quota.warn .acp-quota-dot {
+    background: var(--warning, #bf8700);
+  }
+  .acp-quota.low {
+    color: var(--danger, #cf222e);
+  }
+  .acp-quota.low .acp-quota-dot {
+    background: var(--danger, #cf222e);
   }
   .acp-usage-text {
     font-size: 10.5px;

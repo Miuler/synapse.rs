@@ -7,6 +7,7 @@ use crate::application::use_case::change_agent_option_use_case::ChangeAgentOptio
 use crate::application::use_case::delete_agent_profile_use_case::DeleteAgentProfileUseCase;
 use crate::application::use_case::delete_agent_transcript_use_case::DeleteAgentTranscriptUseCase;
 use crate::application::use_case::delete_all_agent_transcripts_use_case::DeleteAllAgentTranscriptsUseCase;
+use crate::application::use_case::get_agent_quota_use_case::GetAgentQuotaUseCase;
 use crate::application::use_case::install_agent_use_case::InstallAgentUseCase;
 use crate::application::use_case::list_agent_transcripts_use_case::ListAgentTranscriptsUseCase;
 use crate::application::use_case::list_agents_use_case::ListAgentsUseCase;
@@ -23,7 +24,7 @@ use crate::application::use_case::start_agent_session_use_case::StartAgentSessio
 use crate::application::use_case::stop_agent_session_use_case::StopAgentSessionUseCase;
 use crate::infrastructure::integration::service::acp::registry::RegistryClient;
 use crate::infrastructure::integration::service::acp::{
-    AgentCatalogImpl, AgentEventSink, AgentInstallerImpl, AgentRunnerImpl,
+    AgentCatalogImpl, AgentEventSink, AgentInstallerImpl, AgentQuotaSourceImpl, AgentRunnerImpl,
 };
 use crate::infrastructure::repository::file::agent_profile_repository_impl::AgentProfileRepositoryImpl;
 use crate::infrastructure::repository::file::agent_telemetry_repository_impl::AgentTelemetryRepositoryImpl;
@@ -32,6 +33,7 @@ use crate::infrastructure::service::os::system_shell_impl::SystemShellImpl;
 
 pub struct AgentState {
     pub list_agents: ListAgentsUseCase<AgentCatalogImpl, AgentProfileRepositoryImpl>,
+    pub get_agent_quota: GetAgentQuotaUseCase<AgentProfileRepositoryImpl, AgentQuotaSourceImpl>,
     pub install_agent: InstallAgentUseCase<AgentInstallerImpl>,
     pub save_agent_profile: SaveAgentProfileUseCase<AgentProfileRepositoryImpl>,
     pub delete_agent_profile: DeleteAgentProfileUseCase<AgentProfileRepositoryImpl>,
@@ -68,6 +70,10 @@ impl AgentState {
         let telemetry = AgentTelemetryRepositoryImpl::default();
         Self {
             list_agents: ListAgentsUseCase::new(catalog, profiles.clone()),
+            get_agent_quota: GetAgentQuotaUseCase::new(
+                profiles.clone(),
+                AgentQuotaSourceImpl::default(),
+            ),
             install_agent: InstallAgentUseCase::new(installer.clone()),
             save_agent_profile: SaveAgentProfileUseCase::new(profiles.clone()),
             delete_agent_profile: DeleteAgentProfileUseCase::new(profiles.clone()),

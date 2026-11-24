@@ -5,6 +5,7 @@
 
 pub mod agent_catalog_impl;
 pub mod agent_installer_impl;
+mod agent_quota_impl;
 pub mod agent_runner_impl;
 mod connection;
 pub mod debug_log;
@@ -13,4 +14,5 @@ pub mod registry;
 
 pub use agent_catalog_impl::AgentCatalogImpl;
 pub use agent_installer_impl::AgentInstallerImpl;
+pub use agent_quota_impl::AgentQuotaSourceImpl;
 pub use agent_runner_impl::{AgentEventSink, AgentRunnerImpl};

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@shared/lib/i18n';
   import { Dialog } from 'bits-ui';
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import {
@@ -17,7 +18,7 @@
   import { invokeTauri } from '@shared/repositories/tauri';
   import { appearance, SNIPPETS_DIR, THEMES_DIR } from '@entities/appearance';
   import { convertFileSrc } from '@tauri-apps/api/core';
-  import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT } from '@entities/acp-agent';
+  import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT, MAX_QUOTA_MINUTES } from '@entities/acp-agent';
   import { appUpdates } from '@features/app-updates';
   import { gitBinary } from '@entities/git';
 
@@ -484,6 +485,23 @@
                 <option value={a.id}>{a.name}</option>
               {/each}
             </select>
+          </label>
+          <label class="row">
+            <span class="row-label">
+              {t('quota.setting')}
+              <span class="hint">{t('quota.settingHint')}</span>
+            </span>
+            <input
+              type="number"
+              min="1"
+              max={MAX_QUOTA_MINUTES}
+              aria-label={t('quota.setting')}
+              value={agentStore.quotaMinutes}
+              onchange={(e) => {
+                agentStore.setQuotaMinutes(e.currentTarget.valueAsNumber);
+                e.currentTarget.value = String(agentStore.quotaMinutes);
+              }}
+            />
           </label>
           <div class="row">
             <span class="row-label">

@@ -1,6 +1,7 @@
 //! Agentes de IA externos con los que el usuario conversa desde Synapse.
 
 pub mod agent_profile;
+pub mod agent_quota;
 pub mod agent_profile_repository;
 pub mod agent_session;
 pub mod agent_telemetry;
@@ -14,6 +15,7 @@ pub mod tool_server;
 
 pub use agent_profile::{AgentLaunch, AgentProfile, AgentSource};
 pub use agent_profile_repository::AgentProfileRepository;
+pub use agent_quota::{AgentQuota, QuotaGroup, QuotaWindow};
 pub use agent_session::{AgentCapabilities, AgentConfig, AgentOption, AgentSession};
 pub use agent_telemetry::{
     AgentSessionTelemetry, AgentUsageRecord, IterationTelemetry, McpCallTelemetry,

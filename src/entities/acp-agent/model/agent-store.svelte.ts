@@ -1,3 +1,5 @@
+import { t } from '@shared/lib/i18n';
+import { quotaMarkdown } from '../lib/quota';
 import { notifyIfUnfocused, requestAttention } from '@shared/lib/attention';
 import { playAgentCompletionSound } from '@shared/lib/sound';
 import { completionNotice } from './completion-notice';
@@ -13,6 +15,7 @@ import type {
   AgentConfig,
   AgentConnection,
   AgentProfile,
+  AgentQuota,
   AgentSession,
   AgentTranscriptSummary,
   Attachment,
@@ -199,6 +202,7 @@ export class Conversation {
           acp_session_id: this.#replay ? null : (this.session?.id ?? this.#acpSessionId),
           created_at: this.#createdAt,
           updated_at: Date.now(),
+          usage: $state.snapshot(this.usage),
           items: $state.snapshot(this.items) as ChatItem[],
         })
         .then(() => this.#store.loadHistory(this.#cwd))
@@ -220,6 +224,8 @@ export class Conversation {
     this.#createdAt = t.created_at;
     this.lastActivity = t.updated_at ?? t.created_at;
     this.#acpSessionId = t.acp_session_id;
+    // El agente no repite el contexto hasta responder: mientras tanto, el de la última vez
+    if (t.acp_session_id && t.usage?.size) this.usage = t.usage;
     if (!t.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
     return t.acp_session_id;
   }
@@ -238,12 +244,17 @@ export class Conversation {
       this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume ?? this.#forkOf, this.id, !resume && !!this.#forkOf);
       // Bifurcada por el agente: ya tiene el contexto, salvo lo que la original lleve del turno en curso
       if (!resume && this.session.resumed) this.#replay = this.#turnReplay;
-      if (resume && !this.session.resumed && this.items.length) this.#replay = replayText(this.items);
+      if (resume && !this.session.resumed) {
+        // Sesión nueva en el agente: el contexto guardado ya no es el suyo
+        this.usage = null;
+        if (this.items.length) this.#replay = replayText(this.items);
+      }
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
       this.currentEffort = this.session.current_effort;
       this.commands = this.#store.takeEarlyCommands(this.session.id);
       this.connection = 'ready';
+      void this.#store.refreshQuota(this.agentId);
       // Modelo recordado para este agente: no hay que elegirlo en cada conversación nueva
       const savedModel = this.#inheritedModel ?? load(`synapse.agent.model.${agent.id}`);
       const choice = savedModel ? savedModelChoice(savedModel, this.session.models, this.session.efforts) : null;
@@ -351,6 +362,28 @@ export class Conversation {
     this.attachments = this.attachments.filter((x) => x !== a);
   }
 
+  /** `/usage`: el resumen sale ya; la cuota de la cuenta se añade al mismo mensaje cuando llega. */
+  async #reportUsage() {
+    const report = this.usageReport();
+    const name = this.agent?.name ?? this.agentId;
+    const pending = this.#store.knowsQuota(this.agentId);
+    this.push({ type: 'info', text: pending ? `${report}\n\n${t('quota.loading')}` : report });
+    const item = this.items[this.items.length - 1];
+    const set = (extra: string) => {
+      if (item.type === 'info') item.text = `${report}\n\n${extra}`;
+    };
+    try {
+      const quota = (await this.#store.refreshQuota(this.agentId, { report: true })) ?? null;
+      if (quota) set(quotaMarkdown(quota, name));
+      else if (pending && item.type === 'info') item.text = report;
+    } catch (e) {
+      const last = this.#store.quotas[this.agentId];
+      const failed = t('quota.failed', { error: e instanceof Error ? e.message : String(e) });
+      set(last ? `${quotaMarkdown(last, name)}\n\n${failed}` : failed);
+    }
+    this.persist();
+  }
+
   /** Resumen de uso de la conversación (`/usage`), en markdown. */
   usageReport(): string {
     const fmt = (n: number) => n.toLocaleString();
@@ -398,7 +431,7 @@ export class Conversation {
     // `/usage` lo responde Synapse (salvo que el agente tenga su propio `/usage`)
     if (/^\/usage\s*$/.test(text.trim()) && !this.commands.some((c) => c.name === 'usage')) {
       this.push({ type: 'user', text, attachments: [] });
-      this.push({ type: 'info', text: this.usageReport() });
+      void this.#reportUsage();
       return;
     }
     this.#turnHops = opts.hops ?? 0;
@@ -529,6 +562,7 @@ export class Conversation {
         }
       }
       this.#turnHops = 0;
+      void this.#store.refreshQuota(this.agentId);
       if (stopReason !== 'cancelled' && !opts.replyTo && !this.ephemeral && this.queue.length === 0) {
         void playAgentCompletionSound();
         const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error');
@@ -747,9 +781,50 @@ export class Conversation {
 }
 
 /** Conversaciones abiertas con los agentes, en un acordeón (como mucho {@link MAX_EXPANDED} desplegadas) y una fijada al costado. */
+const clampQuotaMinutes = (n: number) =>
+  Number.isFinite(n) ? Math.min(MAX_QUOTA_MINUTES, Math.max(1, Math.round(n))) : DEFAULT_QUOTA_MINUTES;
+
+/** Agentes cuya cuota se pregunta aparte; Claude la adjunta a la conversación. */
+const QUOTA_AGENTS = ['antigravity'];
+const QUOTA_MINUTES_KEY = 'synapse.agent.quotaMinutes';
+export const DEFAULT_QUOTA_MINUTES = 3;
+export const MAX_QUOTA_MINUTES = 60;
+/** Al pedirla con un clic: lo justo para no lanzar otra consulta con cada clic. */
+const QUOTA_CLICK_AGE = 10_000;
+
 export class AgentStore {
   agents = $state<AgentProfile[]>([]);
   listError = $state<string | null>(null);
+  /** Minutos que vale la última cuota antes de volver a preguntarla. */
+  quotaMinutes = $state(clampQuotaMinutes(Number(load(QUOTA_MINUTES_KEY) ?? DEFAULT_QUOTA_MINUTES)));
+  setQuotaMinutes(minutes: number) {
+    this.quotaMinutes = clampQuotaMinutes(minutes);
+    save(QUOTA_MINUTES_KEY, String(this.quotaMinutes));
+  }
+  /** Última cuota conocida de la cuenta de cada agente. */
+  quotas = $state<Record<string, AgentQuota>>({});
+
+  /** De este agente se puede preguntar la cuota (los que la adjuntan solos no hace falta). */
+  knowsQuota(agentId: string): boolean {
+    return QUOTA_AGENTS.includes(agentId) && this.agents.find((a) => a.id === agentId)?.source === 'verified';
+  }
+
+  /**
+   * Renueva la cuota si la última respuesta tiene más de `quotaMinutes`; con `now`, casi siempre. Los
+   * fallos se callan (se sigue viendo la última), salvo con `report`.
+   */
+  async refreshQuota(agentId: string, { report = false, now = false } = {}): Promise<AgentQuota | null> {
+    if (!this.knowsQuota(agentId)) return this.quotas[agentId] ?? null;
+    try {
+      const quota = await agentApi.quota(agentId, now ? QUOTA_CLICK_AGE : this.quotaMinutes * 60_000);
+      // Una respuesta guardada no pisa un dato más nuevo que haya adjuntado el agente
+      if (quota && quota.fetched_at >= (this.quotas[agentId]?.fetched_at ?? 0)) this.quotas[agentId] = quota;
+      return this.quotas[agentId] ?? quota;
+    } catch (e) {
+      if (report) throw e;
+      return null;
+    }
+  }
   floating = $state(load(FLOATING_KEY) === '1');
   /** Modo feedback: el agente anota lo que le falta al MCP de Synapse (aplica a nuevas sesiones). */
   feedbackMode = $state(load(FEEDBACK_KEY) === '1');
@@ -836,6 +911,7 @@ export class AgentStore {
       },
       onUsage: (e) => {
         const c = this.#bySession(e.sessionId);
+        if (c && e.quota) this.quotas[c.agentId] = e.quota;
         if (c && e.used != null && e.size) c.usage = { used: e.used, size: e.size, cost: e.cost ?? null };
       },
       onMode: (e) => {

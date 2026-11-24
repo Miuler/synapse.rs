@@ -15,6 +15,23 @@ pub async fn agent_list(state: State<'_, AgentState>) -> Result<Vec<AgentProfile
     state.list_agents.execute(ListAgentsQuery).await
 }
 
+/// Cuota de la cuenta de un agente; `None` si no se puede saber. `max_age_ms`: hasta cuándo vale la
+/// última respuesta.
+#[tauri::command]
+pub async fn agent_quota(
+    state: State<'_, AgentState>,
+    agent_id: String,
+    max_age_ms: i64,
+) -> Result<Option<crate::domain::agent::AgentQuota>, String> {
+    state
+        .get_agent_quota
+        .execute(GetAgentQuotaQuery {
+            agent_id,
+            max_age_ms,
+        })
+        .await
+}
+
 #[tauri::command]
 pub async fn agent_install(state: State<'_, AgentState>, agent_id: String) -> Result<(), String> {
     state

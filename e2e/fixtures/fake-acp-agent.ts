@@ -279,6 +279,17 @@ for await (const line of createInterface({ input: process.stdin })) {
       send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
       continue;
     }
+    // «límites»: la cuota de la cuenta como la adjunta Claude
+    if (said.includes('límites')) {
+      update({
+        sessionUpdate: 'usage_update',
+        used: 1_000,
+        size: 200_000,
+        _meta: { '_claude/rateLimit': { unifiedWindows: { five_hour: { utilization: 0.95, resetsAt: 4_000_000_000 }, seven_day: { utilization: 0.3, resetsAt: 4_000_000_000 } } } },
+      });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
     update({ sessionUpdate: 'usage_update', used: 170_000, size: 200_000 });
     const instr = msg.params.prompt[0]?.text?.includes('synapse_instance') ? 'instr:si' : 'instr:no';
     const blocks = msg.params.prompt.slice(instr === 'instr:si' ? 1 : 0).map((b: { type: string; uri?: string; resource?: { uri: string } }) =>

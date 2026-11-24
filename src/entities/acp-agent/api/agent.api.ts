@@ -2,6 +2,7 @@ import { invokeTauri } from '@shared/api';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AgentProfile,
+  AgentQuota,
   AgentSession,
   AgentTranscript,
   AgentTranscriptSummary,
@@ -23,6 +24,8 @@ import type {
 
 export const agentApi = {
   list: () => invokeTauri<AgentProfile[]>('agent_list'),
+  /** Cuota de la cuenta; `null` si de ese agente no se puede saber. */
+  quota: (agentId: string, maxAgeMs: number) => invokeTauri<AgentQuota | null>('agent_quota', { agentId, maxAgeMs }),
   install: (agentId: string) => invokeTauri<void>('agent_install', { agentId }),
   saveProfile: (p: { id: string; name: string; command: string; args: string[]; env: Record<string, string> }) =>
     invokeTauri<AgentProfile>('agent_save_profile', p),

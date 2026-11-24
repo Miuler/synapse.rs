@@ -300,6 +300,7 @@ fn update_events(params: &Value) -> Vec<(&'static str, Value)> {
                 "used": update.get("used").cloned().unwrap_or(Value::Null),
                 "size": update.get("size").cloned().unwrap_or(Value::Null),
                 "cost": update.get("cost").cloned().unwrap_or(Value::Null),
+                "quota": super::agent_quota_impl::claude_quota(update),
             }),
         )],
         "current_mode_update" => vec![(
@@ -365,6 +366,7 @@ mod tests {
             &json!({"sessionId": "s", "update": {"sessionUpdate": "usage_update", "used": 10, "size": 100}}),
         );
         assert_eq!(usage[0].0, "acp://usage");
+        assert!(usage[0].1["quota"].is_null());
     }
 
     #[test]
