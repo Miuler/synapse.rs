@@ -43,7 +43,7 @@ impl VaultEntryDto {
                 continue;
             }
             entries.push(Self {
-                abs_path: vault_path.join(&rel_str).to_string_lossy().to_string(),
+                abs_path: crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&vault_path.join(&rel_str).to_string_lossy()),
                 relative_path: rel_str,
                 title: meta.title.to_string(),
                 view_mode: if with_view_mode {

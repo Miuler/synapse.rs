@@ -48,6 +48,7 @@ pub fn resolve_asset_file_path_internal(
             return Ok(None);
         }
     }
+    let path = AssetPath::simplify_windows_path(&path);
     state.allow_asset(Path::new(&path));
     Ok(Some(path))
 }

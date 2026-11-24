@@ -265,7 +265,7 @@ pub fn parse_startup_args(args: &[String]) -> Option<StartupTarget> {
                 };
                 let canonical = resolved.canonicalize().unwrap_or(resolved);
                 return Some(StartupTarget::Standalone(
-                    canonical.to_string_lossy().to_string(),
+                    crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&canonical.to_string_lossy()),
                 ));
             }
         } else if arg == "--vault" || arg == "-v" {
@@ -280,7 +280,7 @@ pub fn parse_startup_args(args: &[String]) -> Option<StartupTarget> {
                 };
                 let canonical = resolved.canonicalize().unwrap_or(resolved);
                 return Some(StartupTarget::Vault(
-                    canonical.to_string_lossy().to_string(),
+                    crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&canonical.to_string_lossy()),
                 ));
             }
         } else if !arg.starts_with('-') {
@@ -295,11 +295,11 @@ pub fn parse_startup_args(args: &[String]) -> Option<StartupTarget> {
             let canonical = resolved.canonicalize().unwrap_or(resolved);
             if canonical.is_dir() {
                 return Some(StartupTarget::Vault(
-                    canonical.to_string_lossy().to_string(),
+                    crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&canonical.to_string_lossy()),
                 ));
             } else {
                 return Some(StartupTarget::Standalone(
-                    canonical.to_string_lossy().to_string(),
+                    crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&canonical.to_string_lossy()),
                 ));
             }
         }

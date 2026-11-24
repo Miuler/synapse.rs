@@ -706,6 +706,8 @@ impl AppState {
         path: PathBuf,
         is_git: Option<bool>,
     ) -> Result<SelectVaultFolderResult, String> {
+        // `C:\…` y no `\\?\C:\…`: la misma bóveda debe tener una sola forma en toda la app
+        let path = PathBuf::from(crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&path.to_string_lossy()));
         let folder_path_str = path.to_string_lossy().to_string();
         self.allowed_paths.grant_vault(&path);
 

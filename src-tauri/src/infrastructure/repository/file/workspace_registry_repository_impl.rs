@@ -155,7 +155,7 @@ impl WorkspaceRegistryRepositoryImpl {
     fn normalize_path(path_str: &str) -> String {
         let p = PathBuf::from(path_str.trim());
         if let Ok(canon) = std::fs::canonicalize(&p) {
-            canon.to_string_lossy().to_string()
+            crate::domain::graph::wikilink::AssetPath::simplify_windows_path(&canon.to_string_lossy())
         } else {
             p.to_string_lossy().trim_end_matches('/').to_string()
         }
@@ -394,12 +394,22 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
             return Ok(WorkspaceRegistryConfig::default());
         }
 
-        serde_json::from_str::<WorkspaceRegistryConfig>(&raw).map_err(|e| {
+        let mut cfg = serde_json::from_str::<WorkspaceRegistryConfig>(&raw).map_err(|e| {
             format!(
                 "Error deserializando registro de workspaces {:?}: {}",
                 self.config_file_path, e
             )
-        })
+        })?;
+        // Versiones anteriores guardaban `\\?\C:\…` en Windows: se pasa a la forma normal, sin duplicar
+        let simplify = crate::domain::graph::wikilink::AssetPath::simplify_windows_path;
+        for w in &mut cfg.workspaces {
+            w.path = simplify(&w.path);
+            w.display_path = simplify(&w.display_path);
+        }
+        let mut seen = std::collections::HashSet::new();
+        cfg.workspaces.retain(|w| seen.insert(w.path.clone()));
+        cfg.last_active_workspace = cfg.last_active_workspace.map(|p| simplify(&p));
+        Ok(cfg)
     }
 
     fn save_registry(&self, config: &WorkspaceRegistryConfig) -> Result<(), String> {
@@ -637,6 +647,23 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+
+    #[test]
+    fn las_rutas_largas_de_windows_guardadas_pasan_a_la_forma_normal() {
+        let dir = tempfile::tempdir().unwrap();
+        let entry = |path: &str| serde_json::json!({ "path": path, "display_path": path, "name": "b", "last_opened_ms": 1 });
+        let json = serde_json::json!({
+            "workspaces": [entry(r"\\?\C:\b"), entry(r"C:\b"), entry("/home/x")],
+            "last_active_workspace": r"\\?\C:\b",
+        });
+        std::fs::write(dir.path().join("workspaces.json"), json.to_string()).unwrap();
+        let repo = WorkspaceRegistryRepositoryImpl::with_config_dir(dir.path().to_path_buf(), SupportedFileTypes::default());
+        let cfg = repo.load_registry().unwrap();
+        let paths: Vec<_> = cfg.workspaces.iter().map(|w| w.path.as_str()).collect();
+        assert_eq!(paths, [r"C:\b", "/home/x"]);
+        assert_eq!(cfg.workspaces[0].display_path, r"C:\b");
+        assert_eq!(cfg.last_active_workspace.as_deref(), Some(r"C:\b"));
+    }
 
     #[test]
     fn test_set_jsonc_shortcut_keeps_comments() {

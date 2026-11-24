@@ -137,8 +137,21 @@ impl AssetPath {
 
     /// Limpia y normaliza una fuente de recurso/asset eliminando wrappers `![[...]` o `[[...]]`,
     /// fragmentos `#...`, query params `?...` y esquemas `asset://`.
+    /// Quita el prefijo `\\?\` de las rutas largas de Windows (`\\?\C:\a` → `C:\a`,
+    /// `\\?\UNC\servidor\a` → `\\servidor\a`): el resto del código y el webview esperan la forma normal.
+    pub fn simplify_windows_path(path: &str) -> String {
+        if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{rest}")
+        } else {
+            path.strip_prefix(r"\\?\").unwrap_or(path).to_string()
+        }
+    }
+
     pub fn clean_source(src: &str) -> Option<String> {
         let raw = src.trim().trim_matches('\'').trim_matches('"');
+        // Antes de cortar por `?`: en Windows es parte del prefijo de la ruta, no una consulta
+        let raw = AssetPath::simplify_windows_path(raw);
+        let raw = raw.as_str();
         if raw.is_empty() {
             return None;
         }
@@ -171,7 +184,7 @@ impl AssetPath {
         }
 
         let decoded = AssetPath::percent_decode(path_candidate);
-        Some(decoded)
+        Some(AssetPath::simplify_windows_path(&decoded))
     }
 }
 
@@ -775,5 +788,16 @@ Enlace real: [[Mi Nota]]
                 other_branch,
             ]
         );
+    }
+
+    #[test]
+    fn ruta_larga_de_windows_no_se_corta_en_el_interrogante() {
+        let clean = |s: &str| AssetPath::clean_source(s).unwrap();
+        let path = r"C:\boveda\a b.drawio.png";
+        assert_eq!(clean(r"\\?\C:\boveda\a b.drawio.png"), path);
+        assert_eq!(clean(r"\\?\C:\boveda\a b.drawio.png?v=1"), path);
+        assert_eq!(clean(r"\\?\UNC\servidor\comp\a.png"), r"\\servidor\comp\a.png");
+        assert_eq!(clean(path), path);
+        assert_eq!(clean("sub/foto.png?v=2"), "sub/foto.png");
     }
 }
