@@ -79,6 +79,13 @@ it('navega entre bloques, abre búsqueda y revierte un bloque guardando en disco
   await s.browser.$('.cm-diff-host').waitForExist({ timeout: 10_000 });
   await s.browser.$('.chunk-counter').waitForExist({ timeout: 5_000 });
 
+  // 0. Abre en modo Lectura: el botón Lectura/Edición está visible y aún no hay controles de revertir
+  await s.browser.$('.view-toggle-btn').waitForExist({ timeout: 5_000 });
+  const initialToggleTitle = await s.browser.execute(() => document.querySelector('.view-toggle-btn')?.getAttribute('title'));
+  expect(initialToggleTitle).toBe('Cambiar a modo Edición');
+  const revertBeforeEdit = await s.browser.execute(() => document.querySelectorAll('.cm-diff-revert-btn').length);
+  expect(revertBeforeEdit).toBe(0);
+
   // 1. Navegación entre los 2 bloques de cambio
   const initialCounter = await s.browser.execute(() => document.querySelector('.chunk-counter')?.textContent?.trim());
   expect(initialCounter).toBe('2');
@@ -101,11 +108,18 @@ it('navega entre bloques, abre búsqueda y revierte un bloque guardando en disco
     { timeout: 3_000 },
   );
 
-  // 2. Búsqueda integrada (@codemirror/search)
+  // 2. Búsqueda integrada (@codemirror/search) funciona también en Lectura
   await s.browser.execute(() => (document.querySelector('button[aria-label="Buscar en el diff"]') as HTMLElement).click());
   await s.browser.$('.cm-diff-host .cm-search').waitForExist({ timeout: 5_000 });
 
-  // 3. Revertir el primer bloque y comprobar que se guarda en disco
+  // 3. Activar modo Edición con el botón Lectura/Edición -> aparecen controles de revertir
+  await s.browser.execute(() => (document.querySelector('.view-toggle-btn') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.view-toggle-btn')?.getAttribute('title'))) === 'Cambiar a modo Lectura',
+    { timeout: 3_000 },
+  );
+
+  // Revertir el primer bloque y comprobar que se guarda en disco
   const revertBtn = s.browser.$('.cm-diff-revert-btn');
   await revertBtn.waitForExist({ timeout: 5_000 });
   await revertBtn.click();
@@ -135,4 +149,11 @@ it('navega entre bloques, abre búsqueda y revierte un bloque guardando en disco
   await s.browser.$('.cm-diff-merge-reject').waitForExist({ timeout: 5_000 });
   const rejectLabel = await s.browser.execute(() => document.querySelector('.cm-diff-merge-reject')?.textContent?.trim());
   expect(rejectLabel).toBe('Revertir');
+
+  // 5. Volver a modo Lectura oculta los controles de revertir
+  await s.browser.execute(() => (document.querySelector('.view-toggle-btn') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelectorAll('.cm-diff-merge-reject').length)) === 0,
+    { timeout: 3_000 },
+  );
 });

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { EditorState, type Extension } from '@codemirror/state';
-  import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-  import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+  import { untrack } from 'svelte';
+  import { basicSetup } from 'codemirror';
+  import { Compartment, EditorState, type Extension } from '@codemirror/state';
+  import { EditorView, keymap, tooltips } from '@codemirror/view';
   import {
     MergeView,
     unifiedMergeView,
@@ -13,13 +14,24 @@
     search,
     searchKeymap,
     openSearchPanel,
-    highlightSelectionMatches,
   } from '@codemirror/search';
+  import { autocompletion } from '@codemirror/autocomplete';
   import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
   import { yaml } from '@codemirror/lang-yaml';
   import { json } from '@codemirror/lang-json';
   import { markdown } from '@codemirror/lang-markdown';
+  import { vim } from '@replit/codemirror-vim';
+  import { undoRedoExtension } from '@shared/lib/editor-history';
+  import { commentExtension } from '@shared/lib/editor-comment';
+  import {
+    registerVimFolding,
+    renameOccurrencesKeymap,
+    lineKeymap,
+    documentWordsCompletion,
+  } from '@shared/ui/code-editor';
+
+  registerVimFolding();
 
   export interface DiffChunksInfo {
     total: number;
@@ -35,6 +47,7 @@
     collapseUnchanged?: boolean;
     theme?: 'light' | 'dark';
     editable?: boolean;
+    vimMode?: boolean;
     onContentChange?: (content: string) => void;
     onChunksChange?: (info: DiffChunksInfo) => void;
   }
@@ -48,6 +61,7 @@
     collapseUnchanged = true,
     theme = 'dark',
     editable = false,
+    vimMode = false,
     onContentChange,
     onChunksChange,
   }: Props = $props();
@@ -55,6 +69,10 @@
   let containerEl = $state<HTMLDivElement | null>(null);
   let activeMergeView: MergeView | null = null;
   let activeUnifiedView: EditorView | null = null;
+
+  const vimCompartment = new Compartment();
+  const readOnlyCompartment = new Compartment();
+  const unifiedMergeCompartment = new Compartment();
 
   const diffHighlightStyle = HighlightStyle.define([
     { tag: tags.heading, color: 'var(--accent, #0969da)', fontWeight: 'bold' },
@@ -80,6 +98,41 @@
     if (lower.endsWith('.json') || lower.endsWith('.jsonc')) return [json()];
     if (lower.endsWith('.md') || lower.endsWith('.markdown')) return [markdown()];
     return [];
+  }
+
+  function renderRevertButton(): HTMLElement {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cm-diff-revert-btn';
+    btn.textContent = '→';
+    btn.title = 'Revertir este bloque al original';
+    btn.setAttribute('aria-label', 'Revertir bloque');
+    return btn;
+  }
+
+  function buildUnifiedMerge(original: string, collapse: boolean, canEdit: boolean): Extension {
+    return unifiedMergeView({
+      original,
+      highlightChanges: true,
+      gutter: true,
+      collapseUnchanged: collapse ? { margin: 3, minSize: 4 } : undefined,
+      mergeControls: canEdit
+        ? (type, action) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `cm-diff-merge-btn cm-diff-merge-${type}`;
+            if (type === 'reject') {
+              btn.textContent = 'Revertir';
+              btn.title = 'Revertir este bloque al original';
+            } else {
+              btn.textContent = 'Mantener';
+              btn.title = 'Aceptar este bloque en la vista';
+            }
+            btn.onclick = action;
+            return btn;
+          }
+        : false,
+    });
   }
 
   function primaryView(): EditorView | null {
@@ -145,15 +198,29 @@
     if (!containerEl) return;
 
     const isDark = theme === 'dark';
-    const canEdit = editable;
+    const initialEditable = untrack(() => editable);
+    const initialVim = untrack(() => vimMode);
 
     const sharedExtensions: Extension[] = [
-      lineNumbers(),
-      syntaxHighlighting(diffHighlightStyle, { fallback: true }),
+      vimCompartment.of(initialVim ? vim() : []),
+      tooltips({ parent: document.body }),
+      basicSetup,
+      undoRedoExtension(),
+      commentExtension(),
       ...languageExtension(fileName),
-      ...(wrap ? [EditorView.lineWrapping] : []),
+      autocompletion({ override: [documentWordsCompletion] }),
+      syntaxHighlighting(diffHighlightStyle),
+      EditorState.phrases.of({
+        'Fold line': 'Plegar',
+        'Unfold line': 'Desplegar',
+        'folded code': 'código plegado',
+        unfold: 'desplegar',
+      }),
       search({ top: true }),
-      highlightSelectionMatches(),
+      keymap.of(searchKeymap as any),
+      renameOccurrencesKeymap(),
+      lineKeymap(),
+      ...(wrap ? [EditorView.lineWrapping] : []),
       EditorView.theme(
         {
           '&': {
@@ -174,16 +241,41 @@
           '.cm-content': {
             caretColor: 'var(--text-primary)',
           },
+          '.cm-cursor, .cm-dropCursor': {
+            borderLeftColor: 'var(--text-primary)',
+          },
+          '.cm-activeLine': {
+            backgroundColor: 'rgba(9, 105, 218, 0.05)',
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: 'rgba(9, 105, 218, 0.1)',
+            color: 'var(--accent)',
+          },
+          '.cm-vim-panel': {
+            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-mono, monospace)',
+            padding: '2px 10px',
+          },
+          '.cm-vim-panel input': {
+            color: 'inherit',
+            font: 'inherit',
+            caretColor: 'var(--accent)',
+            flex: '1',
+            minWidth: '0',
+          },
+          '&.cm-focused': {
+            outline: 'none',
+          },
         },
         { dark: isDark },
       ),
     ];
 
-    const readOnlyExtensions: Extension[] = [
+    // Lado A: siempre solo lectura, manteniendo foco/selección/Vim/búsqueda activos
+    const sideAExtensions: Extension[] = [
       ...sharedExtensions,
       EditorState.readOnly.of(true),
-      EditorView.editable.of(false),
-      keymap.of(searchKeymap),
     ];
 
     const changeListener = EditorView.updateListener.of((update) => {
@@ -195,19 +287,11 @@
       }
     });
 
-    const targetExtensions: Extension[] = canEdit
-      ? [
-          ...sharedExtensions,
-          history(),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
-          changeListener,
-        ]
-      : [
-          ...readOnlyExtensions,
-          EditorView.updateListener.of((update) => {
-            if (update.selectionSet) reportChunks(update.view);
-          }),
-        ];
+    const targetExtensions: Extension[] = [
+      ...sharedExtensions,
+      readOnlyCompartment.of(EditorState.readOnly.of(!initialEditable)),
+      changeListener,
+    ];
 
     const collapseConfig = collapseUnchanged ? { margin: 3, minSize: 4 } : undefined;
 
@@ -219,7 +303,7 @@
         parent: containerEl,
         a: {
           doc: oldContent,
-          extensions: readOnlyExtensions,
+          extensions: sideAExtensions,
         },
         b: {
           doc: newContent,
@@ -228,18 +312,8 @@
         highlightChanges: true,
         gutter: true,
         collapseUnchanged: collapseConfig,
-        revertControls: canEdit ? 'a-to-b' : undefined,
-        renderRevertControl: canEdit
-          ? () => {
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'cm-diff-revert-btn';
-              btn.textContent = '→';
-              btn.title = 'Revertir este bloque al original';
-              btn.setAttribute('aria-label', 'Revertir bloque');
-              return btn;
-            }
-          : undefined,
+        revertControls: initialEditable ? 'a-to-b' : undefined,
+        renderRevertControl: initialEditable ? renderRevertButton : undefined,
       });
       activeMergeView = mergeView;
       activeUnifiedView = null;
@@ -251,28 +325,7 @@
           doc: newContent,
           extensions: [
             ...targetExtensions,
-            unifiedMergeView({
-              original: oldContent,
-              highlightChanges: true,
-              gutter: true,
-              collapseUnchanged: collapseConfig,
-              mergeControls: canEdit
-                ? (type, action) => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = `cm-diff-merge-btn cm-diff-merge-${type}`;
-                    if (type === 'reject') {
-                      btn.textContent = 'Revertir';
-                      btn.title = 'Revertir este bloque al original';
-                    } else {
-                      btn.textContent = 'Mantener';
-                      btn.title = 'Aceptar este bloque en la vista';
-                    }
-                    btn.onclick = action;
-                    return btn;
-                  }
-                : false,
-            }),
+            unifiedMergeCompartment.of(buildUnifiedMerge(oldContent, collapseUnchanged, initialEditable)),
           ],
         }),
       });
@@ -287,6 +340,39 @@
       if (activeMergeView === mergeView) activeMergeView = null;
       if (activeUnifiedView === unifiedView) activeUnifiedView = null;
     };
+  });
+
+  // Alternar Vim en caliente sin recrear las vistas
+  $effect(() => {
+    const ext = vimMode ? vim() : [];
+    if (activeMergeView) {
+      activeMergeView.a.dispatch({ effects: vimCompartment.reconfigure(ext) });
+      activeMergeView.b.dispatch({ effects: vimCompartment.reconfigure(ext) });
+    } else if (activeUnifiedView) {
+      activeUnifiedView.dispatch({ effects: vimCompartment.reconfigure(ext) });
+    }
+  });
+
+  // Alternar Lectura/Edición en caliente sin perder cursor ni cambios
+  $effect(() => {
+    const canEdit = editable;
+    const roExt = EditorState.readOnly.of(!canEdit);
+    if (activeMergeView) {
+      activeMergeView.b.dispatch({ effects: readOnlyCompartment.reconfigure(roExt) });
+      activeMergeView.reconfigure({
+        revertControls: canEdit ? 'a-to-b' : undefined,
+        renderRevertControl: canEdit ? renderRevertButton : undefined,
+      });
+    } else if (activeUnifiedView) {
+      const orig = untrack(() => oldContent);
+      const collapse = untrack(() => collapseUnchanged);
+      activeUnifiedView.dispatch({
+        effects: [
+          readOnlyCompartment.reconfigure(roExt),
+          unifiedMergeCompartment.reconfigure(buildUnifiedMerge(orig, collapse, canEdit)),
+        ],
+      });
+    }
   });
 </script>
 

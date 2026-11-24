@@ -49,12 +49,16 @@
     commitRevision?: string;
     /** Con `commitRevision`: la otra versión a comparar (en vez del commit padre). */
     fromRevision?: string;
+    /** Sincronizado con el botón Lectura/Edición de la cabecera (solo aplica a diffs del árbol de trabajo). */
+    readOnly?: boolean;
+    /** Modo Vim en el visor de diff de CodeMirror. */
+    vimMode?: boolean;
     onClose?: () => void;
     /** Abre el diff de stage del archivo (cuando todos sus cambios ya están en stage). */
     onOpenStaged?: () => void;
   }
 
-  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, onClose, onOpenStaged }: Props = $props();
+  let { filePath, isStaged = false, baseRevision, compareWith, commitRevision, fromRevision, readOnly = true, vimMode, onClose, onOpenStaged }: Props = $props();
 
   // Qué es cada lado, igual en todas las vistas: izquierda / «−» = antes, derecha / «+» = después
   const sides = $derived(diffSides({ filePath, isStaged, baseRevision, compareWith, commitRevision, fromRevision }));
@@ -69,7 +73,14 @@
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   let latestEditedContent: string | null = null;
 
-  const isEditable = $derived(!isStaged && !baseRevision && !commitRevision && !compareWith);
+  const isEditable = $derived(!readOnly && !isStaged && !baseRevision && !commitRevision && !compareWith);
+  const effectiveVimMode = $derived(vimMode ?? appSettings.vimMode);
+
+  $effect(() => {
+    if (!isEditable) {
+      void flushPendingSave();
+    }
+  });
 
   const isDrawing = $derived(isDrawingFile(filePath));
   const isDiagram = $derived(isDiagramFile(filePath));
@@ -586,6 +597,7 @@
             {collapseUnchanged}
             theme={currentTheme}
             editable={isEditable}
+            vimMode={effectiveVimMode}
             onContentChange={handleEditorContentChange}
             onChunksChange={(info) => (chunkInfo = info)}
           />

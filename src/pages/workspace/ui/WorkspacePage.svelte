@@ -177,6 +177,24 @@
     if (p && isDrawioImage(baseTabPath(p))) isSplitEditing = drawioPngTabs.has(p);
   });
 
+  // Pestañas de diff del árbol de trabajo que el usuario puso en modo edición (botón Lectura/Edición)
+  const diffEditTabs = new SvelteSet<string>();
+  function isEditableDiffTab(tabPath: string | null | undefined): boolean {
+    if (!tabPath) return false;
+    const file = baseTabPath(tabPath);
+    if (!file.startsWith('diff:')) return false;
+    const target = file.slice('diff:'.length);
+    return !isStaticBinary(target) && !isPdfFile(target);
+  }
+  $effect(() => {
+    const p = activeTabPath;
+    if (p && isEditableDiffTab(p)) isEditing = diffEditTabs.has(p);
+  });
+  $effect(() => {
+    const p = activeSplitTabPath;
+    if (p && isEditableDiffTab(p)) isSplitEditing = diffEditTabs.has(p);
+  });
+
   /** Recargas del visor de imagen por archivo (tras cada guardado desde draw.io en otra pestaña). */
   const imageReloads = new SvelteMap<string, number>();
   /** Modo Lectura/Edición de cada copia de pestaña (`copy:n:…`): independiente del original. */
@@ -205,6 +223,7 @@
   /** ¿La pestaña está en edición? (la visible de cada panel, por el estado del panel) */
   function tabIsEditing(tabPath: string): boolean {
     if (isDrawioImage(baseTabPath(tabPath))) return drawioPngTabs.has(tabPath);
+    if (isEditableDiffTab(tabPath)) return diffEditTabs.has(tabPath);
     if (tabPath === activeTabPath) return isEditing;
     if (tabPath === activeSplitTabPath) return isSplitEditing;
     return modeOfTab(tabPath) !== 'reading';
@@ -1032,7 +1051,12 @@
 
   function toggleViewMode() {
     const tab = activeTabPath;
-    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab))) return;
+    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab) && !isEditableDiffTab(tab))) return;
+    if (isEditableDiffTab(tab)) {
+      if (diffEditTabs.has(tab)) diffEditTabs.delete(tab);
+      else diffEditTabs.add(tab);
+      return;
+    }
     // Dibujos: una sola pestaña edita a la vez; si ya hay otra, se va a ella
     if (!tabIsEditing(tab)) {
       const editor = otherEditorTab(tab);
@@ -1593,6 +1617,7 @@
 
   function closeTab(path: string) {
     drawioPngTabs.delete(path);
+    diffEditTabs.delete(path);
     const idx = openTabPaths.indexOf(path);
     if (idx !== -1) {
       openTabPaths.splice(idx, 1);
@@ -2046,6 +2071,7 @@
 
   function closeSplitTab(path: string) {
     drawioPngTabs.delete(path);
+    diffEditTabs.delete(path);
     const idx = splitTabPaths.indexOf(path);
     if (idx !== -1) {
       splitTabPaths = splitTabPaths.filter((p) => p !== path);
@@ -2290,7 +2316,12 @@
 
   function toggleSplitViewMode() {
     const tab = activeSplitTabPath;
-    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab))) return;
+    if (!tab || (isSyntheticTab(tab) && !isTabCopy(tab) && !isEditableDiffTab(tab))) return;
+    if (isEditableDiffTab(tab)) {
+      if (diffEditTabs.has(tab)) diffEditTabs.delete(tab);
+      else diffEditTabs.add(tab);
+      return;
+    }
     // Dibujos: una sola pestaña edita a la vez; si ya hay otra, se va a ella
     if (!tabIsEditing(tab)) {
       const editor = otherEditorTab(tab);
@@ -4706,6 +4737,7 @@
             <DiffViewer
               filePath={newFile}
               compareWith={oldFile}
+              vimMode={isVimMode}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
@@ -4721,6 +4753,7 @@
               filePath={rest.slice(sep + 1)}
               commitRevision={revs.at(-1)}
               fromRevision={revs.length === 2 ? revs[0] : undefined}
+              vimMode={isVimMode}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
@@ -4737,6 +4770,7 @@
               filePath={fPath}
               isStaged={false}
               baseRevision={rev}
+              vimMode={isVimMode}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
             />
           </div>
@@ -4748,6 +4782,8 @@
             <DiffViewer
               filePath={tabFile.startsWith("diff-staged:") ? tabFile.slice("diff-staged:".length) : tabFile.slice("diff:".length)}
               isStaged={tabFile.startsWith("diff-staged:")}
+              readOnly={tabFile.startsWith("diff-staged:") || !diffEditTabs.has(tabPath)}
+              vimMode={isVimMode}
               onClose={() => (isRight ? requestCloseSplitTab(tabPath) : requestCloseTab(tabPath))}
               onOpenStaged={() => selectTab(`diff-staged:${tabFile.slice("diff:".length)}`)}
             />
@@ -5188,7 +5224,7 @@
         onNavigateBack={navigateBack}
         onNavigateForward={navigateForward}
         isMarkdownFile={isMarkdownTab}
-        showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile)}
+        showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile) || isEditableDiffTab(activeTabPath)}
         markdownViewMode={!isEditing ? "reading" : markdownViewMode}
         onChangeMarkdownView={handleChangeMarkdownView}
         title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -5252,7 +5288,7 @@
           onNavigateBack={navigateBack}
           onNavigateForward={navigateForward}
           isMarkdownFile={isMarkdownTab}
-          showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile)}
+          showViewToggle={(hasActiveContent && !isGeneratedOkfIndex(activeFile ?? '', openedNotes[activeFile ?? '']?.content ?? '')) || isDrawioImage(activeFile) || isEditableDiffTab(activeTabPath)}
           markdownViewMode={!isEditing ? "reading" : markdownViewMode}
           onChangeMarkdownView={handleChangeMarkdownView}
           title={getTabDisplayTitle(activeTabPath, currentVaultItem.relative_path || currentVaultItem.title)}
@@ -5320,7 +5356,7 @@
           canGoBack={false}
           canGoForward={false}
           isMarkdownFile={isMarkdownSplitTab}
-          showViewToggle={(hasActiveSplitContent && !isGeneratedOkfIndex(activeSplitFile ?? '', openedNotes[activeSplitFile ?? '']?.content ?? '')) || isDrawioImage(activeSplitFile)}
+          showViewToggle={(hasActiveSplitContent && !isGeneratedOkfIndex(activeSplitFile ?? '', openedNotes[activeSplitFile ?? '']?.content ?? '')) || isDrawioImage(activeSplitFile) || isEditableDiffTab(activeSplitTabPath)}
           markdownViewMode={!isSplitEditing ? "reading" : splitMarkdownViewMode}
           onChangeMarkdownView={handleChangeSplitMarkdownView}
           title={getTabDisplayTitle(activeSplitTabPath, currentSplitVaultItem.relative_path || currentSplitVaultItem.title)}
