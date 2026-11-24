@@ -11,6 +11,8 @@ use std::sync::Mutex;
 pub struct AllowedPaths {
     files: Mutex<HashSet<PathBuf>>,
     vaults: Mutex<HashSet<PathBuf>>,
+    /// Ejecutables elegidos en un diálogo: se pueden usar, pero no leer ni escribir desde la interfaz.
+    programs: Mutex<HashSet<PathBuf>>,
 }
 
 /// Resuelve `.` y `..` sin tocar el disco (no sigue enlaces simbólicos).
@@ -67,6 +69,16 @@ impl AllowedPaths {
         self.vaults.lock().is_ok_and(|v| v.contains(&canonical(path)))
     }
 
+    pub fn grant_program(&self, path: &Path) {
+        if let Ok(mut programs) = self.programs.lock() {
+            programs.insert(canonical(path));
+        }
+    }
+
+    pub fn has_program(&self, path: &Path) -> bool {
+        path.is_absolute() && self.programs.lock().is_ok_and(|p| p.contains(&canonical(path)))
+    }
+
     /// Archivo elegido por la persona o dentro de la bóveda abierta.
     pub fn allows(&self, vault: Option<&Path>, path: &Path) -> bool {
         self.has_file(path) || vault.is_some_and(|v| is_inside(v, path))
@@ -90,6 +102,45 @@ pub fn remember_wallpaper(config_dir: &Path, path: &Path) -> Result<(), String> 
     std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
     let json = serde_json::to_string_pretty(&all).map_err(|e| e.to_string())?;
     std::fs::write(config_dir.join("wallpapers.json"), json).map_err(|e| e.to_string())
+}
+
+/// Pregunta con un diálogo nativo: la interfaz no puede responderlo por la persona.
+pub async fn confirm_native(title: &str, text: String) -> Result<(), String> {
+    // Pruebas de interfaz: WebDriver no maneja diálogos nativos. Solo en compilaciones de desarrollo,
+    // y por variable de entorno, que la interfaz no puede cambiar.
+    #[cfg(debug_assertions)]
+    if let Ok(answer) = std::env::var("SYNAPSE_E2E_CONFIRM") {
+        return if answer == "yes" { Ok(()) } else { Err("Cancelado".to_string()) };
+    }
+    #[cfg(feature = "desktop")]
+    {
+        let answer = rfd::AsyncMessageDialog::new()
+            .set_level(rfd::MessageLevel::Warning)
+            .set_title(title)
+            .set_description(text)
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .show()
+            .await;
+        if answer == rfd::MessageDialogResult::Yes { Ok(()) } else { Err("Cancelado".to_string()) }
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (title, text);
+        Err("Requiere confirmación en el escritorio".to_string())
+    }
+}
+
+/// Qué se va a ejecutar, para confirmarlo. Los valores van entrecomillados y con los saltos de línea
+/// escapados: así un texto no puede hacerse pasar por otra parte del mensaje.
+pub fn describe_launch(launch: &crate::domain::agent::AgentLaunch) -> String {
+    let mut text = format!("{:?}", launch.command);
+    for a in &launch.args {
+        text.push_str(&format!(" {a:?}"));
+    }
+    for (k, v) in &launch.env {
+        text.push_str(&format!("\n{k:?}={v:?}"));
+    }
+    text
 }
 
 #[cfg(test)]
@@ -136,6 +187,26 @@ mod tests {
         assert!(!allowed.allows(Some(&vault), &vault.join("enlace/../secreto.md")));
         // Tampoco para crear uno nuevo fuera
         assert!(!allowed.allows(Some(&vault), &vault.join("enlace/../nuevo.md")));
+    }
+
+    #[test]
+    fn un_programa_elegido_no_da_acceso_al_archivo() {
+        let allowed = AllowedPaths::default();
+        let git = Path::new("/usr/bin/git");
+        assert!(!allowed.has_program(git));
+        allowed.grant_program(git);
+        assert!(allowed.has_program(git));
+        assert!(!allowed.allows(None, git));
+    }
+
+    #[test]
+    fn describe_lo_que_se_ejecuta_sin_dejarse_enganar() {
+        let launch = crate::domain::agent::AgentLaunch {
+            command: "sh".into(),
+            args: vec!["-c".into(), "x\nComando seguro".into()],
+            env: [("A".to_string(), "1".to_string())].into(),
+        };
+        assert_eq!(describe_launch(&launch), "\"sh\" \"-c\" \"x\\nComando seguro\"\n\"A\"=\"1\"");
     }
 
     #[test]

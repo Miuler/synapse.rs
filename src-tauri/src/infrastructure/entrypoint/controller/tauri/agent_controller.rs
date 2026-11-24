@@ -24,7 +24,7 @@ pub async fn agent_install(state: State<'_, AgentState>, agent_id: String) -> Re
 }
 
 #[tauri::command]
-pub fn agent_save_profile(
+pub async fn agent_save_profile(
     state: State<'_, AgentState>,
     id: String,
     name: String,
@@ -32,11 +32,18 @@ pub fn agent_save_profile(
     args: Vec<String>,
     env: BTreeMap<String, String>,
 ) -> Result<AgentProfile, String> {
-    state.save_agent_profile.execute(SaveAgentProfileCommand {
-        id,
-        name,
-        launch: AgentLaunch { command, args, env },
-    })
+    use crate::infrastructure::config::allowed_paths::{confirm_native, describe_launch};
+    let launch = AgentLaunch { command, args, env };
+    // La interfaz muestra contenido ajeno: qué programa se podrá ejecutar lo confirma la persona
+    confirm_native(
+        "Guardar agente",
+        format!(
+            "Synapse podrá ejecutar este programa como agente:\n\n{}\n\n¿Guardarlo?",
+            describe_launch(&launch)
+        ),
+    )
+    .await?;
+    state.save_agent_profile.execute(SaveAgentProfileCommand { id, name, launch })
 }
 
 #[tauri::command]

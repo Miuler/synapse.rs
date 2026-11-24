@@ -18,7 +18,7 @@ const call = (s: Session, cmd: string, args: unknown) =>
     async (c, a) => {
       try {
         const r = await (window as any).__TAURI_INTERNALS__.invoke(c, a);
-        return r === null ? 'nada' : 'ok';
+        return r === null && c.includes('asset') ? 'nada' : 'ok';
       } catch (e) {
         return `error: ${e}`;
       }
@@ -53,7 +53,9 @@ it('con bóveda: dentro sí, fuera no', async () => {
   writeFileSync(join(outside, 'enlazada', 'img.png'), PNG);
   symlinkSync(join(outside, 'enlazada'), join(vault, 'enlace'));
 
-  const s = await startAppOnVault(vault);
+  // La persona rechaza todas las confirmaciones
+  process.env.SYNAPSE_E2E_CONFIRM = 'no';
+  const s = await startAppOnVault(vault).finally(() => delete process.env.SYNAPSE_E2E_CONFIRM);
   try {
     await s.browser.$('.empty-workspace').waitForExist({ timeout: 30_000 });
     expect(await shows(s, join(vault, 'dentro.png'))).toBe(true);
@@ -79,6 +81,18 @@ it('con bóveda: dentro sí, fuera no', async () => {
     expect(await call(s, 'import_external_items', { paths: [secret], destDir: '' })).toContain('portapapeles');
     expect(await call(s, 'get_vault_git_status', { folderPath: outside })).toContain('no autorizada');
     expect(await call(s, 'get_installed_community_plugins', { vaultPath: join(outside, 'otra') })).toContain('no autorizada');
+    expect(await call(s, 'set_active_vault_path', { newPath: join(outside, 'otra') })).toContain('Cancelado');
+    expect(await call(s, 'set_active_vault_path', { newPath: vault })).toBe('ok');
+    // Sin confirmación no se guarda un agente ni se ejecuta otro Git
+    const ran = join(base, 'ejecutado');
+    const program = join(outside, 'git');
+    writeFileSync(program, `#!/bin/sh\ntouch '${ran}'\necho git version 9\n`, { mode: 0o755 });
+    expect(await call(s, 'set_git_path', { path: program })).toContain('Cancelado');
+    expect(existsSync(ran)).toBe(false);
+    expect(await call(s, 'set_git_path', { path: null })).toBe('ok');
+    expect(
+      await call(s, 'agent_save_profile', { id: 'x', name: 'x', command: program, args: [], env: {} }),
+    ).toContain('Cancelado');
     expect(await call(s, 'list_vault_directory', { relativePath: '../fuera' })).toContain('no permitida');
   } finally {
     await s.close();

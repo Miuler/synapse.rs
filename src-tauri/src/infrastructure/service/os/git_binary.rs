@@ -55,6 +55,11 @@ pub fn version_of(program: &Path) -> Option<String> {
     text.starts_with("git version").then_some(text)
 }
 
+/// Ruta configurada, si hay.
+pub fn configured_path() -> Option<PathBuf> {
+    CONFIGURED.read().ok().and_then(|p| p.clone())
+}
+
 pub fn info() -> GitInfo {
     let configured = CONFIGURED.read().ok().and_then(|p| p.clone());
     let program = configured.clone().unwrap_or_else(|| PathBuf::from("git"));

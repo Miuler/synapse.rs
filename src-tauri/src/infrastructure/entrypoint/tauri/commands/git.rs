@@ -517,13 +517,29 @@ pub async fn get_git_info() -> GitInfo {
 
 /// Guarda la ruta del ejecutable de Git (`None` vuelve a usar el del PATH).
 #[tauri::command]
-pub async fn set_git_path(path: Option<String>) -> Result<GitInfo, String> {
+pub async fn set_git_path(
+    state: State<'_, AppState>,
+    path: Option<String>,
+) -> Result<GitInfo, String> {
+    // Comprobar la ruta ya la ejecuta: si no salió del diálogo, se confirma antes
+    if let Some(p) = path.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+        let current = git_binary::configured_path();
+        if current.as_deref() != Some(std::path::Path::new(p))
+            && !state.allowed_paths.has_program(std::path::Path::new(p))
+        {
+            crate::infrastructure::config::allowed_paths::confirm_native(
+                "Ejecutable de Git",
+                format!("Synapse ejecutará este programa como Git:\n\n{p:?}\n\n¿Usarlo?"),
+            )
+            .await?;
+        }
+    }
     git_binary::save(&WorkspaceRegistryRepositoryImpl::resolve_config_dir(), path.as_deref())
 }
 
 /// Diálogo nativo para elegir el ejecutable de Git.
 #[tauri::command]
-pub async fn pick_git_executable() -> Option<String> {
+pub async fn pick_git_executable(state: State<'_, AppState>) -> Result<Option<String>, String> {
     #[cfg(feature = "desktop")]
     {
         let mut dialog = rfd::AsyncFileDialog::new().set_title("Elige el ejecutable de Git");
@@ -533,10 +549,14 @@ pub async fn pick_git_executable() -> Option<String> {
                 dialog = dialog.set_directory(r"C:\Program Files\Git\cmd");
             }
         }
-        dialog.pick_file().await.map(|f| f.path().to_string_lossy().into_owned())
+        Ok(dialog.pick_file().await.map(|f| {
+            state.allowed_paths.grant_program(f.path());
+            f.path().to_string_lossy().into_owned()
+        }))
     }
     #[cfg(not(feature = "desktop"))]
     {
-        None
+        let _ = state;
+        Ok(None)
     }
 }

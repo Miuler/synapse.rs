@@ -98,7 +98,8 @@
       draftAgent = { id: '', name: '', command: '', args: '', env: '' };
       await agentStore.refresh();
     } catch (e) {
-      agentError = String(e);
+      // Cancelar la confirmación no es un error: el borrador se conserva
+      agentError = e === 'Cancelado' ? '' : String(e);
     }
   }
 

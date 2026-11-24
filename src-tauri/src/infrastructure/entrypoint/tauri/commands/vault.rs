@@ -333,18 +333,14 @@ pub async fn set_active_vault_path(
     let synapse_dir = target_dir.join(".synapse");
     #[cfg(feature = "desktop")]
     if !known && synapse_dir.exists() {
-        let confirmed = rfd::AsyncMessageDialog::new()
-            .set_title("Abrir bóveda")
-            .set_description(format!(
+        crate::infrastructure::config::allowed_paths::confirm_native(
+            "Abrir bóveda",
+            format!(
                 "¿Abrir esta carpeta como bóveda?\n{}\n\nSynapse podrá leer y modificar sus archivos.",
                 target_dir.display()
-            ))
-            .set_buttons(rfd::MessageButtons::YesNo)
-            .show()
-            .await;
-        if confirmed != rfd::MessageDialogResult::Yes {
-            return Err("Apertura de bóveda cancelada por el usuario".to_string());
-        }
+            ),
+        )
+        .await?;
     }
     if !synapse_dir.exists() {
         #[cfg(feature = "desktop")]

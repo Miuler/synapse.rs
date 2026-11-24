@@ -12,6 +12,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - Dibujos Excalidraw en la API de plugins: un archivo manipulado podía ejecutar código al mostrarse. `toSVG` escapa sus valores y la vista sanea el SVG.
 - API de plugins: `sanitizeHTMLToDom` sanea de verdad el HTML y `htmlToMarkdown` ya no deja etiquetas reconstruidas.
 - Acceso a archivos: la interfaz solo puede leer y escribir en la bóveda abierta y en los archivos que eliges (diálogo o línea de comandos); antes, en cualquier ruta. Un archivo suelto muestra además las imágenes de su carpeta y subcarpetas. Una bóveda que no esté en recientes pide confirmación. Un fondo de pantalla elegido en una versión anterior hay que volver a elegirlo, y las imágenes con ruta absoluta de fuera de la bóveda ya no se muestran.
+- Guardar un agente personalizado o escribir otra ruta de Git pide confirmación con un diálogo del sistema que muestra el programa que se ejecutará.
 - Instalador de agentes: los permisos especiales (SUID/SGID/sticky) de un ZIP se descartan.
 - Dependencias con vulnerabilidades conocidas y parche compatible, actualizadas (`url`, `cookie` y `lodash-es`).
 
