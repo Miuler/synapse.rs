@@ -25,6 +25,18 @@ Combina un backend en **Rust** (con Arquitectura Cebolla) y una interfaz en **Sv
 
 ---
 
+## 🚀 Primeros pasos
+
+1. **Descarga** el paquete de tu sistema de la [última release](https://github.com/Miuler/synapse.rs/releases/latest): Linux (x86_64), Windows (x86_64) o macOS (Apple Silicon).
+2. **Verifica** la descarga, como explica [SECURITY.md](SECURITY.md).
+3. **Descomprime** y ejecuta `synapsers` (`synapsers.exe` en Windows). En macOS, abre la aplicación.
+4. **Abre una bóveda:** en la pantalla de bienvenida, elige la carpeta donde están o estarán tus notas. Synapse pide confirmación y crea en ella una carpeta `.synapse/`; tus archivos siguen siendo archivos normales.
+5. **Crea una nota** desde la paleta de comandos (`Ctrl+P` → «Crear nuevo archivo Markdown») y busca con `Ctrl+O`. Con `F1` ves todos los atajos.
+
+Línea de comandos, formatos, configuración y servidor MCP: [referencia de la interfaz](docs/reference.md) (en inglés).
+
+---
+
 ## ⚡ Capacidades Principales
 
 ### 1. 🏎️ Arquitectura Ligera y Rendimiento
@@ -233,7 +245,8 @@ Lo que la tabla anterior no cuenta y conviene saber (revisado en el código de `
 - **Plugins de la comunidad:** `manifest.json`, `main.js` y `styles.css` se descargan de la rama por defecto del repositorio del plugin **sin verificar ningún hash**, y `main.js` se ejecuta dentro de la app. Instala solo plugins que hayas revisado.
 - **Agentes ACP:** los binarios se comprueban contra el `sha256` del registro cuando este lo incluye.
 - **YouTube:** si una nota enlaza un vídeo, se pide su miniatura a `img.youtube.com`.
-- **Recursos remotos:** el CSP del WebView está desactivado (`csp: null`) y el protocolo de assets alcanza todo el disco, así que Synapse no bloquea que una nota cargue contenido de la red.
+- **Recursos remotos:** el CSP del WebView está desactivado (`csp: null`), así que Synapse no bloquea que una nota cargue contenido de la red.
+- **Acceso a archivos:** la interfaz solo lee y escribe en la bóveda abierta y en los archivos que eliges. Un archivo suelto muestra además las imágenes de su carpeta y subcarpetas.
 - **Actualizaciones:** al iniciar, Synapse consulta el `latest.json` de la última release (desactivable en *Ajustes → Actualizaciones*) y avisa si hay una versión nueva. Solo se instala si lo aceptas, y el paquete se verifica con la firma minisign y la clave pública de `tauri.conf.json` antes de reemplazar el ejecutable.
 - **Telemetría:** no se encontró código de telemetría ni informes de errores. Los visores embebidos que la ofrecen la tienen apagada (Scalar con `telemetry: false`, el visor de PDF sin CDN). Los plugins comunitarios y los agentes son código de terceros.
 
@@ -245,6 +258,14 @@ Cada release incluye `SHA256SUMS.txt`, el SBOM (CycloneDX) y una attestation de 
 
 - **Binario portable:** Un único archivo ejecutable (`synapsers` en Linux / `synapsers.exe` en Windows).
 - **Sin instaladores obligatorios:** No requiere dependencias del sistema ni permisos administrativos para ejecutarse.
+
+---
+
+## 💬 Errores, ideas y contribuciones
+
+- **Errores e ideas:** abre una [incidencia en GitHub](https://github.com/Miuler/synapse.rs/issues), en español o en inglés.
+- **Vulnerabilidades:** de forma privada, como indica [SECURITY.md](SECURITY.md).
+- **Código:** por ahora no se aceptan *pull requests*; el motivo está en [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -263,4 +284,4 @@ Synapse.rs es software libre bajo la [GNU GPL 3.0 o posterior](LICENSE) (`GPL-3.
 - **Servidor:** la carpeta `synapse-server/` es solo una **prueba de concepto**, no un producto ni un servicio disponible, y **no** está cubierta por esta licencia; todos los derechos reservados.
 - **Nombre y logotipos:** la licencia del código no concede derechos sobre el nombre «Synapse.rs», su logotipo ni el pulpo. Un fork debe usar otro nombre y otra imagen.
 - **Terceros:** las dependencias conservan sus propias licencias.
-- **Contribuciones:** por ahora no se aceptan; consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Contribuciones:** por ahora no se aceptan *pull requests* de código; consulta [CONTRIBUTING.md](CONTRIBUTING.md).
