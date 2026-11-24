@@ -18,6 +18,7 @@ beforeAll(async () => {
     localStorage.removeItem('synapse.commandPalette.size');
     localStorage.removeItem('synapse.settingsPanel.size');
     localStorage.removeItem('synapse.communityPlugins.size');
+    localStorage.removeItem('synapse.outlineDialog.size');
   });
 }, 120_000);
 
@@ -136,6 +137,20 @@ it('CommunityPluginsModal se redimensiona y recuerda su tamaño', async () => {
     dx: -60,
     dy: 0,
     open: () => s.browser.$('button[aria-label*="Plugins"]').click(),
+    close: () => s.browser.keys(['Escape']),
+  });
+}, 30_000);
+
+it('Índice de la nota (Ctrl+F12) se redimensiona y recuerda su tamaño', async () => {
+  await verifyDialogResize({
+    dialogSel: '.outline-dialog',
+    handleSel: '.outline-dialog .dialog-resize.se',
+    dx: 50,
+    dy: 60,
+    open: async () => {
+      await s.browser.keys([Key.Ctrl, Key.F12]);
+      await s.browser.$('.outline-dialog .corner-grip-icon').waitForDisplayed({ timeout: 5_000 });
+    },
     close: () => s.browser.keys(['Escape']),
   });
 }, 30_000);

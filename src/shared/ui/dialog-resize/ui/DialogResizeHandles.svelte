@@ -41,18 +41,18 @@
   }
   .n,
   .s {
-    left: 8px;
-    right: 8px;
-    height: 6px;
+    left: 10px;
+    right: 10px;
+    height: 8px;
     cursor: ns-resize;
   }
   .n { top: 0; }
   .s { bottom: 0; }
   .e,
   .w {
-    top: 8px;
-    bottom: 8px;
-    width: 6px;
+    top: 10px;
+    bottom: 10px;
+    width: 8px;
     cursor: ew-resize;
   }
   .e { right: 0; }
@@ -61,8 +61,8 @@
   .nw,
   .se,
   .sw {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
   }
   .ne { top: 0; right: 0; cursor: nesw-resize; }
   .sw { bottom: 0; left: 0; cursor: nesw-resize; }

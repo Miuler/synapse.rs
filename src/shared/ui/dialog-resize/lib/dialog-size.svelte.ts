@@ -61,6 +61,12 @@ export function persistedDialogSize(
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    const target = e.currentTarget as HTMLElement | null;
+    try {
+      target?.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* en eventos sintéticos sin puntero activo */
+    }
     resizing = true;
     document.body.style.userSelect = 'none';
     const x0 = e.clientX;
@@ -73,9 +79,14 @@ export function persistedDialogSize(
         h: dy ? clampH(h0 + factorY * dy * (ev.clientY - y0)) : h0,
       };
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       resizing = false;
       document.body.style.userSelect = '';
+      try {
+        target?.releasePointerCapture?.(ev.pointerId);
+      } catch {
+        /* sin captura activa */
+      }
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);

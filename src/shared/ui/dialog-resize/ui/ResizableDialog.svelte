@@ -76,12 +76,12 @@
   <Dialog.Portal>
     <Dialog.Overlay class="resizable-dialog-overlay" />
     <Dialog.Content
-      class="resizable-dialog synapse-dialog {extraClass}"
+      class="resizable-dialog synapse-dialog {dialogSize.resizing ? 'is-resizing' : ''} {extraClass}"
       style="{dialogSize.style} --dialog-tone: {tone}; {offset.style(dialogSize.size)}"
       {onkeydown}
       {onOpenAutoFocus}
     >
-      <DialogResizeHandles onStart={dialogSize.startResize} />
+      <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
 
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
