@@ -707,7 +707,12 @@
       event.preventDefault();
       event.stopPropagation();
       const internalPath = target.getAttribute('data-internal-path') || href;
-      const decoded = decodeURI(internalPath);
+      let decoded = internalPath;
+      try {
+        decoded = decodeURIComponent(internalPath);
+      } catch {
+        // Mantener original si contiene un `%` literal
+      }
       if (onNavigate) {
         onNavigate(decoded);
       }

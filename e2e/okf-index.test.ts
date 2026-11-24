@@ -14,6 +14,13 @@ beforeAll(async () => {
     s = await startApp({
       'nota.md': '# Nota\n',
       'proyecto/plan.md': '---\ntype: note\ndescription: El plan del trimestre\n---\n# Plan\n',
+      'proyecto/Consulta, comisiones.excalidraw': JSON.stringify({
+        type: 'excalidraw',
+        version: 2,
+        elements: [],
+        appState: {},
+        files: {},
+      }),
       'proyecto/index.md': '# Índice escrito a mano\n',
     });
   } finally {
@@ -207,9 +214,34 @@ it('renderiza las filas de index.md al estilo del explorador sin cambiar el arch
 
   // El archivo físico en disco conserva el formato estándar OKF
   expect(read('proyecto/index.md')).toContain('* [Plan](plan.md) - El plan del trimestre');
+  expect(read('proyecto/index.md')).toContain('* [Consulta, comisiones.excalidraw](Consulta%2C%20comisiones.excalidraw)');
   expect(read('index.md')).toContain('* [proyecto](proyecto/)');
 
-  // Hacer clic en la descripción de la fila también abre la nota
+  // Hacer clic en un enlace con coma codificada (`%2C`) abre el archivo real de Excalidraw sin `%2C`
+  await s.browser.execute(() => {
+    const pane = document.querySelector('.tab-pane:not(.hidden)')!;
+    const excalidrawRow = [...pane.querySelectorAll('.okf-explorer-row a')]
+      .find((a) => a.getAttribute('href') === 'Consulta%2C%20comisiones.excalidraw')
+      ?.closest('.okf-explorer-row') as HTMLElement | undefined;
+    excalidrawRow?.click();
+  });
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/Consulta, comisiones.excalidraw',
+    { timeout: 10_000, timeoutMsg: 'clic en el archivo con %2C no abrió proyecto/Consulta, comisiones.excalidraw' },
+  );
+  const activeTabText = await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.textContent ?? '');
+  expect(activeTabText).not.toContain('%2C');
+  await s.browser.$('.tab-pane:not(.hidden) .excalidraw canvas.interactive').waitForExist({
+    timeout: 20_000,
+    timeoutMsg: 'Excalidraw no cargó al abrir desde index.md',
+  });
+
+  // Volver al índice y comprobar que hacer clic en la descripción de la fila también abre la nota
+  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md',
+    { timeout: 10_000 },
+  );
   await s.browser.execute(() => {
     const pane = document.querySelector('.tab-pane:not(.hidden)')!;
     const planLink = [...pane.querySelectorAll('.okf-explorer-row a')].find((a) => a.getAttribute('href') === 'plan.md');
@@ -220,4 +252,4 @@ it('renderiza las filas de index.md al estilo del explorador sin cambiar el arch
     async () => (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/plan.md',
     { timeout: 10_000, timeoutMsg: 'clic en la fila no abrió plan.md' },
   );
-}, 30_000);
+}, 45_000);

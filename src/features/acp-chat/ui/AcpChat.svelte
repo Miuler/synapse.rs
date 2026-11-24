@@ -90,7 +90,7 @@
     else if (href && !/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith('#')) {
       let target = href;
       try {
-        target = decodeURI(href);
+        target = decodeURIComponent(href);
       } catch {
         /* tal cual */
       }

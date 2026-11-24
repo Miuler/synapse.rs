@@ -39,7 +39,7 @@ export function rewriteLinkTarget(content: string, rawTarget: string, chosen: st
     if (/^[a-z][a-z0-9+.-]*:/i.test(bare)) return m; // URL externa
     let decoded = bare;
     try {
-      decoded = decodeURI(bare);
+      decoded = decodeURIComponent(bare);
     } catch {
       /* se usa tal cual */
     }

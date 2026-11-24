@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
 - Chat del agente: corregido un error por el que los mensajes encolados mientras el agente trabajaba no se enviaban al terminar el turno.
 - Diálogos redimensionables (Índice de la nota `Ctrl+F12` y diálogos de Git): se muestra el indicador de redimensionado en la esquina inferior derecha, se amplían las áreas de agarre en bordes y esquinas y se captura el puntero durante el arrastre para redimensionar de forma fiable.
 - Chat del agente: al colapsar un bloque de razonamiento ahora muestra «Razonamiento…» junto al icono en lugar de solo el emoji, y al expandirlo se elimina el espacio en blanco sobrante antes de las tarjetas de herramientas.
