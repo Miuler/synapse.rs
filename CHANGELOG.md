@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Pruebas unitarias (`bun test`): el plugin que compila los `.svelte.ts` quita los tipos con el transpilador de Bun, porque TypeScript 7 ya no trae `transpileModule`; el script `test` solo mira `./src` (ya no recoge la carpeta `zennotes/`).
 - Chat del agente: lo escrito sin enviar ya no se pierde al cerrarse el panel (por ejemplo, sin fijar, al hacer clic fuera) ni al plegar la conversación.
 - Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
 - Chat del agente: corregido un error por el que los mensajes encolados mientras el agente trabajaba no se enviaban al terminar el turno.

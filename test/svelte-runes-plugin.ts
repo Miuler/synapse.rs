@@ -6,13 +6,12 @@ import { plugin } from 'bun';
 plugin({
   name: 'svelte-runes',
   async setup(build) {
-    const ts = await import('typescript');
+    // TypeScript 7 ya no trae API de JavaScript (`transpileModule`): el TS se quita con el transpilador de Bun
+    const transpiler = new Bun.Transpiler({ loader: 'ts' });
     const { compileModule } = await import('svelte/compiler');
     build.onLoad({ filter: /\.svelte\.ts$/ }, async ({ path }) => {
       const source = await Bun.file(path).text();
-      const js = ts.transpileModule(source, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-      }).outputText;
+      const js = transpiler.transformSync(source);
       const compiled = compileModule(js, { filename: path, generate: 'client' });
       return { contents: compiled.js.code, loader: 'js' };
     });
