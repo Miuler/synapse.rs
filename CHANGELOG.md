@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Shortcut `Alt+E` toggles between reading and editing (besides `F2`): one press enters editing and the next returns to reading.
 - License: Synapse.rs is now free software under GPL-3.0-or-later. `synapse-server/` (only a proof of concept), the name and the logos are not included.
+- Explorer: files and folders dragged from another application (Nautilus, Explorer, Finder…) are copied into the folder where they are dropped.
+
+### Fixed
+
+- Explorer (Linux): dragging files inside the explorer, or onto the agent chat, works again.
+- Notes: switching between reading and editing in the middle of a long table keeps the visible row instead of jumping to the start of the table.
+- Agent chat: choosing a file with `@` keeps its reference in the text (`@docs/note.md`) instead of deleting what was typed; it is still attached.
+- Linux notifications: the octopus is also sent as the notification image, for daemons such as swaync.
 
 ### Security
 

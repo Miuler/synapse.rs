@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { carriesFiles, endInternalDrag, internalDragPaths, NATIVE_DROP, startInternalDrag, type NativeDrop } from '@shared/lib/native-drop';
   import { flushPendingWrites } from '@shared/lib/pending-writes';
   import { tick, untrack } from 'svelte';
   import type { VaultItem } from '@entities/vault-item';
@@ -1503,6 +1504,7 @@
       anchorPath = node.relativePath;
     }
     e.dataTransfer.setData(DRAG_MIME, JSON.stringify(selectedPaths));
+    startInternalDrag([...selectedPaths]);
     // Como un explorador de archivos: al soltarlo en otra aplicación (Telegram, el gestor de
     // archivos…) recibe los archivos. Dentro del árbol sigue siendo mover.
     const uris = selectedPaths.map((p) => fileUri(getFullAbsolutePath(p)));
@@ -1523,11 +1525,36 @@
   }
 
   function handleDragOverTarget(e: DragEvent, node: VaultTreeNode | null) {
-    if (!e.dataTransfer?.types.includes(DRAG_MIME)) return;
+    if (!e.dataTransfer) return;
+    const internal = internalDragPaths() !== null || e.dataTransfer.types.includes(DRAG_MIME);
+    if (!internal && !carriesFiles(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
+    // Lo propio se mueve; lo que viene de otra aplicación se copia
+    e.dataTransfer.dropEffect = internal ? 'move' : 'copy';
     dragOverPath = node ? dropDirFor(node) : '';
+  }
+
+  /** Soltado nativo (en Linux, todos los que llevan archivos): `el` es donde cayó. */
+  async function handleNativeDrop(e: Event) {
+    const { paths, internal } = (e as CustomEvent<NativeDrop>).detail;
+    dragOverPath = null;
+    const item = (e.target as Element | null)?.closest?.('.file-tree-item[data-path]');
+    const path = item?.getAttribute('data-path') ?? '';
+    const destDir = item?.classList.contains('folder') ? path : parentDir(path);
+    if (internal) await moveToDirectory(paths, destDir);
+    else if (!isPasting) await pasteCreated(() => vaultApi.importExternalItems(paths, destDir), destDir);
+  }
+
+  $effect(() => {
+    const el = sidebarContentEl;
+    el?.addEventListener(NATIVE_DROP, handleNativeDrop);
+    return () => el?.removeEventListener(NATIVE_DROP, handleNativeDrop);
+  });
+
+  function handleDragEnd() {
+    dragOverPath = null;
+    endInternalDrag();
   }
 
   async function handleDropOnTarget(e: DragEvent, node: VaultTreeNode | null) {
@@ -2945,7 +2972,7 @@
       ondragover={(e) => handleDragOverTarget(e, node)}
       ondragleave={() => { if (dragOverPath === node.relativePath) dragOverPath = null; }}
       ondrop={(e) => handleDropOnTarget(e, node)}
-      ondragend={() => (dragOverPath = null)}
+      ondragend={handleDragEnd}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}
       onclick={(e) => handleFolderClick(e, node, () => openFolderOrIndex(node))}
@@ -3005,7 +3032,7 @@
       ondragstart={(e) => handleNodeDragStart(e, node)}
       ondragover={(e) => handleDragOverTarget(e, node)}
       ondrop={(e) => handleDropOnTarget(e, node)}
-      ondragend={() => (dragOverPath = null)}
+      ondragend={handleDragEnd}
       class:active={node.relativePath === activeTabPath}
       class:selected={isSelected(node.relativePath)}
       class:context-target={isContextMenuOpen && (contextMenuNode?.relativePath === node.relativePath || isSelected(node.relativePath))}

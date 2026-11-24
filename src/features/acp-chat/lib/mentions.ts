@@ -24,6 +24,14 @@ export const VAULT_ICON: Record<VaultState, string> = { active: '🟢', busy: '�
 /** Nombre de bóveda como token sin espacios (`@Mi_Bóveda`). */
 export const vaultToken = (name: string) => `@${name.replace(/\s+/g, '_')}`;
 
+/** Referencia a un archivo de la bóveda en el texto (`@docs/nota.md`); además va adjunto. */
+export const fileMention = (relPath: string): Mention => ({
+  token: `@${relPath.replace(/\s+/g, '_')}`,
+  to: relPath,
+  title: `el archivo «${relPath}»`,
+  file: true,
+});
+
 /** «hace 3 min», «hace 2 h»… */
 export function ago(ms: number | undefined, now = Date.now()): string {
   if (!ms) return '';
@@ -71,7 +79,9 @@ export function mentionsPrompt(text: string, mentions: Mention[]): { prompt: str
     (m, i) => mentions.findIndex((x) => x.token === m.token) === i && new RegExp(`(^|\\s)${escape(m.token)}(?=$|[\\s.,;:!?])`).test(text),
   );
   if (!used.length) return { prompt: text, used };
-  const lines = used.map((m) => `- ${m.token}: ${m.title}. Para escribirle usa send_to_conversation con to="${m.to}".`);
+  const lines = used.map((m) =>
+    m.file ? `- ${m.token}: ${m.title} (adjunto)` : `- ${m.token}: ${m.title}. Para escribirle usa send_to_conversation con to="${m.to}".`,
+  );
   return { prompt: `${text}\n\n[Menciones de Synapse]\n${lines.join('\n')}`, used };
 }
 

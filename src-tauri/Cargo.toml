@@ -104,6 +104,8 @@ calamine = { version = "0.38", default-features = false }
 umya-spreadsheet = "=4.0.0-beta.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# La misma que usa tauri-plugin-notification: sin ella no se puede enviar la imagen de la notificación
+notify-rust = "4"
 webkit2gtk-nvidia-quirk = { version = "2.3.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]

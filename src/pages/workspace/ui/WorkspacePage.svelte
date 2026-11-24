@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { listenNativeDrop } from '@shared/lib/native-drop';
   import {debug, info, warn, error} from '@tauri-apps/plugin-log';
   import {onMount, tick, untrack} from "svelte";
   import {Ribbon} from "@widgets/ribbon";
@@ -2986,6 +2987,8 @@
     const notes = ((i18n.locale === "es" ? u.notesEs : null) ?? u.notes ?? "").replace(/^##[^\n]*\n+/, "").trim();
     return `# ${t('news.titleVersion', { version: u.version })}\n\n${notes || t('news.noNotes')}\n`;
   }
+  onMount(() => (isTauriEnvironment() ? listenNativeDrop() : undefined));
+
   onMount(() => {
     if (isDetachedWindow || !isTauriEnvironment()) return;
     let timer: ReturnType<typeof setTimeout> | undefined;

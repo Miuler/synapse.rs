@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { internalDragPaths, NATIVE_DROP, type NativeDrop } from '@shared/lib/native-drop';
   import {
     agentStore,
     agentApi,
@@ -47,6 +48,7 @@
   import {
     ago,
     conversationTooltip,
+    fileMention,
     mentionsPrompt,
     mergeVaults,
     STATUS_ICON,
@@ -311,13 +313,8 @@
                 label: '@this',
                 detail: `Archivo actual · ${relOf(note.path)}`,
                 pick: () => {
-                  conv.draft = conv.draft.slice(0, m.start) + conv.draft.slice(caret);
                   conv.attachActiveNote();
-                  tick().then(() => {
-                    textarea?.focus();
-                    textarea?.setSelectionRange(m.start, m.start);
-                    caret = m.start;
-                  });
+                  insertMention(m.start, fileMention(relOf(note.path)));
                 },
               },
             ]
@@ -357,13 +354,8 @@
                 label: it.title || nameOf(it.relative_path),
                 detail: it.relative_path,
                 pick: () => {
-                  conv.draft = conv.draft.slice(0, m.start) + conv.draft.slice(caret);
                   conv.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
-                  tick().then(() => {
-                    textarea?.focus();
-                    textarea?.setSelectionRange(m.start, m.start);
-                    caret = m.start;
-                  });
+                  insertMention(m.start, fileMention(it.relative_path));
                 },
               }));
       const files = [...self, ...fileRows];
@@ -527,10 +519,23 @@
     if (!raw) return;
     e.preventDefault();
     try {
-      for (const p of JSON.parse(raw) as string[]) conv.attach({ kind: 'file', path: absPath(p), name: nameOf(p) });
+      attachPaths(JSON.parse(raw) as string[]);
     } catch {
       /* datos de arrastre inválidos */
     }
+  }
+  function attachPaths(paths: string[]) {
+    for (const p of paths) conv.attach({ kind: 'file', path: absPath(p), name: nameOf(p) });
+  }
+  /** En Linux los datos del arrastre no llegan a la página: los trae el soltado nativo. */
+  function nativeDrop(node: HTMLElement) {
+    const onNative = (e: Event) => {
+      const { paths, internal } = (e as CustomEvent<NativeDrop>).detail;
+      dragOver = false;
+      if (internal) attachPaths(paths);
+    };
+    node.addEventListener(NATIVE_DROP, onNative);
+    return { destroy: () => node.removeEventListener(NATIVE_DROP, onNative) };
   }
 
   // Pegar imágenes del portapapeles (capturas, imágenes copiadas) como adjunto del mensaje
@@ -926,9 +931,10 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="acp-composer"
+      use:nativeDrop
       class:drag-over={dragOver}
       ondragover={(e) => {
-        if (e.dataTransfer?.types.includes(DRAG_MIME)) {
+        if (internalDragPaths() || e.dataTransfer?.types.includes(DRAG_MIME)) {
           e.preventDefault();
           dragOver = true;
         }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { ago, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
+import { ago, fileMention, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
 
 const conv = (status: 'working' | 'idle') => ({ handle: '#1', agent: 'Claude', title: 'x', status });
 
@@ -35,6 +35,15 @@ describe('menciones', () => {
     expect(prompt).not.toContain('Mi Bóveda');
     // «#20» no es «#2»
     expect(mentionsPrompt('mira #20', mentions).used).toEqual([]);
+  });
+
+  it('un archivo queda en el texto y no se presenta como destinatario', () => {
+    const m = fileMention('docs/mi nota.md');
+    expect(m.token).toBe('@docs/mi_nota.md');
+    const { prompt, used } = mentionsPrompt('compara @docs/mi_nota.md con lo anterior', [m]);
+    expect(used).toEqual([m]);
+    expect(prompt).toContain('- @docs/mi_nota.md: el archivo «docs/mi nota.md» (adjunto)');
+    expect(prompt).not.toContain('send_to_conversation');
   });
 
   it('parte el texto en trozos y menciones', () => {

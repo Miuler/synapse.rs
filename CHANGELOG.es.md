@@ -13,6 +13,14 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - Atajo `Alt+E` para alternar entre lectura y edición (además de `F2`): una pulsación entra a edición y la siguiente vuelve a lectura.
 - Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
+- Explorador: los archivos y carpetas arrastrados desde otra aplicación (Nautilus, Explorador, Finder…) se copian en la carpeta donde se sueltan.
+
+### Corregido
+
+- Explorador (Linux): arrastrar archivos dentro del explorador, o al chat del agente, vuelve a funcionar.
+- Notas: al cambiar entre lectura y edición en medio de una tabla larga se conserva la fila visible, en vez de saltar al principio de la tabla.
+- Chat del agente: elegir un archivo con `@` deja su referencia en el texto (`@docs/nota.md`) en vez de borrar lo escrito; se sigue adjuntando.
+- Notificaciones en Linux: el pulpo se envía también como imagen de la notificación, para demonios como swaync.
 
 ### Seguridad
 

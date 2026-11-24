@@ -139,16 +139,20 @@ pub fn copy_vault_items(
 
 /// Pega en `dest_dir` archivos o carpetas de fuera de la bóveda (rutas absolutas).
 /// Retorna las rutas relativas de los nuevos elementos creados.
-#[tauri::command]
+// async: copiar una carpeta grande no debe congelar la ventana
+#[tauri::command(async)]
 pub fn import_external_items(
     state: State<'_, AppState>,
     paths: Vec<String>,
     dest_dir: String,
 ) -> Result<Vec<String>, String> {
-    // Solo lo que la persona copió: si no, la interfaz podría traerse cualquier archivo del disco
-    let copied = read_system_clipboard_files()?;
-    if let Some(p) = paths.iter().find(|p| !copied.contains(p)) {
-        return Err(format!("No está en el portapapeles: {p}"));
+    // Solo lo que la persona copió o soltó: si no, la interfaz podría traerse cualquier archivo del disco
+    let dropped = |p: &String| state.allowed_paths.was_dropped(std::path::Path::new(p));
+    if !paths.iter().all(dropped) {
+        let copied = read_system_clipboard_files()?;
+        if let Some(p) = paths.iter().find(|p| !copied.contains(p)) {
+            return Err(format!("No está en el portapapeles: {p}"));
+        }
     }
     let vault_path = {
         let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;

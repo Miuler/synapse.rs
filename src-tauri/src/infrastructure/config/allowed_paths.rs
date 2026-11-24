@@ -13,6 +13,8 @@ pub struct AllowedPaths {
     vaults: Mutex<HashSet<PathBuf>>,
     /// Ejecutables elegidos en un diálogo: se pueden usar, pero no leer ni escribir desde la interfaz.
     programs: Mutex<HashSet<PathBuf>>,
+    /// Lo último soltado desde otra aplicación: se puede copiar a la bóveda.
+    dropped: Mutex<HashSet<PathBuf>>,
 }
 
 /// Resuelve `.` y `..` sin tocar el disco (no sigue enlaces simbólicos).
@@ -67,6 +69,17 @@ impl AllowedPaths {
 
     pub fn has_vault(&self, path: &Path) -> bool {
         self.vaults.lock().is_ok_and(|v| v.contains(&canonical(path)))
+    }
+
+    /// La persona soltó estos archivos en la ventana (sustituye a lo soltado antes).
+    pub fn set_dropped(&self, paths: &[PathBuf]) {
+        if let Ok(mut dropped) = self.dropped.lock() {
+            *dropped = paths.iter().cloned().collect();
+        }
+    }
+
+    pub fn was_dropped(&self, path: &Path) -> bool {
+        self.dropped.lock().is_ok_and(|d| d.contains(path))
     }
 
     pub fn grant_program(&self, path: &Path) {
@@ -197,6 +210,17 @@ mod tests {
         allowed.grant_program(git);
         assert!(allowed.has_program(git));
         assert!(!allowed.allows(None, git));
+    }
+
+    #[test]
+    fn lo_soltado_se_puede_copiar_pero_no_leer() {
+        let allowed = AllowedPaths::default();
+        let (a, b) = (PathBuf::from("/x/a"), PathBuf::from("/x/b"));
+        allowed.set_dropped(std::slice::from_ref(&a));
+        assert!(allowed.was_dropped(&a) && !allowed.was_dropped(&b));
+        assert!(!allowed.allows(None, &a));
+        allowed.set_dropped(std::slice::from_ref(&b));
+        assert!(!allowed.was_dropped(&a));
     }
 
     #[test]

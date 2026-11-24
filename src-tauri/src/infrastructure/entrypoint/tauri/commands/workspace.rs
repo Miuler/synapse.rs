@@ -150,18 +150,46 @@ fn escape_notification_body(body: String) -> String {
 /// Notificación del sistema con el icono de Synapse (sin él, el demonio muestra uno genérico).
 fn show_notification(window: &tauri::WebviewWindow, title: String, body: String) -> Result<(), String> {
     use tauri::Manager;
-    use tauri_plugin_notification::NotificationExt;
-    let mut builder = window.notification().builder().title(title).body(escape_notification_body(body));
     let icon = window
         .app_handle()
         .path()
         .app_cache_dir()
         .ok()
-        .and_then(|dir| materialize_notification_icon(&dir));
-    if let Some(icon) = icon {
-        builder = builder.icon(icon.to_string_lossy().into_owned());
+        .and_then(|dir| materialize_notification_icon(&dir))
+        .map(|path| path.to_string_lossy().into_owned());
+    // Linux: el plugin solo envía `app_icon`, y hay demonios (p. ej. swaync) que muestran en grande la
+    // imagen de la pista `image-path`; se envían las dos
+    #[cfg(target_os = "linux")]
+    {
+        let mut notification = notify_rust::Notification::new();
+        notification
+            .appname("Synapse")
+            .summary(&title)
+            .body(&escape_notification_body(body));
+        if let Some(icon) = icon {
+            notification.icon(&icon).image_path(&icon);
+        }
+        // Fuera del hilo principal: espera la respuesta del demonio por D-Bus
+        std::thread::spawn(move || {
+            if let Err(e) = notification.show() {
+                log::warn!("No se pudo mostrar la notificación: {e}");
+            }
+        });
+        Ok(())
     }
-    builder.show().map_err(|e| e.to_string())
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri_plugin_notification::NotificationExt;
+        let mut builder = window
+            .notification()
+            .builder()
+            .title(title)
+            .body(escape_notification_body(body));
+        if let Some(icon) = icon {
+            builder = builder.icon(icon);
+        }
+        builder.show().map_err(|e| e.to_string())
+    }
 }
 
 /// Pide la atención del usuario cuando Synapse espera una respuesta (un permiso, una pregunta) y la

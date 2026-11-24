@@ -181,6 +181,10 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeout: 5_000,
     timeoutMsg: '@this no adjuntó la nota activa',
   });
+  // Y la referencia queda en el texto, para poder hablar de ella
+  expect(await s.browser.$('.acp-input textarea').getValue()).toBe('@nota.md ');
+  await s.browser.keys(['Control', 'a']);
+  await s.browser.keys('Backspace');
 
   // Pegar una imagen del portapapeles la deja como adjunto con miniatura
   await s.browser.execute(() => {

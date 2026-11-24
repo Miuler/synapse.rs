@@ -284,6 +284,8 @@ export interface Mention {
   title: string;
   /** Valor de `to` para `send_to_conversation`. */
   to: string;
+  /** Archivo de la bóveda: va adjunto y no es un destinatario */
+  file?: boolean;
 }
 
 /** Elemento de la conversación tal como se muestra. */

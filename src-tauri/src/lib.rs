@@ -313,6 +313,10 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // Solo el sistema emite este evento: la interfaz no puede fingir qué se soltó
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                window.state::<AppState>().allowed_paths.set_dropped(paths);
+            }
             if window.label() == "main"
                 && let tauri::WindowEvent::Destroyed = event {
                     let app = window.app_handle();
