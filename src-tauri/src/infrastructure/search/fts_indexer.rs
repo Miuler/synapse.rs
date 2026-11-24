@@ -207,7 +207,7 @@ impl FtsIndexer {
                                         }
                                         r.push(rel_str.clone());
                                     }
-                                if count % 5 == 0 || count == targets_len {
+                                if count.is_multiple_of(5) || count == targets_len {
                                     notify_fn();
                                 }
 
@@ -590,7 +590,7 @@ fn perform_full_sync(
                     }
                     r.push(rel_str.clone());
                 }
-                if count % 5 == 0 || count == total {
+                if count.is_multiple_of(5) || count == total {
                     notify_fn();
                 }
 
