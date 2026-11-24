@@ -20,9 +20,20 @@ async function openEditor() {
 }
 
 async function clickFirstLine() {
-  await s.browser.$('.cm-content .cm-line').click();
-  // Cursor al inicio de la línea, sobre "server".
-  await s.browser.keys(['Home']);
+  // Cursor al inicio de la línea, sobre "server". El editor puede perder el foco mientras la pestaña
+  // termina de cargar: se repite hasta que el cursor esté ahí de verdad.
+  await s.browser.waitUntil(
+    async () => {
+      await s.browser.$('.cm-content .cm-line').click();
+      await s.browser.keys(['Home']);
+      return (await s.browser.execute(() => {
+        const sel = getSelection();
+        const line = document.querySelector('.cm-content .cm-line');
+        return !!document.activeElement?.closest('.cm-content') && !!line?.contains(sel?.anchorNode ?? null) && sel?.anchorOffset === 0;
+      })) as boolean;
+    },
+    { timeout: 10_000, timeoutMsg: 'el cursor no quedó al inicio de la primera línea' },
+  );
 }
 
 beforeAll(async () => {
@@ -38,6 +49,7 @@ it('Shift+F6 y escribir cambia todas las coincidencias exactas', async () => {
   await clickFirstLine();
   await s.browser.keys(['Shift', 'F6']);
   await s.browser.keys(['Shift']);
+  await s.browser.$('.cm-cursor-secondary').waitForExist({ timeout: 5_000 });
   await s.browser.keys('web'.split(''));
   await s.browser.waitUntil(async () => (await editorText()).startsWith('web -> db'), { timeout: 5_000 });
   expect(await editorText()).toBe('web -> db\nservers: x\nclient -> web\n'.replace(/\n$/, '\n'));

@@ -264,23 +264,19 @@
 
   // El diálogo puede tener `transform` (arrastre/redimensión) y entonces `position: fixed` se mide
   // desde él, no desde la ventana: se corrige con lo que de verdad ocupa el menú y se mete en pantalla.
+  // En el mismo efecto, antes de pintar: en el siguiente fotograma el menú saltaba bajo el puntero y
+  // un clic inmediato caía en otra opción.
   $effect(() => {
     if (!menu || !menuEl) return;
-    const target = { x: menu.x, y: menu.y };
+    const { x, y } = menu;
     const el = menuEl;
-    requestAnimationFrame(() => {
-      el.style.left = `${target.x}px`;
-      el.style.top = `${target.y}px`;
-      const r = el.getBoundingClientRect();
-      let dx = target.x - r.left;
-      let dy = target.y - r.top;
-      const right = target.x + r.width;
-      const bottom = target.y + r.height;
-      if (right > window.innerWidth - 4) dx -= right - (window.innerWidth - 4);
-      if (bottom > window.innerHeight - 4) dy -= bottom - (window.innerHeight - 4);
-      el.style.left = `${target.x + dx}px`;
-      el.style.top = `${target.y + dy}px`;
-    });
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    const r = el.getBoundingClientRect();
+    const overRight = Math.max(0, x + r.width - (window.innerWidth - 4));
+    const overBottom = Math.max(0, y + r.height - (window.innerHeight - 4));
+    el.style.left = `${2 * x - r.left - overRight}px`;
+    el.style.top = `${2 * y - r.top - overBottom}px`;
   });
 
   $effect(() => {

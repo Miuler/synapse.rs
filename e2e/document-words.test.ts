@@ -28,6 +28,8 @@ it('sugiere un nombre definido en el documento y lo inserta', async () => {
   const tooltip = s.browser.$('.cm-tooltip-autocomplete');
   await tooltip.waitForExist({ timeout: 5_000 });
   expect(await tooltip.getText()).toContain('servidor_web');
+  // CodeMirror ignora Enter durante 75 ms tras mostrar la lista (`interactionDelay`)
+  await s.browser.pause(200);
   await s.browser.keys(['Enter']);
   const text = (await s.browser.execute(() => document.querySelector('.cm-content')!.textContent)) as string;
   expect(text).toContain('servidor_web -> base_datosservidor_web');

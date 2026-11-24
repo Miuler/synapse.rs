@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Git Log de todas las ramas: el menú contextual aparecía un instante en otro sitio y saltaba a su posición, así que un clic rápido podía caer en otra opción.
 - Explorador con muchos archivos y zoom de interfaz distinto de 100 %: moverse por la lista o abrir un archivo bloqueaba la app varios segundos, porque la altura de fila oscilaba y la lista se volvía a montar cientos de veces.
 - Índices de carpeta (`index.md`): el candado y el estado de Git quedan junto a los nombres y alineados en columna, en vez de en el borde derecho; la descripción va a continuación.
 - Chat del agente: con Claude no aparecía el selector de modelo, porque ya lo anuncia en `configOptions`. Synapse lee ese formato y cambia el modelo con `session/set_config_option`.

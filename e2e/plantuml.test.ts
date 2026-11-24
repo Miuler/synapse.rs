@@ -130,8 +130,9 @@ it('el mensaje de un error en la primera línea se ve entero, sin que lo tape la
   const ranges = await s.browser.$$('.cm-lintRange-error');
   for (const range of ranges) if (await range.isDisplayed()) await range.moveTo();
   await s.browser.waitUntil(async () => s.browser.$('.cm-tooltip-lint').isExisting(), { timeout: 5_000 });
-  const visible = await s.browser.execute(() => {
-    const tip = document.querySelector('.cm-tooltip-lint') as HTMLElement;
+  const measure = () => s.browser.execute(() => {
+    const tip = document.querySelector('.cm-tooltip-lint') as HTMLElement | null;
+    if (!tip) return { text: null, corners: false };
     const r = tip.getBoundingClientRect();
     const inTip = (x: number, y: number) => tip.contains(document.elementFromPoint(x, y));
     return {
@@ -139,5 +140,7 @@ it('el mensaje de un error en la primera línea se ve entero, sin que lo tape la
       corners: inTip(r.left + 2, r.top + 2) && inTip(r.right - 2, r.top + 2) && inTip(r.left + 2, r.bottom - 2),
     };
   });
-  expect(visible).toEqual({ text: 'Syntax Error?', corners: true } as any);
+  // CodeMirror crea el tooltip fuera de la vista y lo coloca al medir: se espera a que esté en su sitio
+  await s.browser.waitUntil(async () => (await measure()).corners, { timeout: 5_000 }).catch(() => {});
+  expect(await measure()).toEqual({ text: 'Syntax Error?', corners: true } as any);
 }, 60_000);

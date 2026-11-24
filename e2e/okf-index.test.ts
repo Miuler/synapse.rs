@@ -261,7 +261,15 @@ it('las insignias de Git quedan alineadas en columna y pegadas al nombre más la
   await s.browser.waitUntil(async () => read('proyecto/index.md').includes('bastante'), { timeout: 20_000, timeoutMsg: 'el índice no listó el archivo nuevo' });
   await s.browser.refresh();
   await s.browser.$('.file-tree-item.folder[data-path="proyecto"]').waitForExist({ timeout: 30_000 });
-  await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+  // Al recargar se restaura la pestaña anterior: un clic demasiado pronto lo pisa la restauración
+  await s.browser.waitUntil(
+    async () => {
+      await s.browser.execute(() => (document.querySelector('.file-tree-item.folder[data-path="proyecto"]') as HTMLElement).click());
+      await s.browser.pause(700);
+      return (await s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path'))) === 'proyecto/index.md';
+    },
+    { timeout: 15_000, timeoutMsg: 'no se abrió proyecto/index.md' },
+  );
   const measure = () =>
     s.browser.execute(() =>
       [...document.querySelectorAll('.tab-pane:not(.hidden) ul.okf-explorer-list')].map((ul) => ({

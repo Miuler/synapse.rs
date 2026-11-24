@@ -166,6 +166,9 @@ async function launch(base: string, vault: string): Promise<Session> {
   if (NEEDS_VITE && (await isListening(VITE_PORT)) && !(await servesSynapse(VITE_PORT))) {
     throw new Error(`El puerto ${VITE_PORT} lo ocupa otro proyecto, no el Vite de Synapse: ciérralo para correr las e2e.`);
   }
+  // El Vite de una corrida recién terminada sigue escuchando ~1 s hasta que su vigilante lo cierra:
+  // reutilizarlo dejaba la app en blanco. Solo se reutiliza si sigue vivo un poco después.
+  if (NEEDS_VITE && !ownVite && (await isListening(VITE_PORT))) await Bun.sleep(2_000);
   if (NEEDS_VITE && !(await isListening(VITE_PORT))) {
     // Vite se arranca una vez por proceso y sigue vivo entre archivos (`bun test ./e2e` los corre en
     // el mismo proceso): reiniciarlo en cada uno costaba segundos. Se cierra al salir.
