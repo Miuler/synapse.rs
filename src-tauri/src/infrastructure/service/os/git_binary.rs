@@ -20,6 +20,8 @@ pub fn git_command() -> Command {
         .ok()
         .and_then(|p| p.clone())
         .unwrap_or_else(|| PathBuf::from("git"));
+    // Solo Windows lo modifica
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     {
