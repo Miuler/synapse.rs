@@ -2,6 +2,8 @@
 
 Aplicación de notas de conocimiento personal desarrollada en **Rust** (Tauri v2) y **Svelte 5** (Runes) con **Bun**, estructurada bajo **Feature-Sliced Design (FSD)** en el frontend y **Arquitectura Cebolla (Onion Architecture)** en el backend de Rust.
 
+> **Contribuciones:** por ahora no se aceptan *pull requests* de código, para mantener un único titular de los derechos. Las incidencias con errores e ideas sí son bienvenidas. Las vulnerabilidades, como indica [SECURITY.md](SECURITY.md). Puedes usar y modificar el código según la [licencia](LICENSE).
+
 ## ✨ Características
 
 - 📝 **Editor Markdown**: Integrado con Milkdown y vista previa en tiempo real.

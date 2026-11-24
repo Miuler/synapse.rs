@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ## [Sin publicar] (Unreleased)
 
+### Añadido
+
+- Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
+
 ### Seguridad
 
 - Dependencias actualizadas. El visor de Excel pasa a `umya-spreadsheet` 4 (beta), que deja atrás una versión de `zip` con vulnerabilidades conocidas.

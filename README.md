@@ -251,3 +251,16 @@ Cada release incluye `SHA256SUMS.txt`, el SBOM (CycloneDX) y una attestation de 
 ## 🛠️ Desarrollo
 
 Arquitectura del código, requisitos y cómo compilar: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## ⚖️ Licencia
+
+Copyright © 2026 Hector Miuler Malpica Gallegos.
+
+Synapse.rs es software libre bajo la [GNU GPL 3.0 o posterior](LICENSE) (`GPL-3.0-or-later`): puedes usarlo, estudiarlo, modificarlo y compartirlo, también en tu empresa. Si distribuyes una versión modificada, debes publicar su código con la misma licencia. Se ofrece **sin ninguna garantía**. Tus notas y documentos son tuyos: la licencia no los afecta.
+
+- **Servidor:** la carpeta `synapse-server/` es solo una **prueba de concepto**, no un producto ni un servicio disponible, y **no** está cubierta por esta licencia; todos los derechos reservados.
+- **Nombre y logotipos:** la licencia del código no concede derechos sobre el nombre «Synapse.rs», su logotipo ni el pulpo. Un fork debe usar otro nombre y otra imagen.
+- **Terceros:** las dependencias conservan sus propias licencias.
+- **Contribuciones:** por ahora no se aceptan; consulta [CONTRIBUTING.md](CONTRIBUTING.md).
