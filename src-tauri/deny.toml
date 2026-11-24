@@ -1,5 +1,5 @@
 # Configuración de cargo-deny (workflow `Security`): avisos de RustSec, licencias, duplicados y fuentes.
-# Se ejecuta con `cargo deny --manifest-path src-tauri/Cargo.toml check --config src-tauri/deny.toml`.
+# Se ejecuta con `cargo deny --manifest-path src-tauri/Cargo.toml --all-features --config src-tauri/deny.toml check`.
 
 [advisories]
 # Las vulnerabilidades siempre fallan. Para silenciar un aviso concreto, anota aquí su id con el motivo

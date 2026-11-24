@@ -54,8 +54,11 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2
         with:
           manifest-path: src-tauri/Cargo.toml
+          # La imagen trae un Rust antiguo; el proyecto declara uno más nuevo
+          rust-version: stable
+          # `--config` es una opción general: va antes de `check`
+          arguments: --all-features --config src-tauri/deny.toml
           command: check
-          command-arguments: --config src-tauri/deny.toml
 
   frontend-audit:
     name: bun audit (frontend)
