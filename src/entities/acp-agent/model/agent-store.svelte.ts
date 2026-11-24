@@ -5,6 +5,7 @@ import { load, save } from './storage';
 import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/agent.api';
 import { feedbackPrompt } from './feedback-prompt';
 import { replayText } from './replay-text';
+import { btwPrompt, conversationTitle, forkItems, PROMOTED_NOTE, readOnlyMode, rejectOption } from './side-question';
 import type {
   AgentCommand,
   AgentConnection,
@@ -15,6 +16,7 @@ import type {
   ChatItem,
   ConversationSummary,
   Mention,
+  PermissionRequestEvent,
   PlanEntry,
   PromptBlock,
   QueuedMessage,
@@ -75,6 +77,9 @@ export class Conversation {
   currentModel = $state<string | null>(null);
   attachments = $state<Attachment[]>([]);
   dismissedActiveNote = $state<string | null>(null);
+  /** Lo escrito sin enviar (y las menciones elegidas en ello): sobrevive a cerrar el panel. */
+  draft = $state('');
+  pickedMentions = $state<Mention[]>([]);
   /** Hay novedades que el usuario no vio (terminó o pide permiso estando plegada). */
   unseen = $state(false);
   /** El agente está compactando su contexto (`/compact`). */
@@ -90,6 +95,10 @@ export class Conversation {
   waitingFor = $state<string[]>([]);
   /** Conversación abierta por otra bóveda de Synapse (🐙), con su origen. */
   incoming = $state<{ vault: string; handle: string; title: string } | null>(null);
+  /** Pregunta aparte (`/btw`) en curso o ya respondida, hasta que se cierre. */
+  side = $state<Conversation | null>(null);
+  /** Es una pregunta aparte: no se guarda, no suena y no concede permisos. */
+  ephemeral = false;
   /** Saltos entre agentes del turno en curso (0 si lo empezó el usuario). */
   #turnHops = 0;
   /** Contador de iteraciones (turnos) completados en esta conversación. */
@@ -105,6 +114,13 @@ export class Conversation {
   lastActivity = $state(Date.now());
   #acpSessionId: string | null = null;
   #replay: string | null = null;
+  /** Mensajes heredados de la original, para convertir la pregunta aparte en conversación. */
+  #base: ChatItem[] = [];
+  /** Sesión del agente que se bifurca al conectar, y lo que llevaba del turno en curso. */
+  #forkOf: string | null = null;
+  #turnReplay: string | null = null;
+  /** Modelo de la conversación de origen (manda sobre el recordado para el agente). */
+  #inheritedModel: string | null = null;
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(store: AgentStore, agentId: string, cwd: string, id: string = crypto.randomUUID()) {
@@ -125,8 +141,7 @@ export class Conversation {
     return this.#store.agents.find((a) => a.id === this.agentId) ?? null;
   }
   get title(): string {
-    const first = this.items.find((i) => i.type === 'user');
-    return (first && 'text' in first ? first.text : '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    return conversationTitle(this.items);
   }
   get pendingPermissions(): number {
     return this.items.filter(
@@ -163,6 +178,7 @@ export class Conversation {
   persist(now = false) {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;
+    if (this.ephemeral) return;
     const run = () => {
       const agent = this.agent;
       if (!agent || !this.items.some((i) => i.type === 'user')) return;
@@ -173,7 +189,8 @@ export class Conversation {
           agent_name: agent.name,
           cwd: this.#cwd,
           title: this.title,
-          acp_session_id: this.session?.id ?? this.#acpSessionId,
+          // Con contexto aún sin enviar, la sesión del agente está vacía: retomarla lo perdería
+          acp_session_id: this.#replay ? null : (this.session?.id ?? this.#acpSessionId),
           created_at: this.#createdAt,
           updated_at: Date.now(),
           items: $state.snapshot(this.items) as ChatItem[],
@@ -197,6 +214,7 @@ export class Conversation {
     this.#createdAt = t.created_at;
     this.lastActivity = t.updated_at ?? t.created_at;
     this.#acpSessionId = t.acp_session_id;
+    if (!t.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
     return t.acp_session_id;
   }
 
@@ -211,16 +229,18 @@ export class Conversation {
         await this.#store.refresh();
       }
       this.connection = 'starting';
-      this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume, this.id);
+      this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume ?? this.#forkOf, this.id, !resume && !!this.#forkOf);
+      // Bifurcada por el agente: ya tiene el contexto, salvo lo que la original lleve del turno en curso
+      if (!resume && this.session.resumed) this.#replay = this.#turnReplay;
       if (resume && !this.session.resumed && this.items.length) this.#replay = replayText(this.items);
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
       this.commands = this.#store.takeEarlyCommands(this.session.id);
       this.connection = 'ready';
       // Modelo recordado para este agente: no hay que elegirlo en cada conversación nueva
-      const savedModel = load(`synapse.agent.model.${agent.id}`);
+      const savedModel = this.#inheritedModel ?? load(`synapse.agent.model.${agent.id}`);
       if (savedModel && savedModel !== this.currentModel && this.session.models.some((m) => m.id === savedModel)) {
-        await this.setModel(savedModel);
+        await this.setModel(savedModel, !this.#inheritedModel);
       }
       if (resume) this.persist(true);
       this.deliverNext();
@@ -423,7 +443,7 @@ export class Conversation {
       if (!this.#store.isVisible(this)) this.unseen = true;
       this.persist(true);
       const agent = this.agent;
-      if (agent) {
+      if (agent && !this.ephemeral) {
         const toolCalls = this.items
           .slice(turnStart)
           .filter((i): i is Extract<ChatItem, { type: 'tool' }> => i.type === 'tool')
@@ -494,7 +514,7 @@ export class Conversation {
         }
       }
       this.#turnHops = 0;
-      if (stopReason !== 'cancelled' && !opts.replyTo && this.queue.length === 0) {
+      if (stopReason !== 'cancelled' && !opts.replyTo && !this.ephemeral && this.queue.length === 0) {
         void playAgentCompletionSound();
       }
       this.deliverNext();
@@ -518,9 +538,9 @@ export class Conversation {
     }
   }
 
-  async setModel(modelId: string) {
+  async setModel(modelId: string, remember = true) {
     if (!this.session) return;
-    save(`synapse.agent.model.${this.session.agent_id}`, modelId);
+    if (remember) save(`synapse.agent.model.${this.session.agent_id}`, modelId);
     const previous = this.currentModel;
     this.currentModel = modelId;
     try {
@@ -585,8 +605,79 @@ export class Conversation {
     }
   }
 
+  /** Toma el contexto de `parent`: sus mensajes hasta ahora viajan con el primer envío. */
+  #inherit(parent: Conversation) {
+    const items = forkItems($state.snapshot(parent.items) as ChatItem[]);
+    this.#nextId = items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
+    this.#base = items.length ? [...items, { type: 'fork', id: this.#nextId++, handle: parent.handle, title: parent.title }] : [];
+    if (items.some((i) => i.type === 'user')) this.#replay = replayText(items);
+    this.#inheritedModel = parent.currentModel;
+    if (!this.#replay) return;
+    // Si la original aún no le envió su contexto al agente, bifurcar su sesión lo perdería
+    this.#forkOf = parent.#replay ? null : (parent.session?.id ?? null);
+    if (parent.connection === 'busy') this.#turnReplay = replayText(items.slice(items.findLastIndex((i) => i.type === 'user')));
+  }
+
+  /** `/fork`: otra conversación con el contexto de esta (también con el turno en curso). */
+  async fork(text = ''): Promise<Conversation> {
+    const c = new Conversation(this.#store, this.agentId, this.#cwd);
+    c.#inherit(this);
+    c.items = c.#base;
+    this.#store.addConversation(c);
+    c.enqueue(text);
+    await c.connect();
+    c.persist(true);
+    return c;
+  }
+
+  /** `/btw`: pregunta aparte, sin tocar el turno en curso ni el contexto de esta conversación. */
+  async ask(question: string) {
+    this.closeSide();
+    const c = new Conversation(this.#store, this.agentId, this.#cwd);
+    c.ephemeral = true;
+    c.#inherit(this);
+    this.side = c;
+    const side = this.side;
+    await side.connect();
+    // Se cerró (o la reemplazó otra) mientras conectaba
+    if (this.side !== side) return side.stop();
+    const mode = readOnlyMode(side.session?.modes ?? []);
+    if (mode && mode !== side.currentMode) await side.setMode(mode);
+    if (this.side !== side) return side.stop();
+    await side.send(question, { prompt: btwPrompt(question), attachments: [] });
+  }
+
+  closeSide() {
+    const side = this.side;
+    this.side = null;
+    void side?.stop();
+  }
+
+  /** Convierte la pregunta aparte, ya respondida, en una conversación normal. */
+  async promoteSide() {
+    const c = this.side;
+    if (!c?.session || c.connection !== 'ready') return;
+    this.side = null;
+    c.ephemeral = false;
+    c.items = [...c.#base, ...c.items];
+    c.#replay = PROMOTED_NOTE;
+    const initial = c.session.current_mode;
+    this.#store.addConversation(c);
+    if (initial && initial !== c.currentMode) await c.setMode(initial);
+    c.persist(true);
+  }
+
+  /** Una pregunta aparte no concede nada: rechaza y lo deja dicho en el panel. */
+  rejectPermission(request: PermissionRequestEvent) {
+    this.push({ type: 'info', text: `Permiso rechazado: ${request.title}` });
+    void agentApi
+      .respondPermission(request.sessionId, request.requestId, rejectOption(request.options))
+      .catch((e) => this.error(e));
+  }
+
   /** Cierra la sesión del agente; la conversación queda guardada en el historial. */
   async stop() {
+    this.closeSide();
     const session = this.session;
     if (session) {
       this.#acpSessionId = session.id;
@@ -666,7 +757,11 @@ export class AgentStore {
   }
 
   #bySession(sessionId: string) {
-    return this.conversations.find((c) => c.session?.id === sessionId) ?? null;
+    for (const c of this.conversations) {
+      if (c.session?.id === sessionId) return c;
+      if (c.side?.session?.id === sessionId) return c.side;
+    }
+    return null;
   }
 
   isVisible(c: Conversation) {
@@ -738,6 +833,7 @@ export class AgentStore {
       onPermission: (e) => {
         const c = this.#bySession(e.sessionId);
         if (!c) return;
+        if (c.ephemeral) return c.rejectPermission(e);
         c.push({ type: 'permission', request: e, answered: null });
         const item = c.items.at(-1)!;
         if (!this.isVisible(c)) c.unseen = true;
@@ -753,6 +849,11 @@ export class AgentStore {
           (e.sessionId ? this.#bySession(e.sessionId) : undefined) ??
           this.conversations.find((x) => x.connection === 'busy');
         if (!c) return;
+        if (c.ephemeral) {
+          c.push({ type: 'info', text: `El agente pidió información: ${e.message}` });
+          void agentApi.respondElicitation(c.session?.id ?? '', e.requestId, 'cancel', null).catch(() => {});
+          return;
+        }
         c.push({ type: 'elicitation', request: e, answered: null });
         if (!this.isVisible(c)) c.unseen = true;
         requestAttention(
@@ -875,6 +976,9 @@ export class AgentStore {
     request?: unknown;
   }): Promise<unknown> {
     if (req.action === 'peer') return this.peers.handlePeer(req.request as PeerRequest);
+    if (req.action === 'send' && this.conversations.some((c) => c.side && c.side.id === req.caller)) {
+      throw new Error('Una pregunta aparte (/btw) no puede escribir a otras conversaciones.');
+    }
     const caller = req.caller ? this.byId(req.caller) : null;
     if (req.action === 'list') {
       const local = this.localSummaries(caller);

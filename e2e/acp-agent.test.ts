@@ -724,3 +724,63 @@ it('soporta elicitation/create en modo form y modo url', async () => {
     { timeout: 10_000, timeoutMsg: 'no llegó la confirmación de elicitación del agente' },
   );
 }, 30_000);
+
+it('/btw pregunta aparte con el turno en curso, sin dejar rastro; se convierte en conversación; /fork hereda el contexto', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  const say = async (msg: string) => {
+    await input.setValue(msg);
+    await s.browser.keys('Enter');
+  };
+  const working = () => s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'));
+  const answered = () =>
+    s.browser.waitUntil(async () => (await text('.acp-side-answer')).some((t) => t?.startsWith('Respuesta aparte')), {
+      timeout: 20_000,
+      timeoutMsg: 'no llegó la respuesta aparte',
+    });
+  await s.browser.waitUntil(async () => !(await working()), { timeout: 15_000 });
+  await say('trabajo muy lento');
+  await s.browser.$('.acp-send[title^="Detener"]').waitForExist({ timeout: 5_000 });
+  const rows = await count('.acp-row');
+  await say('/btw ¿qué haces?');
+  await answered();
+  // Con contexto y con el permiso rechazado solo; no se encola ni entra en la conversación
+  expect((await text('.acp-side-answer')).join()).toContain('con contexto, permiso: reject');
+  expect((await text('.acp-side-info')).join()).toContain('Permiso rechazado');
+  expect(await count('.acp-queued')).toBe(0);
+  expect((await text('.acp-msg.user')).join()).not.toContain('¿qué haces?');
+  expect(await count('.acp-row')).toBe(rows);
+  // Esc la cierra y el turno principal termina en su conversación
+  await input.click();
+  await s.browser.keys('Escape');
+  expect(await count('.acp-side')).toBe(0);
+  await s.browser.waitUntil(async () => !(await working()), { timeout: 15_000, timeoutMsg: 'el turno principal no terminó' });
+  expect((await text('.acp-msg.agent')).some((t) => t?.includes('Empiezo un trabajo lento… terminado.'))).toBe(true);
+
+  // Convertirla en conversación
+  await say('/btw ¿y ahora?');
+  await answered();
+  await s.browser.$('.acp-side-promote:not([disabled])').click();
+  await s.browser.waitUntil(async () => (await count('.acp-row')) === rows + 1, { timeout: 5_000, timeoutMsg: 'no se convirtió' });
+  expect(await count('.acp-side')).toBe(0);
+  expect((await text('.acp-fork-marker')).length).toBe(1);
+  expect((await text('.acp-msg.agent')).some((t) => t?.startsWith('Respuesta aparte'))).toBe(true);
+
+  // /fork con primer mensaje
+  await say('/fork eco bifurcado');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t === 'Bifurcada con contexto'), {
+    timeout: 20_000,
+    timeoutMsg: 'la bifurcación no recibió el contexto',
+  });
+  expect(await count('.acp-row')).toBe(rows + 2);
+}, 90_000);
+
+it('lo escrito sin enviar sigue ahí al cerrar el panel y volver a abrirlo', async () => {
+  await s.browser.$('.acp-input textarea').setValue('borrador a medias');
+  // Sin fijar, un clic fuera lo cierra
+  if (await count('.acp-pin-btn[aria-pressed="true"]')) await s.browser.$('.acp-pin-btn').click();
+  await s.browser.$('.file-tree-item[data-path="otra.md"]').click();
+  await s.browser.waitUntil(async () => (await count('.synapse-agent-panel')) === 0, { timeout: 5_000, timeoutMsg: 'el panel no se cerró' });
+  await s.browser.$('.editor-header .agent-toggle').click();
+  await s.browser.$('.acp-input textarea').waitForExist({ timeout: 5_000 });
+  expect(await s.browser.$('.acp-input textarea').getValue()).toBe('borrador a medias');
+}, 30_000);

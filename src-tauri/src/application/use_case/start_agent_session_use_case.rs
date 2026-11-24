@@ -39,6 +39,7 @@ impl<R: AgentProfileRepository, I: AgentInstaller, A: AgentRunner>
                 command.tools,
                 command.instructions,
                 command.resume,
+                command.fork,
             )
             .await
     }

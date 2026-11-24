@@ -14,6 +14,7 @@
   import { settingsApi } from '@entities/settings';
   import { vaultItemStore } from '@entities/vault-item';
   import ElicitationCard from './ElicitationCard.svelte';
+  import SideQuestion from './SideQuestion.svelte';
   import {
     Bot,
     Send,
@@ -98,13 +99,12 @@
     }
   }
 
-  let draft = $state('');
   // Pregunta preparada desde otra parte de la app (p. ej. el Historial de Git): se escribe aquí si
   // esta es la conversación enfocada, sin enviarla
   $effect(() => {
     const pending = agentStore.pendingDraft;
     if (!pending || agentStore.focused !== conv) return;
-    draft = pending;
+    conv.draft = pending;
     agentStore.pendingDraft = null;
     tick().then(() => textarea?.focus());
   });
@@ -143,7 +143,7 @@
 
   // La caja crece con el texto (desde 3 líneas) hasta el 40 % de la ventana; después, scroll propio
   $effect(() => {
-    void draft;
+    void conv.draft;
     const el = textarea;
     if (!el) return;
     el.style.height = 'auto';
@@ -170,18 +170,16 @@
   // Autocompletado: `@nota` menciona una nota, `/comando` al inicio usa un comando del agente
   let caret = $state(0);
   const mention = $derived.by(() => {
-    const m = /(^|\s)@([^\s@]*)$/.exec(draft.slice(0, caret));
+    const m = /(^|\s)@([^\s@]*)$/.exec(conv.draft.slice(0, caret));
     return m ? { query: m[2].toLowerCase(), start: caret - m[2].length - 1 } : null;
   });
-  const slash = $derived(/^\/(\S*)$/.exec(draft)?.[1]?.toLowerCase() ?? null);
+  const slash = $derived(/^\/(\S*)$/.exec(conv.draft)?.[1]?.toLowerCase() ?? null);
   // `#2`: otra conversación de esta ventana
   const hash = $derived.by(() => {
-    const m = /(^|\s)#([^\s#@]*)$/.exec(draft.slice(0, caret));
+    const m = /(^|\s)#([^\s#@]*)$/.exec(conv.draft.slice(0, caret));
     return m ? { query: m[2].toLowerCase(), start: caret - m[2].length - 1 } : null;
   });
 
-  // Menciones elegidas en el borrador (se explican al agente al enviar)
-  let pickedMentions = $state<Mention[]>([]);
   // Otras bóvedas de Synapse: abiertas (🟢/🟡) y conocidas apagadas (⚪); se consultan al escribir `@`
   let vaults = $state<VaultCandidate[]>([]);
   // Bóvedas que se están encendiendo: esperan a responder antes de enviar
@@ -199,8 +197,8 @@
   /** Reemplaza lo escrito desde `start` hasta el cursor por `token` y recuerda la mención. */
   function insertMention(start: number, mentionItem: Mention) {
     const insert = `${mentionItem.token} `;
-    draft = draft.slice(0, start) + insert + draft.slice(caret);
-    if (!pickedMentions.some((m) => m.token === mentionItem.token)) pickedMentions = [...pickedMentions, mentionItem];
+    conv.draft = conv.draft.slice(0, start) + insert + conv.draft.slice(caret);
+    if (!conv.pickedMentions.some((m) => m.token === mentionItem.token)) conv.pickedMentions = [...conv.pickedMentions, mentionItem];
     const at = start + insert.length;
     tick().then(() => {
       textarea?.focus();
@@ -313,7 +311,7 @@
                 label: '@this',
                 detail: `Archivo actual · ${relOf(note.path)}`,
                 pick: () => {
-                  draft = draft.slice(0, m.start) + draft.slice(caret);
+                  conv.draft = conv.draft.slice(0, m.start) + conv.draft.slice(caret);
                   conv.attachActiveNote();
                   tick().then(() => {
                     textarea?.focus();
@@ -359,7 +357,7 @@
                 label: it.title || nameOf(it.relative_path),
                 detail: it.relative_path,
                 pick: () => {
-                  draft = draft.slice(0, m.start) + draft.slice(caret);
+                  conv.draft = conv.draft.slice(0, m.start) + conv.draft.slice(caret);
                   conv.attach({ kind: 'file', path: absPath(it.abs_path ?? it.relative_path), name: nameOf(it.relative_path) });
                   tick().then(() => {
                     textarea?.focus();
@@ -386,7 +384,7 @@
             label: '/feedback',
             detail: 'Synapse · el agente registra qué mejorar del MCP y del panel (puedes añadir indicaciones)',
             pick: () => {
-              draft = '/feedback ';
+              conv.draft = '/feedback ';
               tick().then(() => textarea?.focus());
             },
           }]
@@ -397,19 +395,37 @@
           label: '/usage',
           detail: 'Synapse · resumen de uso de esta conversación (contexto, costo, herramientas)',
           pick: () => {
-            draft = '/usage';
+            conv.draft = '/usage';
+            tick().then(() => textarea?.focus());
+          },
+        });
+      }
+      // `/btw` y `/fork` los resuelve Synapse aunque el agente tenga los suyos
+      const how = conv.session?.capabilities.fork_session
+        ? 'contexto completo: el agente bifurca su sesión'
+        : 'contexto reenviado como texto: el agente no bifurca sesiones';
+      for (const [name, detail] of [
+        ['btw', `Synapse · pregunta aparte, sin interrumpir al agente (${how})`],
+        ['fork', `Synapse · abre otra conversación a partir de esta (${how})`],
+      ]) {
+        if (!name.startsWith(slash)) continue;
+        own.push({
+          label: `/${name}`,
+          detail,
+          pick: () => {
+            conv.draft = `/${name} `;
             tick().then(() => textarea?.focus());
           },
         });
       }
       return [...own, ...conv.commands
-        .filter((c) => c.name.toLowerCase().startsWith(slash))
+        .filter((c) => c.name.toLowerCase().startsWith(slash) && c.name !== 'btw' && c.name !== 'fork')
         .slice(0, 8)
         .map((c) => ({
           label: `/${c.name}`,
           detail: c.description ?? '',
           pick: () => {
-            draft = `/${c.name} `;
+            conv.draft = `/${c.name} `;
             tick().then(() => textarea?.focus());
           },
         }))];
@@ -423,11 +439,20 @@
   });
 
   async function submit() {
-    const text = draft.trim();
+    const text = conv.draft.trim();
     if (!text || !ready) return;
-    draft = '';
-    const { prompt, used } = mentionsPrompt(text, pickedMentions);
-    pickedMentions = [];
+    const own = /^\/(btw|fork)(?:\s+([\s\S]*))?$/.exec(text);
+    if (own) {
+      const rest = own[2] ?? '';
+      if (own[1] === 'btw' && !rest) return;
+      conv.draft = '';
+      conv.pickedMentions = [];
+      void (own[1] === 'btw' ? conv.ask(rest) : conv.fork(rest));
+      return;
+    }
+    conv.draft = '';
+    const { prompt, used } = mentionsPrompt(text, conv.pickedMentions);
+    conv.pickedMentions = [];
     // Mientras el agente trabaja, el mensaje queda en cola y se envía al terminar el turno
     if (busy) {
       conv.enqueue(text, used.length ? { prompt, mentions: used } : {});
@@ -445,11 +470,11 @@
   /** Vuelve a poner en la caja los mensajes sacados de la cola (con sus menciones) */
   function restoreQueued(items: { text: string; mentions: Mention[] }[]) {
     if (!items.length) return;
-    draft = [...items.map((q) => q.text), draft].filter((t) => t.trim()).join('\n\n');
-    for (const q of items) for (const m of q.mentions) if (!pickedMentions.some((x) => x.token === m.token)) pickedMentions = [...pickedMentions, m];
+    conv.draft = [...items.map((q) => q.text), conv.draft].filter((t) => t.trim()).join('\n\n');
+    for (const q of items) for (const m of q.mentions) if (!conv.pickedMentions.some((x) => x.token === m.token)) conv.pickedMentions = [...conv.pickedMentions, m];
     tick().then(() => {
       textarea?.focus();
-      textarea?.setSelectionRange(draft.length, draft.length);
+      textarea?.setSelectionRange(conv.draft.length, conv.draft.length);
     });
   }
 
@@ -460,6 +485,12 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && conv.side) {
+      e.preventDefault();
+      e.stopPropagation();
+      conv.closeSide();
+      return;
+    }
     if (suggestions.length) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -468,7 +499,7 @@
         return;
       }
       // Enter con el comando ya escrito completo lo envía (no vuelve a elegir la misma sugerencia)
-      const complete = e.key === 'Enter' && suggestions[pickIndex].label === draft.trim();
+      const complete = e.key === 'Enter' && suggestions[pickIndex].label === conv.draft.trim();
       if ((e.key === 'Enter' || e.key === 'Tab') && !complete) {
         e.preventDefault();
         suggestions[pickIndex].pick();
@@ -476,7 +507,7 @@
       }
     }
     // ↑ con la caja vacía: el último mensaje en cola vuelve a la caja para editarlo (sale de la cola)
-    if (e.key === 'ArrowUp' && !draft && conv.queue.length) {
+    if (e.key === 'ArrowUp' && !conv.draft && conv.queue.length) {
       e.preventDefault();
       const item = conv.unqueue(conv.queue[conv.queue.length - 1].id, true);
       if (item) restoreQueued([item]);
@@ -777,6 +808,8 @@
           <div class="acp-msg info markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'compact'}
           <div class="acp-compact-marker" role="separator">— contexto compactado —</div>
+        {:else if item.type === 'fork'}
+          <div class="acp-compact-marker acp-fork-marker" role="separator" title={item.title}>— bifurcada de {item.title || item.handle} —</div>
         {/if}
       {/each}
       {#if busy}
@@ -882,6 +915,18 @@
       ondragleave={() => (dragOver = false)}
       ondrop={onDrop}
     >
+      {#if conv.side}
+        <SideQuestion
+          side={conv.side}
+          zoom={appSettings.chatZoom}
+          onLink={onMessageClick}
+          onClose={() => {
+            conv.closeSide();
+            textarea?.focus();
+          }}
+          onPromote={() => conv.promoteSide()}
+        />
+      {/if}
       {#if suggestions.length}
         <div class="acp-suggest" role="listbox">
           {#each suggestions as sug, i (sug.detail + sug.label)}
@@ -937,7 +982,7 @@
       >
         <textarea
           bind:this={textarea}
-          bind:value={draft}
+          bind:value={conv.draft}
           onkeydown={onKeydown}
           onpaste={onPaste}
           onkeyup={(e) => (caret = e.currentTarget.selectionStart)}
@@ -945,7 +990,7 @@
           oninput={(e) => (caret = e.currentTarget.selectionStart)}
           rows="3"
           placeholder={busy
-            ? `${conv.agent?.name ?? 'El agente'} está trabajando: Enter deja el mensaje en cola`
+            ? `${conv.agent?.name ?? 'El agente'} está trabajando: Enter deja el mensaje en cola, /btw pregunta aparte`
             : ready
             ? `Escribe a ${conv.agent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
             : 'El agente no está conectado'}
@@ -956,7 +1001,7 @@
             <Square size={14} />
           </button>
         {:else}
-          <button type="submit" class="acp-send" title="Enviar" disabled={!ready || !draft.trim()}>
+          <button type="submit" class="acp-send" title="Enviar" disabled={!ready || !conv.draft.trim()}>
             <Send size={14} />
           </button>
         {/if}

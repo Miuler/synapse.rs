@@ -68,6 +68,7 @@ impl AgentRunner for MockAgentRunnerImpl {
         _tools: Vec<ToolServer>,
         _instructions: Option<String>,
         _resume: Option<String>,
+        _fork: bool,
     ) -> Result<AgentSession, String> {
         self.0.lock().unwrap().push(launch.command);
         Ok(AgentSession {
@@ -151,6 +152,7 @@ async fn un_verificado_se_instala_antes_de_lanzarse() {
         tools: vec![],
         instructions: None,
         resume: None,
+        fork: false,
     })
     .await
     .unwrap();
@@ -174,6 +176,7 @@ async fn un_personalizado_se_lanza_con_su_comando() {
             tools: vec![],
             instructions: None,
             resume: None,
+            fork: false,
         })
         .await
         .unwrap();

@@ -17,6 +17,7 @@ pub trait AgentRunner: Send + Sync {
         tools: Vec<ToolServer>,
         instructions: Option<String>,
         resume: Option<String>,
+        fork: bool,
     ) -> impl Future<Output = Result<AgentSession, String>> + Send;
 
     /// Envía un mensaje y espera a que el agente termine el turno; devuelve el motivo de parada.

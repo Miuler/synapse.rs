@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Chat del agente: lo escrito sin enviar ya no se pierde al cerrarse el panel (por ejemplo, sin fijar, al hacer clic fuera) ni al plegar la conversación.
 - Enlaces internos con caracteres reservados (`%2C`, etc.) en vista de lectura y `index.md` OKF: se decodifican con `decodeURIComponent` en lugar de `decodeURI` para abrir correctamente archivos con comas u otros caracteres especiales en el nombre (como `.excalidraw`).
 - Chat del agente: corregido un error por el que los mensajes encolados mientras el agente trabajaba no se enviaban al terminar el turno.
 - Diálogos redimensionables (Índice de la nota `Ctrl+F12` y diálogos de Git): se muestra el indicador de redimensionado en la esquina inferior derecha, se amplían las áreas de agarre en bordes y esquinas y se captura el puntero durante el arrastre para redimensionar de forma fiable.
@@ -17,6 +18,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente (ACP): `/btw <pregunta>` hace una pregunta aparte sin interrumpir el turno en curso. La respuesta sale en un panel flotante sobre la caja de texto, no entra en la conversación ni en el historial y se cierra con Esc; «Convertir en conversación» la continúa aparte. Rechaza los permisos que pida el agente.
+- Chat del agente (ACP): `/fork [mensaje]` abre otra conversación con el contexto de la actual, también con el turno en curso. `/btw` y `/fork` usan `session/fork` si el agente lo anuncia (Claude) y, si no, le reenvían la conversación como texto (agy); la sugerencia del comando dice cuál de las dos.
 - Barra de pestañas: opción «Cerrar todas las pestañas» en el menú contextual de cada pestaña.
 - Chat del agente (ACP): sonido al terminar un turno (`Burbuja FM` por defecto), configurable en Ajustes → Agentes de IA con opciones `Burbuja FM`, `Sonar orgánico` o `Sin sonido` y botón «Probar».
 - Chat del agente (ACP): soporte completo para `elicitation/create` en modos `form` (formulario interactivo generado desde JSON Schema con botones/selects para enums, booleanos, números, texto y validación de obligatorios) y `url` (muestra dominio, URL y botón «Abrir enlace»), anunciando `clientCapabilities.elicitation` en `initialize` y respondiendo con `accept`, `decline` o `cancel`.

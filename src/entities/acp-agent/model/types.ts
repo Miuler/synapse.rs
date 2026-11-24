@@ -21,6 +21,8 @@ export interface AgentCapabilities {
   embedded_context: boolean;
   tools_over_http: boolean;
   load_session: boolean;
+  /** Bifurca él mismo la sesión (`session/fork`); si no, Synapse le reenvía la conversación. */
+  fork_session?: boolean;
 }
 
 export interface AgentOption {
@@ -300,6 +302,8 @@ export type ChatItem =
   | { type: 'error'; id: number; text: string }
   /** El usuario compactó el contexto del agente (`/compact`): lo anterior ya no está en su memoria. */
   | { type: 'compact'; id: number }
+  /** Punto desde el que se bifurcó otra conversación (`/fork`): lo anterior es heredado. */
+  | { type: 'fork'; id: number; handle: string; title: string }
   /** Información de Synapse en el chat (no la escribe el agente), por ejemplo `/usage`. */
   | { type: 'info'; id: number; text: string };
 

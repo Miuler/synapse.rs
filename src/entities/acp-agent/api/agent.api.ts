@@ -25,8 +25,8 @@ export const agentApi = {
   saveProfile: (p: { id: string; name: string; command: string; args: string[]; env: Record<string, string> }) =>
     invokeTauri<AgentProfile>('agent_save_profile', p),
   deleteProfile: (id: string) => invokeTauri<void>('agent_delete_profile', { id }),
-  startSession: (agentId: string, cwd: string, feedback: boolean, resume: string | null = null, conversationId: string | null = null) =>
-    invokeTauri<AgentSession>('agent_start_session', { agentId, cwd, feedback, resume, conversationId }),
+  startSession: (agentId: string, cwd: string, feedback: boolean, resume: string | null = null, conversationId: string | null = null, fork = false) =>
+    invokeTauri<AgentSession>('agent_start_session', { agentId, cwd, feedback, resume, conversationId, fork }),
   saveTranscript: (transcript: AgentTranscript) => invokeTauri<void>('agent_save_transcript', { transcript }),
   listTranscripts: (cwd: string) => invokeTauri<AgentTranscriptSummary[]>('agent_list_transcripts', { cwd }),
   loadTranscript: (cwd: string, id: string) => invokeTauri<AgentTranscript>('agent_load_transcript', { cwd, id }),

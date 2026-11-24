@@ -28,6 +28,8 @@ pub struct StartAgentSessionCommand {
     pub instructions: Option<String>,
     /// Sesión ACP anterior que se intenta retomar, si el agente lo admite.
     pub resume: Option<String>,
+    /// Bifurcar `resume` en una sesión nueva en lugar de retomarla.
+    pub fork: bool,
 }
 
 pub struct SendAgentPromptCommand {

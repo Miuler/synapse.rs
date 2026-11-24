@@ -121,6 +121,7 @@ pub async fn agent_start_session(
     cwd: String,
     feedback: Option<bool>,
     resume: Option<String>,
+    fork: Option<bool>,
     conversation_id: Option<String>,
 ) -> Result<AgentSession, String> {
     let tools = synapse_tools(&app, conversation_id.as_deref())?;
@@ -135,6 +136,7 @@ pub async fn agent_start_session(
             tools,
             instructions,
             resume,
+            fork: fork.unwrap_or(false),
         })
         .await
 }

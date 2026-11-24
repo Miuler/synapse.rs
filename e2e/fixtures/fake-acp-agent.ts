@@ -14,6 +14,8 @@ const update = (u: unknown) => send({ jsonrpc: '2.0', method: 'session/update', 
 let promptId: unknown = null;
 /** Turno lento en curso («trabajo lento»): termina solo o con session/cancel */
 let slow: { id: unknown; timer: ReturnType<typeof setTimeout> } | null = null;
+/** Pregunta aparte esperando la respuesta a su permiso */
+let side: { id: unknown; sessionId: string; context: boolean } | null = null;
 let mcp: string[] = [];
 let mcpTools = 'sin-probar';
 /** Resultado de pedir un diagrama como imagen al MCP (marca de read_note + render_diagram). */
@@ -126,6 +128,31 @@ for await (const line of createInterface({ input: process.stdin })) {
     promptId = msg.id;
     current = msg.params.sessionId;
     const said: string = msg.params.prompt.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('\n');
+    // Pregunta aparte (`/btw`): pide un permiso y, al recibir la respuesta, contesta
+    if (said.includes('[Pregunta aparte')) {
+      side = { id: msg.id, sessionId: current, context: said.includes('Usuario: trabajo muy lento') };
+      send({
+        jsonrpc: '2.0',
+        id: 'perm-btw',
+        method: 'session/request_permission',
+        params: {
+          sessionId: current,
+          toolCall: { toolCallId: 't-btw', title: 'Borrar todo' },
+          options: [
+            { optionId: 'allow', name: 'Permitir', kind: 'allow_once' },
+            { optionId: 'reject', name: 'Rechazar', kind: 'reject_once' },
+          ],
+        },
+      });
+      continue;
+    }
+    // «eco bifurcado»: dice si recibió el contexto de la conversación de origen
+    if (said.includes('eco bifurcado')) {
+      const ctx = said.includes('Usuario: ') ? 'con contexto' : 'sin contexto';
+      update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Bifurcada ${ctx}` } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });
+      continue;
+    }
     // Mensaje de otra conversación: responde enseguida (sin pedir permiso)
     if (said.includes('[Mensaje de otra conversación')) {
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Respuesta de ${current}: sí, tiene SignOn.` } });
@@ -137,9 +164,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       const delay = said.includes('muy lento') ? 10_000 : 2_500;
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Empiezo un trabajo lento…' } });
       const id = msg.id;
+      const slowSession = current;
       slow = {
         id,
         timer: setTimeout(() => {
+          // Otra sesión pudo abrirse mientras tanto
+          current = slowSession;
           update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ' terminado.' } });
           send({ jsonrpc: '2.0', id, result: { stopReason: 'end_turn' } });
           slow = null;
@@ -264,6 +294,15 @@ for await (const line of createInterface({ input: process.stdin })) {
     const chosen = msg.result?.outcome?.optionId ?? 'cancelado';
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ` (permiso: ${chosen})` } });
     send({ jsonrpc: '2.0', id: promptId, result: { stopReason: 'end_turn' } });
+  } else if (msg.id === 'perm-btw' && side) {
+    const chosen = msg.result?.outcome?.optionId ?? 'cancelado';
+    current = side.sessionId;
+    update({
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: `Respuesta aparte (${side.context ? 'con contexto' : 'sin contexto'}, permiso: ${chosen})` },
+    });
+    send({ jsonrpc: '2.0', id: side.id, result: { stopReason: 'end_turn' } });
+    side = null;
   } else if (msg.id === 'el-form-1') {
     const c = msg.result?.content ?? {};
     (globalThis as any).__elFormRes = `${msg.result?.action}:${c.env}:${c.nombre}:${c.confirmar}`;

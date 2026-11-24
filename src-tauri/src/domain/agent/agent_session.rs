@@ -11,6 +11,9 @@ pub struct AgentCapabilities {
     pub tools_over_http: bool,
     /// Puede retomar conversaciones anteriores.
     pub load_session: bool,
+    /// Puede bifurcar una conversación conservando su contexto (`session/fork`).
+    #[serde(default)]
+    pub fork_session: bool,
 }
 
 /// Una opción elegible del agente (un modo o un modelo).
@@ -35,6 +38,6 @@ pub struct AgentSession {
     pub current_model: Option<String>,
     /// Nombres de los servidores de herramientas conectados a la sesión.
     pub tool_servers: Vec<String>,
-    /// La conversación se retomó en el agente (`session/load`) y él conserva su historial.
+    /// La conversación se retomó en el agente (`session/load` o `session/fork`) y él conserva su historial.
     pub resumed: bool,
 }

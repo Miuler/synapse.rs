@@ -205,21 +205,29 @@ impl AgentRunnerImpl {
         tools: Vec<ToolServer>,
         instructions: Option<String>,
         resume: Option<String>,
+        fork: bool,
     ) -> Result<AgentSession, String> {
         let mcp_servers = mcp_servers_for(&tools, &capabilities);
         // Retomar: el agente repite el historial con `session/update` antes de responder; la
         // interfaz aún no conoce la sesión y descarta esos eventos (ya tiene su transcripción).
-        let loaded = match resume.filter(|_| capabilities.load_session) {
+        let (method, supported) = if fork {
+            ("session/fork", capabilities.fork_session)
+        } else {
+            ("session/load", capabilities.load_session)
+        };
+        let loaded = match resume.filter(|_| supported) {
             Some(old) => conn
                 .request(
-                    "session/load",
+                    method,
                     json!({"sessionId": old, "cwd": cwd, "mcpServers": mcp_servers}),
                 )
                 .await
-                .inspect_err(|e| tracing::warn!("No se pudo retomar la sesión {old}: {e}"))
+                .inspect_err(|e| tracing::warn!("Falló {method} de la sesión {old}: {e}"))
                 .ok()
                 .map(|mut r| {
-                    r["sessionId"] = json!(old);
+                    if !fork {
+                        r["sessionId"] = json!(old);
+                    }
                     r
                 }),
             None => None,
@@ -364,6 +372,7 @@ impl AgentRunnerImpl {
             vec![],
             None,
             None,
+            false,
         )
         .await
     }
@@ -378,6 +387,7 @@ impl AgentRunner for AgentRunnerImpl {
         tools: Vec<ToolServer>,
         instructions: Option<String>,
         resume: Option<String>,
+        fork: bool,
     ) -> Result<AgentSession, String> {
         let base = process_key(agent_id, cwd, &launch);
         // Otra conversación con el mismo agente: se reutiliza un proceso suyo con sitio libre
@@ -409,6 +419,7 @@ impl AgentRunner for AgentRunnerImpl {
             tools,
             instructions,
             resume,
+            fork,
         )
         .await
     }
@@ -601,6 +612,7 @@ fn capabilities_of(init: &Value) -> AgentCapabilities {
         embedded_context: flag(&caps["promptCapabilities"]["embeddedContext"]),
         tools_over_http: flag(&caps["mcpCapabilities"]["http"]),
         load_session: flag(&caps["loadSession"]),
+        fork_session: caps["sessionCapabilities"]["fork"].is_object(),
     }
 }
 
@@ -945,7 +957,14 @@ mod tests {
             let msg: Value = serde_json::from_str(&line).unwrap();
             let reply = match msg.get("method").and_then(Value::as_str) {
                 Some("initialize") => {
-                    json!({"jsonrpc":"2.0","id":msg["id"],"result":{"protocolVersion":1}})
+                    json!({"jsonrpc":"2.0","id":msg["id"],"result":{"protocolVersion":1,
+                        "agentCapabilities":{"sessionCapabilities":{"fork":{}}}}})
+                }
+                Some("session/fork") if msg["params"]["sessionId"] == "ses-1" => {
+                    json!({"jsonrpc":"2.0","id":msg["id"],"result":{"sessionId":"ses-1-fork"}})
+                }
+                Some("session/fork") => {
+                    json!({"jsonrpc":"2.0","id":msg["id"],"error":{"code":-1,"message":"no existe"}})
                 }
                 Some("session/new") => {
                     n += 1;
@@ -975,7 +994,7 @@ mod tests {
         let mut ids = vec![];
         for _ in 0..MAX_SESSIONS_PER_PROCESS {
             let s = runner
-                .start("falso", launch.clone(), "/b", vec![], None, None)
+                .start("falso", launch.clone(), "/b", vec![], None, None, false)
                 .await
                 .unwrap();
             ids.push(s.id);
@@ -984,7 +1003,7 @@ mod tests {
         assert_eq!(runner.process_count().await, 1);
         // La quinta ya no cabe: intenta lanzar otro proceso
         let err = runner
-            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .start("falso", launch.clone(), "/b", vec![], None, None, false)
             .await
             .unwrap_err();
         assert!(err.contains("No se pudo lanzar"), "{err}");
@@ -992,7 +1011,7 @@ mod tests {
         // Con límite 1 por proceso, la siguiente conversación ya no cabe en el proceso existente
         runner.set_process_limit("falso", 1);
         let err = runner
-            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .start("falso", launch.clone(), "/b", vec![], None, None, false)
             .await
             .unwrap_err();
         assert!(err.contains("No se pudo lanzar"), "{err}");
@@ -1001,7 +1020,7 @@ mod tests {
         // Cerrar una deja sitio en el mismo proceso
         runner.stop("ses-2").await.unwrap();
         let s = runner
-            .start("falso", launch.clone(), "/b", vec![], None, None)
+            .start("falso", launch.clone(), "/b", vec![], None, None, false)
             .await
             .unwrap();
         assert_eq!(s.id, "ses-5");
@@ -1013,6 +1032,34 @@ mod tests {
         assert_eq!(runner.process_count().await, 1);
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         assert_eq!(runner.process_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn bifurca_en_el_agente_y_si_no_puede_abre_una_sesion_nueva() {
+        let runner = AgentRunnerImpl::new(Arc::new(|_, _| {}));
+        let launch = AgentLaunch {
+            command: "/no/existe/agente".into(),
+            ..Default::default()
+        };
+        let (client, agent) = duplex(64 * 1024);
+        tokio::spawn(multi_session_agent(agent));
+        let (r, w) = tokio::io::split(client);
+        runner
+            .register_process(&format!("{}#0", process_key("falso", "/b", &launch)), r, w)
+            .await;
+        let start = |resume: Option<&str>, fork| {
+            let resume = resume.map(str::to_string);
+            runner.start("falso", launch.clone(), "/b", vec![], None, resume, fork)
+        };
+        let first = start(None, false).await.unwrap();
+        assert!(first.capabilities.fork_session && !first.resumed);
+
+        let forked = start(Some("ses-1"), true).await.unwrap();
+        assert_eq!((forked.id.as_str(), forked.resumed), ("ses-1-fork", true));
+
+        // Sin contexto en el agente: la interfaz lo reenvía (`resumed` es falso)
+        let fallback = start(Some("perdida"), true).await.unwrap();
+        assert_eq!((fallback.id.as_str(), fallback.resumed), ("ses-2", false));
     }
 
     fn synapse_tools() -> Vec<ToolServer> {
@@ -1121,7 +1168,7 @@ mod tests {
             recorded.lock().unwrap().push((name.to_string(), payload));
         }));
         let session = runner
-            .start(&agent, launch, &cwd, tools, Some(crate::infrastructure::entrypoint::controller::tauri::agent_controller::session_instructions(true)), None)
+            .start(&agent, launch, &cwd, tools, Some(crate::infrastructure::entrypoint::controller::tauri::agent_controller::session_instructions(true)), None, false)
             .await
             .unwrap();
         println!("capacidades: {:?}", session.capabilities);
