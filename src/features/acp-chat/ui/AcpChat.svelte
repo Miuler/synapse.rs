@@ -22,6 +22,7 @@
   import { settingsApi } from '@entities/settings';
   import { vaultItemStore } from '@entities/vault-item';
   import ElicitationCard from './ElicitationCard.svelte';
+  import ChatSearch from './ChatSearch.svelte';
   import SideQuestion from './SideQuestion.svelte';
   import {
     Bot,
@@ -117,6 +118,19 @@
     agentStore.pendingDraft = null;
     tick().then(() => textarea?.focus());
   });
+  // Búsqueda en la conversación (Ctrl+F)
+  let searchOpen = $state(false);
+  let searchRequest = $state(0);
+  $effect(() => {
+    if (agentStore.searchRequest !== conv.id) return;
+    agentStore.searchRequest = null;
+    searchOpen = true;
+    untrack(() => searchRequest++);
+  });
+  function closeSearch() {
+    searchOpen = false;
+    textarea?.focus();
+  }
   let scroller = $state<HTMLDivElement | null>(null);
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let chatRoot = $state<HTMLDivElement | null>(null);
@@ -154,7 +168,8 @@
   $effect(() => {
     void conv.draft;
     const el = textarea;
-    if (!el) return;
+    // Con el panel oculto no hay medidas; se ajusta al mostrarlo
+    if (!el || !agentStore.panelOpen) return;
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight + 2}px`;
   });
@@ -164,11 +179,16 @@
   const busy = $derived(conv.connection === 'busy');
   const ready = $derived(conv.connection === 'ready' || busy);
 
-  // Bajar al final cuando llega contenido nuevo
+  // Bajar al final cuando llega contenido nuevo; si llegó con el panel oculto, al mostrarlo. Sin nada
+  // nuevo, al mostrarlo se conserva el scroll.
+  let scrolledFor = '';
   $effect(() => {
-    const _n = conv.items.length;
     const last = conv.items.at(-1);
-    const _t = last && 'text' in last ? last.text.length : 0;
+    const content = `${conv.items.length}:${last && 'text' in last ? last.text.length : 0}`;
+    if (!agentStore.panelOpen || content === scrolledFor) return;
+    scrolledFor = content;
+    // Buscando, lo nuevo no se lleva la coincidencia que se está viendo
+    if (untrack(() => searchOpen)) return;
     tick().then(() => scroller?.scrollTo({ top: scroller.scrollHeight }));
   });
 
@@ -644,7 +664,7 @@
   const quota = $derived(agentStore.quotas[conv.agentId] ?? null);
   const quotaWindow = $derived(quota ? tightestWindow(groupsForModel(quota, currentModelName || conv.currentModel)) : null);
   $effect(() => {
-    if (conv.session) void agentStore.refreshQuota(untrack(() => conv.agentId));
+    if (conv.session && agentStore.panelOpen) void agentStore.refreshQuota(untrack(() => conv.agentId));
   });
 
   const usagePct = $derived(conv.usage ? Math.min(100, (conv.usage.used / conv.usage.size) * 100) : 0);
@@ -652,6 +672,7 @@
 
 <div class="acp-chat" bind:this={chatRoot}>
   {#if conv}
+    {#if searchOpen && scroller}<ChatSearch {scroller} request={searchRequest} onClose={closeSearch} />{/if}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
       class="acp-messages"

@@ -4,6 +4,7 @@
   import { OctopusIcon } from '@shared/ui/icons';
   import {
     Bot,
+    Search,
     Settings,
     X,
     PictureInPicture2,
@@ -18,12 +19,15 @@
     PinOff,
     Ellipsis,
   } from 'lucide-svelte';
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
+  import { t } from '@shared/lib/i18n';
   import { loadVaultFlag, saveVaultFlag } from '@shared/lib/vault-prefs';
 
   interface Props {
     /** Carpeta de trabajo (bóveda abierta). */
     cwd: string | null;
+    /** Cerrado se oculta, sin destruirse: conserva lo dibujado y el scroll. */
+    open: boolean;
     onClose: () => void;
     onOpenSettings: () => void;
     /** Abre una nota de la bóveda (ruta relativa) desde un enlace del agente. */
@@ -31,7 +35,7 @@
     onOutsideFile?: (absolutePath: string) => void;
   }
 
-  let { cwd, onClose, onOpenSettings, onOpenNote, onOutsideFile }: Props = $props();
+  let { cwd, open, onClose, onOpenSettings, onOpenNote, onOutsideFile }: Props = $props();
 
   const WIDTH_KEY = 'synapse.agent.width';
   const POS_KEY = 'synapse.agent.float';
@@ -66,12 +70,38 @@
   });
 
   // Al abrir el panel se restauran las conversaciones que la bóveda tenía abiertas
-  onMount(async () => {
-    await agentStore.refresh();
-    await agentStore.restoreVaultState();
+  $effect(() => {
+    if (!open) return;
+    untrack(async () => {
+      await agentStore.refresh();
+      await agentStore.restoreVaultState();
+    });
   });
   $effect(() => {
-    if (cwd) agentStore.loadHistory(cwd);
+    if (open && cwd) agentStore.loadHistory(cwd);
+  });
+  // Oculto no recibe el foco. Quitar `inert` recalcula el estilo de todos los mensajes: se hace
+  // después de pintar, salvo que haya que enfocar la caja ya (pregunta preparada desde otra parte)
+  let inert = $state(untrack(() => !open));
+  $effect.pre(() => {
+    if (!open || untrack(() => agentStore.pendingDraft)) {
+      inert = !open;
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const frame = requestAnimationFrame(() => (timer = setTimeout(() => (inert = false))));
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  });
+  // Al ocultarlo no quedan menús abiertos ni el foco dentro
+  $effect(() => {
+    if (open) return;
+    menuFor = null;
+    confirmDeleteAll = false;
+    const focused = document.activeElement as HTMLElement | null;
+    if (untrack(() => floatEl ?? dockedEl)?.contains(focused)) focused?.blur();
   });
 
   /** Con una conversación fijada, el panel acoplado se ensancha para la segunda columna. */
@@ -91,7 +121,7 @@
   const overlay = $derived(!agentStore.floating && !pinned);
   let dockedEl = $state<HTMLElement | null>(null);
   $effect(() => {
-    if (!overlay) return;
+    if (!overlay || !open) return;
     const outside = (e: PointerEvent) => {
       const t = e.target as Element | null;
       if (!t || dockedEl?.contains(t)) return;
@@ -183,7 +213,8 @@
   $effect(() => {
     if (!floatEl) return;
     const obs = new ResizeObserver(() => {
-      if (!floatEl) return;
+      // Oculto mide 0: no es un tamaño elegido por el usuario
+      if (!floatEl?.offsetWidth) return;
       float = { ...float, w: floatEl.offsetWidth, h: floatEl.offsetHeight };
       saveJson(POS_KEY, float);
     });
@@ -320,6 +351,14 @@
               role="menuitem"
               onclick={() => {
                 menuFor = null;
+                agentStore.searchIn(c.id);
+              }}><Search size={13} /> {t('chatSearch.menu')}</button
+            >
+            <button
+              type="button"
+              role="menuitem"
+              onclick={() => {
+                menuFor = null;
                 c.openRaw();
               }}><FileJson size={13} /> Ver en crudo (JSON)</button
             >
@@ -439,6 +478,8 @@
 {#if agentStore.floating}
   <section
     class="acp-panel floating synapse-agent-panel"
+    class:is-hidden={!open}
+    {inert}
     bind:this={floatEl}
     style="left: {float.x}px; top: {float.y}px; width: {float.w}px; height: {float.h}px;"
     aria-label="Agente"
@@ -450,6 +491,8 @@
   <aside
     class="acp-panel docked synapse-agent-panel synapse-right-sidebar"
     class:is-overlay={overlay}
+    class:is-hidden={!open}
+    {inert}
     bind:this={dockedEl}
     style="width: {dockedWidth}px;"
     aria-label="Agente"
@@ -488,6 +531,18 @@
     bottom: 0;
     z-index: 900;
     box-shadow: -6px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  /* Cerrado: fuera de la ventana y sin ocupar sitio, pero maquetado. Con `display: none` o
+     `visibility: hidden`, mostrarlo obliga a recalcular todos los mensajes (unas 4 veces más lento) */
+  .acp-panel.is-hidden {
+    transform: translateX(300vw);
+    box-shadow: none;
+  }
+  .acp-panel.docked.is-hidden {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
   }
   .acp-pin-btn.active {
     color: var(--accent);

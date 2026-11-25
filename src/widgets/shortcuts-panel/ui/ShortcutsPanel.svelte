@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@shared/lib/i18n';
   import { Dialog } from 'bits-ui';
   import { shortcutsConfig, appSettings } from '@entities/settings';
   import { Kbd } from '@shared/ui/kbd';
@@ -73,6 +74,7 @@
           { label: 'Reducir tamaño del texto', shortcut: ws.zoom_out },
           { label: 'Restablecer tamaño del texto', shortcut: ws.zoom_reset },
           { label: 'Buscar en el archivo', shortcut: 'Ctrl+F' },
+          { label: t('chatSearch.placeholder'), shortcut: 'Ctrl+F' },
           { label: 'Buscar y reemplazar en el archivo', shortcut: 'Ctrl+R' },
         ],
       },

@@ -294,6 +294,12 @@
   // Panel del agente de IA, acoplado a la derecha o flotante; empieza cerrado en cada arranque
   // Abierto o cerrado se recuerda por bóveda (ver agentStore)
   const isAgentPanelOpen = $derived(agentStore.panelOpen);
+  // Se monta al abrirlo por primera vez; después, cerrarlo solo lo oculta: volver a dibujar una
+  // conversación larga tarda
+  let agentPanelMounted = $state(false);
+  $effect(() => {
+    if (isAgentPanelOpen) agentPanelMounted = true;
+  });
   // Al cambiar de bóveda, el agente no sigue trabajando sobre la anterior
   $effect(() => {
     const vault = isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null);
@@ -4238,6 +4244,17 @@
         return;
       }
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        // Con el foco en el panel del agente se busca en esa conversación (o en la última desplegada)
+        const inPanel = document.activeElement?.closest('.synapse-agent-panel');
+        if (inPanel) {
+          const row = document.activeElement?.closest('section')?.querySelector<HTMLElement>('[data-conversation]');
+          const id = row?.dataset.conversation ?? agentStore.focused?.id;
+          if (id) {
+            stopEvent();
+            agentStore.searchIn(id);
+            return;
+          }
+        }
         const targetPath = activeFocusedPane === 'right' && isSplit ? activeSplitTabPath : activeTabPath;
         if (targetPath && markdownViewers[targetPath]) {
           stopEvent();
@@ -5412,8 +5429,9 @@
     />
   </main>
 
-  {#if isAgentPanelOpen && !isDetachedWindow && !showWelcomeScreen}
+  {#if (isAgentPanelOpen || agentPanelMounted) && !isDetachedWindow && !showWelcomeScreen}
     <AcpPanel
+      open={isAgentPanelOpen}
       cwd={isStandaloneMode ? null : (appSettings.lastOpenedFolder ?? null)}
       onClose={() => setAgentPanelOpen(false)}
       onOpenSettings={openAgentSettings}

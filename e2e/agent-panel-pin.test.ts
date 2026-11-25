@@ -14,7 +14,7 @@ afterAll(() => s?.close());
 
 const state = () =>
   s.browser.execute(() => {
-    const panel = document.querySelector('.synapse-agent-panel') as HTMLElement | null;
+    const panel = document.querySelector('.synapse-agent-panel:not(.is-hidden)') as HTMLElement | null;
     const main = document.querySelector('.synapse-main') as HTMLElement;
     return {
       open: !!panel,
@@ -26,7 +26,7 @@ const state = () =>
   }) as Promise<{ open: boolean; overlay: boolean; mainRight: number; panelLeft: number | null; win: number }>;
 const openPanel = async () => {
   await s.browser.execute(() => (document.querySelector('.editor-header .agent-toggle') as HTMLElement).click());
-  await s.browser.$('.synapse-agent-panel').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.synapse-agent-panel:not(.is-hidden)').waitForExist({ timeout: 5_000 });
 };
 
 it('fijado: el panel ocupa su espacio y el editor se encoge', async () => {

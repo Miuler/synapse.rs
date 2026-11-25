@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Agent chat: `Ctrl+F` with the focus in the panel (or the conversation menu) searches the conversation, including collapsed reasoning; a button also includes tool input and results.
 - Shortcut `Alt+E` toggles between reading and editing (besides `F2`): one press enters editing and the next returns to reading.
 - License: Synapse.rs is now free software under GPL-3.0-or-later. `synapse-server/` (only a proof of concept), the name and the logos are not included.
 - Agent chat: the account quota left is shown next to the context (`● 58% wk`), with every limit in the tooltip. Claude attaches it to the conversation; for Antigravity it is asked with `agy`, at most every 3 minutes (configurable), and `/usage` includes it.
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Agent panel: closing it only hides it, so reopening it is faster with long conversations and keeps the scroll position.
 - Agent panel: when docked, the pin takes the place of the close button (the panel is closed from its toolbar button); floating, the close button stays.
 
 ### Fixed

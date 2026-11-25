@@ -123,6 +123,15 @@ export const en = {
     nothingPending: 'There is no new version pending.',
     noNotes: 'No notes for this version.',
   },
+  chatSearch: {
+    placeholder: 'Search in the conversation',
+    none: 'No results',
+    tools: 'Include tool input and results',
+    previous: 'Previous match (Shift+Enter)',
+    next: 'Next match (Enter)',
+    close: 'Close search (Esc)',
+    menu: 'Search in the conversation (Ctrl+F)',
+  },
   quota: {
     title: '{agent} account',
     weekly: 'weekly',

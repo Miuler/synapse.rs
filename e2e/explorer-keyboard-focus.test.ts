@@ -57,7 +57,7 @@ it('Alt+1 muestra el explorador con el foco en el árbol', async () => {
 it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
   const explorerOpen = () =>
     s.browser.execute(() => getComputedStyle(document.querySelector('.synapse-explorer')!).display !== 'none') as Promise<boolean>;
-  const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel')) as Promise<boolean>;
+  const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel:not(.is-hidden)')) as Promise<boolean>;
   /** Pulsa Shift+Escape y espera a que se cierre el panel que se espera cerrar. */
   const shiftEsc = async (closes: () => Promise<boolean>) => {
     await focusOutside();
@@ -86,7 +86,7 @@ it('Shift+Escape cierra el último panel lateral que se abrió', async () => {
 });
 
 it('Alt+2 abre y cierra el panel del agente', async () => {
-  const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel')) as Promise<boolean>;
+  const agentOpen = () => s.browser.execute(() => !!document.querySelector('.synapse-agent-panel:not(.is-hidden)')) as Promise<boolean>;
   if (await agentOpen()) {
     await s.browser.$('.editor-header .agent-toggle').click();
     await s.browser.waitUntil(async () => !(await agentOpen()), { timeout: 5_000 });

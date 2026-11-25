@@ -1047,6 +1047,16 @@ export class AgentStore {
     return this.#listen();
   }
 
+  /** Conversación en la que se pidió buscar (Ctrl+F); la consume su chat. */
+  searchRequest = $state<string | null>(null);
+
+  /** Abre la búsqueda de una conversación, desplegándola si hace falta. */
+  searchIn(id: string) {
+    if (!this.byId(id)) return;
+    if (!this.isVisible(this.byId(id)!)) this.expand(id);
+    this.searchRequest = id;
+  }
+
   setPanelOpen(open: boolean) {
     this.panelOpen = open;
     this.#saveVaultState();

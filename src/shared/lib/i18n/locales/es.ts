@@ -124,6 +124,15 @@ export const es: TranslationSchema = {
     nothingPending: 'No hay ninguna versión nueva pendiente.',
     noNotes: 'Sin notas para esta versión.',
   },
+  chatSearch: {
+    placeholder: 'Buscar en la conversación',
+    none: 'Sin resultados',
+    tools: 'Incluir la entrada y el resultado de las herramientas',
+    previous: 'Coincidencia anterior (Shift+Enter)',
+    next: 'Coincidencia siguiente (Enter)',
+    close: 'Cerrar la búsqueda (Esc)',
+    menu: 'Buscar en la conversación (Ctrl+F)',
+  },
   quota: {
     title: 'Cuenta de {agent}',
     weekly: 'semanal',

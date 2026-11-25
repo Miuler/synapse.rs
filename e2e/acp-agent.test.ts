@@ -785,8 +785,127 @@ it('lo escrito sin enviar sigue ahí al cerrar el panel y volver a abrirlo', asy
   // Sin fijar, un clic fuera lo cierra
   if (await count('.acp-pin-btn[aria-pressed="true"]')) await s.browser.$('.acp-pin-btn').click();
   await s.browser.$('.file-tree-item[data-path="otra.md"]').click();
-  await s.browser.waitUntil(async () => (await count('.synapse-agent-panel')) === 0, { timeout: 5_000, timeoutMsg: 'el panel no se cerró' });
+  await s.browser.waitUntil(async () => (await count('.synapse-agent-panel:not(.is-hidden)')) === 0, { timeout: 5_000, timeoutMsg: 'el panel no se cerró' });
   await s.browser.$('.editor-header .agent-toggle').click();
-  await s.browser.$('.acp-input textarea').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.synapse-agent-panel:not(.is-hidden)').waitForExist({ timeout: 5_000 });
   expect(await s.browser.$('.acp-input textarea').getValue()).toBe('borrador a medias');
 }, 30_000);
+
+it('cerrar el panel solo lo oculta: conserva el scroll y, si llegó algo nuevo, baja al final', async () => {
+  // Deja una conversación desplegada con mensajes de sobra para hacer scroll
+  const load = (n: number) =>
+    s.browser.execute((n) => {
+      (async () => {
+        const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+        const c = agentStore.conversations.find((x: { id: string }) => agentStore.expanded.includes(x.id));
+        c.items = Array.from({ length: n }, (_, i) => ({ type: 'agent', id: 9000 + i, text: `largo ${i}\n\nmás texto` }));
+      })();
+    }, n);
+  const view = () =>
+    s.browser.execute(() => {
+      const last = [...document.querySelectorAll('.acp-accordion .acp-msg.agent')].find((m) => m.textContent?.includes('largo 0'));
+      let el = last?.parentElement as HTMLElement | null;
+      while (el && !/auto|scroll/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
+      const w = window as unknown as { __node?: Element };
+      const same = !w.__node || w.__node === last;
+      w.__node = last;
+      return { n: document.querySelectorAll('.acp-accordion .acp-msg.agent').length, top: el?.scrollTop ?? -1, max: el ? el.scrollHeight - el.clientHeight : 0, same };
+    }) as Promise<{ n: number; top: number; max: number; same: boolean }>;
+  const setOpen = async (open: boolean) => {
+    await s.browser.execute((open) => {
+      const shown = !!document.querySelector('.synapse-agent-panel:not(.is-hidden)');
+      if (shown !== open) (document.querySelector('.editor-header .agent-toggle') as HTMLElement).click();
+    }, open);
+    await s.browser.waitUntil(async () => (await count('.synapse-agent-panel:not(.is-hidden)')) === (open ? 1 : 0), { timeout: 5_000 });
+  };
+  await setOpen(true);
+  await load(60);
+  await s.browser.waitUntil(async () => { const v = await view(); return v.n >= 60 && v.max > 300 && v.top > v.max - 5; }, { timeout: 10_000, timeoutMsg: 'no bajó al final' });
+  await s.browser.execute(() => {
+    let el = document.querySelector('.acp-accordion .acp-msg.agent')!.parentElement as HTMLElement | null;
+    while (el && !/auto|scroll/.test(getComputedStyle(el).overflowY)) el = el.parentElement;
+    el!.scrollTop = 120;
+  });
+  await setOpen(false);
+  await setOpen(true);
+  await s.browser.pause(300);
+  let v = await view();
+  expect(v.same).toBe(true); // los mismos nodos, sin volver a dibujar
+  expect(v.top).toBe(120);
+  await s.browser.waitUntil(async () => !(await count('.synapse-agent-panel[inert]')), { timeout: 5_000, timeoutMsg: 'abierto sigue sin admitir el foco' });
+  // Algo nuevo con el panel oculto: al mostrarlo se ve el final
+  await setOpen(false);
+  // Oculto queda fuera de la ventana y no admite el foco
+  const hidden = await s.browser.execute(() => {
+    const p = document.querySelector('.synapse-agent-panel') as HTMLElement;
+    p.querySelector('textarea')!.focus();
+    return [p.getBoundingClientRect().left >= innerWidth, p.contains(document.activeElement), document.documentElement.scrollWidth <= innerWidth];
+  });
+  expect(hidden).toEqual([true, false, true]);
+  await load(61);
+  await s.browser.pause(500);
+  await setOpen(true);
+  await s.browser.waitUntil(async () => { v = await view(); return v.n >= 61 && v.top > v.max - 5; }, { timeout: 5_000, timeoutMsg: 'no bajó al final al mostrarlo' });
+}, 60_000);
+
+it('Ctrl+F en el panel busca en la conversación, sin distinguir tildes y también en lo plegado', async () => {
+  const open = () =>
+    s.browser.execute(() => {
+      (async () => {
+        const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+        const c = agentStore.conversations.find((x: { id: string }) => agentStore.expanded.includes(x.id));
+        c.items = [
+          { type: 'agent', id: 9901, text: 'primera canción' },
+          ...Array.from({ length: 60 }, (_, i) => ({ type: 'agent', id: 9910 + i, text: `relleno ${i}` })),
+          { type: 'thought', id: 9980, text: 'pienso en una canción plegada' },
+          { type: 'tool', id: 9979, toolCallId: 'z', title: 'leer', status: 'completed', kind: 'read', locations: [], content: [], rawInput: null, rawOutput: 'resultado con canción' },
+          { type: 'agent', id: 9981, text: 'otra can**CION** final' },
+        ];
+      })();
+    });
+  await open();
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('relleno 59')), { timeout: 5_000 });
+  await s.browser.execute(() => {
+    const m = [...document.querySelectorAll('.acp-msg.agent')].find((x) => x.textContent?.includes('relleno 0'))!;
+    (m.closest('.acp-messages') as HTMLElement).focus();
+  });
+  await s.browser.keys(['Control', 'f']);
+  const input = s.browser.$('.acp-search-input');
+  await input.waitForExist({ timeout: 5_000, timeoutMsg: 'Ctrl+F no abrió la búsqueda' });
+  await s.browser.waitUntil(() => input.isFocused(), { timeout: 5_000, timeoutMsg: 'la búsqueda no tiene el foco' });
+  await s.browser.keys('cancion');
+  const counter = async () => (await text('.acp-search-count'))[0];
+  await s.browser.waitUntil(async () => (await counter()) === '3/3', { timeout: 5_000, timeoutMsg: 'no encontró las tres' });
+  const marked = () =>
+    s.browser.execute(() => ['synapse-chat-search', 'synapse-chat-search-active'].map((n) => CSS.highlights.get(n)?.size ?? 0));
+  expect(await marked()).toEqual([2, 1]);
+  // Anterior: abre el razonamiento plegado; al salir de él se vuelve a plegar
+  const thoughtOpen = () =>
+    s.browser.execute(() => [...document.querySelectorAll('.acp-thought')].some((d) => (d as HTMLDetailsElement).open && d.textContent!.includes('plegada')));
+  await s.browser.keys(['Shift', 'Enter']);
+  await s.browser.waitUntil(async () => (await counter()) === '2/3' && (await thoughtOpen()), { timeout: 5_000, timeoutMsg: 'no abrió lo plegado' });
+  await s.browser.keys('ArrowUp');
+  await s.browser.waitUntil(async () => (await counter()) === '1/3' && !(await thoughtOpen()), { timeout: 5_000, timeoutMsg: 'no volvió a plegarlo' });
+  // La coincidencia queda a la vista
+  const inView = await s.browser.execute(() => {
+    const m = [...document.querySelectorAll('.acp-msg.agent')].find((x) => x.textContent?.includes('primera canción'))!;
+    const a = m.getBoundingClientRect();
+    const b = m.closest('.acp-messages')!.getBoundingClientRect();
+    return a.bottom > b.top && a.top < b.bottom;
+  });
+  expect(inView).toBe(true);
+  // El botón incluye el resultado de las herramientas; se recuerda
+  await s.browser.$('.acp-search-tools').click();
+  await s.browser.waitUntil(async () => (await counter()) === '4/4', { timeout: 5_000, timeoutMsg: 'no incluyó las herramientas' });
+  await s.browser.keys(['Shift', 'Enter']);
+  const toolOpen = () => s.browser.execute(() => [...document.querySelectorAll('.acp-tool')].some((d) => (d as HTMLDetailsElement).open && d.textContent!.includes('resultado con')));
+  await s.browser.waitUntil(async () => (await counter()) === '3/4' && (await toolOpen()), { timeout: 5_000, timeoutMsg: 'no abrió la herramienta' });
+  expect(await s.browser.execute(() => localStorage.getItem('synapse.agent.search-tools'))).toBe('1');
+  await s.browser.$('.acp-search-tools').click();
+  await s.browser.waitUntil(async () => (await counter()) === '3/3' && !(await toolOpen()), { timeout: 5_000, timeoutMsg: 'no las excluyó' });
+  // Esc cierra la búsqueda, no el panel
+  await s.browser.keys('Escape');
+  await input.waitForExist({ reverse: true, timeout: 5_000 });
+  expect(await count('.synapse-agent-panel:not(.is-hidden)')).toBe(1);
+  expect(await marked()).toEqual([0, 0]);
+}, 60_000);

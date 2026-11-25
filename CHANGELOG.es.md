@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente: `Ctrl+F` con el foco en el panel (o el menú de la conversación) busca en la conversación, también en razonamientos plegados; un botón incluye la entrada y el resultado de las herramientas.
 - Atajo `Alt+E` para alternar entre lectura y edición (además de `F2`): una pulsación entra a edición y la siguiente vuelve a lectura.
 - Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
 - Chat del agente: junto al contexto se ve cuánta cuota queda en la cuenta (`● 58% sem`), con todos los límites al pasar el ratón. Claude la adjunta a la conversación; con Antigravity se pregunta a `agy`, como mucho cada 3 minutos (configurable), y `/usage` la incluye.
@@ -20,6 +21,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Panel del agente: cerrarlo solo lo oculta; reabrirlo es más rápido con conversaciones largas y conserva el scroll.
 - Panel del agente: acoplado, el pin ocupa el lugar de la X (el panel se cierra con su botón de la barra); flotante conserva la X.
 
 ### Corregido
