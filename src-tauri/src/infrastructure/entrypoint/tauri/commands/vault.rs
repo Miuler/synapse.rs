@@ -378,7 +378,7 @@ pub fn get_vault_files_count(state: State<'_, AppState>) -> Result<usize, String
     Ok(engine.notes.len())
 }
 
-fn active_vault(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+pub(super) fn active_vault(state: &State<'_, AppState>) -> Result<PathBuf, String> {
     state
         .active_vault_path
         .lock()

@@ -24,38 +24,50 @@ pub fn extract_docx_text(
         .read_to_string(&mut xml_content)
         .map_err(|e| format!("Error al leer contenido XML de docx: {e}"))?;
 
+    // Sin `trim_text`: los espacios al borde de un run separan palabras
     let mut xml_reader = Reader::from_str(&xml_content);
-    xml_reader.config_mut().trim_text(true);
 
     let mut text = String::with_capacity(xml_content.len().min(max_extracted_chars));
+    // Una palabra puede venir repartida en varios runs y las entidades (`&amp;`…) son eventos aparte:
+    // se junta el texto del párrafo antes de separarlo en palabras
+    let mut paragraph = String::new();
     let mut inside_t = false;
 
     loop {
         match xml_reader.read_event() {
-            Ok(Event::Start(e)) if e.name().as_ref() == "w:t" => {
-                inside_t = true;
-            }
-            Ok(Event::End(e)) if e.name().as_ref() == "w:t" => {
-                inside_t = false;
-            }
+            Ok(Event::Start(e)) if e.name().as_ref() == "w:t" => inside_t = true,
+            Ok(Event::End(e)) if e.name().as_ref() == "w:t" => inside_t = false,
             Ok(Event::Text(e)) if inside_t => {
-                let content_str: &str = &e;
-                for word in content_str.split_whitespace() {
-                    // Descartar tokens anormalmente largos (evita basura de fuentes o hashes en Tantivy)
-                    if word.len() > max_word_length {
-                        continue;
-                    }
-
-                    if !text.is_empty() {
-                        text.push(' ');
-                    }
-                    text.push_str(word);
-
-                    if text.len() >= max_extracted_chars {
-                        text.truncate(max_extracted_chars);
-                        return Ok(text);
-                    }
+                let s: &str = &e;
+                paragraph.push_str(s);
+            }
+            Ok(Event::CData(e)) if inside_t => {
+                let s: &str = &e;
+                paragraph.push_str(s);
+            }
+            Ok(Event::GeneralRef(r)) if inside_t => {
+                let name: &str = &r;
+                paragraph.push(match name {
+                    "amp" => '&',
+                    "lt" => '<',
+                    "gt" => '>',
+                    "quot" => '"',
+                    "apos" => '\'',
+                    _ => r.resolve_char_ref().ok().flatten().unwrap_or(' '),
+                });
+            }
+            Ok(Event::Start(e) | Event::Empty(e)) => match e.name().as_ref() {
+                "w:tab" | "w:br" | "w:cr" => paragraph.push(' '),
+                "w:noBreakHyphen" => paragraph.push('-'),
+                // Un cuadro de texto abre párrafos dentro de otro
+                "w:p" => paragraph.push(' '),
+                _ => {}
+            },
+            Ok(Event::End(e)) if e.name().as_ref() == "w:p" => {
+                if !append_words(&mut text, &paragraph, max_extracted_chars, max_word_length) {
+                    return Ok(text);
                 }
+                paragraph.clear();
             }
             Ok(Event::Eof) => break,
             Err(e) => {
@@ -66,7 +78,28 @@ pub fn extract_docx_text(
         }
     }
 
+    // Lo que quedara si el XML estaba cortado
+    append_words(&mut text, &paragraph, max_extracted_chars, max_word_length);
     Ok(text)
+}
+
+/// Añade las palabras de `source` a `text`. `false` si se llegó al límite (se corta sin partir un carácter).
+fn append_words(text: &mut String, source: &str, max_chars: usize, max_word_length: usize) -> bool {
+    for word in source.split_whitespace() {
+        // Descartar tokens anormalmente largos (evita basura de fuentes o hashes en Tantivy)
+        if word.len() > max_word_length {
+            continue;
+        }
+        if !text.is_empty() {
+            text.push(' ');
+        }
+        text.push_str(word);
+        if text.len() >= max_chars {
+            super::content_extractor::truncate_safe(text, max_chars);
+            return false;
+        }
+    }
+    true
 }
 
 #[cfg(test)]
@@ -139,5 +172,52 @@ mod tests {
         // Límite de caracteres máximos
         let truncated = extract_docx_text(&buffer, 10, 80).unwrap();
         assert_eq!(truncated.len(), 10);
+    }
+
+    /// Un `.docx` mínimo con ese contenido en `w:body`.
+    fn docx(body: &str) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut zip = ZipWriter::new(Cursor::new(&mut buffer));
+        zip.start_file("word/document.xml", SimpleFileOptions::default())
+            .unwrap();
+        let xml = format!(
+            r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{body}</w:body></w:document>"#
+        );
+        zip.write_all(xml.as_bytes()).unwrap();
+        zip.finish().unwrap();
+        buffer
+    }
+
+    #[test]
+    fn une_las_palabras_repartidas_en_varios_runs() {
+        let bytes = docx(concat!(
+            r#"<w:p><w:r><w:t>Ho</w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>la</w:t></w:r>"#,
+            r#"<w:r><w:t xml:space="preserve"> mundo</w:t></w:r></w:p>"#,
+            r#"<w:p><w:r><w:t>otro</w:t><w:tab/><w:t>párrafo</w:t><w:br/><w:t>más</w:t></w:r></w:p>"#,
+        ));
+        assert_eq!(
+            extract_docx_text(&bytes, 200_000, 80).unwrap(),
+            "Hola mundo otro párrafo más"
+        );
+    }
+
+    #[test]
+    fn conserva_las_entidades() {
+        let bytes = docx(
+            "<w:p><w:r><w:t>I&amp;D &lt;b&gt; &quot;x&quot; a&#241;o ca&#xF1;a <![CDATA[y & z]]></w:t></w:r></w:p>",
+        );
+        assert_eq!(
+            extract_docx_text(&bytes, 200_000, 80).unwrap(),
+            "I&D <b> \"x\" año caña y & z"
+        );
+    }
+
+    #[test]
+    fn el_limite_no_parte_un_caracter() {
+        let bytes = docx("<w:p><w:r><w:t>aaaaaaaaañ</w:t></w:r></w:p>");
+        assert_eq!(extract_docx_text(&bytes, 10, 80).unwrap(), "aaaaaaaaa");
+        for limit in 0..12 {
+            extract_docx_text(&docx("<w:p><w:r><w:t>ñáé 🧠 ü</w:t></w:r></w:p>"), limit, 80).unwrap();
+        }
     }
 }

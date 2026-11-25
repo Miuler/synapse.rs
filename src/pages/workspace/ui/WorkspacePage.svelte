@@ -69,6 +69,7 @@
     isPdfFile,
     isOfficeFile,
     isWordFile,
+    isDocxFile,
     isExcelFile,
     loadSupportedFileTypes,
     DEFAULT_APP_CONFIG,
@@ -1372,11 +1373,6 @@
   /** `index.md` OKF generado por Synapse: solo lectura (se regenera solo al cambiar la carpeta) */
   function isGeneratedOkfIndex(path: string, content: string): boolean {
     return /(^|\/)index\.md$/i.test(path) && content.includes('<!-- okf-index: generado por Synapse');
-  }
-
-  /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
-  function isDocxFile(path: string): boolean {
-    return isWordFile(path) && /\.(docx|docm|dotx|dotm)$/i.test(path);
   }
 
   function selectTab(path: string, viewerPreference?: ExcalidrawViewerType) {

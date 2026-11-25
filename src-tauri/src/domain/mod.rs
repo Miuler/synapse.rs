@@ -7,6 +7,7 @@
 pub mod agent;
 pub mod appearance;
 pub mod config;
+pub mod docx;
 pub mod graph;
 pub mod mcp;
 pub mod note;

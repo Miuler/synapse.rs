@@ -4,6 +4,7 @@
   // primer documento. Para editar: «Abrir en la aplicación».
   import { vaultRepository } from '@shared/repositories';
   import { systemApi } from '@shared/api';
+  import { renderDocx } from '@shared/lib/docx-render';
   import { ExternalLink, TriangleAlert } from 'lucide-svelte';
   import { appSettings } from '@entities/settings';
   import { ZoomControl } from '@shared/ui/zoom-control';
@@ -30,25 +31,10 @@
     loading = true;
     error = null;
     try {
-      const [{ renderAsync }, data] = await Promise.all([import('docx-preview'), vaultRepository.readBinary(path)]);
+      const data = await vaultRepository.readBinary(path);
       if (gen !== generation || !body || !styles) return;
       if (!data.byteLength) throw new Error('No se pudo leer el archivo');
-      body.replaceChildren();
-      styles.replaceChildren();
-      await renderAsync(data, body, styles, {
-        className: 'docx',
-        inWrapper: true,
-        breakPages: true,
-        ignoreLastRenderedPageBreak: true,
-        renderHeaders: true,
-        renderFooters: true,
-        renderFootnotes: true,
-        renderEndnotes: true,
-        renderComments: false,
-        renderChanges: false,
-        experimental: false,
-        useBase64URL: true,
-      });
+      await renderDocx(data, body, styles);
     } catch (e) {
       if (gen === generation) error = e instanceof Error ? e.message : String(e);
     } finally {

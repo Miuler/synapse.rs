@@ -17,3 +17,4 @@ pub mod get_commit_details_use_case;
 pub mod create_tag_use_case;
 pub mod fast_forward_use_case;
 pub mod delete_ref_use_case;
+pub mod diff_docx_use_case;

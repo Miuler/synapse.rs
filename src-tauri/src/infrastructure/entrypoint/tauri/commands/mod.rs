@@ -1,5 +1,6 @@
 pub mod appearance;
 pub mod assets;
+pub mod docx;
 pub mod file_ops;
 pub mod git;
 pub mod mcp;
@@ -13,6 +14,7 @@ pub mod workspace;
 
 pub use appearance::*;
 pub use assets::*;
+pub use docx::*;
 pub use file_ops::*;
 pub use git::*;
 pub use mcp::*;

@@ -7,7 +7,7 @@ use domain::vault::file_types::SupportedFileTypes;
 use infrastructure::entrypoint::tauri::commands::{
     AppState, check_community_plugin_updates, check_vault_path_exists, clone_git_workspace,
     copy_vault_items, is_drawio_image, import_external_items, copy_files_to_system_clipboard, read_system_clipboard_files, create_new_workspace, create_vault_folder, delete_vault_item,
-    diff_git_revisions, diff_vault_files, fetch_community_plugins, fetch_plantuml_svg,
+    diff_git_revisions, diff_vault_files, docx_bytes, docx_diff, docx_image, fetch_community_plugins, fetch_plantuml_svg,
     full_text_search, get_active_vault_path, get_app_version, get_default_theme_dir,
     get_detached_window_tab, get_diagram_split_ratio, get_full_text_index_status, get_git_branches, get_git_commit_details, get_git_repo_log, git_create_tag, git_delete_ref, git_fast_forward, spreadsheet_open, spreadsheet_layout, spreadsheet_cells,
     get_git_file_diff, get_git_file_log, get_git_file_revision, get_git_image_diff,
@@ -144,6 +144,9 @@ pub fn run() {
             get_git_file_diff,
             diff_vault_files,
             diff_git_revisions,
+            docx_bytes,
+            docx_diff,
+            docx_image,
             get_git_file_revision,
             get_git_image_diff,
             get_git_file_log,

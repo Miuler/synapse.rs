@@ -8,12 +8,16 @@
     isSvgFile,
     isPdfFile,
     isDrawingFile,
+    isDocxFile,
     isDiagramFile,
     isD2File,
     isPlantUmlFile,
     DEFAULT_APP_CONFIG,
   } from '@entities/file-type';
   import VisualDiffViewer from './VisualDiffViewer.svelte';
+  import DocxDiffView from './DocxDiffView.svelte';
+  import DocxPanels from './DocxPanels.svelte';
+  import { t } from '@shared/lib/i18n';
   import ImageHighlightDiffViewer from './ImageHighlightDiffViewer.svelte';
   import { renderKindOf } from '../lib/render-to-image';
   import { diffSides } from '../lib/diff-sides';
@@ -86,12 +90,14 @@
   const isDiagram = $derived(isDiagramFile(filePath));
   const isPdf = $derived(isPdfFile(filePath));
   const isSvg = $derived(isSvgFile(filePath));
+  const isDocx = $derived(isDocxFile(filePath));
   const isImage = $derived(isImageFile(filePath) && !isDrawing);
   // Al comparar dos archivos, el modo visual solo tiene sentido si los dos son del mismo tipo
   const sameKind = $derived(
     !compareWith ||
       (isImageFile(compareWith) && !isDrawingFile(compareWith)) === isImage &&
         isPdfFile(compareWith) === isPdf &&
+        isDocxFile(compareWith) === isDocx &&
         isDrawingFile(compareWith) === isDrawing &&
         isDiagramFile(compareWith) === isDiagram &&
         isD2File(compareWith) === isD2File(filePath) &&
@@ -107,8 +113,8 @@
   const compareIsRaster = $derived(
     renderToImage && !!compareWith && isImageFile(compareWith) && !isSvgFile(compareWith) && !isDrawingFile(compareWith),
   );
-  const isVisualCandidate = $derived(renderToImage || (sameKind && (isImage || isPdf || isDrawing || isDiagram)));
-  const isPureBinary = $derived((isImage && !isSvg) || isPdf || compareIsRaster);
+  const isVisualCandidate = $derived(renderToImage || (sameKind && (isImage || isPdf || isDrawing || isDiagram || isDocx)));
+  const isPureBinary = $derived((isImage && !isSvg) || isPdf || compareIsRaster || (isDocx && sameKind));
   // Diff de píxeles: imágenes raster (en el backend) y dibujos de Excalidraw (exportados a imagen)
   // y diagramas (renderizados a SVG y rasterizados en memoria)
   const hasPixelDiff = $derived(renderToImage || (isImage && !isSvg) || isDrawing || isDiagram);
@@ -131,7 +137,14 @@
       ownTextMode ??= workspaceDiffSettings.textMode;
     });
   });
+  // Los documentos de Word abren en «Cambios»; lo elegido en otros tipos de archivo no cuenta
+  let docxTab = $state<DiffVisualTab>('highlight');
+  let reloadKey = $state(0);
   function chooseVisualTab(tab: DiffVisualTab) {
+    if (isDocx) {
+      docxTab = tab;
+      return;
+    }
     ownVisualTab = tab;
     workspaceDiffSettings.setVisualTab(tab);
   }
@@ -186,6 +199,7 @@
 
   const activeVisualTab = $derived.by<DiffVisualTab>(() => {
     if (!isVisualCandidate) return 'text';
+    if (isDocx) return docxTab === 'side_by_side' ? 'side_by_side' : 'highlight';
     if (chosenVisualTab === 'highlight' && !hasPixelDiff) {
       return 'side_by_side';
     }
@@ -218,6 +232,11 @@
     latestEditedContent = null;
     chunkInfo = { total: 0, current: 0 };
     try {
+      // De un documento de Word solo interesa si todo está ya en stage; lo demás lo calcula su vista
+      if (isDocx && sameKind && (compareWith || commitRevision)) {
+        diffData = null;
+        return;
+      }
       const data = compareWith
         ? await vaultRepository.diffVaultFiles(compareWith, filePath)
         : commitRevision
@@ -329,7 +348,7 @@
         <span class="diff-file-path">{compareWith ? `${compareWith} → ${filePath}` : filePath}</span>
       </div>
 
-      {#if hasDiff}
+      {#if hasDiff && !isDocx}
         <div class="diff-counts">
           {#if diffStats.added > 0}
             <span class="stat-added">+{diffStats.added}</span>
@@ -353,11 +372,25 @@
             class="toggle-btn"
             class:active={activeVisualTab === 'side_by_side'}
             onclick={() => chooseVisualTab('side_by_side')}
-            title={compareWith ? 'Vista dividida lado a lado' : 'Vista dividida lado a lado (Disco vs Git)'}
+            title={isDocx ? t('docxDiff.panelsHint') : compareWith ? 'Vista dividida lado a lado' : 'Vista dividida lado a lado (Disco vs Git)'}
           >
             <Columns size={13} />
             <span>2 Paneles</span>
           </button>
+
+          <!-- Word: cambios de texto, tablas e imágenes -->
+          {#if isDocx}
+            <button
+              type="button"
+              class="toggle-btn"
+              class:active={activeVisualTab === 'highlight'}
+              onclick={() => chooseVisualTab('highlight')}
+              title={t('docxDiff.tabHint')}
+            >
+              <GitCompare size={13} />
+              <span>{t('docxDiff.tab')}</span>
+            </button>
+          {/if}
 
           <!-- 2. RESALTADO PERCEPTUAL (imágenes raster y dibujos de Excalidraw) -->
           {#if hasPixelDiff}
@@ -500,7 +533,10 @@
         type="button"
         class="action-btn"
         disabled={loading}
-        onclick={fetchDiff}
+        onclick={() => {
+          reloadKey++;
+          void fetchDiff();
+        }}
         title="Recargar diferencias (F5)"
       >
         <RotateCw size={14} class={loading ? 'spinning' : ''} />
@@ -536,7 +572,16 @@
     <!-- Cada vista se calcula la primera vez que se elige y queda en memoria (oculta) hasta cerrar la pestaña -->
     {#if isVisualCandidate && visited.side_by_side}
       <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'side_by_side'}>
-        <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} {renderToImage} />
+        {#if isDocx}
+          <DocxPanels {sides} {reloadKey} />
+        {:else}
+          <VisualDiffViewer {filePath} {isStaged} {baseRevision} {compareWith} {commitRevision} {fromRevision} {renderToImage} />
+        {/if}
+      </div>
+    {/if}
+    {#if isDocx && isVisualCandidate && visited.highlight}
+      <div class="diff-mode-pane" class:hidden={activeVisualTab !== 'highlight'}>
+        <DocxDiffView {sides} {reloadKey} />
       </div>
     {/if}
     {#if hasPixelDiff && visited.highlight}

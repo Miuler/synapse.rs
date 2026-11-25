@@ -48,7 +48,10 @@ use crate::application::use_cases::spreadsheet::read_spreadsheet_use_case::ReadS
 use crate::infrastructure::repository::file::spreadsheet_reader_impl::SpreadsheetReaderImpl;
 use crate::application::use_cases::version::delete_ref_use_case::DeleteRefUseCase;
 use crate::application::use_cases::version::get_file_diff_use_case::GetFileDiffUseCase;
+use crate::application::use_cases::version::diff_docx_use_case::DiffDocxUseCase;
 use crate::application::use_cases::version::get_file_revision_use_case::GetFileRevisionUseCase;
+use crate::infrastructure::docx::docx_differ_impl::DocxDifferImpl;
+use crate::infrastructure::docx::ooxml_parser::OoxmlParser;
 use crate::application::use_cases::version::get_file_version_history_use_case::GetFileVersionHistoryUseCase;
 use crate::application::use_cases::version::get_image_diff_use_case::GetImageDiffUseCase;
 use crate::application::use_cases::version::get_vault_version_state_use_case::GetVaultVersionStateUseCase;
@@ -161,6 +164,7 @@ pub struct AppState {
     pub save_version_use_case: SaveVersionUseCase<VersionControlImpl>,
     pub get_file_diff_use_case: GetFileDiffUseCase<VersionControlImpl>,
     pub get_file_revision_use_case: GetFileRevisionUseCase<VersionControlImpl>,
+    pub diff_docx_use_case: DiffDocxUseCase<VersionControlImpl, VaultItemRepositoryImpl, OoxmlParser, DocxDifferImpl>,
     pub get_image_diff_use_case: GetImageDiffUseCase<VersionControlImpl>,
     pub get_file_version_history_use_case: GetFileVersionHistoryUseCase<VersionControlImpl>,
     pub get_branches_use_case: GetBranchesUseCase<VersionControlImpl>,
@@ -411,6 +415,7 @@ impl AppState {
             save_version_use_case: SaveVersionUseCase::new(VersionControlImpl),
             get_file_diff_use_case: GetFileDiffUseCase::new(VersionControlImpl),
             get_file_revision_use_case: GetFileRevisionUseCase::new(VersionControlImpl),
+            diff_docx_use_case: DiffDocxUseCase::new(VersionControlImpl, VaultItemRepositoryImpl, OoxmlParser, DocxDifferImpl),
             get_image_diff_use_case: GetImageDiffUseCase::new(VersionControlImpl),
             get_file_version_history_use_case: GetFileVersionHistoryUseCase::new(
                 VersionControlImpl,
@@ -588,6 +593,7 @@ impl AppState {
             save_version_use_case: SaveVersionUseCase::new(VersionControlImpl),
             get_file_diff_use_case: GetFileDiffUseCase::new(VersionControlImpl),
             get_file_revision_use_case: GetFileRevisionUseCase::new(VersionControlImpl),
+            diff_docx_use_case: DiffDocxUseCase::new(VersionControlImpl, VaultItemRepositoryImpl, OoxmlParser, DocxDifferImpl),
             get_image_diff_use_case: GetImageDiffUseCase::new(VersionControlImpl),
             get_file_version_history_use_case: GetFileVersionHistoryUseCase::new(
                 VersionControlImpl,

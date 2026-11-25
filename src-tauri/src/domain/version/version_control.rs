@@ -28,6 +28,8 @@ pub trait VersionControl: Send + Sync {
         path: &str,
         revision: &str,
     ) -> Result<FileRevision, String>;
+    /// Bytes del archivo en una revisión (o `staged`); `None` si no existía. Sigue renombres y Git LFS.
+    fn get_file_bytes(&self, vault_path: &Path, path: &str, revision: &str) -> Result<Option<Vec<u8>>, String>;
     fn get_image_diff(
         &self,
         vault_path: &Path,
@@ -113,6 +115,10 @@ impl<T: VersionControl + ?Sized> VersionControl for &T {
         revision: &str,
     ) -> Result<FileRevision, String> {
         (**self).get_file_revision(vault_path, path, revision)
+    }
+
+    fn get_file_bytes(&self, vault_path: &Path, path: &str, revision: &str) -> Result<Option<Vec<u8>>, String> {
+        (**self).get_file_bytes(vault_path, path, revision)
     }
 
     fn get_image_diff(

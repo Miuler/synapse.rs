@@ -184,6 +184,11 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.word || ['docx', 'doc', 'docm', 'dot', 'dotx']);
   }
 
+  /** Word que se ve en Synapse (el .doc/.dot antiguo, binario, se abre con la aplicación del sistema) */
+  isDocxFile(path: string | null | undefined): boolean {
+    return !!path && this.isWordFile(path) && /\.(docx|docm|dotx|dotm)$/i.test(path);
+  }
+
   isExcelFile(path: string | null | undefined): boolean {
     return this.matchesExtension(path, this.fileTypes.excel || ['xlsx', 'xls', 'xlsm', 'xlt', 'xltx']);
   }
@@ -221,6 +226,7 @@ export const isDrawioPngFile = (path: string | null | undefined) => fileTypesMan
 export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);
 export const isCodeFile = (path: string | null | undefined) => fileTypesManager.isCodeFile(path);
 export const isWordFile = (path: string | null | undefined) => fileTypesManager.isWordFile(path);
+export const isDocxFile = (path: string | null | undefined) => fileTypesManager.isDocxFile(path);
 export const isExcelFile = (path: string | null | undefined) => fileTypesManager.isExcelFile(path);
 export const isOfficeFile = (path: string | null | undefined) => fileTypesManager.isOfficeFile(path);
 export const isSupportedFile = (path: string | null | undefined) => fileTypesManager.isSupportedFile(path);

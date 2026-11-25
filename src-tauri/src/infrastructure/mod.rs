@@ -1,4 +1,5 @@
 pub mod config;
+pub mod docx;
 pub mod entrypoint;
 pub mod integration;
 pub mod navigation;

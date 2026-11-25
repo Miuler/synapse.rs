@@ -10,7 +10,7 @@ const MAX_INDEXABLE_SIZE: usize = 5 * 1024 * 1024; // 5 MB
 /// Texto máximo indexado de un modelo ArchiMate (ya sin el XML de los diagramas).
 const ARCHIMATE_MAX_CHARS: usize = 2_000_000;
 
-fn truncate_safe(s: &mut String, max_chars: usize) {
+pub(super) fn truncate_safe(s: &mut String, max_chars: usize) {
     if s.len() > max_chars {
         let mut end = max_chars;
         while !s.is_char_boundary(end) && end > 0 {

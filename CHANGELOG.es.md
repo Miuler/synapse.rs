@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Documentos de Word en el diff y el historial de Git: «Cambios» muestra los párrafos, títulos, celdas de tabla e imágenes que cambiaron, y «2 Paneles» dibuja las dos versiones lado a lado.
 - Chat del agente: `Ctrl+F` con el foco en el panel (o el menú de la conversación) busca en la conversación, también en razonamientos plegados; un botón incluye la entrada y el resultado de las herramientas.
 - Atajo `Alt+E` para alternar entre lectura y edición (además de `F2`): una pulsación entra a edición y la siguiente vuelve a lectura.
 - Licencia: Synapse.rs es ahora software libre bajo GPL-3.0-or-later. No incluye `synapse-server/` (solo una prueba de concepto), el nombre ni los logotipos.
@@ -26,6 +27,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Búsqueda en documentos de Word: las palabras partidas por el formato se encuentran enteras, se conservan `&` y otras entidades, y un documento más largo que el límite del índice ya no falla en una letra con tilde. El índice se reconstruye una vez.
 - Explorador (Linux): arrastrar archivos dentro del explorador, o al chat del agente, vuelve a funcionar.
 - Notas: al cambiar entre lectura y edición en medio de una tabla larga se conserva la fila visible, en vez de saltar al principio de la tabla.
 - Chat del agente: elegir un archivo con `@` deja su referencia en el texto (`@docs/nota.md`) en vez de borrar lo escrito; se sigue adjuntando.

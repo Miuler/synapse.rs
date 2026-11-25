@@ -17,3 +17,4 @@ pub mod get_commit_details_query;
 pub mod create_tag_command;
 pub mod fast_forward_command;
 pub mod delete_ref_command;
+pub mod docx_source_query;

@@ -14,6 +14,15 @@ pub struct VersionControlImpl;
 
 /// Cada ruta va al repositorio más cercano que la contiene (la bóveda puede tener repositorios
 /// en subcarpetas); las rutas que se devuelven vuelven a ser relativas a la bóveda.
+/// Un archivo leído en una revisión.
+struct ShownFile {
+    clean_path: String,
+    /// Ruta que tenía en esa revisión (puede haberse renombrado después).
+    shown_path: String,
+    /// `None` si no existía.
+    bytes: Option<Vec<u8>>,
+}
+
 impl VersionControl for VersionControlImpl {
     fn is_tracked(&self, vault_path: &Path, relative_path: &str) -> bool {
         let r = routing::route(vault_path, relative_path);
@@ -83,6 +92,12 @@ impl VersionControl for VersionControlImpl {
         let mut rev = self.get_file_revision(&r.root(vault_path), &r.inner, revision)?;
         rev.path = routing::prefixed(&r.prefix, &rev.path);
         Ok(rev)
+    }
+
+    fn get_file_bytes(&self, vault_path: &Path, path: &str, revision: &str) -> Result<Option<Vec<u8>>, String> {
+        let r = routing::route(vault_path, path);
+        let shown = self.show_file(&r.root(vault_path), &r.inner, revision)?;
+        Ok(shown.bytes)
     }
 
     fn get_image_diff(
@@ -1138,12 +1153,8 @@ impl VersionControlImpl {
             .find(|name| exists(name))
     }
 
-    pub fn get_file_revision(
-        &self,
-        vault_path: &Path,
-        path: &str,
-        revision: &str,
-    ) -> Result<FileRevision, String> {
+    /// Lee un archivo en una revisión, con el nombre que tenía entonces y resolviendo Git LFS.
+    fn show_file(&self, vault_path: &Path, path: &str, revision: &str) -> Result<ShownFile, String> {
         let repo =
             gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
@@ -1229,19 +1240,37 @@ impl VersionControlImpl {
                 }
         }
 
-        if !output.status.success() {
+        let bytes = output.status.success().then(|| {
+            Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &output.stdout)
+        });
+        Ok(ShownFile {
+            clean_path: clean_path.to_string(),
+            shown_path,
+            bytes,
+        })
+    }
+
+    pub fn get_file_revision(
+        &self,
+        vault_path: &Path,
+        path: &str,
+        revision: &str,
+    ) -> Result<FileRevision, String> {
+        let ShownFile {
+            clean_path,
+            shown_path,
+            bytes,
+        } = self.show_file(vault_path, path, revision)?;
+        let Some(raw_bytes) = bytes else {
             return Ok(FileRevision {
-                path: clean_path.to_string(),
+                path: clean_path,
                 revision: revision.to_string(),
                 content: None,
                 data_url: None,
                 is_binary: false,
                 exists: false,
             });
-        }
-
-        let raw_bytes =
-            Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &output.stdout);
+        };
         let ext = Path::new(&clean_path)
             .extension()
             .and_then(|e| e.to_str())
@@ -2790,6 +2819,11 @@ mod tag_refs_tests {
             .unwrap();
         assert!(rev.exists);
         assert_eq!(rev.content.as_deref(), Some("uno\n"));
+        // Los bytes, igual: con el nombre de entonces, o nada si no existía
+        let bytes = |path: &str, rev: &str| super::VersionControl::get_file_bytes(&vc, dir.path(), path, rev).unwrap();
+        assert_eq!(bytes("nuevo/nota.md", &first).as_deref(), Some(&b"uno\n"[..]));
+        assert_eq!(bytes("no-existe.md", &first), None);
+        assert_eq!(bytes("nuevo/nota.md", &format!("{first}^")), None);
         // En el commit del renombre ya tenía el nombre nuevo
         assert!(
             vc.get_file_revision(dir.path(), "nuevo/nota.md", &renamed)
