@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Agent chat: the logo of the agent in use appears as a faint watermark in the bottom-right corner; its opacity is adjustable in Settings (0 % hides it).
 - Image viewer: laser pointer in the toolbar, like the one in diagrams.
 - `Ctrl+F` in Word documents and spreadsheets. In a spreadsheet it searches every sheet, ignoring case and accents.
 - Word documents in the Git diff and history: «Changes» shows the paragraphs, headings, table cells and images that changed, and «2 Panels» draws both versions side by side.
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Search in the agent chat and in Word documents: a single letter with long tool output no longer freezes the app; only the visible matches are highlighted.
 - Search in Word documents: words split by formatting are found whole, `&` and other entities are kept, and a document longer than the index limit no longer fails on an accented letter. The index is rebuilt once.
 - Explorer (Linux): dragging files inside the explorer, or onto the agent chat, works again.
 - Notes: switching between reading and editing in the middle of a long table keeps the visible row instead of jumping to the start of the table.

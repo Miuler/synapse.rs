@@ -1,6 +1,6 @@
 <script lang="ts">
   // Busca en lo dibujado dentro de un elemento (chat del agente, documento de Word), sin tocar su DOM
-  import { paintMatches, revealRange, searchRanges } from '@shared/lib/text-search';
+  import { paintMatches, revealRange, searchRanges, visibleRanges } from '@shared/lib/text-search';
   import { untrack, type Snippet } from 'svelte';
   import FindBar from './FindBar.svelte';
 
@@ -48,9 +48,34 @@
     }
     for (const d of opened) if (!keep.includes(d)) d.open = false;
     opened = keep;
-    paintMatches(owner, matches, range);
     if (range) revealRange(scroller, range);
+    paint();
   }
+
+  /** Resalta solo lo que se ve (con muchas coincidencias, pintarlas todas congela la página). */
+  let painted: Range[] = [];
+  function paint() {
+    const active = matches[index] ?? null;
+    const shown = visibleRanges(scroller, matches, active);
+    if (shown.length === painted.length && shown.every((r, i) => r === painted[i])) return;
+    painted = shown;
+    paintMatches(owner, shown, active);
+  }
+  // Al desplazar se resaltan las que aparecen
+  $effect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        paint();
+      });
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  });
 
   function step(by: number) {
     if (timer) run(true);
@@ -66,7 +91,8 @@
     const last = Math.max(0, matches.length - 1);
     if (fresh) return show(fromEnd ? last : 0);
     index = Math.min(index, last);
-    paintMatches(owner, matches, matches[index] ?? null);
+    painted = [];
+    paint();
   }
 
   $effect(() => {
@@ -98,6 +124,7 @@
       observer.disconnect();
       clearTimeout(wait);
       clearTimeout(timer);
+      painted = [];
       paintMatches(owner, [], null);
     };
   });

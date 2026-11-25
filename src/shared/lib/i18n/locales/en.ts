@@ -180,4 +180,8 @@ export const en = {
     settingHint: 'For Antigravity: the last answer is reused for this long. Clicking the indicator checks again. Claude attaches it to the conversation.',
     label: 'Account quota',
   },
+  watermark: {
+    setting: 'Agent logo watermark',
+    hint: 'Opacity of the agent logo shown in the corner of the chat. 0 % hides it.',
+  },
 } as const;

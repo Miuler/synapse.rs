@@ -181,4 +181,8 @@ export const es: TranslationSchema = {
     settingHint: 'Para Antigravity: cuánto se reutiliza la última respuesta. Un clic en el indicador vuelve a consultar. Claude la adjunta a la conversación.',
     label: 'Cuota de la cuenta',
   },
+  watermark: {
+    setting: 'Marca de agua del agente',
+    hint: 'Opacidad del logo del agente en la esquina del chat. 0 % la oculta.',
+  },
 };

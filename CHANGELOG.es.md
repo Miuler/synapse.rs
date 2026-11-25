@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente: el logo del agente en uso aparece como marca de agua tenue en la esquina inferior derecha; su opacidad se ajusta en Configuración (0 % la oculta).
 - Visor de imágenes: puntero láser en la barra, como el de los diagramas.
 - `Ctrl+F` en documentos de Word y hojas de cálculo. En una hoja de cálculo busca en todas las hojas, sin distinguir mayúsculas ni tildes.
 - Documentos de Word en el diff y el historial de Git: «Cambios» muestra los párrafos, títulos, celdas de tabla e imágenes que cambiaron, y «2 Paneles» dibuja las dos versiones lado a lado.
@@ -29,6 +30,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Búsqueda en el chat del agente y en documentos de Word: una sola letra con salidas largas de herramientas ya no congela la aplicación; solo se resaltan las coincidencias a la vista.
 - Búsqueda en documentos de Word: las palabras partidas por el formato se encuentran enteras, se conservan `&` y otras entidades, y un documento más largo que el límite del índice ya no falla en una letra con tilde. El índice se reconstruye una vez.
 - Explorador (Linux): arrastrar archivos dentro del explorador, o al chat del agente, vuelve a funcionar.
 - Notas: al cambiar entre lectura y edición en medio de una tabla larga se conserva la fila visible, en vez de saltar al principio de la tabla.

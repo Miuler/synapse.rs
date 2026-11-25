@@ -878,7 +878,9 @@ it('Ctrl+F en el panel busca en la conversación, sin distinguir tildes y tambi�
   await s.browser.waitUntil(async () => (await counter()) === '3/3', { timeout: 5_000, timeoutMsg: 'no encontró las tres' });
   const marked = () =>
     s.browser.execute(() => ['synapse-search', 'synapse-search-active'].map((n) => CSS.highlights.get(n)?.size ?? 0));
-  expect(await marked()).toEqual([2, 1]);
+  // Se resaltan las que se ven (lo plegado y lo lejano no), siempre con la actual
+  expect((await marked())[1]).toBe(1);
+  expect((await marked())[0]).toBeLessThanOrEqual(2);
   // Anterior: abre el razonamiento plegado; al salir de él se vuelve a plegar
   const thoughtOpen = () =>
     s.browser.execute(() => [...document.querySelectorAll('.acp-thought')].some((d) => (d as HTMLDetailsElement).open && d.textContent!.includes('plegada')));
@@ -903,6 +905,28 @@ it('Ctrl+F en el panel busca en la conversación, sin distinguir tildes y tambi�
   expect(await s.browser.execute(() => localStorage.getItem('synapse.agent.search-tools'))).toBe('1');
   await s.browser.$('.acp-search-tools').click();
   await s.browser.waitUntil(async () => (await counter()) === '3/3' && !(await toolOpen()), { timeout: 5_000, timeoutMsg: 'no las excluyó' });
+  // Con muchísimas coincidencias (una letra, en salidas largas) solo se pintan las que se ven: no se congela
+  await s.browser.execute(() => {
+    (async () => {
+      const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+      const c = agentStore.conversations.find((x: { id: string }) => agentStore.expanded.includes(x.id));
+      const out = Array.from({ length: 400 }, (_, i) => `línea ${i} de la salida de una herramienta`).join('\n');
+      c.items = [
+        ...c.items,
+        ...Array.from({ length: 6 }, (_, i) => ({ type: 'tool', id: 9990 + i, toolCallId: `g${i}`, title: 'leer', status: 'completed', kind: 'read', locations: [], content: [], rawInput: null, rawOutput: out })),
+      ];
+    })();
+  });
+  await s.browser.$('.acp-search-tools').click();
+  await s.browser.$('.find-input').click();
+  await s.browser.keys(['Control', 'a']);
+  await s.browser.keys('a');
+  const started = Date.now();
+  await s.browser.waitUntil(async () => Number((await counter())?.split('/')[1]) > 10_000, { timeout: 10_000, timeoutMsg: 'no contó todas' });
+  expect(Date.now() - started).toBeLessThan(5_000);
+  expect(await marked()).toEqual(expect.arrayContaining([1]));
+  expect((await marked())[0]).toBeLessThanOrEqual(150);
+  await s.browser.$('.acp-search-tools').click();
   // Esc cierra la búsqueda, no el panel
   await s.browser.keys('Escape');
   await input.waitForExist({ reverse: true, timeout: 5_000 });

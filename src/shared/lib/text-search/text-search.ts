@@ -87,6 +87,28 @@ export function paintMatches(owner: object, ranges: Range[], active: Range | nul
   }
 }
 
+/** Tope de resaltados pintados a la vez: WebKit tarda unos 2 ms en dibujar cada uno. */
+export const MAX_PAINTED = 150;
+
+/**
+ * Las coincidencias que se ven en `scroller` (más `active`), hasta `MAX_PAINTED`. Las de lo plegado
+ * o fuera de la vista también cuestan al pintarlas, así que solo se resaltan estas.
+ */
+export function visibleRanges(scroller: HTMLElement, ranges: Range[], active: Range | null): Range[] {
+  const box = scroller.getBoundingClientRect();
+  const margin = box.height / 2;
+  const out: Range[] = [];
+  for (const r of ranges) {
+    const rect = r.getBoundingClientRect();
+    if (rect.height && rect.bottom > box.top - margin && rect.top < box.bottom + margin) {
+      out.push(r);
+      if (out.length >= MAX_PAINTED) break;
+    }
+  }
+  if (active && !out.includes(active)) out.push(active);
+  return out;
+}
+
 /** Deja `range` a la vista en `scroller` (que puede tener zoom). */
 export function revealRange(scroller: HTMLElement, range: Range) {
   const box = scroller.getBoundingClientRect();
