@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
-  import { Toolbar, Toggle, Separator } from 'bits-ui';
+  import { tick } from 'svelte';
+  import { Toolbar, Separator } from 'bits-ui';
   import { Search, Save, AlertCircle } from 'lucide-svelte';
   import { CodeEditor, type EditorDiagnostic } from '@shared/ui/code-editor';
   import { diagramLayoutApi } from '@shared/api';
   import { SplitResizer } from '@shared/ui/split-resizer';
-  import { cssVar, withAlpha, onThemeChange } from '@shared/lib/theme-colors';
+  import { LaserCanvas, LaserToggle } from '@shared/ui/laser-pointer';
 
   interface Props {
     content: string;
@@ -84,14 +84,7 @@
 
   // Modo Puntero Láser
   let isLaserMode = $state(false);
-  let canvasRef = $state<HTMLCanvasElement | null>(null);
-
-  type LaserPoint = { x: number; y: number; time: number };
-  type LaserStroke = LaserPoint[];
-
-  let laserStrokes: LaserStroke[] = [];
-  let activeStroke: LaserStroke | null = null;
-  let animFrameId: number | null = null;
+  let laser = $state<ReturnType<typeof LaserCanvas> | null>(null);
 
   let containerRef = $state<HTMLDivElement | null>(null);
   let baseViewBox = $state<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -166,132 +159,6 @@
     }
   });
 
-  // Renderizado continuo del puntero láser
-  // Color del láser del tema (`--laser`); se relee al cambiar de tema, no en cada frame
-  let laserColor = cssVar('--laser', '#ff0033');
-  const stopTheme = onThemeChange(() => (laserColor = cssVar('--laser', '#ff0033')));
-
-  function drawLaserLoop() {
-    if (!canvasRef) return;
-    const ctx = canvasRef.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvasRef.width, canvasRef.height);
-
-    const now = Date.now();
-    const maxAge = 1600;
-
-    if (isDragging && activeStroke && activeStroke.length > 0) {
-      activeStroke[activeStroke.length - 1].time = now;
-    }
-
-    for (let i = laserStrokes.length - 1; i >= 0; i--) {
-      const stroke = laserStrokes[i];
-      while (stroke.length > 0 && now - stroke[0].time >= maxAge) {
-        stroke.shift();
-      }
-      if (stroke.length === 0 && stroke !== activeStroke) {
-        laserStrokes.splice(i, 1);
-      }
-    }
-
-    for (const stroke of laserStrokes) {
-      if (stroke.length === 0) continue;
-
-      if (stroke.length === 1) {
-        const p = stroke[0];
-        const alpha = Math.max(0, 1 - (now - p.time) / maxAge);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = withAlpha(laserColor, alpha);
-        ctx.shadowColor = laserColor;
-        ctx.shadowBlur = 14 * alpha;
-        ctx.fill();
-        continue;
-      }
-
-      for (let i = 0; i < stroke.length - 1; i++) {
-        const p1 = stroke[i];
-        const p2 = stroke[i + 1];
-        const age = now - p2.time;
-        const alpha = Math.max(0, 1 - age / maxAge);
-
-        ctx.beginPath();
-        if (i === 0) {
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
-        } else {
-          const midX = (p1.x + p2.x) / 2;
-          const midY = (p1.y + p2.y) / 2;
-          const prevMidX = (stroke[i - 1].x + p1.x) / 2;
-          const prevMidY = (stroke[i - 1].y + p1.y) / 2;
-          ctx.moveTo(prevMidX, prevMidY);
-          ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
-        }
-        ctx.strokeStyle = withAlpha(laserColor, alpha);
-        ctx.lineWidth = 6 * alpha;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.shadowColor = laserColor;
-        ctx.shadowBlur = 12 * alpha;
-        ctx.stroke();
-      }
-
-      const head = stroke[stroke.length - 1];
-      const headAge = now - head.time;
-      const headAlpha = Math.max(0, 1 - headAge / maxAge);
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`; /* fijo: el centro del láser es blanco, como un puntero real */
-      ctx.shadowColor = laserColor;
-      ctx.shadowBlur = 18 * headAlpha;
-      ctx.fill();
-    }
-
-    if (isLaserMode || laserStrokes.length > 0) {
-      animFrameId = requestAnimationFrame(drawLaserLoop);
-    } else {
-      animFrameId = null;
-    }
-  }
-
-  $effect(() => {
-    if (isLaserMode) {
-      if (!animFrameId) {
-        animFrameId = requestAnimationFrame(drawLaserLoop);
-      }
-    } else {
-      laserStrokes = [];
-      activeStroke = null;
-    }
-  });
-
-  onDestroy(() => {
-    stopTheme();
-    if (animFrameId) cancelAnimationFrame(animFrameId);
-  });
-
-  function updateCanvasSize() {
-    if (containerRef && canvasRef) {
-      const rect = containerRef.getBoundingClientRect();
-      if (canvasRef.width !== rect.width || canvasRef.height !== rect.height) {
-        canvasRef.width = rect.width;
-        canvasRef.height = rect.height;
-      }
-    }
-  }
-
-  function addLaserPoint(clientX: number, clientY: number) {
-    if (!containerRef || !activeStroke) return;
-    updateCanvasSize();
-    const rect = containerRef.getBoundingClientRect();
-    activeStroke.push({
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-      time: Date.now(),
-    });
-  }
-
   /**
    * Unidades del viewBox por píxel de pantalla con el zoom `s`. El SVG se ajusta al contenedor
    * conservando la proporción (como `xMidYMid meet`): manda el lado que más se ajusta.
@@ -325,9 +192,7 @@
   function handlePointerDown(e: PointerEvent) {
     isDragging = true;
     if (isLaserMode) {
-      activeStroke = [];
-      laserStrokes.push(activeStroke);
-      addLaserPoint(e.clientX, e.clientY);
+      laser?.start(e.clientX, e.clientY);
     } else {
       startX = e.clientX;
       startY = e.clientY;
@@ -340,7 +205,7 @@
   function handlePointerMove(e: PointerEvent) {
     if (isDragging) {
       if (isLaserMode) {
-        addLaserPoint(e.clientX, e.clientY);
+        laser?.move(e.clientX, e.clientY);
       } else {
         // El diagrama sigue al mouse 1 a 1, con cualquier zoom
         const upp = unitsPerPx(scale);
@@ -352,7 +217,7 @@
 
   function handlePointerUp(e: PointerEvent) {
     isDragging = false;
-    activeStroke = null;
+    laser?.end();
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   }
 </script>
@@ -470,19 +335,11 @@
     {/if}
 
     <!-- Capa de lienzo transparente para el Puntero Láser -->
-    <canvas bind:this={canvasRef} class="laser-canvas"></canvas>
+    <LaserCanvas bind:this={laser} active={isLaserMode} />
   </div>
 
   <Toolbar.Root class="zoom-controls" aria-label="Controles de zoom y puntero láser">
-    <Toggle.Root
-      class="laser-toggle-btn {isLaserMode ? 'active' : ''}"
-      pressed={isLaserMode}
-      onPressedChange={(pressed) => (isLaserMode = pressed)}
-      title="Activar / Desactivar Puntero Láser"
-    >
-      <span class="laser-dot"></span>
-      Láser
-    </Toggle.Root>
+    <LaserToggle bind:active={isLaserMode} />
     <Separator.Root class="separator" orientation="vertical" />
     <Toolbar.Button onclick={() => (scale = Math.max(0.1, scale / 1.2))} aria-label="Reducir zoom">-</Toolbar.Button>
     <span>{Math.round(scale * 100)}%</span>
@@ -682,16 +539,6 @@
     cursor: crosshair;
   }
 
-  .laser-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 5;
-  }
-
   .svg-container {
     width: 100%;
     height: 100%;
@@ -752,43 +599,6 @@
     border: 1px solid var(--border-primary, #d0d7de);
     box-shadow: var(--card-shadow-hover);
     z-index: 10;
-  }
-
-  :global(.laser-toggle-btn) {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px !important;
-    border-radius: 6px !important;
-    font-size: 13px !important;
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
-
-  /* `.zoom-controls .laser-dot`: gana a `.zoom-controls span` (min-width del «100%»), que lo estiraba */
-  :global(.zoom-controls .laser-dot) {
-    flex: none;
-    width: 8px;
-    min-width: 0;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--text-muted);
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  :global(.laser-toggle-btn) {
-    border: 1px solid transparent !important;
-  }
-
-  :global(.laser-toggle-btn.active) {
-    background-color: color-mix(in srgb, var(--laser) 12%, transparent) !important;
-    color: var(--laser) !important;
-    border-color: color-mix(in srgb, var(--laser) 35%, transparent) !important;
-  }
-
-  :global(.laser-toggle-btn.active .laser-dot) {
-    background-color: var(--laser);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--laser) 25%, transparent);
   }
 
   :global(.zoom-controls .separator) {

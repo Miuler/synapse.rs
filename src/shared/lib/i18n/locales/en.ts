@@ -146,6 +146,10 @@ export const en = {
     tabHint: 'Changes in text, tables and images',
     panelsHint: 'Both versions side by side',
   },
+  laser: {
+    label: 'Laser',
+    toggle: 'Turn the laser pointer on or off',
+  },
   find: {
     placeholder: 'Search',
     none: 'No results',

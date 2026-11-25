@@ -3,6 +3,7 @@
   import { AlertCircle, Minus, Plus, Maximize2, PenTool } from 'lucide-svelte';
   import { isDrawioPngFile } from '@entities/file-type';
   import { vaultRepository } from '@shared/repositories';
+  import { LaserCanvas, LaserToggle } from '@shared/ui/laser-pointer';
 
   interface Props {
     src: string;
@@ -94,6 +95,9 @@
   let panX = $state(0);
   let panY = $state(0);
   let isDragging = $state(false);
+  /** Puntero láser: arrastrar dibuja en vez de mover la imagen (la rueda sigue moviendo y haciendo zoom). */
+  let laserMode = $state(false);
+  let laser = $state<ReturnType<typeof LaserCanvas> | null>(null);
   let dragStartX = 0;
   let dragStartY = 0;
 
@@ -251,13 +255,19 @@
   function handleMouseDown(e: MouseEvent) {
     if (e.button === 0) {
       isDragging = true;
+      if (laserMode) {
+        laser?.start(e.clientX, e.clientY);
+        return;
+      }
       dragStartX = e.clientX - panX;
       dragStartY = e.clientY - panY;
     }
   }
 
   function handleMouseMove(e: MouseEvent) {
-    if (isDragging) {
+    if (isDragging && laserMode) {
+      laser?.move(e.clientX, e.clientY);
+    } else if (isDragging) {
       panX = e.clientX - dragStartX;
       panY = e.clientY - dragStartY;
     }
@@ -265,6 +275,7 @@
 
   function handleMouseUp() {
     isDragging = false;
+    laser?.end();
   }
 </script>
 
@@ -279,7 +290,7 @@
   onmouseleave={handleMouseUp}
   role="region"
   aria-label="Visor de imagen"
-  style="cursor: {isDragging ? 'grabbing' : 'grab'};"
+  style="cursor: {laserMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'};"
 >
   {#if isLoading}
     <div class="image-loading">
@@ -311,6 +322,8 @@
       />
     </div>
 
+    <LaserCanvas bind:this={laser} active={laserMode} />
+
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <Toolbar.Root
       class="image-controls"
@@ -338,6 +351,8 @@
       <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label="Ajustar a ventana">
         <Maximize2 size={16} />
       </Toolbar.Button>
+      <Separator.Root class="divider" orientation="vertical" />
+      <LaserToggle bind:active={laserMode} />
       {#if isDrawioPng && onEditWithDrawio}
         <Separator.Root class="divider" orientation="vertical" />
         <Toolbar.Button class="ctrl-btn text-btn drawio-edit-btn" onclick={onEditWithDrawio} aria-label="Editar con draw.io">

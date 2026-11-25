@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Visor de imágenes: puntero láser en la barra, como el de los diagramas.
 - `Ctrl+F` en documentos de Word y hojas de cálculo. En una hoja de cálculo busca en todas las hojas, sin distinguir mayúsculas ni tildes.
 - Documentos de Word en el diff y el historial de Git: «Cambios» muestra los párrafos, títulos, celdas de tabla e imágenes que cambiaron, y «2 Paneles» dibuja las dos versiones lado a lado.
 - Chat del agente: `Ctrl+F` con el foco en el panel (o el menú de la conversación) busca en la conversación, también en razonamientos plegados; un botón incluye la entrada y el resultado de las herramientas.

@@ -147,6 +147,10 @@ export const es: TranslationSchema = {
     tabHint: 'Cambios de texto, tablas e imágenes',
     panelsHint: 'Las dos versiones lado a lado',
   },
+  laser: {
+    label: 'Láser',
+    toggle: 'Activar o desactivar el puntero láser',
+  },
   find: {
     placeholder: 'Buscar',
     none: 'Sin resultados',
