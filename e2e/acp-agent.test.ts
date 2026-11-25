@@ -870,14 +870,14 @@ it('Ctrl+F en el panel busca en la conversación, sin distinguir tildes y tambi�
     (m.closest('.acp-messages') as HTMLElement).focus();
   });
   await s.browser.keys(['Control', 'f']);
-  const input = s.browser.$('.acp-search-input');
+  const input = s.browser.$('.find-input');
   await input.waitForExist({ timeout: 5_000, timeoutMsg: 'Ctrl+F no abrió la búsqueda' });
   await s.browser.waitUntil(() => input.isFocused(), { timeout: 5_000, timeoutMsg: 'la búsqueda no tiene el foco' });
   await s.browser.keys('cancion');
-  const counter = async () => (await text('.acp-search-count'))[0];
+  const counter = async () => (await text('.find-count'))[0];
   await s.browser.waitUntil(async () => (await counter()) === '3/3', { timeout: 5_000, timeoutMsg: 'no encontró las tres' });
   const marked = () =>
-    s.browser.execute(() => ['synapse-chat-search', 'synapse-chat-search-active'].map((n) => CSS.highlights.get(n)?.size ?? 0));
+    s.browser.execute(() => ['synapse-search', 'synapse-search-active'].map((n) => CSS.highlights.get(n)?.size ?? 0));
   expect(await marked()).toEqual([2, 1]);
   // Anterior: abre el razonamiento plegado; al salir de él se vuelve a plegar
   const thoughtOpen = () =>

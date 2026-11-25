@@ -432,3 +432,20 @@ pub async fn spreadsheet_cells(
         .await
         .map_err(|e| e.to_string())?
 }
+
+/// Celdas de un libro que contienen `text`.
+#[tauri::command]
+pub async fn spreadsheet_find(
+    state: State<'_, AppState>,
+    path: String,
+    text: String,
+    hidden_sheets: bool,
+    formulas: bool,
+) -> Result<crate::domain::spreadsheet::SheetMatches, String> {
+    state.check_path(&path)?;
+    let vault_path = active_vault(&state)?;
+    let use_case = state.read_spreadsheet_use_case.clone();
+    tauri::async_runtime::spawn_blocking(move || use_case.find(&vault_path, &path, text, hidden_sheets, formulas))
+        .await
+        .map_err(|e| e.to_string())?
+}

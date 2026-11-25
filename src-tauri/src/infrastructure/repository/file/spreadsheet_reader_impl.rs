@@ -6,11 +6,11 @@
 //! El libro leído se guarda en una caché pequeña (se invalida si cambia el archivo); cada hoja se
 //! deserializa al pedirla y las celdas se entregan por tramos de filas.
 use crate::domain::spreadsheet::spreadsheet::{
-    Cell, CellBlock, CellStyle, Merge, SheetInfo, SheetLayout, WorkbookInfo,
+    Cell, CellBlock, CellStyle, Merge, SheetInfo, SheetLayout, SheetMatch, SheetMatches, WorkbookInfo,
 };
-use crate::domain::spreadsheet::spreadsheet_reader::SpreadsheetReader;
+use crate::domain::spreadsheet::spreadsheet_reader::{SheetQuery, SpreadsheetReader};
 use calamine::{Data, Range, Reader, Sheets, SheetVisible, open_workbook_auto_from_rs};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -117,6 +117,108 @@ impl SpreadsheetReader for SpreadsheetReaderImpl {
                 Ok(cal_cells(loaded[sheet].as_ref().expect("hoja cargada"), from_row, to_row))
             }
         }
+    }
+
+    fn find(&self, vault_path: &Path, relative_path: &str, query: &SheetQuery) -> Result<SheetMatches, String> {
+        let entry = self.entry(vault_path, relative_path)?;
+        let mut e = entry.lock().map_err(|e| e.to_string())?;
+        let Entry { info, book, .. } = &mut *e;
+        let needle = fold(query.text.trim());
+        let mut out = SheetMatches::default();
+        for (sheet, meta) in info.sheets.iter().enumerate() {
+            if meta.hidden && !query.hidden_sheets {
+                continue;
+            }
+            // Lo mismo que se ve en la celda
+            let mut check = |r: u32, c: u32, v: &str, f: Option<&str>| {
+                let found = match f {
+                    Some(f) if query.formulas || v.is_empty() => fold(&format!("={f}")).contains(&needle),
+                    _ => fold(v).contains(&needle),
+                };
+                if found && out.matches.len() >= query.limit {
+                    out.more = true;
+                } else if found {
+                    out.matches.push(SheetMatch { sheet, r, c });
+                }
+                !out.more
+            };
+            match book {
+                Book::Umya { wb, index } => {
+                    umya_ensure(wb, index, sheet)?;
+                    umya_find(wb, index[sheet].as_deref().unwrap_or(&[]), sheet, &mut check);
+                }
+                Book::Calamine { reader, names, loaded } => {
+                    // Una hoja que no se puede leer (un gráfico…) no impide buscar en las demás
+                    if cal_ensure(reader, names, loaded, sheet).is_ok() {
+                        cal_find(loaded[sheet].as_ref().expect("hoja cargada"), &mut check);
+                    }
+                }
+            }
+            if out.more {
+                break;
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Minúsculas y sin tildes, para comparar.
+fn fold(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        // Tildes sueltas (texto descompuesto)
+        .filter(|c| !('\u{300}'..='\u{36f}').contains(c))
+        .map(|c| match c {
+            'á' | 'à' | 'ä' | 'â' | 'ã' | 'å' => 'a',
+            'é' | 'è' | 'ë' | 'ê' => 'e',
+            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'ó' | 'ò' | 'ö' | 'ô' | 'õ' => 'o',
+            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ñ' => 'n',
+            'ç' => 'c',
+            'ý' | 'ÿ' => 'y',
+            c => c,
+        })
+        .collect()
+}
+
+/// Recorre las celdas visibles de la hoja hasta que `check` devuelve `false`.
+fn umya_find(
+    wb: &umya_spreadsheet::Workbook,
+    coords: &[(u32, u32)],
+    sheet: usize,
+    check: &mut impl FnMut(u32, u32, &str, Option<&str>) -> bool,
+) {
+    let Ok(ws) = wb.sheet(sheet) else { return };
+    // A lo oculto no se puede ir
+    let cols: HashSet<u32> = ws.column_dimensions().iter().filter(|c| c.hidden()).map(|c| c.col_num()).collect();
+    let rows: HashSet<u32> = ws.row_dimensions().iter().filter(|r| r.hidden()).map(|r| r.row_num()).collect();
+    for &(r, c) in coords {
+        if rows.contains(&r) || cols.contains(&c) {
+            continue;
+        }
+        let Some(cell) = ws.cell((c, r)) else { continue };
+        let formula = cell.formula();
+        let f = (!formula.is_empty()).then(|| formula.trim_start_matches('='));
+        let v = cell.formatted_value();
+        if (!v.is_empty() || f.is_some()) && !check(r, c, &v, f) {
+            return;
+        }
+    }
+}
+
+fn cal_find(sh: &CalSheet, check: &mut impl FnMut(u32, u32, &str, Option<&str>) -> bool) {
+    const STEP: u32 = 1_000;
+    let end = |p: Option<(u32, u32)>| p.map(|(r, _)| r + 1).unwrap_or(0);
+    let last = end(sh.values.end()).max(end(sh.formulas.end()));
+    let mut from = 1;
+    while from <= last {
+        for cell in cal_cells(sh, from, (from + STEP - 1).min(last)).cells {
+            if !check(cell.r, cell.c, &cell.v, cell.f.as_deref()) {
+                return;
+            }
+        }
+        from += STEP;
     }
 }
 
@@ -464,6 +566,59 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(name), bytes).unwrap();
         dir
+    }
+
+    fn find(dir: &tempfile::TempDir, name: &str, text: &str, hidden: bool, formulas: bool, limit: usize) -> (Vec<(usize, u32, u32)>, bool) {
+        let query = SheetQuery { text: text.into(), hidden_sheets: hidden, formulas, limit };
+        let out = SpreadsheetReaderImpl::new().find(dir.path(), name, &query).unwrap();
+        (out.matches.iter().map(|m| (m.sheet, m.r, m.c)).collect(), out.more)
+    }
+
+    #[test]
+    fn busca_sin_mayusculas_ni_tildes_en_lo_que_se_ve() {
+        let dir = vault_with("v.xlsx", &sample_xlsx());
+        assert_eq!(find(&dir, "v.xlsx", "CAFE", false, false, 10), (vec![(0, 2, 1)], false));
+        assert_eq!(find(&dir, "v.xlsx", "cafe\u{301}", false, false, 10).0, [(0, 2, 1)]);
+        // La hoja oculta, solo si se pide
+        assert!(find(&dir, "v.xlsx", "secreto", false, false, 10).0.is_empty());
+        assert_eq!(find(&dir, "v.xlsx", "secreto", true, false, 10).0, [(1, 1, 1)]);
+        // Las fórmulas, al mostrarlas (o si no tienen resultado guardado)
+        assert_eq!(find(&dir, "v.xlsx", "sum(", false, true, 10).0, [(0, 4, 2)]);
+        // Tope
+        assert_eq!(find(&dir, "v.xlsx", "o", true, false, 1), (vec![(0, 1, 1)], true));
+    }
+
+    #[test]
+    fn busca_tambien_con_calamine_y_por_tramos() {
+        let mut values = Range::new((0, 0), (2_499, 0));
+        for r in 0..2_500u32 {
+            values.set_value((r, 0), Data::String(format!("fila {}", r + 1)));
+        }
+        let sh = CalSheet { values, formulas: Range::empty() };
+        let mut found = Vec::new();
+        cal_find(&sh, &mut |r, c, v, _| {
+            if v.ends_with("99") {
+                found.push((r, c));
+            }
+            true
+        });
+        assert_eq!(found.len(), 25);
+        assert_eq!(found.last(), Some(&(2_499, 1)));
+    }
+
+    #[test]
+    fn las_filas_y_columnas_ocultas_no_cuentan() {
+        let mut book = umya_spreadsheet::new_file();
+        let ws = book.sheet_mut(0).unwrap();
+        for at in ["A1", "A2", "B1"] {
+            ws.cell_mut(at).set_value("dato");
+        }
+        ws.row_dimension_mut(2).set_hidden(true);
+        ws.column_dimension_mut("B").set_hidden(true);
+        let mut out = Cursor::new(Vec::new());
+        umya_spreadsheet::writer::xlsx::write_writer(&book, &mut out).unwrap();
+        let dir = vault_with("o.xlsx", &out.into_inner());
+        assert_eq!(find(&dir, "o.xlsx", "dato", false, false, 10).0, [(0, 1, 1)]);
     }
 
     #[test]

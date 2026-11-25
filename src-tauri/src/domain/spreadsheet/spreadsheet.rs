@@ -62,6 +62,22 @@ pub struct Cell {
     pub s: Option<u32>,
 }
 
+/// Celda que contiene lo buscado (1-based)
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SheetMatch {
+    pub sheet: usize,
+    pub r: u32,
+    pub c: u32,
+}
+
+/// Celdas encontradas, hoja por hoja y por filas
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SheetMatches {
+    pub matches: Vec<SheetMatch>,
+    /// Hay más de las que se devuelven
+    pub more: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Merge {
     pub r1: u32,

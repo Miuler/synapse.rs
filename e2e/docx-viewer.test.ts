@@ -78,3 +78,25 @@ it('zoom: Ctrl++ y el control agrandan la página entera; «Ajustar al ancho» l
   await s.browser.execute(() => (document.querySelector('.docx-viewer .zoom-value') as HTMLElement).click());
   await s.browser.waitUntil(async () => Math.abs((await pageWidth()) - w100) < 2, { timeout: 5_000 });
 }, 60_000);
+
+it('Ctrl+F busca en el documento, también con zoom', async () => {
+  await s.browser.execute(() => (document.querySelector('.docx-viewer .docx-scroll') as HTMLElement).focus());
+  await s.browser.keys(['Control', 'f']);
+  const input = s.browser.$('.docx-viewer .find-input');
+  await input.waitForExist({ timeout: 5_000, timeoutMsg: 'Ctrl+F no abrió la búsqueda' });
+  await s.browser.waitUntil(() => input.isFocused(), { timeout: 5_000 });
+  await s.browser.keys('cafe');
+  const count = () => s.browser.execute(() => document.querySelector('.docx-viewer .find-count')?.textContent?.trim()) as Promise<string>;
+  await s.browser.waitUntil(async () => (await count()) === '1/1', { timeout: 5_000, timeoutMsg: 'no encontró «Café»' });
+  expect(
+    await s.browser.execute(() => {
+      const [r] = [...CSS.highlights.get('synapse-search-active')!] as Range[];
+      const a = r.getBoundingClientRect();
+      const b = document.querySelector('.docx-viewer .docx-scroll')!.getBoundingClientRect();
+      return [r.toString(), a.top >= b.top && a.bottom <= b.bottom];
+    }),
+  ).toEqual(['Café', true]);
+  await s.browser.keys('Escape');
+  await input.waitForExist({ reverse: true, timeout: 5_000 });
+  expect(await s.browser.execute(() => CSS.highlights.has('synapse-search-active'))).toBe(false);
+}, 30_000);

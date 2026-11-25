@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Ctrl+F` in Word documents and spreadsheets. In a spreadsheet it searches every sheet, ignoring case and accents.
 - Word documents in the Git diff and history: «Changes» shows the paragraphs, headings, table cells and images that changed, and «2 Panels» draws both versions side by side.
 - Agent chat: `Ctrl+F` with the focus in the panel (or the conversation menu) searches the conversation, including collapsed reasoning; a button also includes tool input and results.
 - Shortcut `Alt+E` toggles between reading and editing (besides `F2`): one press enters editing and the next returns to reading.

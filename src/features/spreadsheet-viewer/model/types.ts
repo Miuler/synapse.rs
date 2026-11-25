@@ -17,6 +17,18 @@ export interface CellStyle {
   borderLeft?: string;
 }
 
+/** Celda que contiene lo buscado */
+export interface SheetMatch {
+  sheet: number;
+  r: number;
+  c: number;
+}
+export interface SheetMatches {
+  matches: SheetMatch[];
+  /** Hay más de las que se devuelven */
+  more: boolean;
+}
+
 export interface Cell {
   r: number;
   c: number;

@@ -7,9 +7,12 @@
   import { systemApi } from '@shared/api';
   import { appSettings } from '@entities/settings';
   import { ZoomControl } from '@shared/ui/zoom-control';
+  import { FindBar } from '@shared/ui/find-bar';
+  import { t } from '@shared/lib/i18n';
+  import { tick, untrack } from 'svelte';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
   import { FunctionSquare, EyeOff, Eye, TriangleAlert, ExternalLink } from 'lucide-svelte';
-  import type { WorkbookInfo, SheetLayout, CellBlock, Cell } from '../model/types';
+  import type { WorkbookInfo, SheetLayout, CellBlock, Cell, SheetMatch, SheetMatches } from '../model/types';
   import { buildGeometry, visibleWindow, visibleMerges, colName, styleToCss, DEFAULT_ROW_PX } from '../lib/grid';
 
   const HEAD_H = 22;
@@ -277,6 +280,88 @@
     revealSelection();
   }
 
+  // Búsqueda (Ctrl+F) en todo el libro: la hace Rust, aquí solo están las filas a la vista
+  let searchOpen = $state(false);
+  let searchRequest = $state(0);
+  let query = $state('');
+  let matches = $state.raw<SheetMatch[]>([]);
+  let moreMatches = $state(false);
+  let matchIndex = $state(0);
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchGen = 0;
+
+  export function triggerSearch() {
+    // Al reabrirla se repite lo último buscado
+    if (!searchOpen && query) void search(true);
+    searchOpen = true;
+    searchRequest++;
+  }
+  function closeSearch() {
+    searchOpen = false;
+    clearTimeout(searchTimer);
+    searchGen++;
+    matches = [];
+    scroller?.focus();
+  }
+
+  /** `fresh`: búsqueda nueva, va a la primera desde la celda elegida; si no, se conserva la posición. */
+  async function search(fresh: boolean) {
+    clearTimeout(searchTimer);
+    searchTimer = undefined;
+    const gen = ++searchGen;
+    try {
+      const found = query.trim()
+        ? await invokeTauri<SheetMatches>('spreadsheet_find', { path, text: query, hiddenSheets: showHidden, formulas: showFormulas })
+        : { matches: [], more: false };
+      if (gen !== searchGen) return;
+      matches = found.matches;
+      moreMatches = found.more;
+      if (!fresh) {
+        matchIndex = Math.min(matchIndex, Math.max(0, matches.length - 1));
+        return;
+      }
+      const after = matches.findIndex(
+        (m) => m.sheet > sheetIndex || (m.sheet === sheetIndex && (m.r > sel.r || (m.r === sel.r && m.c >= sel.c))),
+      );
+      if (matches.length) await showMatch(Math.max(0, after));
+      else matchIndex = 0;
+    } catch (e) {
+      console.warn('No se pudo buscar en el libro:', e);
+    }
+  }
+
+  async function showMatch(i: number) {
+    matchIndex = i;
+    const m = matches[i];
+    if (m.sheet !== sheetIndex) {
+      await openSheet(m.sheet, { r: m.r, c: m.c });
+      await tick();
+    } else sel = { r: m.r, c: m.c };
+    revealSelection();
+  }
+
+  function stepMatch(by: number) {
+    if (searchTimer) void search(true);
+    else if (matches.length) void showMatch((matchIndex + by + matches.length) % matches.length);
+  }
+
+  $effect(() => {
+    void query;
+    untrack(() => {
+      if (!searchOpen) return;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => search(true), 200);
+    });
+  });
+  // Otro archivo, cambió en disco, o se muestran otras hojas o las fórmulas
+  $effect(() => {
+    void [path, reloadKey, showHidden, showFormulas];
+    untrack(() => {
+      if (searchOpen && query) void search(false);
+    });
+  });
+  const foundHere = $derived(new Set(matches.filter((m) => m.sheet === sheetIndex).map((m) => `${m.r}:${m.c}`)));
+
   function switchSheet(delta: number) {
     if (!tabs.length) return;
     const pos = tabs.findIndex((t) => t.i === sheetIndex);
@@ -338,6 +423,7 @@
     class="sheet-cell"
     class:merged
     class:selected={r === sel.r && c === sel.c}
+    class:found={foundHere.has(`${r}:${c}`)}
     class:has-formula={!!cell?.f}
     class:no-cache={!!cell?.f && !cell.v}
     title={cell?.f && !cell.v ? 'Fórmula sin resultado guardado en el archivo' : undefined}
@@ -383,6 +469,19 @@
         <ExternalLink size={14} /> Abrir en la aplicación
       </button>
     </div>
+
+    {#if searchOpen}
+      <FindBar
+        bind:query
+        count={matches.length}
+        index={matchIndex}
+        more={moreMatches}
+        request={searchRequest}
+        placeholder={t('find.workbook')}
+        onStep={stepMatch}
+        onClose={closeSearch}
+      />
+    {/if}
 
     {#if info.valuesOnly}
       <div class="sheet-notice">
@@ -621,6 +720,9 @@
   .sheet-cell.merged {
     background: #fff;
     z-index: 1;
+  }
+  .sheet-cell.found {
+    box-shadow: inset 0 0 0 100vmax rgba(255, 223, 93, 0.45); /* fijo: resaltado de búsqueda, no depende del tema */
   }
   .sheet-cell.selected {
     outline: 2px solid #1a73e8;

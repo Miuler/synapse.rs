@@ -146,13 +146,18 @@ export const en = {
     tabHint: 'Changes in text, tables and images',
     panelsHint: 'Both versions side by side',
   },
-  chatSearch: {
-    placeholder: 'Search in the conversation',
+  find: {
+    placeholder: 'Search',
     none: 'No results',
-    tools: 'Include tool input and results',
     previous: 'Previous match (Shift+Enter)',
     next: 'Next match (Enter)',
     close: 'Close search (Esc)',
+    document: 'Search in the document',
+    workbook: 'Search in the workbook',
+  },
+  chatSearch: {
+    placeholder: 'Search in the conversation',
+    tools: 'Include tool input and results',
     menu: 'Search in the conversation (Ctrl+F)',
   },
   quota: {

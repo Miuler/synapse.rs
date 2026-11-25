@@ -147,13 +147,18 @@ export const es: TranslationSchema = {
     tabHint: 'Cambios de texto, tablas e imágenes',
     panelsHint: 'Las dos versiones lado a lado',
   },
-  chatSearch: {
-    placeholder: 'Buscar en la conversación',
+  find: {
+    placeholder: 'Buscar',
     none: 'Sin resultados',
-    tools: 'Incluir la entrada y el resultado de las herramientas',
     previous: 'Coincidencia anterior (Shift+Enter)',
     next: 'Coincidencia siguiente (Enter)',
     close: 'Cerrar la búsqueda (Esc)',
+    document: 'Buscar en el documento',
+    workbook: 'Buscar en el libro',
+  },
+  chatSearch: {
+    placeholder: 'Buscar en la conversación',
+    tools: 'Incluir la entrada y el resultado de las herramientas',
     menu: 'Buscar en la conversación (Ctrl+F)',
   },
   quota: {

@@ -6,6 +6,8 @@
   import { systemApi } from '@shared/api';
   import { renderDocx } from '@shared/lib/docx-render';
   import { ExternalLink, TriangleAlert } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
+  import { DomFindBar } from '@shared/ui/find-bar';
   import { appSettings } from '@entities/settings';
   import { ZoomControl } from '@shared/ui/zoom-control';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
@@ -83,6 +85,18 @@
     return () => el.removeEventListener('wheel', onWheel);
   });
 
+  // Búsqueda (Ctrl+F)
+  let searchOpen = $state(false);
+  let searchRequest = $state(0);
+  export function triggerSearch() {
+    searchOpen = true;
+    searchRequest++;
+  }
+  function closeSearch() {
+    searchOpen = false;
+    scroller?.focus();
+  }
+
   function openExternal() {
     systemApi.openFileWithDefaultApp(path).catch((e) => console.warn('No se pudo abrir con la aplicación del sistema:', e));
   }
@@ -98,7 +112,11 @@
       <ExternalLink size={14} /> Abrir en la aplicación
     </button>
   </div>
-  <div class="docx-scroll" bind:this={scroller}>
+  {#if searchOpen && body}
+    <DomFindBar scroller={scroller ?? body} request={searchRequest} placeholder={t('find.document')} onClose={closeSearch} />
+  {/if}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div class="docx-scroll" tabindex="-1" bind:this={scroller}>
     <div class="docx-styles" bind:this={styles}></div>
     <div class="docx-body" style={`zoom:${zoom}`} bind:this={body}></div>
   </div>
@@ -146,6 +164,9 @@
   .open-external:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  .docx-scroll:focus {
+    outline: none;
   }
   .docx-scroll {
     flex: 1;

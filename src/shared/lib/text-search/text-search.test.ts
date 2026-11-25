@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { findAll, foldForSearch } from './chat-search';
+import { findAll, foldForSearch } from './text-search';
 
 test('plegar ignora mayúsculas y tildes sin cambiar la longitud', () => {
   expect(foldForSearch('Conversación ÁÉ')).toBe('conversacion ae');

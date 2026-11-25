@@ -1,4 +1,4 @@
-/** Búsqueda en lo ya dibujado de una conversación, sin tocar su DOM (CSS Custom Highlight API). */
+/** Búsqueda en lo ya dibujado, sin tocar el DOM (CSS Custom Highlight API). */
 
 /** Minúsculas y sin tildes, conservando la longitud: las posiciones valen en el texto original. */
 export function foldForSearch(text: string): string {
@@ -21,14 +21,11 @@ export function findAll(folded: string, query: string): number[] {
 
 // Entre bloques no hay coincidencias («fin» + «inicio» no forman una palabra)
 const BLOCKS = 'p, li, td, th, pre, h1, h2, h3, h4, h5, h6, blockquote, summary, div, details';
-// Botones y opciones son interfaz, no conversación
+// Botones y opciones son interfaz, no contenido
 const SKIP = 'button, select, textarea, input, svg, style, script';
 
-/**
- * Coincidencias de `query` dentro de `root`, en orden; también dentro de lo plegado. Sin `tools`, de las
- * herramientas solo se mira el título.
- */
-export function searchRanges(root: HTMLElement, query: string, tools: boolean): Range[] {
+/** Coincidencias de `query` dentro de `root`, en orden; también dentro de lo plegado. `skip` descarta texto. */
+export function searchRanges(root: HTMLElement, query: string, skip?: (parent: Element) => boolean): Range[] {
   if (!foldForSearch(query).trim()) return [];
   const ranges: Range[] = [];
   let nodes: { node: Text; start: number }[] = [];
@@ -58,7 +55,7 @@ export function searchRanges(root: HTMLElement, query: string, tools: boolean): 
   for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
     const parent = n.parentElement;
     if (!n.data || !parent || parent.closest(SKIP)) continue;
-    if (!tools && parent.closest('.acp-tool') && !parent.closest('summary')) continue;
+    if (skip?.(parent)) continue;
     const b = parent.closest(BLOCKS);
     if (b !== block) flush();
     block = b;
@@ -69,22 +66,25 @@ export function searchRanges(root: HTMLElement, query: string, tools: boolean): 
   return ranges;
 }
 
-const ALL = 'synapse-chat-search';
-const ACTIVE = 'synapse-chat-search-active';
+const ALL = 'synapse-search';
+const ACTIVE = 'synapse-search-active';
+/** Lo que resalta cada barra de búsqueda abierta: los nombres de resaltado son de toda la página. */
+const painted = new Map<object, { ranges: Range[]; active: Range | null }>();
 
-/** Pinta las coincidencias; sin soporte del motor, la búsqueda sigue contando y desplazando. */
-export function paintMatches(ranges: Range[], active: Range | null) {
+/** Pinta las coincidencias de `owner`; sin soporte del motor, la búsqueda sigue contando y desplazando. */
+export function paintMatches(owner: object, ranges: Range[], active: Range | null) {
   if (typeof CSS === 'undefined' || !CSS.highlights) return;
-  const others = ranges.filter((r) => r !== active);
-  const set = (name: string, list: Range[]) => {
-    CSS.highlights.delete(name);
-    if (!list.length) return;
-    const h = new Highlight();
-    for (const r of list) h.add(r);
-    CSS.highlights.set(name, h);
-  };
-  set(ALL, others);
-  set(ACTIVE, active ? [active] : []);
+  if (ranges.length) painted.set(owner, { ranges, active });
+  else painted.delete(owner);
+  const all = new Highlight();
+  const current = new Highlight();
+  for (const p of painted.values()) {
+    for (const r of p.ranges) (r === p.active ? current : all).add(r);
+  }
+  for (const [name, h] of [[ALL, all], [ACTIVE, current]] as const) {
+    if (h.size) CSS.highlights.set(name, h);
+    else CSS.highlights.delete(name);
+  }
 }
 
 /** Deja `range` a la vista en `scroller` (que puede tener zoom). */

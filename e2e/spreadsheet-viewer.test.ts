@@ -29,7 +29,7 @@ function buildXlsx(): Uint8Array {
 </worksheet>`;
   const sheet2 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
-<row r="1">${istr('A1', 'Notas')}</row></sheetData></worksheet>`;
+<row r="1">${istr('A1', 'Notas')}</row><row r="900">${istr('C900', 'Cafetería lejana')}</row></sheetData></worksheet>`;
   const sheet3 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
 <row r="1">${istr('A1', 'Secreto')}</row></sheetData></worksheet>`;
@@ -178,4 +178,41 @@ it('zoom: Ctrl++ agranda toda la rejilla (anchos, altos y letra), Ctrl+0 vuelve'
   if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/sheet-120.png`);
   await s.browser.keys(['Control', '0']);
   await s.browser.waitUntil(async () => Math.abs((await box()).w - b100.w) < 1, { timeout: 5_000, timeoutMsg: 'Ctrl+0 no volvió al 100 %' });
+}, 60_000);
+
+it('Ctrl+F busca en todas las hojas y salta a la celda', async () => {
+  await s.browser.execute(() => {
+    ([...document.querySelectorAll('.sheet-tab')].find((t) => t.textContent?.includes('Ventas')) as HTMLElement).click();
+  });
+  await s.browser.waitUntil(async () => (await cell('A1'))?.text === 'Producto', { timeout: 10_000 });
+  await s.browser.execute(() => (document.querySelector('.spreadsheet-viewer .sheet-scroll') as HTMLElement).focus());
+  await s.browser.keys(['Control', 'f']);
+  const input = s.browser.$('.spreadsheet-viewer .find-input');
+  await input.waitForExist({ timeout: 5_000, timeoutMsg: 'Ctrl+F no abrió la búsqueda' });
+  await s.browser.waitUntil(() => input.isFocused(), { timeout: 5_000 });
+  await s.browser.keys('CAFE');
+  const count = () => s.browser.execute(() => document.querySelector('.spreadsheet-viewer .find-count')?.textContent?.trim()) as Promise<string>;
+  const ref = () => s.browser.execute(() => document.querySelector('.spreadsheet-viewer .cell-ref')?.textContent?.trim()) as Promise<string>;
+  await s.browser.waitUntil(async () => (await count()) === '1/2' && (await ref()) === 'A2', { timeout: 10_000, timeoutMsg: 'no fue a A2' });
+  expect(await s.browser.execute(() => [...document.querySelectorAll('.sheet-cell.found')].map((c) => (c as HTMLElement).dataset.cell))).toEqual(['A2']);
+  // La siguiente está en otra hoja, muy abajo
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await count()) === '2/2' && (await ref()) === 'C900', { timeout: 10_000, timeoutMsg: 'no fue a C900' });
+  await s.browser.waitUntil(
+    () =>
+      s.browser.execute(() => {
+        const c = document.querySelector('.sheet-cell[data-cell="C900"].found');
+        const b = document.querySelector('.sheet-scroll')!.getBoundingClientRect();
+        const a = c?.getBoundingClientRect();
+        return !!a && a.top >= b.top - 1 && a.bottom <= b.bottom + 1 && c!.textContent === 'Cafetería lejana';
+      }),
+    { timeout: 10_000, timeoutMsg: 'C900 no quedó a la vista' },
+  );
+  expect(await input.isFocused()).toBe(true);
+  // Da la vuelta y vuelve a la primera hoja
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await ref()) === 'A2', { timeout: 10_000 });
+  await s.browser.keys('Escape');
+  await input.waitForExist({ reverse: true, timeout: 5_000 });
+  expect(await s.browser.execute(() => document.querySelectorAll('.sheet-cell.found').length)).toBe(0);
 }, 60_000);

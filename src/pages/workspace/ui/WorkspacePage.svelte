@@ -2452,6 +2452,8 @@
   let excalidrawViewers = $state<Record<string, any>>({});
   let pdfViewers = $state<Record<string, any>>({});
   let markdownViewers = $state<Record<string, any>>({});
+  /** Visores de Word y de hojas de cálculo abiertos, para Ctrl+F. */
+  let officeViewers = $state<Record<string, { triggerSearch: () => void } | null>>({});
   let recentSaveTimestamps: Record<string, number> = {};
 
   let currentVaultItem = $derived(
@@ -4257,6 +4259,12 @@
           markdownViewers[targetPath].triggerSearch();
           return;
         }
+        const office = targetPath ? officeViewers[targetPath] : null;
+        if (office) {
+          stopEvent();
+          office.triggerSearch();
+          return;
+        }
       }
       if (matchesShortcut(e, ws.search_fulltext)) {
         stopEvent();
@@ -5128,9 +5136,9 @@
                     }}
                   />
                 {:else if isExcelFile(tabFile)}
-                  <SpreadsheetViewer path={tabFile} reloadKey={note?.lastReloaded || 0} />
+                  <SpreadsheetViewer bind:this={officeViewers[tabPath]} path={tabFile} reloadKey={note?.lastReloaded || 0} />
                 {:else if isDocxFile(tabFile)}
-                  <DocxViewer path={tabFile} reloadKey={note?.lastReloaded || 0} />
+                  <DocxViewer bind:this={officeViewers[tabPath]} path={tabFile} reloadKey={note?.lastReloaded || 0} />
                 {:else if !paneEditing && isOpenApiContent(tabFile, content)}
                   <!-- OpenAPI/Swagger: Scalar en Lectura; en Edición cae en el editor de código -->
                   <div class="editor-main-content openapi-pane">
