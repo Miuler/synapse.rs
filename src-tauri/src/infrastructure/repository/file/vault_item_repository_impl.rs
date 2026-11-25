@@ -351,7 +351,7 @@ impl VaultItemRepositoryImpl {
 }
 
 use crate::domain::vault::folder::FolderEntry;
-use crate::domain::vault::vault_item_repository::VaultItemRepository;
+use crate::domain::vault::vault_item_repository::{VaultFile, VaultItemRepository};
 
 impl VaultItemRepository for VaultItemRepositoryImpl {
     fn delete_item(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
@@ -499,6 +499,41 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
 
     fn read_text(&self, vault_path: &Path, relative_path: &str) -> Result<String, String> {
         fs::read_to_string(vault_path.join(relative_path)).map_err(|e| e.to_string())
+    }
+
+    fn list_vault_files(&self, vault_path: &Path, folder: &str) -> Result<Vec<VaultFile>, String> {
+        let folder = folder.trim_matches('/');
+        let root = Self::resolve(vault_path, folder)?;
+        if !root.is_dir() {
+            return Err(format!("La carpeta '{folder}' no existe o no es un directorio"));
+        }
+        let mut files: Vec<VaultFile> = jwalk::WalkDir::new(&root)
+            .skip_hidden(true)
+            .process_read_dir(|depth, _path, _state, children| {
+                if depth.is_none() {
+                    return;
+                }
+                children.retain(|entry_res| match entry_res {
+                    Ok(entry) => !crate::infrastructure::entrypoint::subscriber::vault_watcher::is_ignored_dir_or_file(
+                        &entry.file_name.to_string_lossy(),
+                    ),
+                    Err(_) => true,
+                });
+            })
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type.is_file())
+            .filter_map(|entry| {
+                let path = entry.path();
+                let rel = path.strip_prefix(vault_path).ok()?;
+                Some(VaultFile {
+                    relative_path: rel.to_string_lossy().replace('\\', "/"),
+                    size: entry.metadata().map(|m| m.len()).unwrap_or(0),
+                })
+            })
+            .collect();
+        files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+        Ok(files)
     }
 }
 

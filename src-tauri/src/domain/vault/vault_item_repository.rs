@@ -1,6 +1,13 @@
 use crate::domain::vault::folder::FolderEntry;
 use std::path::Path;
 
+/// Un archivo de la bóveda: ruta relativa (con `/`) y tamaño en bytes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VaultFile {
+    pub relative_path: String,
+    pub size: u64,
+}
+
 pub trait VaultItemRepository: Send + Sync {
     fn delete_item(&self, vault_path: &Path, relative_path: &str) -> Result<(), String>;
     fn rename_item(
@@ -54,6 +61,9 @@ pub trait VaultItemRepository: Send + Sync {
     fn list_files_recursive(&self, vault_path: &Path, folder: &str) -> Result<Vec<String>, String>;
     /// Todas las carpetas de la bóveda (sin ocultas, `target` ni `node_modules`), relativas a ella.
     fn list_all_folders(&self, vault_path: &Path) -> Result<Vec<String>, String>;
+    /// Archivos de la bóveda dentro de `folder` (vacío = toda) y sus subcarpetas, sin ocultos ni
+    /// carpetas ignoradas (`target`, `node_modules`…), relativos a la bóveda y ordenados.
+    fn list_vault_files(&self, vault_path: &Path, folder: &str) -> Result<Vec<VaultFile>, String>;
     fn read_text(&self, vault_path: &Path, relative_path: &str) -> Result<String, String>;
 }
 
@@ -73,6 +83,9 @@ impl<T: VaultItemRepository + ?Sized> VaultItemRepository for &T {
 
     fn list_all_folders(&self, vault_path: &Path) -> Result<Vec<String>, String> {
         (**self).list_all_folders(vault_path)
+    }
+    fn list_vault_files(&self, vault_path: &Path, folder: &str) -> Result<Vec<VaultFile>, String> {
+        (**self).list_vault_files(vault_path, folder)
     }
 
     fn delete_item(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {

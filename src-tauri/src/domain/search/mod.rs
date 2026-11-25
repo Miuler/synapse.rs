@@ -2,6 +2,7 @@ pub mod full_text;
 pub mod full_text_index;
 pub mod indexed_document_repository;
 pub mod note_search_repository;
+pub mod path_pattern;
 
 pub use full_text::*;
 pub use full_text_index::*;

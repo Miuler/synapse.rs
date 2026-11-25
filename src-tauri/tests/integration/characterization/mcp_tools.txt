@@ -84,6 +84,10 @@
     {
       "type": "text",
       "text": "La carpeta 'no-existe' no existe o no es un directorio"
+    },
+    {
+      "type": "text",
+      "text": "La ruta «no-existe» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
     }
   ],
   "isError": true
@@ -164,6 +168,10 @@
     {
       "type": "text",
       "text": "Error al leer nota: El archivo no existe en \"<VAULT>/no-existe.md\""
+    },
+    {
+      "type": "text",
+      "text": "La ruta «no-existe.md» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
     }
   ],
   "isError": true
@@ -194,6 +202,10 @@
     {
       "type": "text",
       "text": "El archivo PDF 'no.pdf' no existe"
+    },
+    {
+      "type": "text",
+      "text": "La ruta «no.pdf» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
     }
   ],
   "isError": true

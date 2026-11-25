@@ -11,6 +11,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- MCP: `find_files` busca archivos de cualquier tipo por su ruta, con un glob (`*ddl*.sql`, `src/**/*.mmd`) o una regex (`entity|model|\.sql`), y `grep_vault` busca líneas por regex en todos los archivos de texto de la bóveda, con contexto antes y después, solo nombres de archivo y filtros por carpeta, glob y extensión. Ambas aceptan `vault` para buscar en otra bóveda.
+- MCP: cuando una ruta no existe, el error indica la bóveda activa, las otras bóvedas donde esa ruta sí existe y los archivos con el mismo nombre; y `search_notes` avisa cuando ninguna nota Markdown coincide pero sí archivos de otros tipos.
+
 - Chat del agente: el logo del agente en uso aparece como marca de agua tenue en la esquina inferior derecha; su opacidad se ajusta en Configuración (0 % la oculta).
 - Visor de imágenes: puntero láser en la barra, como el de los diagramas.
 - `Ctrl+F` en documentos de Word y hojas de cálculo. En una hoja de cálculo busca en todas las hojas, sin distinguir mayúsculas ni tildes.

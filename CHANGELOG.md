@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MCP: `find_files` finds files of any type by path, with a glob (`*ddl*.sql`, `src/**/*.mmd`) or a regex (`entity|model|\.sql`), and `grep_vault` finds lines by regex in every text file of the vault, with context before and after, file names only, and folder, glob and extension filters. Both accept `vault` to search another vault.
+- MCP: when a path does not exist, the error names the active vault, the other vaults where that path does exist, and files with the same name; and `search_notes` warns when no Markdown matches but files of other types do.
+
 - Agent chat: the logo of the agent in use appears as a faint watermark in the bottom-right corner; its opacity is adjustable in Settings (0 % hides it).
 - Image viewer: laser pointer in the toolbar, like the one in diagrams.
 - `Ctrl+F` in Word documents and spreadsheets. In a spreadsheet it searches every sheet, ignoring case and accents.

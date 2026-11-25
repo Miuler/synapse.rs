@@ -348,6 +348,11 @@ fn mcp_tools_output_is_preserved() {
     );
 
     let out = out.replace(&vault.to_string_lossy().to_string(), "<VAULT>");
+    // El nombre de la carpeta temporal cambia en cada ejecución (pistas de «bóveda activa»)
+    let out = match vault.file_name() {
+        Some(name) => out.replace(&format!("«{}»", name.to_string_lossy()), "«<VAULT_NAME>»"),
+        None => out,
+    };
     if std::env::var("UPDATE_CHARACTERIZATION").is_ok() {
         fs::write(
             concat!(

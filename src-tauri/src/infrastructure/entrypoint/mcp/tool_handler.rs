@@ -13,6 +13,8 @@ use crate::application::dto::note::search_notes_query::SearchNotesQuery;
 use crate::application::dto::note::update_note_metadata_command::UpdateNoteMetadataCommand;
 use crate::application::dto::note::write_note_command::{WriteNoteCommand, WriteNoteOutcome};
 use crate::application::dto::pdf::read_pdf_document_query::{PdfReading, ReadPdfDocumentQuery};
+use crate::application::dto::search::find_files_query::FindFilesQuery;
+use crate::application::dto::search::grep_vault_query::GrepVaultQuery;
 use crate::application::dto::search::search_notes_full_text_query::SearchNotesFullTextQuery;
 use crate::application::dto::vault_item::list_folder_contents_query::ListFolderContentsQuery;
 use crate::application::dto::vault_item::move_folder_contents_command::{
@@ -37,6 +39,8 @@ use crate::application::use_cases::note::search_notes_use_case::SearchNotesUseCa
 use crate::application::use_cases::note::update_note_metadata_use_case::UpdateNoteMetadataUseCase;
 use crate::application::use_cases::note::write_note_use_case::WriteNoteUseCase;
 use crate::application::use_cases::pdf::read_pdf_document_use_case::ReadPdfDocumentUseCase;
+use crate::application::use_cases::search::find_files_use_case::{FindFilesUseCase, has_extension};
+use crate::application::use_cases::search::grep_vault_use_case::GrepVaultUseCase;
 use crate::application::use_cases::search::search_notes_full_text_use_case::SearchNotesFullTextUseCase;
 use crate::application::use_cases::vault_item::list_folder_contents_use_case::ListFolderContentsUseCase;
 use crate::application::use_cases::vault_item::move_folder_contents_use_case::MoveFolderContentsUseCase;
@@ -215,6 +219,8 @@ pub const CROSS_VAULT_TOOLS: &[&str] = &[
     "search_notes",
     "full_text_search",
     "search_in_note",
+    "find_files",
+    "grep_vault",
     "read_note",
     "list_folder_contents",
     "search_folders",
@@ -319,7 +325,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 1. search_notes
                 McpTool {
                     name: "search_notes".to_string(),
-                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets. Por defecto solo Markdown; con 'extensions' busca otros archivos (p. ej. [\"archimate\"], [\"d2\", \"mmd\"]).".to_string(),
+                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets. Por defecto solo Markdown; con 'extensions' busca otros archivos (p. ej. [\"archimate\"], [\"d2\", \"mmd\"]). Para buscar archivos de cualquier tipo por glob o regex sobre la ruta, find_files.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -349,7 +355,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens.".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens. Ordena por relevancia; para un patrón exacto o una regex línea a línea (ids, nombres de tablas, alternativas a|b), grep_vault.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -407,6 +413,108 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             }
                         },
                         "required": ["relative_path", "query"]
+                    }),
+                },
+                // 3.1. find_files
+                McpTool {
+                    name: "find_files".to_string(),
+                    description: "Busca archivos de la bóveda de cualquier tipo por su ruta, como `fd` o `find | grep -iE`: glob (`*ddl*.sql`, `src/**/*.mmd`, `*.{yaml,yml}`) y/o regex sobre la ruta relativa (`entity|model|mapper|\\.sql`), sin distinguir mayúsculas. Omite ocultos y carpetas como target o node_modules. Devuelve ruta y tamaño, con total_matches para paginar.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "glob": {
+                                "type": "string",
+                                "description": "Glob: sin '/' se compara con el nombre del archivo (`*ddl*.sql`); con '/', con la ruta entera (`src/**/*.mmd`). Admite *, **, ?, [abc] y {a,b}"
+                            },
+                            "regex": {
+                                "type": "string",
+                                "description": "Expresión regular buscada en cualquier parte de la ruta relativa (`entity|model|\\.sql`, `/api/`)"
+                            },
+                            "folder_path": {
+                                "type": "string",
+                                "description": "Carpeta donde buscar (vacío = toda la bóveda)"
+                            },
+                            "extensions": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Solo estas extensiones, sin punto (p. ej. [\"yaml\", \"yml\"]); vacío = todas"
+                            },
+                            "case_sensitive": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Distinguir mayúsculas (por defecto no)"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "default": 100,
+                                "description": "Máximo de archivos devueltos (por defecto 100, máx 1000)"
+                            },
+                            "offset": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Desplazamiento para paginar"
+                            }
+                        }
+                    }),
+                },
+                // 3.2. grep_vault
+                McpTool {
+                    name: "grep_vault".to_string(),
+                    description: "Busca líneas por expresión regular en todos los archivos de texto de la bóveda, como `rg`/`grep -rn`: código, SQL, YAML, Mermaid, D2, XML de ArchiMate o draw.io… como texto plano (omite binarios como PDF, Word o imágenes; para esos, full_text_search). Admite alternativas (`TIEL|QTI1`), contexto antes y después (-B/-A), solo nombres de archivo (-l) y filtros por carpeta, glob y extensión. Úsalo para patrones exactos, ids o nombres; para buscar por relevancia, full_text_search.".to_string(),
+                    annotations: Some(McpToolAnnotations::read_only()),
+                    input_schema: json!({
+                        "type": "object",
+                        "properties": {
+                            "pattern": {
+                                "type": "string",
+                                "description": "Expresión regular (sintaxis de Rust, como ripgrep), p. ej. `CREATE TABLE.*(session|fee)`"
+                            },
+                            "literal": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Tratar 'pattern' como texto literal, no regex (como `rg -F`)"
+                            },
+                            "case_sensitive": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Distinguir mayúsculas (por defecto no, como `rg -i`)"
+                            },
+                            "folder_path": {
+                                "type": "string",
+                                "description": "Carpeta donde buscar (vacío = toda la bóveda)"
+                            },
+                            "glob": {
+                                "type": "string",
+                                "description": "Solo archivos que cumplan este glob (`*.sql`, `src/sequences/*.mmd`)"
+                            },
+                            "extensions": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Solo estas extensiones, sin punto; vacío = todas"
+                            },
+                            "context_before": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Líneas antes de cada coincidencia (como -B, máx 20)"
+                            },
+                            "context_after": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Líneas después de cada coincidencia (como -A, máx 50)"
+                            },
+                            "files_only": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Solo los archivos con coincidencias y cuántas (como `rg -l`/`-c`)"
+                            },
+                            "max_matches": {
+                                "type": "number",
+                                "default": 100,
+                                "description": "Máximo de líneas devueltas en total (por defecto 100, máx 1000); total_matches y truncated dicen si hay más"
+                            }
+                        },
+                        "required": ["pattern"]
                     }),
                 },
                 // 4. list_folder_contents
@@ -1084,13 +1192,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if let Some(vault) = target {
             return self.call_in_other_vault(name, &vault, args);
         }
+        let result = self.dispatch(name, &args);
+        // `write_note` crea rutas nuevas: que no existan no es un error de ubicación
+        if name == "write_note" {
+            return result;
+        }
+        self.with_location_hint(&args, result)
+    }
+
+    fn dispatch(&self, name: &str, args: &Value) -> McpCallToolResult {
         match name {
-            "search_notes" => self.execute_search_notes(&args),
-            "search_folders" => self.execute_search_folders(&args),
-            "move_folder_contents" => self.execute_move_folder_contents_tool(&args),
-            "full_text_search" => self.execute_full_text_search(&args),
-            "search_in_note" => self.execute_search_in_note(&args),
-            "list_folder_contents" => self.execute_list_folder_contents_tool(&args),
+            "search_notes" => self.execute_search_notes(args),
+            "find_files" => self.execute_find_files(args),
+            "grep_vault" => self.execute_grep_vault(args),
+            "search_folders" => self.execute_search_folders(args),
+            "move_folder_contents" => self.execute_move_folder_contents_tool(args),
+            "full_text_search" => self.execute_full_text_search(args),
+            "search_in_note" => self.execute_search_in_note(args),
+            "list_folder_contents" => self.execute_list_folder_contents_tool(args),
             "list_vault_tree" => {
                 let parent = args
                     .get("parent_path")
@@ -1098,25 +1217,25 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     .unwrap_or("");
                 self.execute_list_folder_contents(parent, true, true, false, None, None, None)
             }
-            "list_sibling_notes" => self.execute_list_sibling_notes(&args),
-            "read_note" => self.with_okf_indexes(&args, self.execute_read_note(&args)),
-            "write_note" => self.execute_write_note(&args),
-            "patch_note" => self.execute_patch_note(&args),
-            "append_to_note" => self.execute_append_to_note(&args),
-            "update_note_metadata" => self.execute_update_note_metadata(&args),
-            "move_notes" => self.execute_move_notes_tool(&args),
-            "delete_note" => self.execute_delete_note(&args),
-            "get_backlinks_and_relations" => self.execute_get_backlinks_and_relations(&args),
+            "list_sibling_notes" => self.execute_list_sibling_notes(args),
+            "read_note" => self.with_okf_indexes(args, self.execute_read_note(args)),
+            "write_note" => self.execute_write_note(args),
+            "patch_note" => self.execute_patch_note(args),
+            "append_to_note" => self.execute_append_to_note(args),
+            "update_note_metadata" => self.execute_update_note_metadata(args),
+            "move_notes" => self.execute_move_notes_tool(args),
+            "delete_note" => self.execute_delete_note(args),
+            "get_backlinks_and_relations" => self.execute_get_backlinks_and_relations(args),
             "get_vault_git_status" => self.execute_get_vault_git_status(),
-            "read_pdf_document" => self.execute_read_pdf_document(&args),
-            "extract_note_diagrams" => self.execute_extract_note_diagrams(&args),
-            "inspect_archimate_element" => self.execute_inspect_archimate(&args),
-            "render_diagram" => self.execute_render_diagram(&args),
+            "read_pdf_document" => self.execute_read_pdf_document(args),
+            "extract_note_diagrams" => self.execute_extract_note_diagrams(args),
+            "inspect_archimate_element" => self.execute_inspect_archimate(args),
+            "render_diagram" => self.execute_render_diagram(args),
             "list_conversations" => self.execute_list_conversations(),
             "list_vaults" => self.execute_list_vaults(),
-            "git_file_history" => self.execute_git_file_history(&args),
-            "git_diff_revisions" => self.execute_git_diff_revisions(&args),
-            "git_read_revision" => self.execute_git_read_revision(&args),
+            "git_file_history" => self.execute_git_file_history(args),
+            "git_diff_revisions" => self.execute_git_diff_revisions(args),
+            "git_read_revision" => self.execute_git_read_revision(args),
             "read_replies" => match self.conversations() {
                 Ok(hub) => match hub.replies() {
                     Ok(v) => to_text(&v, ""),
@@ -1124,8 +1243,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 },
                 Err(e) => e,
             },
-            "send_to_conversation" => self.execute_send_to_conversation(&args),
-            "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(&args),
+            "send_to_conversation" => self.execute_send_to_conversation(args),
+            "report_feedback" if cfg!(feature = "develop") => self.execute_report_feedback(args),
             other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
         }
     }
@@ -1192,6 +1311,8 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
         let tags = string_list(args.get("tags"));
 
+        let query_text = query.clone();
+        let no_extensions = extension_list(args.get("extensions")).is_empty();
         match SearchNotesUseCase::new(&self.note_repository).execute(SearchNotesQuery {
             vault_path: self.vault(),
             query,
@@ -1215,10 +1336,184 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         })
                     })
                     .collect();
-                to_text(&filtered, "Error al serializar notas: ")
+                let mut result = to_text(&filtered, "Error al serializar notas: ");
+                if filtered.is_empty()
+                    && !query_text.is_empty()
+                    && no_extensions
+                    && let Some(hint) = self.other_types_hint(&query_text)
+                {
+                    result.content.push(McpContentItem::text(hint));
+                }
+                result
             }
             Err(err) => McpCallToolResult::error(err),
         }
+    }
+
+    fn execute_find_files(&self, args: &Value) -> McpCallToolResult {
+        let str_arg = |k: &str| args.get(k).and_then(|v| v.as_str()).map(str::to_string);
+        let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100).clamp(1, 1000) as usize;
+        let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let query = FindFilesQuery {
+            vault_path: self.vault(),
+            glob: str_arg("glob"),
+            regex: str_arg("regex"),
+            case_sensitive: args.get("case_sensitive").and_then(|v| v.as_bool()).unwrap_or(false),
+            folder: str_arg("folder_path").unwrap_or_default().trim_matches('/').to_string(),
+            extensions: extension_list(args.get("extensions")),
+            limit,
+            offset,
+        };
+        match FindFilesUseCase::new(&*self.vault_item_repository).execute(query) {
+            Ok(found) => {
+                let next = offset + found.files.len();
+                to_text(
+                    &json!({
+                        "total_matches": found.total,
+                        "returned_matches": found.files.len(),
+                        "next_offset": (next < found.total).then_some(next),
+                        "files": found.files,
+                    }),
+                    "Error al serializar: ",
+                )
+            }
+            Err(e) => McpCallToolResult::error(e),
+        }
+    }
+
+    fn execute_grep_vault(&self, args: &Value) -> McpCallToolResult {
+        let Some(pattern) = args.get("pattern").and_then(|v| v.as_str()) else {
+            return McpCallToolResult::error("El argumento 'pattern' es obligatorio");
+        };
+        let num = |k: &str, default: u64, max: u64| {
+            args.get(k).and_then(|v| v.as_u64()).unwrap_or(default).min(max) as usize
+        };
+        let flag = |k: &str| args.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
+        let query = GrepVaultQuery {
+            vault_path: self.vault(),
+            pattern: pattern.to_string(),
+            literal: flag("literal"),
+            case_sensitive: flag("case_sensitive"),
+            folder: args
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim_matches('/')
+                .to_string(),
+            glob: args.get("glob").and_then(|v| v.as_str()).map(str::to_string),
+            extensions: extension_list(args.get("extensions")),
+            context_before: num("context_before", 0, 20),
+            context_after: num("context_after", 0, 50),
+            files_only: flag("files_only"),
+            max_matches: num("max_matches", 100, 1000).max(1),
+        };
+        match GrepVaultUseCase::new(&*self.vault_item_repository).execute(query) {
+            Ok(r) => to_text(
+                &json!({
+                    "total_matches": r.total_matches,
+                    "files_matched": r.files.len(),
+                    "files_searched": r.files_searched,
+                    "files_skipped_binary_or_large": r.files_skipped,
+                    "truncated": r.truncated,
+                    "files": r.files,
+                }),
+                "Error al serializar: ",
+            ),
+            Err(e) => McpCallToolResult::error(e),
+        }
+    }
+
+    /// Si una herramienta falla por una ruta que no existe en esta bóveda, añade al error cuál es
+    /// la bóveda activa, en qué otras bóvedas sí existe esa ruta y archivos con el mismo nombre
+    /// aquí: los agentes suelen equivocarse de bóveda o de carpeta y acaban en `ls`/`fd`.
+    fn with_location_hint(&self, args: &Value, mut result: McpCallToolResult) -> McpCallToolResult {
+        if !result.is_error {
+            return result;
+        }
+        let Some(rel) = ["relative_path", "folder_path", "parent_path"]
+            .iter()
+            .find_map(|k| args.get(*k).and_then(|v| v.as_str()))
+            .map(|p| p.trim().trim_matches('/'))
+            .filter(|p| !p.is_empty())
+        else {
+            return result;
+        };
+        let here = self.vault();
+        if self.vault_item_repository.exists(&here, rel) {
+            return result;
+        }
+        let here_canon = here.canonicalize().unwrap_or_else(|_| here.clone());
+        let vaults = self.vault_catalog.as_ref().map(|c| c.list()).unwrap_or_default();
+        let here_name = vaults
+            .iter()
+            .find(|v| v.path == here_canon || v.path == here)
+            .map(|v| v.name.clone())
+            .or_else(|| here.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_default();
+        let mut hint = format!(
+            "La ruta «{rel}» no existe en la bóveda activa «{here_name}» ({}). Las rutas son relativas a su raíz.",
+            here.display()
+        );
+        let elsewhere: Vec<&str> = vaults
+            .iter()
+            .filter(|v| v.path != here_canon && v.path != here && v.path.join(rel).exists())
+            .map(|v| v.name.as_str())
+            .collect();
+        if !elsewhere.is_empty() {
+            hint.push_str(&format!(
+                " Sí existe en: {}. Repite la llamada con `vault` (p. ej. vault: \"{}\").",
+                elsewhere.iter().map(|n| format!("«{n}»")).collect::<Vec<_>>().join(", "),
+                elsewhere[0]
+            ));
+        }
+        let name = rel.rsplit('/').next().unwrap_or(rel);
+        let similar: Vec<String> = self
+            .vault_item_repository
+            .list_vault_files(&here, "")
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|f| {
+                let p = f.relative_path.to_lowercase();
+                p.rsplit('/').next() == Some(name.to_lowercase().as_str())
+                    || p.ends_with(&format!("/{}", rel.to_lowercase()))
+            })
+            .take(5)
+            .map(|f| f.relative_path)
+            .collect();
+        if !similar.is_empty() {
+            hint.push_str(&format!(" En esta bóveda hay: {}.", similar.join(", ")));
+        } else if elsewhere.is_empty() {
+            hint.push_str(" Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\").");
+        }
+        result.content.push(McpContentItem::text(hint));
+        result
+    }
+
+    /// Si `search_notes` no encontró Markdown, cuántos archivos de otros tipos sí cumplen la
+    /// búsqueda por ruta: sin esto, los agentes concluían que el archivo no existía.
+    fn other_types_hint(&self, query: &str) -> Option<String> {
+        let files = self.vault_item_repository.list_vault_files(&self.vault(), "").ok()?;
+        let others: Vec<String> = files
+            .into_iter()
+            .map(|f| f.relative_path)
+            .filter(|p| p.to_lowercase().contains(query))
+            .filter(|p| !has_extension(p, &["md".into(), "markdown".into()]))
+            .collect();
+        if others.is_empty() {
+            return None;
+        }
+        let mut exts: Vec<String> = others
+            .iter()
+            .filter_map(|p| p.rsplit('/').next()?.rsplit_once('.').map(|(_, e)| e.to_lowercase()))
+            .collect();
+        exts.sort();
+        exts.dedup();
+        Some(format!(
+            "Ninguna nota Markdown coincide, pero hay {} archivo(s) de otros tipos cuya ruta contiene «{query}» (p. ej. {}). Repite con extensions: {:?} o usa find_files.",
+            others.len(),
+            others.iter().take(5).cloned().collect::<Vec<_>>().join(", "),
+            exts
+        ))
     }
 
     fn execute_search_folders(&self, args: &Value) -> McpCallToolResult {

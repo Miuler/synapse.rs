@@ -113,6 +113,9 @@ pub(crate) fn session_instructions(feedback: bool) -> String {
          - Para leer notas usa `read_note` (primero `mode: \"outline_only\"` en notas largas), \
          `search_notes`, `full_text_search`, `search_in_note`, `list_folder_contents` y \
          `get_backlinks_and_relations`.\n\
+         - Para buscar archivos por ruta usa `find_files` (glob o regex, cualquier extensión) y \
+         para buscar líneas por regex o texto exacto, `grep_vault` (con contexto, como `rg`), en \
+         lugar de `fd`, `rg`, `grep` o `ls` en la terminal.\n\
          - Para crear, editar, mover o borrar notas usa `write_note`, `patch_note`, \
          `append_to_note`, `update_note_metadata`, `move_notes` y `delete_note`, no la escritura \
          directa de archivos: así Synapse mantiene su índice, sus enlaces y sus metadatos al día.\n\
