@@ -83,6 +83,8 @@ it('registra un agente personalizado y conversa con él', async () => {
   expect(await count('.acp-row .acp-badge')).toBe(1);
   expect(await count('.acp-row button[aria-label="Más acciones"]')).toBe(1);
   expect(await count('.acp-section .acp-subbar')).toBe(0);
+  // Un agente sin icono propio lleva el robot genérico
+  expect(await count('.acp-row-title svg.agent-icon')).toBe(1);
 
   // La nota activa viaja como etiqueta
   expect((await text('.acp-composer .acp-chip')).some((t) => t?.includes('nota.md'))).toBe(true);

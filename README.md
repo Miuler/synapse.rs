@@ -284,5 +284,5 @@ Synapse.rs es software libre bajo la [GNU GPL 3.0 o posterior](LICENSE) (`GPL-3.
 
 - **Servidor:** la carpeta `synapse-server/` es solo una **prueba de concepto**, no un producto ni un servicio disponible, y **no** está cubierta por esta licencia; todos los derechos reservados.
 - **Nombre y logotipos:** la licencia del código no concede derechos sobre el nombre «Synapse.rs», su logotipo ni el pulpo. Un fork debe usar otro nombre y otra imagen.
-- **Terceros:** las dependencias conservan sus propias licencias.
+- **Terceros:** las dependencias conservan sus propias licencias. Los iconos de los agentes (`src/shared/assets/agents/`) provienen en su mayoría del [registro ACP](https://github.com/agentclientprotocol/registry) y son marcas de sus respectivos dueños: solo identifican a cada agente y la licencia del código no concede derechos sobre ellas.
 - **Contribuciones:** por ahora no se aceptan *pull requests* de código; consulta [CONTRIBUTING.md](CONTRIBUTING.md).

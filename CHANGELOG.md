@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shortcut `Alt+E` toggles between reading and editing (besides `F2`): one press enters editing and the next returns to reading.
 - License: Synapse.rs is now free software under GPL-3.0-or-later. `synapse-server/` (only a proof of concept), the name and the logos are not included.
 - Agent chat: the account quota left is shown next to the context (`● 58% wk`), with every limit in the tooltip. Claude attaches it to the conversation; for Antigravity it is asked with `agy`, at most every 3 minutes (configurable), and `/usage` includes it.
+- Agent chat: the icon of each agent in the ACP registry is shown before its name; unknown agents get the generic robot.
 - Agent chat: when a conversation is reopened, the context bar is shown without waiting for the first answer.
 - Explorer: files and folders dragged from another application (Nautilus, Explorer, Finder…) are copied into the folder where they are dropped.
 

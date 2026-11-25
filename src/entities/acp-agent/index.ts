@@ -4,3 +4,4 @@ export { agentApi } from './api/agent.api';
 export { shortModelLabels, shortModelLabel, modeBadge } from './model/model-label';
 export { agentImages, AGENT_IMAGE_TAB_PREFIX, type AgentImage } from './model/agent-images.svelte';
 export { groupsForModel, percent, quotaLevel, quotaTooltip, tightestWindow, windowLabel } from './lib/quota';
+export { default as AgentIcon } from './ui/AgentIcon.svelte';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { agentStore, type Conversation } from '@entities/acp-agent';
+  import { AgentIcon, agentStore, type Conversation } from '@entities/acp-agent';
   import { AcpChat } from '@features/acp-chat';
   import { OctopusIcon } from '@shared/ui/icons';
   import {
@@ -351,7 +351,7 @@
     {/if}
     <span class="acp-handle" title="Número para nombrarla desde otra conversación">{c.handle}</span>
     <span class="acp-row-title"
-      >{#if c.incoming}<span class="acp-from-vault">⇠ {c.incoming.vault}{c.incoming.handle} ·</span>{/if}<span class="agent"
+      >{#if c.incoming}<span class="acp-from-vault">⇠ {c.incoming.vault}{c.incoming.handle} ·</span>{/if}<AgentIcon agentId={c.agentId} /><span class="agent"
         >{c.agent?.name ?? c.agentId} ·</span
       > {titleOf(c)}</span
     >
@@ -676,6 +676,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .acp-row-title :global(.agent-icon) {
+    color: var(--text-muted);
+    display: inline-block;
+    margin-right: 4px;
+    vertical-align: -2px;
   }
   .acp-row-title .agent {
     color: var(--text-muted);

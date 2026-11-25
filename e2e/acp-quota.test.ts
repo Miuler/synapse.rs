@@ -80,6 +80,12 @@ it('muestra lo que queda del límite más apretado', async () => {
   // Sin fecha de reinicio (1970) no se inventa una
   expect(title).toMatch(/5 h: queda 97%(\n|$)/);
   expect(asked()).toEqual(['--print /usage --output-format json']);
+  // Y su icono va antes del nombre del agente
+  const icon = await s.browser.execute(() => {
+    const img = document.querySelector('.acp-row-title .agent-icon') as HTMLImageElement | null;
+    return [(img?.naturalWidth ?? 0) > 0, img?.nextElementSibling?.classList.contains('agent')];
+  });
+  expect(icon).toEqual([true, true]);
 }, 30_000);
 
 it('/usage añade la cuota al mismo mensaje y reutiliza la respuesta reciente', async () => {
