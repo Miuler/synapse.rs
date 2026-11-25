@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent chat: when a conversation is reopened, the context bar is shown without waiting for the first answer.
 - Explorer: files and folders dragged from another application (Nautilus, Explorer, Finder…) are copied into the folder where they are dropped.
 
+### Changed
+
+- Agent panel: when docked, the pin takes the place of the close button (the panel is closed from its toolbar button); floating, the close button stays.
+
 ### Fixed
 
 - Explorer (Linux): dragging files inside the explorer, or onto the agent chat, works again.

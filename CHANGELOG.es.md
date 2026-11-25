@@ -18,6 +18,10 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - Chat del agente: al reabrir una conversación, la barra de contexto se ve sin esperar a la primera respuesta.
 - Explorador: los archivos y carpetas arrastrados desde otra aplicación (Nautilus, Explorador, Finder…) se copian en la carpeta donde se sueltan.
 
+### Cambiado
+
+- Panel del agente: acoplado, el pin ocupa el lugar de la X (el panel se cierra con su botón de la barra); flotante conserva la X.
+
 ### Corregido
 
 - Explorador (Linux): arrastrar archivos dentro del explorador, o al chat del agente, vuelve a funcionar.

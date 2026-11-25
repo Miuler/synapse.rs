@@ -223,6 +223,19 @@
       disabled={!cwd || !agentStore.fallbackAgentId}
       onclick={() => agentStore.fallbackAgentId && startWith(agentStore.fallbackAgentId)}><Plus size={15} /></button
     >
+    <button
+      type="button"
+      class="acp-icon"
+      title={agentStore.floating ? 'Acoplar a la derecha' : 'Modo flotante'}
+      aria-pressed={agentStore.floating}
+      onclick={() => agentStore.setFloating(!agentStore.floating)}
+    >
+      {#if agentStore.floating}<PanelRight size={14} />{:else}<PictureInPicture2 size={14} />{/if}
+    </button>
+    <button type="button" class="acp-icon" title="Ajustes de agentes" onclick={onOpenSettings}>
+      <Settings size={14} />
+    </button>
+    <!-- Acoplado, el panel se cierra con su botón de la barra; flotante no hay pin y conserva la X -->
     {#if !agentStore.floating}
       <button
         type="button"
@@ -237,20 +250,9 @@
       >
         {#if pinned}<Pin size={13} />{:else}<PinOff size={13} />{/if}
       </button>
+    {:else}
+      <button type="button" class="acp-icon" title="Cerrar panel" onclick={onClose}><X size={14} /></button>
     {/if}
-    <button
-      type="button"
-      class="acp-icon"
-      title={agentStore.floating ? 'Acoplar a la derecha' : 'Modo flotante'}
-      aria-pressed={agentStore.floating}
-      onclick={() => agentStore.setFloating(!agentStore.floating)}
-    >
-      {#if agentStore.floating}<PanelRight size={14} />{:else}<PictureInPicture2 size={14} />{/if}
-    </button>
-    <button type="button" class="acp-icon" title="Ajustes de agentes" onclick={onOpenSettings}>
-      <Settings size={14} />
-    </button>
-    <button type="button" class="acp-icon" title="Cerrar panel" onclick={onClose}><X size={14} /></button>
   </header>
   {#if cwd}
     <div class="acp-subbar acp-history">

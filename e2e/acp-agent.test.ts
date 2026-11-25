@@ -303,7 +303,7 @@ it('al reabrir la bóveda vuelve el panel con su agente y su última conversaci�
   });
 
   // Con el panel cerrado, la bóveda vuelve con el panel cerrado
-  await s.browser.$('.synapse-agent-panel button[title="Cerrar panel"]').click();
+  await s.browser.$('.editor-header .agent-toggle').click();
   await s.browser.refresh();
   await s.browser.$('.file-tree-item').waitForExist({ timeout: 30_000 });
   await s.browser.pause(1_500);

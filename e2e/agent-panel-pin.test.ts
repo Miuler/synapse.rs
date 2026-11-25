@@ -34,6 +34,12 @@ it('fijado: el panel ocupa su espacio y el editor se encoge', async () => {
   const st = await state();
   expect(st.overlay).toBe(false);
   expect(st.mainRight).toBeLessThanOrEqual(st.panelLeft! + 1);
+  // El pin es el último botón de la cabecera; acoplado no hay X
+  const last = await s.browser.execute(() => [
+    document.querySelector('.acp-header')!.lastElementChild!.classList.contains('acp-pin-btn'),
+    !!document.querySelector('.acp-header button[title="Cerrar panel"]'),
+  ]);
+  expect(last).toEqual([true, false]);
 }, 30_000);
 
 it('suelto: flota sobre el editor y se oculta al hacer clic fuera; se recuerda por bóveda', async () => {
