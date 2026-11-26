@@ -3,6 +3,7 @@
   import { internalDragPaths, NATIVE_DROP, type NativeDrop } from '@shared/lib/native-drop';
   import {
     agentStore,
+    AgentIcon,
     agentApi,
     agentImages,
     modeBadge,
@@ -860,6 +861,8 @@
       {#if busy}
         <div class="acp-status acp-thinking"><span class="acp-brain" aria-hidden="true">🧠</span> Pensando…</div>
       {/if}
+      <!-- Marca de agua: logo del agente en uso, fija en la esquina inferior derecha -->
+      <div class="acp-watermark" aria-hidden="true" style:opacity={appSettings.agentWatermark / 100}><AgentIcon agentId={conv.agentId} size={72} /></div>
     </div>
 
     {#if conv.session || conv.usage}
@@ -1106,6 +1109,24 @@
   }
   .acp-messages:focus {
     outline: none;
+  }
+  /* Último hijo del scroller: margin-top:auto lo baja al fondo y sticky lo mantiene visible al hacer scroll */
+  .acp-watermark {
+    position: sticky;
+    bottom: 0;
+    align-self: flex-end;
+    margin-top: auto;
+    height: 0;
+    width: 0;
+    overflow: visible;
+    pointer-events: none;
+    user-select: none;
+  }
+  .acp-watermark :global(.agent-icon) {
+    position: absolute;
+    right: 0;
+    bottom: 4px;
+    color: var(--text-muted);
   }
   .acp-messages {
     flex: 1;

@@ -36,6 +36,8 @@ export interface AppSettings {
   chatZoom: number;
   /** Sonido al terminar un turno del agente ACP. */
   agentCompletionSound: AgentCompletionSound;
+  /** Opacidad de la marca de agua con el logo del agente en el chat, de 0 (oculta) a 40 %. */
+  agentWatermark: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
@@ -74,7 +76,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sheetZoom: 1, // Zoom del visor de hojas de cálculo
   chatZoom: 1, // Zoom del chat del agente
   agentCompletionSound: 'burbuja_fm', // Sonido al terminar un turno del agente ACP
+  agentWatermark: 10, // Opacidad (%) de la marca de agua del agente en el chat
 };
+
+function clampWatermark(value: number): number {
+  return Math.min(40, Math.max(0, Math.round(value)));
+}
 
 function clampZoom(zoom: number): number {
   return Math.min(3, Math.max(0.5, Math.round(zoom * 20) / 20));
@@ -132,6 +139,9 @@ function loadInitialSettings(): AppSettings {
         parsed.agentCompletionSound === 'none'
       ) {
         settings.agentCompletionSound = parsed.agentCompletionSound;
+      }
+      if (typeof parsed.agentWatermark === 'number' && Number.isFinite(parsed.agentWatermark)) {
+        settings.agentWatermark = clampWatermark(parsed.agentWatermark);
       }
       if (parsed.wallpapers && typeof parsed.wallpapers === 'object') {
         settings.wallpapers = Object.fromEntries(
@@ -440,6 +450,17 @@ class SettingsManager {
   setAgentCompletionSound(sound: AgentCompletionSound) {
     this.settings = { ...this.settings, agentCompletionSound: sound };
     setAgentCompletionSound(sound);
+    this.persist();
+  }
+
+  get agentWatermark(): number {
+    return this.settings.agentWatermark ?? 10;
+  }
+
+  setAgentWatermark(percent: number) {
+    const next = clampWatermark(percent);
+    if (next === this.agentWatermark) return;
+    this.settings = { ...this.settings, agentWatermark: next };
     this.persist();
   }
 

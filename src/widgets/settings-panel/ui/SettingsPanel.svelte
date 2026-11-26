@@ -529,6 +529,24 @@
               >Probar</button>
             </div>
           </div>
+          <div class="row">
+            <span class="row-label">
+              {t('watermark.setting')}
+              <span class="hint">{t('watermark.hint')}</span>
+            </span>
+            <div class="inline">
+              <input
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                aria-label={t('watermark.setting')}
+                value={appSettings.agentWatermark}
+                oninput={(e) => appSettings.setAgentWatermark(e.currentTarget.valueAsNumber)}
+              />
+              <span>{appSettings.agentWatermark} %</span>
+            </div>
+          </div>
           <div class="row peer-decisions">
             <span class="row-label">
               Bóvedas que pueden conversar con esta
