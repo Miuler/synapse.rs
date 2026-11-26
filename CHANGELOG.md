@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Search and MCP `full_text_search`: `a|b` (or `or` in lowercase) searches several alternatives in one query, e.g. `TIEL|QTI1|QTI3`.
-- MCP: `full_text_search` with `lines: true` returns the matching lines of each result with their location, like `rg -n`: the line number in Markdown, code and text diagrams, the sheet in spreadsheets, and the element in ArchiMate and BPMN models; with `exact: true` it returns only documents that contain the texts literally (endpoints, ids or codes with punctuation, such as `outbounds-ach`).
+- MCP: `full_text_search` with `lines: true` returns the matching lines of each result with their location, like `rg -n`: the line number in Markdown, code and text diagrams, the page in PDFs, the section and paragraph in Word documents, the sheet, row and column in spreadsheets, the page of draw.io diagrams, and the element in ArchiMate and BPMN models; with `exact: true` it returns only documents that contain the texts literally (endpoints, ids or codes with punctuation, such as `outbounds-ach`). Results whose text was cut when indexing (very large documents) are marked as `truncated`.
+- Search: `hs:` also filters by the headings of Word documents.
 
 - MCP: `search_in_note` searches several texts at once separated by `|` (like `rg "a|b"`), tells which ones each line contains, counts the lines and occurrences of each one (`counts_only` returns just the counts, like `grep -c`) and accepts several notes at once with `relative_paths`. A Markdown table row such as `| field |` is still searched literally.
 
@@ -32,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The search index is rebuilt once on opening each vault: PDFs are now indexed page by page and Word documents paragraph by paragraph.
 - Agent panel: closing it only hides it, so reopening it is faster with long conversations and keeps the scroll position.
 - Agent panel: when docked, the pin takes the place of the close button (the panel is closed from its toolbar button); floating, the close button stays.
 

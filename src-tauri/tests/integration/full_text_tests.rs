@@ -293,6 +293,7 @@ fn test_indexed_versions_reflects_updates_and_deletions() {
         headings: String::new(),
         kind: DocumentKind::Markdown,
         mtime_nanos: mtime,
+        ..Default::default()
     };
     index
         .upsert(vec![doc("a.md", 1), doc("carpeta/b.md", 2), doc("c.md", 3)])

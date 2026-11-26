@@ -120,9 +120,19 @@ pub fn svg_mxfile(bytes: &[u8]) -> Option<String> {
 
 /// Textos de las figuras y nombres de las páginas de un `mxfile`, separados por líneas.
 pub fn mxfile_text(xml: &str) -> String {
+    mxfile_lines(xml)
+        .into_iter()
+        .map(|(text, _)| text)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Las líneas de [`mxfile_text`], cada una con `true` si es el nombre de una página: el nombre
+/// va antes de las figuras de su página.
+pub fn mxfile_lines(xml: &str) -> Vec<(String, bool)> {
     let mut out = Vec::new();
     collect(xml, &mut out, 0);
-    out.join("\n")
+    out
 }
 
 /// Una página de un diagrama de draw.io, ordenada para leerla: contenedores con sus figuras,
@@ -356,7 +366,7 @@ fn attr_of(e: &quick_xml::events::BytesStart, key: &str) -> Option<String> {
         .and_then(|a| quick_xml::escape::unescape(&a.value).ok().map(|v| v.into_owned()))
 }
 
-fn collect(xml: &str, out: &mut Vec<String>, depth: u8) {
+fn collect(xml: &str, out: &mut Vec<(String, bool)>, depth: u8) {
     if depth > 2 {
         return;
     }
@@ -376,7 +386,7 @@ fn collect(xml: &str, out: &mut Vec<String>, depth: u8) {
                     if let Ok(v) = quick_xml::escape::unescape(&attr.value) {
                         let clean = strip_html(&v);
                         if !clean.is_empty() {
-                            out.push(clean);
+                            out.push((clean, is_diagram && key == "name"));
                         }
                     }
                 }
@@ -536,4 +546,28 @@ mod tests {
         assert_eq!(mxfile_text(&svg_mxfile(svg.as_bytes()).unwrap()), "A");
         assert!(svg_mxfile(b"<svg><rect/></svg>").is_none());
     }
+
+    #[test]
+    fn marca_los_nombres_de_pagina() {
+        let xml = format!(
+            r#"<mxfile><diagram name="Flujo">{MODEL}</diagram><diagram name="Datos">{MODEL}</diagram></mxfile>"#
+        );
+        let lines = mxfile_lines(&xml);
+        let pages: Vec<&str> = lines
+            .iter()
+            .filter(|(_, p)| *p)
+            .map(|(t, _)| t.as_str())
+            .collect();
+        assert_eq!(pages, ["Flujo", "Datos"]);
+        assert!(lines.iter().any(|(t, p)| t == "Servicio Pagos" && !p));
+        assert_eq!(
+            mxfile_text(&xml),
+            lines
+                .iter()
+                .map(|(t, _)| t.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
 }

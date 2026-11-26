@@ -1,6 +1,9 @@
 use lopdf::Document;
 
-/// Extrae texto plano de un documento PDF aplicando límites de páginas, caracteres y longitud de palabra.
+/// Extrae el texto de un PDF con **una línea por página** (las palabras de cada página
+/// separadas por un espacio), aplicando límites de páginas, caracteres y longitud de palabra.
+/// Así la línea N del texto indexado es la página N y las búsquedas pueden decir en qué página
+/// está cada coincidencia. Devuelve también si se cortó (por páginas o por caracteres).
 ///
 /// Utiliza `lopdf` en pure Rust para decodificar los streams `/Contents`
 /// de las primeras `max_pages` páginas del documento sin depender de bibliotecas C del sistema.
@@ -9,39 +12,41 @@ pub fn extract_pdf_text(
     max_pages: usize,
     max_extracted_chars: usize,
     max_word_length: usize,
-) -> Result<String, String> {
+) -> Result<(String, bool), String> {
     let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
 
-    let pages = doc.get_pages();
-    let page_numbers: Vec<u32> = pages.keys().copied().take(max_pages).collect();
+    let mut page_numbers: Vec<u32> = doc.get_pages().keys().copied().collect();
+    page_numbers.sort_unstable();
+    let mut truncated = page_numbers.len() > max_pages;
+    page_numbers.truncate(max_pages);
 
-    if page_numbers.is_empty() {
-        return Ok(String::new());
+    let mut text = String::with_capacity(max_extracted_chars.min(64 * 1024));
+    'pages: for (i, page) in page_numbers.iter().enumerate() {
+        // Una página vacía o ilegible deja su línea vacía: la numeración no se desplaza
+        if i > 0 {
+            text.push('\n');
+        }
+        let raw = doc.extract_text(&[*page]).unwrap_or_default();
+        let mut first = true;
+        for word in raw.split_whitespace() {
+            // Descartar palabras excesivamente largas (como hashes o basura de tipografías corruptas)
+            if word.len() > max_word_length {
+                continue;
+            }
+            if !first {
+                text.push(' ');
+            }
+            first = false;
+            text.push_str(word);
+            if text.len() >= max_extracted_chars {
+                super::content_extractor::truncate_safe(&mut text, max_extracted_chars);
+                truncated = true;
+                break 'pages;
+            }
+        }
     }
 
-    let raw_text = doc
-        .extract_text(&page_numbers)
-        .map_err(|e| format!("Error al extraer texto de páginas del PDF: {e}"))?;
-
-    let mut text = String::with_capacity(raw_text.len().min(max_extracted_chars));
-    for word in raw_text.split_whitespace() {
-        // Descartar palabras excesivamente largas (como hashes o basura de tipografías corruptas)
-        if word.len() > max_word_length {
-            continue;
-        }
-
-        if !text.is_empty() {
-            text.push(' ');
-        }
-        text.push_str(word);
-
-        if text.len() >= max_extracted_chars {
-            text.truncate(max_extracted_chars);
-            break;
-        }
-    }
-
-    Ok(text)
+    Ok((text, truncated))
 }
 
 /// Extrae información detallada de un PDF: páginas totales, metadatos y texto por páginas.
@@ -193,9 +198,65 @@ mod tests {
         let mut buffer = Vec::new();
         doc.save_to(&mut buffer).unwrap();
 
-        let extracted = extract_pdf_text(&buffer, 10, 200_000, 80).unwrap();
+        let (extracted, truncated) = extract_pdf_text(&buffer, 10, 200_000, 80).unwrap();
         assert!(extracted.contains("Documento"));
         assert!(extracted.contains("PDF"));
         assert!(extracted.contains("Prueba"));
+        assert!(!truncated);
+    }
+
+    /// Un PDF con una página por texto.
+    fn pdf(pages: &[&str]) -> Vec<u8> {
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica",
+        });
+        let resources_id =
+            doc.add_object(dictionary! { "Font" => dictionary! { "F1" => font_id } });
+        let mut kids = Vec::new();
+        for text in pages {
+            let content = Content {
+                operations: vec![
+                    lopdf::content::Operation::new("BT", vec![]),
+                    lopdf::content::Operation::new("Tf", vec!["F1".into(), 12.into()]),
+                    lopdf::content::Operation::new("Tj", vec![Object::string_literal(*text)]),
+                    lopdf::content::Operation::new("ET", vec![]),
+                ],
+            };
+            let content_id = doc.add_object(Stream::new(dictionary! {}, content.encode().unwrap()));
+            let page_id = doc.add_object(dictionary! {
+                "Type" => "Page", "Parent" => pages_id, "Contents" => content_id, "Resources" => resources_id,
+            });
+            kids.push(page_id.into());
+        }
+        let count = kids.len() as i64;
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! { "Type" => "Pages", "Kids" => kids, "Count" => count }),
+        );
+        let catalog_id = doc.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
+        doc.trailer.set("Root", catalog_id);
+        let mut buffer = Vec::new();
+        doc.save_to(&mut buffer).unwrap();
+        buffer
+    }
+
+    #[test]
+    fn una_linea_por_pagina_y_marca_de_corte() {
+        let bytes = pdf(&["Primera pagina", "Segunda pagina con TIEL", "Tercera"]);
+        let (text, truncated) = extract_pdf_text(&bytes, 10, 200_000, 80).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(
+            lines[1].contains("TIEL"),
+            "la línea 2 es la página 2: {text:?}"
+        );
+        assert!(!truncated);
+        let (text, truncated) = extract_pdf_text(&bytes, 2, 200_000, 80).unwrap();
+        assert_eq!(text.lines().count(), 2);
+        assert!(truncated, "por páginas");
+        let (_, truncated) = extract_pdf_text(&bytes, 10, 20, 80).unwrap();
+        assert!(truncated, "por caracteres");
     }
 }

@@ -37,11 +37,66 @@ pub fn extract_with_config(
     file_types: &SupportedFileTypes,
     indexing: &IndexingConfig,
 ) -> Option<(DocumentKind, String, String, String)> {
+    extract_document(rel_path, bytes, file_types, indexing)
+        .map(|e| (e.kind, e.title, e.body, e.headings))
+}
+
+/// Lo que se indexa de un archivo.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Extracted {
+    pub kind: DocumentKind,
+    pub title: String,
+    pub body: String,
+    pub headings: String,
+    /// Posición de cada línea de `body` en el original (ver `FullTextDocument::layout`).
+    pub layout: String,
+    /// El texto se cortó por el límite de caracteres o de páginas.
+    pub truncated: bool,
+}
+
+impl Extracted {
+    fn plain(kind: DocumentKind, title: String, body: String, headings: String) -> Self {
+        Self {
+            kind,
+            title,
+            body,
+            headings,
+            layout: String::new(),
+            truncated: false,
+        }
+    }
+}
+
+/// Como [`extract_with_config`], con la posición de cada línea y si el texto se cortó.
+pub fn extract_document(
+    rel_path: &Path,
+    bytes: &[u8],
+    file_types: &SupportedFileTypes,
+    indexing: &IndexingConfig,
+) -> Option<Extracted> {
+    let mut e = extract_document_inner(rel_path, bytes, file_types, indexing)?;
+    // Los formatos que no lo dicen ellos: el texto llegó al tope (`truncate_safe` corta en él)
+    let cap = match e.kind {
+        DocumentKind::Archimate => indexing.max_extracted_chars.max(ARCHIMATE_MAX_CHARS),
+        _ => indexing.max_extracted_chars,
+    };
+    e.truncated |= e.body.len() + 4 >= cap;
+    Some(e)
+}
+
+fn extract_document_inner(
+    rel_path: &Path,
+    bytes: &[u8],
+    file_types: &SupportedFileTypes,
+    indexing: &IndexingConfig,
+) -> Option<Extracted> {
     let file_name = rel_path.file_name()?.to_str()?;
     let lower_name = file_name.to_lowercase();
     // El `index.md` OKF que genera Synapse no se indexa: repite los títulos de la carpeta
     if lower_name == crate::domain::okf::INDEX_FILE
-        && crate::domain::okf::is_generated(&String::from_utf8_lossy(&bytes[..bytes.len().min(2048)]))
+        && crate::domain::okf::is_generated(&String::from_utf8_lossy(
+            &bytes[..bytes.len().min(2048)],
+        ))
     {
         return None;
     }
@@ -62,10 +117,26 @@ pub fn extract_with_config(
         None
     };
     if let Some(xml) = drawio_xml {
-        let mut text = super::drawio_extractor::mxfile_text(&xml);
+        let lines = super::drawio_extractor::mxfile_lines(&xml);
+        let mut text = lines
+            .iter()
+            .map(|(t, _)| t.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        // `page` en las líneas que son nombres de página, para saber en qué página está cada texto
+        let layout = lines
+            .iter()
+            .map(|(_, page)| if *page { "page" } else { "" })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let truncated = text.len() > indexing.max_extracted_chars;
         truncate_safe(&mut text, indexing.max_extracted_chars);
         let title = file_stem.trim_end_matches(".drawio").to_string();
-        return Some((DocumentKind::Drawio, title, text, String::new()));
+        return Some(Extracted {
+            layout,
+            truncated,
+            ..Extracted::plain(DocumentKind::Drawio, title, text, String::new())
+        });
     }
     if lower_name.ends_with(".png") || lower_name.ends_with(".svg") {
         return None;
@@ -80,8 +151,16 @@ pub fn extract_with_config(
         let (_, decoded) = detect_and_decode(bytes);
         let mut text = super::archimate_extractor::archimate_text(&decoded);
         // Ya es solo texto útil (un modelo de 3 MB deja ~300 mil caracteres): tope propio más alto
-        truncate_safe(&mut text, indexing.max_extracted_chars.max(ARCHIMATE_MAX_CHARS));
-        return Some((DocumentKind::Archimate, file_stem.to_string(), text, String::new()));
+        truncate_safe(
+            &mut text,
+            indexing.max_extracted_chars.max(ARCHIMATE_MAX_CHARS),
+        );
+        return Some(Extracted::plain(
+            DocumentKind::Archimate,
+            file_stem.to_string(),
+            text,
+            String::new(),
+        ));
     }
 
     // 0c. Diagramas de procesos BPMN: los pasos con su tipo y la documentación, sin el dibujo
@@ -90,7 +169,12 @@ pub fn extract_with_config(
         let mut text = super::bpmn_extractor::bpmn_text(&decoded);
         if !text.trim().is_empty() {
             truncate_safe(&mut text, indexing.max_extracted_chars);
-            return Some((DocumentKind::Bpmn, file_stem.to_string(), text, String::new()));
+            return Some(Extracted::plain(
+                DocumentKind::Bpmn,
+                file_stem.to_string(),
+                text,
+                String::new(),
+            ));
         }
     }
 
@@ -99,7 +183,8 @@ pub fn extract_with_config(
         if bytes.len() > indexing.max_pdf_file_size {
             return None;
         }
-        let text = super::pdf_extractor::extract_pdf_text(
+        // Una línea por página: la línea N es la página N
+        let (text, truncated) = super::pdf_extractor::extract_pdf_text(
             bytes,
             indexing.max_pdf_pages,
             indexing.max_extracted_chars,
@@ -109,7 +194,18 @@ pub fn extract_with_config(
         if text.trim().is_empty() {
             return None;
         }
-        return Some((
+        if truncated {
+            return Some(Extracted {
+                truncated,
+                ..Extracted::plain(
+                    DocumentKind::Pdf,
+                    file_stem.to_string(),
+                    text,
+                    String::new(),
+                )
+            });
+        }
+        return Some(Extracted::plain(
             DocumentKind::Pdf,
             file_stem.to_string(),
             text,
@@ -122,12 +218,25 @@ pub fn extract_with_config(
         if bytes.len() > indexing.max_docx_file_size {
             return None;
         }
-        let mut text = super::spreadsheet_extractor::spreadsheet_text(bytes, indexing.max_extracted_chars).ok()?;
-        if text.trim().is_empty() {
+        let sheet =
+            super::spreadsheet_extractor::spreadsheet_extract(bytes, indexing.max_extracted_chars)
+                .ok()?;
+        if sheet.text.trim().is_empty() {
             return None;
         }
+        let mut text = sheet.text;
+        let truncated = sheet.truncated || text.len() > indexing.max_extracted_chars;
         truncate_safe(&mut text, indexing.max_extracted_chars);
-        return Some((DocumentKind::Excel, file_stem.to_string(), text, String::new()));
+        return Some(Extracted {
+            layout: sheet.layout,
+            truncated,
+            ..Extracted::plain(
+                DocumentKind::Excel,
+                file_stem.to_string(),
+                text,
+                String::new(),
+            )
+        });
     }
 
     // 2. Documentos Microsoft Word (.docx)
@@ -135,21 +244,25 @@ pub fn extract_with_config(
         if bytes.len() > indexing.max_docx_file_size {
             return None;
         }
-        let text = super::docx_extractor::extract_docx_text(
+        // Un párrafo por línea y los títulos aparte (para `hs:` y la sección de cada coincidencia)
+        let docx = super::docx_extractor::extract_docx(
             bytes,
             indexing.max_extracted_chars,
             indexing.max_word_length,
         )
         .ok()?;
-        if text.trim().is_empty() {
+        if docx.text.trim().is_empty() {
             return None;
         }
-        return Some((
-            DocumentKind::Word,
-            file_stem.to_string(),
-            text,
-            String::new(),
-        ));
+        return Some(Extracted {
+            truncated: docx.truncated,
+            ..Extracted::plain(
+                DocumentKind::Word,
+                file_stem.to_string(),
+                docx.text,
+                docx.headings,
+            )
+        });
     }
 
     // 3. Descartar archivos mayores al límite para texto plano
@@ -173,7 +286,7 @@ pub fn extract_with_config(
         let (_, decoded) = detect_and_decode(bytes);
         let mut extracted_text = extract_excalidraw_text(&decoded);
         truncate_safe(&mut extracted_text, indexing.max_extracted_chars);
-        return Some((
+        return Some(Extracted::plain(
             DocumentKind::Excalidraw,
             file_stem.to_string(),
             extracted_text,
@@ -199,7 +312,7 @@ pub fn extract_with_config(
         if decoded.contains("excalidraw-plugin:") || decoded.contains("```compressed-json") {
             let mut extracted_text = extract_excalidraw_text(&decoded);
             truncate_safe(&mut extracted_text, indexing.max_extracted_chars);
-            return Some((
+            return Some(Extracted::plain(
                 DocumentKind::Excalidraw,
                 file_stem.to_string(),
                 extracted_text,
@@ -211,7 +324,12 @@ pub fn extract_with_config(
         let (mut plain_body, mut headings) = extract_markdown_text_and_headings(&decoded);
         truncate_safe(&mut plain_body, indexing.max_extracted_chars);
         truncate_safe(&mut headings, indexing.max_extracted_chars);
-        return Some((DocumentKind::Markdown, title, plain_body, headings));
+        return Some(Extracted::plain(
+            DocumentKind::Markdown,
+            title,
+            plain_body,
+            headings,
+        ));
     }
 
     // 7. Diagramas (Mermaid)
@@ -223,7 +341,7 @@ pub fn extract_with_config(
     if is_diagram {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((
+        return Some(Extracted::plain(
             DocumentKind::Mermaid,
             file_name.to_string(),
             decoded,
@@ -249,25 +367,37 @@ pub fn extract_with_config(
         let (_, decoded) = detect_and_decode(bytes);
         if let Some(mut text) = extract(&decoded).filter(|t| !t.trim().is_empty()) {
             truncate_safe(&mut text, indexing.max_extracted_chars);
-            return Some((DocumentKind::Code, file_name.to_string(), text, String::new()));
+            return Some(Extracted::plain(
+                DocumentKind::Code,
+                file_name.to_string(),
+                text,
+                String::new(),
+            ));
         }
     }
 
     // XML (también XSD, WSDL, XSL, o un BPMN sin pasos con nombre): solo lo legible, no las etiquetas ni ids o coordenadas
-    let is_xml = [".xml", ".xsd", ".wsdl", ".bpmn", ".xsl", ".xslt"].iter().any(|e| lower_name.ends_with(e));
+    let is_xml = [".xml", ".xsd", ".wsdl", ".bpmn", ".xsl", ".xslt"]
+        .iter()
+        .any(|e| lower_name.ends_with(e));
     if is_xml {
         let (_, decoded) = detect_and_decode(bytes);
         let mut text = super::xml_extractor::xml_text(&decoded);
         if !text.trim().is_empty() {
             truncate_safe(&mut text, indexing.max_extracted_chars);
-            return Some((DocumentKind::Code, file_name.to_string(), text, String::new()));
+            return Some(Extracted::plain(
+                DocumentKind::Code,
+                file_name.to_string(),
+                text,
+                String::new(),
+            ));
         }
     }
 
     if is_code {
         let (_, mut decoded) = detect_and_decode(bytes);
         truncate_safe(&mut decoded, indexing.max_extracted_chars);
-        return Some((
+        return Some(Extracted::plain(
             DocumentKind::Code,
             file_name.to_string(),
             decoded,

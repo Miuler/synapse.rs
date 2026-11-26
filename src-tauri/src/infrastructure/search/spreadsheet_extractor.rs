@@ -5,31 +5,77 @@ use calamine::{Data, Reader, open_workbook_auto_from_rs};
 use std::io::Cursor;
 
 pub fn spreadsheet_text(bytes: &[u8], max_chars: usize) -> Result<String, String> {
+    spreadsheet_extract(bytes, max_chars).map(|e| e.text)
+}
+
+/// Texto de una planilla para el índice y, línea a línea, dónde está cada fila.
+pub struct SpreadsheetText {
+    /// `Hoja: X` y una línea por fila con celdas, separadas por ` | `.
+    pub text: String,
+    /// Una línea por línea de `text`: vacía para `Hoja:`, y `r37 A,C,D` (número de fila y letra
+    /// de la columna de cada celda, en el mismo orden) para una fila.
+    pub layout: String,
+    /// Se cortó por el límite de caracteres.
+    pub truncated: bool,
+}
+
+pub fn spreadsheet_extract(bytes: &[u8], max_chars: usize) -> Result<SpreadsheetText, String> {
     let mut book = open_workbook_auto_from_rs(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut out = String::new();
+    let mut out = SpreadsheetText {
+        text: String::new(),
+        layout: String::new(),
+        truncated: false,
+    };
     for name in book.sheet_names().to_vec() {
         let Ok(range) = book.worksheet_range(&name) else {
             continue;
         };
-        out.push_str(&format!("Hoja: {name}\n"));
-        for row in range.rows() {
+        out.text.push_str(&format!("Hoja: {name}\n"));
+        out.layout.push('\n');
+        let (first_row, first_col) = range.start().unwrap_or((0, 0));
+        for (r, row) in range.rows().enumerate() {
+            let mut columns = Vec::new();
             let cells: Vec<String> = row
                 .iter()
-                .filter(|c| !matches!(c, Data::Empty))
-                .map(|c| c.to_string().trim().to_string())
-                .filter(|c| !c.is_empty())
+                .enumerate()
+                .filter(|(_, c)| !matches!(c, Data::Empty))
+                .map(|(j, c)| (j, c.to_string().trim().to_string()))
+                .filter(|(_, c)| !c.is_empty())
+                .map(|(j, c)| {
+                    columns.push(column_letters(first_col as usize + j));
+                    c
+                })
                 .collect();
             if cells.is_empty() {
                 continue;
             }
-            out.push_str(&cells.join(" | "));
-            out.push('\n');
-            if out.len() >= max_chars {
+            out.text.push_str(&cells.join(" | "));
+            out.text.push('\n');
+            out.layout.push_str(&format!(
+                "r{} {}\n",
+                first_row as usize + r + 1,
+                columns.join(",")
+            ));
+            if out.text.len() >= max_chars {
+                out.truncated = true;
                 return Ok(out);
             }
         }
     }
     Ok(out)
+}
+
+/// Letra de una columna a partir de su índice desde 0 (0 → A, 25 → Z, 26 → AA).
+pub fn column_letters(mut index: usize) -> String {
+    let mut letters = Vec::new();
+    loop {
+        letters.push((b'A' + (index % 26) as u8) as char);
+        if index < 26 {
+            break;
+        }
+        index = index / 26 - 1;
+    }
+    letters.iter().rev().collect()
 }
 
 #[cfg(test)]
@@ -78,5 +124,24 @@ mod tests {
     fn indexa_hojas_y_filas() {
         let text = spreadsheet_text(&xlsx(), 10_000).unwrap();
         assert_eq!(text, "Hoja: Montos\nCanal | Tope\nYape | 500\n");
+    }
+
+    #[test]
+    fn guarda_fila_y_columna_de_cada_celda() {
+        let e = spreadsheet_extract(&xlsx(), 10_000).unwrap();
+        assert_eq!(e.layout, "\nr1 A,B\nr2 A,B\n");
+        assert_eq!(e.text.lines().count(), e.layout.lines().count());
+        assert!(!e.truncated);
+        assert!(spreadsheet_extract(&xlsx(), 20).unwrap().truncated);
+    }
+
+    #[test]
+    fn letras_de_columna() {
+        assert_eq!(column_letters(0), "A");
+        assert_eq!(column_letters(25), "Z");
+        assert_eq!(column_letters(26), "AA");
+        assert_eq!(column_letters(27), "AB");
+        assert_eq!(column_letters(701), "ZZ");
+        assert_eq!(column_letters(702), "AAA");
     }
 }

@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Tipo de documento indexado en el motor de búsqueda full-text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DocumentKind {
+    #[default]
     Markdown,
     Mermaid,
     Code,
@@ -55,7 +56,7 @@ impl DocumentKind {
 }
 
 /// Documento listo para ser indexado (el texto ya fue extraído del formato original).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FullTextDocument {
     /// Ruta relativa al vault normalizada con `/`. Es la clave única del documento.
     pub path: String,
@@ -66,6 +67,13 @@ pub struct FullTextDocument {
     pub kind: DocumentKind,
     /// Fecha de modificación del archivo en nanosegundos (truncada a u64) para sync incremental.
     pub mtime_nanos: u64,
+    /// Posición de cada línea de `body` en el documento original, una línea por línea del
+    /// cuerpo (vacío si el formato no la necesita). Solo se guarda, no se busca en ella.
+    /// Planillas: `r37 A,C,D` (fila y columna de cada celda); draw.io: `page` en los nombres de
+    /// página.
+    pub layout: String,
+    /// El texto extraído se cortó por el límite de caracteres o de páginas al indexar.
+    pub truncated: bool,
 }
 
 /// Consulta de búsqueda full-text.
@@ -99,8 +107,25 @@ pub struct LineOptions {
 pub enum MatchLocation {
     /// Número de línea real del archivo (Markdown, código, diagramas en texto).
     Line { line: usize },
-    /// Hoja de una planilla.
+    /// Página de un PDF.
+    Page { page: usize },
+    /// Celda de una planilla: hoja, fila y columna (letra).
+    Cell {
+        sheet: String,
+        row: usize,
+        column: String,
+    },
+    /// Hoja de una planilla, cuando no se sabe la celda.
     Sheet { sheet: String },
+    /// Párrafo de un documento de Word (contando solo los que tienen texto) y el título de la
+    /// sección donde está, si hay uno antes.
+    Paragraph {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        section: Option<String>,
+        paragraph: usize,
+    },
+    /// Página (pestaña) de un diagrama de draw.io.
+    Diagram { diagram: String },
     /// Elemento de un modelo (ArchiMate, BPMN): nombre y tipo.
     Element {
         element: String,
@@ -153,6 +178,13 @@ pub struct FullTextHit {
     /// Cuántas líneas coinciden en total, aunque `lines` se haya recortado.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub total_line_matches: usize,
+    /// El texto indexado del documento está cortado: puede haber coincidencias más adelante.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub truncated: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 fn is_zero(n: &usize) -> bool {

@@ -23,8 +23,9 @@ use tantivy::{
 };
 
 /// Subirla obliga a reconstruir el índice (4: extractores de draw.io y ArchiMate; 5: XML genérico
-/// e identificadores partidos; 6: extractor y tipo propio para BPMN; 7: palabras y entidades de Word).
-pub const SCHEMA_VERSION: &str = "7";
+/// e identificadores partidos; 6: extractor y tipo propio para BPMN; 7: palabras y entidades de Word;
+/// 8: PDF por páginas, Word por párrafos con títulos, campos `layout` y `truncated`).
+pub const SCHEMA_VERSION: &str = "8";
 
 #[derive(Clone, Copy)]
 pub struct TantivyFields {
@@ -35,6 +36,10 @@ pub struct TantivyFields {
     pub body: Field,
     pub kind: Field,
     pub mtime: Field,
+    /// Posición de cada línea del cuerpo en el original (solo guardado, no se busca en él).
+    pub layout: Field,
+    /// El texto se cortó al indexar.
+    pub truncated: Field,
 }
 
 pub struct FullTextIndexImpl {
@@ -44,6 +49,9 @@ pub struct FullTextIndexImpl {
     writer: Option<Mutex<IndexWriter>>,
     fields: TantivyFields,
     in_memory: bool,
+    /// Índice de otra bóveda con un esquema anterior (aún sin reindexar): en él un PDF o un Word
+    /// están en una sola línea, así que no se da su página ni su párrafo.
+    legacy: bool,
 }
 
 impl FullTextIndexImpl {
@@ -90,6 +98,11 @@ impl FullTextIndexImpl {
         // 5. Fecha de modificación para sincronización incremental
         let mtime = builder.add_u64_field("mtime", INDEXED | STORED | FAST);
 
+        // 6. Posición de cada línea (fila y columna de una planilla, páginas de draw.io) y si el
+        // texto se cortó: solo se guardan, para ubicar las coincidencias
+        let layout = builder.add_text_field("layout", STORED);
+        let truncated = builder.add_bool_field("truncated", STORED);
+
         let schema = builder.build();
         let fields = TantivyFields {
             path_id,
@@ -99,6 +112,8 @@ impl FullTextIndexImpl {
             body,
             kind,
             mtime,
+            layout,
+            truncated,
         };
 
         (schema, fields)
@@ -168,6 +183,7 @@ impl FullTextIndexImpl {
             writer: Some(Mutex::new(writer)),
             fields,
             in_memory: false,
+            legacy: false,
         })
     }
 
@@ -180,6 +196,10 @@ impl FullTextIndexImpl {
                 dir
             ));
         }
+        // Los campos nuevos van al final del esquema: un índice anterior se sigue pudiendo leer
+        let legacy = fs::read_to_string(dir.join("SCHEMA_VERSION"))
+            .map(|v| v.trim() != SCHEMA_VERSION)
+            .unwrap_or(true);
         let (_, fields) = Self::build_schema();
         let mmap_dir = MmapDirectory::open(dir)
             .map_err(|e| format!("Error abriendo MmapDirectory en {:?}: {}", dir, e))?;
@@ -197,6 +217,7 @@ impl FullTextIndexImpl {
             writer: None,
             fields,
             in_memory: false,
+            legacy,
         })
     }
 
@@ -230,6 +251,7 @@ impl FullTextIndexImpl {
             writer: Some(Mutex::new(writer)),
             fields,
             in_memory: true,
+            legacy: false,
         })
     }
 
@@ -412,7 +434,7 @@ impl FullTextIndexImpl {
         matcher: &LineMatcher,
         text: &str,
         options: LineOptions,
-        locate: impl Fn(&[&str], usize) -> Option<MatchLocation>,
+        locate: impl Fn(&[&str], usize, std::ops::Range<usize>) -> Option<MatchLocation>,
     ) -> (Vec<MatchedLine>, usize) {
         let lines: Vec<&str> = text.lines().collect();
         let mut out = Vec::new();
@@ -428,7 +450,7 @@ impl FullTextIndexImpl {
             let from = i.saturating_sub(options.context);
             let to = (i + 1 + options.context).min(lines.len());
             out.push(MatchedLine {
-                location: locate(&lines, i),
+                location: locate(&lines, i, range.clone()),
                 text: clip_line(line, range.start, range.end),
                 before: lines[from..i].iter().map(|l| clip_line(l, 0, 0)).collect(),
                 after: lines[i + 1..to]
@@ -507,6 +529,10 @@ impl FullTextIndexImpl {
                 score,
                 lines: Vec::new(),
                 total_line_matches: 0,
+                truncated: doc
+                    .get_first(self.fields.truncated)
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
             });
         }
         Ok((hits, total))
@@ -604,6 +630,8 @@ impl FullTextIndex for FullTextIndexImpl {
                 self.fields.body => doc.body.as_str(),
                 self.fields.kind => doc.kind.as_str(),
                 self.fields.mtime => doc.mtime_nanos,
+                self.fields.layout => doc.layout.as_str(),
+                self.fields.truncated => doc.truncated,
             );
 
             writer
@@ -780,6 +808,10 @@ impl FullTextIndex for FullTextIndexImpl {
                 score,
                 lines: Vec::new(),
                 total_line_matches: 0,
+                truncated: doc
+                    .get_first(self.fields.truncated)
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
             });
         }
 
@@ -837,7 +869,7 @@ impl FullTextIndex for FullTextIndexImpl {
             return (Vec::new(), 0);
         };
         match self.line_matcher(query) {
-            Ok(matcher) => self.collect_lines(&matcher, text, options, |_, i| {
+            Ok(matcher) => self.collect_lines(&matcher, text, options, |_, i, _| {
                 Some(MatchLocation::Line { line: i + 1 })
             }),
             Err(_) => (Vec::new(), 0),
@@ -870,8 +902,22 @@ impl FullTextIndex for FullTextIndexImpl {
                 .to_string()
         };
         let kind = DocumentKind::parse(&get(self.fields.kind)).unwrap_or(DocumentKind::Markdown);
-        self.collect_lines(&matcher, &get(self.fields.body), options, |l, i| {
-            locate_in_body(kind, l, i)
+        let context = BodyContext {
+            headings: get(self.fields.headings)
+                .lines()
+                .map(str::to_string)
+                .collect(),
+            layout: get(self.fields.layout)
+                .split('\n')
+                .map(str::to_string)
+                .collect(),
+        };
+        let legacy = self.legacy && matches!(kind, DocumentKind::Pdf | DocumentKind::Word);
+        self.collect_lines(&matcher, &get(self.fields.body), options, |l, i, range| {
+            if legacy {
+                return None;
+            }
+            locate_in_body(kind, l, i, range, &context)
         })
     }
 }
@@ -886,9 +932,23 @@ enum LineMatcher {
     Literal(Vec<String>),
 }
 
-/// Ubicación de la línea `i` del texto indexado de un documento, según su formato. Depende de
-/// cómo escriben el texto los extractores (`infrastructure/search`).
-fn locate_in_body(kind: DocumentKind, lines: &[&str], i: usize) -> Option<MatchLocation> {
+/// Lo que el índice guarda de un documento, aparte del cuerpo, para ubicar sus líneas.
+struct BodyContext {
+    /// Títulos (Word): una línea del cuerpo que es uno de ellos abre una sección.
+    headings: HashSet<String>,
+    /// `FullTextDocument::layout`, una entrada por línea del cuerpo.
+    layout: Vec<String>,
+}
+
+/// Ubicación de la línea `i` del texto indexado de un documento (con la coincidencia en `range`),
+/// según su formato. Depende de cómo escriben el texto los extractores (`infrastructure/search`).
+fn locate_in_body(
+    kind: DocumentKind,
+    lines: &[&str],
+    i: usize,
+    range: std::ops::Range<usize>,
+    context: &BodyContext,
+) -> Option<MatchLocation> {
     match kind {
         // `Nombre (Tipo)` es la línea del elemento; propiedades y documentación van debajo
         DocumentKind::Archimate | DocumentKind::Bpmn => lines[..=i].iter().rev().find_map(|l| {
@@ -903,17 +963,52 @@ fn locate_in_body(kind: DocumentKind, lines: &[&str], i: usize) -> Option<MatchL
                 element_type: ty.to_string(),
             })
         }),
-        DocumentKind::Excel => lines[..=i].iter().rev().find_map(|l| {
-            l.strip_prefix("Hoja: ").map(|s| MatchLocation::Sheet {
-                sheet: s.trim().to_string(),
-            })
+        // `Hoja: X` abre cada hoja; el layout de una fila es `r37 A,C,D` (columna de cada celda)
+        DocumentKind::Excel => {
+            let sheet = lines[..=i]
+                .iter()
+                .rev()
+                .find_map(|l| l.strip_prefix("Hoja: ").map(|s| s.trim().to_string()))?;
+            let cell = context.layout.get(i).and_then(|layout| {
+                let (row, columns) = layout.strip_prefix('r')?.split_once(' ')?;
+                let row = row.parse::<usize>().ok()?;
+                // La celda es el tramo entre ` | ` donde empieza la coincidencia
+                let cell_index = lines[i][..range.start.min(lines[i].len())]
+                    .matches(" | ")
+                    .count();
+                let column = columns.split(',').nth(cell_index)?.to_string();
+                Some(MatchLocation::Cell {
+                    sheet: sheet.clone(),
+                    row,
+                    column,
+                })
+            });
+            cell.or(Some(MatchLocation::Sheet { sheet }))
+        }
+        // Una línea por página
+        DocumentKind::Pdf => Some(MatchLocation::Page { page: i + 1 }),
+        // Un párrafo por línea; la sección es el último título antes (o el propio párrafo)
+        DocumentKind::Word => Some(MatchLocation::Paragraph {
+            section: lines[..=i]
+                .iter()
+                .rev()
+                .find(|l| context.headings.contains(**l))
+                .map(|l| l.to_string()),
+            paragraph: i + 1,
         }),
+        // La página del diagrama es la última línea marcada como `page` antes de la coincidencia
+        DocumentKind::Drawio => (0..=i)
+            .rev()
+            .find(|&j| context.layout.get(j).is_some_and(|l| l == "page"))
+            .map(|j| MatchLocation::Diagram {
+                diagram: lines[j].to_string(),
+            }),
         // Markdown, Mermaid y código: el caso de uso pone el número de línea del archivo
         DocumentKind::Markdown | DocumentKind::Mermaid | DocumentKind::Code => {
             Some(MatchLocation::Line { line: i + 1 })
         }
-        // PDF y Word se indexan en una sola línea; en draw.io y Excalidraw no se distingue la página
-        _ => None,
+        // En Excalidraw los textos no tienen un orden ni una página útiles
+        DocumentKind::Excalidraw => None,
     }
 }
 
@@ -1134,6 +1229,7 @@ mod tests {
                 headings: String::new(),
                 kind: DocumentKind::Code,
                 mtime_nanos: 1,
+                ..Default::default()
             }])
             .unwrap();
         index.commit().unwrap();
@@ -1158,6 +1254,7 @@ mod tests {
             headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 1000,
+            ..Default::default()
         };
 
         let doc2 = FullTextDocument {
@@ -1167,6 +1264,7 @@ mod tests {
             headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 2000,
+            ..Default::default()
         };
 
         index.upsert(vec![doc1, doc2]).unwrap();
@@ -1215,6 +1313,7 @@ mod tests {
             headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 1500,
+            ..Default::default()
         };
         index.upsert(vec![doc1_updated]).unwrap();
         index.commit().unwrap();
@@ -1239,7 +1338,8 @@ mod tests {
                 headings: "Cierre\nHerramientas gate\n".to_string(),
                 kind: DocumentKind::Markdown,
                 mtime_nanos: 1,
-            }])
+                ..Default::default()
+        }])
             .unwrap();
         index.commit().unwrap();
 
@@ -1279,7 +1379,8 @@ mod tests {
                 headings,
                 kind: DocumentKind::Markdown,
                 mtime_nanos: 1,
-            }])
+                ..Default::default()
+        }])
             .unwrap();
         index.commit().unwrap();
 
@@ -1324,6 +1425,7 @@ mod tests {
             headings: String::new(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 1,
+            ..Default::default()
         };
         let con_encabezado = FullTextDocument {
             path: "b.md".to_string(),
@@ -1332,6 +1434,7 @@ mod tests {
             headings: "Presupuesto anual".to_string(),
             kind: DocumentKind::Markdown,
             mtime_nanos: 2,
+            ..Default::default()
         };
         index.upsert(vec![sin_encabezado, con_encabezado]).unwrap();
         index.commit().unwrap();
@@ -1392,6 +1495,7 @@ mod tests {
                         headings: String::new(),
                         kind,
                         mtime_nanos: 1,
+                        ..Default::default()
                     })
                     .collect(),
             )
@@ -1479,8 +1583,16 @@ mod tests {
                 DocumentKind::Archimate,
                 "Aplicaciones\nACH Operation Maintenance Outbound V1 (ApplicationComponent)\nUNIQUECODE: CUD-024684\nDocumentación del componente",
             ),
-            ("p.xlsx", DocumentKind::Excel, "Hoja: Resumen\na | b\nHoja: Mapping\nachOperationId | uuid | TIEL\n"),
-            ("d.pdf", DocumentKind::Pdf, &format!("{} TIEL {}", "palabra ".repeat(100), "otra ".repeat(100))),
+            (
+                "p.xlsx",
+                DocumentKind::Excel,
+                "Hoja: Resumen\na | b\nHoja: Mapping\nachOperationId | uuid | TIEL\n",
+            ),
+            (
+                "d.pdf",
+                DocumentKind::Pdf,
+                &format!("{} TIEL {}", "palabra ".repeat(100), "otra ".repeat(100)),
+            ),
         ]);
         let (lines, _) = index.match_document_lines(&con_lineas("024684"), "m.archimate");
         assert_eq!(
@@ -1491,11 +1603,27 @@ mod tests {
             })
         );
         let (lines, _) = index.match_document_lines(&con_lineas("TIEL"), "p.xlsx");
-        assert_eq!(lines[0].location, Some(MatchLocation::Sheet { sheet: "Mapping".into() }));
+        assert_eq!(
+            lines[0].location,
+            Some(MatchLocation::Sheet {
+                sheet: "Mapping".into()
+            })
+        );
         let (lines, _) = index.match_document_lines(&con_lineas("TIEL"), "d.pdf");
-        assert_eq!(lines[0].location, None);
-        assert!(lines[0].text.contains("TIEL") && lines[0].text.starts_with('…') && lines[0].text.chars().count() < 320);
-        assert_eq!(index.match_document_lines(&con_lineas("TIEL"), "no-existe.md"), (vec![], 0));
+        assert_eq!(
+            lines[0].location,
+            Some(MatchLocation::Page { page: 1 }),
+            "una línea por página"
+        );
+        assert!(
+            lines[0].text.contains("TIEL")
+                && lines[0].text.starts_with('…')
+                && lines[0].text.chars().count() < 320
+        );
+        assert_eq!(
+            index.match_document_lines(&con_lineas("TIEL"), "no-existe.md"),
+            (vec![], 0)
+        );
     }
 
     fn exacta(textos: &[&str]) -> FullTextQuery {
@@ -1522,6 +1650,156 @@ mod tests {
         let (lines, total) = index.match_document_lines(&q, "apim.mmd");
         assert_eq!(total, 1);
         assert_eq!(lines[0].location, Some(MatchLocation::Line { line: 2 }));
+    }
+
+
+    #[test]
+    fn ubicaciones_de_word_planillas_y_draw_io() {
+        let index = FullTextIndexImpl::in_memory().unwrap();
+        let doc = |path: &str, kind, body: &str, headings: &str, layout: &str| FullTextDocument {
+            path: path.into(),
+            title: path.into(),
+            body: body.into(),
+            headings: headings.into(),
+            kind,
+            layout: layout.into(),
+            ..Default::default()
+        };
+        index
+            .upsert(vec![
+                doc(
+                    "spec.docx",
+                    DocumentKind::Word,
+                    "Introducción\n1. Contrato de salida\nUsa TIEL y BCTITPE8\nOtro párrafo",
+                    "1. Contrato de salida\n",
+                    "",
+                ),
+                doc(
+                    "map.xlsx",
+                    DocumentKind::Excel,
+                    "Hoja: Resumen\nx | y\nHoja: Mapping\nachOperationId | uuid | TIEL\n",
+                    "",
+                    "\nr1 A,B\n\nr37 B,C,F\n",
+                ),
+                doc(
+                    "comp.drawio",
+                    DocumentKind::Drawio,
+                    "Vista general\nPagos\nDatos\nDB ACH Outbound",
+                    "",
+                    "page\n\npage\n",
+                ),
+                doc(
+                    "p.pdf",
+                    DocumentKind::Pdf,
+                    "uno\ndos\ntres con TIEL",
+                    "",
+                    "",
+                ),
+            ])
+            .unwrap();
+        index.commit().unwrap();
+        let at = |q: &str, path: &str| {
+            index.match_document_lines(&con_lineas(q), path).0[0]
+                .location
+                .clone()
+        };
+        assert_eq!(
+            at("TIEL", "spec.docx"),
+            Some(MatchLocation::Paragraph {
+                section: Some("1. Contrato de salida".into()),
+                paragraph: 3
+            })
+        );
+        assert_eq!(
+            at("introduccion", "spec.docx"),
+            Some(MatchLocation::Paragraph {
+                section: None,
+                paragraph: 1
+            })
+        );
+        assert_eq!(
+            at("TIEL", "map.xlsx"),
+            Some(MatchLocation::Cell {
+                sheet: "Mapping".into(),
+                row: 37,
+                column: "F".into()
+            })
+        );
+        assert_eq!(
+            at("uuid", "map.xlsx"),
+            Some(MatchLocation::Cell {
+                sheet: "Mapping".into(),
+                row: 37,
+                column: "C".into()
+            })
+        );
+        assert_eq!(
+            at("outbound", "comp.drawio"),
+            Some(MatchLocation::Diagram {
+                diagram: "Datos".into()
+            })
+        );
+        assert_eq!(
+            at("pagos", "comp.drawio"),
+            Some(MatchLocation::Diagram {
+                diagram: "Vista general".into()
+            })
+        );
+        assert_eq!(at("TIEL", "p.pdf"), Some(MatchLocation::Page { page: 3 }));
+    }
+
+    #[test]
+    fn marca_los_documentos_truncados() {
+        let index = FullTextIndexImpl::in_memory().unwrap();
+        index
+            .upsert(vec![FullTextDocument {
+                path: "grande.pdf".into(),
+                title: "grande".into(),
+                body: "TIEL cortado".into(),
+                kind: DocumentKind::Pdf,
+                truncated: true,
+                ..Default::default()
+            }])
+            .unwrap();
+        index.commit().unwrap();
+        let q = FullTextQuery {
+            text: "TIEL".into(),
+            limit: 5,
+            ..Default::default()
+        };
+        assert!(index.search(&q).unwrap().0[0].truncated);
+        assert!(index.search(&exacta(&["tiel cortado"])).unwrap().0[0].truncated);
+    }
+
+
+    #[test]
+    fn indice_antiguo_de_otra_boveda_sin_pagina_ni_parrafo() {
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let index = FullTextIndexImpl::open_or_create(dir.path()).unwrap();
+            index
+                .upsert(vec![FullTextDocument {
+                    path: "viejo.pdf".into(),
+                    body: "todo el pdf en una linea con TIEL".into(),
+                    kind: DocumentKind::Pdf,
+                    ..Default::default()
+                }])
+                .unwrap();
+            index.commit().unwrap();
+        }
+        let read = |path: &Path| FullTextIndexImpl::open_read_only(path).unwrap();
+        let actual = read(dir.path())
+            .match_document_lines(&con_lineas("TIEL"), "viejo.pdf")
+            .0;
+        assert_eq!(actual[0].location, Some(MatchLocation::Page { page: 1 }));
+        fs::write(dir.path().join("SCHEMA_VERSION"), "7").unwrap();
+        let antiguo = read(dir.path())
+            .match_document_lines(&con_lineas("TIEL"), "viejo.pdf")
+            .0;
+        assert_eq!(
+            antiguo[0].location, None,
+            "esquema anterior: el PDF está en una sola línea"
+        );
     }
 
 }

@@ -3,7 +3,7 @@ schema_version: 9
 id: syna-3e0k
 title: 'full_text_search: varias alternativas en una consulta (a|b, OR) y líneas coincidentes como rg -n'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - busqueda
@@ -11,6 +11,7 @@ tags:
 - indice
 owner: null
 created_at: 2026-11-25T23:36:40.039728174Z
+completed_at: 2026-11-26T17:31:49.134169917Z
 acceptance:
 - Por MCP (prefix_last_term = true), `TIEL OR QTI1 OR QTI3` devuelve los documentos con cualquiera de las tres palabras (hoy no devuelve nada)
 - '`TIEL|QTI1|QTI3`, `TIEL | QTI1` y `(TIEL|QTI1) emisor` equivalen a OR; `or` en minúsculas también; dentro de comillas el `|` es texto'
@@ -121,6 +122,13 @@ Los pasos 1 a 6 con las ubicaciones que ya se pueden sacar del texto indexado (t
 - Limitación del modo exacto: se comprueba sobre el texto indexado, así que en Markdown las URL de los enlaces no cuentan (el extractor solo guarda el texto del enlace). Está dicho en la descripción.
 - `a|b` también funciona en el buscador de la app (mismo `build_query`). No se ha probado en la interfaz.
 
-**Fase 2 pendiente.**
+**Fase 2 hecha (2026-11-26):**
+
+- Extractores: PDF con una línea por página (`extract_pdf_text` devuelve también si se cortó); Word con un párrafo por línea (los vacíos no cuentan) y los títulos en `headings` (estilos con nombre interno `heading N`/`Title` o nivel de esquema, leyendo `styles.xml`; sin él, por el id `Heading1`/`Ttulo1`); Excel con `layout` `r37 A,C,D` por fila; draw.io con `layout` `page` en los nombres de página (`mxfile_lines`; `mxfile_text` no cambia para `extract_note_diagrams`).
+- `content_extractor::extract_document` devuelve `Extracted` con `layout` y `truncated` (el indexador la usa; `extract_with_config` sigue devolviendo la tupla). `truncated` lo dicen PDF, Word, Excel y draw.io; en el resto, el texto llegó al tope de caracteres.
+- Índice: esquema 8 (se reconstruye solo al abrir cada bóveda), campos guardados `layout` y `truncated` al final del esquema. Ubicaciones nuevas: `{page}`, `{section, paragraph}`, `{sheet, row, column}` (la celda es el tramo entre ` | ` donde empieza la coincidencia), `{diagram}`. `truncated: true` en los resultados.
+- Índices de otras bóvedas con un esquema anterior (sin reindexar, abiertos en solo lectura): se leen igual, pero PDF y Word dan `location: null` hasta que esa bóveda se abra con esta versión.
+- `hs:` funciona ahora también en Word.
+- No probado en la app ni con un agente real; la reindexación de una bóveda grande no se ha medido.
 
 Las pistas de bóveda activa (ruta inexistente; search_notes sin Markdown) están en `main` desde 4371555 y 3fd79b2.

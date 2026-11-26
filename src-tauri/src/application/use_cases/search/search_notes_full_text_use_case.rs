@@ -136,6 +136,7 @@ mod tests {
                 score: 1.0,
                 lines: vec![],
                 total_line_matches: 0,
+                truncated: false,
             };
             let mut hits: Vec<_> = (0..30).map(|i| hit(format!("otros/n{i}.md"), DocumentKind::Markdown)).collect();
             hits.push(hit("src/soluciones/a.archimate".into(), DocumentKind::Archimate));

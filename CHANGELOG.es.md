@@ -12,7 +12,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - Búsqueda y `full_text_search` del MCP: `a|b` (u `or` en minúsculas) busca varias alternativas en una sola consulta, p. ej. `TIEL|QTI1|QTI3`.
-- MCP: `full_text_search` con `lines: true` devuelve las líneas que coinciden en cada resultado con su ubicación, como `rg -n`: el número de línea en Markdown, código y diagramas en texto, la hoja en planillas y el elemento en modelos ArchiMate y BPMN; con `exact: true` devuelve solo los documentos que contienen los textos tal cual (endpoints, ids o códigos con puntuación, como `outbounds-ach`).
+- MCP: `full_text_search` con `lines: true` devuelve las líneas que coinciden en cada resultado con su ubicación, como `rg -n`: el número de línea en Markdown, código y diagramas en texto, la página en PDF, la sección y el párrafo en documentos de Word, la hoja, fila y columna en planillas, la página de los diagramas de draw.io y el elemento en modelos ArchiMate y BPMN; con `exact: true` devuelve solo los documentos que contienen los textos tal cual (endpoints, ids o códigos con puntuación, como `outbounds-ach`). Los resultados cuyo texto se cortó al indexar (documentos muy grandes) llevan la marca `truncated`.
+- Búsqueda: `hs:` también filtra por los títulos de los documentos de Word.
 
 - MCP: `search_in_note` busca varios textos a la vez separados por `|` (como `rg "a|b"`), indica cuáles contiene cada línea, cuenta las líneas y apariciones de cada uno (`counts_only` devuelve solo los recuentos, como `grep -c`) y acepta varias notas a la vez con `relative_paths`. Una fila de tabla Markdown como `| campo |` se sigue buscando literal.
 
@@ -32,6 +33,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- El índice de búsqueda se reconstruye una vez al abrir cada bóveda: los PDF se indexan ahora página a página y los documentos de Word párrafo a párrafo.
 - Panel del agente: cerrarlo solo lo oculta; reabrirlo es más rápido con conversaciones largas y conserva el scroll.
 - Panel del agente: acoplado, el pin ocupa el lugar de la X (el panel se cierra con su botón de la barra); flotante conserva la X.
 
