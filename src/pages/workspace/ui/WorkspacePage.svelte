@@ -25,6 +25,7 @@
   import {PlantUmlViewer} from "@features/plantuml-editor";
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
+  import {BoardEditor} from "@features/board-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
@@ -4956,6 +4957,16 @@
                       onSelectionChange={(info: SelectionInfo) => handleSelectionChange(tabPath, info)}
                     />
                   {/if}
+                {:else if tabFile.toLowerCase().endsWith('.board.md')}
+                  <BoardEditor
+                    {content}
+                    onChange={(updatedContent) => {
+                      if (openedNotes[tabFile]) {
+                        openedNotes[tabFile].content = updatedContent;
+                      }
+                      debouncedPersistVaultItemToRust(vaultItem);
+                    }}
+                  />
                 {:else if isDrawing}
                   {#if getExcalidrawViewerForTab(tabPath) === 'obsidian'}
                     <ObsidianExcalidrawViewer

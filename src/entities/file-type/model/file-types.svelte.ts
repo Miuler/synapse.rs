@@ -193,6 +193,11 @@ class FileTypesManager {
     return this.matchesExtension(path, this.fileTypes.excel || ['xlsx', 'xls', 'xlsm', 'xlt', 'xltx']);
   }
 
+  isBoardFile(path: string | null | undefined): boolean {
+    if (!path) return false;
+    return path.toLowerCase().endsWith('.board.md');
+  }
+
   isOfficeFile(path: string | null | undefined): boolean {
     return this.isWordFile(path) || this.isExcelFile(path);
   }
@@ -203,6 +208,7 @@ class FileTypesManager {
       this.isMarkdownFile(path) ||
       this.isDiagramFile(path) ||
       this.isDrawingFile(path) ||
+      this.isBoardFile(path) ||
       this.isDrawioFile(path) ||
       this.isPdfFile(path) ||
       this.isCodeFile(path) ||
@@ -221,6 +227,7 @@ export const isD2File = (path: string | null | undefined) => fileTypesManager.is
 export const isMermaidFile = (path: string | null | undefined) => fileTypesManager.isMermaidFile(path);
 export const isPlantUmlFile = (path: string | null | undefined) => fileTypesManager.isPlantUmlFile(path);
 export const isDrawingFile = (path: string | null | undefined) => fileTypesManager.isDrawingFile(path);
+export const isBoardFile = (path: string | null | undefined) => fileTypesManager.isBoardFile(path);
 export const isDrawioFile = (path: string | null | undefined) => fileTypesManager.isDrawioFile(path);
 export const isDrawioPngFile = (path: string | null | undefined) => fileTypesManager.isDrawioPngFile(path);
 export const isPdfFile = (path: string | null | undefined) => fileTypesManager.isPdfFile(path);

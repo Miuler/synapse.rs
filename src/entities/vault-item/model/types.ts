@@ -1,4 +1,4 @@
-export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'image' | 'pdf' | 'graph' | 'other';
+export type VaultItemKind = 'markdown' | 'mermaid' | 'excalidraw' | 'board' | 'image' | 'pdf' | 'graph' | 'other';
 
 export type VaultSyncState = 'local' | 'ghost' | 'cached' | 'pinned';
 
