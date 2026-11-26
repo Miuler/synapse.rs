@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Laser pointer in diagrams and images: `K` turns it on or off and `Escape` turns it off (with the pointer over the viewer); holding the right button drags the view, also in laser mode.
+
 - Search and MCP `full_text_search`: `a|b` (or `or` in lowercase) searches several alternatives in one query, e.g. `TIEL|QTI1|QTI3`.
 - MCP: `full_text_search` with `lines: true` returns the matching lines of each result with their location, like `rg -n`: the line number in Markdown, code and text diagrams, the page in PDFs, the section and paragraph in Word documents, the sheet, row and column in spreadsheets, the page of draw.io diagrams, and the element in ArchiMate and BPMN models; with `exact: true` it returns only documents that contain the texts literally (endpoints, ids or codes with punctuation, such as `outbounds-ach`). Results whose text was cut when indexing (very large documents) are marked as `truncated`.
 - Search: `hs:` also filters by the headings of Word documents.

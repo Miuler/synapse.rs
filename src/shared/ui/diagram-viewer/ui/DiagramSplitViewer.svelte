@@ -5,7 +5,7 @@
   import { CodeEditor, type EditorDiagnostic } from '@shared/ui/code-editor';
   import { diagramLayoutApi } from '@shared/api';
   import { SplitResizer } from '@shared/ui/split-resizer';
-  import { LaserCanvas, LaserToggle } from '@shared/ui/laser-pointer';
+  import { LaserCanvas, LaserToggle, laserShortcuts } from '@shared/ui/laser-pointer';
 
   interface Props {
     content: string;
@@ -189,9 +189,15 @@
     scale = next;
   }
 
+  /** El arrastre en curso dibuja con el láser (clic izquierdo en modo láser) en vez de mover. */
+  let drawing = $state(false);
+
+  // Clic izquierdo: mueve el diagrama (o dibuja en modo láser). Clic derecho mantenido: siempre mueve.
   function handlePointerDown(e: PointerEvent) {
+    if (e.button !== 0 && e.button !== 2) return;
     isDragging = true;
-    if (isLaserMode) {
+    drawing = isLaserMode && e.button === 0;
+    if (drawing) {
       laser?.start(e.clientX, e.clientY);
     } else {
       startX = e.clientX;
@@ -204,7 +210,7 @@
 
   function handlePointerMove(e: PointerEvent) {
     if (isDragging) {
-      if (isLaserMode) {
+      if (drawing) {
         laser?.move(e.clientX, e.clientY);
       } else {
         // El diagrama sigue al mouse 1 a 1, con cualquier zoom
@@ -217,8 +223,10 @@
 
   function handlePointerUp(e: PointerEvent) {
     isDragging = false;
+    drawing = false;
     laser?.end();
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    const el = e.target as HTMLElement;
+    if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
   }
 </script>
 
@@ -310,13 +318,15 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="preview-pane"
-    class:laser-cursor={isLaserMode}
+    class:laser-cursor={isLaserMode && !(isDragging && !drawing)}
     bind:this={containerRef}
     onwheel={handleWheel}
     onpointerdown={handlePointerDown}
     onpointermove={handlePointerMove}
     onpointerup={handlePointerUp}
     onpointercancel={handlePointerUp}
+    oncontextmenu={(e) => e.preventDefault()}
+    use:laserShortcuts={{ isActive: () => isLaserMode, setActive: (v) => (isLaserMode = v) }}
   >
     {#if error}
       <div class="error-msg">

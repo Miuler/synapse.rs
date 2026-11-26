@@ -47,20 +47,24 @@ const painted = () =>
     for (let i = 3; i < d.length; i += 4) if (d[i]) n++;
     return n;
   }) as Promise<number>;
-const mouse = (type: string, dx: number, dy: number) =>
+const mouse = (type: string, dx: number, dy: number, button = 0, selector = '.image-viewer-container') =>
   s.browser.execute(
-    (type, dx, dy) => {
-      const el = document.querySelector('.image-viewer-container')!;
+    (type, dx, dy, button, selector) => {
+      const el = document.querySelector(selector)!;
       const r = el.getBoundingClientRect();
-      el.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX: r.left + r.width / 2 + dx, clientY: r.top + r.height / 2 + dy }));
+      el.dispatchEvent(
+        new PointerEvent(type, { bubbles: true, button, pointerId: 1, clientX: r.left + r.width / 2 + dx, clientY: r.top + r.height / 2 + dy }),
+      );
     },
     type,
     dx,
     dy,
+    button,
+    selector,
   );
-const drag = async () => {
-  await mouse('mousedown', -60, -30);
-  for (let i = 0; i <= 6; i++) await mouse('mousemove', -60 + i * 20, -30 + i * 10);
+const drag = async (button = 0, selector = '.image-viewer-container') => {
+  await mouse('pointerdown', -60, -30, button, selector);
+  for (let i = 0; i <= 6; i++) await mouse('pointermove', -60 + i * 20, -30 + i * 10, button, selector);
 };
 const transform = () =>
   s.browser.execute(() => (document.querySelector('.image-viewport') as HTMLElement).style.transform) as Promise<string>;
@@ -71,7 +75,7 @@ it('en el visor de imágenes, arrastrar con el láser dibuja un trazo que se apa
   await button.waitForExist({ timeout: 10_000 });
   // Sin láser, arrastrar mueve la imagen
   await drag();
-  await mouse('mouseup', 60, 30);
+  await mouse('pointerup', 60, 30);
   const moved = await transform();
   expect(moved).toBe('translate(120px, 60px)');
   expect(await painted()).toBe(0);
@@ -82,10 +86,53 @@ it('en el visor de imágenes, arrastrar con el láser dibuja un trazo que se apa
   await s.browser.waitUntil(async () => (await painted()) > 200, { timeout: 5_000, timeoutMsg: 'no dibujó el trazo' });
   if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/laser-imagen.png`);
   expect(await transform()).toBe(moved);
-  await mouse('mouseup', 60, 30);
+  await mouse('pointerup', 60, 30);
   await s.browser.waitUntil(async () => (await painted()) === 0, { timeout: 5_000, timeoutMsg: 'el trazo no se apagó' });
   // Al desactivarlo se borra y vuelve a mover
   await drag();
   await button.click();
   await s.browser.waitUntil(async () => (await painted()) === 0, { timeout: 1_000, interval: 50, timeoutMsg: 'no se borró al desactivarlo' });
+}, 60_000);
+
+it('K activa y desactiva el láser, Escape lo apaga y el clic derecho siempre mueve', async () => {
+  await s.browser.$('.file-tree-item[data-path="foto.svg"]').click();
+  const button = s.browser.$('.image-controls .laser-toggle-btn');
+  await button.waitForExist({ timeout: 10_000 });
+  if ((await button.getAttribute('aria-pressed')) === 'true') await button.click();
+  // Los atajos actúan con el puntero sobre el visor
+  await s.browser.$('.image-viewer-container').moveTo();
+  await s.browser.keys('k');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'true', { timeout: 2_000, timeoutMsg: 'K no activó el láser' });
+  // En modo láser, arrastrar con el clic derecho mueve la imagen y no dibuja
+  const before = await transform();
+  await drag(2);
+  await mouse('pointerup', 60, 30, 2);
+  expect(await transform()).not.toBe(before);
+  expect(await painted()).toBe(0);
+  await s.browser.keys('Escape');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'false', { timeout: 2_000, timeoutMsg: 'Escape no apagó el láser' });
+  await s.browser.keys('k');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'true', { timeout: 2_000 });
+  await s.browser.keys('k');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'false', { timeout: 2_000, timeoutMsg: 'K no lo desactivó' });
+}, 60_000);
+
+it('en un diagrama, K activa el láser y el clic derecho mueve el diagrama', async () => {
+  await s.browser.$('.file-tree-item[data-path="flujo.mmd"]').click();
+  const pane = s.browser.$('.preview-pane');
+  await pane.waitForExist({ timeout: 20_000 });
+  await s.browser.$('.preview-pane svg').waitForExist({ timeout: 20_000 });
+  const button = s.browser.$('.zoom-controls .laser-toggle-btn');
+  if ((await button.getAttribute('aria-pressed')) === 'true') await button.click();
+  await pane.moveTo();
+  await s.browser.keys('k');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'true', { timeout: 2_000, timeoutMsg: 'K no activó el láser en el diagrama' });
+  const viewBox = () =>
+    s.browser.execute(() => document.querySelector('.preview-pane svg')!.getAttribute('viewBox')) as Promise<string | null>;
+  const before = await viewBox();
+  await drag(2, '.preview-pane');
+  await mouse('pointerup', 60, 30, 2, '.preview-pane');
+  await s.browser.waitUntil(async () => (await viewBox()) !== before, { timeout: 2_000, timeoutMsg: 'el clic derecho no movió el diagrama' });
+  await s.browser.keys('Escape');
+  await s.browser.waitUntil(async () => (await button.getAttribute('aria-pressed')) === 'false', { timeout: 2_000 });
 }, 60_000);

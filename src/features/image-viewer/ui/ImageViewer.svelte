@@ -3,7 +3,7 @@
   import { AlertCircle, Minus, Plus, Maximize2, PenTool } from 'lucide-svelte';
   import { isDrawioPngFile } from '@entities/file-type';
   import { vaultRepository } from '@shared/repositories';
-  import { LaserCanvas, LaserToggle } from '@shared/ui/laser-pointer';
+  import { LaserCanvas, LaserToggle, laserShortcuts } from '@shared/ui/laser-pointer';
 
   interface Props {
     src: string;
@@ -252,30 +252,46 @@
     }
   }
 
-  function handleMouseDown(e: MouseEvent) {
-    if (e.button === 0) {
-      isDragging = true;
-      if (laserMode) {
-        laser?.start(e.clientX, e.clientY);
-        return;
-      }
-      dragStartX = e.clientX - panX;
-      dragStartY = e.clientY - panY;
+  /** El arrastre en curso dibuja con el láser (clic izquierdo en modo láser) en vez de mover. */
+  let drawing = $state(false);
+
+  // Clic izquierdo: mueve la imagen (o dibuja en modo láser). Clic derecho mantenido: siempre mueve.
+  function handlePointerDown(e: PointerEvent) {
+    if (e.button !== 0 && e.button !== 2) return;
+    // La barra de controles está dentro del visor: sus clics no arrastran (la captura los robaría)
+    if ((e.target as HTMLElement).closest('.image-controls')) return;
+    isDragging = true;
+    drawing = laserMode && e.button === 0;
+    // Captura: el arrastre sigue aunque el puntero salga del visor (un puntero sintético no se puede capturar)
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* sin captura, el arrastre funciona igual dentro del visor */
     }
+    if (drawing) {
+      laser?.start(e.clientX, e.clientY);
+      return;
+    }
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
   }
 
-  function handleMouseMove(e: MouseEvent) {
-    if (isDragging && laserMode) {
+  function handlePointerMove(e: PointerEvent) {
+    if (!isDragging) return;
+    if (drawing) {
       laser?.move(e.clientX, e.clientY);
-    } else if (isDragging) {
+    } else {
       panX = e.clientX - dragStartX;
       panY = e.clientY - dragStartY;
     }
   }
 
-  function handleMouseUp() {
+  function handlePointerUp(e: PointerEvent) {
     isDragging = false;
+    drawing = false;
     laser?.end();
+    const el = e.currentTarget as HTMLElement;
+    if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
   }
 </script>
 
@@ -284,13 +300,15 @@
   class="image-viewer-container"
   bind:this={containerRef}
   onwheel={handleWheel}
-  onmousedown={handleMouseDown}
-  onmousemove={handleMouseMove}
-  onmouseup={handleMouseUp}
-  onmouseleave={handleMouseUp}
+  onpointerdown={handlePointerDown}
+  onpointermove={handlePointerMove}
+  onpointerup={handlePointerUp}
+  onpointercancel={handlePointerUp}
+  oncontextmenu={(e) => e.preventDefault()}
+  use:laserShortcuts={{ isActive: () => laserMode, setActive: (v) => (laserMode = v) }}
   role="region"
   aria-label="Visor de imagen"
-  style="cursor: {laserMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'};"
+  style="cursor: {isDragging && !drawing ? 'grabbing' : laserMode ? 'crosshair' : 'grab'};"
 >
   {#if isLoading}
     <div class="image-loading">

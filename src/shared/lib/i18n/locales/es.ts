@@ -149,7 +149,7 @@ export const es: TranslationSchema = {
   },
   laser: {
     label: 'Láser',
-    toggle: 'Activar o desactivar el puntero láser',
+    toggle: 'Activar o desactivar el puntero láser (K; Escape para salir). Con el clic derecho se arrastra',
   },
   find: {
     placeholder: 'Buscar',

@@ -148,7 +148,7 @@ export const en = {
   },
   laser: {
     label: 'Laser',
-    toggle: 'Turn the laser pointer on or off',
+    toggle: 'Turn the laser pointer on or off (K; Escape to exit). Drag with the right button to pan',
   },
   find: {
     placeholder: 'Search',
