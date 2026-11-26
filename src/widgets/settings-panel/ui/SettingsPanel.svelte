@@ -547,6 +547,24 @@
               <span>{appSettings.agentWatermark} %</span>
             </div>
           </div>
+          <div class="row">
+            <span class="row-label">
+              {t('laser.sizeSetting')}
+              <span class="hint">{t('laser.sizeHint')}</span>
+            </span>
+            <div class="inline">
+              <input
+                type="range"
+                min="1"
+                max="8"
+                step="0.5"
+                aria-label={t('laser.sizeSetting')}
+                value={appSettings.laserSize}
+                oninput={(e) => appSettings.setLaserSize(e.currentTarget.valueAsNumber)}
+              />
+              <span>{appSettings.laserSize} px</span>
+            </div>
+          </div>
           <div class="row peer-decisions">
             <span class="row-label">
               Bóvedas que pueden conversar con esta

@@ -16,10 +16,18 @@
 
   // Color del láser del tema (`--laser`); se relee al cambiar de tema, no en cada frame
   let laserColor = cssVar('--laser', '#ff0033');
+  // Grosor del ajuste `laserSize` (`--laser-size`): radio del punto; el rayo mide 1,5 veces eso.
+  // Se lee al empezar cada trazo, no en cada frame.
+  let size = 2;
+  const readSize = () => {
+    const v = parseFloat(cssVar('--laser-size', '2'));
+    size = Number.isFinite(v) && v > 0 ? v : 2;
+  };
   const stopTheme = onThemeChange(() => (laserColor = cssVar('--laser', '#ff0033')));
 
   /** Empieza un trazo (coordenadas de la ventana). */
   export function start(clientX: number, clientY: number) {
+    readSize();
     activeStroke = [];
     laserStrokes.push(activeStroke);
     move(clientX, clientY);
@@ -71,10 +79,10 @@
         const p = stroke[0];
         const alpha = Math.max(0, 1 - (now - p.time) / maxAge);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
         ctx.fillStyle = withAlpha(laserColor, alpha);
         ctx.shadowColor = laserColor;
-        ctx.shadowBlur = 14 * alpha;
+        ctx.shadowBlur = size * 2.5 * alpha;
         ctx.fill();
         continue;
       }
@@ -98,11 +106,11 @@
           ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
         }
         ctx.strokeStyle = withAlpha(laserColor, alpha);
-        ctx.lineWidth = 6 * alpha;
+        ctx.lineWidth = size * 1.5 * alpha;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.shadowColor = laserColor;
-        ctx.shadowBlur = 12 * alpha;
+        ctx.shadowBlur = size * 2.5 * alpha;
         ctx.stroke();
       }
 
@@ -110,10 +118,10 @@
       const headAge = now - head.time;
       const headAlpha = Math.max(0, 1 - headAge / maxAge);
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 6, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255, 255, 255, ${headAlpha})`; /* fijo: el centro del láser es blanco, como un puntero real */
       ctx.shadowColor = laserColor;
-      ctx.shadowBlur = 18 * headAlpha;
+      ctx.shadowBlur = size * 3 * headAlpha;
       ctx.fill();
     }
 

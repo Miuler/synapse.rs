@@ -148,8 +148,10 @@ export const es: TranslationSchema = {
     panelsHint: 'Las dos versiones lado a lado',
   },
   laser: {
+    sizeSetting: 'Grosor del puntero láser',
+    sizeHint: 'Tamaño del punto del láser en píxeles; el rayo es algo más ancho.',
     label: 'Láser',
-    toggle: 'Activar o desactivar el puntero láser (K; Escape para salir). Con el clic derecho se arrastra',
+    toggle: 'Activar o desactivar el puntero láser (K; Escape para salir). Con el clic derecho o el del medio se arrastra',
   },
   find: {
     placeholder: 'Buscar',

@@ -147,8 +147,10 @@ export const en = {
     panelsHint: 'Both versions side by side',
   },
   laser: {
+    sizeSetting: 'Laser pointer thickness',
+    sizeHint: 'Size of the laser dot in pixels; the beam is a bit wider.',
     label: 'Laser',
-    toggle: 'Turn the laser pointer on or off (K; Escape to exit). Drag with the right button to pan',
+    toggle: 'Turn the laser pointer on or off (K; Escape to exit). Drag with the right or middle button to pan',
   },
   find: {
     placeholder: 'Search',

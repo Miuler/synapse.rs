@@ -38,6 +38,8 @@ export interface AppSettings {
   agentCompletionSound: AgentCompletionSound;
   /** Opacidad de la marca de agua con el logo del agente en el chat, de 0 (oculta) a 40 %. */
   agentWatermark: number;
+  /** Grosor del puntero láser en px (radio del punto; el rayo es algo más ancho), de 1 a 8. */
+  laserSize: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
   wallpapers?: Record<string, string>;
 }
@@ -77,10 +79,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chatZoom: 1, // Zoom del chat del agente
   agentCompletionSound: 'burbuja_fm', // Sonido al terminar un turno del agente ACP
   agentWatermark: 10, // Opacidad (%) de la marca de agua del agente en el chat
+  laserSize: 2, // Grosor (px) del puntero láser
 };
 
 function clampWatermark(value: number): number {
   return Math.min(40, Math.max(0, Math.round(value)));
+}
+
+function clampLaserSize(value: number): number {
+  return Math.min(8, Math.max(1, Math.round(value * 2) / 2));
 }
 
 function clampZoom(zoom: number): number {
@@ -143,6 +150,9 @@ function loadInitialSettings(): AppSettings {
       if (typeof parsed.agentWatermark === 'number' && Number.isFinite(parsed.agentWatermark)) {
         settings.agentWatermark = clampWatermark(parsed.agentWatermark);
       }
+      if (typeof parsed.laserSize === 'number' && Number.isFinite(parsed.laserSize)) {
+        settings.laserSize = clampLaserSize(parsed.laserSize);
+      }
       if (parsed.wallpapers && typeof parsed.wallpapers === 'object') {
         settings.wallpapers = Object.fromEntries(
           Object.entries(parsed.wallpapers).filter(([k, v]) => k && typeof v === 'string' && v.trim()),
@@ -176,6 +186,7 @@ class SettingsManager {
       i18n.setLocale(this.settings.locale);
     }
     setAgentCompletionSound(this.settings.agentCompletionSound || 'burbuja_fm');
+    this.applyLaserSize();
 
     if (typeof window !== 'undefined') {
       if (window.matchMedia) {
@@ -462,6 +473,24 @@ class SettingsManager {
     if (next === this.agentWatermark) return;
     this.settings = { ...this.settings, agentWatermark: next };
     this.persist();
+  }
+
+  get laserSize(): number {
+    return this.settings.laserSize ?? 2;
+  }
+
+  setLaserSize(px: number) {
+    const next = clampLaserSize(px);
+    if (next === this.laserSize) return;
+    this.settings = { ...this.settings, laserSize: next };
+    this.applyLaserSize();
+    this.persist();
+  }
+
+  /** El lienzo del láser (capa `shared`) lee el grosor de `--laser-size`. */
+  applyLaserSize() {
+    if (typeof document === 'undefined') return;
+    document.documentElement.style.setProperty('--laser-size', String(this.laserSize));
   }
 
   get propertiesViewMode(): PropertiesViewMode {

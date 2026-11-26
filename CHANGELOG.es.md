@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 - Puntero láser en diagramas e imágenes: `K` lo activa o desactiva y `Escape` lo apaga (con el puntero sobre el visor); mantener el clic derecho arrastra la vista, también en modo láser.
 - El modo láser muestra un cursor con forma de puntero láser en lugar de la cruz.
+- Puntero láser: punto y rayo más finos, con el tamaño del punto configurable en Configuración; el punto se dibuja separado del icono del cursor. El botón del medio también arrastra la vista en los visores de imágenes y diagramas.
 
 - Búsqueda y `full_text_search` del MCP: `a|b` (u `or` en minúsculas) busca varias alternativas en una sola consulta, p. ej. `TIEL|QTI1|QTI3`.
 - MCP: `full_text_search` con `lines: true` devuelve las líneas que coinciden en cada resultado con su ubicación, como `rg -n`: el número de línea en Markdown, código y diagramas en texto, la página en PDF, la sección y el párrafo en documentos de Word, la hoja, fila y columna en planillas, la página de los diagramas de draw.io y el elemento en modelos ArchiMate y BPMN; con `exact: true` devuelve solo los documentos que contienen los textos tal cual (endpoints, ids o códigos con puntuación, como `outbounds-ach`). Los resultados cuyo texto se cortó al indexar (documentos muy grandes) llevan la marca `truncated`.

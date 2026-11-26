@@ -194,7 +194,8 @@
 
   // Clic izquierdo: mueve el diagrama (o dibuja en modo láser). Clic derecho mantenido: siempre mueve.
   function handlePointerDown(e: PointerEvent) {
-    if (e.button !== 0 && e.button !== 2) return;
+    if (e.button > 2) return;
+    if (e.button === 1) e.preventDefault(); // sin autodesplazamiento ni pegado del botón del medio
     isDragging = true;
     drawing = isLaserMode && e.button === 0;
     if (drawing) {

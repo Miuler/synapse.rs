@@ -257,7 +257,8 @@
 
   // Clic izquierdo: mueve la imagen (o dibuja en modo láser). Clic derecho mantenido: siempre mueve.
   function handlePointerDown(e: PointerEvent) {
-    if (e.button !== 0 && e.button !== 2) return;
+    if (e.button > 2) return;
+    if (e.button === 1) e.preventDefault(); // sin autodesplazamiento ni pegado del botón del medio
     // La barra de controles está dentro del visor: sus clics no arrastran (la captura los robaría)
     if ((e.target as HTMLElement).closest('.image-controls')) return;
     isDragging = true;
