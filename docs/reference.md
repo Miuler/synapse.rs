@@ -82,8 +82,6 @@ is returned by `tools/list`.
 | `search_notes` | Find notes by name, path or title |
 | `full_text_search` | Search the contents of the indexed documents |
 | `search_in_note` | Find text inside one note |
-| `find_files` | Find files of any type by path, with a glob or a regex (like `fd`) |
-| `grep_vault` | Find lines by regex in every text file of the vault, with context (like `rg`) |
 | `search_folders` | Find folders by name or path |
 | `list_folder_contents` (alias `list_vault_tree`) | List the contents of a folder |
 | `list_sibling_notes` | List the notes in the same folder |

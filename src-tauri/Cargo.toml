@@ -46,7 +46,6 @@ dashmap = { version = "6.2", features = ["serde"] }
 postcard = { version = "1.2", features = ["use-std"] }
 compact_str = { version = "0.10", features = ["serde"] }
 jwalk = "0.9"
-regex = "1.13"
 notify = "9.0"
 pulldown-cmark = "0.13"
 log = "0.4.35"

@@ -87,7 +87,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no-existe» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
+      "text": "La ruta «no-existe» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
     }
   ],
   "isError": true
@@ -171,7 +171,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no-existe.md» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
+      "text": "La ruta «no-existe.md» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
     }
   ],
   "isError": true
@@ -205,7 +205,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no.pdf» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con find_files (p. ej. glob: \"*parte-del-nombre*\")."
+      "text": "La ruta «no.pdf» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
     }
   ],
   "isError": true

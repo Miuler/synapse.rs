@@ -1,5 +1,4 @@
-//! Buscar archivos y líneas como `fd`/`rg` (`find_files`, `grep_vault`) y las pistas cuando una
-//! ruta no existe en la bóveda activa o `search_notes` no encuentra Markdown.
+//! Pistas cuando una ruta no existe en la bóveda activa o `search_notes` no encuentra Markdown.
 use app_lib::application::service::vault_catalog::{VaultCatalog, VaultRef};
 use app_lib::domain::search::full_text_index::FullTextIndex;
 use app_lib::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
@@ -57,10 +56,6 @@ fn call(h: &Handler, name: &str, args: Value) -> (String, bool) {
     (text, r.is_error)
 }
 
-fn json_of(text: &str) -> Value {
-    serde_json::from_str(text).unwrap()
-}
-
 fn sample(root: &Path) {
     write(root, "README.md", b"# Repo\n");
     write(
@@ -78,69 +73,6 @@ fn sample(root: &Path) {
     write(root, "target/classes/Generated.java", b"entity TIEL\n");
     write(root, ".git/config", b"TIEL\n");
     write(root, "img/logo.png", b"\x89PNG\x00\x00TIEL");
-}
-
-#[test]
-fn find_files_con_regex_glob_y_extensiones() {
-    let tmp = tempfile::tempdir().unwrap();
-    let v = vault(tmp.path(), "repo");
-    sample(&v);
-    let h = handler(&v, vec![]);
-
-    let (text, err) = call(&h, "find_files", json!({"regex": r"entity|model|mapper|\.sql|repository"}));
-    assert!(!err, "{text}");
-    let r = json_of(&text);
-    let paths: Vec<&str> = r["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
-    assert_eq!(
-        paths,
-        [
-            "migrations/020_schema_ach_operation_ddl.sql",
-            "src/main/java/infrastructure/entity/OperationMasterEntity.java"
-        ],
-        "omite target/ y ocultos"
-    );
-
-    let (text, _) = call(&h, "find_files", json!({"glob": "*ddl*", "extensions": ["sql"]}));
-    assert_eq!(json_of(&text)["total_matches"], 1);
-
-    let (text, _) = call(&h, "find_files", json!({"extensions": [".ArchiMate"]}));
-    assert_eq!(json_of(&text)["files"][0]["path"], "src/soluciones/SBB-SD-000360.archimate");
-
-    let (text, _) = call(&h, "find_files", json!({"folder_path": "src", "limit": 1}));
-    let r = json_of(&text);
-    assert_eq!(r["total_matches"], 3);
-    assert_eq!(r["next_offset"], 1);
-
-    let (text, err) = call(&h, "find_files", json!({"regex": "(sin cerrar"}));
-    assert!(err && text.contains("no válida"), "{text}");
-}
-
-#[test]
-fn grep_vault_como_rg() {
-    let tmp = tempfile::tempdir().unwrap();
-    let v = vault(tmp.path(), "repo");
-    sample(&v);
-    let h = handler(&v, vec![VaultRef { name: "repo".into(), path: v.clone(), open: true }]);
-
-    let (text, err) = call(&h, "grep_vault", json!({"pattern": "tiel|BCTITPE"}));
-    assert!(!err, "{text}");
-    let r = json_of(&text);
-    assert_eq!(r["total_matches"], 1, "ni target/, ni .git, ni el PNG binario: {text}");
-    assert_eq!(r["files"][0]["path"], "src/sequences/QTI1.mmd");
-    assert_eq!(r["files"][0]["matches"][0]["line"], 2);
-
-    let (text, _) = call(
-        &h,
-        "grep_vault",
-        json!({"pattern": "CREATE TABLE.*session", "context_after": 2, "glob": "*.sql"}),
-    );
-    let m = &json_of(&text)["files"][0]["matches"][0];
-    assert_eq!(m["after"], json!(["  id uuid,", "  status text"]));
-
-    let (text, _) = call(&h, "grep_vault", json!({"pattern": "id-ff76", "files_only": true, "vault": "repo"}));
-    let r = json_of(&text);
-    assert_eq!(r["files"][0]["path"], "src/soluciones/SBB-SD-000360.archimate");
-    assert!(r["files"][0].get("matches").is_none());
 }
 
 #[test]
@@ -180,7 +112,7 @@ fn search_notes_vacio_avisa_de_otros_tipos() {
     let (text, err) = call(&h, "search_notes", json!({"query": "archimate"}));
     assert!(!err);
     assert!(text.starts_with("[]"), "el resultado sigue siendo la lista: {text}");
-    assert!(text.contains("SBB-SD-000360.archimate") && text.contains("find_files"), "{text}");
+    assert!(text.contains("SBB-SD-000360.archimate") && text.contains("\"archimate\""), "{text}");
 
     // Con extensions explícitas no hay aviso
     let (text, _) = call(&h, "search_notes", json!({"query": "nada-de-nada", "extensions": ["md"]}));
