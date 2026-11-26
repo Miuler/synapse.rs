@@ -11,6 +11,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- MCP: `search_in_note` busca varios textos a la vez separados por `|` (como `rg "a|b"`), indica cuáles contiene cada línea, cuenta las líneas y apariciones de cada uno (`counts_only` devuelve solo los recuentos, como `grep -c`) y acepta varias notas a la vez con `relative_paths`. Una fila de tabla Markdown como `| campo |` se sigue buscando literal.
+
 - MCP: cuando una ruta no existe, el error indica la bóveda activa, las otras bóvedas donde esa ruta sí existe y los archivos con el mismo nombre; y `search_notes` avisa cuando ninguna nota Markdown coincide pero sí archivos de otros tipos.
 
 - Chat del agente: el logo del agente en uso aparece como marca de agua tenue en la esquina inferior derecha; su opacidad se ajusta en Configuración (0 % la oculta).

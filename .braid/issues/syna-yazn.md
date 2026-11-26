@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-yazn
 title: 'search_in_note: alternativas (a|b), recuento y varios archivos'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - busqueda
 - mcp
 owner: null
 created_at: 2026-11-26T16:54:01.653035138Z
+completed_at: 2026-11-26T17:08:12.453015094Z
 acceptance:
 - query "a|b" (o "a | b") busca cualquiera de las alternativas y cada coincidencia indica en "matched" cuáles aparecen en esa línea
 - 'Si al partir por | queda alguna parte vacía ("| campo |", "a||b") la consulta entera es literal; "\|" es un | literal; literal: true desactiva el reparto'

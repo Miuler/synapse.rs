@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MCP: `search_in_note` searches several texts at once separated by `|` (like `rg "a|b"`), tells which ones each line contains, counts the lines and occurrences of each one (`counts_only` returns just the counts, like `grep -c`) and accepts several notes at once with `relative_paths`. A Markdown table row such as `| field |` is still searched literally.
+
 - MCP: when a path does not exist, the error names the active vault, the other vaults where that path does exist, and files with the same name; and `search_notes` warns when no Markdown matches but files of other types do.
 
 - Agent chat: the logo of the agent in use appears as a faint watermark in the bottom-right corner; its opacity is adjustable in Settings (0 % hides it).

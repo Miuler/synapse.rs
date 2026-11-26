@@ -12,6 +12,7 @@ mod mcp_conversations_tests;
 mod mcp_cross_vault_tests;
 mod mcp_diagram_models_tests;
 mod mcp_search_hints_tests;
+mod mcp_search_in_note_tests;
 mod mcp_git_tools_tests;
 mod mcp_render_diagram_tests;
 mod mcp_tests;

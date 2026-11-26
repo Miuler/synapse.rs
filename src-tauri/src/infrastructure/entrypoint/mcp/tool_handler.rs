@@ -383,7 +383,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 3. search_in_note
                 McpTool {
                     name: "search_in_note".to_string(),
-                    description: "Busca texto o patrones dentro de una nota específica y devuelve las líneas coincidentes con su número y contexto circundante.".to_string(),
+                    description: "Busca uno o varios textos dentro de notas que ya conoces (sin distinguir mayúsculas) y devuelve las líneas que coinciden con su número y contexto, y cuántas veces aparece cada texto. Varios textos a la vez separados por `|`, como `rg \"a|b\"`: `id_ach_operation|Límite BD|no almacena`; cada línea indica en `matched` cuáles contiene. Si al partir por `|` queda una parte vacía (p. ej. la fila de tabla `| campo |`) la consulta entera es literal; `\\|` es un `|` literal y `literal: true` no parte nunca. Úsalo para comprobar lo que acabas de editar (`counts`, `counts_only`) o para revisar varias notas a la vez (`relative_paths`); para buscar en toda la bóveda, full_text_search.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -392,9 +392,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                                 "type": "string",
                                 "description": "Ruta relativa de la nota donde buscar"
                             },
+                            "relative_paths": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Varias notas a la vez (máximo 20); la respuesta trae `files`, una entrada por nota, y una nota que no existe lleva su propio `error` sin impedir las demás"
+                            },
                             "query": {
                                 "type": "string",
-                                "description": "Texto o palabra a buscar dentro del archivo"
+                                "description": "Texto a buscar; varios separados por `|` (p. ej. `TIEL|QTI1|QTI3`)"
+                            },
+                            "literal": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Buscar 'query' tal cual aunque lleve `|`"
+                            },
+                            "counts_only": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Solo los recuentos por texto (`counts`: líneas y apariciones), sin las líneas, como `grep -c`"
                             },
                             "context_lines": {
                                 "type": "number",
@@ -403,10 +418,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             },
                             "max_matches": {
                                 "type": "number",
-                                "description": "Máximo de coincidencias a devolver (por defecto todas); total_matches dice cuántas hay"
+                                "description": "Máximo de coincidencias a devolver por nota (por defecto todas); total_matches dice cuántas hay"
                             }
                         },
-                        "required": ["relative_path", "query"]
+                        "required": ["query"]
                     }),
                 },
                 // 4. list_folder_contents
@@ -1247,17 +1262,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if !result.is_error {
             return result;
         }
-        let Some(rel) = ["relative_path", "folder_path", "parent_path"]
+        let hint = ["relative_path", "folder_path", "parent_path"]
             .iter()
             .find_map(|k| args.get(*k).and_then(|v| v.as_str()))
-            .map(|p| p.trim().trim_matches('/'))
-            .filter(|p| !p.is_empty())
-        else {
-            return result;
-        };
+            .and_then(|rel| self.location_hint(rel));
+        if let Some(hint) = hint {
+            result.content.push(McpContentItem::text(hint));
+        }
+        result
+    }
+
+    /// Pista para una ruta que no existe en esta bóveda (ver `with_location_hint`); `None` si
+    /// la ruta existe o está vacía.
+    fn location_hint(&self, rel: &str) -> Option<String> {
+        let rel = rel.trim().trim_matches('/');
+        if rel.is_empty() {
+            return None;
+        }
         let here = self.vault();
         if self.vault_item_repository.exists(&here, rel) {
-            return result;
+            return None;
         }
         let here_canon = here.canonicalize().unwrap_or_else(|_| here.clone());
         let vaults = self.vault_catalog.as_ref().map(|c| c.list()).unwrap_or_default();
@@ -1302,8 +1326,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         } else if elsewhere.is_empty() {
             hint.push_str(" Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents.");
         }
-        result.content.push(McpContentItem::text(hint));
-        result
+        Some(hint)
     }
 
     /// Si `search_notes` no encontró Markdown, cuántos archivos de otros tipos sí cumplen la
@@ -1484,43 +1507,128 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     }
 
     fn execute_search_in_note(&self, args: &Value) -> McpCallToolResult {
-        let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
-            Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+        const MAX_NOTES: usize = 20;
+        let single = args.get("relative_path").and_then(|v| v.as_str());
+        let many = string_list(args.get("relative_paths"));
+        let relative_paths: Vec<String> = match (single, many.is_empty()) {
+            (Some(p), true) => vec![p.to_string()],
+            (None, false) => many,
+            (Some(p), false) => std::iter::once(p.to_string()).chain(many).collect(),
+            (None, true) => {
+                return McpCallToolResult::error(
+                    "El argumento 'relative_path' (o 'relative_paths') es obligatorio",
+                );
+            }
         };
+        if relative_paths.len() > MAX_NOTES {
+            return McpCallToolResult::error(format!(
+                "Como máximo {MAX_NOTES} notas por llamada (llegaron {}); para buscar en toda la bóveda usa full_text_search",
+                relative_paths.len()
+            ));
+        }
         let query = match args.get("query").and_then(|v| v.as_str()) {
             Some(q) => q,
             None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
         };
-        let context_lines = args
-            .get("context_lines")
+        let flag = |k: &str| args.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
+        let counts_only = flag("counts_only");
+        let max = args
+            .get("max_matches")
             .and_then(|v| v.as_u64())
-            .unwrap_or(2) as usize;
+            .map(|m| m as usize)
+            .unwrap_or(usize::MAX);
+        // Sin `relative_paths`, la respuesta mantiene la forma de siempre (una sola nota)
+        let as_list = !string_list(args.get("relative_paths")).is_empty();
 
-        let matches =
-            match SearchInNoteUseCase::new(&self.note_repository).execute(SearchInNoteQuery {
-                vault_path: self.vault(),
-                relative_path: rel_path_str.to_string(),
-                query: query.to_string(),
-                context_lines,
-            }) {
-                Ok(m) => m,
-                Err(e) => return McpCallToolResult::error(e),
+        let result = match SearchInNoteUseCase::new(&self.note_repository).execute(SearchInNoteQuery {
+            vault_path: self.vault(),
+            relative_paths,
+            query: query.to_string(),
+            literal: flag("literal"),
+            context_lines: args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(2) as usize,
+        }) {
+            Ok(r) => r,
+            Err(e) => return McpCallToolResult::error(e),
+        };
+        let several = result.alternatives.len() > 1;
+        let note_json = |rel: &str, m: &crate::application::dto::note::search_in_note_query::NoteMatches| {
+            let counts: serde_json::Map<String, Value> = m
+                .counts
+                .iter()
+                .map(|c| {
+                    (c.alternative.clone(), json!({ "lines": c.lines, "occurrences": c.occurrences }))
+                })
+                .collect();
+            let mut out = json!({
+                "relative_path": rel,
+                "total_matches": m.matches.len(),
+                "counts": counts,
+            });
+            if !counts_only {
+                let matches: Vec<Value> = m
+                    .matches
+                    .iter()
+                    .take(max)
+                    .map(|l| {
+                        let mut line = json!({
+                            "line_number": l.line_number,
+                            "matched_line": l.matched_line,
+                            "context": l.context,
+                        });
+                        if several {
+                            line["matched"] = json!(l.matched);
+                        }
+                        line
+                    })
+                    .collect();
+                out["returned_matches"] = json!(matches.len());
+                out["matches"] = json!(matches);
+            }
+            out
+        };
+
+        if !as_list {
+            let note = &result.notes[0];
+            return match &note.outcome {
+                Ok(m) => {
+                    let mut payload = note_json(&note.relative_path, m);
+                    if several {
+                        payload["alternatives"] = json!(result.alternatives);
+                    }
+                    to_text(&payload, "Error al serializar: ")
+                }
+                Err(e) => McpCallToolResult::error(e.clone()),
             };
-        let total = matches.len();
-        let max = args.get("max_matches").and_then(|v| v.as_u64()).map(|m| m as usize).unwrap_or(usize::MAX);
-        let matches: Vec<_> = matches
-            .into_iter()
-            .take(max)
-            .map(|m| json!({ "line_number": m.line_number, "matched_line": m.matched_line, "context": m.context }))
+        }
+
+        let all_failed = result.notes.iter().all(|n| n.outcome.is_err());
+        let files: Vec<Value> = result
+            .notes
+            .iter()
+            .map(|n| match &n.outcome {
+                Ok(m) => note_json(&n.relative_path, m),
+                Err(e) => {
+                    let error = match self.location_hint(&n.relative_path) {
+                        Some(hint) => format!("{e}. {hint}"),
+                        None => e.clone(),
+                    };
+                    json!({ "relative_path": n.relative_path, "error": error })
+                }
+            })
             .collect();
-        let payload = json!({
-            "relative_path": rel_path_str,
-            "total_matches": total,
-            "returned_matches": matches.len(),
-            "matches": matches,
-        });
-        to_text(&payload, "Error al serializar: ")
+        let total: usize = result
+            .notes
+            .iter()
+            .filter_map(|n| n.outcome.as_ref().ok())
+            .map(|m| m.matches.len())
+            .sum();
+        let mut payload = json!({ "total_matches": total, "files": files });
+        if several {
+            payload["alternatives"] = json!(result.alternatives);
+        }
+        let mut out = to_text(&payload, "Error al serializar: ");
+        out.is_error = all_failed;
+        out
     }
 
     /// XML (`mxfile`) del diagrama de draw.io de `rel`: un `.drawio`, o un PNG/SVG con el diagrama

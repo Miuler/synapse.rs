@@ -1,3 +1,4 @@
+pub mod alternatives;
 pub mod full_text;
 pub mod full_text_index;
 pub mod indexed_document_repository;

@@ -53,7 +53,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"matches\": [\n    {\n      \"context\": [\n        \"4: aliases: [arq]\",\n        \"5: description: Capas del backend\",\n        \"6: ---\"\n      ],\n      \"line_number\": 5,\n      \"matched_line\": \"description: Capas del backend\"\n    },\n    {\n      \"context\": [\n        \"9: \",\n        \"10: ## Capas\",\n        \"11: Dominio, aplicación e infraestructura.\"\n      ],\n      \"line_number\": 10,\n      \"matched_line\": \"## Capas\"\n    }\n  ],\n  \"relative_path\": \"arquitectura.md\",\n  \"returned_matches\": 2,\n  \"total_matches\": 2\n}"
+      "text": "{\n  \"counts\": {\n    \"capas\": {\n      \"lines\": 2,\n      \"occurrences\": 2\n    }\n  },\n  \"matches\": [\n    {\n      \"context\": [\n        \"4: aliases: [arq]\",\n        \"5: description: Capas del backend\",\n        \"6: ---\"\n      ],\n      \"line_number\": 5,\n      \"matched_line\": \"description: Capas del backend\"\n    },\n    {\n      \"context\": [\n        \"9: \",\n        \"10: ## Capas\",\n        \"11: Dominio, aplicación e infraestructura.\"\n      ],\n      \"line_number\": 10,\n      \"matched_line\": \"## Capas\"\n    }\n  ],\n  \"relative_path\": \"arquitectura.md\",\n  \"returned_matches\": 2,\n  \"total_matches\": 2\n}"
     }
   ],
   "isError": false
