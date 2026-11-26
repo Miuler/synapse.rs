@@ -1,4 +1,4 @@
-use crate::domain::search::full_text::{FullTextDocument, FullTextHit, FullTextQuery};
+use crate::domain::search::full_text::{FullTextDocument, FullTextHit, FullTextQuery, MatchedLine};
 use std::collections::HashMap;
 
 /// Puerto (Trait) del índice de búsqueda full-text dentro de la Capa de Dominio.
@@ -26,10 +26,28 @@ pub trait FullTextIndex: Send + Sync {
 
     /// Número de documentos visibles en el índice.
     fn num_docs(&self) -> u64;
+
+    /// Líneas de `text` que coinciden con la consulta, analizadas igual que en la búsqueda
+    /// (o literales en el modo exacto), con su número de línea real y hasta
+    /// `query.lines.max_per_doc`; devuelve también cuántas coinciden en total. Sirve para dar
+    /// números de línea del archivo cuando el índice guarda un texto procesado (Markdown).
+    fn match_lines(&self, query: &FullTextQuery, text: &str) -> (Vec<MatchedLine>, usize);
+
+    /// Como `match_lines`, sobre el texto que el índice guarda del documento `path` (el texto
+    /// extraído de un PDF, una planilla o un modelo), con la ubicación propia de su formato.
+    fn match_document_lines(&self, query: &FullTextQuery, path: &str) -> (Vec<MatchedLine>, usize);
 }
 
 /// Permite pasar el repositorio por referencia a un caso de uso sin moverlo ni clonarlo.
 impl<T: FullTextIndex + ?Sized> FullTextIndex for &T {
+    fn match_lines(&self, query: &FullTextQuery, text: &str) -> (Vec<MatchedLine>, usize) {
+        (**self).match_lines(query, text)
+    }
+
+    fn match_document_lines(&self, query: &FullTextQuery, path: &str) -> (Vec<MatchedLine>, usize) {
+        (**self).match_document_lines(query, path)
+    }
+
     fn upsert(&self, docs: Vec<FullTextDocument>) -> Result<(), String> {
         (**self).upsert(docs)
     }

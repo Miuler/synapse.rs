@@ -110,4 +110,17 @@ Los pasos 1 a 6 con las ubicaciones que ya se pueden sacar del texto indexado (t
 
 ## Estado
 
-Las pistas de la fase 1 (bóveda activa cuando una ruta no existe; aviso de search_notes cuando no hay Markdown) están en `main` (4371555 y 3fd79b2), con pruebas en `src-tauri/tests/integration/mcp_search_hints_tests.rs`.
+**Fase 1 hecha (2026-11-26):** bug del prefijo con OR, `a|b` y `or`/`and`, `lines` (con `context_lines`, `max_lines_per_doc` y tope total de 200), modo `exact` y descripción MCP. Cómo quedó, por si hay que retomarlo:
+
+- Las líneas no se calculan en `search` (con filtro de carpeta se piden hasta 1000 candidatos), sino solo para los resultados devueltos, con dos métodos nuevos del puerto `FullTextIndex`: `match_lines(query, texto)` y `match_document_lines(query, ruta)`.
+- **Markdown, Mermaid y código** usan el contenido del archivo que el caso de uso ya lee para contar líneas y tokens (`match_lines`): el índice guarda en Markdown un texto procesado (sin frontmatter, un párrafo por línea) cuyos números no coincidirían. El resto de formatos usa el texto guardado en el índice (`match_document_lines`).
+- **Desviaciones del plan:**
+  - draw.io queda con `location: null`: `mxfile_text` escribe los nombres de página como líneas iguales a las de las figuras, así que no se distinguen. Pasa a la fase 2 (marcar las páginas al extraer).
+  - El prefijo de la última palabra solo se desactiva con `OR`, `AND` o paréntesis. Con comillas, `-`, `+` o `campo:` funcionaba bien y se mantiene (`"frase" arqui` sigue buscando `arqui*` mientras se escribe).
+  - No se marca en la respuesta si el texto guardado de un documento estaba truncado al indexar: en la búsqueda no se sabe el límite (`max_extracted_chars` es de la configuración del indexador). Para la fase 2: guardar un campo `truncated` al indexar.
+- Limitación del modo exacto: se comprueba sobre el texto indexado, así que en Markdown las URL de los enlaces no cuentan (el extractor solo guarda el texto del enlace). Está dicho en la descripción.
+- `a|b` también funciona en el buscador de la app (mismo `build_query`). No se ha probado en la interfaz.
+
+**Fase 2 pendiente.**
+
+Las pistas de bóveda activa (ruta inexistente; search_notes sin Markdown) están en `main` desde 4371555 y 3fd79b2.

@@ -5,7 +5,7 @@ use crate::domain::graph::tag::Tag;
 use crate::domain::note::note_content::NoteContent;
 use crate::domain::note::note_path::NoteRelativePath;
 use crate::domain::note::note_repository::NoteRepository;
-use crate::domain::search::full_text::FullTextQuery;
+use crate::domain::search::full_text::{DocumentKind, FullTextQuery};
 use crate::domain::search::full_text_index::FullTextIndex;
 
 /// Búsqueda de texto completo con filtros de carpeta y etiquetas, enriquecida con el tamaño de
@@ -31,6 +31,8 @@ impl<I: FullTextIndex, N: NoteRepository> SearchNotesFullTextUseCase<I, N> {
             text: query.text.clone(),
             limit: if filtered_search { (query.limit * 50).max(1_000) } else { query.limit * 4 },
             prefix_last_term: true,
+            lines: query.lines,
+            exact: query.exact.clone(),
         };
         let (hits, total) = self
             .full_text_index
@@ -61,26 +63,35 @@ impl<I: FullTextIndex, N: NoteRepository> SearchNotesFullTextUseCase<I, N> {
                 continue;
             }
             // Leer la nota para estimar líneas, tokens y verificar el filtro de etiquetas
-            let (total_lines, estimated_tokens, matches_tags) =
-                match NoteRelativePath::new(&h.note_path)
-                    .ok()
-                    .and_then(|rel| self.note_repository.read_note(&query.vault_path, &rel).ok())
-                {
-                    Some(note) => {
-                        let ok_tags = query.tags.is_empty() || {
-                            let all_tags = Tag::extract_all(&note.content);
-                            query.tags.iter().all(|tf| Tag::any_matches(&all_tags, tf))
-                        };
-                        (
-                            note.content.lines().count(),
-                            NoteContent::estimate_tokens(&note.content),
-                            ok_tags,
-                        )
-                    }
-                    None => (0, 0, query.tags.is_empty()),
-                };
+            let note = NoteRelativePath::new(&h.note_path)
+                .ok()
+                .and_then(|rel| self.note_repository.read_note(&query.vault_path, &rel).ok());
+            let (total_lines, estimated_tokens, matches_tags) = match &note {
+                Some(note) => {
+                    let ok_tags = query.tags.is_empty() || {
+                        let all_tags = Tag::extract_all(&note.content);
+                        query.tags.iter().all(|tf| Tag::any_matches(&all_tags, tf))
+                    };
+                    (
+                        note.content.lines().count(),
+                        NoteContent::estimate_tokens(&note.content),
+                        ok_tags,
+                    )
+                }
+                None => (0, 0, query.tags.is_empty()),
+            };
             if !matches_tags {
                 continue;
+            }
+            let mut h = h;
+            if query.lines.is_some() {
+                // En los formatos de texto, sobre el archivo: el índice guarda un texto procesado
+                // (en Markdown, sin frontmatter y un párrafo por línea) y los números no coincidirían
+                let plain_text = matches!(h.kind, DocumentKind::Markdown | DocumentKind::Mermaid | DocumentKind::Code);
+                (h.lines, h.total_line_matches) = match (&note, plain_text) {
+                    (Some(note), true) => self.full_text_index.match_lines(&q, &note.content),
+                    _ => self.full_text_index.match_document_lines(&q, &h.note_path),
+                };
             }
             filtered.push(FullTextNoteHit {
                 hit: h,
@@ -112,6 +123,8 @@ mod tests {
         fn commit(&self) -> Result<(), String> { Ok(()) }
         fn indexed_versions(&self) -> Result<HashMap<String, u64>, String> { Ok(HashMap::new()) }
         fn num_docs(&self) -> u64 { 32 }
+        fn match_lines(&self, _: &FullTextQuery, _: &str) -> (Vec<crate::domain::search::full_text::MatchedLine>, usize) { (vec![], 0) }
+        fn match_document_lines(&self, _: &FullTextQuery, _: &str) -> (Vec<crate::domain::search::full_text::MatchedLine>, usize) { (vec![], 0) }
         fn search(&self, q: &FullTextQuery) -> Result<(Vec<FullTextHit>, usize), String> {
             let hit = |path: String, kind| FullTextHit {
                 note_path: path,
@@ -121,6 +134,8 @@ mod tests {
                 matched_terms: vec![],
                 kind,
                 score: 1.0,
+                lines: vec![],
+                total_line_matches: 0,
             };
             let mut hits: Vec<_> = (0..30).map(|i| hit(format!("otros/n{i}.md"), DocumentKind::Markdown)).collect();
             hits.push(hit("src/soluciones/a.archimate".into(), DocumentKind::Archimate));
@@ -139,6 +154,8 @@ mod tests {
             folder: folder.map(str::to_string),
             tags: vec![],
             extensions: extensions.iter().map(|e| e.to_string()).collect(),
+            lines: None,
+            exact: vec![],
         }
     }
 

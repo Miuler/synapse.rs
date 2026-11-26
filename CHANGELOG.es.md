@@ -11,6 +11,9 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Búsqueda y `full_text_search` del MCP: `a|b` (u `or` en minúsculas) busca varias alternativas en una sola consulta, p. ej. `TIEL|QTI1|QTI3`.
+- MCP: `full_text_search` con `lines: true` devuelve las líneas que coinciden en cada resultado con su ubicación, como `rg -n`: el número de línea en Markdown, código y diagramas en texto, la hoja en planillas y el elemento en modelos ArchiMate y BPMN; con `exact: true` devuelve solo los documentos que contienen los textos tal cual (endpoints, ids o códigos con puntuación, como `outbounds-ach`).
+
 - MCP: `search_in_note` busca varios textos a la vez separados por `|` (como `rg "a|b"`), indica cuáles contiene cada línea, cuenta las líneas y apariciones de cada uno (`counts_only` devuelve solo los recuentos, como `grep -c`) y acepta varias notas a la vez con `relative_paths`. Una fila de tabla Markdown como `| campo |` se sigue buscando literal.
 
 - MCP: cuando una ruta no existe, el error indica la bóveda activa, las otras bóvedas donde esa ruta sí existe y los archivos con el mismo nombre; y `search_notes` avisa cuando ninguna nota Markdown coincide pero sí archivos de otros tipos.
@@ -33,6 +36,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - Panel del agente: acoplado, el pin ocupa el lugar de la X (el panel se cierra con su botón de la barra); flotante conserva la X.
 
 ### Corregido
+
+- MCP: `full_text_search` con `OR` (`TIEL OR QTI1`) no encontraba nada: la última palabra se buscaba también como prefijo y se exigían las dos partes.
 
 - Búsqueda en el chat del agente y en documentos de Word: una sola letra con salidas largas de herramientas ya no congela la aplicación; solo se resaltan las coincidencias a la vista.
 - Búsqueda en documentos de Word: las palabras partidas por el formato se encuentran enteras, se conservan `&` y otras entidades, y un documento más largo que el límite del índice ya no falla en una letra con tilde. El índice se reconstruye una vez.

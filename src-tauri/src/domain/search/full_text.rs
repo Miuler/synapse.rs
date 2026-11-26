@@ -69,14 +69,57 @@ pub struct FullTextDocument {
 }
 
 /// Consulta de búsqueda full-text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FullTextQuery {
-    /// Texto introducido por el usuario (sintaxis de QueryParser).
+    /// Texto introducido por el usuario (sintaxis de QueryParser, más `a|b` como `a OR b`).
     pub text: String,
     /// Número máximo de resultados.
     pub limit: usize,
     /// Si es `true`, la última palabra se trata también como prefijo (búsqueda mientras se escribe).
     pub prefix_last_term: bool,
+    /// Devolver en cada resultado las líneas que coinciden (como `rg -n`).
+    pub lines: Option<LineOptions>,
+    /// Modo exacto: textos literales (sin distinguir mayúsculas) que el documento debe contener
+    /// tal cual; `text` se ignora. Vacío = búsqueda normal.
+    pub exact: Vec<String>,
+}
+
+/// Cuántas líneas devolver por documento y cuánto contexto.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LineOptions {
+    /// Líneas antes y después de cada coincidencia.
+    pub context: usize,
+    /// Máximo de líneas por documento (el recuento total se informa aparte).
+    pub max_per_doc: usize,
+}
+
+/// Dónde está una coincidencia, según el formato del documento.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MatchLocation {
+    /// Número de línea real del archivo (Markdown, código, diagramas en texto).
+    Line { line: usize },
+    /// Hoja de una planilla.
+    Sheet { sheet: String },
+    /// Elemento de un modelo (ArchiMate, BPMN): nombre y tipo.
+    Element {
+        element: String,
+        #[serde(rename = "type")]
+        element_type: String,
+    },
+}
+
+/// Una línea que coincide, con su ubicación y contexto. Las líneas muy largas se recortan
+/// alrededor de la coincidencia.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatchedLine {
+    /// `None` si el formato no tiene una ubicación útil (PDF, Word, dibujos).
+    pub location: Option<MatchLocation>,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub before: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub after: Vec<String>,
 }
 
 /// Fragmento de texto con indicador de resaltado.
@@ -104,6 +147,16 @@ pub struct FullTextHit {
     pub matched_terms: Vec<String>,
     pub kind: DocumentKind,
     pub score: f32,
+    /// Líneas que coinciden, si se pidieron (`FullTextQuery::lines`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lines: Vec<MatchedLine>,
+    /// Cuántas líneas coinciden en total, aunque `lines` se haya recortado.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub total_line_matches: usize,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 /// Estado del indexador en segundo plano.

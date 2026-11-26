@@ -38,6 +38,7 @@ impl<I: FullTextIndex + ?Sized> SearchFullTextUseCase<I> {
             text: bounded_query.to_string(),
             limit: effective_limit,
             prefix_last_term: true,
+            ..Default::default()
         };
 
         self.full_text_index.search(&full_text_query)

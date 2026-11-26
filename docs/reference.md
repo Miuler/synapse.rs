@@ -80,7 +80,7 @@ is returned by `tools/list`.
 | Tool | Purpose |
 |---|---|
 | `search_notes` | Find notes by name, path or title |
-| `full_text_search` | Search the contents of the indexed documents |
+| `full_text_search` | Search the contents of the indexed documents: alternatives (`a\|b`, `OR`), matching lines with their location (`lines`) and literal texts (`exact`) |
 | `search_in_note` | Find one or several texts (`a\|b`) inside one or more notes, with counts |
 | `search_folders` | Find folders by name or path |
 | `list_folder_contents` (alias `list_vault_tree`) | List the contents of a folder |

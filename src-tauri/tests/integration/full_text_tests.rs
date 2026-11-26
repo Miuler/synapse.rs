@@ -70,6 +70,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
         text: "cebolla".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits1, count1) = index.search(&q1).unwrap();
     assert_eq!(count1, 1);
@@ -82,6 +83,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
         text: "cancion".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits2, count2) = index.search(&q2).unwrap();
     assert_eq!(count2, 1);
@@ -92,6 +94,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
         text: "motor".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits3, count3) = index.search(&q3).unwrap();
     assert_eq!(count3, 1);
@@ -113,6 +116,7 @@ fn test_full_text_indexer_workflow_and_persistence() {
         text: "microservicios".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits_new, count_new) = index.search(&q_new).unwrap();
     assert_eq!(count_new, 1);
@@ -244,6 +248,7 @@ fn test_full_text_docx_and_pdf_indexing() {
         text: "trimestral".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits_docx, count_docx) = index.search(&q_docx).unwrap();
     assert_eq!(count_docx, 1);
@@ -261,6 +266,7 @@ fn test_full_text_docx_and_pdf_indexing() {
         text: "estrategico".to_string(),
         limit: 10,
         prefix_last_term: false,
+        ..Default::default()
     };
     let (hits_pdf, count_pdf) = index.search(&q_pdf).unwrap();
     assert_eq!(count_pdf, 1);

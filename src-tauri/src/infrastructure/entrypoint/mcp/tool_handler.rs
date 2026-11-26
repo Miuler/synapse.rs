@@ -349,7 +349,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens.".to_string(),
+                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens. Sintaxis: palabras con AND por defecto; varias alternativas en una sola consulta con `|` u `OR` (`TIEL|QTI1|QTI3`, `(TIEL|QTI1) emisor`); `\"frase exacta\"`; `-excluir`; `prefijo*` (`BCTITP*`); campos `title:`, `hs:` (encabezados), `path:`, `kind:` (`kind:archimate`). Con `lines: true` cada resultado trae las líneas que coinciden con su ubicación, como `rg -n`: `{line}` (número de línea del archivo) en Markdown, código y diagramas en texto; `{sheet}` en planillas; `{element, type}` en ArchiMate y BPMN; `null` en PDF, Word, draw.io y Excalidraw (el texto se recorta alrededor de la coincidencia). Con `exact: true` la consulta son textos literales separados por `|` (`outbounds-ach|/ach-operations/`) y solo vuelven los documentos que los contienen tal cual (sin distinguir mayúsculas), útil para endpoints, ids o códigos con puntuación; se comprueba sobre el texto indexado (en Markdown, el texto sin el formato: las URL de los enlaces no cuentan).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -375,6 +375,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                                 "type": "array",
                                 "items": { "type": "string" },
                                 "description": "Solo archivos con estas extensiones, sin punto (p. ej. [\"archimate\"])"
+                            },
+                            "lines": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "Incluir en cada resultado las líneas que coinciden con su ubicación (`lines`, `total_line_matches`), como `rg -n`; máximo 200 líneas en total (`lines_truncated` avisa si se recortó)"
+                            },
+                            "context_lines": {
+                                "type": "number",
+                                "default": 0,
+                                "description": "Con `lines`: líneas antes y después de cada coincidencia (máx 5)"
+                            },
+                            "max_lines_per_doc": {
+                                "type": "number",
+                                "default": 20,
+                                "description": "Con `lines`: máximo de líneas por documento (máx 100)"
+                            },
+                            "exact": {
+                                "type": "boolean",
+                                "default": false,
+                                "description": "La consulta son textos literales separados por `|`; solo documentos que los contienen tal cual (sin distinguir mayúsculas)"
                             }
                         },
                         "required": ["query"]
@@ -1476,14 +1496,37 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .map(|f| f.trim_matches('/').to_lowercase()),
             tags: string_list(args.get("tags")),
             extensions: extension_list(args.get("extensions")),
+            lines: args.get("lines").and_then(|v| v.as_bool()).unwrap_or(false).then(|| {
+                crate::domain::search::full_text::LineOptions {
+                    context: args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(0).min(5) as usize,
+                    max_per_doc: args
+                        .get("max_lines_per_doc")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(20)
+                        .clamp(1, 100) as usize,
+                }
+            }),
+            exact: if args.get("exact").and_then(|v| v.as_bool()).unwrap_or(false) {
+                crate::domain::search::alternatives::split_alternatives(query_str)
+                    .into_iter()
+                    .filter(|t| !t.trim().is_empty())
+                    .collect()
+            } else {
+                vec![]
+            },
         };
+        let query_lines = query.lines.is_some();
         match SearchNotesFullTextUseCase::new(&**fts, &self.note_repository).execute(query) {
             Ok(result) => {
+                /// Tope de líneas devueltas entre todos los resultados.
+                const MAX_LINES_TOTAL: usize = 200;
+                let mut lines_budget = MAX_LINES_TOTAL;
+                let mut lines_truncated = false;
                 let hits: Vec<_> = result
                     .hits
                     .into_iter()
                     .map(|h| {
-                        json!({
+                        let mut hit = json!({
                             "path": h.hit.note_path,
                             "title": h.hit.title,
                             "score": h.hit.score,
@@ -1492,14 +1535,29 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "total_lines": h.total_lines,
                             "estimated_tokens": h.estimated_tokens,
                             "matched_terms": h.hit.matched_terms,
-                        })
+                        });
+                        if query_lines {
+                            let mut lines = h.hit.lines;
+                            if lines.len() > lines_budget {
+                                lines.truncate(lines_budget);
+                                lines_truncated = true;
+                            }
+                            lines_budget -= lines.len();
+                            lines_truncated |= lines.len() < h.hit.total_line_matches;
+                            hit["total_line_matches"] = json!(h.hit.total_line_matches);
+                            hit["lines"] = json!(lines);
+                        }
+                        hit
                     })
                     .collect();
-                let results = json!({
+                let mut results = json!({
                     "total_matches": result.total,
                     "returned_matches": hits.len(),
                     "hits": hits,
                 });
+                if query_lines {
+                    results["lines_truncated"] = json!(lines_truncated);
+                }
                 to_text(&results, "Error al serializar: ")
             }
             Err(err) => McpCallToolResult::error(err),

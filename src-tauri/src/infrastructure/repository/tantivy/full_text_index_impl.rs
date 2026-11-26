@@ -1,5 +1,6 @@
 use crate::domain::search::full_text::{
-    DocumentKind, FullTextDocument, FullTextHit, FullTextQuery, HighlightSegment,
+    DocumentKind, FullTextDocument, FullTextHit, FullTextQuery, HighlightSegment, LineOptions,
+    MatchLocation, MatchedLine,
 };
 use crate::domain::search::full_text_index::FullTextIndex;
 use std::collections::{HashMap, HashSet};
@@ -232,14 +233,8 @@ impl FullTextIndexImpl {
         })
     }
 
-    /// Construye la consulta de tantivy combinando `QueryParser` con soporte de prefijo en el último término.
-    fn build_query(&self, query: &FullTextQuery) -> Result<Box<dyn Query>, String> {
-        let expanded = expand_field_aliases(query.text.trim());
-        let trimmed = expanded.as_str();
-        if trimmed.is_empty() {
-            return Err("Consulta vacía".to_string());
-        }
-
+    /// `QueryParser` de los campos de texto, con AND por defecto y el peso de título y encabezados.
+    fn query_parser(&self) -> QueryParser {
         let mut query_parser = QueryParser::for_index(
             &self.index,
             vec![
@@ -252,13 +247,35 @@ impl FullTextIndexImpl {
         query_parser.set_conjunction_by_default();
         query_parser.set_field_boost(self.fields.title, 2.5);
         query_parser.set_field_boost(self.fields.headings, 1.5);
+        query_parser
+    }
+
+    /// Construye la consulta de tantivy combinando `QueryParser` con soporte de prefijo en el último término.
+    fn build_query(&self, query: &FullTextQuery) -> Result<Box<dyn Query>, String> {
+        self.build_query_with_prefix(query).map(|(q, _)| q)
+    }
+
+    /// Como `build_query`, y además el prefijo (ya en minúsculas) que se buscó para la última
+    /// palabra, si se buscó: hace falta para saber qué líneas coinciden.
+    fn build_query_with_prefix(
+        &self,
+        query: &FullTextQuery,
+    ) -> Result<(Box<dyn Query>, Option<String>), String> {
+        let expanded = normalize_operators(&expand_field_aliases(query.text.trim()));
+        let trimmed = expanded.as_str();
+        if trimmed.is_empty() {
+            return Err("Consulta vacía".to_string());
+        }
+
+        let query_parser = self.query_parser();
 
         // Parseo con el QueryParser estándar
         let (parsed_query, _) = query_parser.parse_query_lenient(trimmed);
 
-        // Si no se requiere prefijo o el texto termina en espacio, usar la consulta parseada directamente
-        if !query.prefix_last_term || query.text.ends_with(' ') {
-            return Ok(parsed_query);
+        // Sin prefijo si no se pide, si el texto termina en espacio o si lleva operadores: con
+        // `a OR b` el prefijo partía la consulta en «a OR» y «b» y exigía las dos
+        if !query.prefix_last_term || query.text.ends_with(' ') || has_operators(trimmed) {
+            return Ok((parsed_query, None));
         }
 
         // Buscar el último token
@@ -272,17 +289,18 @@ impl FullTextIndexImpl {
             && !last_word.starts_with('+');
 
         if !is_simple_prefix {
-            return Ok(parsed_query);
+            return Ok((parsed_query, None));
         }
 
         // Crear una consulta regex de prefijo case-insensitive plegada
         let clean_token: String = last_word.chars().filter(|c| c.is_alphanumeric()).collect();
 
         if clean_token.is_empty() {
-            return Ok(parsed_query);
+            return Ok((parsed_query, None));
         }
 
-        let pattern = format!("{}.*", clean_token.to_lowercase());
+        let prefix = clean_token.to_lowercase();
+        let pattern = format!("{}.*", prefix);
 
         let title_regex = RegexQuery::from_pattern(&pattern, self.fields.title).ok();
         let headings_regex = RegexQuery::from_pattern(&pattern, self.fields.headings).ok();
@@ -308,18 +326,190 @@ impl FullTextIndexImpl {
                         (Occur::Must, prec_query),
                         (Occur::Must, prefix_clause),
                     ]);
-                    Ok(Box::new(combined))
+                    Ok((Box::new(combined), Some(prefix)))
                 } else {
                     // Si es solo una palabra, unimos con Should la consulta normal y el prefijo
                     let combined = BooleanQuery::new(vec![
                         (Occur::Should, parsed_query),
                         (Occur::Should, prefix_clause),
                     ]);
-                    Ok(Box::new(combined))
+                    Ok((Box::new(combined), Some(prefix)))
                 }
             }
-            _ => Ok(parsed_query),
+            _ => Ok((parsed_query, None)),
         }
+    }
+
+    /// Consulta de candidatos del modo exacto: cada texto como frase, combinadas con OR.
+    fn exact_candidates_query(&self, needles: &[String]) -> Result<Box<dyn Query>, String> {
+        let parser = self.query_parser();
+        let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+        for needle in needles {
+            if !needle.chars().any(char::is_alphanumeric) {
+                return Err(format!(
+                    "El modo exacto necesita al menos una palabra con letras o números en cada texto («{needle}»)"
+                ));
+            }
+            let phrase = format!("\"{}\"", needle.replace(['\\', '"'], " "));
+            clauses.push((Occur::Should, parser.parse_query_lenient(&phrase).0));
+        }
+        Ok(Box::new(BooleanQuery::new(clauses)))
+    }
+
+    /// Cómo decidir si una línea coincide con la consulta.
+    fn line_matcher(&self, query: &FullTextQuery) -> Result<LineMatcher, String> {
+        if !query.exact.is_empty() {
+            return Ok(LineMatcher::Literal(
+                query.exact.iter().map(|n| n.to_lowercase()).collect(),
+            ));
+        }
+        let (tantivy_query, prefix) = self.build_query_with_prefix(query)?;
+        let text_fields = [self.fields.title, self.fields.headings, self.fields.body];
+        let mut terms = HashSet::new();
+        tantivy_query.query_terms(&mut |term, _| {
+            if text_fields.contains(&term.field())
+                && let Some(text) = term.value().as_str()
+            {
+                terms.insert(text.to_string());
+            }
+        });
+        // Prefijos: el de la última palabra y los `palabra*` escritos por el usuario
+        let mut prefixes: Vec<String> = prefix.into_iter().collect();
+        for word in normalize_operators(&query.text).split_whitespace() {
+            let word = word
+                .trim_start_matches(['+', '-', '('])
+                .trim_end_matches(')');
+            let word = word.rsplit_once(':').map_or(word, |(_, w)| w);
+            if let Some(base) = word.strip_suffix('*').filter(|b| !b.is_empty())
+                && let Some((token, _)) = self.analyze(base).into_iter().next()
+            {
+                prefixes.push(token);
+            }
+        }
+        Ok(LineMatcher::Terms { terms, prefixes })
+    }
+
+    /// Primera coincidencia de la línea (rango en bytes), si la hay.
+    fn find_in_line(&self, matcher: &LineMatcher, line: &str) -> Option<std::ops::Range<usize>> {
+        match matcher {
+            LineMatcher::Terms { terms, prefixes } => self
+                .analyze(line)
+                .into_iter()
+                .find(|(token, _)| {
+                    terms.contains(token) || prefixes.iter().any(|p| token.starts_with(p.as_str()))
+                })
+                .map(|(_, range)| range),
+            LineMatcher::Literal(needles) => needles
+                .iter()
+                .filter_map(|n| find_case_insensitive(line, n))
+                .min_by_key(|r| r.start),
+        }
+    }
+
+    /// Líneas de `text` que coinciden, con la ubicación que dé `locate` (índice de línea → ubicación).
+    fn collect_lines(
+        &self,
+        matcher: &LineMatcher,
+        text: &str,
+        options: LineOptions,
+        locate: impl Fn(&[&str], usize) -> Option<MatchLocation>,
+    ) -> (Vec<MatchedLine>, usize) {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut out = Vec::new();
+        let mut total = 0;
+        for (i, line) in lines.iter().enumerate() {
+            let Some(range) = self.find_in_line(matcher, line) else {
+                continue;
+            };
+            total += 1;
+            if out.len() >= options.max_per_doc {
+                continue;
+            }
+            let from = i.saturating_sub(options.context);
+            let to = (i + 1 + options.context).min(lines.len());
+            out.push(MatchedLine {
+                location: locate(&lines, i),
+                text: clip_line(line, range.start, range.end),
+                before: lines[from..i].iter().map(|l| clip_line(l, 0, 0)).collect(),
+                after: lines[i + 1..to]
+                    .iter()
+                    .map(|l| clip_line(l, 0, 0))
+                    .collect(),
+            });
+        }
+        (out, total)
+    }
+
+    /// Búsqueda del modo exacto: candidatos por frase y comprobación literal en el texto guardado.
+    fn search_exact(&self, query: &FullTextQuery) -> Result<(Vec<FullTextHit>, usize), String> {
+        /// Candidatos que se comprueban como máximo; por encima, el total es un mínimo.
+        const MAX_CANDIDATES: usize = 2000;
+        let searcher = self.reader.searcher();
+        let candidates = self.exact_candidates_query(&query.exact)?;
+        let top = searcher
+            .search(
+                &*candidates,
+                &TopDocs::with_limit(MAX_CANDIDATES).order_by_score(),
+            )
+            .map_err(|e| format!("Error en búsqueda tantivy: {}", e))?;
+        let needles: Vec<String> = query.exact.iter().map(|n| n.to_lowercase()).collect();
+        let mut hits = Vec::new();
+        let mut total = 0;
+        for (score, address) in top {
+            let doc: TantivyDocument = searcher
+                .doc(address)
+                .map_err(|e| format!("Error leyendo doc {:?}: {}", address, e))?;
+            let get = |f: Field| {
+                doc.get_first(f)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            let (body, title) = (get(self.fields.body), get(self.fields.title));
+            let found_body = needles
+                .iter()
+                .filter_map(|n| find_case_insensitive(&body, n))
+                .min_by_key(|r| r.start);
+            let found_title = needles
+                .iter()
+                .filter_map(|n| find_case_insensitive(&title, n))
+                .min_by_key(|r| r.start);
+            if found_body.is_none() && found_title.is_none() {
+                continue;
+            }
+            total += 1;
+            if hits.len() >= query.limit {
+                continue;
+            }
+            let kind =
+                DocumentKind::parse(&get(self.fields.kind)).unwrap_or(DocumentKind::Markdown);
+            let (snippet, matched) = match found_body.clone().or(found_title.clone()) {
+                Some(r) => {
+                    let source = if found_body.is_some() { &body } else { &title };
+                    (exact_snippet(source, r.clone()), source[r].to_string())
+                }
+                None => (Vec::new(), String::new()),
+            };
+            let title_segments = match found_title {
+                Some(r) => snippet_to_segments(&title, &[r]),
+                None => vec![HighlightSegment {
+                    text: title.clone(),
+                    highlighted: false,
+                }],
+            };
+            hits.push(FullTextHit {
+                note_path: get(self.fields.path_id),
+                title: title_segments,
+                heading: Vec::new(),
+                snippet,
+                matched_terms: vec![matched],
+                kind,
+                score,
+                lines: Vec::new(),
+                total_line_matches: 0,
+            });
+        }
+        Ok((hits, total))
     }
 }
 
@@ -453,6 +643,9 @@ impl FullTextIndex for FullTextIndexImpl {
     }
 
     fn search(&self, query: &FullTextQuery) -> Result<(Vec<FullTextHit>, usize), String> {
+        if !query.exact.is_empty() {
+            return self.search_exact(query);
+        }
         let searcher = self.reader.searcher();
         let tantivy_query = self.build_query(query)?;
 
@@ -585,6 +778,8 @@ impl FullTextIndex for FullTextIndexImpl {
                 matched_terms,
                 kind,
                 score,
+                lines: Vec::new(),
+                total_line_matches: 0,
             });
         }
 
@@ -636,6 +831,215 @@ impl FullTextIndex for FullTextIndexImpl {
     fn num_docs(&self) -> u64 {
         self.reader.searcher().num_docs()
     }
+
+    fn match_lines(&self, query: &FullTextQuery, text: &str) -> (Vec<MatchedLine>, usize) {
+        let Some(options) = query.lines else {
+            return (Vec::new(), 0);
+        };
+        match self.line_matcher(query) {
+            Ok(matcher) => self.collect_lines(&matcher, text, options, |_, i| {
+                Some(MatchLocation::Line { line: i + 1 })
+            }),
+            Err(_) => (Vec::new(), 0),
+        }
+    }
+
+    fn match_document_lines(&self, query: &FullTextQuery, path: &str) -> (Vec<MatchedLine>, usize) {
+        let Some(options) = query.lines else {
+            return (Vec::new(), 0);
+        };
+        let Ok(matcher) = self.line_matcher(query) else {
+            return (Vec::new(), 0);
+        };
+        let searcher = self.reader.searcher();
+        let term = Term::from_field_text(self.fields.path_id, path);
+        let by_path = tantivy::query::TermQuery::new(term, IndexRecordOption::Basic);
+        let Ok(top) = searcher.search(&by_path, &TopDocs::with_limit(1).order_by_score()) else {
+            return (Vec::new(), 0);
+        };
+        let Some(doc) = top
+            .first()
+            .and_then(|(_, address)| searcher.doc::<TantivyDocument>(*address).ok())
+        else {
+            return (Vec::new(), 0);
+        };
+        let get = |f: Field| {
+            doc.get_first(f)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        let kind = DocumentKind::parse(&get(self.fields.kind)).unwrap_or(DocumentKind::Markdown);
+        self.collect_lines(&matcher, &get(self.fields.body), options, |l, i| {
+            locate_in_body(kind, l, i)
+        })
+    }
+}
+
+/// Cómo se decide si una línea coincide: por términos analizados (y prefijos) o por textos literales.
+enum LineMatcher {
+    Terms {
+        terms: HashSet<String>,
+        prefixes: Vec<String>,
+    },
+    /// Textos en minúsculas.
+    Literal(Vec<String>),
+}
+
+/// Ubicación de la línea `i` del texto indexado de un documento, según su formato. Depende de
+/// cómo escriben el texto los extractores (`infrastructure/search`).
+fn locate_in_body(kind: DocumentKind, lines: &[&str], i: usize) -> Option<MatchLocation> {
+    match kind {
+        // `Nombre (Tipo)` es la línea del elemento; propiedades y documentación van debajo
+        DocumentKind::Archimate | DocumentKind::Bpmn => lines[..=i].iter().rev().find_map(|l| {
+            let l = l.trim_end();
+            let inner = l.strip_suffix(')')?;
+            let (name, ty) = inner.rsplit_once(" (")?;
+            (!name.trim().is_empty()
+                && !ty.is_empty()
+                && ty.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+            .then(|| MatchLocation::Element {
+                element: name.trim().to_string(),
+                element_type: ty.to_string(),
+            })
+        }),
+        DocumentKind::Excel => lines[..=i].iter().rev().find_map(|l| {
+            l.strip_prefix("Hoja: ").map(|s| MatchLocation::Sheet {
+                sheet: s.trim().to_string(),
+            })
+        }),
+        // Markdown, Mermaid y código: el caso de uso pone el número de línea del archivo
+        DocumentKind::Markdown | DocumentKind::Mermaid | DocumentKind::Code => {
+            Some(MatchLocation::Line { line: i + 1 })
+        }
+        // PDF y Word se indexan en una sola línea; en draw.io y Excalidraw no se distingue la página
+        _ => None,
+    }
+}
+
+/// Las líneas largas (XML o PDF en una línea) se recortan a unos 300 caracteres alrededor de la coincidencia.
+fn clip_line(line: &str, start: usize, end: usize) -> String {
+    const MAX: usize = 300;
+    let line = line.trim_end();
+    if line.chars().count() <= MAX {
+        return line.to_string();
+    }
+    let half = MAX / 2;
+    let mut from = start.min(line.len()).saturating_sub(half);
+    while !line.is_char_boundary(from) {
+        from -= 1;
+    }
+    let mut to = (end.max(start) + half).min(line.len()).max(from);
+    while !line.is_char_boundary(to) {
+        to += 1;
+    }
+    let mut out = String::new();
+    if from > 0 {
+        out.push('…');
+    }
+    out.push_str(&line[from..to]);
+    if to < line.len() {
+        out.push('…');
+    }
+    out
+}
+
+/// Rango en bytes de la primera aparición de `needle` (ya en minúsculas) sin distinguir mayúsculas.
+fn find_case_insensitive(haystack: &str, needle: &str) -> Option<std::ops::Range<usize>> {
+    if needle.is_empty() {
+        return None;
+    }
+    let lower = haystack.to_lowercase();
+    if lower.len() == haystack.len() {
+        // Mismas longitudes: los desplazamientos valen para el original
+        return lower.find(needle).map(|i| i..i + needle.len());
+    }
+    // Algún carácter cambia de tamaño al pasar a minúsculas: se compara carácter a carácter
+    haystack.char_indices().find_map(|(i, _)| {
+        let rest = &haystack[i..];
+        let mut taken = 0;
+        let mut lowered = String::new();
+        for c in rest.chars() {
+            if lowered.len() >= needle.len() {
+                break;
+            }
+            lowered.extend(c.to_lowercase());
+            taken += c.len_utf8();
+        }
+        (lowered == needle).then(|| i..i + taken)
+    })
+}
+
+/// Fragmento de ~160 caracteres alrededor de `range`, con ese texto resaltado.
+fn exact_snippet(text: &str, range: std::ops::Range<usize>) -> Vec<HighlightSegment> {
+    const SIDE: usize = 80;
+    let mut from = range.start.saturating_sub(SIDE);
+    while !text.is_char_boundary(from) {
+        from -= 1;
+    }
+    let mut to = (range.end + SIDE).min(text.len());
+    while !text.is_char_boundary(to) {
+        to += 1;
+    }
+    let fragment = text[from..to].replace('\n', " ");
+    let local = range.start - from..range.end - from;
+    let mut segments = snippet_to_segments(&fragment, std::slice::from_ref(&local));
+    if from > 0
+        && let Some(first) = segments.first_mut()
+    {
+        first.text.insert_str(0, "...");
+    }
+    if to < text.len()
+        && let Some(last) = segments.last_mut()
+    {
+        last.text.push_str("...");
+    }
+    segments
+}
+
+/// `a|b` → `a OR b` y `or`/`and` sueltos → `OR`/`AND`, fuera de comillas y de `/regex/`.
+/// `\|` se queda como un espacio (Tantivy no indexa la barra).
+fn normalize_operators(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 8);
+    let mut in_quotes = false;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                in_quotes = !in_quotes;
+                out.push(c);
+            }
+            '\\' if !in_quotes && chars.peek() == Some(&'|') => {
+                chars.next();
+                out.push(' ');
+            }
+            '|' if !in_quotes => out.push_str(" OR "),
+            _ => out.push(c),
+        }
+    }
+    // Palabras `or`/`and` sueltas fuera de comillas
+    let mut result = String::with_capacity(out.len());
+    let mut in_quotes = false;
+    for (i, part) in out.split(' ').enumerate() {
+        if i > 0 {
+            result.push(' ');
+        }
+        let quotes = part.matches('"').count();
+        if !in_quotes && quotes == 0 && (part == "or" || part == "and") {
+            result.push_str(&part.to_uppercase());
+        } else {
+            result.push_str(part);
+        }
+        if quotes % 2 == 1 {
+            in_quotes = !in_quotes;
+        }
+    }
+    result.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Si la consulta lleva operadores que el prefijo de la última palabra rompería.
+fn has_operators(text: &str) -> bool {
+    text.contains(['(', ')']) || text.split_whitespace().any(|w| w == "OR" || w == "AND")
 }
 
 /// Convierte un fragmento de texto y sus rangos de resaltado en segmentos ordenados.
@@ -734,7 +1138,7 @@ mod tests {
             .unwrap();
         index.commit().unwrap();
         let found = |text: &str| {
-            let q = FullTextQuery { text: text.to_string(), limit: 5, prefix_last_term: false };
+            let q = FullTextQuery { text: text.to_string(), limit: 5, prefix_last_term: false, ..Default::default() };
             index.search(&q).unwrap().0.iter().any(|h| h.note_path == "servicio.java")
         };
         assert!(found("AchOperationCrService"), "el identificador entero");
@@ -775,6 +1179,7 @@ mod tests {
             text: "cebolla".to_string(),
             limit: 10,
             prefix_last_term: true,
+            ..Default::default()
         };
         let (hits, count) = index.search(&q).unwrap();
         assert_eq!(count, 1);
@@ -785,6 +1190,7 @@ mod tests {
             text: "cancion".to_string(),
             limit: 10,
             prefix_last_term: false,
+            ..Default::default()
         };
         let (hits_stem, count_stem) = index.search(&q_stem).unwrap();
         assert_eq!(count_stem, 1);
@@ -795,6 +1201,7 @@ mod tests {
             text: "arqui".to_string(),
             limit: 10,
             prefix_last_term: true,
+            ..Default::default()
         };
         let (hits_pre, count_pre) = index.search(&q_prefix).unwrap();
         assert_eq!(count_pre, 1);
@@ -841,6 +1248,7 @@ mod tests {
                 text: "hs:\"herramientas gate\"".to_string(),
                 limit: 10,
                 prefix_last_term: false,
+                ..Default::default()
             })
             .unwrap();
         let text: String = hits[0].snippet.iter().map(|s| s.text.as_str()).collect();
@@ -884,6 +1292,7 @@ mod tests {
                     text: query.to_string(),
                     limit: 10,
                     prefix_last_term: true,
+                    ..Default::default()
                 })
                 .unwrap();
             let text: String = hits[0].heading.iter().map(|s| s.text.as_str()).collect();
@@ -932,6 +1341,7 @@ mod tests {
             text: "presupuesto".to_string(),
             limit: 10,
             prefix_last_term: false,
+            ..Default::default()
         };
         let (hits, count) = index.search(&q).unwrap();
         assert_eq!(count, 2);
@@ -942,6 +1352,7 @@ mod tests {
             text: "presup".to_string(),
             limit: 10,
             prefix_last_term: true,
+            ..Default::default()
         };
         let (hits_pre, _) = index.search(&q_prefix).unwrap();
         assert_eq!(hits_pre[0].note_path, "b.md");
@@ -951,6 +1362,7 @@ mod tests {
             text: "headings:presupuesto".to_string(),
             limit: 10,
             prefix_last_term: false,
+            ..Default::default()
         };
         let (hits_filter, count_filter) = index.search(&q_filter).unwrap();
         assert_eq!(count_filter, 1);
@@ -961,9 +1373,155 @@ mod tests {
             text: "hs:presupuesto".to_string(),
             limit: 10,
             prefix_last_term: false,
+            ..Default::default()
         };
         let (hits_alias, count_alias) = index.search(&q_alias).unwrap();
         assert_eq!(count_alias, 1);
         assert_eq!(hits_alias[0].note_path, "b.md");
     }
+
+    fn indice(docs: Vec<(&str, DocumentKind, &str)>) -> FullTextIndexImpl {
+        let index = FullTextIndexImpl::in_memory().unwrap();
+        index
+            .upsert(
+                docs.into_iter()
+                    .map(|(path, kind, body)| FullTextDocument {
+                        path: path.into(),
+                        title: path.into(),
+                        body: body.into(),
+                        headings: String::new(),
+                        kind,
+                        mtime_nanos: 1,
+                    })
+                    .collect(),
+            )
+            .unwrap();
+        index.commit().unwrap();
+        index
+    }
+
+    fn rutas(index: &FullTextIndexImpl, q: FullTextQuery) -> Vec<String> {
+        let mut paths: Vec<String> = index.search(&q).unwrap().0.into_iter().map(|h| h.note_path).collect();
+        paths.sort();
+        paths
+    }
+
+    fn tres_documentos() -> FullTextIndexImpl {
+        indice(vec![
+            ("a.md", DocumentKind::Markdown, "programa TIEL emisor"),
+            ("b.md", DocumentKind::Markdown, "interfaz QTI1 receptor"),
+            ("c.md", DocumentKind::Markdown, "otro QTI3 BCTITPE8"),
+        ])
+    }
+
+    #[test]
+    fn alternativas_con_or_y_barra_tambien_con_prefijo() {
+        let index = tres_documentos();
+        for prefix_last_term in [false, true] {
+            for text in ["TIEL OR QTI1 OR QTI3", "TIEL|QTI1|QTI3", "TIEL | QTI1 | QTI3", "tiel or qti1 or qti3"] {
+                let q = FullTextQuery { text: text.into(), limit: 10, prefix_last_term, ..Default::default() };
+                assert_eq!(rutas(&index, q), ["a.md", "b.md", "c.md"], "{text} (prefijo: {prefix_last_term})");
+            }
+            let q = FullTextQuery { text: "(TIEL|QTI1) emisor".into(), limit: 10, prefix_last_term, ..Default::default() };
+            assert_eq!(rutas(&index, q), ["a.md"]);
+        }
+        // Sin operadores el prefijo de la última palabra sigue funcionando
+        let q = FullTextQuery { text: "interfaz rece".into(), limit: 10, prefix_last_term: true, ..Default::default() };
+        assert_eq!(rutas(&index, q), ["b.md"]);
+        let q = FullTextQuery { text: "\"interfaz QTI1\" rece".into(), limit: 10, prefix_last_term: true, ..Default::default() };
+        assert_eq!(rutas(&index, q), ["b.md"], "con una frase entre comillas, también");
+    }
+
+    #[test]
+    fn normaliza_operadores_fuera_de_comillas() {
+        assert_eq!(normalize_operators("a|b"), "a OR b");
+        assert_eq!(normalize_operators("(a | b) c"), "(a OR b) c");
+        assert_eq!(normalize_operators("a or b and c"), "a OR b AND c");
+        assert_eq!(normalize_operators("\"a|b or c\" d"), "\"a|b or c\" d");
+        assert_eq!(normalize_operators(r"a\|b"), "a b");
+        assert!(has_operators("a OR b") && has_operators("(a) b"));
+        assert!(!has_operators("kind:archimate maint") && !has_operators("-a b") && !has_operators("\"a b\" c"));
+    }
+
+    fn con_lineas(text: &str) -> FullTextQuery {
+        FullTextQuery {
+            text: text.into(),
+            limit: 10,
+            prefix_last_term: true,
+            lines: Some(LineOptions { context: 1, max_per_doc: 20 }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn lineas_de_un_texto_con_su_numero_real() {
+        let index = tres_documentos();
+        let raw = "---\ntitle: Flujo\n---\n# Flujo\n\nEl MS llama a TIEL.\nOtra línea.\nQTI1 responde.\n";
+        let (lines, total) = index.match_lines(&con_lineas("TIEL|QTI1"), raw);
+        assert_eq!(total, 2);
+        assert_eq!(lines[0].location, Some(MatchLocation::Line { line: 6 }));
+        assert_eq!(lines[0].text, "El MS llama a TIEL.");
+        assert_eq!(lines[0].before, [""]);
+        assert_eq!(lines[0].after, ["Otra línea."]);
+        assert_eq!(lines[1].location, Some(MatchLocation::Line { line: 8 }));
+        // Prefijo escrito por el usuario y prefijo de la última palabra
+        let (lines, _) = index.match_lines(&con_lineas("BCTITP*"), "x\nMS->>TIEL: BCTITPE8\n");
+        assert_eq!(lines[0].location, Some(MatchLocation::Line { line: 2 }));
+        let (lines, _) = index.match_lines(&con_lineas("respon"), raw);
+        assert_eq!(lines.len(), 1, "«respon» como prefijo de «responde»");
+    }
+
+    #[test]
+    fn lineas_de_un_documento_con_la_ubicacion_de_su_formato() {
+        let index = indice(vec![
+            (
+                "m.archimate",
+                DocumentKind::Archimate,
+                "Aplicaciones\nACH Operation Maintenance Outbound V1 (ApplicationComponent)\nUNIQUECODE: CUD-024684\nDocumentación del componente",
+            ),
+            ("p.xlsx", DocumentKind::Excel, "Hoja: Resumen\na | b\nHoja: Mapping\nachOperationId | uuid | TIEL\n"),
+            ("d.pdf", DocumentKind::Pdf, &format!("{} TIEL {}", "palabra ".repeat(100), "otra ".repeat(100))),
+        ]);
+        let (lines, _) = index.match_document_lines(&con_lineas("024684"), "m.archimate");
+        assert_eq!(
+            lines[0].location,
+            Some(MatchLocation::Element {
+                element: "ACH Operation Maintenance Outbound V1".into(),
+                element_type: "ApplicationComponent".into()
+            })
+        );
+        let (lines, _) = index.match_document_lines(&con_lineas("TIEL"), "p.xlsx");
+        assert_eq!(lines[0].location, Some(MatchLocation::Sheet { sheet: "Mapping".into() }));
+        let (lines, _) = index.match_document_lines(&con_lineas("TIEL"), "d.pdf");
+        assert_eq!(lines[0].location, None);
+        assert!(lines[0].text.contains("TIEL") && lines[0].text.starts_with('…') && lines[0].text.chars().count() < 320);
+        assert_eq!(index.match_document_lines(&con_lineas("TIEL"), "no-existe.md"), (vec![], 0));
+    }
+
+    fn exacta(textos: &[&str]) -> FullTextQuery {
+        FullTextQuery { limit: 10, exact: textos.iter().map(|t| t.to_string()).collect(), ..Default::default() }
+    }
+
+    #[test]
+    fn modo_exacto_solo_con_el_texto_literal() {
+        let index = indice(vec![
+            ("api.md", DocumentKind::Markdown, "POST /ach-operations/{id}/Outbounds-ACH/initiate"),
+            ("otro.md", DocumentKind::Markdown, "an outbound for ach operations"),
+            ("apim.mmd", DocumentKind::Mermaid, "participant APIM\nAPIM: llama"),
+        ]);
+        let (hits, total) = index.search(&exacta(&["outbounds-ach"])).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(hits[0].note_path, "api.md");
+        assert_eq!(hits[0].matched_terms, ["Outbounds-ACH"]);
+        assert!(hits[0].snippet.iter().any(|s| s.highlighted && s.text == "Outbounds-ACH"));
+        let (hits, _) = index.search(&exacta(&["outbounds-ach", "apim:"])).unwrap();
+        assert_eq!(hits.len(), 2);
+        assert!(index.search(&exacta(&[":"])).is_err(), "solo puntuación");
+        // Líneas en modo exacto
+        let q = FullTextQuery { lines: Some(LineOptions { context: 0, max_per_doc: 5 }), ..exacta(&["apim:"]) };
+        let (lines, total) = index.match_document_lines(&q, "apim.mmd");
+        assert_eq!(total, 1);
+        assert_eq!(lines[0].location, Some(MatchLocation::Line { line: 2 }));
+    }
+
 }

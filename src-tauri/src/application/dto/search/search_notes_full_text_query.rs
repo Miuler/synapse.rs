@@ -1,4 +1,4 @@
-use crate::domain::search::full_text::FullTextHit;
+use crate::domain::search::full_text::{FullTextHit, LineOptions};
 use std::path::PathBuf;
 
 pub struct SearchNotesFullTextQuery {
@@ -11,6 +11,10 @@ pub struct SearchNotesFullTextQuery {
     pub tags: Vec<String>,
     /// Extensiones permitidas en minúsculas, sin punto (`archimate`, `md`…); vacío = todas.
     pub extensions: Vec<String>,
+    /// Devolver las líneas que coinciden en cada resultado.
+    pub lines: Option<LineOptions>,
+    /// Modo exacto: textos literales que el documento debe contener (vacío = búsqueda normal).
+    pub exact: Vec<String>,
 }
 
 pub struct FullTextNoteHit {
