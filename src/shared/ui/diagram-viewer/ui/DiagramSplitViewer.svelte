@@ -5,7 +5,7 @@
   import { CodeEditor, type EditorDiagnostic } from '@shared/ui/code-editor';
   import { diagramLayoutApi } from '@shared/api';
   import { SplitResizer } from '@shared/ui/split-resizer';
-  import { LaserCanvas, LaserToggle, laserShortcuts } from '@shared/ui/laser-pointer';
+  import { LaserCanvas, LaserToggle, laserShortcuts, LASER_CURSOR } from '@shared/ui/laser-pointer';
 
   interface Props {
     content: string;
@@ -319,6 +319,7 @@
   <div
     class="preview-pane"
     class:laser-cursor={isLaserMode && !(isDragging && !drawing)}
+    style:--laser-cursor={LASER_CURSOR}
     bind:this={containerRef}
     onwheel={handleWheel}
     onpointerdown={handlePointerDown}
@@ -546,7 +547,7 @@
 
   .preview-pane.laser-cursor,
   .preview-pane.laser-cursor:active {
-    cursor: crosshair;
+    cursor: var(--laser-cursor, crosshair);
   }
 
   .svg-container {

@@ -3,7 +3,7 @@
   import { AlertCircle, Minus, Plus, Maximize2, PenTool } from 'lucide-svelte';
   import { isDrawioPngFile } from '@entities/file-type';
   import { vaultRepository } from '@shared/repositories';
-  import { LaserCanvas, LaserToggle, laserShortcuts } from '@shared/ui/laser-pointer';
+  import { LaserCanvas, LaserToggle, laserShortcuts, LASER_CURSOR } from '@shared/ui/laser-pointer';
 
   interface Props {
     src: string;
@@ -308,7 +308,7 @@
   use:laserShortcuts={{ isActive: () => laserMode, setActive: (v) => (laserMode = v) }}
   role="region"
   aria-label="Visor de imagen"
-  style="cursor: {isDragging && !drawing ? 'grabbing' : laserMode ? 'crosshair' : 'grab'};"
+  style="cursor: {isDragging && !drawing ? 'grabbing' : laserMode ? LASER_CURSOR : 'grab'};"
 >
   {#if isLoading}
     <div class="image-loading">
