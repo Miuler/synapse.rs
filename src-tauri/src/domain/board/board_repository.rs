@@ -1,0 +1,79 @@
+//! Un tablero de carpeta en la bóveda. Las rutas son absolutas y apuntan al `.board.md`; sus tareas
+//! están en la carpeta del mismo nombre sin `.md`.
+
+use crate::domain::board::board_error::BoardError;
+use crate::domain::board::board_file::BoardFile;
+use crate::domain::board::task_file::{TaskFile, TaskSync};
+use serde::Serialize;
+use std::path::Path;
+
+/// Lo de una tarea que necesitan las vistas. No lleva la descripción ni la actividad, así que no
+/// sirve para escribirla: para eso se lee entera.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskCard {
+    pub id: String,
+    /// Del archivo: una escritura solo se admite sobre lo que se leyó.
+    pub hash: String,
+    pub title: String,
+    pub status: String,
+    #[serde(rename = "type")]
+    pub issue_type: Option<String>,
+    pub assignee: Option<String>,
+    pub key: Option<String>,
+    pub url: Option<String>,
+    pub start: String,
+    pub duration: u32,
+    pub depends_on: String,
+    pub progress: u8,
+    pub sync: Option<TaskSync>,
+    pub extra: Vec<(String, String)>,
+    /// Cuántos comentarios tiene.
+    pub comments: usize,
+}
+
+/// Un archivo de la carpeta que no se pudo leer como tarea.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TaskProblem {
+    pub file: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardSnapshot {
+    pub board: BoardFile,
+    pub hash: String,
+    /// En el orden del tablero; las que no figuren en él, al final.
+    pub tasks: Vec<TaskCard>,
+    pub problems: Vec<TaskProblem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StoredTask {
+    pub task: TaskFile,
+    pub hash: String,
+}
+
+/// En las escrituras, `expected` es el hash leído; sin él, el archivo no debe existir.
+pub trait BoardRepository: Send + Sync {
+    fn read(&self, board: &Path) -> Result<BoardSnapshot, BoardError>;
+
+    fn write(
+        &self,
+        board: &Path,
+        file: &BoardFile,
+        expected: Option<&str>,
+    ) -> Result<String, BoardError>;
+
+    fn read_task(&self, board: &Path, id: &str) -> Result<StoredTask, BoardError>;
+
+    fn write_task(
+        &self,
+        board: &Path,
+        id: &str,
+        task: &TaskFile,
+        expected: Option<&str>,
+    ) -> Result<String, BoardError>;
+
+    fn delete_task(&self, board: &Path, id: &str, expected: &str) -> Result<(), BoardError>;
+}

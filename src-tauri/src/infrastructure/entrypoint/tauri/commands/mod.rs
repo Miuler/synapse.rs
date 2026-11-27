@@ -10,6 +10,7 @@ pub mod session;
 pub mod system;
 pub mod updates;
 pub mod vault;
+pub mod boards;
 pub mod issues;
 pub mod workspace;
 
@@ -25,6 +26,7 @@ pub use session::*;
 pub use system::*;
 pub use updates::*;
 pub use vault::*;
+pub use boards::*;
 pub use issues::*;
 pub use workspace::*;
 

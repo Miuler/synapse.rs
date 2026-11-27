@@ -38,13 +38,14 @@
 
 - [x] 3.1 Leer y escribir el archivo de una tarea y el del tablero (configuración y orden) como funciones puras,
   conservando lo desconocido; pruebas de ida y vuelta, de descripciones con `---` y encabezados y de la actividad
-- [ ] 3.2 Índice en memoria en Rust por tablero, actualizado por el observador, y órdenes para leer un tablero y
+- [x] 3.2 Índice en memoria en Rust por tablero, validado con la fecha y el tamaño de cada archivo, y órdenes para leer un tablero y
   escribir una tarea con escritura atómica; pruebas en Rust y medición con 5000 tareas
 - [ ] 3.3 Proteger la carpeta del tablero en las escrituras del editor, el explorador y MCP, con candado fijo en la
   interfaz, y renombrar o borrar la carpeta junto con su tablero; pruebas en Rust de cada vía y e2e que confirma que no
   se puede desbloquear
 - [ ] 3.4 Adaptar el editor del tablero (Kanban, tabla, Gantt, Raw y detalle) al nuevo formato, mostrando referencia,
-  tipo y asignado según `fields`; e2e de tableros y documentación del formato
+  tipo y asignado según `fields`; e2e de tableros y documentación del formato.
+  Volver a leer el tablero cuando el observador avise de cambios en su carpeta
 - [ ] 3.5 Convertir con confirmación los tableros con tabla y la clave `azure_devops`; pruebas con tableros actuales,
   documentación en `docs/reference.md` y en los dos CHANGELOG
 - [ ] 3.6 Traer descripción y actividad de Azure DevOps (comentarios e histórico) solo de lo cambiado desde la última

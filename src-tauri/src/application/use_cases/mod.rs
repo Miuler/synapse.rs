@@ -1,4 +1,5 @@
 pub mod appearance;
+pub mod board;
 pub mod note;
 pub mod pdf;
 pub mod plugin;

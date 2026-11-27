@@ -188,10 +188,12 @@ cuerpo como lista, sin frontmatter; las claves y los encabezados son parte del f
 
 Las claves y secciones desconocidas se conservan (las columnas propias de una tabla anterior pasan a ser claves); el `id` remoto evita volver a enviar lo traído.
 
-Rust mantiene un índice en memoria (`DashMap` por identificador) con lo que necesitan las vistas, reconstruido desde
-los archivos y actualizado por el observador; la descripción y la actividad se leen al abrir la tarea. El frontend
-pide el tablero en una sola orden en vez de leer cada archivo. Sin base de datos: filtrar unos miles de entradas en
-memoria se espera inmediato (por medir).
+Rust mantiene un índice en memoria (`DashMap` por carpeta de tablero) con lo que necesitan las vistas. Se valida con
+la fecha y el tamaño de cada archivo: leer el tablero solo vuelve a interpretar lo que cambió, venga el cambio de
+Synapse o de fuera, sin depender de que el observador no pierda avisos (el observador solo servirá para que la
+interfaz vuelva a leer). La descripción y la actividad se leen al abrir la tarea. El frontend pide el tablero en una
+sola orden. Sin base de datos: con 5000 tareas sintéticas, leer el tablero tarda unos 0,1 s y envía 2 MB a la
+interfaz (compilación de desarrollo, archivos ya en la caché del sistema).
 
 Alternativas descartadas: un solo archivo (con un equipo grande crece a megabytes, se reescribe entero en cada cambio
 y choca al sincronizar carpetas); SQLite (otra fuente de datos que mantener sin consultas que la justifiquen); datos
