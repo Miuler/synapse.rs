@@ -1582,6 +1582,9 @@
 
   function openLinkTarget(path: string, anchor?: string | null, replace?: string | null) {
     const right = !!replace && !openTabPaths.includes(replace) && splitTabPaths.includes(replace);
+    // El origen puede no estar en el historial (pestaña restaurada al abrir, o activada al cerrar
+    // otra) y sin él Atrás no vuelve; si ya es la entrada actual, no se repite
+    if (!right && activeTabPath) recordTabVisit(activeTabPath);
     if (replace) takeTabPlace(replace, path);
     if (right) selectSplitTab(path);
     else selectTab(path);

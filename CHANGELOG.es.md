@@ -51,6 +51,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Atrás en el historial vuelve al `index.md` del que se salió por un enlace, también cuando era la pestaña restaurada al abrir o activada al cerrar otra.
 - Notas: al volver de edición a lectura se conserva la posición también en las notas que tardan en pintarse (muchos enlaces, incrustaciones o imágenes), en vez de saltar al principio o a un título visitado antes.
 - Conversaciones con agentes: al cerrar una ahora se cierra también su sesión en el agente (`session/close`); con Claude sus procesos seguían vivos mientras otras conversaciones compartieran el adaptador.
 - MCP: `full_text_search` con `OR` (`TIEL OR QTI1`) no encontraba nada: la última palabra se buscaba también como prefijo y se exigían las dos partes.
