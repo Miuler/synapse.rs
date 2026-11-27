@@ -54,6 +54,39 @@ export const folderMention = (relPath: string): Mention => ({
   file: true,
 });
 
+/** Si las letras de `query` aparecen en `text` en ese orden, aunque separadas. */
+export function fuzzy(text: string, query: string): boolean {
+  let i = 0;
+  for (const c of text) if (c === query[i]) i++;
+  return i === query.length;
+}
+
+/** Qué tan bien casa una ruta (en minúsculas) con lo escrito: 0 es lo mejor. */
+function matchRank(path: string, query: string): number {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  if (name === query || name.slice(0, name.lastIndexOf('.')) === query) return 0;
+  if (name.startsWith(query)) return 1;
+  if (name.includes(query)) return 2;
+  return path.includes(query) ? 3 : 4;
+}
+
+/**
+ * Los `limit` elementos cuya ruta mejor casa con `query` (en minúsculas): primero por su nombre,
+ * luego por la ruta y al final por letras sueltas; a igualdad, la ruta más corta. Sin texto, en su orden.
+ */
+export function bestMatches<T>(items: Iterable<T>, pathOf: (item: T) => string, query: string, limit: number): T[] {
+  if (!query) return [...items].slice(0, limit);
+  const found: { item: T; rank: number; length: number }[] = [];
+  for (const item of items) {
+    const path = pathOf(item).toLowerCase();
+    if (fuzzy(path, query)) found.push({ item, rank: matchRank(path, query), length: path.length });
+  }
+  return found
+    .sort((a, b) => a.rank - b.rank || a.length - b.length)
+    .slice(0, limit)
+    .map((f) => f.item);
+}
+
 /** «hace 3 min», «hace 2 h»… */
 export function ago(ms: number | undefined, now = Date.now()): string {
   if (!ms) return '';

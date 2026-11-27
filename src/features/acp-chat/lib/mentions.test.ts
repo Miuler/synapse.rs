@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { ago, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
+import { ago, bestMatches, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
 
 const conv = (status: 'working' | 'idle') => ({ handle: '#1', agent: 'Claude', title: 'x', status });
 
@@ -22,6 +22,24 @@ describe('menciones', () => {
       ['B', 'busy'],
       ['C', 'off'],
     ]);
+  });
+
+  it('sugiere primero los archivos cuyo nombre casa, no los primeros por orden alfabético', () => {
+    const paths = [
+      'api/docs/mapping/contract.xlsx',
+      'api/src/main-helpers/Header.yaml',
+      'business-gateway/src/main.yaml',
+      'core/domain.yaml',
+      'core/src/main.yaml',
+      'core/src/old-main.yaml',
+    ];
+    const best = (q: string, n = 10) => bestMatches(paths, (p) => p, q, n);
+    // `domain.yaml` también contiene «main.yaml», pero va después de los que se llaman así
+    expect(best('main.yaml', 3)).toEqual(['core/src/main.yaml', 'business-gateway/src/main.yaml', 'core/domain.yaml']);
+    expect(best('main', 2)).toEqual(['core/src/main.yaml', 'business-gateway/src/main.yaml']);
+    // Con parte de la carpeta delante se llega al que se quiere
+    expect(best('gate/main', 1)).toEqual(['business-gateway/src/main.yaml']);
+    expect(best('', 2)).toEqual(paths.slice(0, 2));
   });
 
   it('saca las carpetas de las rutas y menciona una con barra final', () => {

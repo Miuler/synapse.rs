@@ -65,6 +65,8 @@
     mentionsPrompt,
     foldersOf,
     folderMention,
+    bestMatches,
+    fuzzy,
     mergeVaults,
     STATUS_ICON,
     VAULT_ICON,
@@ -282,12 +284,6 @@
     starting.set(v.path, ready);
   }
 
-  function fuzzy(text: string, q: string): boolean {
-    let i = 0;
-    for (const c of text) if (c === q[i]) i++;
-    return i === q.length;
-  }
-
   type Suggestion = { label: string; detail: string; tooltip?: string; header?: string; pick: () => void };
 
   /** Conversaciones de esta ventana (`#2`) que coinciden con `query`. */
@@ -393,9 +389,7 @@
       const fileRows: Suggestion[] =
         scope === 'agents'
           ? []
-          : vaultItemStore.items
-              .filter((it) => fuzzy(it.relative_path.toLowerCase(), q))
-              .slice(0, scope ? 10 : vaultRows.length ? 6 : 8)
+          : bestMatches(vaultItemStore.items, (it) => it.relative_path, q, scope ? 10 : vaultRows.length ? 6 : 8)
               .map((it) => ({
                 label: it.title || nameOf(it.relative_path),
                 detail: it.relative_path,

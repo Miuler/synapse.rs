@@ -56,6 +56,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Chat del agente: `@` sugiere primero los archivos que mejor casan (por nombre y luego por ruta); en bóvedas grandes un archivo como `main.yaml` podía quedar fuera por otros que solo coincidían en letras sueltas.
 - Atrás en el historial vuelve al `index.md` del que se salió por un enlace, también cuando era la pestaña restaurada al abrir o activada al cerrar otra.
 - Notas: al volver de edición a lectura se conserva la posición también en las notas que tardan en pintarse (muchos enlaces, incrustaciones o imágenes), en vez de saltar al principio o a un título visitado antes.
 - Conversaciones con agentes: al cerrar una ahora se cierra también su sesión en el agente (`session/close`); con Claude sus procesos seguían vivos mientras otras conversaciones compartieran el adaptador.
