@@ -388,6 +388,10 @@ export const en = {
       user: 'User',
     },
   },
+  gitBadge: {
+    deletedStaged: 'Deletion staged',
+    deletedUnstaged: 'Deletion not staged',
+  },
   gitLog: {
     squash: 'Squash {count} commits from here…',
     squashUnavailable: 'Squash from here (not with merges)',

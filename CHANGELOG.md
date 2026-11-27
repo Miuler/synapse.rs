@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Explorer: deleted files now show a «D» badge, green when the deletion is staged (so «Git Add» is not offered) and red while it is not; before, they had no badge. A deleted folder whose deletion is fully staged is shown in green instead of red.
 - Agent chat: `@` suggests the best file matches first (by name, then by path); in large vaults a file such as `main.yaml` could be left out by others that only matched scattered letters.
 - Going back in the history returns to the `index.md` you left through a link, also when it was the tab restored on opening or activated by closing another one.
 - Notes: going back from editing to reading keeps the position also in notes that take a moment to render (many links, embeds or images), instead of jumping to the top or to a heading visited before.

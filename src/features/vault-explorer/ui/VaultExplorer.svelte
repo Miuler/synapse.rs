@@ -12,7 +12,7 @@
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDrawioPngFile, isDiagramFile, isOfficeFile, isSupportedFile } from '@entities/file-type';
   import { medianRowPitch } from '../lib/row-pitch';
-  import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
+  import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, foldersWithUnstaged, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
   import { boardFolder } from '@shared/lib/board-protection';
   import { t } from '@shared/lib/i18n';
@@ -161,6 +161,11 @@
   // Archivos borrados que Git aún tiene (solo los tipos que el explorador muestra)
   let deletedTree = $derived.by(() =>
     isGitRepo && gitStatuses ? buildDeletedTree(gitStatuses, getGitStatusInfo, (p) => isSupportedFile(p)) : [],
+  );
+
+  // Una carpeta borrada sin nada pendiente dentro ya está en stage: se pinta como tal, no en rojo
+  let unstagedFolders = $derived(
+    isGitRepo && gitStatuses ? foldersWithUnstaged(gitStatuses, getGitStatusInfo) : new Set<string>(),
   );
 
   export function getChildren(node: VaultTreeNode): VaultTreeNode[] {
@@ -3010,6 +3015,7 @@
       aria-expanded={!!expandedFolders[node.relativePath]}
       class="file-tree-item folder synapse-explorer-item synapse-explorer-folder"
       class:git-deleted={node.deleted}
+      class:git-deleted-staged={node.deleted && !unstagedFolders.has(node.relativePath)}
       class:drop-target={dragOverPath === node.relativePath}
       draggable="true"
       ondragstart={(e) => handleNodeDragStart(e, node)}
@@ -3257,6 +3263,10 @@
   .file-tree-item.git-deleted .file-name {
     color: var(--color-danger, #cf222e);
     text-decoration: line-through;
+  }
+
+  .file-tree-item.git-deleted.git-deleted-staged .file-name {
+    color: var(--git-staged, #16a34a);
   }
 
   .git-filter-btn {

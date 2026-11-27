@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { buildDeletedTree, buildGitTree, childrenAt, collectFolderPaths, mergeDeleted } from './git-tree';
+import { buildDeletedTree, buildGitTree, childrenAt, collectFolderPaths, foldersWithUnstaged, mergeDeleted } from './git-tree';
 
 const parse = (raw: unknown) => raw as { worktree?: string; index?: string };
 const statuses = {
@@ -20,6 +20,14 @@ describe('git-tree', () => {
     expect(tree.find((n) => n.name === 'notas')?.deleted).toBe(false);
     expect(tree.find((n) => n.name === 'viejo')?.deleted).toBe(true);
     expect(collectFolderPaths(tree)).toEqual(['build', 'notas', 'viejo', 'viejo/sub']);
+  });
+
+  it('señala las carpetas con algo sin preparar a cualquier profundidad', () => {
+    const folders = foldersWithUnstaged(
+      { ...statuses, 'mixta/a.md': { index: 'D' }, 'mixta/sub/b.bin': { worktree: 'D' } },
+      parse,
+    );
+    expect([...folders].sort()).toEqual(['build', 'mixta', 'mixta/sub', 'notas']);
   });
 
   it('suma los borrados a los hijos reales sin duplicar carpetas', () => {

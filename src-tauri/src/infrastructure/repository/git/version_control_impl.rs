@@ -2635,6 +2635,26 @@ mod tests {
             .unwrap();
         assert_eq!(stat.index.as_deref(), Some("D"));
 
+        // 4. Add con la ruta de la carpeta borrada (lo que envía el explorador)
+        let folder = vault_dir.join("x");
+        std::fs::create_dir_all(folder.join("sub")).unwrap();
+        std::fs::write(folder.join("a.md"), "a\n").unwrap();
+        std::fs::write(folder.join("sub/b.md"), "b\n").unwrap();
+        run_cmd(&["add", "."]);
+        run_cmd(&["commit", "-m", "folder"]);
+        std::fs::remove_dir_all(&folder).unwrap();
+        run_cmd(&["rm", "--cached", "-q", "subvault/x/a.md"]);
+        for _ in 0..2 {
+            let res = git_service.git_add(&vault_dir, &["x".to_string()]);
+            assert!(res.is_ok(), "add de carpeta borrada falló: {:?}", res.err());
+        }
+        let status = git_service.get_vault_status(&vault_dir).unwrap();
+        for key in ["x/a.md", "x/sub/b.md"] {
+            let stat = status.statuses.get(key).unwrap();
+            assert_eq!(stat.index.as_deref(), Some("D"), "{key}");
+            assert_eq!(stat.worktree, None, "{key}");
+        }
+
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
 

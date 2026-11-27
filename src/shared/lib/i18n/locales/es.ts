@@ -389,6 +389,10 @@ export const es: TranslationSchema = {
       user: 'Usuario',
     },
   },
+  gitBadge: {
+    deletedStaged: 'Borrado en stage (preparado)',
+    deletedUnstaged: 'Borrado sin preparar',
+  },
   gitLog: {
     squash: 'Squash de {count} commits desde aquí…',
     squashUnavailable: 'Squash desde aquí (no con fusiones)',

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@shared/lib/i18n';
   import type { NormalizedGitStatus } from '../lib/git-status';
 
   interface Props {
@@ -18,10 +19,14 @@
       <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
     {:else if status.index === 'A'}
       <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
+    {:else if status.index === 'D'}
+      <span class="git-badge staged" title={t('gitBadge.deletedStaged')}>D</span>
     {/if}
 
     {#if status.worktree === 'M'}
       <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
+    {:else if status.worktree === 'D'}
+      <span class="git-badge modified" title={t('gitBadge.deletedUnstaged')}>D</span>
     {:else if status.worktree === '?'}
       <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
     {/if}

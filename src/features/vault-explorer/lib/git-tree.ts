@@ -67,6 +67,20 @@ function sortTree(nodes: GitTreeNode[]) {
   for (const node of nodes) if (node.isFolder) sortTree(node.children);
 }
 
+/** Carpetas con algún cambio sin preparar dentro, a cualquier profundidad (de cualquier tipo de archivo). */
+export function foldersWithUnstaged(
+  statuses: Record<string, unknown>,
+  parse: (raw: unknown) => GitStatusLike | null,
+): Set<string> {
+  const folders = new Set<string>();
+  for (const [raw, status] of Object.entries(statuses)) {
+    if (!parse(status)?.worktree) continue;
+    const parts = cleanGitPath(raw).split('/').filter(Boolean);
+    for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join('/'));
+  }
+  return folders;
+}
+
 /** Árbol con todos los archivos que Git marca, de cualquier tipo. */
 export function buildGitTree(
   statuses: Record<string, unknown>,

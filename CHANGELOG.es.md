@@ -57,6 +57,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Explorador: los archivos borrados muestran ahora una insignia «D», verde si el borrado ya está en stage (por eso no se ofrece «Git Add») y roja mientras no lo está; antes no tenían insignia. Una carpeta borrada cuyo borrado está entero en stage se ve en verde en vez de rojo.
 - Chat del agente: `@` sugiere primero los archivos que mejor casan (por nombre y luego por ruta); en bóvedas grandes un archivo como `main.yaml` podía quedar fuera por otros que solo coincidían en letras sueltas.
 - Atrás en el historial vuelve al `index.md` del que se salió por un enlace, también cuando era la pestaña restaurada al abrir o activada al cerrar otra.
 - Notas: al volver de edición a lectura se conserva la posición también en las notas que tardan en pintarse (muchos enlaces, incrustaciones o imágenes), en vez de saltar al principio o a un título visitado antes.
