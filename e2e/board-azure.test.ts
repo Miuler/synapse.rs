@@ -80,6 +80,35 @@ azure_devops:
 | t1 | Solo local | todo | 2026-01-01 | 1d | - | 0% |
 `;
 
+/** Un tablero con tabla ya vinculado, con un comentario enviado y otro por enviar. */
+const toConvert = () => `---
+type: board
+default_view: kanban
+columns:
+  - { id: todo, label: "Por hacer", color: "var(--text-muted)" }
+  - { id: doing, label: "En progreso", color: "var(--accent)" }
+azure_devops:
+  project_url: ${server.url.origin}/org/Demo
+  links:
+    ado-7:
+      id: 7
+      title: "Preparar | entorno"
+      state: In Progress
+      column: doing
+      sent: ["2026-01-02T10:00:00"]
+---
+
+| id | Tarea | Estado | Inicio | Duración | Depende | Progreso |
+|---|---|---|---|---|---|---|
+| ado-7 | Preparar \\| entorno | doing | 2026-01-01 | 1d | - | 0% |
+
+## Comentarios
+
+### ado-7
+- \`2026-01-02T10:00:00\` — ya enviado
+- \`2026-01-03T10:00:00\` — pendiente
+`;
+
 let s: Session;
 const saved = ['AZURE_DEVOPS_PAT', 'SYNAPSE_OP_PATH', 'SYNAPSE_KEYRING_FILE'].map((name) => [name, process.env[name]] as const);
 // Un `op` falso: anota con qué se le llama y entrega otro token
@@ -96,7 +125,7 @@ beforeAll(async () => {
   process.env.SYNAPSE_KEYRING_FILE = join(bin, 'llavero');
   mkdirSync(join(bin, 'llavero'));
   writeFileSync(join(bin, 'llavero/issues-pruebas'), 'token-falso');
-  s = await startApp({ 'equipo.board.md': board });
+  s = await startApp({ 'equipo.board.md': board, 'convertido.board.md': toConvert() });
   writeConfig();
   await s.browser.$('.file-tree-item[data-path="equipo.board.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="equipo.board.md"]').click();
@@ -235,3 +264,40 @@ it('la configuración se guarda en el tablero y un servidor ajeno no recibe el t
   await until(async () => (await status()).includes('Ninguna conexión cubre https://ejemplo.invalid/org/Demo'), 'no se rechazó el servidor');
   expect(tokens).toEqual([]);
 }, 90_000);
+
+it('tras convertir un tablero, «Enviar» manda cada comentario pendiente una sola vez', async () => {
+  const pane = '.tab-pane:not(.hidden)';
+  const task = () => readFileSync(join(s.vault, 'convertido.board/ado-7.md'), 'utf8');
+  const shown = () =>
+    s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .issues-status')?.textContent ?? '') as Promise<string>;
+  const comments = () => writes.filter((w) => w.startsWith('comment'));
+  expect(comments()).toEqual([]);
+
+  await s.browser.$('.file-tree-item[data-path="convertido.board.md"]').click();
+  await s.browser.$(`${pane} .board-convert button`).waitForExist({ timeout: 15_000 });
+  await s.browser.$(`${pane} .board-convert button`).click();
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
+  await until(() => existsSync(join(s.vault, 'convertido.board/ado-7.md')), 'no se convirtió');
+  await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).waitForExist({ timeout: 15_000 });
+  await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
+  await s.browser.$('.task-dialog .comment-form input').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.task-dialog .comment-form input').click();
+  await s.browser.keys('nuevo');
+  await s.browser.keys(['Enter']);
+  await until(() => task().includes('\n  nuevo\n'), 'no se guardó el comentario');
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+
+  await s.browser.$(`${pane} .issues-push`).click();
+  await s.browser.$('.issues-confirm').waitForExist({ timeout: 15_000 });
+  await s.browser.$('.issues-confirm').click();
+  await until(async () => (await shown()).includes('2 comentarios'), 'no se envió');
+  expect(comments().sort()).toEqual(['comment 7 nuevo', 'comment 7 pendiente']);
+  await until(() => /"sent":\["2026-01-02T10:00:00","2026-01-03T10:00:00","[^"]+"\]/.test(task()), 'no se anotó lo enviado');
+
+  // Releído del disco, no vuelve a proponer nada
+  await s.browser.$(`${pane} .issues-push`).click();
+  await until(async () => (await shown()).includes('No hay nada que enviar'), 'volvió a proponer cambios');
+  expect(comments()).toHaveLength(2);
+}, 120_000);

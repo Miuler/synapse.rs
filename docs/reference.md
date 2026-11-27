@@ -154,8 +154,9 @@ confirmation. Converting saves pending changes, writes one file per row with its
 and rewrites the board file with columns, order and source (`azure_devops` becomes `source`; its connection and query
 stay as they were). Own columns become data of each task under the column name, and other text stays in the board file.
 
-The original is kept next to it as `Name.board.md.bak`. To go back, replace `Name.board.md` with that copy and delete
-the `Name.board/` folder (changes made after converting are lost). Nothing is converted if a task id is not a valid
+The original is kept next to it as `Name.board.md.bak`. To go back, delete the board in Synapse choosing to delete its
+task folder too, and rename the copy to `Name.board.md` (changes made after converting are lost; while the board file
+exists Synapse does not let you delete the folder alone). Nothing is converted if a task id is not a valid
 file name (ASCII letters, digits, `-` and `_`, all different ignoring case) or the folder already has files.
 
 Editing a board while it is still a table rewrites it with the seven columns Synapse writes: own columns and other text
