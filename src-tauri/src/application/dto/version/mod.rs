@@ -20,3 +20,5 @@ pub mod delete_ref_command;
 pub mod docx_source_query;
 pub mod change_history_command;
 pub mod squash_preview_query;
+pub mod merge_command;
+pub mod merge_query;

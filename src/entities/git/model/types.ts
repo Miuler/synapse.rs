@@ -146,3 +146,39 @@ export interface GitCommitDetails {
   message: string;
   files: GitCommitFileChange[];
 }
+
+export interface GitMergeConflict {
+  /** Relativa a la raíz del repositorio. */
+  path: string;
+  base: boolean;
+  ours: boolean;
+  theirs: boolean;
+  /** No se fusiona por líneas: solo se puede elegir una versión. */
+  binary: boolean;
+}
+
+export interface GitMergeState {
+  ours: string;
+  theirs: string;
+  message: string;
+  conflicts: GitMergeConflict[];
+}
+
+export interface GitConflictVersions {
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
+  binary: boolean;
+}
+
+export type GitResolution =
+  | { kind: 'content'; content: string }
+  | { kind: 'ours' }
+  | { kind: 'theirs' }
+  | { kind: 'delete' };
+
+export type GitMergeAction =
+  | { kind: 'start'; target: string }
+  | { kind: 'resolve'; path: string; resolution: GitResolution }
+  | { kind: 'continue'; message: string | null }
+  | { kind: 'abort' };

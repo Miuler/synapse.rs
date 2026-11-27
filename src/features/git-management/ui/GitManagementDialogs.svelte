@@ -3,6 +3,7 @@
   import GitCommitDialog from './GitCommitDialog.svelte';
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import GitRepoLogDialog from './GitRepoLogDialog.svelte';
+  import GitMergeDialog from './GitMergeDialog.svelte';
   import {
     gitDialogState,
     gitApi,
@@ -138,6 +139,14 @@
   {onPatchRevision}
   {onCompareRevisions}
   {onAskAgent}
+/>
+
+<GitMergeDialog
+  bind:open={gitDialogState.isMergeOpen}
+  onRepoChanged={async () => {
+    if (onRefreshGit) await onRefreshGit();
+  }}
+  {onToast}
 />
 
 <GitRepoLogDialog

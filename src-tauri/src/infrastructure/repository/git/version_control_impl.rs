@@ -4,6 +4,7 @@ pub use crate::domain::version::version::{
     VersionEntry,
 };
 use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
+use crate::domain::version::merge::{ConflictVersions, MergeAction, MergeOutcome, MergeState};
 use crate::domain::version::version::RepoInfo;
 use crate::domain::version::version_control::VersionControl;
 use super::repo_routing as routing;
@@ -166,6 +167,18 @@ impl VersionControl for VersionControlImpl {
 
     fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String> {
         repo_log::change_history(vault_path, action)
+    }
+
+    fn merge_state(&self, vault_path: &Path) -> Result<Option<MergeState>, String> {
+        super::merge::state(vault_path)
+    }
+
+    fn conflict_versions(&self, vault_path: &Path, path: &str) -> Result<ConflictVersions, String> {
+        super::merge::versions(vault_path, path)
+    }
+
+    fn merge(&self, vault_path: &Path, action: &MergeAction) -> Result<MergeOutcome, String> {
+        super::merge::act(vault_path, action)
     }
 
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
@@ -2963,12 +2976,12 @@ mod tag_refs_tests {
 }
 
 /// Log de todas las ramas del repositorio y detalles de un commit, con la CLI de git.
-mod repo_log {
+pub(super) mod repo_log {
     use super::{CommitDetails, CommitFileChange, CommitRef, RepoCommit, RepoLog};
     use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
     use std::path::Path;
 
-    fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
+    pub(in super::super) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
         let out = crate::infrastructure::service::os::git_binary::git_command()
             .current_dir(dir)
             .args(args)
@@ -3154,7 +3167,7 @@ mod repo_log {
     }
 
     /// El commit al que apunta `name`.
-    fn commit_id(dir: &Path, name: &str) -> Result<String, String> {
+    pub(in super::super) fn commit_id(dir: &Path, name: &str) -> Result<String, String> {
         let name = name.trim();
         if name.is_empty() || name.starts_with('-') {
             return Err(format!("Commit no válido: {name}"));
@@ -3164,18 +3177,18 @@ mod repo_log {
             .map_err(|_| format!("No se encontró «{name}»"))
     }
 
-    fn current_branch(dir: &Path) -> Result<String, String> {
+    pub(in super::super) fn current_branch(dir: &Path) -> Result<String, String> {
         git(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"])
             .map(|s| s.trim().to_string())
             .map_err(|_| "HEAD está separado: cambia antes a una rama".to_string())
     }
 
     /// ¿Hay una fusión, rebase, cherry-pick o revert sin terminar?
-    fn has_state(dir: &Path, name: &str) -> bool {
+    pub(in super::super) fn has_state(dir: &Path, name: &str) -> bool {
         git(dir, &["rev-parse", "--git-path", name]).is_ok_and(|p| dir.join(p.trim()).exists())
     }
 
-    fn nothing_in_progress(dir: &Path) -> Result<(), String> {
+    pub(in super::super) fn nothing_in_progress(dir: &Path) -> Result<(), String> {
         let busy = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"]
             .iter()
             .any(|name| has_state(dir, name));

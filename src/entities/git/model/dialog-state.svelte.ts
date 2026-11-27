@@ -5,6 +5,7 @@
  */
 
 import type { GitRepoInfo } from './types';
+import type { GitUndoPoint } from '../api/git.api';
 
 /** Repositorio más cercano que contiene `path` (`''` = la raíz de la bóveda). */
 export function repoOf(path: string | null | undefined, repos: GitRepoInfo[]): string {
@@ -32,6 +33,9 @@ class GitDialogState {
   isCommitDialogOpen = $state(false);
   isFileLogOpen = $state(false);
   isRepoLogOpen = $state(false);
+  isMergeOpen = $state(false);
+  /** Fusión recién confirmada: el log la anuncia y ofrece deshacerla. */
+  finishedMerge = $state<{ repo: string; point: GitUndoPoint } | null>(null);
   commitPaths = $state<string[]>([]);
   fileLogTarget = $state<string | null>(null);
 
@@ -65,6 +69,13 @@ class GitDialogState {
   openRepoLog(repo?: string) {
     this.repo = this.pick(repo ?? this.repo);
     this.isRepoLogOpen = true;
+  }
+
+  /** Conflictos de la fusión en curso (diálogo aparte del log, que se cierra). */
+  openMerge(repo?: string) {
+    this.repo = this.pick(repo ?? this.repo);
+    this.isRepoLogOpen = false;
+    this.isMergeOpen = true;
   }
 
   openFileLog(path: string) {

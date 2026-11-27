@@ -2,6 +2,7 @@ use crate::domain::version::version::{
     BranchList, CommitDetails, FileDiff, FileRevision, FileVersionHistory, ImageDiff, RepoLog, VaultVersionState,
 };
 use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
+use crate::domain::version::merge::{ConflictVersions, MergeAction, MergeOutcome, MergeState};
 use std::path::Path;
 
 pub trait VersionControl: Send + Sync {
@@ -61,6 +62,11 @@ pub trait VersionControl: Send + Sync {
     fn squash_preview(&self, vault_path: &Path, from: &str) -> Result<SquashPreview, String>;
     /// Cambia la historia de la rama actual. Devuelve cómo deshacerlo (deshacer no devuelve nada).
     fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String>;
+    /// La fusión sin terminar del repositorio, si la hay.
+    fn merge_state(&self, vault_path: &Path) -> Result<Option<MergeState>, String>;
+    /// Las versiones de un archivo en conflicto.
+    fn conflict_versions(&self, vault_path: &Path, path: &str) -> Result<ConflictVersions, String>;
+    fn merge(&self, vault_path: &Path, action: &MergeAction) -> Result<MergeOutcome, String>;
     fn create_branch(
         &self,
         vault_path: &Path,
@@ -183,6 +189,18 @@ impl<T: VersionControl + ?Sized> VersionControl for &T {
 
     fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String> {
         (**self).change_history(vault_path, action)
+    }
+
+    fn merge_state(&self, vault_path: &Path) -> Result<Option<MergeState>, String> {
+        (**self).merge_state(vault_path)
+    }
+
+    fn conflict_versions(&self, vault_path: &Path, path: &str) -> Result<ConflictVersions, String> {
+        (**self).conflict_versions(vault_path, path)
+    }
+
+    fn merge(&self, vault_path: &Path, action: &MergeAction) -> Result<MergeOutcome, String> {
+        (**self).merge(vault_path, action)
     }
 
     fn create_branch(

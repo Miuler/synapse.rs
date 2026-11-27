@@ -1,4 +1,7 @@
 use crate::application::dto::version::change_history_command::ChangeHistoryCommand;
+use crate::application::dto::version::merge_command::MergeCommand;
+use crate::application::dto::version::merge_query::{ConflictVersionsQuery, MergeStateQuery};
+use crate::domain::version::merge::{ConflictVersions, MergeAction, MergeOutcome, MergeState};
 use crate::application::dto::version::squash_preview_query::SquashPreviewQuery;
 use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
@@ -452,6 +455,43 @@ pub fn git_change_history(
         .execute(ChangeHistoryCommand { vault_path, action });
 
     // Sincronizar el árbol: revert y reset --hard cambian archivos (también si fallan a medias)
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
+            engine.spawn_reconciliation();
+        }
+
+    result
+}
+
+/// La fusión sin terminar del repositorio, si la hay.
+#[tauri::command(async)]
+pub fn git_merge_state(state: State<'_, AppState>, repo: Option<String>) -> Result<Option<MergeState>, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state.merge_use_case.state(MergeStateQuery { vault_path })
+}
+
+/// Antecesor común, versión propia y ajena de un archivo en conflicto.
+#[tauri::command(async)]
+pub fn git_conflict_versions(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    path: String,
+) -> Result<ConflictVersions, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state.merge_use_case.versions(ConflictVersionsQuery { vault_path, path })
+}
+
+/// Fusiona en la rama actual, resuelve conflictos y confirma o cancela la fusión.
+#[tauri::command(async)]
+pub fn git_merge(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    action: MergeAction,
+) -> Result<MergeOutcome, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    let result = state.merge_use_case.execute(MergeCommand { vault_path, action });
+
+    // Sincronizar el árbol: la fusión cambia archivos (también si falla a medias)
     if let Ok(guard) = state.navigation_engine.lock()
         && let Some(ref engine) = *guard {
             engine.spawn_reconciliation();

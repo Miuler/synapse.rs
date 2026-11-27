@@ -5,9 +5,10 @@
   import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     GitGraph, Search, Loader2, AlertCircle, Tag, GitBranch, Cloud, FileText, RefreshCw,
-    GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward, Combine, Undo2, History,
+    GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward, Combine, Undo2, History, GitMerge,
   } from 'lucide-svelte';
   import { t } from '@shared/lib/i18n';
+  import { flushPendingWrites } from '@shared/lib/pending-writes';
   import {
     gitApi,
     gitDialogState,
@@ -17,6 +18,7 @@
     type GitHistoryAction,
     type GitSquashPreview,
     type GitUndoPoint,
+    type GitMergeState,
   } from '@entities/git';
   import { buildRepoLogGraph, reachableFrom } from '../lib/repo-log-graph';
   import type { GraphRow } from '../lib/file-log-graph';
@@ -143,16 +145,25 @@
     dragOverSide = null;
   }
 
+  /** Merge sin terminar del repositorio (puede venir de otra sesión o de la terminal). */
+  let mergeState = $state<GitMergeState | null>(null);
+  async function loadMergeState(target: string) {
+    const next = await gitApi.gitMergeState(target).catch(() => null);
+    if (target === repo) mergeState = next;
+  }
+
   async function loadLog() {
     loading = true;
     error = null;
     const target = repo;
+    void loadMergeState(target);
     try {
       const res = await gitApi.getGitRepoLog(target);
       if (target !== repo) return;
       commits = res.commits ?? [];
       head = res.head ?? null;
-      loadedRepo = target;
+      // Si se cerró mientras cargaba, al reabrir hay que volver a leer
+      loadedRepo = open ? target : null;
       if (!selectedHash || !commits.some((c) => c.commit_hash === selectedHash)) {
         selectCommit(res.head ?? commits[0]?.commit_hash ?? null);
       }
@@ -169,6 +180,7 @@
       branchFilter = '';
       selectedHash = null;
       details = null;
+      mergeState = null;
       void loadLog();
     }
     if (!open) loadedRepo = null;
@@ -220,6 +232,15 @@
 
   /** Commits que están en la historia de HEAD: solo esos se pueden revertir. */
   const inHead = $derived(new Set(head ? reachableFrom(commits, head).map((c) => c.commit_hash) : []));
+
+  // El merge confirmado desde su diálogo se anuncia aquí, con la opción de deshacerlo
+  $effect(() => {
+    const done = gitDialogState.finishedMerge;
+    if (!open || !done || done.repo !== repo) return;
+    undo = done;
+    notice = { text: t('gitMerge.merged'), error: false };
+    gitDialogState.finishedMerge = null;
+  });
 
   // El grafo solo tiene sentido sin filtro de texto (con el de rama el conjunto sigue cerrado)
   const LANE = 14;
@@ -324,7 +345,8 @@
       notice = { text: msg, error: false };
       onToast?.(msg);
       if (changesWorktree) await onRepoChanged?.();
-      await loadLog();
+      // La acción puede haber cerrado el log (un merge con conflictos abre su diálogo)
+      if (open) await loadLog();
     } catch (err) {
       notice = { text: err instanceof Error ? err.message : String(err), error: true };
     } finally {
@@ -397,6 +419,35 @@
       () => changeHistory({ kind: 'squash', from, message }, t('gitLog.squashed', { count: preview.commits, branch: preview.branch })),
       true
     );
+  }
+
+  function askMerge(target: string, source: string, branch: string) {
+    askConfirm(t('gitMerge.confirm', { source, branch }), async () => {
+      const where = repo;
+      // Lo que esté sin guardar cuenta como cambio local: git no debe pisarlo
+      await flushPendingWrites();
+      let outcome;
+      try {
+        outcome = await gitApi.gitMerge({ kind: 'start', target }, where);
+      } catch (err) {
+        await loadMergeState(where);
+        throw err;
+      }
+      if (outcome.kind === 'conflicts') {
+        gitDialogState.openMerge(where);
+        return t('gitMerge.hasConflicts');
+      }
+      if (outcome.kind !== 'merged') return t('gitMerge.upToDate');
+      undo = { repo: where, point: outcome.undo };
+      return t('gitMerge.merged');
+    });
+  }
+
+  function askAbortMerge() {
+    askConfirm(t('gitMerge.abortConfirm'), async () => {
+      await gitApi.gitMerge({ kind: 'abort' }, repo);
+      return t('gitMerge.aborted');
+    });
   }
 
   async function copyHash(hash: string) {
@@ -523,6 +574,14 @@
       <button type="button" class="repo-log-refresh" onclick={loadLog} title="Recargar" aria-label="Recargar" disabled={loading}>
         <RefreshCw size={13} />
       </button>
+      {#if mergeState}
+        <div class="repo-log-merging" role="status">
+          <GitMerge size={14} />
+          <span>{t('gitMerge.inProgress', { theirs: mergeState.theirs, ours: mergeState.ours })}</span>
+          <button type="button" data-action="resolve-merge" onclick={() => gitDialogState.openMerge(repo)}>{t('gitMerge.resolveButton')}</button>
+          <button type="button" data-action="abort-merge" onclick={askAbortMerge}>{t('gitMerge.abort')}…</button>
+        </div>
+      {/if}
     </div>
 
     <div class="repo-log-list">
@@ -727,6 +786,14 @@
         {@const branch = headBranch}
         {@const hash = c.commit_hash}
         <div class="menu-sep"></div>
+        {#if !mergeState && !inHead.has(hash)}
+          {@const sources = c.refs.filter((r) => (r.kind === 'local' || r.kind === 'remote') && r.name !== branch)}
+          {#each sources.length ? sources.map((r) => ({ target: r.name, label: r.name })) : [{ target: hash, label: c.short_hash }] as source (source.target)}
+            <button type="button" role="menuitem" data-action="merge" onclick={() => askMerge(source.target, source.label, branch)}>
+              <GitMerge size={13} /> {t('gitMerge.menu', { source: source.label, branch })}
+            </button>
+          {/each}
+        {/if}
         {#if squashCheck?.hash === hash}
           {@const preview = squashCheck.preview}
           <button
@@ -1185,6 +1252,29 @@
     color: #fff;
     background: var(--accent, #0969da);
   }
+  .repo-log-merging {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 0 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    background: rgba(220, 38, 38, 0.1);
+    border-radius: 6px;
+  }
+  .repo-log-merging span {
+    margin-right: auto;
+  }
+  .repo-log-merging button {
+    padding: 3px 10px;
+    font-size: 12px;
+    border: 1px solid var(--border-primary, #d0d7de);
+    border-radius: 5px;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #1f2328);
+    cursor: pointer;
+  }
+
   .repo-log-menu {
     position: fixed;
     z-index: 1000;

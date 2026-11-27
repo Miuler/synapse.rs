@@ -8,6 +8,9 @@ import type {
   GitBranchesResult,
   GitRepoLogResult,
   GitCommitDetails,
+  GitMergeState,
+  GitConflictVersions,
+  GitMergeAction,
 } from '../model/types';
 
 export interface GitSquashPreview {
@@ -25,6 +28,13 @@ export interface GitUndoPoint {
   stash: string | null;
   files: boolean;
 }
+
+export type GitMergeOutcome =
+  | { kind: 'merged'; undo: GitUndoPoint }
+  | { kind: 'up_to_date' }
+  | { kind: 'conflicts' }
+  | { kind: 'resolved' }
+  | { kind: 'aborted' };
 
 export type GitHistoryAction =
   | { kind: 'squash'; from: string; message: string }
@@ -116,6 +126,20 @@ export const gitApi = {
   /** Squash, revert o reset de la rama actual; devuelve cómo deshacerlo (`null` al deshacer). */
   async gitChangeHistory(action: GitHistoryAction, repo = ''): Promise<GitUndoPoint | null> {
     return await invokeTauri<GitUndoPoint | null>('git_change_history', { repo, action });
+  },
+
+  /** La fusión sin terminar del repositorio, si la hay. */
+  async gitMergeState(repo = ''): Promise<GitMergeState | null> {
+    return await invokeTauri<GitMergeState | null>('git_merge_state', { repo });
+  },
+
+  async gitConflictVersions(path: string, repo = ''): Promise<GitConflictVersions> {
+    return await invokeTauri<GitConflictVersions>('git_conflict_versions', { repo, path });
+  },
+
+  /** Empieza, resuelve, confirma o cancela una fusión en la rama actual. */
+  async gitMerge(action: GitMergeAction, repo = ''): Promise<GitMergeOutcome> {
+    return await invokeTauri<GitMergeOutcome>('git_merge', { repo, action });
   },
 
   /** Borra un tag o una rama local (`force` = `git branch -D`). */

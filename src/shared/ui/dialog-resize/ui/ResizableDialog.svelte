@@ -17,6 +17,8 @@
     onClose: () => void;
     /** Impide cerrar mientras hay una operación en curso. */
     busy?: boolean;
+    /** Hay algo que perder: Escape y el clic fuera solo piden cerrar, y decide quien lo usa. */
+    holdClose?: boolean;
     title: string;
     description?: string;
     /** Clave de localStorage donde se guarda el tamaño. */
@@ -41,6 +43,7 @@
     open,
     onClose,
     busy = false,
+    holdClose = false,
     title,
     description,
     sizeKey,
@@ -65,6 +68,13 @@
   function requestClose() {
     if (!busy) onClose();
   }
+
+  /** Sin esto, el diálogo se cierra solo aunque `onClose` decida no hacerlo. */
+  function hold(event: Event) {
+    if (!holdClose) return;
+    event.preventDefault();
+    requestClose();
+  }
 </script>
 
 <Dialog.Root
@@ -80,6 +90,8 @@
       style="{dialogSize.style} --dialog-tone: {tone}; {offset.style(dialogSize.size)}"
       {onkeydown}
       {onOpenAutoFocus}
+      onEscapeKeydown={hold}
+      onInteractOutside={hold}
     >
       <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
 

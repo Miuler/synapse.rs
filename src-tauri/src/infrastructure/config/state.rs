@@ -46,6 +46,7 @@ use crate::application::use_cases::version::create_tag_use_case::CreateTagUseCas
 use crate::application::use_cases::version::change_history_use_case::ChangeHistoryUseCase;
 use crate::application::use_cases::version::fast_forward_use_case::FastForwardUseCase;
 use crate::application::use_cases::version::squash_preview_use_case::SquashPreviewUseCase;
+use crate::application::use_cases::version::merge_use_case::MergeUseCase;
 use crate::application::use_cases::spreadsheet::read_spreadsheet_use_case::ReadSpreadsheetUseCase;
 use crate::infrastructure::repository::file::spreadsheet_reader_impl::SpreadsheetReaderImpl;
 use crate::application::use_cases::version::delete_ref_use_case::DeleteRefUseCase;
@@ -176,6 +177,7 @@ pub struct AppState {
     pub fast_forward_use_case: FastForwardUseCase<VersionControlImpl>,
     pub change_history_use_case: ChangeHistoryUseCase<VersionControlImpl>,
     pub squash_preview_use_case: SquashPreviewUseCase<VersionControlImpl>,
+    pub merge_use_case: MergeUseCase<VersionControlImpl>,
     pub read_spreadsheet_use_case: ReadSpreadsheetUseCase<SpreadsheetReaderImpl>,
     pub delete_ref_use_case: DeleteRefUseCase<VersionControlImpl>,
     pub checkout_branch_use_case: CheckoutBranchUseCase<VersionControlImpl>,
@@ -431,6 +433,7 @@ impl AppState {
             fast_forward_use_case: FastForwardUseCase::new(VersionControlImpl),
             change_history_use_case: ChangeHistoryUseCase::new(VersionControlImpl),
             squash_preview_use_case: SquashPreviewUseCase::new(VersionControlImpl),
+            merge_use_case: MergeUseCase::new(VersionControlImpl),
             read_spreadsheet_use_case: ReadSpreadsheetUseCase::new(SpreadsheetReaderImpl::new()),
             delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
@@ -611,6 +614,7 @@ impl AppState {
             fast_forward_use_case: FastForwardUseCase::new(VersionControlImpl),
             change_history_use_case: ChangeHistoryUseCase::new(VersionControlImpl),
             squash_preview_use_case: SquashPreviewUseCase::new(VersionControlImpl),
+            merge_use_case: MergeUseCase::new(VersionControlImpl),
             read_spreadsheet_use_case: ReadSpreadsheetUseCase::new(SpreadsheetReaderImpl::new()),
             delete_ref_use_case: DeleteRefUseCase::new(VersionControlImpl),
             checkout_branch_use_case: CheckoutBranchUseCase::new(VersionControlImpl),
