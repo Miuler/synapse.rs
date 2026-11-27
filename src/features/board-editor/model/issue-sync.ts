@@ -19,6 +19,8 @@ export interface IssueLink {
   outside?: boolean;
   /** Versión de la que se guardó la descripción y la actividad (formato de carpeta). */
   rev?: string;
+  /** Cuándo cambió en el proveedor, según la última vez que se trajo (formato de carpeta). */
+  updated?: string;
   /** Huella de la última descripción que ambos lados tenían. */
   description?: string;
   /** El tipo que había antes de cambiarlo aquí (formato de carpeta). */
@@ -71,6 +73,7 @@ export interface Issue {
   url?: string | null;
   /** Markdown. */
   description?: string | null;
+  updated_at?: string | null;
   /** Lo que no cabe en el modelo común. */
   extra?: Record<string, string>;
 }

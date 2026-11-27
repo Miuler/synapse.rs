@@ -86,6 +86,7 @@ fn source(
                         column: link.column,
                         sent: link.sent,
                         outside: link.outside,
+                        updated: None,
                         description: None,
                         issue_type: None,
                         assignee: None,

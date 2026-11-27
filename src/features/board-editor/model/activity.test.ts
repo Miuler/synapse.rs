@@ -82,6 +82,8 @@ describe('actividad traída', () => {
     const { doc, changed, conflicts } = receive(before, [item('4')], { '1': [remote('7', 'hola')] }, { a: stored });
     expect([changed, conflicts]).toEqual([['a'], []]);
     expect(doc.source!.links!.a).toMatchObject({ rev: '4', description: fingerprint('desc') });
+    const dated = receive(before, [{ ...item('4'), updated_at: '2026-02-03T04:05:06Z' }], { '1': [] }, {});
+    expect(dated.doc.source!.links!.a.updated).toBe('2026-02-03T04:05:06Z');
     const written = applyTask(stored, { task: before.tasks[0], link: before.source!.links!.a }, { task: doc.tasks[0], link: doc.source!.links!.a });
     expect(written.description).toBe('desc');
     expect(written.activity).toEqual([{ at: '2026-01-02T00:00:00', kind: 'comment', author: 'Ana', id: '7', edited: false, text: 'hola' }]);

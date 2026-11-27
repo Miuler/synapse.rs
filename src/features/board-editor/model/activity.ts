@@ -105,6 +105,7 @@ export function receive(
     links[task.id] = {
       ...link,
       ...(version(item) && { rev: version(item) }),
+      ...(item.updated_at && { updated: item.updated_at }),
       ...(description.base && { description: description.base }),
     };
     const merged = file && mergeActivity(file.activity, entries, link.sent);

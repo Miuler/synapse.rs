@@ -35,6 +35,9 @@ pub struct TaskSync {
     /// Ya no la devuelve la consulta del tablero.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub outside: bool,
+    /// Cuándo cambió en el proveedor, según la última vez que se trajo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated: Option<String>,
     /// Huella de la última descripción que ambos lados tenían.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -419,6 +422,7 @@ mod tests {
                 column: "doing".into(),
                 sent: vec!["2026-01-01T10:00:00".into()],
                 outside: true,
+                updated: Some("2026-01-01T10:00:00".into()),
                 description: Some("0a1b2c3d".into()),
                 issue_type: Some("Bug".into()),
                 assignee: Some(String::new()),

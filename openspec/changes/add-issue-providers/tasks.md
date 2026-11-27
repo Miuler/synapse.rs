@@ -76,8 +76,12 @@
 
 ## 4. Referencias desde Markdown
 
-- [ ] 4.1 Resolver un tablero y filtrar sus tareas (estado, tipo, asignado, referencia, orden, grupo, límite y
-  campos) como funciones puras; pruebas unitarias de cada filtro, del resumen y de los errores
+- [x] 4.1 Resolver un tablero y filtrar sus tareas (estado, tipo, asignado, referencia, orden, grupo, límite y
+  campos) como funciones puras; pruebas unitarias de cada filtro, del resumen y de los errores.
+  En `src/entities/board`, sin conectar todavía a ninguna vista. La categoría sale del nombre de la columna o del estado
+  y, si no dicen nada, de su sitio en el tablero; el avance no cuenta lo cancelado. Para ordenar por `updated`, «Traer»
+  guarda ahora la fecha de cambio de cada tarea que lee (las anteriores quedan al final hasta que cambien). Las
+  referencias solo resuelven tableros de carpeta
 - [ ] 4.2 Pintar en lectura el bloque `board` y el enlace a una tarea, saneados y actualizados al cambiar el tablero;
   e2e de las cuatro vistas, de una referencia inexistente y de un título con HTML
 - [ ] 4.3 Pintarlos en la vista en vivo; e2e de edición alrededor del widget
