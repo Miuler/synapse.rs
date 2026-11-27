@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Trash2 } from 'lucide-svelte';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
+  import { t } from '@shared/lib/i18n';
 
   export interface ItemToDelete {
     name: string;
@@ -11,6 +12,9 @@
   interface Props {
     open: boolean;
     items: ItemToDelete[];
+    /** Carpetas de tareas de los tableros elegidos: se pregunta si se eliminan también. */
+    boardFolders?: string[];
+    deleteBoardFolders?: boolean;
     loading?: boolean;
     onConfirm: () => void | Promise<void>;
     onCancel: () => void;
@@ -19,6 +23,8 @@
   let {
     open = $bindable(false),
     items = [],
+    boardFolders = [],
+    deleteBoardFolders = $bindable(true),
     loading = false,
     onConfirm,
     onCancel,
@@ -52,6 +58,12 @@
   {onConfirm}
   {onCancel}
 >
+  {#each boardFolders as folder (folder)}
+    <label class="board-folder">
+      <input type="checkbox" bind:checked={deleteBoardFolders} />
+      {t('board.alsoDeleteFolder', { folder })}
+    </label>
+  {/each}
   {#if items.length > 1}
     <div class="confirm-dialog-item-list">
       {#each items.slice(0, 5) as item}
@@ -69,6 +81,14 @@
 </ConfirmDialog>
 
 <style>
+  .board-folder {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+  }
+
   .confirm-dialog-item-list {
     margin-top: 8px;
     padding: 8px 12px;

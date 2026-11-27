@@ -14,6 +14,7 @@
   import { medianRowPitch } from '../lib/row-pitch';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
+  import { boardFolder } from '@shared/lib/board-protection';
   import { t } from '@shared/lib/i18n';
   import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown, Kanban } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
@@ -69,6 +70,8 @@
     newBoardContent: () => string;
     /** Se llama antes de abrir un tablero recién creado. */
     onNewBoard?: (path: string) => void;
+    /** Archivos de las carpetas de tablero: su candado no se quita. */
+    boardLocks?: Set<string>;
   }
 
   let {
@@ -87,6 +90,7 @@
     onToggleLockFile,
     newBoardContent,
     onNewBoard,
+    boardLocks,
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
@@ -1788,6 +1792,15 @@
   let itemsToDelete = $state<ItemToDelete[]>([]);
   let isDeleting = $state(false);
   let isDeleteDialogOpen = $state(false);
+  let deleteBoardFolders = $state(true);
+  /** Las carpetas de tareas de los tableros que se van a eliminar y no van ya en la selección. */
+  let deletedBoardFolders = $derived(
+    itemsToDelete.flatMap((item) => {
+      const folder = item.isFolder ? null : boardFolder(item.relativePath);
+      const present = folder && vaultItems.some((i) => i.relative_path.startsWith(`${folder}/`));
+      return present && !itemsToDelete.some((other) => other.relativePath === folder) ? [folder] : [];
+    }),
+  );
 
   function handlePromptDelete() {
     if (selectedNodes.length > 0) {
@@ -1852,7 +1865,12 @@
 
   async function confirmDelete() {
     if (itemsToDelete.length === 0 || isDeleting) return;
-    const targets = [...itemsToDelete];
+    // Después de su tablero: sin él, la carpeta deja de estar protegida y se puede eliminar
+    const folders = deleteBoardFolders ? deletedBoardFolders : [];
+    const targets = [
+      ...itemsToDelete,
+      ...folders.map((path) => ({ name: path.slice(path.lastIndexOf('/') + 1), relativePath: path, isFolder: true })),
+    ];
     isDeleting = true;
     try {
       if (onDeleteItems) {
@@ -2697,13 +2715,17 @@
 
           <ContextMenu.Item
             class="context-menu-item"
+            disabled={boardLocks?.has(contextMenuNode.relativePath)}
             onSelect={() => {
               if (contextMenuNode) {
                 onToggleLockFile?.(contextMenuNode.relativePath);
               }
             }}
           >
-            {#if lockedFiles?.has(contextMenuNode.relativePath)}
+            {#if boardLocks?.has(contextMenuNode.relativePath)}
+              <Lock class="context-menu-item-icon" />
+              <span>{t('board.lockedByBoard')}</span>
+            {:else if lockedFiles?.has(contextMenuNode.relativePath)}
               <Unlock class="context-menu-item-icon" />
               <span>Desbloquear archivo</span>
             {:else}
@@ -2956,6 +2978,8 @@
 <VaultDeleteDialog
   bind:open={isDeleteDialogOpen}
   items={itemsToDelete}
+  boardFolders={deletedBoardFolders}
+  bind:deleteBoardFolders
   loading={isDeleting}
   onConfirm={confirmDelete}
   onCancel={cancelDelete}

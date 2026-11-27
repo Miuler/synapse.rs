@@ -26,6 +26,7 @@
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
   import {BoardEditor, createDefaultBoardMarkdown, markNewBoard} from "@features/board-editor";
+  import {boardLockedPaths} from "@shared/lib/board-protection";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
@@ -739,8 +740,11 @@
   const layoutState = new WorkspaceLayoutState();
   const unsavedChanges = new UnsavedChangesState();
 
-  // Conjunto reactivo de rutas relativas de archivos bloqueados
-  let lockedFiles = $derived(unsavedChanges.lockedFiles);
+  // Conjunto reactivo de rutas relativas de archivos bloqueados (los del usuario y los de los tableros)
+  let lockedFiles = $derived(unsavedChanges.allLocks);
+  $effect(() => {
+    unsavedChanges.boardLocks = boardLockedPaths(vaultItemStore.items.map((item) => item.relative_path));
+  });
 
   // Diálogo para advertir sobre cambios sin persistir en archivos bloqueados
   let unsavedDialogOpen = $state(false);
@@ -2807,8 +2811,8 @@
       delete lastClosedTabIndex[relativePath];
       delete tabSelections[relativePath];
 
-      if (lockedFiles.has(relativePath)) {
-        const next = new Set(lockedFiles);
+      if (unsavedChanges.lockedFiles.has(relativePath)) {
+        const next = new Set(unsavedChanges.lockedFiles);
         next.delete(relativePath);
         unsavedChanges.setLockedFiles(Array.from(next));
         if (!isStandaloneMode) {
@@ -2845,7 +2849,7 @@
       }
 
       let changedLocks = false;
-      const nextLocks = new Set(lockedFiles);
+      const nextLocks = new Set(unsavedChanges.lockedFiles);
       for (const item of items) {
         if (nextLocks.has(item.relativePath)) {
           nextLocks.delete(item.relativePath);
@@ -2871,7 +2875,7 @@
 
   /** Pide confirmación para tocar archivos protegidos (bloqueados): con cambios pendientes solo permite guardar y continuar, o cancelar. */
   async function confirmProtectedRelocation(paths: string[], verb: string): Promise<boolean> {
-    const lockedInScope = Array.from(lockedFiles).filter((l) =>
+    const lockedInScope = Array.from(unsavedChanges.lockedFiles).filter((l) =>
       paths.some((p) => l === p || l.startsWith(`${p}/`))
     );
     if (lockedInScope.length === 0) return true;
@@ -4705,6 +4709,7 @@
       bind:this={vaultExplorerRef}
       newBoardContent={createDefaultBoardMarkdown}
       onNewBoard={markNewBoard}
+      boardLocks={unsavedChanges.boardLocks}
       {activeRibbonTab}
       {sidebarWidth}
       {isResizingSidebar}

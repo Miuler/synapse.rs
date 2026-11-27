@@ -257,6 +257,8 @@ export const es: TranslationSchema = {
     newMenu: 'Nuevo tablero (.board.md)',
     newKind: 'Tablero de tareas (Kanban, Gantt)',
     defaultName: 'Tablero',
+    lockedByBoard: 'Protegido por su tablero',
+    alsoDeleteFolder: 'Eliminar también su carpeta de tareas «{folder}»',
     rawHint: 'El archivo tal como se guarda (solo lectura)',
     sortHint: 'Ordenar por esta columna: ascendente, descendente, orden del tablero',
     resizeColumn: 'Ancho de la columna {column}',

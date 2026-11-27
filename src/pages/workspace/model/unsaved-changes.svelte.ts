@@ -10,7 +10,12 @@ function normalizeLockPath(path: string): string {
 }
 
 export class UnsavedChangesState {
+  /** Los candados que pone y quita el usuario. */
   lockedFiles = $state<Set<string>>(new Set());
+  /** Los de las carpetas de tablero: se deducen de los archivos y no se pueden quitar. */
+  boardLocks = $state.raw<Set<string>>(new Set());
+  /** Todo lo que está bloqueado. */
+  allLocks = $derived(this.boardLocks.size ? new Set([...this.lockedFiles, ...this.boardLocks]) : this.lockedFiles);
   unsavedDialogOpen = $state(false);
   unsavedDialogFiles = $state<string[]>([]);
   unsavedDialogIsWindowClose = $state(false);
@@ -23,11 +28,12 @@ export class UnsavedChangesState {
 
   isLocked(path: string | null | undefined): boolean {
     if (!path) return false;
-    return this.lockedFiles.has(path) || this.lockedFiles.has(normalizeLockPath(path));
+    return this.allLocks.has(path) || this.allLocks.has(normalizeLockPath(path));
   }
 
   async toggleLock(path: string, isStandaloneMode = false) {
     const clean = normalizeLockPath(path);
+    if (this.boardLocks.has(clean)) return;
     const next = new Set(this.lockedFiles);
     if (next.has(clean) || next.has(path)) {
       next.delete(clean);

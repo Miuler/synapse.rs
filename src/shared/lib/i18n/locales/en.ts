@@ -256,6 +256,8 @@ export const en = {
     newMenu: 'New board (.board.md)',
     newKind: 'Task board (Kanban, Gantt)',
     defaultName: 'Board',
+    lockedByBoard: 'Protected by its board',
+    alsoDeleteFolder: 'Also delete its task folder «{folder}»',
     rawHint: 'The file as it is saved (read only)',
     sortHint: 'Sort by this column: ascending, descending, board order',
     resizeColumn: 'Width of column {column}',

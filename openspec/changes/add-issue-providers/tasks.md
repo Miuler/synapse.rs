@@ -40,7 +40,7 @@
   conservando lo desconocido; pruebas de ida y vuelta, de descripciones con `---` y encabezados y de la actividad
 - [x] 3.2 Índice en memoria en Rust por tablero, validado con la fecha y el tamaño de cada archivo, y órdenes para leer un tablero y
   escribir una tarea con escritura atómica; pruebas en Rust y medición con 5000 tareas
-- [ ] 3.3 Proteger la carpeta del tablero en las escrituras del editor, el explorador y MCP, con candado fijo en la
+- [x] 3.3 Proteger la carpeta del tablero en las escrituras del editor, el explorador y MCP, con candado fijo en la
   interfaz, y renombrar o borrar la carpeta junto con su tablero; pruebas en Rust de cada vía y e2e que confirma que no
   se puede desbloquear
 - [ ] 3.4 Adaptar el editor del tablero (Kanban, tabla, Gantt, Raw y detalle) al nuevo formato, mostrando referencia,
