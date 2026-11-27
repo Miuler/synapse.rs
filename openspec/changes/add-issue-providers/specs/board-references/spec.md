@@ -9,13 +9,13 @@ sin abrir el tablero ni depender del gestor de issues.
 
 ### Requirement: Referencia a una tarea
 
-Un enlace `[[tablero.board#tarea]]`, con el identificador de la tarea en el tablero, SHALL mostrarse, en lectura y en
-la vista en vivo, con su referencia, título y estado, y SHALL abrir el tablero en esa tarea.
+Un enlace `[[tablero.board/tarea]]` al archivo de una tarea SHALL mostrarse, en lectura y en la vista en vivo, con su
+referencia, título y estado, y SHALL abrir el tablero en esa tarea.
 
 #### Scenario: Tarea dentro de una frase
 
 - **GIVEN** la tarea `ado-123`, con referencia `AB#123`, está «In Progress» en `Equipo.board`
-- **WHEN** se lee una nota con `[[Equipo.board#ado-123]]`
+- **WHEN** se lee una nota con `[[Equipo.board/ado-123]]`
 - **THEN** se ve `AB#123` con su título y su estado
 - **AND** al pulsarla se abre el tablero en esa tarea
 
@@ -47,7 +47,7 @@ filtrar por estado, tipo, asignado y referencia, agrupar, ordenar, limitar y ele
 
 ### Requirement: Mostrar no sincroniza
 
-Mostrar una referencia MUST usar solo el archivo del tablero, sin red ni credenciales, SHALL indicar la fecha de los
+Mostrar una referencia MUST usar solo los archivos del tablero, sin red ni credenciales, SHALL indicar la fecha de los
 datos y SHALL ofrecer actualizarlos únicamente a petición del usuario.
 
 #### Scenario: Sin conexión

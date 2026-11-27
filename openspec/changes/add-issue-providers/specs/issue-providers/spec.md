@@ -69,8 +69,9 @@ propio equipo, y MUST descartarla si se cambia ese servidor.
 
 ### Requirement: Modelo común de tareas
 
-El sistema SHALL ofrecer de cada tarea, venga del proveedor que venga, su referencia, enlace, tipo, título, estado
-con su categoría (`todo`, `doing`, `done` o `cancelled`), asignado, etiquetas y fecha de cambio.
+El sistema SHALL ofrecer de cada tarea, venga del proveedor que venga, su referencia, enlace, tipo, título,
+descripción como Markdown saneado, estado con su categoría (`todo`, `doing`, `done` o `cancelled`), asignado, etiquetas y
+fecha de cambio.
 
 #### Scenario: Estados distintos, misma categoría
 

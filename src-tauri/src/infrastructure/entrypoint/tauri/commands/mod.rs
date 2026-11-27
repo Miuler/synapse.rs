@@ -10,7 +10,7 @@ pub mod session;
 pub mod system;
 pub mod updates;
 pub mod vault;
-pub mod work_items;
+pub mod issues;
 pub mod workspace;
 
 pub use appearance::*;
@@ -25,7 +25,7 @@ pub use session::*;
 pub use system::*;
 pub use updates::*;
 pub use vault::*;
-pub use work_items::*;
+pub use issues::*;
 pub use workspace::*;
 
 // Re-exports for backwards compatibility

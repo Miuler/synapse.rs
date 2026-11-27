@@ -9,8 +9,14 @@ Ver `proposal.md` — Why. Estado del código del que se parte:
   entera: son conceptos de Azure DevOps.
 - La credencial es global (llavero, `azure_devops.token` con `op://`, o variables de entorno) y la URL del proyecto
   sale del archivo del tablero, protegida por una lista de servidores admitidos.
-- `features/board-editor` guarda la configuración en `azure_devops` del frontmatter, lee la tabla por posición y los
+- `features/board-editor` recibe el contenido de un solo archivo: guarda la configuración en `azure_devops` del
+  frontmatter (incluidos los vínculos de cada tarea), los anchos en `column_widths`, lee la tabla por posición y los
   comentarios como una línea cada uno.
+- El candado actual es estado de la interfaz (`lockedFiles` en el estado de la bóveda): el usuario lo pone y lo quita
+  por archivo.
+- El motor de navegación ya mantiene `notes: DashMap` y un observador de la bóveda avisa de los cambios.
+- Medido con tableros sintéticos: leer 12 MB de texto tarda unos 35 ms, pero la vista de tabla tarda unos 10 s con
+  1000 tareas.
 - La lectura Markdown ya convierte bloques de código en tarjetas (Mermaid, D2) y la vista en vivo usa widgets de
   CodeMirror; `![[nota#Título]]` incrusta secciones.
 
@@ -28,7 +34,8 @@ Ver `proposal.md` — Why. Estado del código del que se parte:
 - Editar tareas desde una referencia incrustada.
 - Mezclar varios proveedores en un mismo tablero.
 - GitHub Projects v2 en la primera versión del adaptador de GitHub.
-- Arrastre del Kanban, panel de detalle y vista raw: son otro cambio (usan el formato que define este).
+- Archivar tareas cerradas y virtualizar las vistas (el rendimiento de la tabla se trata aparte).
+- Impedir que otras aplicaciones modifiquen los archivos del tablero.
 - Obtener credenciales con OAuth.
 
 ## Decisions
@@ -53,7 +60,7 @@ El formulario de conexión se genera de `describe`, así un proveedor nuevo no a
 ### 2. Modelo común con estado normalizado y capacidades
 
 ```text
-Issue  { id, key, url, type, title, state { name, category }, assignee { name, id },
+Issue  { id, key, url, type, title, description, state { name, category }, assignee { name, id },
          labels[], updated_at, revision?, extra{} }
 Entry  { id, kind: comment | history, author, at, text, changes[] }
 ```
@@ -102,57 +109,98 @@ sustituye a la lista de servidores admitidos y a `AZURE_DEVOPS_URL`.
 
 Alternativa descartada: conexiones por bóveda; la bóveda puede compartirse y no es de fiar.
 
-### 4. El tablero se vincula a una conexión
+### 4. El archivo del tablero solo define el tablero
 
-```yaml
+`Nombre.board.md` guarda en el frontmatter la configuración y en el cuerpo el orden de las tareas:
+
+````markdown
+---
 type: board
+default_view: kanban
+columns: [ … ]
+column_widths: { todo: 320 }
 source:
   connection: ado-trabajo
   provider: azure_devops
   server: https://dev.azure.com/organizacion   # informativo: para reconocerla en otro equipo
   scope: { project: Demo }
-  query: ""
   synced_at: 2026-11-26T22:00:00-05:00
+filter: { type: [Bug, Task], assignee: [Ana], iteration: [current] }   # o `query:` con WIQL, JQL o búsqueda
 states: { todo: [To Do], doing: [In Progress], done: [Done] }
 fields: { card: [key, type, assignee], table: [key, type, title, state, assignee] }
-links: { ado-123: { id: "123", revision: "4", state: "To Do", column: todo, title: "…" } }
+---
+
+## Order
+
+- ado-123
+- t1
+````
+
+El orden usa solo identificadores (la carpeta se sobrentiende), así que renombrar el tablero no obliga a reescribirlo.
+
+Nada de lo propio de una tarea va en el frontmatter. Con tareas vinculadas, la conexión y el ámbito quedan fijos;
+cambiarlos exige desvincular. Si el equipo no tiene esa conexión, el tablero se abre igual y ofrece elegir una del
+mismo proveedor y servidor, o crearla.
+
+### 5. Un archivo por tarea en la carpeta del tablero
+
+```text
+Equipo.board.md
+Equipo.board/
+    ado-123.md
+    t1.md
 ```
 
-Con tareas vinculadas, la conexión y el ámbito quedan fijos; cambiarlos exige desvincular. Si el equipo no tiene esa
-conexión, el tablero se abre igual y ofrece elegir una del mismo proveedor y servidor, o crearla.
-
-### 5. Formato: tabla por cabecera y actividad con clase
-
-Las columnas se reconocen por su nombre y las desconocidas se conservan. La actividad va en `## Actividad`:
+El nombre del archivo es el identificador de la tarea (`ado-123`, `gh-5`, `PROJ-12`, `t1`). Los datos van en el
+cuerpo como lista, sin frontmatter; las claves y los encabezados son parte del formato, en inglés:
 
 ```markdown
-## Actividad
+# Publicar el servicio
 
-### ado-123
+- status: doing
+- type: Bug
+- assignee: Ana
+- key: AB#123
+- url: https://…
+- start: 2026-11-20
+- duration: 2d
+- depends: -
+- progress: 0%
+- sync: { id: "123", rev: "4", title: "…", state: "In Progress", column: doing, type: "Bug", assignee: "Ana", description: "sha256:…" }
+
+## Description
+
+> El texto, como cita para que sus encabezados no rompan el formato.
+
+## Activity
+
 - `2026-11-26T10:00:00` comment · Ana · id:987
   Primera línea del comentario.
-  Segunda línea.
 - `2026-11-26T11:00:00` history · Luis · id:rev-5
   Estado: To Do → In Progress
 ```
 
-El `id` remoto evita volver a enviar lo traído. La sección antigua `## Comentarios` se lee y se convierte al
-guardar. Los encabezados son parte del formato, no texto de la interfaz. Alternativa considerada: un archivo por
-tarea; reduce el tamaño del tablero y los conflictos en carpetas sincronizadas, pero multiplica archivos. Se
-mantiene un solo archivo y se limita el histórico traído por tarea.
+Las claves y secciones desconocidas se conservan (las columnas propias de una tabla anterior pasan a ser claves); el `id` remoto evita volver a enviar lo traído.
+
+Rust mantiene un índice en memoria (`DashMap` por identificador) con lo que necesitan las vistas, reconstruido desde
+los archivos y actualizado por el observador; la descripción y la actividad se leen al abrir la tarea. El frontend
+pide el tablero en una sola orden en vez de leer cada archivo. Sin base de datos: filtrar unos miles de entradas en
+memoria se espera inmediato (por medir).
+
+Alternativas descartadas: un solo archivo (con un equipo grande crece a megabytes, se reescribe entero en cada cambio
+y choca al sincronizar carpetas); SQLite (otra fuente de datos que mantener sin consultas que la justifiquen); datos
+en el frontmatter de cada tarea (el usuario quiere lo propio de la tarea en su detalle).
 
 ### 6. Referencias: enlace para una tarea, bloque para consultas
 
 Una tarea, dentro de una frase:
 
 ```markdown
-El despliegue depende de [[Equipo.board#ado-123]].
+El despliegue depende de [[Equipo.board/ado-123]].
 ```
 
-El ancla es el identificador de la tarea en el tablero (columna `id`: `ado-123`, `gh-5`, `PROJ-12`, `t1`), que nunca
-lleva `#` ni `/`; así también vale para tareas sin proveedor. La referencia del proveedor (`AB#123`,
-`dueño/repo#5`) no sirve de ancla: con varios `#`, Synapse toma solo el último tramo. En otras aplicaciones el
-enlace lleva al tablero, no a la tarea.
+Es un enlace normal al archivo de la tarea, así que en otras aplicaciones lleva a ella. Incluye la carpeta del
+tablero porque dos tableros pueden tener la misma tarea o el mismo identificador local.
 
 Un tablero entero o filtrado:
 
@@ -184,26 +232,100 @@ consultas tipo Dataview (mucho más trabajo del que piden estos filtros).
 ### 7. Escrituras
 
 Se mantiene lo que ya hace «Traer»/«Enviar»: dos acciones separadas, revisión antes de enviar, conflictos sin
-sobrescribir y creación solo de lo marcado, ahora comunes a todos los proveedores.
+sobrescribir y creación solo de lo marcado, ahora comunes a todos los proveedores. «Traer» pide lo que cambió desde
+`synced_at` y escribe solo los archivos que cambian. `sync` guarda la base de cada campo editable (de la descripción,
+su huella) para distinguir quién cambió qué.
+
+### 8. Carpeta del tablero protegida
+
+Una carpeta `Nombre.board/` con su `Nombre.board.md` al lado está protegida. La protección se deduce de la ruta: no se
+guarda ni se puede quitar. Sus archivos se abren en lectura con el candado y sin la acción de desbloquear.
+
+Se comprueba en Rust, en un único punto por el que pasan las escrituras (editor, explorador, «+ Nuevo…», archivos
+soltados, pestañas, herramientas MCP): todas la rechazan salvo las órdenes del tablero. Renombrar el tablero renombra su carpeta, y borrarlo pregunta
+si se borra también. Es una defensa contra errores, no un control de acceso: otras aplicaciones pueden modificar los
+archivos, y una carpeta sin su tablero deja de estar protegida.
+
+Alternativas descartadas: reutilizar la lista `lockedFiles` (se puede quitar y no cubre explorador ni MCP); permisos
+del sistema de archivos (estorban a la sincronización de carpetas y a Git).
+
+### 9. Filtro al crear el tablero
+
+Al crear un tablero con origen se eligen conexión, ámbito y filtro antes de traer nada. El proveedor declara en
+`describe` los criterios que admite (tipo, estado, asignado, iteración, etiqueta o área) y también se puede escribir
+su consulta. El filtro se puede cambiar después: las tareas que dejan de cumplirlo no se borran, se marcan como fuera
+del filtro. Un tablero sin origen no pide filtro.
+
+### 10. Asistente de configuración con herramientas MCP privadas
+
+La configuración del origen de un tablero se muestra en una vista **no modal**, para usar a la vez el chat del agente
+(el diálogo actual lo bloquea). Las herramientas, con prefijo `config_`:
+
+| Herramienta | Qué hace |
+|---|---|
+| `config_get_context` | Vista abierta y borrador: conexión (nombre, proveedor, servidor), ámbito, filtro o consulta, estados y columnas |
+| `config_describe_source` | Lenguaje de consulta, criterios y valores admitidos (tipos, estados, iteraciones, personas) |
+| `config_test_query` | Ejecuta en solo lectura un filtro o consulta: recuento y hasta 20 filas (referencia, tipo, título, estado, asignado), o el error del proveedor |
+| `config_update_draft` | Cambia filtro, consulta o estados **del borrador**; la vista marca lo cambiado y el usuario guarda o descarta |
+
+Ninguna lee ni escribe credenciales, cambia servidores o conexiones, guarda, trae ni envía.
+
+«Privadas»: el servidor MCP actual solo escucha en local y no pide autenticación (límite conocido), así que estas
+herramientas MUST NOT publicarse en él sin más. Solo se listan y se atienden para las sesiones de los
+agentes que abre Synapse, identificadas con un token por sesión (como el que ya usa el canal entre instancias),
+entregado en `mcpServers` de `session/new` o `session/load` (cabecera HTTP, o variable de entorno del puente stdio,
+nunca en los argumentos), sin respuestas CORS. Sirven en una conversación ya existente al reanudarla con el token, y
+fuera de la vista de configuración responden que no hay nada abierto.
+
+Alternativas descartadas: herramientas en el MCP público (cualquier proceso local podría usar la conexión); dar la
+credencial al agente para que consulte él (la expone); que el agente guarde directamente (un texto traído del
+proveedor podría inducir un cambio sin revisión). El primer conjunto cubre el origen del tablero; otras
+configuraciones se añadirán con la misma regla.
+
+### 11. Todo editable desde el tablero
+
+El detalle de la tarea edita todos sus campos y comentarios; la tabla, el Kanban y el Gantt mantienen su edición
+directa y abren ese mismo detalle. Son órdenes del tablero, así que escriben en la carpeta protegida. Los comentarios
+editados se envían como actualización si el proveedor lo permite.
+
+El histórico del proveedor no se puede reescribir: editarlo cambia solo la copia local, tras un aviso, y la entrada
+queda con la marca `edited` en su primera línea (`… history · Luis · id:rev-5 · edited`), que impide pisarla al traer.
+
+La descripción se guarda como Markdown convertido desde el formato del proveedor. La conversión de vuelta puede perder
+formato (tablas, imágenes, menciones): solo se envía si se editó, con aviso en la revisión.
+
+Alternativa descartada: histórico de solo lectura (el usuario quiere poder corregirlo).
 
 ## Risks / Trade-offs
 
 - [El modelo común no encaja en un proveedor] → capacidades y `extra`; Azure DevOps primero, GitHub después para
   validar el contrato antes de Jira.
-- [Tableros grandes con histórico] → límite por tarea y traer actividad solo de lo que cambió.
+- [Miles de archivos pequeños en una carpeta sincronizada] → escribir solo lo que cambia; medir la primera apertura.
+- [Un cambio del tablero toca varios archivos y puede quedar a medias] → escribir cada archivo de forma atómica, el
+  tablero al final, y reconstruir el orden con lo que haya en la carpeta.
+- [La misma tarea en dos tableros] → cada uno guarda su copia y la actualiza al traer.
 - [Datos viejos en una referencia] → fecha visible y «Actualizar».
+- [Editar la descripción borra formato en el proveedor] → enviar solo lo editado, avisar y exigir que se marque.
+- [Un histórico editado deja de reflejar lo que pasó] → aviso, marca `edited` y ninguna escritura en el proveedor.
 - [Texto de terceros en el webview] → saneado y sin recursos remotos.
 - [Sin acceso a cuentas reales en las pruebas] → servidores falsos por proveedor y una comprobación manual de solo
   lectura antes de dar cada adaptador por bueno.
 - [Límites de peticiones] → consultas por lotes y mensajes claros al llegar al límite.
+- [Las filas de una prueba llegan al proveedor del modelo del agente] → solo esos campos, sin descripción ni
+  actividad, y la vista lo advierte.
+- [Texto de terceros que intente dirigir al agente] → se entrega como datos y ningún cambio se guarda sin el usuario.
+- [Una conversación reanudada que no admita cambiar sus servidores MCP] → verificar por agente y, si no, abrir una
+  conversación nueva desde la vista.
 
 ## Migration Plan
 
-1. Al abrir un tablero con `azure_devops`, se propone la conexión cuyo servidor coincida o se crea «Azure DevOps»
-   con la credencial global existente; al guardar se escribe `source`.
-2. `azure_devops.token`, la entrada `azure-devops-token` del llavero y las variables `AZURE_DEVOPS_PAT`/`ADO_PAT`
+1. Al abrir un tablero con tabla, se ofrece convertirlo: crea la carpeta con un archivo por fila (con sus comentarios
+   y vínculos) y deja en el `.board.md` la configuración y el orden. No se convierte sin confirmación.
+2. Si tiene `azure_devops`, se propone la conexión cuyo servidor coincida o se crea «Azure DevOps» con la credencial
+   global existente, y su consulta pasa a ser el filtro.
+3. `azure_devops.token`, la entrada `azure-devops-token` del llavero y las variables `AZURE_DEVOPS_PAT`/`ADO_PAT`
    solo se usan para crear esa primera conexión.
-3. Volver atrás: el tablero sigue siendo una tabla Markdown; basta restaurar el archivo desde el control de versiones.
+4. Volver atrás: restaurar el `.board.md` desde el control de versiones o la copia previa y borrar la carpeta.
 
 ## Open Questions
 

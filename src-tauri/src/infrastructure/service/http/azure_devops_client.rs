@@ -3,9 +3,12 @@
 //! Azure DevOps, o al que se indique en `AZURE_DEVOPS_URL`: la URL del proyecto sale de un archivo
 //! de la bóveda, que puede venir de cualquiera.
 
-use crate::application::service::work_item_tracker::{TrackerFuture, WorkItemTracker};
-use crate::domain::work_item::work_item::WorkItem;
-use crate::domain::work_item::work_item_error::{WorkItemError, WorkItemErrorKind as Kind};
+use crate::application::service::issue_provider::{IssueProvider, ProviderFuture};
+use crate::domain::issue::issue::{Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory};
+use crate::domain::issue::issue_error::{IssueError, IssueErrorKind as Kind};
+use crate::domain::issue::provider_descriptor::{
+    Capabilities, ConflictCheck, ProviderDescriptor, StateChange,
+};
 use crate::infrastructure::service::os::secret_store::SecretStore;
 use crate::infrastructure::service::os::{git_binary, one_password};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
@@ -15,7 +18,23 @@ use serde_json::{Value, json};
 use std::path::Path;
 use std::time::Duration;
 
+/// Valor de `provider` de este adaptador.
+pub const PROVIDER: &str = "azure_devops";
 const API: &str = "api-version=7.1";
+/// Los campos de un work item que entran en el modelo común.
+const FIELDS: [&str; 5] = [
+    "System.Title",
+    "System.State",
+    "System.WorkItemType",
+    "System.AssignedTo",
+    "System.ChangedDate",
+];
+/// Lo abierto en el proyecto y relacionado con quien sincroniza.
+const DEFAULT_QUERY: &str = "SELECT [System.Id] FROM WorkItems
+WHERE [System.TeamProject] = @project
+  AND [System.State] NOT IN ('Closed', 'Cancelled', 'Removed', 'Done')
+  AND ([System.AssignedTo] = @me OR [System.ChangedBy] = @me OR [System.CreatedBy] = @me)
+ORDER BY [System.ChangedDate] DESC";
 const COMMENTS_API: &str = "api-version=7.1-preview.3";
 /// Máximo de ids por llamada a `workitemsbatch`.
 const BATCH: usize = 200;
@@ -71,11 +90,11 @@ pub struct TokenSetting {
     pub stored: bool,
 }
 
-fn keyring_error(detail: String) -> WorkItemError {
-    WorkItemError::new(Kind::Keyring, detail)
+fn keyring_error(detail: String) -> IssueError {
+    IssueError::new(Kind::Keyring, detail)
 }
 
-pub fn token_setting(config_dir: &Path, store: &SecretStore) -> Result<TokenSetting, WorkItemError> {
+pub fn token_setting(config_dir: &Path, store: &SecretStore) -> Result<TokenSetting, IssueError> {
     // Algo escrito a mano que no sea una referencia (un token) no sale de aquí
     let reference = configured_token(config_dir).filter(|v| v.starts_with("op://"));
     // Con referencia, el llavero no se consulta: podría pedir que se desbloquee
@@ -92,7 +111,7 @@ pub fn save_token(
     config_dir: &Path,
     store: &SecretStore,
     value: &str,
-) -> Result<(), WorkItemError> {
+) -> Result<(), IssueError> {
     // «Copiar referencia secreta» de 1Password la entrega entre comillas
     let value = value.trim().trim_matches('"').trim();
     if value.starts_with("op://") {
@@ -103,7 +122,7 @@ pub fn save_token(
     }
     // Una referencia mal escrita no se toma por un token
     if value.starts_with("op:") {
-        return Err(WorkItemError::new(
+        return Err(IssueError::new(
             Kind::TokenReference,
             "azure_devops.token",
         ));
@@ -117,7 +136,7 @@ pub fn save_token(
 }
 
 /// Pone o quita `azure_devops.token` sin tocar lo demás.
-fn save_reference(config_dir: &Path, reference: Option<&str>) -> Result<(), WorkItemError> {
+fn save_reference(config_dir: &Path, reference: Option<&str>) -> Result<(), IssueError> {
     if reference.is_none() && configured_token(config_dir).is_none() {
         return Ok(());
     }
@@ -138,7 +157,7 @@ fn save_reference(config_dir: &Path, reference: Option<&str>) -> Result<(), Work
     if section.is_empty() {
         root.remove("azure_devops");
     }
-    git_binary::write_config(config_dir, &config).map_err(|e| WorkItemError::new(Kind::Request, e))
+    git_binary::write_config(config_dir, &config).map_err(|e| IssueError::new(Kind::Request, e))
 }
 
 pub struct AzureDevOpsClient {
@@ -184,10 +203,10 @@ impl AzureDevOpsClient {
         }
     }
 
-    async fn token(&self) -> Result<String, WorkItemError> {
+    async fn token(&self) -> Result<String, IssueError> {
         let env = match &self.token {
             Token::NotAReference => {
-                return Err(WorkItemError::new(
+                return Err(IssueError::new(
                     Kind::TokenReference,
                     "azure_devops.token",
                 ));
@@ -204,7 +223,7 @@ impl AzureDevOpsClient {
                     (_, Some(env)) => Some(env.clone()),
                     (Err(e), None) => return Err(keyring_error(e)),
                     (Ok(None), None) => {
-                        return Err(WorkItemError::new(
+                        return Err(IssueError::new(
                             Kind::MissingToken,
                             "AZURE_DEVOPS_PAT, ADO_PAT",
                         ));
@@ -215,13 +234,13 @@ impl AzureDevOpsClient {
         match (self.token.reference(), env) {
             (Some(reference), _) => one_password::read(&self.op, reference)
                 .await
-                .map_err(|e| WorkItemError::new(Kind::OnePassword, e)),
+                .map_err(|e| IssueError::new(Kind::OnePassword, e)),
             (None, env) => Ok(env.unwrap_or_default()),
         }
     }
 
-    fn project(&self, project_url: &str) -> Result<Project, WorkItemError> {
-        let invalid = || WorkItemError::new(Kind::InvalidUrl, project_url);
+    fn project(&self, project_url: &str) -> Result<Project, IssueError> {
+        let invalid = || IssueError::new(Kind::InvalidUrl, project_url);
         let url = Url::parse(project_url.trim()).map_err(|_| invalid())?;
         if !url.username().is_empty() || url.password().is_some() {
             return Err(invalid());
@@ -249,7 +268,7 @@ impl AzureDevOpsClient {
             let last = segments.len().checked_sub(1).ok_or_else(invalid)?;
             (last, last)
         } else {
-            return Err(WorkItemError::new(Kind::HostNotAllowed, origin));
+            return Err(IssueError::new(Kind::HostNotAllowed, origin));
         };
         let name = segments.get(name).ok_or_else(invalid)?.to_string();
         let mut base = origin;
@@ -268,9 +287,9 @@ impl AzureDevOpsClient {
         method: Method,
         url: &str,
         body: Option<(&str, Value)>,
-    ) -> Result<Value, WorkItemError> {
+    ) -> Result<Value, IssueError> {
         let token = self.token().await?;
-        let failed = |e: reqwest::Error| WorkItemError::new(Kind::Request, e.to_string());
+        let failed = |e: reqwest::Error| IssueError::new(Kind::Request, e.to_string());
         // Sin redirecciones: Azure DevOps redirige al inicio de sesión cuando el token no vale
         let client = reqwest::Client::builder()
             .user_agent("Synapse")
@@ -281,7 +300,7 @@ impl AzureDevOpsClient {
         let mut request = client.request(method, url);
         request = if token.starts_with("Basic ") {
             let mut value = HeaderValue::from_str(&token)
-                .map_err(|_| WorkItemError::new(Kind::Auth, ""))?;
+                .map_err(|_| IssueError::new(Kind::Auth, ""))?;
             value.set_sensitive(true);
             request.header(AUTHORIZATION, value)
         } else {
@@ -306,10 +325,10 @@ impl AzureDevOpsClient {
     }
 }
 
-fn interpret(status: u16, text: &str) -> Result<Value, WorkItemError> {
+fn interpret(status: u16, text: &str) -> Result<Value, IssueError> {
     // 203: Azure DevOps responde así con la página de inicio de sesión
     if status == 401 || status == 203 || (300..400).contains(&status) {
-        return Err(WorkItemError::new(Kind::Auth, format!("HTTP {status}")));
+        return Err(IssueError::new(Kind::Auth, format!("HTTP {status}")));
     }
     let body: Option<Value> = serde_json::from_str(text).ok();
     let field = |name: &str| {
@@ -331,31 +350,57 @@ fn interpret(status: u16, text: &str) -> Result<Value, WorkItemError> {
     } else if !success {
         Kind::Request
     } else {
-        return body.ok_or_else(|| WorkItemError::new(Kind::Auth, "HTML"));
+        return body.ok_or_else(|| IssueError::new(Kind::Auth, "HTML"));
     };
     let detail = if message.is_empty() {
         format!("HTTP {status}")
     } else {
         message.to_string()
     };
-    Err(WorkItemError::new(kind, detail))
+    Err(IssueError::new(kind, detail))
 }
 
-fn work_item(value: &Value) -> Option<WorkItem> {
+/// Una identidad llega como objeto o, en algunas respuestas, como texto; sin asignar, el campo falta.
+fn person(value: &Value) -> Option<Person> {
+    let name = value["displayName"].as_str().or_else(|| value.as_str())?;
+    Some(Person {
+        name: name.to_string(),
+        id: value["uniqueName"].as_str().unwrap_or_default().to_string(),
+    })
+}
+
+fn issue(value: &Value) -> Option<Issue> {
     let field = |name: &str| value["fields"][name].as_str().unwrap_or_default().to_string();
-    Some(WorkItem {
-        id: value["id"].as_u64()?,
-        rev: value["rev"].as_u64()?,
+    let id = value["id"].as_u64()?;
+    let state = field("System.State");
+    let assignee = person(&value["fields"]["System.AssignedTo"]);
+    Some(Issue {
+        id: id.to_string(),
+        key: format!("AB#{id}"),
+        url: None,
+        issue_type: field("System.WorkItemType"),
         title: field("System.Title"),
-        state: field("System.State"),
-        work_item_type: field("System.WorkItemType"),
+        description: None,
+        state: IssueState {
+            category: StateCategory::from_name(&state),
+            name: state,
+        },
+        assignee,
+        labels: Vec::new(),
+        updated_at: Some(field("System.ChangedDate")).filter(|d| !d.is_empty()),
+        revision: Some(value["rev"].as_u64()?.to_string()),
+        extra: Default::default(),
     })
 }
 
-fn expect_work_item(value: &Value) -> Result<WorkItem, WorkItemError> {
-    work_item(value).ok_or_else(|| {
-        WorkItemError::new(Kind::Request, "respuesta sin work item")
-    })
+fn expect_issue(value: &Value) -> Result<Issue, IssueError> {
+    issue(value).ok_or_else(|| IssueError::new(Kind::Request, "respuesta sin work item"))
+}
+
+/// Los ids de Azure DevOps son números; cualquier otra cosa no es un work item suyo.
+fn work_item_id(id: &str) -> Result<u64, IssueError> {
+    id.parse()
+        .map_err(|_| IssueError::new(Kind::NotFound, id))
 }
 
 fn set_field(field: &str, value: &str) -> Value {
@@ -370,32 +415,70 @@ fn comment_html(text: &str) -> String {
         .replace('\n', "<br>")
 }
 
-impl WorkItemTracker for AzureDevOpsClient {
-    fn query<'a>(&'a self, project_url: &'a str, query: &'a str) -> TrackerFuture<'a, Vec<u64>> {
+impl AzureDevOpsClient {
+    pub fn descriptor() -> ProviderDescriptor {
+        let states = |names: &[&str]| names.iter().map(|n| n.to_string()).collect();
+        ProviderDescriptor {
+            id: PROVIDER.into(),
+            name: "Azure DevOps".into(),
+            query_language: "WIQL".into(),
+            default_query: DEFAULT_QUERY.into(),
+            default_issue_type: "Task".into(),
+            default_states: [
+                ("todo".to_string(), states(&["To Do", "New", "Proposed"])),
+                (
+                    "doing".to_string(),
+                    states(&["In Progress", "Doing", "Active", "Committed", "Resolved"]),
+                ),
+                ("done".to_string(), states(&["Done", "Closed", "Completed"])),
+            ]
+            .into(),
+            capabilities: Capabilities {
+                create: true,
+                comment: true,
+                state_change: StateChange::Field,
+                conflict_check: ConflictCheck::Revision,
+            },
+        }
+    }
+}
+
+impl IssueProvider for AzureDevOpsClient {
+    fn describe(&self) -> ProviderDescriptor {
+        Self::descriptor()
+    }
+
+    fn search<'a>(&'a self, scope: &'a str, query: &'a str) -> ProviderFuture<'a, Vec<String>> {
         Box::pin(async move {
-            let url = self.project(project_url)?.url(&format!("wiql?{API}"));
+            let url = self.project(scope)?.url(&format!("wiql?{API}"));
             let body = ("application/json", json!({ "query": query }));
             let response = self.send(Method::POST, &url, Some(body)).await?;
             let items = response["workItems"].as_array();
             Ok(items
-                .map(|items| items.iter().filter_map(|i| i["id"].as_u64()).collect())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|i| i["id"].as_u64())
+                        .map(|id| id.to_string())
+                        .collect()
+                })
                 .unwrap_or_default())
         })
     }
 
-    fn work_items<'a>(
-        &'a self,
-        project_url: &'a str,
-        ids: &'a [u64],
-    ) -> TrackerFuture<'a, Vec<WorkItem>> {
+    fn get<'a>(&'a self, scope: &'a str, ids: &'a [String]) -> ProviderFuture<'a, Vec<Issue>> {
         Box::pin(async move {
-            let project = self.project(project_url)?;
+            let project = self.project(scope)?;
             let url = format!("{}/_apis/wit/workitemsbatch?{API}", project.collection);
+            let ids = ids
+                .iter()
+                .map(|id| work_item_id(id))
+                .collect::<Result<Vec<_>, _>>()?;
             let mut found = Vec::new();
             for chunk in ids.chunks(BATCH) {
                 let body = json!({
                     "ids": chunk,
-                    "fields": ["System.Title", "System.State", "System.WorkItemType"],
+                    "fields": FIELDS,
                     "errorPolicy": "Omit",
                 });
                 let response = self
@@ -403,7 +486,7 @@ impl WorkItemTracker for AzureDevOpsClient {
                     .await?;
                 // Con `Omit`, los que no se pueden leer faltan o llegan como `null`
                 if let Some(items) = response["value"].as_array() {
-                    found.extend(items.iter().filter_map(work_item));
+                    found.extend(items.iter().filter_map(issue));
                 }
             }
             Ok(found)
@@ -412,55 +495,56 @@ impl WorkItemTracker for AzureDevOpsClient {
 
     fn update<'a>(
         &'a self,
-        project_url: &'a str,
-        id: u64,
-        rev: u64,
-        title: Option<&'a str>,
-        state: Option<&'a str>,
-    ) -> TrackerFuture<'a, WorkItem> {
+        scope: &'a str,
+        id: &'a str,
+        revision: Option<&'a str>,
+        changes: &'a IssueChanges,
+    ) -> ProviderFuture<'a, Issue> {
         Box::pin(async move {
-            let url = self
-                .project(project_url)?
-                .url(&format!("workitems/{id}?{API}"));
-            let mut patch = vec![json!({"op": "test", "path": "/rev", "value": rev})];
-            patch.extend(title.map(|t| set_field("System.Title", t)));
-            patch.extend(state.map(|s| set_field("System.State", s)));
+            let id = work_item_id(id)?;
+            // Sin la revisión leída no hay forma de saber si se pisa un cambio ajeno
+            let revision: u64 = revision
+                .and_then(|r| r.parse().ok())
+                .ok_or_else(|| IssueError::new(Kind::Conflict, "falta la revisión"))?;
+            let url = self.project(scope)?.url(&format!("workitems/{id}?{API}"));
+            let mut patch = vec![json!({"op": "test", "path": "/rev", "value": revision})];
+            patch.extend(changes.title.as_deref().map(|t| set_field("System.Title", t)));
+            patch.extend(changes.state.as_deref().map(|s| set_field("System.State", s)));
             let body = ("application/json-patch+json", Value::Array(patch));
-            expect_work_item(&self.send(Method::PATCH, &url, Some(body)).await?)
+            expect_issue(&self.send(Method::PATCH, &url, Some(body)).await?)
         })
     }
 
-    fn create<'a>(
-        &'a self,
-        project_url: &'a str,
-        work_item_type: &'a str,
-        title: &'a str,
-        assigned_to: Option<&'a str>,
-    ) -> TrackerFuture<'a, WorkItem> {
+    fn create<'a>(&'a self, scope: &'a str, new: &'a NewIssue) -> ProviderFuture<'a, Issue> {
         Box::pin(async move {
-            let base = self.project(project_url)?.url("workitems");
+            let base = self.project(scope)?.url("workitems");
             let mut url =
-                Url::parse(&base).map_err(|_| WorkItemError::new(Kind::InvalidUrl, project_url))?;
+                Url::parse(&base).map_err(|_| IssueError::new(Kind::InvalidUrl, scope))?;
             if let Ok(mut path) = url.path_segments_mut() {
-                path.push(&format!("${work_item_type}"));
+                path.push(&format!("${}", new.issue_type));
             }
             url.set_query(Some(API));
-            let mut patch = vec![set_field("System.Title", title)];
-            patch.extend(assigned_to.map(|a| set_field("System.AssignedTo", a)));
+            let mut patch = vec![set_field("System.Title", &new.title)];
+            patch.extend(
+                new.assignee
+                    .as_deref()
+                    .map(|a| set_field("System.AssignedTo", a)),
+            );
             let body = ("application/json-patch+json", Value::Array(patch));
-            expect_work_item(&self.send(Method::POST, url.as_str(), Some(body)).await?)
+            expect_issue(&self.send(Method::POST, url.as_str(), Some(body)).await?)
         })
     }
 
     fn add_comment<'a>(
         &'a self,
-        project_url: &'a str,
-        id: u64,
+        scope: &'a str,
+        id: &'a str,
         text: &'a str,
-    ) -> TrackerFuture<'a, ()> {
+    ) -> ProviderFuture<'a, ()> {
         Box::pin(async move {
+            let id = work_item_id(id)?;
             let url = self
-                .project(project_url)?
+                .project(scope)?
                 .url(&format!("workItems/{id}/comments?{COMMENTS_API}"));
             let body = ("application/json", json!({ "text": comment_html(text) }));
             self.send(Method::POST, &url, Some(body)).await?;
@@ -618,7 +702,7 @@ mod tests {
 
         // Un servidor ajeno no llega a pedir el token
         let error = with_op("http://otro.local")
-            .query("https://ejemplo.com/org/p", "SELECT")
+            .search("https://ejemplo.com/org/p", "SELECT")
             .await
             .unwrap_err();
         assert_eq!(error.kind, Kind::HostNotAllowed);
@@ -629,7 +713,7 @@ mod tests {
         for (reply, reads) in [(ok, 1), (ok, 1), (denied, 1), (ok, 2)] {
             let (origin, request) = serve(reply);
             let _ = with_op(&origin)
-                .query(&format!("{origin}/org/p"), "SELECT")
+                .search(&format!("{origin}/org/p"), "SELECT")
                 .await;
             assert!(request.join().unwrap().contains("authorization: Basic OmZhbHNv"));
             assert_eq!(count(), reads);
@@ -650,7 +734,7 @@ mod tests {
             store: SecretStore::File("/no/existe/llavero".into()),
         };
         let error = client
-            .query("https://dev.azure.com/org/Proyecto", "SELECT")
+            .search("https://dev.azure.com/org/Proyecto", "SELECT")
             .await
             .unwrap_err();
         assert_eq!(error.kind, Kind::OnePassword);
@@ -738,11 +822,19 @@ mod tests {
         let (origin, request) = serve(
             "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 81\r\n\r\n{\"id\":5,\"rev\":3,\"fields\":{\"System.Title\":\"T\",\"System.State\":\"Done\",\"x\":\"123456\"}}",
         );
+        let changes = IssueChanges {
+            state: Some("Done".into()),
+            ..Default::default()
+        };
         let item = client(Some(&origin))
-            .update(&format!("{origin}/org/Proyecto"), 5, 2, None, Some("Done"))
+            .update(&format!("{origin}/org/Proyecto"), "5", Some("2"), &changes)
             .await
             .unwrap();
-        assert_eq!((item.rev, item.state.as_str()), (3, "Done"));
+        assert_eq!(
+            (item.revision.as_deref(), item.state.name.as_str()),
+            (Some("3"), "Done")
+        );
+        assert_eq!(item.state.category, StateCategory::Done);
         let request = request.join().unwrap();
         assert!(request.starts_with("PATCH /org/Proyecto/_apis/wit/workitems/5?api-version=7.1 "));
         assert!(request.contains("authorization: Basic OmZhbHNv"));
@@ -757,7 +849,7 @@ mod tests {
             "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/login\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
         );
         let error = client(Some(&origin))
-            .query(&format!("{origin}/org/Proyecto"), "SELECT")
+            .search(&format!("{origin}/org/Proyecto"), "SELECT")
             .await
             .unwrap_err();
         assert_eq!(error.kind, Kind::Auth);
@@ -773,10 +865,40 @@ mod tests {
             store: SecretStore::File("/no/existe/llavero".into()),
         };
         let error = client
-            .query("https://dev.azure.com/org/Proyecto", "SELECT")
+            .search("https://dev.azure.com/org/Proyecto", "SELECT")
             .await
             .unwrap_err();
         assert_eq!(error.kind, Kind::MissingToken);
+    }
+
+    #[test]
+    fn traduce_un_work_item_al_modelo_comun() {
+        let value = json!({"id": 7, "rev": 4, "fields": {
+            "System.Title": "Publicar", "System.State": "In Progress", "System.WorkItemType": "Bug",
+            "System.AssignedTo": {"displayName": "Ana", "uniqueName": "ana@ejemplo.test"},
+            "System.ChangedDate": "2026-01-02T03:04:05Z",
+        }});
+        let found = issue(&value).unwrap();
+        assert_eq!((found.id.as_str(), found.key.as_str()), ("7", "AB#7"));
+        assert_eq!(found.issue_type, "Bug");
+        assert_eq!(found.state.category, StateCategory::Doing);
+        assert_eq!(found.assignee.unwrap().name, "Ana");
+        assert_eq!(found.updated_at.as_deref(), Some("2026-01-02T03:04:05Z"));
+        // Sin asignar ni fecha
+        let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}})).unwrap();
+        assert_eq!((bare.assignee, bare.updated_at), (None, None));
+        assert_eq!(person(&json!("Ana")).unwrap().name, "Ana");
+    }
+
+    #[tokio::test]
+    async fn sin_revision_o_con_un_id_ajeno_no_se_envia_nada() {
+        let changes = IssueChanges::default();
+        let scope = "https://dev.azure.com/org/Proyecto";
+        let azure = client(None);
+        let error = azure.update(scope, "5", None, &changes).await.unwrap_err();
+        assert_eq!(error.kind, Kind::Conflict);
+        let error = azure.add_comment(scope, "5/../6", "x").await.unwrap_err();
+        assert_eq!(error.kind, Kind::NotFound);
     }
 
     #[test]
