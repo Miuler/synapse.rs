@@ -111,22 +111,26 @@ Alternativa descartada: conexiones por bóveda; la bóveda puede compartirse y n
 
 ### 4. El archivo del tablero solo define el tablero
 
-`Nombre.board.md` guarda en el frontmatter la configuración y en el cuerpo el orden de las tareas:
+`Nombre.board.md` guarda en el frontmatter la configuración y en el cuerpo el orden de las tareas. La marca
+`format: 2` lo distingue del formato anterior (una tabla). Lo leen y escriben funciones puras de Rust, que son las
+que usan el índice, la protección, la conversión y las referencias; la interfaz recibe estructuras.
 
 ````markdown
 ---
 type: board
+format: 2
 default_view: kanban
-columns: [ … ]
+columns:
+  - { id: "todo", label: "Por hacer", color: "var(--text-muted)" }
 column_widths: { todo: 320 }
 source:
-  connection: ado-trabajo
   provider: azure_devops
-  server: https://dev.azure.com/organizacion   # informativo: para reconocerla en otro equipo
-  scope: { project: Demo }
-  synced_at: 2026-11-26T22:00:00-05:00
-filter: { type: [Bug, Task], assignee: [Ana], iteration: [current] }   # o `query:` con WIQL, JQL o búsqueda
-states: { todo: [To Do], doing: [In Progress], done: [Done] }
+  connection: ado-trabajo          # sin ella, la que cubra el proyecto
+  scope: https://dev.azure.com/organizacion/Demo
+  filter: { type: [Bug, Task], assignee: ["@me"], iteration: ["@current"] }
+  query: "SELECT [System.Id] …"    # la compilada del filtro, o una propia
+  filter_query: "SELECT [System.Id] …"
+  states: { todo: [To Do], doing: [In Progress], done: [Done] }
 fields: { card: [key, type, assignee], table: [key, type, title, state, assignee] }
 ---
 
@@ -151,7 +155,9 @@ Equipo.board/
     t1.md
 ```
 
-El nombre del archivo es el identificador de la tarea (`ado-123`, `gh-5`, `PROJ-12`, `t1`). Los datos van en el
+El nombre del archivo es el identificador de la tarea (`ado-123`, `gh-5`, `PROJ-12`, `t1`): letras ASCII, cifras,
+`-` y `_`, único sin distinguir mayúsculas y distinto de `index`. `sync` es JSON en una línea y gana los campos que
+necesite el envío (tipo, asignado y huella de la descripción) al implementarlo. Los datos van en el
 cuerpo como lista, sin frontmatter; las claves y los encabezados son parte del formato, en inglés:
 
 ```markdown
@@ -166,7 +172,7 @@ cuerpo como lista, sin frontmatter; las claves y los encabezados son parte del f
 - duration: 2d
 - depends: -
 - progress: 0%
-- sync: { id: "123", rev: "4", title: "…", state: "In Progress", column: doing, type: "Bug", assignee: "Ana", description: "sha256:…" }
+- sync: {"id":"123","rev":"4","title":"…","state":"In Progress","column":"doing","sent":[],"outside":false}
 
 ## Description
 

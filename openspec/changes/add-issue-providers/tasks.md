@@ -36,7 +36,7 @@
 
 ## 3. Formato y carpeta del tablero
 
-- [ ] 3.1 Leer y escribir el archivo de una tarea y el del tablero (configuración y orden) como funciones puras,
+- [x] 3.1 Leer y escribir el archivo de una tarea y el del tablero (configuración y orden) como funciones puras,
   conservando lo desconocido; pruebas de ida y vuelta, de descripciones con `---` y encabezados y de la actividad
 - [ ] 3.2 Índice en memoria en Rust por tablero, actualizado por el observador, y órdenes para leer un tablero y
   escribir una tarea con escritura atómica; pruebas en Rust y medición con 5000 tareas

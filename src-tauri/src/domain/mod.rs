@@ -6,6 +6,7 @@
 
 pub mod agent;
 pub mod appearance;
+pub mod board;
 pub mod config;
 pub mod docx;
 pub mod graph;

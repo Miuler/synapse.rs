@@ -64,7 +64,7 @@ pub struct Issue {
 }
 
 /// Clase de una entrada de actividad: lo que alguien escribió o lo que registró el proveedor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EntryKind {
     Comment,

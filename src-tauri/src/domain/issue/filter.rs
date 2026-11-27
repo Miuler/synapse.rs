@@ -11,17 +11,17 @@ pub const CURRENT: &str = "@current";
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IssueFilter {
-    #[serde(rename = "type")]
+    #[serde(rename = "type", skip_serializing_if = "Vec::is_empty")]
     pub types: Vec<String>,
-    #[serde(rename = "state")]
+    #[serde(rename = "state", skip_serializing_if = "Vec::is_empty")]
     pub states: Vec<String>,
-    #[serde(rename = "assignee")]
+    #[serde(rename = "assignee", skip_serializing_if = "Vec::is_empty")]
     pub assignees: Vec<String>,
-    #[serde(rename = "iteration")]
+    #[serde(rename = "iteration", skip_serializing_if = "Vec::is_empty")]
     pub iterations: Vec<String>,
-    #[serde(rename = "area")]
+    #[serde(rename = "area", skip_serializing_if = "Vec::is_empty")]
     pub areas: Vec<String>,
-    #[serde(rename = "tag")]
+    #[serde(rename = "tag", skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
 }
 
