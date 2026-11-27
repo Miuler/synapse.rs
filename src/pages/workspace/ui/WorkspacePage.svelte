@@ -4770,7 +4770,11 @@
     {#if paneTabs.length === 0 || !activePath || !paneTabs.includes(activePath)}
       <EmptyWorkspace
         hasVaultItems={vaultItemStore.count > 0}
-        onCreateNew={() => (isRight ? handleNewSplitEmptyTab() : createNewVaultItem())}
+        onCreateNew={(kind) => {
+          // En el panel derecho, el archivo nuevo va en una pestaña suya
+          if (isRight) handleNewSplitEmptyTab();
+          createNewVaultItem((isRight && activeSplitTabPath) || undefined, kind);
+        }}
         active={!isQuickOpenOpen}
         {recentFiles}
         onSelectFile={handleSelectQuickOpenFile}
@@ -4790,7 +4794,7 @@
           >
             <EmptyWorkspace
               hasVaultItems={vaultItemStore.count > 0}
-              onCreateNew={() => createNewVaultItem(tabPath)}
+              onCreateNew={(kind) => createNewVaultItem(tabPath, kind)}
               active={tabPath === activePath && !isQuickOpenOpen}
               {recentFiles}
               onSelectFile={handleSelectQuickOpenFile}

@@ -4,6 +4,7 @@
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import {
     appSettings,
+    MAX_RECENTS_COUNT,
     shortcutsConfig,
     type ShortcutsConfig,
     type ThemeMode,
@@ -289,6 +290,23 @@
               <button type="button" onclick={() => appSettings.setContentZoom(1)}>Restablecer</button>
             </div>
           </div>
+          <label class="row">
+            <span class="row-label">
+              {t('emptyTab.countSetting')}
+              <span class="hint">{t('emptyTab.countHint')}</span>
+            </span>
+            <input
+              type="number"
+              min="0"
+              max={MAX_RECENTS_COUNT}
+              aria-label={t('emptyTab.countSetting')}
+              value={appSettings.recentsCount}
+              onchange={(e) => {
+                appSettings.setRecentsCount(e.currentTarget.valueAsNumber);
+                e.currentTarget.value = String(appSettings.recentsCount);
+              }}
+            />
+          </label>
           <div class="row wallpaper-row">
             <span class="row-label">Fondo de la pestaña vacía (de esta bóveda)</span>
             <div class="inline">

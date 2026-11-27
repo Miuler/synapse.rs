@@ -38,6 +38,10 @@ export interface AppSettings {
   agentCompletionSound: AgentCompletionSound;
   /** Opacidad de la marca de agua con el logo del agente en el chat, de 0 (oculta) a 40 %. */
   agentWatermark: number;
+  /** Lista de archivos recientes de la pestaña vacía, plegada. */
+  recentsCollapsed: boolean;
+  /** Cuántos archivos recientes lista la pestaña vacía (0 oculta la lista). */
+  recentsCount: number;
   /** Grosor del puntero láser en px (radio del punto; el rayo es algo más ancho), de 1 a 8. */
   laserSize: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
@@ -79,11 +83,20 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chatZoom: 1, // Zoom del chat del agente
   agentCompletionSound: 'burbuja_fm', // Sonido al terminar un turno del agente ACP
   agentWatermark: 10, // Opacidad (%) de la marca de agua del agente en el chat
+  recentsCollapsed: false,
+  recentsCount: 3,
   laserSize: 2, // Grosor (px) del puntero láser
 };
 
 function clampWatermark(value: number): number {
   return Math.min(40, Math.max(0, Math.round(value)));
+}
+
+/** La app guarda como mucho los 15 últimos abiertos. */
+export const MAX_RECENTS_COUNT = 15;
+
+function clampRecentsCount(value: number): number {
+  return Math.min(MAX_RECENTS_COUNT, Math.max(0, Math.round(value)));
 }
 
 function clampLaserSize(value: number): number {
@@ -149,6 +162,12 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.agentWatermark === 'number' && Number.isFinite(parsed.agentWatermark)) {
         settings.agentWatermark = clampWatermark(parsed.agentWatermark);
+      }
+      if (typeof parsed.recentsCollapsed === 'boolean') {
+        settings.recentsCollapsed = parsed.recentsCollapsed;
+      }
+      if (typeof parsed.recentsCount === 'number' && Number.isFinite(parsed.recentsCount)) {
+        settings.recentsCount = clampRecentsCount(parsed.recentsCount);
       }
       if (typeof parsed.laserSize === 'number' && Number.isFinite(parsed.laserSize)) {
         settings.laserSize = clampLaserSize(parsed.laserSize);
@@ -472,6 +491,25 @@ class SettingsManager {
     const next = clampWatermark(percent);
     if (next === this.agentWatermark) return;
     this.settings = { ...this.settings, agentWatermark: next };
+    this.persist();
+  }
+
+  get recentsCollapsed(): boolean {
+    return this.settings.recentsCollapsed;
+  }
+
+  setRecentsCollapsed(collapsed: boolean) {
+    this.settings = { ...this.settings, recentsCollapsed: collapsed };
+    this.persist();
+  }
+
+  get recentsCount(): number {
+    return this.settings.recentsCount;
+  }
+
+  setRecentsCount(count: number) {
+    if (!Number.isFinite(count)) return;
+    this.settings = { ...this.settings, recentsCount: clampRecentsCount(count) };
     this.persist();
   }
 

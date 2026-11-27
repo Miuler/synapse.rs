@@ -205,6 +205,11 @@ export const es: TranslationSchema = {
     placeholder: 'Sigue preguntando aparte…',
     send: 'Preguntar',
   },
+  emptyTab: {
+    recentFiles: 'Archivos recientes',
+    countSetting: 'Archivos recientes en la pestaña vacía',
+    countHint: 'Cuántos de los últimos abiertos se listan. 0 oculta la lista.',
+  },
   board: {
     newMenu: 'Nuevo tablero (.board.md)',
     newKind: 'Tablero de tareas (Kanban, Gantt)',

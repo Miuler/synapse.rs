@@ -204,6 +204,11 @@ export const en = {
     placeholder: 'Keep asking aside…',
     send: 'Ask',
   },
+  emptyTab: {
+    recentFiles: 'Recent files',
+    countSetting: 'Recent files in the empty tab',
+    countHint: 'How many of the last opened files are listed. 0 hides the list.',
+  },
   board: {
     newMenu: 'New board (.board.md)',
     newKind: 'Task board (Kanban, Gantt)',
