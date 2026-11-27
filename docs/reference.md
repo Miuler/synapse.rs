@@ -98,6 +98,23 @@ With no connections, boards use Azure DevOps (`dev.azure.com` and `*.visualstudi
 set in Settings → Connections: a pasted token (keyring) or an `op://` reference in `azure_devops.token`, else
 `AZURE_DEVOPS_PAT` / `ADO_PAT`. Synapse reads references with `op read` when a board is synced.
 
+### Which tasks a board brings
+
+Set per board, from the settings button of the board; when a board is created and there is something to sync with,
+Synapse asks right away (cancelling keeps the board local). A board takes a connection (or the one whose server covers
+the project), a project URL and one of:
+
+- **Mine** (default): open issues assigned to, changed or created by you.
+- **By criteria**: type, state, assignee (`@me`, people already seen or typed), iteration (also the current one,
+  resolved by dates when pulling), area and tag. Any value of a criterion is enough and every criterion has to match;
+  with no state chosen, only open issues.
+- **Own query** (WIQL for Azure DevOps).
+
+Criteria are saved in the board together with the query compiled from them; editing the query by hand makes it win.
+Linked tasks the query no longer returns stay on the board, marked as outside the filter. Changing the project or the
+connection of a board with linked tasks unlinks them, after confirmation. A remote state goes to the column that lists
+it in `states` of the board, else to the column of the category the provider declares, else by its usual name.
+
 ## MCP server
 
 When enabled for a vault, Synapse serves the [Model Context Protocol](https://modelcontextprotocol.io) (version

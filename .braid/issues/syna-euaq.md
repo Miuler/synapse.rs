@@ -16,3 +16,5 @@ acceptance:
 ---
 
 Pedido por el usuario para segmentar el trabajo entre varios tableros. Tarea 2.4 de openspec/changes/add-issue-providers.
+
+Hecho (2026-11-27, tareas 2.4 a 2.7 de add-issue-providers): se pide el origen al crear el tablero, filtro por criterios o consulta, marca de lo que queda fuera y confirmación al desvincular. Falta que el usuario lo pruebe en su aplicación.

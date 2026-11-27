@@ -31,7 +31,7 @@
   compilación y contra servidor falso
 - [x] 2.6 Al crear un tablero, pedir conexión, ámbito y filtro (criterios o consulta propia), permitir cambiarlo y
   marcar lo que queda fuera; cambiar conexión o ámbito con tareas vinculadas exige confirmación
-- [ ] 2.7 e2e con dos tableros del mismo proyecto y filtros distintos, y documentación en `docs/reference.md` y en los
+- [x] 2.7 e2e con dos tableros del mismo proyecto y filtros distintos, y documentación en `docs/reference.md` y en los
   dos CHANGELOG
 
 ## 3. Formato y carpeta del tablero
