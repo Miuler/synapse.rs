@@ -233,6 +233,9 @@ impl WorkspaceRegistryRepositoryImpl {
     "next_tab": "Ctrl+PageDown, Ctrl+Tab",
     // Cambiar a la pestaña anterior
     "prev_tab": "Ctrl+PageUp, Ctrl+Shift+Tab",
+    // Pestaña siguiente y anterior solo cuando no se está escribiendo (al escribir saltan palabras)
+    "next_tab_outside_text": "Ctrl+ArrowRight",
+    "prev_tab_outside_text": "Ctrl+ArrowLeft",
     // Alternar entre modo Edición y modo Lectura de la nota activa
     "toggle_edit_mode": "F2, Alt+E",
     // Enviar commits locales al repositorio remoto (Git Push)

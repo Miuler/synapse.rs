@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Ctrl+←` / `Ctrl+→` switch to the previous or next tab when you are not typing; in editors, text fields and Excalidraw the keys keep their usual meaning. Configurable in Settings.
 - Task boards (`.board.md`): an editor with Table, Kanban and Gantt views over a Markdown table, with comments per task; create one from the explorer menu («New board»), the command palette or a folder index. Kanban cards are dragged between columns to change their state, and up or down to decide which goes first (that order is the order of the table rows, so Table and Gantt follow it), or moved with `Shift` + arrows on the focused card; `Escape` cancels a drag. Double-clicking a task (or `Enter` on a focused card) opens it in a Jira-style dialog: comments on the left, state and details on the right. A «Raw» view shows the file as it is saved (read only).
 - Git log: the menu of a commit squashes the commits from it to the tip of the current branch (without touching files or uncommitted changes; not across merges, and warning when they are already on a remote), reverts it (cancelled if it conflicts) or resets the branch to it, soft or hard (uncommitted changes are saved in the stash, and untracked files are never overwritten). The last of these can be undone from the same dialog.
 - A folder index opens what you click in its own tab, in place of the index; «Back» returns to it.

@@ -150,6 +150,8 @@
         close_tab: 'Cerrar pestaña',
         next_tab: 'Pestaña siguiente',
         prev_tab: 'Pestaña anterior',
+        next_tab_outside_text: 'Pestaña siguiente (sin escribir)',
+        prev_tab_outside_text: 'Pestaña anterior (sin escribir)',
         split_view: 'Vista dividida',
         toggle_edit_mode: 'Alternar edición / lectura',
         toggle_sidebar: 'Mostrar / ocultar barra lateral',

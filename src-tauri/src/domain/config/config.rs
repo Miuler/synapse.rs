@@ -152,6 +152,11 @@ pub struct WorkspaceShortcutsConfig {
     pub next_tab: String,
     #[serde(default = "default_ws_prev_tab")]
     pub prev_tab: String,
+    /// Como `next_tab` y `prev_tab`, pero solo fuera de los campos de texto
+    #[serde(default = "default_ws_next_tab_outside_text")]
+    pub next_tab_outside_text: String,
+    #[serde(default = "default_ws_prev_tab_outside_text")]
+    pub prev_tab_outside_text: String,
     #[serde(default = "default_ws_git_push")]
     pub git_push: String,
     #[serde(default = "default_ws_zoom_in")]
@@ -232,6 +237,12 @@ fn default_ws_next_tab() -> String {
 fn default_ws_prev_tab() -> String {
     "Ctrl+PageUp, Ctrl+Shift+Tab".to_string()
 }
+fn default_ws_next_tab_outside_text() -> String {
+    "Ctrl+ArrowRight".to_string()
+}
+fn default_ws_prev_tab_outside_text() -> String {
+    "Ctrl+ArrowLeft".to_string()
+}
 fn default_ws_git_push() -> String {
     "Ctrl+Shift+K".to_string()
 }
@@ -275,6 +286,8 @@ impl Default for WorkspaceShortcutsConfig {
             toggle_edit_mode: default_ws_toggle_edit_mode(),
             next_tab: default_ws_next_tab(),
             prev_tab: default_ws_prev_tab(),
+            next_tab_outside_text: default_ws_next_tab_outside_text(),
+            prev_tab_outside_text: default_ws_prev_tab_outside_text(),
             git_push: default_ws_git_push(),
             zoom_in: default_ws_zoom_in(),
             zoom_out: default_ws_zoom_out(),

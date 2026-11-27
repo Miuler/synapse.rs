@@ -52,6 +52,7 @@
   import {GitManagementDialogs, GitMissingDialog} from "@features/git-management";
   import {ZoomDialog} from "@features/ui-zoom";
   import {appSettings, shortcutsConfig, matchesShortcut, hadStoredSettingsAtStartup, type ExcalidrawViewerType} from "@entities/settings";
+  import {isTyping} from "@shared/lib/navigation";
   import {appearance} from "@entities/appearance";
   import { i18n, t } from "@shared/lib/i18n";
   import { registerPendingWritesFlusher } from "@shared/lib/pending-writes";
@@ -4369,12 +4370,15 @@
         handleNewEmptyTab();
         return;
       }
-      if (matchesShortcut(e, ws.next_tab)) {
+      // Los atajos «fuera de texto» ceden la tecla a campos, editores y Excalidraw, que la usan
+      const outsideText = (spec: string) =>
+        matchesShortcut(e, spec) && !isTyping(e.target) && !(e.target as Element).closest?.('.excalidraw');
+      if (matchesShortcut(e, ws.next_tab) || outsideText(ws.next_tab_outside_text)) {
         stopEvent();
         switchToNextTab();
         return;
       }
-      if (matchesShortcut(e, ws.prev_tab)) {
+      if (matchesShortcut(e, ws.prev_tab) || outsideText(ws.prev_tab_outside_text)) {
         stopEvent();
         switchToPrevTab();
         return;

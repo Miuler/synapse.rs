@@ -44,6 +44,8 @@
           { label: 'Cerrar pestaña', shortcut: ws.close_tab },
           { label: 'Pestaña siguiente', shortcut: ws.next_tab },
           { label: 'Pestaña anterior', shortcut: ws.prev_tab },
+          { label: 'Pestaña siguiente (sin escribir)', shortcut: ws.next_tab_outside_text },
+          { label: 'Pestaña anterior (sin escribir)', shortcut: ws.prev_tab_outside_text },
           { label: 'Vista dividida', shortcut: ws.split_view },
           { label: 'Alternar edición / lectura', shortcut: ws.toggle_edit_mode },
         ],

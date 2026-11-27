@@ -33,6 +33,9 @@ export interface WorkspaceShortcutsConfig {
   toggle_edit_mode: string;
   next_tab: string;
   prev_tab: string;
+  /** Como las dos anteriores, pero solo fuera de los campos de texto y de Excalidraw. */
+  next_tab_outside_text: string;
+  prev_tab_outside_text: string;
   git_push: string;
   zoom_in: string;
   zoom_out: string;
@@ -77,6 +80,8 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
     toggle_edit_mode: 'F2, Alt+E',
     next_tab: 'Ctrl+PageDown, Ctrl+Tab',
     prev_tab: 'Ctrl+PageUp, Ctrl+Shift+Tab',
+    next_tab_outside_text: 'Ctrl+ArrowRight',
+    prev_tab_outside_text: 'Ctrl+ArrowLeft',
     git_push: 'Ctrl+Shift+K',
     zoom_in: 'Ctrl++, Ctrl+=',
     zoom_out: 'Ctrl+-',
