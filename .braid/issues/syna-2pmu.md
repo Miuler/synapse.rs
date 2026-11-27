@@ -3,13 +3,14 @@ schema_version: 9
 id: syna-2pmu
 title: 'Tableros: capa de proveedores de issues y conexiones (Azure DevOps)'
 priority: P2
-status: open
+status: done
 deps: []
 tags:
 - tableros
 - azure
 owner: null
 created_at: 2026-11-27T14:03:30.151376846Z
+completed_at: 2026-11-27T17:19:07.769913064Z
 acceptance:
 - Tareas 1.1 a 2.4 de la propuesta marcadas y probadas
 ---

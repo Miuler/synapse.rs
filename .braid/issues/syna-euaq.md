@@ -3,7 +3,7 @@ schema_version: 9
 id: syna-euaq
 title: 'Tableros: pedir el filtro al crear un tablero'
 priority: P2
-status: open
+status: done
 deps:
 - syna-2pmu
 tags:
@@ -11,6 +11,7 @@ tags:
 - azure
 owner: null
 created_at: 2026-11-27T15:14:49.690270383Z
+completed_at: 2026-11-27T17:19:07.780674142Z
 acceptance:
 - Al crear un tablero con origen se elige el filtro antes de traer, y se puede cambiar sin borrar tareas
 ---
