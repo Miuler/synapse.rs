@@ -98,6 +98,14 @@ it('sin mensajes de «ningún archivo»: un pulpo sugiere un atajo y cambia al h
   expect(await visible('.empty-message')).toBe(false);
   const tip = s.browser.$('.tab-pane:not(.hidden) .shortcut-tip');
   await tip.waitForDisplayed({ timeout: 5_000 });
+  // El pulpo de las notificaciones llega a pintarse
+  await s.browser.waitUntil(
+    () =>
+      s.browser.execute(
+        () => [...document.querySelectorAll<HTMLImageElement>('img.tip-mascot')].some((i) => i.naturalWidth > 0),
+      ) as Promise<boolean>,
+    { timeout: 5_000, timeoutMsg: 'el pulpo no se cargó' },
+  );
   const before = await tip.getText();
   expect(await tip.$('kbd').getText()).toContain('+');
   await tip.click();

@@ -5,8 +5,9 @@
 
 <script lang="ts">
   import { shortcutsConfig } from '@entities/settings';
-  import { OctopusIcon } from '@shared/ui/icons';
   import { t } from '@shared/lib/i18n';
+  // El mismo pulpo de las notificaciones del sistema (una sola copia de la imagen)
+  import pulpo from '../../../../src-tauri/icons/notification-pulpo.png';
 
   // Los atajos se leen de la configuración: si se cambian, la sugerencia sigue siendo cierta
   const tips = $derived.by(() => {
@@ -43,7 +44,7 @@
 
 {#if tip}
   <button type="button" class="shortcut-tip" data-tip={tip.text} title={t('emptyTab.nextTip')} onclick={() => index++}>
-    <span class="tip-mascot"><OctopusIcon size={44} /></span>
+    <img class="tip-mascot" src={pulpo} alt="" width="64" height="64" />
     <span class="tip-bubble">
       {#each tip.keys as keys (keys)}<kbd>{keys}</kbd>{/each}
       <span>{t(`emptyTab.tip.${tip.text}`)}</span>
@@ -66,11 +67,7 @@
   }
 
   .tip-mascot {
-    display: flex;
-    padding: 6px;
-    border-radius: 50%;
-    color: var(--accent, #0969da);
-    background: color-mix(in srgb, var(--bg-primary, #ffffff) 88%, transparent);
+    flex-shrink: 0;
     animation: tipFloat 3s ease-in-out infinite;
   }
 
