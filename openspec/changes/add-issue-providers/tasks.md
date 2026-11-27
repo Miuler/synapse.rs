@@ -22,10 +22,17 @@
 - [x] 2.3 Pantalla de conexiones en Configuración, con formulario generado por el proveedor, «Probar» y borrado;
   e2e que crea dos conexiones de Azure DevOps contra servidores falsos y confirma que cada tablero usa la suya.
   Añade `check` al puerto, tras verificar su endpoint
-- [ ] 2.4 Al crear un tablero, pedir conexión, ámbito y filtro (criterios que declara el proveedor o su consulta),
-  permitir cambiarlo y marcar lo que queda fuera, bloqueando conexión y ámbito con tareas vinculadas; e2e con dos
-  tableros del mismo proyecto y filtros distintos.
-  Añade `states` al puerto y la categoría que declare el proveedor, tras verificar su endpoint
+- [ ] 2.4 Estados con su categoría: `states` en el puerto (tipos de work item y estados de cada uno) y la categoría en
+  cada tarea traída; columna por categoría cuando el estado no está configurado, moviendo también las ya traídas que
+  no cambiaron aquí. Pruebas contra servidor falso con estados fuera de la lista de respaldo
+- [ ] 2.5 Criterios de filtro declarados por el proveedor (tipo, estado, asignado, iteración, área y etiqueta) y sus
+  valores, compilados a la consulta con una función pura que escapa los valores. El asignado se ofrece sin el endpoint
+  de miembros (`@Me`, los ya vistos y texto libre) y la iteración actual se resuelve por fechas. Pruebas de la
+  compilación y contra servidor falso
+- [ ] 2.6 Al crear un tablero, pedir conexión, ámbito y filtro (criterios o consulta propia), permitir cambiarlo y
+  marcar lo que queda fuera; cambiar conexión o ámbito con tareas vinculadas exige confirmación
+- [ ] 2.7 e2e con dos tableros del mismo proyecto y filtros distintos, y documentación en `docs/reference.md` y en los
+  dos CHANGELOG
 
 ## 3. Formato y carpeta del tablero
 
