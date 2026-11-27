@@ -64,9 +64,15 @@
   marca al cambiar el histórico; e2e de la edición, de cancelar el aviso y de que traer no la pisa.
   Los tableros con tabla solo editan título, estado, planificación y comentarios (de una línea); las columnas propias de
   un tablero convertido no se ven ni se editan en el detalle. El aviso de conflicto en la descripción sale una vez, y
-  se resuelve volviendo a la del proveedor o dejando la local. Enviar lo editado queda para la 3.8
-- [ ] 3.8 Enviar los cambios de descripción, tipo, asignado y comentarios, tras verificar sus endpoints, indicando lo
-  no admitido y avisando del formato que se perdería; pruebas contra servidor falso de conflictos y rechazos
+  se resuelve volviendo a la del proveedor o dejando la local
+- [x] 3.8 Enviar los cambios de descripción, tipo, asignado y comentarios, tras verificar sus endpoints, indicando lo
+  no admitido y avisando del formato que se perdería; pruebas contra servidor falso de conflictos y rechazos.
+  Probado solo contra el servidor falso; nada se ha enviado a una cuenta real. Quitar la asignación (`""`) y cambiar el
+  tipo junto con un estado salen de los ejemplos de la referencia; editar comentarios, de su página de actualización,
+  que no dice quién puede: solo se reescriben los enviados desde el tablero. El tipo solo se cambia en la nube, con un
+  estado que el tipo nuevo admita. El asignado se envía por nombre, que Azure DevOps puede rechazar si hay repetidos.
+  La descripción se escribe en el campo del que se leyó, como HTML o como Markdown según lo que declare el work item
+
 
 ## 4. Referencias desde Markdown
 

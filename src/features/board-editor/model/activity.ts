@@ -35,7 +35,9 @@ export function mergeActivity(local: ActivityEntry[], remote: ActivityEntry[], s
   for (const entry of remote) {
     const known = next.findIndex((e) => e.kind === entry.kind && e.id === entry.id);
     if (known >= 0) {
-      if (!next[known].edited) next[known] = entry;
+      const old = next[known];
+      // La fecha con la que consta como enviado se conserva: así se sabe que salió de aquí
+      if (!old.edited) next[known] = sent.includes(old.at) ? { ...entry, at: old.at } : entry;
       continue;
     }
     const echo = next.findIndex(
@@ -64,7 +66,7 @@ export function mergeDescription(local: string, remote: string, base?: string): 
  * Lo que cambia cuando cambia la actividad: la revisión y, si el proveedor lo dice, cuántos
  * comentarios hay.
  */
-const version = (item: Issue) => [item.revision, item.extra?.comment_count].filter(Boolean).join('+');
+export const version = (item: Issue) => [item.revision, item.extra?.comment_count].filter(Boolean).join('+');
 
 /** Las tareas vinculadas que cambiaron en el proveedor desde que se leyó su actividad. */
 export function changedIssues(doc: BoardDocument, items: Issue[]): string[] {

@@ -189,7 +189,20 @@ planning and comments, and keep each comment on one line. Own columns of a conve
 - A pull keeps a description, type or assignee changed here and reports the tasks that changed on both sides (the
   description is reported once, when the new one is read). For the type and assignee, `sync` keeps the previous value;
   setting it back follows the provider again. «Use the provider's description» replaces yours on the next pull.
-- «Push» does not send the description, type, assignee or edited comments yet.
+
+### Sending changes
+
+«Push» shows what it would send and writes only what stays ticked. Besides title, state and new comments, it sends the
+type, assignee and description changed in a task, and creates new issues with theirs.
+
+- What changed on both sides starts unticked.
+- A description that would lose formatting in the provider (styles, images, mentions…) and edited comments have their
+  own box, unticked. Azure DevOps text usually carries styles, so the description is normally one to tick. After
+  sending, the board keeps the description as the provider saved it.
+- Only comments sent from this board are rewritten; other edited comments stay local. History is never sent.
+- What the provider does not allow is listed and not sent: in Azure DevOps the type changes only in the cloud service,
+  together with a state the new type accepts. A change the provider rejects is reported and stays pending.
+- The assignee is sent by name: Azure DevOps rejects it if the name matches nobody or several people.
 
 ## MCP server
 

@@ -10,6 +10,8 @@ pub struct FetchedIssues {
     pub requested: Vec<String>,
     /// Los que devolvió la consulta: una vinculada que no esté quedó fuera de ella.
     pub matched: Vec<String>,
+    /// Lo que el proveedor admite cambiar en ese ámbito.
+    pub editable: Vec<String>,
 }
 
 /// Las tareas de la consulta y las que ya estaban vinculadas.
@@ -45,6 +47,7 @@ impl FetchIssuesUseCase {
             items,
             requested,
             matched,
+            editable: self.provider.editable(scope),
         })
     }
 }

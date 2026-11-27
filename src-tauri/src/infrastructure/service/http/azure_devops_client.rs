@@ -22,7 +22,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use reqwest::{Method, Url};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::Duration;
 
@@ -493,28 +493,65 @@ fn issue(value: &Value) -> Option<Issue> {
         labels: Vec::new(),
         updated_at: Some(field("System.ChangedDate")).filter(|d| !d.is_empty()),
         revision: Some(value["rev"].as_u64()?.to_string()),
-        extra: value["fields"][COMMENT_COUNT]
-            .as_u64()
-            .map(|count| ("comment_count".to_string(), count.to_string()))
-            .into_iter()
-            .collect(),
+        extra: extra(value),
     })
 }
 
-/// El texto principal como Markdown: en un Bug, los pasos para reproducirlo; si no, la descripción.
-fn description(value: &Value) -> Option<String> {
-    let bug = value["fields"]["System.WorkItemType"] == "Bug";
-    let order = if bug {
+/// Los campos que pueden llevar el texto principal, por preferencia: en un Bug, primero los pasos
+/// para reproducirlo.
+fn text_fields(value: &Value) -> [&'static str; 2] {
+    if value["fields"]["System.WorkItemType"] == "Bug" {
         [REPRO_STEPS, DESCRIPTION]
     } else {
         [DESCRIPTION, REPRO_STEPS]
-    };
-    order.iter().find_map(|field| {
+    }
+}
+
+/// El texto principal como Markdown.
+fn description(value: &Value) -> Option<String> {
+    text_fields(value).iter().find_map(|field| {
         let text = value["fields"][field].as_str()?;
         // Las organizaciones con campos en Markdown lo dicen aquí (no figura en la referencia)
         let format = value["multilineFieldsFormat"][field].as_str();
         Some(html_markdown::from_text(text, format)).filter(|t| !t.is_empty())
     })
+}
+
+/// El campo del que sale la descripción de un work item; sin texto en ninguno, el de su tipo.
+fn text_field(value: &Value) -> &'static str {
+    let order = text_fields(value);
+    order
+        .into_iter()
+        .find(|field| {
+            value["fields"][*field]
+                .as_str()
+                .is_some_and(|t| !html_markdown::from_text(t, None).is_empty())
+        })
+        .unwrap_or(order[0])
+}
+
+fn is_markdown(value: &Value, field: &str) -> bool {
+    value["multilineFieldsFormat"][field]
+        .as_str()
+        .is_some_and(|f| f.eq_ignore_ascii_case("markdown"))
+}
+
+/// Lo que no cabe en el modelo común: cuántos comentarios tiene y si su descripción perdería
+/// formato al reescribirla.
+fn extra(value: &Value) -> BTreeMap<String, String> {
+    let mut extra = BTreeMap::new();
+    if let Some(count) = value["fields"][COMMENT_COUNT].as_u64() {
+        extra.insert("comment_count".to_string(), count.to_string());
+    }
+    let field = text_field(value);
+    if !is_markdown(value, field)
+        && value["fields"][field]
+            .as_str()
+            .is_some_and(html_markdown::loses_format)
+    {
+        extra.insert("description_lossy".to_string(), "true".to_string());
+    }
+    extra
 }
 
 /// `2026-01-02T03:04:05.678Z` como `2026-01-02T03:04:05`, la forma de las fechas del tablero (UTC).
@@ -672,6 +709,70 @@ impl AzureDevOpsClient {
 }
 
 impl AzureDevOpsClient {
+    /// El estado con el que un work item pasa a `new_type`: el suyo si ese tipo lo tiene; si no,
+    /// uno de la misma categoría.
+    async fn state_for_type(
+        &self,
+        project: &Project,
+        id: u64,
+        new_type: &str,
+    ) -> Result<Value, IssueError> {
+        let url = format!("{}/_apis/wit/workitemsbatch?{API}", project.collection);
+        let body = json!({
+            "ids": [id],
+            "fields": ["System.WorkItemType", "System.State"],
+            "errorPolicy": "Omit",
+        });
+        let response = self
+            .send(Method::POST, &url, Some(("application/json", body)))
+            .await?;
+        let item =
+            issue(&response["value"][0]).ok_or_else(|| IssueError::new(Kind::NotFound, id.to_string()))?;
+        let states = self.type_states(project, new_type).await?;
+        let mut found = states.iter().find(|s| s.name == item.state.name);
+        if found.is_none() {
+            let old = self.type_states(project, &item.issue_type).await?;
+            let category = old
+                .iter()
+                .find(|s| s.name == item.state.name)
+                .map_or(item.state.category, |s| s.category);
+            found = states.iter().find(|s| s.category == category);
+        }
+        let state = found.or_else(|| states.first()).ok_or_else(|| {
+            IssueError::new(Kind::Rule, format!("el tipo «{new_type}» no declara estados"))
+        })?;
+        Ok(set_field("System.State", &state.name))
+    }
+
+    /// Dónde y cómo escribir la descripción de un work item que ya existe.
+    async fn description_patch(
+        &self,
+        project: &Project,
+        id: u64,
+        markdown: &str,
+    ) -> Result<Value, IssueError> {
+        let url = format!("{}/_apis/wit/workitemsbatch?{API}", project.collection);
+        let body = json!({
+            "ids": [id],
+            "fields": ["System.WorkItemType", DESCRIPTION, REPRO_STEPS],
+            "errorPolicy": "Omit",
+        });
+        let response = self
+            .send(Method::POST, &url, Some(("application/json", body)))
+            .await?;
+        let item = &response["value"][0];
+        if !item.is_object() {
+            return Err(IssueError::new(Kind::NotFound, id.to_string()));
+        }
+        let field = text_field(item);
+        let text = if is_markdown(item, field) {
+            markdown.to_string()
+        } else {
+            html_markdown::to_html(markdown)
+        };
+        Ok(set_field(field, &text))
+    }
+
     async fn comments(&self, project: &Project, id: u64) -> Result<Vec<IssueEntry>, IssueError> {
         let base = project.url(&format!("workItems/{id}/comments"));
         let mut found = Vec::new();
@@ -843,6 +944,15 @@ impl IssueProvider for AzureDevOpsClient {
         Self::descriptor()
     }
 
+    fn editable(&self, scope: &str) -> Vec<String> {
+        let mut fields = vec!["title", "state", "assignee", "description", "comment"];
+        // La referencia solo muestra el cambio de tipo en el servicio en la nube
+        if Url::parse(scope.trim()).is_ok_and(|url| is_cloud(&url)) {
+            fields.push("type");
+        }
+        fields.into_iter().map(str::to_string).collect()
+    }
+
     /// `connectionData` de la organización o colección: es lo que usa el cliente oficial de
     /// Microsoft para saber quién entra (no figura en la referencia REST) y vale con cualquier
     /// alcance del token, a diferencia de la lista de proyectos.
@@ -1000,10 +1110,31 @@ impl IssueProvider for AzureDevOpsClient {
             let revision: u64 = revision
                 .and_then(|r| r.parse().ok())
                 .ok_or_else(|| IssueError::new(Kind::Conflict, "falta la revisión"))?;
-            let url = self.project(scope)?.url(&format!("workitems/{id}?{API}"));
+            if changes.issue_type.is_some() && !self.editable(scope).contains(&"type".to_string()) {
+                return Err(IssueError::new(
+                    Kind::Rule,
+                    "este servidor no admite cambiar el tipo",
+                ));
+            }
+            let project = self.project(scope)?;
+            let url = project.url(&format!("workitems/{id}?{API}"));
             let mut patch = vec![json!({"op": "test", "path": "/rev", "value": revision})];
-            patch.extend(changes.title.as_deref().map(|t| set_field("System.Title", t)));
-            patch.extend(changes.state.as_deref().map(|s| set_field("System.State", s)));
+            for (field, value) in [
+                ("System.WorkItemType", &changes.issue_type),
+                ("System.Title", &changes.title),
+                ("System.State", &changes.state),
+                // Vacío quita la asignación
+                ("System.AssignedTo", &changes.assignee),
+            ] {
+                patch.extend(value.as_deref().map(|v| set_field(field, v)));
+            }
+            // La referencia cambia el tipo junto con un estado que el tipo nuevo admita
+            if let (Some(new_type), None) = (&changes.issue_type, &changes.state) {
+                patch.push(self.state_for_type(&project, id, new_type).await?);
+            }
+            if let Some(markdown) = &changes.description {
+                patch.push(self.description_patch(&project, id, markdown).await?);
+            }
             let body = ("application/json-patch+json", Value::Array(patch));
             expect_issue(&self.send(Method::PATCH, &url, Some(body)).await?)
         })
@@ -1035,6 +1166,14 @@ impl IssueProvider for AzureDevOpsClient {
                     .as_deref()
                     .map(|a| set_field("System.AssignedTo", a)),
             );
+            if let Some(markdown) = new.description.as_deref().filter(|d| !d.trim().is_empty()) {
+                let field = if new.issue_type == "Bug" {
+                    REPRO_STEPS
+                } else {
+                    DESCRIPTION
+                };
+                patch.push(set_field(field, &html_markdown::to_html(markdown)));
+            }
             let body = ("application/json-patch+json", Value::Array(patch));
             expect_issue(&self.send(Method::POST, url.as_str(), Some(body)).await?)
         })
@@ -1055,6 +1194,25 @@ impl IssueProvider for AzureDevOpsClient {
             let created = self.send(Method::POST, &url, Some(body)).await?;
             let id = created["commentId"].as_u64().or_else(|| created["id"].as_u64());
             Ok(id.map(|id| id.to_string()))
+        })
+    }
+
+    fn update_comment<'a>(
+        &'a self,
+        scope: &'a str,
+        id: &'a str,
+        comment: &'a str,
+        text: &'a str,
+    ) -> ProviderFuture<'a, ()> {
+        Box::pin(async move {
+            let (id, comment) = (work_item_id(id)?, work_item_id(comment)?);
+            let url = self.project(scope)?.url(&format!(
+                "workItems/{id}/comments/{comment}?{COMMENT_LIST_API}"
+            ));
+            // Lo que se editó es Markdown: así se envía como se veía
+            let body = ("application/json", json!({ "text": html_markdown::to_html(text) }));
+            self.send(Method::PATCH, &url, Some(body)).await?;
+            Ok(())
         })
     }
 }
@@ -1709,5 +1867,89 @@ mod tests {
     async fn una_pagina_repetida_no_se_pide_sin_fin() {
         let (requests, ids) = history_of(vec![updates(1..=200), updates(1..=200)]).await;
         assert_eq!((requests, ids.len()), (2, 200));
+    }
+
+    #[tokio::test]
+    async fn envia_los_campos_cambiados_y_la_descripcion_en_su_campo_como_html() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"value":[{"id":5,"rev":2,"fields":{"System.WorkItemType":"Bug","Microsoft.VSTS.TCM.ReproSteps":"<p>antes</p>"}}]}"#,
+            r#"{"id":5,"rev":3,"fields":{}}"#,
+        ]);
+        let changes = IssueChanges {
+            assignee: Some(String::new()),
+            description: Some("**ahora** <b>".into()),
+            ..Default::default()
+        };
+        client(Some(&origin))
+            .update(&format!("{origin}/org/Proyecto"), "5", Some("2"), &changes)
+            .await
+            .unwrap();
+        let sent = requests.join().unwrap().pop().unwrap();
+        assert!(sent.starts_with("PATCH /org/Proyecto/_apis/wit/workitems/5?"));
+        assert!(sent.contains(r#""path":"/fields/System.AssignedTo","value":"""#), "{sent}");
+        assert!(sent.contains(r#""path":"/fields/Microsoft.VSTS.TCM.ReproSteps","value":"<p><strong>ahora</strong> &lt;b&gt;</p>""#), "{sent}");
+        assert!(!sent.contains("System.Description"));
+    }
+
+    #[tokio::test]
+    async fn un_campo_en_markdown_se_envia_sin_convertir() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"value":[{"id":5,"rev":2,"fields":{"System.Description":"antes"},"multilineFieldsFormat":{"System.Description":"markdown"}}]}"#,
+            r#"{"id":5,"rev":3,"fields":{}}"#,
+        ]);
+        let changes = IssueChanges {
+            description: Some("**ahora**".into()),
+            ..Default::default()
+        };
+        client(Some(&origin))
+            .update(&format!("{origin}/org/Proyecto"), "5", Some("2"), &changes)
+            .await
+            .unwrap();
+        let sent = requests.join().unwrap().pop().unwrap();
+        assert!(sent.contains(r#""path":"/fields/System.Description","value":"**ahora**""#), "{sent}");
+    }
+
+    #[tokio::test]
+    async fn el_tipo_solo_se_cambia_en_la_nube() {
+        let azure = client(Some("http://127.0.0.1:9"));
+        let changes = IssueChanges {
+            issue_type: Some("Bug".into()),
+            ..Default::default()
+        };
+        // Se rechaza antes de pedir nada
+        let error = azure
+            .update("http://127.0.0.1:9/org/Proyecto", "5", Some("2"), &changes)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, Kind::Rule);
+        let editable = |scope: &str| azure.editable(scope).contains(&"type".to_string());
+        assert!(editable("https://dev.azure.com/org/Proyecto"));
+        assert!(!editable("http://127.0.0.1:9/org/Proyecto"));
+    }
+
+    #[tokio::test]
+    async fn edita_un_comentario_en_su_direccion() {
+        let (origin, requests) = serve_json(vec![r#"{"commentId":11}"#]);
+        client(Some(&origin))
+            .update_comment(&format!("{origin}/org/Proyecto"), "7", "11", "a *b*")
+            .await
+            .unwrap();
+        let sent = requests.join().unwrap().pop().unwrap();
+        assert!(sent.starts_with("PATCH /org/Proyecto/_apis/wit/workItems/7/comments/11?api-version=7.1-preview.4 "), "{sent}");
+        assert!(sent.contains(r#"{"text":"<p>a <em>b</em></p>"}"#), "{sent}");
+    }
+
+    #[tokio::test]
+    async fn al_cambiar_de_tipo_elige_un_estado_que_el_nuevo_admita() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"value":[{"id":5,"rev":2,"fields":{"System.WorkItemType":"Task","System.State":"Doing"}}]}"#,
+            r#"{"value":[{"name":"New","category":"Proposed"},{"name":"Active","category":"InProgress"}]}"#,
+            r#"{"value":[{"name":"Doing","category":"InProgress"}]}"#,
+        ]);
+        let azure = client(Some(&origin));
+        let project = azure.project(&format!("{origin}/org/Proyecto")).unwrap();
+        let patch = azure.state_for_type(&project, 5, "Bug").await.unwrap();
+        assert_eq!((patch["path"].as_str(), patch["value"].as_str()), (Some("/fields/System.State"), Some("Active")));
+        assert_eq!(requests.join().unwrap().len(), 3);
     }
 }

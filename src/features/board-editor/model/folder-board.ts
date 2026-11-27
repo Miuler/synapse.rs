@@ -189,11 +189,14 @@ export function applyTask(
   const key = (c: BoardTask['comments'][number]) => `${c.timestamp}\n${c.text}`;
   const known = new Map((before?.task.comments ?? []).map((c) => [key(c), c]));
   const added = after.task.comments.filter((c) => !known.has(key(c)));
-  // Los recién enviados ya tienen id en el proveedor
+  // Los recién enviados ya tienen id en el proveedor, y los editados dejan de diferir
   for (const c of after.task.comments) {
-    if (!c.remote || !known.has(key(c)) || known.get(key(c))!.remote) continue;
-    const at = next.activity.findIndex((e) => e.kind === 'comment' && !e.id && e.at === c.timestamp && e.text === c.text);
-    if (at >= 0) next.activity = next.activity.with(at, { ...next.activity[at], id: c.remote });
+    const old = known.get(key(c));
+    if (!c.remote || !old || (old.remote && !(old.edited && !c.edited))) continue;
+    const at = next.activity.findIndex(
+      (e) => e.kind === 'comment' && (!e.id || e.id === c.remote) && e.at === c.timestamp && e.text === c.text,
+    );
+    if (at >= 0) next.activity = next.activity.with(at, { ...next.activity[at], id: c.remote, edited: false });
   }
   if (added.length) {
     next.activity = [

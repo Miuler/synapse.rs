@@ -167,3 +167,104 @@ describe('editar en el detalle', () => {
     expect([result.doc.tasks[0].type, result.doc.tasks[0].assignee]).toEqual(['Epic', 'Ana']);
   });
 });
+
+describe('enviar lo editado en el detalle', () => {
+  const edited = () => {
+    const read = board({ type: 'Task', assignee: 'Ana', description: fingerprint('vieja'), rev: '4', sent: ['t0'] }, [
+      entry('7', 'corregido', 't0', { edited: true }),
+    ]);
+    read.tasks[0] = { ...read.tasks[0], type: 'Bug', assignee: 'Eva' };
+    return folderDocument(read);
+  };
+  const remoteItem = (extra: Partial<Issue> = {}): Issue => ({
+    ...item('4', 'vieja'), assignee: { name: 'Ana', id: 'a' }, ...extra,
+  });
+  const descriptions = { a: 'nueva' };
+
+  it('lleva tipo, asignado, descripción y comentarios editados', () => {
+    const [change] = buildPushPlan(edited(), provider, [remoteItem()], { descriptions }).changes;
+    expect(change).toMatchObject({
+      type: 'Bug', assignee: 'Eva', description: { text: 'nueva', lossy: false }, conflict: false,
+      edits: [{ remote: '7', timestamp: 't0', text: 'corregido' }],
+    });
+    expect(change.stale).toBeUndefined();
+  });
+
+  it('avisa de lo que cambió en los dos lados y de la descripción que perdería formato', () => {
+    const items = [remoteItem({ revision: '5', description: 'otra', type: 'Epic', extra: { description_lossy: 'true' } })];
+    const [change] = buildPushPlan(edited(), provider, items, { descriptions }).changes;
+    expect([change.conflict, change.stale, change.description!.lossy]).toEqual([true, true, true]);
+  });
+
+  it('lo que el proveedor no admite se indica y no se envía', () => {
+    const plan = buildPushPlan(edited(), provider, [remoteItem()], { descriptions, editable: ['assignee'] });
+    expect(plan.unsupported.map((u) => u.field)).toEqual(['type', 'description', 'comment']);
+    expect(Object.keys(plan.changes[0])).not.toContain('type');
+    expect(plan.changes[0].assignee).toBe('Eva');
+  });
+
+  it('un comentario que no salió de aquí no se reescribe en el proveedor', () => {
+    const doc = folderDocument(board({}, [entry('9', 'de Ana, corregido', 't9', { edited: true })]));
+    const plan = buildPushPlan(doc, provider, [remoteItem()]);
+    expect([plan.changes, plan.unsupported]).toEqual([[], [{ taskId: 'a', field: 'foreignComment' }]]);
+  });
+
+  it('lo enviado conserva su fecha al traerlo, y así se sigue reconociendo', () => {
+    const merged = mergeActivity([entry('7', 'mío', 't0')], [entry('7', 'mío', 'r0')], ['t0']);
+    expect(merged.map((e) => e.at)).toEqual(['t0']);
+  });
+
+  it('la descripción enviada queda como la guardó el proveedor, sin volver a ofrecerse', async () => {
+    let doc = folderDocument(board({ description: fingerprint('vieja') }));
+    const writer = { update: async () => remoteItem({ description: 'a \\_b' }) } as unknown as IssueWriter;
+    const plan = buildPushPlan(doc, provider, [remoteItem()], { descriptions: { a: 'a _b' } });
+    const saved: [{ description?: string }, unknown][] = [];
+    await runPush(provider, writer, () => doc, (_, link, __, kept) => saved.push([{ ...link }, kept]), plan.changes, []);
+    expect(saved[0][1]).toEqual({ text: 'a \\_b', over: fingerprint('a _b') });
+    expect(saved[0][0].description).toBe(fingerprint('a \\_b'));
+    const task = { ...doc.tasks[0], incoming: { entries: [], description: 'a \\_b', over: fingerprint('a _b') } };
+    expect(applyTask(file({ description: 'a _b' }), { task: doc.tasks[0] }, { task }).description).toBe('a \\_b');
+  });
+
+  it('sin cambios aquí no propone nada, aunque el proveedor haya cambiado', () => {
+    const doc = folderDocument(board({ description: fingerprint('vieja') }));
+    const plan = buildPushPlan(doc, provider, [remoteItem({ description: 'otra' })], { descriptions: { a: 'vieja' } });
+    expect(plan.changes).toEqual([]);
+  });
+
+  it('al enviarlo queda al día y el comentario deja de estar editado', async () => {
+    let doc = edited();
+    const calls: unknown[] = [];
+    const writer: IssueWriter = {
+      update: async (_, __, fields) => (calls.push(fields), remoteItem({ revision: '5', description: fields.description })),
+      create: async () => remoteItem(),
+      comment: async () => null,
+      editComment: async (_, comment, text) => calls.push([comment, text]),
+    };
+    const plan = buildPushPlan(doc, provider, [remoteItem()], { descriptions });
+    const saved: unknown[] = [];
+    await runPush(provider, writer, () => doc, (_, link, sent) => saved.push([link, sent]), plan.changes, []);
+    expect(calls).toEqual([{ type: 'Bug', assignee: 'Eva', description: 'nueva' }, ['7', 'corregido']]);
+    const [link] = saved.at(-1) as [Record<string, unknown>];
+    expect([link.type, link.assignee, link.description]).toEqual([undefined, undefined, fingerprint('nueva')]);
+
+    const task = { ...doc.tasks[0], comments: [{ timestamp: 't0', text: 'corregido', remote: '7' }] };
+    const stored = file({ activity: [entry('7', 'corregido', 't0', { edited: true })] });
+    expect(applyTask(stored, { task: doc.tasks[0] }, { task }).activity[0].edited).toBe(false);
+  });
+
+  it('una tarea nueva se crea con su tipo, asignado y descripción', async () => {
+    const read = board();
+    read.tasks[0] = { ...read.tasks[0], type: 'Bug', assignee: 'Eva', sync: null };
+    const doc = folderDocument(read);
+    const calls: unknown[] = [];
+    const writer = {
+      create: async (...args: unknown[]) => (calls.push(args), remoteItem()),
+    } as unknown as IssueWriter;
+    const links: Record<string, unknown>[] = [];
+    await runPush(provider, writer, () => doc, (_, link) => links.push({ ...link }), [], ['a'], { a: 'texto' });
+    expect(calls).toEqual([['Bug', 'A', { assignee: 'Eva', description: 'texto' }]]);
+    expect(links.at(-1)!.description).toBe(fingerprint('texto'));
+  });
+});
+

@@ -7,4 +7,5 @@ pub mod fetch_issues_use_case;
 pub mod filter_issues_use_case;
 pub mod list_connections_use_case;
 pub mod save_connection_use_case;
+pub mod update_issue_comment_use_case;
 pub mod update_issue_use_case;

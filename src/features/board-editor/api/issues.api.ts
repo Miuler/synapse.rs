@@ -15,7 +15,11 @@ const target = ({ provider, connection, scope }: IssueSource) => ({ provider, co
 
 /** Las tareas de `query` (vacía, ninguna) y las de `linked`. */
 export function fetchIssues(source: IssueSource, query: string, linked: string[]) {
-  return invokeTauri<{ items: Issue[]; requested: string[]; matched: string[] }>('issues_fetch', { ...target(source), query, linked });
+  return invokeTauri<{ items: Issue[]; requested: string[]; matched: string[]; editable: string[] }>('issues_fetch', {
+    ...target(source),
+    query,
+    linked,
+  });
 }
 
 /** Los comentarios y el histórico de las tareas pedidas. */
@@ -41,8 +45,12 @@ export function issueWriter(source: IssueSource): IssueWriter {
   const to = target(source);
   return {
     update: (id, revision, changes) => invokeTauri('issues_update', { ...to, id, revision, changes }),
-    create: (type, title) =>
-      invokeTauri('issues_create', { ...to, issue: { type, title, assignee: source.assignee || null } }),
+    create: (type, title, extra) =>
+      invokeTauri('issues_create', {
+        ...to,
+        issue: { type, title, assignee: extra?.assignee || source.assignee || null, description: extra?.description ?? null },
+      }),
     comment: (id, text) => invokeTauri('issues_add_comment', { ...to, id, text }),
+    editComment: (id, comment, text) => invokeTauri('issues_update_comment', { ...to, id, comment, text }),
   };
 }

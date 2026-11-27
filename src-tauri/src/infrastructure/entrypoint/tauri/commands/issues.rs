@@ -14,6 +14,7 @@ use crate::application::use_cases::issue::fetch_issues_use_case::{
 use crate::application::use_cases::issue::filter_issues_use_case::FilterIssuesUseCase;
 use crate::application::use_cases::issue::list_connections_use_case::ListConnectionsUseCase;
 use crate::application::use_cases::issue::save_connection_use_case::SaveConnectionUseCase;
+use crate::application::use_cases::issue::update_issue_comment_use_case::UpdateIssueCommentUseCase;
 use crate::application::use_cases::issue::update_issue_use_case::UpdateIssueUseCase;
 use crate::domain::issue::filter::{Criterion, IssueFilter};
 use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue};
@@ -226,5 +227,19 @@ pub async fn issues_add_comment(
 ) -> Result<Option<String>, IssueError> {
     AddIssueCommentUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
         .execute(&scope, &id, &text)
+        .await
+}
+
+#[tauri::command]
+pub async fn issues_update_comment(
+    provider: String,
+    connection: Option<String>,
+    scope: String,
+    id: String,
+    comment: String,
+    text: String,
+) -> Result<(), IssueError> {
+    UpdateIssueCommentUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
+        .execute(&scope, &id, &comment, &text)
         .await
 }

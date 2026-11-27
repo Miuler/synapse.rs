@@ -382,7 +382,6 @@
           </dd>
         {/if}
       </dl>
-      {#if link && folder}<p class="detail-note local-only">{t('board.detail.localOnly')}</p>{/if}
     </aside>
   </div>
 </ResizableDialog>
@@ -584,10 +583,7 @@
     font-size: 11px;
   }
 
-  .local-only {
-    margin: 0;
-    font-size: 11px;
-  }
+
 
   .task-side {
     display: flex;

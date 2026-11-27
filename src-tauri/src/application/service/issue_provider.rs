@@ -12,6 +12,10 @@ pub type ProviderFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, IssueErro
 pub trait IssueProvider: Send + Sync {
     fn describe(&self) -> ProviderDescriptor;
 
+    /// Lo que se puede cambiar de una tarea existente en `scope`: `title`, `state`, `type`,
+    /// `assignee`, `description` y `comment` (editar uno ya enviado).
+    fn editable(&self, scope: &str) -> Vec<String>;
+
     /// Comprueba la conexión y su credencial.
     fn check<'a>(&'a self) -> ProviderFuture<'a, Account>;
 
@@ -60,4 +64,12 @@ pub trait IssueProvider: Send + Sync {
         id: &'a str,
         text: &'a str,
     ) -> ProviderFuture<'a, Option<String>>;
+
+    fn update_comment<'a>(
+        &'a self,
+        scope: &'a str,
+        id: &'a str,
+        comment: &'a str,
+        text: &'a str,
+    ) -> ProviderFuture<'a, ()>;
 }

@@ -2,6 +2,7 @@
 //! sin código, sin HTML y sin nada que se cargue solo de la red al mostrarlo.
 
 use dom_query::Document;
+use pulldown_cmark::{Event, Options, Parser, Tag, html};
 
 /// Elementos que no aportan texto.
 const SKIPPED: [&str; 7] = [
@@ -99,6 +100,96 @@ pub fn from_markdown(text: &str) -> String {
     clean.trim().to_string()
 }
 
+/// Lo que sobrevive al ir a Markdown y volver.
+const KEPT: [&str; 29] = [
+    "html",
+    "head",
+    "body",
+    "div",
+    "p",
+    "br",
+    "b",
+    "strong",
+    "i",
+    "em",
+    "s",
+    "del",
+    "strike",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "code",
+    "pre",
+    "blockquote",
+    "hr",
+    "span",
+    "table",
+];
+const KEPT_CELLS: [&str; 5] = ["thead", "tbody", "tr", "th", "td"];
+
+/// Si un HTML tiene formato que su Markdown no conserva (imágenes, estilos, menciones…).
+pub fn loses_format(html: &str) -> bool {
+    let document = Document::from(html);
+    document.select("*").nodes().iter().any(|node| {
+        let Some(name) = node.node_name() else {
+            return false;
+        };
+        let name = name.to_ascii_lowercase();
+        !(KEPT.contains(&name.as_str()) || KEPT_CELLS.contains(&name.as_str()))
+            || node
+                .attrs()
+                .iter()
+                .any(|attribute| !(name == "a" && &*attribute.name.local == "href"))
+    })
+}
+
+/// El Markdown como HTML para el proveedor. El HTML que traiga escrito va como texto y los enlaces
+/// que ejecuten algo se quedan sin destino.
+pub fn to_html(markdown: &str) -> String {
+    let events = Parser::new_ext(
+        markdown,
+        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH,
+    )
+    .map(|event| match event {
+        Event::Html(raw) | Event::InlineHtml(raw) => Event::Text(raw),
+        Event::Start(Tag::Link {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => Event::Start(Tag::Link {
+            link_type,
+            dest_url: safe_link(&dest_url).unwrap_or_default().into(),
+            title,
+            id,
+        }),
+        // Una imagen del texto sería un recurso nuevo en el proveedor: va como enlace
+        Event::Start(Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => Event::Start(Tag::Link {
+            link_type,
+            dest_url: safe_link(&dest_url).unwrap_or_default().into(),
+            title,
+            id,
+        }),
+        Event::End(pulldown_cmark::TagEnd::Image) => Event::End(pulldown_cmark::TagEnd::Link),
+        other => other,
+    });
+    let mut out = String::new();
+    html::push_html(&mut out, events);
+    out.trim().to_string()
+}
+
 fn looks_like_html(text: &str) -> bool {
     text.match_indices('<').any(|(at, _)| {
         let rest = &text[at + 1..];
@@ -177,6 +268,39 @@ mod tests {
         for scheme in UNSAFE {
             assert!(!found.contains(scheme), "{scheme} en {found}");
         }
+    }
+
+    #[test]
+    fn distingue_el_formato_que_se_perderia() {
+        assert!(!loses_format(
+            r#"<div>a <b>b</b><br><a href="https://e.test">c</a></div><ul><li>d</li></ul>"#
+        ));
+        for lossy in [
+            r#"<div style="color:red">a</div>"#,
+            r#"<img src="https://e.test/i.png">"#,
+            r##"<a href="#" data-vss-mention="version:2.0">@Ana</a>"##,
+            "<table><tr><td colspan=\"2\">a</td></tr></table>",
+            "<u>a</u>",
+        ] {
+            assert!(loses_format(lossy), "{lossy}");
+        }
+    }
+
+    #[test]
+    fn el_html_enviado_no_lleva_lo_que_venga_escrito() {
+        let sent =
+            to_html("**a** <script>x()</script>\n\n[m](javascript:x) ![i](https://e.test/i.png)");
+        assert!(
+            sent.starts_with("<p><strong>a</strong> &lt;script&gt;"),
+            "{sent}"
+        );
+        for gone in ["<script", "javascript:", "<img"] {
+            assert!(!sent.contains(gone), "{gone} en {sent}");
+        }
+        assert!(
+            sent.contains(r#"<a href="https://e.test/i.png">i</a>"#),
+            "{sent}"
+        );
     }
 
     #[test]

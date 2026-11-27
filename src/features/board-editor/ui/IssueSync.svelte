@@ -12,10 +12,12 @@
   import {
     applyPull,
     buildPushPlan,
+    hasChanges,
     runPush,
     usesFilter,
     type IssueProvider,
     type IssueSource,
+    type PushChange,
     type PushPlan,
   } from '../model/issue-sync';
   import type { BoardDocument } from '../model/board.svelte';
@@ -42,10 +44,22 @@
   let review = $state<PushPlan | null>(null);
   let chosen = $state<Record<string, boolean>>({});
   let toCreate = $state<Record<string, boolean>>({});
+  /** Lo que puede perder formato en el proveedor se marca aparte. */
+  let withDescription = $state<Record<string, boolean>>({});
+  let withEdits = $state<Record<string, boolean>>({});
+  /** Las descripciones leídas al preparar el envío. */
+  let descriptions: Record<string, string> = {};
+
+  /** Lo marcado de un cambio. */
+  function marked(change: PushChange): PushChange {
+    const next = { ...change };
+    if (next.description?.lossy && !withDescription[change.taskId]) delete next.description;
+    if (!withEdits[change.taskId]) delete next.edits;
+    return next;
+  }
+  let outgoing = $derived(review ? review.changes.filter((c) => chosen[c.taskId]).map(marked).filter(hasChanges) : []);
   let selection = $derived(
-    review
-      ? review.changes.filter((c) => chosen[c.taskId]).length + review.unlinked.filter((u) => toCreate[u.id]).length
-      : 0,
+    review ? outgoing.length + review.unlinked.filter((u) => toCreate[u.id]).length : 0,
   );
 
   async function loadProviders() {
@@ -162,10 +176,15 @@
 
   const preparePush = () =>
     sync(async (source, declared) => {
-      const { items } = await fetchIssues(source, '', linkedIds(read()));
+      const { items, editable } = await fetchIssues(source, '', linkedIds(read()));
+      const local: Record<string, string> = {};
+      if (readTask) {
+        await Promise.all(read().tasks.map(async ({ id }) => (local[id] = (await readTask(id)).task.description)));
+      }
       const doc = read();
       if (doc.source?.scope !== source.scope) return;
-      const plan = buildPushPlan(doc, declared, items);
+      descriptions = local;
+      const plan = buildPushPlan(doc, declared, items, { descriptions, editable });
       if (plan.missing.length) {
         const links = { ...doc.source.links };
         for (const { taskId } of plan.missing) delete links[taskId];
@@ -173,6 +192,7 @@
         messages = [t('issues.missing', { ids: plan.missing.map((m) => m.id).join(', ') })];
       }
       if (plan.unmapped.length) messages = [...messages, t('issues.unmapped', { tasks: plan.unmapped.join(', ') })];
+      if (plan.unsupported.length) messages = [...messages, ...plan.unsupported.map(unsupportedText)];
       if (plan.changes.length === 0 && plan.unlinked.length === 0) {
         messages = [...messages, t('issues.nothingToSend')];
         return;
@@ -180,37 +200,49 @@
       // Lo que choca con el proveedor y las tareas por crear hay que marcarlos
       chosen = Object.fromEntries(plan.changes.map((c) => [c.taskId, !c.conflict]));
       toCreate = {};
+      withDescription = {};
+      withEdits = {};
       review = plan;
     });
+
+  const unsupportedText = ({ taskId, field }: PushPlan['unsupported'][number]) =>
+    field === 'foreignComment'
+      ? t('issues.foreignComment', { task: taskId })
+      : t('issues.unsupported', { provider: provider?.name ?? '', field: t(`issues.fields.${field}`), task: taskId });
 
   async function send() {
     const plan = review;
     if (!plan) return;
+    const changes = outgoing;
     review = null;
     await sync(async (source, declared) => {
       const result = await runPush(
         declared,
         issueWriter(source),
         read,
-        (taskId, link, sent) => {
+        (taskId, link, sent, description) => {
           const doc = read();
           if (!doc.source) return;
-          const tasks = !sent
-            ? doc.tasks
-            : doc.tasks.map((task) =>
-                task.id !== taskId
-                  ? task
-                  : {
-                      ...task,
-                      comments: task.comments.map((c) =>
-                        c.timestamp === sent.timestamp && c.text === sent.text ? { ...c, remote: sent.remote } : c,
-                      ),
-                    },
-              );
+          const tasks = doc.tasks.map((task) => {
+            if (task.id !== taskId) return task;
+            let next = task;
+            if (sent) {
+              const comments = task.comments.map((c) => {
+                if (c.timestamp !== sent.timestamp || c.text !== sent.text) return c;
+                const { edited: _, ...same } = c;
+                return { ...same, remote: sent.remote };
+              });
+              next = { ...next, comments };
+            }
+            // La descripción tal como quedó en el proveedor se guarda como lo traído
+            if (description) next = { ...next, incoming: { entries: [], description: description.text, over: description.over } };
+            return next;
+          });
           write({ ...doc, tasks, source: { ...doc.source, links: { ...doc.source.links, [taskId]: link } } });
         },
-        plan.changes.filter((c) => chosen[c.taskId]),
+        $state.snapshot(changes) as PushChange[],
         plan.unlinked.filter((u) => toCreate[u.id]).map((u) => u.id),
+        descriptions,
       );
       messages = [
         ...messages,
@@ -269,16 +301,41 @@
         <p class="issues-note">{read().source?.scope}</p>
         <div class="issues-list">
           {#each review.changes as change (change.taskId)}
-            <label class="issues-change" data-task={change.taskId}>
-              <input type="checkbox" bind:checked={chosen[change.taskId]} />
-              <span>
-                <strong>#{change.item.id} {taskTitle(change.taskId)}</strong>
-                {#if change.title !== undefined}<small>{t('issues.titleChange', { from: change.item.title, to: change.title })}</small>{/if}
-                {#if change.state !== undefined}<small>{t('issues.stateChange', { from: change.item.state.name, to: change.state })}</small>{/if}
-                {#each change.comments as comment (comment.timestamp)}<small>{t('issues.commentChange', { text: comment.text })}</small>{/each}
-                {#if change.conflict}<small class="warning">{t('issues.conflictChange', { provider: provider?.name ?? '' })}</small>{/if}
-              </span>
-            </label>
+            {@const name = provider?.name ?? ''}
+            <div class="issues-change" data-task={change.taskId}>
+              <label>
+                <input type="checkbox" bind:checked={chosen[change.taskId]} />
+                <span>
+                  <strong>#{change.item.id} {taskTitle(change.taskId)}</strong>
+                  {#if change.title !== undefined}<small>{t('issues.titleChange', { from: change.item.title, to: change.title })}</small>{/if}
+                  {#if change.state !== undefined}<small>{t('issues.stateChange', { from: change.item.state.name, to: change.state })}</small>{/if}
+                  {#if change.type !== undefined}<small>{t('issues.typeChange', { from: change.item.type, to: change.type })}</small>{/if}
+                  {#if change.assignee !== undefined}<small>{t('issues.assigneeChange', { from: change.item.assignee?.name || '—', to: change.assignee || '—' })}</small>{/if}
+                  {#if change.description && !change.description.lossy}<small>{t('issues.descriptionChange', { text: change.description.text.slice(0, 200) })}</small>{/if}
+                  {#each change.comments as comment (comment.timestamp)}<small>{t('issues.commentChange', { text: comment.text })}</small>{/each}
+                  {#if change.conflict}<small class="warning">{t('issues.conflictChange', { provider: name })}</small>{/if}
+                </span>
+              </label>
+              {#if change.description?.lossy}
+                <label class="issues-option issues-lossy">
+                  <input type="checkbox" bind:checked={withDescription[change.taskId]} />
+                  <span>
+                    <small class="warning">{t('issues.descriptionLossy', { provider: name })}</small>
+                    <small>{t('issues.descriptionChange', { text: change.description.text.slice(0, 200) })}</small>
+                  </span>
+                </label>
+              {/if}
+              {#if change.edits}
+                <label class="issues-option issues-edits">
+                  <input type="checkbox" bind:checked={withEdits[change.taskId]} />
+                  <span>
+                    <small class="warning">{t('issues.commentEdits', { provider: name })}</small>
+                    {#each change.edits as edit (edit.remote)}<small>{t('issues.commentChange', { text: edit.text })}</small>{/each}
+                    {#if change.stale}<small class="warning">{t('issues.staleChange', { provider: name })}</small>{/if}
+                  </span>
+                </label>
+              {/if}
+            </div>
           {/each}
           {#if review.unlinked.length}
             <h4>{t('issues.createHeading', { type: read().source?.issue_type || (provider?.default_issue_type ?? '') })}</h4>
@@ -402,6 +459,11 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
+  }
+
+  /* Lo que se marca aparte cuelga de su tarea */
+  .issues-list .issues-option {
+    padding-left: 22px;
   }
 
   .issues-list span {

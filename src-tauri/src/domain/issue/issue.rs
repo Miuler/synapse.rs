@@ -113,6 +113,12 @@ pub struct IssueChanges {
     pub title: Option<String>,
     /// Nombre de un estado del proveedor.
     pub state: Option<String>,
+    #[serde(rename = "type")]
+    pub issue_type: Option<String>,
+    /// Nombre o id de la persona; vacío, quitar la asignación.
+    pub assignee: Option<String>,
+    /// Markdown.
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,6 +127,9 @@ pub struct NewIssue {
     pub issue_type: String,
     pub title: String,
     pub assignee: Option<String>,
+    /// Markdown.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[cfg(test)]

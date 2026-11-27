@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'bun:test';
 import { startApp, type Session } from './harness';
 
-type Item = { id: number; rev: number; title: string; state: string };
+type Item = { id: number; rev: number; title: string; state: string; assignee?: string };
 
 const items = new Map<number, Item>([[7, { id: 7, rev: 1, title: 'Preparar | entorno', state: 'To Do' }]]);
 const writes: string[] = [];
@@ -19,6 +19,7 @@ const asWorkItem = (i: Item) => ({
     'System.State': i.state,
     'System.WorkItemType': 'Task',
     'System.Description': description,
+    ...(i.assignee && { 'System.AssignedTo': { displayName: i.assignee, uniqueName: i.assignee } }),
   },
 });
 /** Los comentarios de cada work item, en HTML como los devuelve Azure DevOps. */
@@ -61,9 +62,19 @@ const server = Bun.serve({
       for (const op of body as { op: string; path: string; value: string }[]) {
         if (op.path === '/fields/System.Title') target.title = op.value;
         if (op.path === '/fields/System.State') target.state = op.value;
+        if (op.path === '/fields/System.AssignedTo') target.assignee = op.value;
+        if (op.path === '/fields/System.Description') description = op.value;
       }
       return Response.json(asWorkItem(target));
     };
+    const changed = path.match(/\/workItems\/(\d+)\/comments\/(\d+)$/);
+    if (changed) {
+      writes.push(`edit ${changed[1]} ${changed[2]} ${body.text}`);
+      const found = remoteComments.get(Number(changed[1]))!.find((c) => c.id === Number(changed[2]))!;
+      found.text = body.text;
+      items.get(Number(changed[1]))!.rev++;
+      return Response.json({ commentId: found.id });
+    }
     const comment = path.match(/\/workItems\/(\d+)\/comments$/);
     if (comment) {
       writes.push(`comment ${comment[1]} ${body.text}`);
@@ -76,6 +87,9 @@ const server = Bun.serve({
     const update = path.match(/\/workitems\/(\d+)$/);
     if (update) {
       const target = items.get(Number(update[1]))!;
+      if (body.some((o: any) => o.value === 'Nadie')) {
+        return Response.json({ message: 'Identidad desconocida: Nadie', typeKey: 'RuleValidationException' }, { status: 400 });
+      }
       writes.push(`update ${target.id} ${body.slice(1).map((o: any) => o.value).join(',')}`);
       target.rev++;
       return patch(target);
@@ -348,7 +362,8 @@ it('tras convertir un tablero, «Enviar» manda cada comentario pendiente una so
   expect(task()).toMatch(/comment · Ana · id:900/);
   expect([count('pendiente'), count('nuevo'), count('ya enviado')]).toEqual([1, 1, 1]);
   expect(activityReads).toContain('comments 7');
-  expect(readFileSync(join(s.vault, 'convertido.board.md'), 'utf8')).toContain('synced_at:');
+  // El archivo del tablero se escribe después que los de sus tareas
+  await until(() => readFileSync(join(s.vault, 'convertido.board.md'), 'utf8').includes('synced_at:'), 'no se anotó la fecha');
 
   await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
   await s.browser.$('.task-dialog .history').waitForExist({ timeout: 10_000 });
@@ -422,9 +437,15 @@ it('traer no pisa lo editado en el detalle y avisa de lo que cambió en los dos 
   expect(task()).toContain('- type: Bug\n');
   expect(task()).toMatch(/history · Luis · id:rev-1 · edited\n  Historia corregida\n/);
 
-  // Lo editado no se ofrece para enviar
+  // La descripción en conflicto se ofrece sin marcar; el histórico editado, nunca
   await s.browser.$(`${pane} .issues-push`).click();
-  await until(async () => (await shown()).includes('No hay nada que enviar'), 'ofreció enviar lo editado');
+  await s.browser.$('.issues-confirm').waitForExist({ timeout: 15_000 });
+  expect(await s.browser.$('.issues-change[data-task="ado-7"] input').isSelected()).toBe(false);
+  const review = await s.browser.$('.issues-dialog').getText();
+  expect(review).toContain('Mi versión');
+  expect(review).not.toContain('Historia corregida');
+  await s.browser.$('.issues-actions button').click();
+  await s.browser.$('.issues-confirm').waitForExist({ reverse: true, timeout: 5_000 });
 
   // Se puede renunciar a la versión de aquí: Escape con texto sin guardar pregunta antes
   await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
@@ -464,3 +485,112 @@ it('traer no pisa lo editado en el detalle y avisa de lo que cambió en los dos 
   await until(() => task().includes('> Otra de Azure'), 'no se tomó la del proveedor');
   expect(task()).toMatch(/history · Luis · id:rev-1 · edited\n  Historia corregida\n/);
 }, 180_000);
+
+it('«Enviar» manda lo editado, indica lo no admitido o rechazado y no pisa nada sin marcarlo', async () => {
+  const pane = '.tab-pane:not(.hidden)';
+  const task = () => readFileSync(join(s.vault, 'convertido.board/ado-7.md'), 'utf8');
+  const shown = () =>
+    s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .issues-status')?.textContent ?? '') as Promise<string>;
+  const open = async () => {
+    await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
+    await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').waitForExist({ timeout: 10_000 });
+  };
+  const close = async () => {
+    await s.browser.$('.task-dialog .resizable-dialog-close').click();
+    await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+  };
+  const write = async (value: string) => {
+    await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+    await s.browser.execute((value) => {
+      const field = document.querySelector('.task-dialog .editor textarea') as HTMLTextAreaElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }, value);
+    await s.browser.$('.task-dialog .editor-save').click();
+    await s.browser.$('.task-dialog .editor').waitForExist({ reverse: true, timeout: 10_000 });
+  };
+  const assign = async (name: string) => {
+    await s.browser.execute((name) => {
+      const field = document.querySelector('.task-dialog .detail-assignee input') as HTMLInputElement;
+      field.value = name;
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    }, name);
+    await until(() => task().includes(`- assignee: ${name}\n`), 'no se guardó el asignado');
+  };
+  const review = async () => {
+    await s.browser.$(`${pane} .issues-push`).click();
+    await s.browser.$('.issues-confirm').waitForExist({ timeout: 15_000 });
+  };
+  const send = async () => {
+    await s.browser.$('.issues-confirm').click();
+    await s.browser.$('.issues-confirm').waitForExist({ reverse: true, timeout: 10_000 });
+    await until(async () => (await shown()).includes('Enviado'), 'no terminó el envío');
+  };
+
+  // La descripción del proveedor pasa a tener formato que Markdown no guarda
+  description = '<div style="color:red">Con color</div>';
+  items.get(7)!.rev++;
+  await s.browser.$(`${pane} .issues-pull`).click();
+  await until(() => task().includes('> Con color'), 'no se trajo la descripción');
+  await open();
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').click();
+  await write('Texto nuevo');
+  const editComment = async (containing: string, text: string) => {
+    await s.browser.execute((containing) => {
+      const comment = [...document.querySelectorAll('.task-dialog .comment-item')].find((c) => c.querySelector('.comment-text')?.textContent === containing)!;
+      (comment.querySelector('.pencil') as HTMLElement).click();
+    }, containing);
+    await write(text);
+  };
+  // Uno enviado desde aquí y otro de otra persona
+  await editComment('nuevo', 'nuevo y corregido');
+  await editComment('visto por *Ana*', 'visto y corregido');
+  await assign('Nadie');
+  await close();
+  writes.length = 0;
+
+  await review();
+  // El tipo no se cambia en un servidor propio, y lo que pierde formato o pisa un comentario no va marcado
+  expect(await shown()).toContain('no permite cambiar aquí el campo «tipo»');
+  expect(await shown()).toContain('que no se enviaron desde aquí');
+  expect(await s.browser.$('.issues-edits').getText()).not.toContain('visto y corregido');
+  expect(await s.browser.$('.issues-lossy input').isSelected()).toBe(false);
+  expect(await s.browser.$('.issues-edits input').isSelected()).toBe(false);
+  await shot('azure-revisar-editado');
+  await send();
+  expect(await shown()).toContain('Identidad desconocida');
+  expect(writes).toEqual([]);
+  expect(task()).toContain('"assignee":""');
+
+  await open();
+  await assign('Eva');
+  await close();
+  await review();
+  await send();
+  expect(writes).toEqual(['update 7 Eva']);
+
+  await review();
+  await s.browser.$('.issues-lossy input').click();
+  await s.browser.$('.issues-edits input').click();
+  await send();
+  expect(writes.slice(0, 2)).toEqual(['update 7 Eva', 'update 7 <p>Texto nuevo</p>']);
+  expect(writes[2]).toMatch(/^edit 7 90\d <p>nuevo y corregido<\/p>$/);
+  expect(writes).toHaveLength(3);
+  await until(() => /comment · [^\n]*id:90[1-9]\n  nuevo y corregido\n/.test(task()), 'el comentario sigue como editado');
+  // El de Ana se queda como se editó, solo aquí
+  expect(task()).toMatch(/comment · Ana · id:900 · edited\n  visto y corregido\n/);
+
+  // Cambia en los dos lados: sale sin marcar
+  await open();
+  await assign('Mar');
+  await close();
+  items.get(7)!.assignee = 'Luis';
+  items.get(7)!.rev++;
+  await review();
+  expect(await s.browser.$('.issues-change[data-task="ado-7"] input').isSelected()).toBe(false);
+  expect(await s.browser.$('.issues-confirm').isEnabled()).toBe(false);
+  await s.browser.$('.issues-actions button').click();
+  await s.browser.$('.issues-confirm').waitForExist({ reverse: true, timeout: 5_000 });
+  expect(writes).toHaveLength(3);
+}, 200_000);
+

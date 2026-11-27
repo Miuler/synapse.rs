@@ -2,6 +2,7 @@
 // El tablero guarda, por tarea vinculada, lo último que ambos lados tenían en común (`links`): así se
 // distingue qué cambió aquí y qué cambió allí, y no se repiten envíos. De qué proveedor son las
 // tareas solo se sabe por lo que él declara.
+import { fingerprint, version } from './activity';
 import type { BoardDocument, BoardTask } from './board.svelte';
 
 export interface IssueLink {
@@ -245,6 +246,15 @@ export interface PushChange {
   item: Issue;
   title?: string;
   state?: string;
+  type?: string;
+  /** Vacío, quitar la asignación. */
+  assignee?: string;
+  /** `lossy`: al reescribirla se pierde formato del proveedor, así que solo se envía si se marca. */
+  description?: { text: string; lossy: boolean };
+  /** Comentarios del proveedor editados aquí; solo se envían si se marca. */
+  edits?: { remote: string; timestamp: string; text: string }[];
+  /** La tarea cambió en el proveedor desde el último «Traer». */
+  stale?: boolean;
   /** Columna de la tarea al preparar el envío: la que pide ese estado. */
   column: string;
   comments: { timestamp: string; text: string }[];
@@ -260,12 +270,33 @@ export interface PushPlan {
   missing: { taskId: string; id: string }[];
   /** Cambiaron de columna a una que no tiene estado en el proveedor. */
   unmapped: string[];
+  /** Cambios que el proveedor no admite: no se envían. */
+  unsupported: { taskId: string; field: string }[];
 }
 
-export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items: Issue[]): PushPlan {
+/** Si un cambio lleva algo que enviar. */
+export const hasChanges = (c: PushChange) =>
+  [c.title, c.state, c.type, c.assignee, c.description].some((v) => v !== undefined) ||
+  c.comments.length > 0 ||
+  !!c.edits?.length;
+
+/** Lo que de cada tarea no está en el documento y lo que el proveedor admite cambiar. */
+export interface PushContext {
+  /** Descripción de cada tarea (formato de carpeta). */
+  descriptions?: Record<string, string>;
+  /** Sin decirlo, todo. */
+  editable?: string[];
+}
+
+export function buildPushPlan(
+  doc: BoardDocument,
+  provider: IssueProvider,
+  items: Issue[],
+  { descriptions = {}, editable }: PushContext = {},
+): PushPlan {
   const source = doc.source!;
   const byId = new Map(items.map((item) => [item.id, item]));
-  const plan: PushPlan = { changes: [], unlinked: [], missing: [], unmapped: [] };
+  const plan: PushPlan = { changes: [], unlinked: [], missing: [], unmapped: [], unsupported: [] };
 
   for (const task of doc.tasks) {
     const link = source.links?.[task.id];
@@ -303,19 +334,72 @@ export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items
       }
     }
 
-    if (change.title !== undefined || change.state !== undefined || change.comments.length > 0) {
-      plan.changes.push(change);
+    /** Si el proveedor admite cambiar `field`; si no, queda anotado. */
+    const can = (field: string) => {
+      if (!editable || editable.includes(field)) return true;
+      plan.unsupported.push({ taskId: task.id, field });
+      return false;
+    };
+    // El tipo y el asignado cambiados aquí tienen su valor anterior en el vínculo
+    if (link.type !== undefined && task.type && task.type !== link.type && task.type !== item.type && can('type')) {
+      change.type = task.type;
+      change.conflict ||= item.type !== link.type;
     }
+    if (link.assignee !== undefined) {
+      const [local, remote] = [task.assignee ?? '', item.assignee?.name ?? ''];
+      if (local !== link.assignee && local !== remote && can('assignee')) {
+        change.assignee = local;
+        change.conflict ||= remote !== link.assignee;
+      }
+    }
+    const description = descriptions[task.id];
+    if (link.description !== undefined && description !== undefined) {
+      const [local, remote] = [fingerprint(description), fingerprint(item.description ?? '')];
+      if (local !== link.description && local !== remote && can('description')) {
+        change.description = { text: description, lossy: item.extra?.description_lossy === 'true' };
+        change.conflict ||= remote !== link.description;
+      }
+    }
+    // Solo se reescribe lo que salió de aquí: lo demás puede ser de otra persona
+    const edited = task.comments.filter((c) => c.remote && c.edited);
+    const edits = edited.flatMap((c) =>
+      link.sent?.includes(c.timestamp) ? [{ remote: c.remote!, timestamp: c.timestamp, text: c.text }] : [],
+    );
+    if (edits.length < edited.length) plan.unsupported.push({ taskId: task.id, field: 'foreignComment' });
+    if (edits.length && can('comment')) {
+      change.edits = edits;
+      if (link.rev && link.rev !== version(item)) change.stale = true;
+    }
+
+    if (hasChanges(change)) plan.changes.push(change);
   }
   return plan;
 }
 
+/** Los campos de una tarea existente que se pueden escribir. */
+export interface IssueFields {
+  title?: string;
+  state?: string;
+  type?: string;
+  assignee?: string;
+  /** Markdown. */
+  description?: string;
+}
+
 /** Escrituras en el proveedor. */
 export interface IssueWriter {
-  update(id: string, revision: string | null, changes: { title?: string; state?: string }): Promise<Issue>;
-  create(type: string, title: string): Promise<Issue>;
+  update(id: string, revision: string | null, changes: IssueFields): Promise<Issue>;
+  create(type: string, title: string, extra?: { assignee?: string; description?: string }): Promise<Issue>;
   /** Devuelve el id del comentario creado, si el proveedor lo dice. */
   comment(id: string, text: string): Promise<string | null | void>;
+  editComment(id: string, comment: string, text: string): Promise<unknown>;
+}
+
+/** Un comentario del tablero que ya quedó en el proveedor. */
+export interface SentComment {
+  timestamp: string;
+  text: string;
+  remote: string;
 }
 export interface PushResult {
   updated: number;
@@ -332,9 +416,10 @@ export async function runPush(
   provider: IssueProvider,
   writer: IssueWriter,
   read: () => BoardDocument,
-  save: (taskId: string, link: IssueLink, comment?: { timestamp: string; text: string; remote: string }) => void,
+  save: (taskId: string, link: IssueLink, comment?: SentComment, description?: { text: string; over: string }) => void,
   changes: PushChange[],
   create: string[],
+  descriptions: Record<string, string> = {},
 ): Promise<PushResult> {
   const result: PushResult = { updated: 0, created: 0, comments: 0, errors: [] };
 
@@ -352,17 +437,41 @@ export async function runPush(
       const current = read().source?.links?.[change.taskId];
       if (!current) continue;
       const link = { ...current };
-      if (change.title !== undefined || change.state !== undefined) {
-        const item = await writer.update(change.item.id, change.item.revision, { title: change.title, state: change.state });
+      const fields: IssueFields = Object.fromEntries(
+        Object.entries({
+          title: change.title,
+          state: change.state,
+          type: change.type,
+          assignee: change.assignee,
+          description: change.description?.text,
+        }).filter(([, value]) => value !== undefined),
+      );
+      if (Object.keys(fields).length) {
+        const item = await writer.update(change.item.id, change.item.revision, fields);
         if (change.title !== undefined) link.title = cellText(item.title);
         if (change.state !== undefined) {
           link.state = item.state.name;
           link.column = change.column;
         }
-        save(change.taskId, { ...link });
+        // Ya coinciden: no queda nada pendiente de ellos
+        if (change.type !== undefined) delete link.type;
+        if (change.assignee !== undefined) delete link.assignee;
+        // Aquí queda como la guardó el proveedor: si no, parecería cambiada otra vez
+        let kept: { text: string; over: string } | undefined;
+        if (change.description) {
+          const sent = change.description.text;
+          kept = { text: item.description ?? sent, over: fingerprint(sent) };
+          link.description = fingerprint(kept.text);
+        }
+        save(change.taskId, { ...link }, undefined, kept);
         result.updated++;
       }
       await sendComments(change.taskId, link, change.comments);
+      for (const edit of change.edits ?? []) {
+        await writer.editComment(link.id, edit.remote, edit.text);
+        save(change.taskId, { ...link }, edit);
+        result.comments++;
+      }
     } catch (error) {
       result.errors.push({ taskId: change.taskId, error });
     }
@@ -373,10 +482,21 @@ export async function runPush(
       const doc = read();
       const task = doc.tasks.find((t) => t.id === taskId);
       if (!task || doc.source?.links?.[taskId]) continue;
-      let item = await writer.create(doc.source?.issue_type?.trim() || provider.default_issue_type, task.title);
+      const description = descriptions[taskId] || undefined;
+      let item = await writer.create(
+        task.type || doc.source?.issue_type?.trim() || provider.default_issue_type,
+        task.title,
+        { assignee: task.assignee, description },
+      );
       // Nace en su estado inicial; la columna de la tarea se envía después
       const initial = columnOf(doc, provider, item.state) ?? doc.columns[0]?.id ?? 'todo';
-      const link: IssueLink = { id: item.id, title: cellText(item.title), state: item.state.name, column: initial };
+      const link: IssueLink = {
+        id: item.id,
+        title: cellText(item.title),
+        state: item.state.name,
+        column: initial,
+        ...(description && { description: fingerprint(description) }),
+      };
       save(taskId, { ...link });
       result.created++;
       const state = statesOf(doc.source!, provider, task.status)[0];
