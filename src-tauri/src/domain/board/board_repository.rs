@@ -76,4 +76,8 @@ pub trait BoardRepository: Send + Sync {
     ) -> Result<String, BoardError>;
 
     fn delete_task(&self, board: &Path, id: &str, expected: &str) -> Result<(), BoardError>;
+
+    /// Pasa un tablero con tabla al formato de carpeta, dejando al lado una copia del original.
+    /// `expected` es el contenido que se vio: si el archivo ya es otro, no se toca nada.
+    fn convert(&self, board: &Path, expected: &str) -> Result<(), BoardError>;
 }

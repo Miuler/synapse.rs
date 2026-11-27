@@ -145,7 +145,22 @@ the table show; without it cards show them all and the table those that some tas
 ```
 
 Unknown keys and sections are kept. The folder can be read but only the board changes it; changes made by other
-applications are read again. Existing boards are not converted yet, and new ones are still created as a table.
+applications are read again. New boards are created in this format, without tasks.
+
+### Converting a table board
+
+Boards that keep their tasks in a Markdown table still work, and offer to convert. Nothing changes without
+confirmation. Converting saves pending changes, writes one file per row with its comments and its link to the provider,
+and rewrites the board file with columns, order and source (`azure_devops` becomes `source`; its connection and query
+stay as they were). Own columns become data of each task under the column name, and other text stays in the board file.
+
+The original is kept next to it as `Name.board.md.bak`. To go back, replace `Name.board.md` with that copy and delete
+the `Name.board/` folder (changes made after converting are lost). Nothing is converted if a task id is not a valid
+file name (ASCII letters, digits, `-` and `_`, all different ignoring case) or the folder already has files.
+
+Editing a board while it is still a table rewrites it with the seven columns Synapse writes: own columns and other text
+are lost then, so convert before editing if they matter. Versions of Synapse without this format show a converted
+board without tasks.
 
 ## MCP server
 

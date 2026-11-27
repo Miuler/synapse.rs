@@ -303,32 +303,10 @@ export function sortTasks(tasks: BoardTask[], sort: TaskSort | null, columns: Bo
   });
 }
 
+/** Un tablero nuevo, en el formato de carpeta y sin tareas: cada una tendrá su archivo. */
 export function createDefaultBoardMarkdown(): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return serializeBoardMarkdown({
-    defaultView: 'kanban',
-    columns: [...DEFAULT_COLUMNS],
-    tasks: [
-      {
-        id: 't1',
-        title: 'Definir alcance',
-        status: 'done',
-        start: today,
-        duration: 2,
-        dependsOn: '-',
-        progress: 100,
-        comments: [],
-      },
-      {
-        id: 't2',
-        title: 'Implementar MVP',
-        status: 'doing',
-        start: today,
-        duration: 4,
-        dependsOn: 't1',
-        progress: 40,
-        comments: [],
-      },
-    ],
-  });
+  const columns = DEFAULT_COLUMNS.map(
+    (c) => `  - { id: ${JSON.stringify(c.id)}, label: ${JSON.stringify(c.label)}, color: ${JSON.stringify(c.color)} }`,
+  );
+  return ['---', 'type: board', 'format: 2', 'default_view: kanban', 'columns:', ...columns, '---', '', '## Order', ''].join('\n');
 }

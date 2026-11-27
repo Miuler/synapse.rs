@@ -9,12 +9,14 @@ use crate::domain::board::board_repository::{
     BoardRepository, BoardSnapshot, StoredTask, TaskCard, TaskProblem,
 };
 use crate::domain::board::protection;
+use crate::domain::board::table_board;
 use crate::domain::board::task_file::{self, TaskFile, is_valid_task_id};
 use crate::domain::issue::issue::EntryKind;
 use crate::domain::note::note_content::NoteContent;
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
@@ -71,12 +73,47 @@ fn check(path: &Path, expected: Option<&str>) -> Result<(), BoardError> {
     }
 }
 
+/// Un nombre que no repite ningún otro de este proceso.
+fn unique() -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let turn = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{turn}", std::process::id())
+}
+
+/// Guarda el original junto al tablero (`Nombre.board.md.bak`), sin pisar copias anteriores.
+fn back_up(board: &Path, content: &str) -> Result<PathBuf, BoardError> {
+    let name = board
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("tablero");
+    for n in 0..1000 {
+        let suffix = if n == 0 {
+            String::new()
+        } else {
+            format!(".{n}")
+        };
+        let path = board.with_file_name(format!("{name}{suffix}.bak"));
+        match std::fs::File::create_new(&path) {
+            Ok(mut file) => {
+                return file
+                    .write_all(content.as_bytes())
+                    .map(|()| path.clone())
+                    .map_err(|e| {
+                        let _ = std::fs::remove_file(&path);
+                        io(&path, e)
+                    });
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(io(&path, e)),
+        }
+    }
+    Err(BoardError::new(Kind::Io, format!("{name}.bak")))
+}
+
 /// Escribe a un temporal oculto de la misma carpeta y lo renombra: nadie ve el archivo a medias.
 fn replace(path: &Path, content: &str) -> Result<(), BoardError> {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("tarea");
-    let turn = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let temporary = path.with_file_name(format!(".{name}.{}-{turn}.tmp", std::process::id()));
+    let temporary = path.with_file_name(format!(".{name}.{}.tmp", unique()));
     std::fs::write(&temporary, content)
         .and_then(|()| std::fs::rename(&temporary, path))
         .map_err(|e| {
@@ -267,6 +304,66 @@ impl BoardRepository for BoardRepositoryImpl {
         forget(&path);
         Ok(())
     }
+
+    fn convert(&self, board: &Path, expected: &str) -> Result<(), BoardError> {
+        let folder = folder(board)?;
+        let content = std::fs::read_to_string(board).map_err(|e| io(board, e))?;
+        let lines = |text: &str| text.replace("\r\n", "\n");
+        if lines(&content) != lines(expected) {
+            return Err(BoardError::new(Kind::Conflict, board.display().to_string()));
+        }
+        let converted = table_board::convert(&content)?;
+        let file = board_file::serialize(&converted.board)?;
+        // Nada se toca si el resultado no se pudiera volver a leer
+        board_file::parse(&file)?;
+        let empty = match std::fs::read_dir(&folder) {
+            Ok(mut entries) => entries.next().is_none(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+            Err(_) => false,
+        };
+        if !empty {
+            return Err(BoardError::new(
+                Kind::FolderExists,
+                folder.display().to_string(),
+            ));
+        }
+
+        // Las tareas se escriben aparte y la carpeta aparece entera
+        let name = folder
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("board");
+        let staging = folder.with_file_name(format!(".{name}.{}.tmp", unique()));
+        std::fs::create_dir(&staging).map_err(|e| io(&staging, e))?;
+        let backup = converted
+            .tasks
+            .iter()
+            .try_for_each(|(id, task)| {
+                let path = staging.join(format!("{id}.md"));
+                std::fs::write(&path, task_file::serialize(task)).map_err(|e| io(&path, e))
+            })
+            .and_then(|()| back_up(board, &content))
+            .and_then(|backup| {
+                // Vacía, si estaba
+                let _ = std::fs::remove_dir(&folder);
+                std::fs::rename(&staging, &folder).map_err(|e| {
+                    let _ = std::fs::remove_file(&backup);
+                    io(&folder, e)
+                })?;
+                Ok(backup)
+            })
+            .inspect_err(|_| {
+                let _ = std::fs::remove_dir_all(&staging);
+            })?;
+        INDEX.remove(&folder);
+        // El tablero, al final y solo si sigue como estaba
+        check(board, Some(&NoteContent::hash(&content)))
+            .and_then(|()| replace(board, &file))
+            .inspect_err(|_| {
+                let _ = std::fs::remove_dir_all(&folder);
+                let _ = std::fs::remove_file(&backup);
+            })
+    }
 }
 
 #[cfg(test)]
@@ -384,6 +481,66 @@ mod tests {
             repository.read_task(&board, "a").unwrap_err().kind,
             Kind::NotFound
         );
+    }
+
+    const TABLE: &str = "---\ntype: board\n---\n\n| id | Tarea | Estado | Inicio | Duración | Depende | Progreso |\n|---|---|---|---|---|---|---|\n| t1 | Uno | todo | 2026-01-01 | 1d | - | 0% |\n| t2 | Dos | todo | 2026-01-01 | 1d | t1 | 0% |\n";
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn convierte_un_tablero_con_tabla_y_guarda_el_original() {
+        let dir = tempfile::tempdir().unwrap();
+        let board = dir.path().join("Equipo.board.md");
+        std::fs::write(&board, TABLE).unwrap();
+        std::fs::write(dir.path().join("Equipo.board.md.bak"), "de antes").unwrap();
+        // Una carpeta vacía no estorba
+        std::fs::create_dir(dir.path().join("Equipo.board")).unwrap();
+        BoardRepositoryImpl.convert(&board, TABLE).unwrap();
+        assert_eq!(titles(&board), ["Uno", "Dos"]);
+        assert_eq!(
+            names(dir.path()),
+            [
+                "Equipo.board",
+                "Equipo.board.md",
+                "Equipo.board.md.1.bak",
+                "Equipo.board.md.bak"
+            ]
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("Equipo.board.md.1.bak")).unwrap(),
+            TABLE
+        );
+        let again = std::fs::read_to_string(&board).unwrap();
+        let error = BoardRepositoryImpl.convert(&board, &again).unwrap_err();
+        assert_eq!(error.kind, Kind::NotTableBoard);
+    }
+
+    #[test]
+    fn no_convierte_si_algo_no_cuadra_y_no_deja_rastro() {
+        let dir = tempfile::tempdir().unwrap();
+        let board = dir.path().join("Equipo.board.md");
+        std::fs::write(&board, TABLE).unwrap();
+        let kind = |expected: &str| {
+            BoardRepositoryImpl
+                .convert(&board, expected)
+                .unwrap_err()
+                .kind
+        };
+        assert_eq!(kind("otra cosa"), Kind::Conflict);
+        let folder = dir.path().join("Equipo.board");
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("mio.md"), "# mío").unwrap();
+        assert_eq!(kind(TABLE), Kind::FolderExists);
+        assert_eq!(names(dir.path()), ["Equipo.board", "Equipo.board.md"]);
+        assert_eq!(names(&folder), ["mio.md"]);
+        assert_eq!(std::fs::read_to_string(&board).unwrap(), TABLE);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 // Dos tableros del mismo proyecto con filtros distintos: al crearlos se pregunta de dónde salen sus
 // tareas, cada uno trae las suyas y las que dejan de cumplir el filtro quedan marcadas. Contra un Azure
 // DevOps de mentira: nada sale de la máquina.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'bun:test';
@@ -88,8 +88,15 @@ const status = () =>
 const shot = async (name: string) => {
   if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/${name}.png`);
 };
-/** Los work items que hay en el tablero. */
-const rows = (name: string) => [...file(name).matchAll(/^\| (ado-\d+) \|/gm)].map((m) => m[1]);
+/** Los archivos de work items de un tablero. */
+const tasks = (name: string) => {
+  const folder = join(s.vault, name.slice(0, -'.md'.length));
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder)
+    .filter((f) => /^ado-\d+\.md$/.test(f))
+    .map((f) => ({ id: f.slice(0, -'.md'.length), text: readFileSync(join(folder, f), 'utf8') }));
+};
+const rows = (name: string) => tasks(name).map((t) => t.id);
 
 async function newBoard() {
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click({ button: 'right' });
@@ -158,7 +165,7 @@ it('al crear un tablero se pide el origen y su filtro, y trae solo lo que lo cum
   await save();
   await dialog().waitForExist({ reverse: true, timeout: 15_000 });
   await until(() => file('Tablero.board.md').includes("[System.WorkItemType] IN ('Bug')"), 'no se guardó el filtro');
-  expect(file('Tablero.board.md')).toContain('filter:\n    type:\n      - Bug\n');
+  expect(file('Tablero.board.md')).toContain('filter:\n    type:\n    - Bug\n');
 
   await pull();
   await until(() => rows('Tablero.board.md').length === 2, 'no se guardó lo traído');
@@ -194,7 +201,7 @@ it('al cambiar el filtro, lo que ya no lo cumple sigue en el tablero y queda mar
   await until(async () => (await status()).includes('Fuera del filtro: '), 'no se avisó');
   await until(() => rows('Tablero.board.md').length === 3, 'no se añadió la nueva');
   expect(rows('Tablero.board.md').sort()).toEqual(['ado-1', 'ado-2', 'ado-3']);
-  await until(() => (file('Tablero.board.md').match(/outside: true/g) ?? []).length === 2, 'no se guardó la marca');
+  await until(() => tasks('Tablero.board.md').filter((t) => t.text.includes('"outside":true')).length === 2, 'no se guardó la marca');
   const marked = () =>
     s.browser.execute(() =>
       [...document.querySelectorAll('.tab-pane:not(.hidden) .card')]
@@ -224,6 +231,9 @@ it('cambiar de proyecto con tareas vinculadas pide confirmación antes de desvin
   await s.browser.$('.confirm-dialog').waitForExist({ timeout: 10_000 });
   await s.browser.$('.confirm-dialog-btn.confirm').click();
   await dialog().waitForExist({ reverse: true, timeout: 10_000 });
-  await until(() => file('Tablero.board.md').includes('/org/Otro') && !file('Tablero.board.md').includes('links:'), 'no se desvincularon');
+  await until(
+    () => file('Tablero.board.md').includes('/org/Otro') && !tasks('Tablero.board.md').some((t) => t.text.includes('- sync:')),
+    'no se desvincularon',
+  );
   expect(rows('Tablero.board.md')).toHaveLength(3);
 }, 90_000);

@@ -88,3 +88,13 @@ pub async fn board_task_delete(
     let board = resolve(&state, &path)?;
     disk(move || SaveBoardUseCase::new(BoardRepositoryImpl).delete_task(&board, &id, &hash)).await
 }
+
+#[tauri::command]
+pub async fn board_convert(
+    state: State<'_, AppState>,
+    path: String,
+    content: String,
+) -> Result<(), BoardError> {
+    let board = resolve(&state, &path)?;
+    disk(move || SaveBoardUseCase::new(BoardRepositoryImpl).convert(&board, &content)).await
+}

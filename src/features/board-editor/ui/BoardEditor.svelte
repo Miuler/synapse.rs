@@ -3,6 +3,7 @@
   import { untrack } from 'svelte';
   import { t } from '@shared/lib/i18n';
   import { CodeEditor } from '@shared/ui/code-editor';
+  import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { vaultApi } from '@entities/vault-item';
   import {
     parseBoardMarkdown,
@@ -29,9 +30,13 @@
     path?: string;
     vimMode?: boolean;
     onChange: (nextContent: string) => void;
+    /** Guarda lo pendiente y devuelve lo que quedó en disco; `null` si el archivo está bloqueado. */
+    beforeConvert?: () => Promise<string | null>;
+    /** Vuelve a leer la pestaña tras convertir el tablero. */
+    onConverted?: () => Promise<void>;
   }
 
-  let { content, path = '', vimMode = false, onChange }: Props = $props();
+  let { content, path = '', vimMode = false, onChange, beforeConvert, onConverted }: Props = $props();
 
   const isNew = untrack(() => takeNewBoard(path));
 
@@ -62,11 +67,37 @@
     void untrack(() => store)?.load();
   });
 
-  let storeError = $derived.by(() => {
-    const error = store?.error as Partial<BoardError> | null | undefined;
-    if (!error) return '';
-    return error.kind ? t(`board.errors.${error.kind}`, { detail: error.detail ?? '' }) : String(error);
-  });
+  function errorText(error: unknown): string {
+    const e = error as Partial<BoardError>;
+    return e.kind ? t(`board.errors.${e.kind}`, { detail: e.detail ?? '' }) : String(error);
+  }
+  let storeError = $derived(store?.error ? errorText(store.error) : '');
+
+  // Un tablero con tabla ofrece pasar a un archivo por tarea
+  let confirmingConversion = $state(false);
+  let converting = $state(false);
+  let conversionError = $state('');
+  let fileName = $derived(path.split('/').pop() ?? '');
+
+  async function convert() {
+    confirmingConversion = false;
+    if (!beforeConvert || !onConverted || converting) return;
+    converting = true;
+    conversionError = '';
+    try {
+      const saved = await beforeConvert();
+      if (saved === null) conversionError = t('board.convert.unsaved');
+      else {
+        await boardsApi.convert(path, saved);
+        selectedTaskId = null;
+        await onConverted();
+      }
+    } catch (error) {
+      conversionError = errorText(error);
+    } finally {
+      converting = false;
+    }
+  }
   // «raw» solo se mira: no se guarda como vista del tablero
   let activeView = $state<BoardViewMode | 'raw' | null>(null);
   let currentView = $derived(activeView ?? doc.defaultView);
@@ -100,6 +131,8 @@
   }
 
   function write(next: BoardDocument) {
+    // Mientras se convierte, nada puede volver a escribir la tabla encima
+    if (converting) return;
     if (folder) store?.write(next);
     else onChange(serializeBoardMarkdown(next));
   }
@@ -167,7 +200,7 @@
   }
 </script>
 
-<div class="board-editor">
+<div class="board-editor" inert={converting}>
   <header class="board-toolbar">
     <div class="view-switcher">
       <button
@@ -205,6 +238,15 @@
     <IssueSync read={() => doc} {write} {isNew} />
   </header>
 
+  {#if !folder && path && beforeConvert}
+    <div class="board-convert">
+      <span>{t('board.convert.banner')}</span>
+      <button type="button" disabled={converting} onclick={() => (confirmingConversion = true)}>
+        {t('board.convert.action')}
+      </button>
+    </div>
+  {/if}
+  {#if conversionError}<p class="board-problem" role="alert">{conversionError}</p>{/if}
   {#if storeError}<p class="board-problem" role="alert">{storeError}</p>{/if}
   {#if folder && store?.problems.length}
     <p class="board-problem" role="status">
@@ -270,7 +312,43 @@
   </div>
 </div>
 
+<ConfirmDialog
+  open={confirmingConversion}
+  title={t('board.convert.title')}
+  description={t('board.convert.hint', {
+    folder: fileName.slice(0, -'.md'.length),
+    backup: `${fileName}.bak`,
+    count: doc.tasks.length,
+  })}
+  confirmText={t('board.convert.confirm')}
+  cancelText={t('common.cancel')}
+  onConfirm={convert}
+  onCancel={() => (confirmingConversion = false)}
+/>
+
 <style>
+  .board-convert {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-primary);
+  }
+
+  .board-convert button {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
   .board-problem {
     margin: 0;
     padding: 6px 16px;

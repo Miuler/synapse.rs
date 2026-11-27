@@ -5,6 +5,10 @@ use serde::Serialize;
 pub enum BoardErrorKind {
     /// El archivo no es un tablero en formato de carpeta.
     NotFolderBoard,
+    /// El archivo no es un tablero con tabla que se pueda convertir.
+    NotTableBoard,
+    /// La carpeta de tareas ya existe con algo dentro: convertir lo mezclaría o lo pisaría.
+    FolderExists,
     /// Un bloque del tablero que se interpreta está mal escrito: no se reescribe para no perderlo.
     Frontmatter,
     /// La línea `sync` de una tarea está mal escrita.

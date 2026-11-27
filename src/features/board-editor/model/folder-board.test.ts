@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { applyTask, boardFile, folderDocument, isFolderBoard, persist, taskChanges, type BoardApi, type BoardSnapshot, type TaskCard, type TaskFile } from './folder-board';
 import { placeTask } from './board.svelte';
+import { buildPushPlan, type IssueProvider } from './issue-sync';
 
 const card = (id: string, title: string, status: string, extra: Partial<TaskCard> = {}): TaskCard => ({
   id, hash: 'h', title, status, type: null, assignee: null, key: null, url: null, start: '2026-01-01',
@@ -72,5 +73,18 @@ describe('formato de carpeta', () => {
     await persist(api, 'p', file, doc, replaced);
     expect(calls).toEqual(['tarea c todo null', 'borrar b', 'tablero a,c']);
     expect(taskChanges(doc, doc)).toEqual({ created: [], updated: [], removed: [] });
+  });
+
+  it('al enviar no repite los comentarios que la tarea ya había enviado', () => {
+    const read = snapshot();
+    const comment = (at: string) => ({ at, kind: 'comment' as const, author: null, id: null, edited: false, text: at });
+    read.tasks = [card('a', 'A', 'todo', {
+      comments: [comment('t0'), comment('t1')],
+      sync: { id: '1', title: 'A', state: 'New', column: 'todo', sent: ['t0'] },
+    })];
+    const provider = { id: 'p', default_states: {} } as unknown as IssueProvider;
+    const item = { id: '1', type: 'Bug', title: 'A', state: { name: 'New' }, revision: null };
+    const plan = buildPushPlan(folderDocument(read), provider, [item]);
+    expect(plan.changes.map((c) => c.comments.map((m) => m.timestamp))).toEqual([['t1']]);
   });
 });

@@ -3377,6 +3377,23 @@
     }
   }
 
+  /** Guarda lo pendiente de un tablero que se va a convertir; `null` si no se pudo (bloqueado). */
+  async function savedBoardContent(path: string): Promise<string | null> {
+    if (unsavedChanges.isLocked(path)) return null;
+    await flushAllModifiedTabs([path]);
+    const note = openedNotes[path];
+    return note?.isLoaded && note.content === note.savedContent ? note.content : null;
+  }
+
+  /** La pestaña pasa a mostrar lo que dejó la conversión, sin volver a guardar la tabla. */
+  async function reloadConvertedBoard(path: string) {
+    cancelPendingSave(path);
+    const { content } = await vaultRepository.readNote(path);
+    const note = openedNotes[path];
+    if (note) note.content = note.savedContent = content;
+    scheduleGitStatusRefresh();
+  }
+
   // Estado de Auto-Guardado (inicializado desde config.jsonc)
   let autoSave = $state(DEFAULT_APP_CONFIG.editor?.auto_save ?? true);
   let autoSaveDelayMs = DEFAULT_APP_CONFIG.editor?.auto_save_delay_ms ?? 600;
@@ -3683,6 +3700,8 @@
       isLoaded: true,
       viewMode: "live",
     };
+    // Un tablero lee sus tareas del disco: el archivo tiene que existir antes de abrirlo
+    if (fileType === 'board') await persistVaultItemToRust(newVaultItem);
 
     const targetEmptyPath = emptyTabPathToReplace || (
       activeFocusedPane === 'right' && isSplit && activeSplitTabPath && activeSplitTabPath.startsWith("empty:")
@@ -3718,7 +3737,7 @@
     }
     recentFiles = [newRelPath, ...recentFiles.filter((p) => p !== newRelPath)].slice(0, 15);
     recordTabVisit(newRelPath);
-    await persistVaultItemToRust(newVaultItem);
+    if (fileType !== 'board') await persistVaultItemToRust(newVaultItem);
     refreshGitStatus();
   }
 
@@ -5048,6 +5067,8 @@
                       }
                       debouncedPersistVaultItemToRust(vaultItem);
                     }}
+                    beforeConvert={() => savedBoardContent(tabFile)}
+                    onConverted={() => reloadConvertedBoard(tabFile)}
                   />
                 {:else if isDrawing}
                   {#if getExcalidrawViewerForTab(tabPath) === 'obsidian'}

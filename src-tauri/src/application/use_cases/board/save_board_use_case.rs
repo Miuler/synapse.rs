@@ -36,4 +36,8 @@ impl<R: BoardRepository> SaveBoardUseCase<R> {
     pub fn delete_task(&self, path: &Path, id: &str, expected: &str) -> Result<(), BoardError> {
         self.boards.delete_task(path, id, expected)
     }
+
+    pub fn convert(&self, path: &Path, expected: &str) -> Result<(), BoardError> {
+        self.boards.convert(path, expected)
+    }
 }

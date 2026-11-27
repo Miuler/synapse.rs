@@ -48,8 +48,11 @@
   Volver a leer el tablero cuando el observador avise de cambios en su carpeta.
   El Gantt lee y escribe el formato, sin datos nuevos (`fields` solo gobierna tarjetas y tabla); la referencia se ve
   como texto, sin enlace para abrirla en el proveedor
-- [ ] 3.5 Convertir con confirmación los tableros con tabla y la clave `azure_devops`; pruebas con tableros actuales,
-  documentación en `docs/reference.md` y en los dos CHANGELOG
+- [x] 3.5 Convertir con confirmación los tableros con tabla y la clave `azure_devops`; pruebas con tableros actuales,
+  documentación en `docs/reference.md` y en los dos CHANGELOG.
+  Los tableros nuevos se crean ya en el formato de carpeta, sin tareas de ejemplo. La conexión del tablero se deja como
+  estaba (vacía, la resuelve el servidor o la credencial global): la conversión no propone ni crea conexiones (paso 2
+  del plan de migración); se crean desde Configuración
 - [ ] 3.6 Traer descripción y actividad de Azure DevOps (comentarios e histórico) solo de lo cambiado desde la última
   sincronización, tras verificar sus endpoints; pruebas contra servidor falso y e2e de «Traer» y «Enviar».
   Añade `activity` al puerto

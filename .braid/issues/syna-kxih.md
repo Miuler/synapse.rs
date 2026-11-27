@@ -20,3 +20,5 @@ Tareas 3.1 a 3.5 de openspec/changes/add-issue-providers: archivo por tarea en N
 Avance 2026-11-27: formato (tarea 3.1) e índice con sus órdenes (3.2) hechos y sin conectar a la interfaz. Con 5000 tareas sintéticas, leer el tablero tarda unos 0,1 s. Siguen la protección (3.3), el editor (3.4) y la conversión (3.5).
 
 Avance 2026-11-27: la carpeta del tablero está protegida (tarea 3.3). Siguen el editor sobre el formato nuevo (3.4) y la conversión (3.5). La 3.4 ya está: el editor lee y escribe los tableros «format: 2». Los tableros nuevos se siguen creando como tabla hasta decidir la conversión (3.5).
+
+Avance 2026-11-27: conversión (3.5) hecha y tableros nuevos en formato de carpeta. Falta probarlo en la aplicación del usuario con un tablero real; la conversión no propone ni crea conexiones.

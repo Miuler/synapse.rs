@@ -1,7 +1,8 @@
 //! El archivo de un tablero en formato de carpeta: la configuración en el frontmatter y el orden de
 //! las tareas en el cuerpo. Nada de lo propio de una tarea va aquí.
 //!
-//! La marca `format: 2` lo distingue del formato anterior (una tabla), que sigue leyendo la interfaz.
+//! La marca `format: 2` lo distingue del formato anterior (una tabla), que sigue leyendo la interfaz
+//! hasta que se convierte (`table_board`).
 
 use crate::domain::board::board_error::{BoardError, BoardErrorKind as Kind};
 use crate::domain::board::task_file::is_valid_task_id;
@@ -87,7 +88,7 @@ const KNOWN: [&str; 7] = [
 /// El frontmatter partido por sus claves de primer nivel, cada una con sus líneas. Un comentario de
 /// primer nivel forma su propio bloque, sin clave: así se conserva aunque siga a un bloque que se
 /// vuelve a escribir.
-fn blocks(frontmatter: &str) -> Vec<(String, Vec<&str>)> {
+pub(crate) fn blocks(frontmatter: &str) -> Vec<(String, Vec<&str>)> {
     let mut blocks: Vec<(String, Vec<&str>)> = Vec::new();
     // El bloque con clave al que pertenecen las líneas sangradas
     let mut current = None;
@@ -114,7 +115,7 @@ fn blocks(frontmatter: &str) -> Vec<(String, Vec<&str>)> {
     blocks
 }
 
-fn value<T: DeserializeOwned>(key: &str, lines: &[&str]) -> Result<T, BoardError> {
+pub(crate) fn value<T: DeserializeOwned>(key: &str, lines: &[&str]) -> Result<T, BoardError> {
     let bad = |e: String| BoardError::new(Kind::Frontmatter, format!("{key}: {e}"));
     let mut map: BTreeMap<String, serde_yaml::Value> =
         serde_yaml::from_str(&lines.join("\n")).map_err(|e| bad(e.to_string()))?;
