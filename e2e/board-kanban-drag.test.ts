@@ -210,3 +210,85 @@ it('en la tabla el doble clic en el id, y en el Gantt en el nombre, abren el di�
   await dialog().waitForExist({ timeout: 5_000 });
   await closeDialog();
 }, 60_000);
+
+const colWidth = (id: string) =>
+  s.browser.execute(
+    (id) => (document.querySelector(`.tab-pane:not(.hidden) [data-column="${id}"]`) as HTMLElement).offsetWidth,
+    id,
+  );
+
+it('el borde de una columna cambia su ancho, lo guarda y se restablece con doble clic', async () => {
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(2)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .col-resizer').waitForExist({ timeout: 5_000 });
+  const normal = await colWidth('todo');
+  const handle = '.tab-pane:not(.hidden) [data-column="todo"] .col-resizer';
+  const from = await center(handle);
+  await drag(from, { x: from.x + 120, y: from.y });
+  await until(async () => (await colWidth('todo')) === normal + 120, 'no se ensanchó');
+  await until(() => file().includes(`column_widths:\n  todo: ${normal + 120}\n`), 'no se guardó el ancho');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/kanban-ancho.png`);
+
+  // Con el teclado
+  await s.browser.execute((selector) => (document.querySelector(selector) as HTMLElement).focus(), handle);
+  await s.browser.keys(['ArrowLeft']);
+  await until(async () => (await colWidth('todo')) === normal + 100, 'la flecha no lo estrechó');
+
+  // Se conserva al volver a la vista, y las tarjetas se siguen arrastrando a la columna
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(1)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(2)').click();
+  await s.browser.$(handle).waitForExist({ timeout: 5_000 });
+  expect(await colWidth('todo')).toBe(normal + 100);
+  const count = (await columns())[0].length;
+  await drag(await card('Primera'), await center('.tab-pane:not(.hidden) [data-column="todo"] .col-header'));
+  await until(async () => (await columns())[0].length === count + 1, 'ya no se arrastran las tarjetas');
+
+  await s.browser.$(handle).doubleClick();
+  await until(async () => (await colWidth('todo')) === normal, 'no se restableció');
+  await until(() => !file().includes('column_widths'), 'quedó la clave');
+}, 60_000);
+
+const tableIds = () =>
+  s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .table-view tbody td.col-id')].map((c) => c.textContent!.trim()),
+  ) as Promise<string[]>;
+
+it('la tabla se ordena por cualquier columna sin cambiar el orden del archivo', async () => {
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(1)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .table-view').waitForExist({ timeout: 5_000 });
+  const initial = await tableIds();
+  const saved = file();
+  const header = (key: string) => s.browser.$(`.tab-pane:not(.hidden) .sort-btn[data-sort="${key}"]`);
+  const sorted = [...initial].sort();
+
+  await header('id').click();
+  await until(async () => (await tableIds()).join() === sorted.join(), 'no ordenó ascendente');
+  await header('id').click();
+  await until(async () => (await tableIds()).join() === [...sorted].reverse().join(), 'no ordenó descendente');
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/tabla-orden.png`);
+
+  // Se conserva al cambiar de vista
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(2)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(1)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .table-view').waitForExist({ timeout: 5_000 });
+  expect(await tableIds()).toEqual([...sorted].reverse());
+
+  // Al escribir, la fila no salta de sitio
+  await header('title').click();
+  await until(async () => (await header('title').getText()).length > 0, 'sin cabecera');
+  const byTitle = await tableIds();
+  await s.browser.execute(() => {
+    const input = document.querySelector<HTMLInputElement>('.tab-pane:not(.hidden) .table-view tbody input[type="text"]')!;
+    input.value = 'Zeta';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await until(() => file().includes('| Zeta |'), 'no se guardó');
+  expect(await tableIds()).toEqual(byTitle);
+
+  // Tercer clic: el orden del tablero, que no cambió
+  await header('title').click();
+  await header('title').click();
+  await until(async () => (await tableIds()).join() === initial.join(), 'no volvió al orden del tablero');
+  expect([...file().matchAll(/^\| (t\d) \|/gm)].map((m) => m[1])).toEqual(
+    [...saved.matchAll(/^\| (t\d) \|/gm)].map((m) => m[1]),
+  );
+}, 60_000);

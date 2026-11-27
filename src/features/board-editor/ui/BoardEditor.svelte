@@ -8,6 +8,7 @@
     serializeBoardMarkdown,
     type BoardTask,
     type BoardViewMode,
+    type TaskSort,
   } from '../model/board.svelte';
   import TableView from './TableView.svelte';
   import KanbanView from './KanbanView.svelte';
@@ -27,6 +28,8 @@
   // «raw» solo se mira: no se guarda como vista del tablero
   let activeView = $state<BoardViewMode | 'raw' | null>(null);
   let currentView = $derived(activeView ?? doc.defaultView);
+  // El orden de la tabla es solo para mirar: dura lo que la pestaña
+  let tableSort = $state<TaskSort | null>(null);
   let selectedTaskId = $state<string | null>(null);
   let selectedTask = $derived(doc.tasks.find((t) => t.id === selectedTaskId) ?? null);
 
@@ -41,6 +44,13 @@
   function moveTask(id: string, status: string, before: string | null) {
     const tasks = placeTask(doc.tasks, id, status, before);
     if (tasks !== doc.tasks) commit(tasks);
+  }
+
+  /** `null` devuelve la columna a su ancho normal. */
+  function resizeColumn(id: string, width: number | null) {
+    const { [id]: previous, ...others } = doc.columnWidths ?? {};
+    if ((previous ?? null) === width) return;
+    write({ ...doc, columnWidths: width === null ? others : { ...others, [id]: width } });
   }
 
   function write(next: typeof doc) {
@@ -128,6 +138,8 @@
       {#if currentView === 'table'}
         <TableView
           tasks={doc.tasks}
+          sort={tableSort}
+          onSort={(sort) => (tableSort = sort)}
           columns={doc.columns}
           onUpdateTask={updateTask}
           onDeleteTask={deleteTask}
@@ -138,6 +150,8 @@
         <KanbanView
           tasks={doc.tasks}
           columns={doc.columns}
+          widths={doc.columnWidths ?? {}}
+          onResizeColumn={resizeColumn}
           onMoveTask={moveTask}
           onOpenTask={(id) => (selectedTaskId = id)}
           onAddTask={(status) => addTask(status)}

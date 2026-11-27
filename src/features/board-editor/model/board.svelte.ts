@@ -29,6 +29,11 @@ export interface BoardDocument {
   defaultView: BoardViewMode;
   columns: BoardColumn[];
   tasks: BoardTask[];
+  /**
+   * Ancho en píxeles de las columnas del Kanban que no usan el normal (clave `column_widths`). Va aparte
+   * de `columns` para que una versión anterior, que solo entiende `id`, `label` y `color`, no las pierda.
+   */
+  columnWidths?: Record<string, number>;
   /** Sincronización con Azure DevOps (clave `azure_devops` del frontmatter). */
   azure?: AzureSyncConfig;
   /** Bloques del frontmatter que el tablero no interpreta: se guardan tal cual. */
@@ -43,8 +48,17 @@ export const DEFAULT_COLUMNS: BoardColumn[] = [
 
 const OWN_KEYS = ['type', 'default_view', 'columns'];
 
-/** Separa la configuración de Azure DevOps y lo que no es del tablero, bloque a bloque de primer nivel. */
-function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'extraFrontmatter'> {
+export const COLUMN_WIDTH = { min: 180, max: 720 };
+export const clampColumnWidth = (width: number) =>
+  Math.round(Math.min(COLUMN_WIDTH.max, Math.max(COLUMN_WIDTH.min, width)));
+
+function parseColumnWidths(value: object): Record<string, number> {
+  const widths = Object.entries(value).filter(([, width]) => typeof width === 'number' && width > 0);
+  return Object.fromEntries(widths.map(([id, width]) => [id, clampColumnWidth(width as number)]));
+}
+
+/** Separa lo que va en YAML libre (Azure DevOps, anchos) y lo que no es del tablero, bloque a bloque. */
+function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'columnWidths' | 'extraFrontmatter'> {
   const blocks: { key: string; lines: string[] }[] = [];
   for (const line of fmText.split(/\r?\n/)) {
     const key = line.match(/^([^\s#-][^:]*):/)?.[1];
@@ -53,15 +67,17 @@ function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'extraFro
   }
 
   let azure: AzureSyncConfig | undefined;
+  let columnWidths: BoardDocument['columnWidths'];
   const extra: string[] = [];
   for (const block of blocks) {
     if (OWN_KEYS.includes(block.key)) continue;
     const text = block.lines.join('\n');
-    if (block.key === 'azure_devops') {
+    if (block.key === 'azure_devops' || block.key === 'column_widths') {
       try {
-        const value = parseYaml(text)?.azure_devops;
+        const value = parseYaml(text)?.[block.key];
         if (value && typeof value === 'object') {
-          azure = value as AzureSyncConfig;
+          if (block.key === 'azure_devops') azure = value as AzureSyncConfig;
+          else columnWidths = parseColumnWidths(value);
           continue;
         }
       } catch {
@@ -70,7 +86,7 @@ function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'extraFro
     }
     extra.push(text);
   }
-  return { azure, extraFrontmatter: extra.join('\n') || undefined };
+  return { azure, columnWidths, extraFrontmatter: extra.join('\n') || undefined };
 }
 
 function parseFrontmatter(raw: string): {
@@ -78,6 +94,7 @@ function parseFrontmatter(raw: string): {
   columns: BoardColumn[];
   body: string;
   azure?: AzureSyncConfig;
+  columnWidths?: Record<string, number>;
   extraFrontmatter?: string;
 } {
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
@@ -139,7 +156,7 @@ function parseCommentsSection(body: string): Map<string, BoardComment[]> {
 }
 
 export function parseBoardMarkdown(raw: string): BoardDocument {
-  const { defaultView, columns, body, azure, extraFrontmatter } = parseFrontmatter(raw);
+  const { defaultView, columns, body, azure, columnWidths, extraFrontmatter } = parseFrontmatter(raw);
   const commentsMap = parseCommentsSection(body);
 
   const tablePart = body.split(/^##\s+Comentarios\s*$/m)[0];
@@ -176,7 +193,7 @@ export function parseBoardMarkdown(raw: string): BoardDocument {
     });
   }
 
-  return { defaultView, columns, tasks, azure, extraFrontmatter };
+  return { defaultView, columns, tasks, azure, columnWidths, extraFrontmatter };
 }
 
 export function serializeBoardMarkdown(doc: BoardDocument): string {
@@ -187,12 +204,17 @@ export function serializeBoardMarkdown(doc: BoardDocument): string {
   const azureYaml =
     doc.azure && stringifyYaml({ azure_devops: doc.azure }, { lineWidth: 0 }).trimEnd();
 
+  const widthsYaml =
+    Object.keys(doc.columnWidths ?? {}).length > 0 &&
+    stringifyYaml({ column_widths: doc.columnWidths }).trimEnd();
+
   const frontmatter = [
     '---',
     'type: board',
     `default_view: ${doc.defaultView}`,
     'columns:',
     colsYaml,
+    ...(widthsYaml ? [widthsYaml] : []),
     ...(azureYaml ? [azureYaml] : []),
     ...(doc.extraFrontmatter ? [doc.extraFrontmatter] : []),
     '---',
@@ -247,6 +269,30 @@ export function placeTask(tasks: BoardTask[], id: string, status: string, before
   rest.splice(at, 0, task.status === status ? task : { ...task, status });
   const order = (list: BoardTask[]) => list.filter((t) => t.status === status).map((t) => t.id).join('\n');
   return task.status === status && order(rest) === order(tasks) ? tasks : rest;
+}
+
+export type TaskSortKey = 'id' | 'title' | 'status' | 'start' | 'duration' | 'dependsOn' | 'progress';
+export interface TaskSort {
+  key: TaskSortKey;
+  descending: boolean;
+}
+
+/** Copia ordenada para mirar; sin `sort`, el orden del archivo. El estado sigue el orden de las columnas. */
+export function sortTasks(tasks: BoardTask[], sort: TaskSort | null, columns: BoardColumn[]): BoardTask[] {
+  if (!sort) return tasks;
+  const { key } = sort;
+  const value = (t: BoardTask) =>
+    key === 'status' ? columns.findIndex((c) => c.id === t.status) : key === 'dependsOn' && t[key] === '-' ? '' : t[key];
+  const direction = sort.descending ? -1 : 1;
+  return [...tasks].sort((a, b) => {
+    const [x, y] = [value(a), value(b)];
+    // Lo vacío va al final en los dos sentidos
+    if (x === '' || y === '') return Number(x === '') - Number(y === '');
+    // `numeric`: t2 va antes que t10
+    const result =
+      typeof x === 'number' ? x - (y as number) : x.localeCompare(y as string, undefined, { numeric: true });
+    return result * direction;
+  });
 }
 
 export function createDefaultBoardMarkdown(): string {

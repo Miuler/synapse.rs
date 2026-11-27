@@ -247,6 +247,9 @@ export const es: TranslationSchema = {
     newKind: 'Tablero de tareas (Kanban, Gantt)',
     defaultName: 'Tablero',
     rawHint: 'El archivo tal como se guarda (solo lectura)',
+    sortHint: 'Ordenar por esta columna: ascendente, descendente, orden del tablero',
+    resizeColumn: 'Ancho de la columna {column}',
+    resizeColumnHint: 'Arrastra para cambiar el ancho; doble clic o Enter lo restablece',
     detail: {
       details: 'Detalles',
       start: 'Inicio',
@@ -295,6 +298,7 @@ export const es: TranslationSchema = {
     confirm: 'Enviar ({count})',
     sent: 'Enviado: {updated} actualizadas, {created} creadas, {comments} comentarios.',
     errors: {
+      unknown_provider: 'El tablero usa un proveedor que esta versión no tiene: {detail}',
       missing_token: 'Falta el token: ponlo en la configuración de Azure DevOps (un token o una ruta op://), o define la variable de entorno {detail} y vuelve a abrir Synapse.',
       keyring: 'El llavero del sistema no respondió: {detail}',
       token_reference: 'No se guardó: una ruta de 1Password es op://bóveda/elemento/campo. Para guardar el token en sí, pégalo en el campo del token ({detail} de config.jsonc solo admite rutas op://).',

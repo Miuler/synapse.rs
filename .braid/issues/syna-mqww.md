@@ -18,6 +18,13 @@ deps:
 - syna-ggiu
 - syna-rgj3
 - syna-2x36
+- syna-nvve
+- syna-stcs
+- syna-iwqi
+- syna-kxih
+- syna-euaq
+- syna-e19k
+- syna-nj8n
 tags:
 - tableros
 owner: null

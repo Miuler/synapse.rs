@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { parseBoardMarkdown, placeTask, serializeBoardMarkdown, type BoardTask } from './board.svelte';
+import { parseBoardMarkdown, placeTask, serializeBoardMarkdown, sortTasks, type BoardTask, type TaskSortKey } from './board.svelte';
 
 const task = (id: string, status: string): BoardTask => ({
   id, title: id, status, start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, comments: [],
@@ -36,5 +36,70 @@ describe('placeTask', () => {
       defaultView: 'kanban', columns: [{ id: 'todo', label: 'T', color: 'red' }], tasks: placeTask(tasks, 'c', 'todo', 'a'),
     }));
     expect(doc.tasks.map((t) => t.id)).toEqual(['c', 'a', 'b', 'd']);
+  });
+});
+
+describe('anchos de columna', () => {
+  const board = (extra: string) => `---
+type: board
+default_view: kanban
+columns:
+  - { id: todo, label: "Mía", color: "red" }
+${extra}---
+
+| id | Tarea | Estado | Inicio | Duración | Depende | Progreso |
+|---|---|---|---|---|---|---|
+`;
+
+  it('van y vuelven sin tocar las columnas', () => {
+    const text = serializeBoardMarkdown(parseBoardMarkdown(board('column_widths:\n  todo: 400\n')));
+    expect(text).toContain('column_widths:\n  todo: 400\n');
+    expect(text).toContain('- { id: todo, label: "Mía", color: "red" }');
+    expect(parseBoardMarkdown(text).columnWidths).toEqual({ todo: 400 });
+  });
+
+  it('sin anchos no se escribe la clave', () => {
+    expect(serializeBoardMarkdown(parseBoardMarkdown(board('')))).not.toContain('column_widths');
+  });
+
+  it('ignora lo que no es un número y limita lo desmesurado', () => {
+    const doc = parseBoardMarkdown(board('column_widths: { todo: 9000, a: ancho, b: -3, c: 20 }\n'));
+    expect(doc.columnWidths).toEqual({ todo: 720, c: 180 });
+    expect(doc.columns.map((c) => c.label)).toEqual(['Mía']);
+  });
+});
+
+describe('sortTasks', () => {
+  const columns = [
+    { id: 'todo', label: 'T', color: 'red' },
+    { id: 'done', label: 'A', color: 'red' },
+  ];
+  const list = [
+    { ...task('t10', 'done'), title: 'beta', progress: 5, dependsOn: '-' },
+    { ...task('t2', 'todo'), title: 'Árbol', progress: 40, dependsOn: 't10' },
+    { ...task('t3', 'todo'), title: 'casa', progress: 100, dependsOn: 't2' },
+  ];
+  const ids = (key: TaskSortKey, descending = false) => sortTasks(list, { key, descending }, columns).map((t) => t.id);
+
+  it('ordena números, texto con tildes e ids como se leen', () => {
+    expect(ids('id')).toEqual(['t2', 't3', 't10']);
+    expect(ids('title')).toEqual(['t2', 't10', 't3']);
+    expect(ids('progress', true)).toEqual(['t3', 't2', 't10']);
+  });
+
+  it('el estado sigue el orden de las columnas y conserva el del tablero en los empates', () => {
+    expect(ids('status')).toEqual(['t2', 't3', 't10']);
+    expect(ids('status', true)).toEqual(['t10', 't2', 't3']);
+  });
+
+  it('sin dependencia va al final en los dos sentidos', () => {
+    expect(ids('dependsOn')).toEqual(['t3', 't2', 't10']);
+    expect(ids('dependsOn', true)).toEqual(['t2', 't3', 't10']);
+  });
+
+  it('no cambia el array del tablero', () => {
+    ids('title');
+    expect(list.map((t) => t.id)).toEqual(['t10', 't2', 't3']);
+    expect(sortTasks(list, null, columns)).toBe(list);
   });
 });

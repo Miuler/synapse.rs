@@ -1,11 +1,15 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { MessageSquare, Plus } from 'lucide-svelte';
-  import type { BoardColumn, BoardTask } from '../model/board.svelte';
+  import { t } from '@shared/lib/i18n';
+  import { clampColumnWidth, COLUMN_WIDTH, type BoardColumn, type BoardTask } from '../model/board.svelte';
 
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    /** Anchos propios, en píxeles, por columna. */
+    widths: Record<string, number>;
+    onResizeColumn: (id: string, width: number | null) => void;
     /** Cambia de columna y de posición: delante de `before`, o al final con `null`. */
     onMoveTask: (id: string, status: string, before: string | null) => void;
     onOpenTask: (id: string) => void;
@@ -13,7 +17,8 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
+    $props();
 
   // Arrastre con eventos de puntero: el de HTML5 no llega a soltar en el webview (Tauri atiende el
   // soltado nativo, para los archivos)
@@ -35,6 +40,42 @@
     /** Dónde caería: la columna y la tarjeta que quedaría debajo (`null`, al final). */
     over: { column: string; before: string | null } | null;
   } | null>(null);
+
+  /** Columna que se está ensanchando: el archivo se escribe una sola vez, al soltar. */
+  let resize = $state<{ id: string; startX: number; startWidth: number; width: number; moved: boolean } | null>(null);
+
+  const columnWidth = (handle: EventTarget | null) => (handle as HTMLElement).parentElement!.offsetWidth;
+
+  function startResize(e: PointerEvent, id: string) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget as HTMLElement;
+    handle.focus({ preventScroll: true });
+    handle.setPointerCapture(e.pointerId);
+    const width = columnWidth(handle);
+    resize = { id, startX: e.clientX, startWidth: width, width, moved: false };
+  }
+
+  function moveResize(e: PointerEvent) {
+    if (!resize) return;
+    resize.moved ||= e.clientX !== resize.startX;
+    resize.width = clampColumnWidth(resize.startWidth + e.clientX - resize.startX);
+  }
+
+  function endResize() {
+    if (resize?.moved) onResizeColumn(resize.id, resize.width);
+    resize = null;
+  }
+
+  /** ← / → cambian el ancho; Enter vuelve al normal. */
+  function onResizerKey(e: KeyboardEvent, id: string) {
+    if (e.key === 'Enter') onResizeColumn(id, null);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const step = e.key === 'ArrowRight' ? 20 : -20;
+      onResizeColumn(id, clampColumnWidth(columnWidth(e.currentTarget) + step));
+    } else return;
+    e.preventDefault();
+  }
 
   function columnAt(x: number, y: number): HTMLElement | null {
     const col = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-column]');
@@ -130,13 +171,21 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (drag = null)} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && (drag = resize = null)} />
 
 <div class="kanban-view" bind:this={root}>
   {#each columns as col (col.id)}
     {@const colTasks = tasks.filter((t) => t.status === col.id)}
     {@const dropHere = drag?.moving && drag.over?.column === col.id ? drag.over : null}
-    <div class="kanban-col" class:drag-over={dropHere} data-column={col.id} role="list">
+    {@const width = resize?.id === col.id ? resize.width : widths[col.id]}
+    <div
+      class="kanban-col"
+      class:drag-over={dropHere}
+      class:resized={width !== undefined}
+      style:--col-width={width === undefined ? null : `${width}px`}
+      data-column={col.id}
+      role="list"
+    >
       <div class="col-header">
         <span class="dot" style="background: {col.color}"></span>
         <span class="col-title">{col.label}</span>
@@ -188,6 +237,26 @@
       <button type="button" class="add-card-btn" onclick={() => onAddTask(col.id)}>
         <Plus size={13} /> Añadir
       </button>
+      <!-- Un separador que se puede enfocar es un control (WAI-ARIA «window splitter») -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <div
+        class="col-resizer"
+        class:active={resize?.id === col.id}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('board.resizeColumn', { column: col.label })}
+        aria-valuemin={COLUMN_WIDTH.min}
+        aria-valuemax={COLUMN_WIDTH.max}
+        aria-valuenow={width}
+        title={t('board.resizeColumnHint')}
+        tabindex="0"
+        onpointerdown={(e) => startResize(e, col.id)}
+        onpointermove={moveResize}
+        onpointerup={endResize}
+        onpointercancel={() => (resize = null)}
+        ondblclick={() => onResizeColumn(col.id, null)}
+        onkeydown={(e) => onResizerKey(e, col.id)}
+      ></div>
     </div>
   {/each}
 </div>
@@ -212,6 +281,8 @@
   }
 
   .kanban-col {
+    position: relative;
+    flex-shrink: 0;
     min-width: 260px;
     max-width: 280px;
     background: var(--bg-secondary);
@@ -222,6 +293,31 @@
     flex-direction: column;
     gap: 8px;
     max-height: 100%;
+  }
+
+  .kanban-col.resized {
+    width: var(--col-width);
+    min-width: var(--col-width);
+    max-width: var(--col-width);
+  }
+
+  /* En el hueco que sigue a la columna */
+  .col-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: -9px;
+    width: 8px;
+    border-radius: 4px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .col-resizer:hover,
+  .col-resizer:focus-visible,
+  .col-resizer.active {
+    background: var(--accent);
+    outline: none;
   }
 
   .kanban-col.drag-over {

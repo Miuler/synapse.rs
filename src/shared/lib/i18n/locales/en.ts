@@ -246,6 +246,9 @@ export const en = {
     newKind: 'Task board (Kanban, Gantt)',
     defaultName: 'Board',
     rawHint: 'The file as it is saved (read only)',
+    sortHint: 'Sort by this column: ascending, descending, board order',
+    resizeColumn: 'Width of column {column}',
+    resizeColumnHint: 'Drag to resize; double click or Enter to reset',
     detail: {
       details: 'Details',
       start: 'Start',
@@ -294,6 +297,7 @@ export const en = {
     confirm: 'Send ({count})',
     sent: 'Sent: {updated} updated, {created} created, {comments} comments.',
     errors: {
+      unknown_provider: 'This board uses a provider this version does not have: {detail}',
       missing_token: 'No token: set it in the Azure DevOps settings (a token or an op:// path), or set the {detail} environment variable and open Synapse again.',
       keyring: 'The system keyring did not answer: {detail}',
       token_reference: 'Not saved: a 1Password path must look like op://vault/item/field. To save the token itself, paste it in the token field ({detail} of config.jsonc only takes op:// paths).',

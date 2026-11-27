@@ -1,35 +1,72 @@
 <script lang="ts">
-  import { MessageSquare, Trash2, Plus } from 'lucide-svelte';
-  import type { BoardColumn, BoardTask } from '../model/board.svelte';
+  import { untrack } from 'svelte';
+  import { MessageSquare, Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
+  import { sortTasks, type BoardColumn, type BoardTask, type TaskSort, type TaskSortKey } from '../model/board.svelte';
 
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    sort: TaskSort | null;
+    onSort: (sort: TaskSort | null) => void;
     onUpdateTask: (id: string, patch: Partial<BoardTask>) => void;
     onDeleteTask: (id: string) => void;
     onAddTask: () => void;
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
+
+  const HEADERS: { key: TaskSortKey; label: string; class?: string }[] = [
+    { key: 'id', label: 'ID', class: 'col-id' },
+    { key: 'title', label: 'Tarea' },
+    { key: 'status', label: 'Estado' },
+    { key: 'start', label: 'Inicio' },
+    { key: 'duration', label: 'Duración (d)', class: 'col-num' },
+    { key: 'dependsOn', label: 'Depende' },
+    { key: 'progress', label: 'Progreso %', class: 'col-num' },
+  ];
+
+  // Se ordena al elegir columna y al añadir o quitar tareas, no mientras se escribe: la fila no salta
+  let ids = $derived(tasks.map((task) => task.id).join('\n'));
+  let order = $derived.by(() => {
+    const by = sort;
+    void ids;
+    return untrack(() => sortTasks(tasks, by, columns).map((task) => task.id));
+  });
+  let rows = $derived(order.map((id) => tasks.find((task) => task.id === id)).filter((task) => task !== undefined));
+
+  /** Ascendente, descendente y de vuelta al orden del tablero. */
+  function toggleSort(key: TaskSortKey) {
+    if (sort?.key !== key) onSort({ key, descending: false });
+    else onSort(sort.descending ? null : { key, descending: true });
+  }
 </script>
 
 <div class="table-view">
   <table>
     <thead>
       <tr>
-        <th class="col-id">ID</th>
-        <th>Tarea</th>
-        <th>Estado</th>
-        <th>Inicio</th>
-        <th class="col-num">Duración (d)</th>
-        <th>Depende</th>
-        <th class="col-num">Progreso %</th>
+        {#each HEADERS as header (header.key)}
+          {@const active = sort?.key === header.key ? sort : null}
+          <th class={header.class} aria-sort={active ? (active.descending ? 'descending' : 'ascending') : 'none'}>
+            <button
+              type="button"
+              class="sort-btn"
+              data-sort={header.key}
+              title={t('board.sortHint')}
+              onclick={() => toggleSort(header.key)}
+            >
+              {header.label}
+              {#if active?.descending}<ArrowDown size={12} />{:else if active}<ArrowUp size={12} />{/if}
+            </button>
+          </th>
+        {/each}
         <th class="col-actions"></th>
       </tr>
     </thead>
     <tbody>
-      {#each tasks as task (task.id)}
+      {#each rows as task (task.id)}
         <!-- Los campos editables conservan su doble clic (seleccionar texto) -->
         <tr
           ondblclick={(e) =>
@@ -124,6 +161,22 @@
 </div>
 
 <style>
+  .sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+
+  .sort-btn:hover {
+    color: var(--text-primary);
+  }
+
   .table-view {
     padding: 12px 16px;
     overflow: auto;
