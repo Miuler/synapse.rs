@@ -32,6 +32,26 @@ it('«Nuevo tablero» del explorador crea un .board.md con su Kanban y guarda lo
   await s.browser.waitUntil(async () => file().includes('| t3 | Nueva tarea | todo |'), { timeout: 10_000, timeoutMsg: 'no se guardó la tarea' });
 }, 90_000);
 
+it('la vista Raw muestra el archivo tal como se guarda, sin dejar editarlo', async () => {
+  const file = () => readFileSync(join(s.vault, 'Tablero.board.md'), 'utf8');
+  const shown = () =>
+    s.browser.execute(() => [...document.querySelectorAll('.tab-pane:not(.hidden) .board-raw .cm-line')].map((l) => l.textContent).join('\n')) as Promise<string>;
+  const saved = file();
+  await s.browser.$('.tab-pane:not(.hidden) .view-raw').click();
+  await s.browser.waitUntil(async () => (await shown()).includes('| t3 | Nueva tarea | todo |'), { timeout: 10_000, timeoutMsg: 'no se ve el archivo' });
+  expect((await shown()).trimEnd()).toBe(saved.trimEnd());
+  if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/board-raw.png`);
+  await s.browser.$('.tab-pane:not(.hidden) .board-raw .cm-content').click();
+  await s.browser.keys(['x', 'y', 'z']);
+  await s.browser.pause(500);
+  expect(await shown()).not.toContain('xyz');
+  expect(file()).toBe(saved);
+  // Elegirla no cambia la vista con la que abre el tablero
+  expect(file()).toContain('default_view: kanban');
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher button:nth-child(2)').click();
+  await s.browser.$('.tab-pane:not(.hidden) .kanban-view').waitForExist({ timeout: 5_000 });
+}, 90_000);
+
 it('también se crea desde la paleta de comandos', async () => {
   await s.browser.$('.tab-pane:not(.hidden) .view-switcher').click();
   await s.browser.keys(['Control', 'p']);

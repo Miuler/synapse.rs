@@ -30,7 +30,11 @@
     </thead>
     <tbody>
       {#each tasks as task (task.id)}
-        <tr>
+        <!-- Los campos editables conservan su doble clic (seleccionar texto) -->
+        <tr
+          ondblclick={(e) =>
+            !(e.target as HTMLElement).closest('input, select, button') && onSelectComments(task.id)}
+        >
           <td class="col-id"><code>{task.id}</code></td>
           <td>
             <input

@@ -5019,6 +5019,7 @@
                 {:else if tabFile.toLowerCase().endsWith('.board.md')}
                   <BoardEditor
                     {content}
+                    vimMode={isVimMode}
                     onChange={(updatedContent) => {
                       if (openedNotes[tabFile]) {
                         openedNotes[tabFile].content = updatedContent;

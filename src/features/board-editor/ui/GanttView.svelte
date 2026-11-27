@@ -75,7 +75,12 @@
   <div class="gantt-sidebar">
     <div class="gantt-header-cell">Tarea</div>
     {#each tasks as task (task.id)}
-      <button type="button" class="gantt-row-label" onclick={() => onSelectComments(task.id)}>
+      <!-- Doble clic, como en las otras vistas; con el teclado, `detail` es 0 -->
+      <button
+        type="button"
+        class="gantt-row-label"
+        onclick={(e) => e.detail !== 1 && onSelectComments(task.id)}
+      >
         <span class="task-id">{task.id}</span>
         <span class="task-title">{task.title}</span>
       </button>

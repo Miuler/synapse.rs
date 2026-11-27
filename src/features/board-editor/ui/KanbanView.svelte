@@ -6,12 +6,14 @@
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
-    onUpdateTask: (id: string, patch: Partial<BoardTask>) => void;
+    /** Cambia de columna y de posición: delante de `before`, o al final con `null`. */
+    onMoveTask: (id: string, status: string, before: string | null) => void;
+    onOpenTask: (id: string) => void;
     onAddTask: (status?: string) => void;
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, onUpdateTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props = $props();
 
   // Arrastre con eventos de puntero: el de HTML5 no llega a soltar en el webview (Tauri atiende el
   // soltado nativo, para los archivos)
@@ -30,13 +32,23 @@
     x: number;
     y: number;
     moving: boolean;
-    over: string | null;
+    /** Dónde caería: la columna y la tarjeta que quedaría debajo (`null`, al final). */
+    over: { column: string; before: string | null } | null;
   } | null>(null);
 
-  function columnAt(x: number, y: number): string | null {
+  function columnAt(x: number, y: number): HTMLElement | null {
     const col = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-column]');
     // Con la vista dividida puede haber otro tablero al lado
-    return col && root?.contains(col) ? col.dataset.column! : null;
+    return col && root?.contains(col) ? col : null;
+  }
+
+  /** La primera tarjeta, sin contar la arrastrada, cuyo centro queda por debajo del puntero. */
+  function cardBelow(col: HTMLElement, y: number, dragged: string): string | null {
+    const card = [...col.querySelectorAll<HTMLElement>('[data-task]')].find((card) => {
+      const box = card.getBoundingClientRect();
+      return card.dataset.task !== dragged && y < box.top + box.height / 2;
+    });
+    return card?.dataset.task ?? null;
   }
 
   function startDrag(e: PointerEvent, task: BoardTask) {
@@ -68,33 +80,53 @@
     drag.y = e.clientY;
     drag.moving ||= Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > DRAG_THRESHOLD;
     if (!drag.moving || !root) return;
-    drag.over = columnAt(e.clientX, e.clientY);
-    // Cerca de un borde, se desplaza para llegar a las columnas que no se ven
+    const col = columnAt(e.clientX, e.clientY);
+    // Cerca de un borde, se desplaza para llegar a las tarjetas y columnas que no se ven
+    const list = col?.querySelector<HTMLElement>('.col-cards');
+    if (list) {
+      const { top, bottom } = list.getBoundingClientRect();
+      if (e.clientY > bottom - 30) list.scrollTop += 12;
+      else if (e.clientY < top + 30) list.scrollTop -= 12;
+    }
+    drag.over = col && { column: col.dataset.column!, before: cardBelow(col, e.clientY, drag.id) };
     const box = root.getBoundingClientRect();
     if (e.clientX > box.right - 40) root.scrollLeft += 16;
     else if (e.clientX < box.left + 40) root.scrollLeft -= 16;
   }
 
   function endDrag() {
-    if (drag?.moving && drag.over) moveTask(drag.id, drag.over);
+    if (drag?.moving && drag.over) onMoveTask(drag.id, drag.over.column, drag.over.before);
     drag = null;
   }
 
-  function moveTask(id: string, column: string) {
-    if (tasks.find((t) => t.id === id)?.status !== column) onUpdateTask(id, { status: column });
-  }
-
-  /** Shift+← / Shift+→ sobre la tarjeta enfocada. */
-  async function moveByKey(e: KeyboardEvent, task: BoardTask) {
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!step || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+  /** Enter abre el detalle; Shift+flechas mueven la tarjeta enfocada. */
+  async function onCardKey(e: KeyboardEvent, task: BoardTask) {
+    if (e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      return onOpenTask(task.id);
+    }
+    if (!e.shiftKey || !e.key.startsWith('Arrow')) return;
     e.preventDefault();
-    const next = columns[columns.findIndex((c) => c.id === task.status) + step];
-    if (!next) return;
-    moveTask(task.id, next.id);
-    // La tarjeta se vuelve a crear en la otra columna: recupera el foco
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const step = e.key === 'ArrowRight' ? 1 : -1;
+      const next = columns[columns.findIndex((c) => c.id === task.status) + step];
+      if (!next) return;
+      onMoveTask(task.id, next.id, null);
+    } else {
+      const column = tasks.filter((t) => t.status === task.status);
+      const i = column.findIndex((t) => t.id === task.id);
+      const up = e.key === 'ArrowUp';
+      if (up ? i === 0 : i === column.length - 1) return;
+      onMoveTask(task.id, task.status, (up ? column[i - 1] : column[i + 2])?.id ?? null);
+    }
+    // Al moverse, la tarjeta pierde el foco: lo recupera
     await tick();
     root?.querySelector<HTMLElement>(`[data-task="${CSS.escape(task.id)}"]`)?.focus();
+  }
+
+  function openOnDoubleClick(e: MouseEvent, id: string) {
+    if (!(e.target as HTMLElement).closest('button')) onOpenTask(id);
   }
 </script>
 
@@ -103,19 +135,21 @@
 <div class="kanban-view" bind:this={root}>
   {#each columns as col (col.id)}
     {@const colTasks = tasks.filter((t) => t.status === col.id)}
-    <div class="kanban-col" class:drag-over={drag?.over === col.id} data-column={col.id} role="list">
+    {@const dropHere = drag?.moving && drag.over?.column === col.id ? drag.over : null}
+    <div class="kanban-col" class:drag-over={dropHere} data-column={col.id} role="list">
       <div class="col-header">
         <span class="dot" style="background: {col.color}"></span>
         <span class="col-title">{col.label}</span>
         <span class="col-count">{colTasks.length}</span>
       </div>
 
-      <div class="col-cards">
+      <div class="col-cards" class:drop-end={dropHere && dropHere.before === null}>
         {#each colTasks as task (task.id)}
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
             class="card"
             class:dragging={drag?.moving && drag.id === task.id}
+            class:drop-before={dropHere?.before === task.id}
             role="listitem"
             tabindex="0"
             data-task={task.id}
@@ -123,7 +157,8 @@
             onpointermove={moveDrag}
             onpointerup={endDrag}
             onpointercancel={() => (drag = null)}
-            onkeydown={(e) => moveByKey(e, task)}
+            onkeydown={(e) => onCardKey(e, task)}
+            ondblclick={(e) => openOnDoubleClick(e, task.id)}
           >
             <div class="card-top">
               <span class="card-id">{task.id}</span>
@@ -216,6 +251,8 @@
     font-size: 13px;
     color: var(--text-primary);
     transform: rotate(1.5deg);
+    /* Deja ver debajo la marca de dónde caerá */
+    opacity: 0.75;
   }
 
   .col-header {
@@ -251,9 +288,32 @@
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
+    /* Sitio para la marca de destino encima de la primera tarjeta, sin mover nada */
+    padding-block: 6px;
+    margin-block: -6px;
+  }
+
+  .card.drop-before::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+  }
+
+  .col-cards.drop-end::after {
+    content: '';
+    flex-shrink: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
   }
 
   .card {
+    position: relative;
     background: var(--bg-primary);
     border: 1px solid var(--border-primary);
     border-radius: 6px;

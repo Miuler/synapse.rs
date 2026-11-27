@@ -1,7 +1,10 @@
 <script lang="ts">
-  import { Table, Kanban, GanttChartSquare } from 'lucide-svelte';
+  import { Table, Kanban, GanttChartSquare, FileCode } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
+  import { CodeEditor } from '@shared/ui/code-editor';
   import {
     parseBoardMarkdown,
+    placeTask,
     serializeBoardMarkdown,
     type BoardTask,
     type BoardViewMode,
@@ -9,18 +12,20 @@
   import TableView from './TableView.svelte';
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
-  import CommentsPanel from './CommentsPanel.svelte';
+  import TaskDialog from './TaskDialog.svelte';
   import AzureSync from './AzureSync.svelte';
 
   interface Props {
     content: string;
+    vimMode?: boolean;
     onChange: (nextContent: string) => void;
   }
 
-  let { content, onChange }: Props = $props();
+  let { content, vimMode = false, onChange }: Props = $props();
 
   let doc = $derived(parseBoardMarkdown(content));
-  let activeView = $state<BoardViewMode | null>(null);
+  // «raw» solo se mira: no se guarda como vista del tablero
+  let activeView = $state<BoardViewMode | 'raw' | null>(null);
   let currentView = $derived(activeView ?? doc.defaultView);
   let selectedTaskId = $state<string | null>(null);
   let selectedTask = $derived(doc.tasks.find((t) => t.id === selectedTaskId) ?? null);
@@ -31,6 +36,11 @@
 
   function updateTask(id: string, patch: Partial<BoardTask>) {
     commit(doc.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
+
+  function moveTask(id: string, status: string, before: string | null) {
+    const tasks = placeTask(doc.tasks, id, status, before);
+    if (tasks !== doc.tasks) commit(tasks);
   }
 
   function write(next: typeof doc) {
@@ -99,6 +109,15 @@
       >
         <GanttChartSquare size={14} /> Gantt
       </button>
+      <button
+        type="button"
+        class="view-raw"
+        class:active={currentView === 'raw'}
+        title={t('board.rawHint')}
+        onclick={() => (activeView = 'raw')}
+      >
+        <FileCode size={14} /> Raw
+      </button>
     </div>
 
     <AzureSync read={() => doc} {write} />
@@ -119,10 +138,15 @@
         <KanbanView
           tasks={doc.tasks}
           columns={doc.columns}
-          onUpdateTask={updateTask}
+          onMoveTask={moveTask}
+          onOpenTask={(id) => (selectedTaskId = id)}
           onAddTask={(status) => addTask(status)}
           onSelectComments={(id) => (selectedTaskId = id)}
         />
+      {:else if currentView === 'raw'}
+        <div class="board-raw">
+          <CodeEditor {content} {vimMode} readOnly isActive />
+        </div>
       {:else}
         <GanttView
           tasks={doc.tasks}
@@ -133,11 +157,17 @@
     </div>
 
     {#if selectedTask}
-      <CommentsPanel
-        task={selectedTask}
-        onClose={() => (selectedTaskId = null)}
-        onAddComment={addComment}
-      />
+      <!-- Otra tarea, otro diálogo: el comentario a medio escribir no cambia de tarea -->
+      {#key selectedTask.id}
+        <TaskDialog
+          task={selectedTask}
+          tasks={doc.tasks}
+          columns={doc.columns}
+          link={doc.azure?.links?.[selectedTask.id]}
+          onClose={() => (selectedTaskId = null)}
+          onAddComment={addComment}
+        />
+      {/key}
     {/if}
   </div>
 </div>
@@ -197,6 +227,11 @@
     flex: 1;
     display: flex;
     min-height: 0;
+  }
+
+  .board-raw {
+    height: 100%;
+    overflow: hidden;
   }
 
   .board-main {

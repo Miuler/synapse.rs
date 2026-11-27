@@ -229,6 +229,26 @@ export function serializeBoardMarkdown(doc: BoardDocument): string {
   return parts.join('\n');
 }
 
+/**
+ * Pone la tarea en la columna `status`, delante de `before`; sin `before`, al final de la columna.
+ * El orden de las filas es el orden del tablero. Si la columna queda igual, devuelve el mismo array.
+ */
+export function placeTask(tasks: BoardTask[], id: string, status: string, before: string | null): BoardTask[] {
+  const from = tasks.findIndex((t) => t.id === id);
+  if (from === -1 || before === id) return tasks;
+  const task = tasks[from];
+  const rest = tasks.filter((_, i) => i !== from);
+  let at = rest.findIndex((t) => t.id === before);
+  if (at === -1) {
+    const last = rest.map((t) => t.status).lastIndexOf(status);
+    // En una columna vacía conserva su fila
+    at = last === -1 ? from : last + 1;
+  }
+  rest.splice(at, 0, task.status === status ? task : { ...task, status });
+  const order = (list: BoardTask[]) => list.filter((t) => t.status === status).map((t) => t.id).join('\n');
+  return task.status === status && order(rest) === order(tasks) ? tasks : rest;
+}
+
 export function createDefaultBoardMarkdown(): string {
   const today = new Date().toISOString().slice(0, 10);
   return serializeBoardMarkdown({
