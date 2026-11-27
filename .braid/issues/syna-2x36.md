@@ -17,3 +17,5 @@ acceptance:
 Solo se probó contra un servidor falso; tampoco se probó el token desde 1Password real. Requiere al usuario: primero «Traer» (solo lectura) y después una escritura en un item de prueba.
 
 Por verificar de «Probar» (`GET <servidor>/_apis/connectionData`, usado por el cliente oficial de Microsoft pero fuera de la referencia REST): que acepte un token con solo permisos de work items, que el nombre llegue en `customDisplayName` o `providerDisplayName`, y que no exija `api-version`.
+
+Por verificar de los estados: que `workitemtypes/{tipo}/states` responda con `name` y `category` con un token solo de work items, y qué categoría llega para los estados retirados.

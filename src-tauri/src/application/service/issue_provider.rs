@@ -1,4 +1,4 @@
-use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue};
+use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue, TypeStates};
 use crate::domain::issue::issue_error::IssueError;
 use crate::domain::issue::provider_descriptor::ProviderDescriptor;
 use std::future::Future;
@@ -13,6 +13,9 @@ pub trait IssueProvider: Send + Sync {
 
     /// Comprueba la conexión y su credencial.
     fn check<'a>(&'a self) -> ProviderFuture<'a, Account>;
+
+    /// Los tipos de tarea del ámbito con sus estados.
+    fn states<'a>(&'a self, scope: &'a str) -> ProviderFuture<'a, Vec<TypeStates>>;
 
     /// Ids que devuelve la consulta.
     fn search<'a>(&'a self, scope: &'a str, query: &'a str) -> ProviderFuture<'a, Vec<String>>;

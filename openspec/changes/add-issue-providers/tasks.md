@@ -22,7 +22,7 @@
 - [x] 2.3 Pantalla de conexiones en Configuración, con formulario generado por el proveedor, «Probar» y borrado;
   e2e que crea dos conexiones de Azure DevOps contra servidores falsos y confirma que cada tablero usa la suya.
   Añade `check` al puerto, tras verificar su endpoint
-- [ ] 2.4 Estados con su categoría: `states` en el puerto (tipos de work item y estados de cada uno) y la categoría en
+- [x] 2.4 Estados con su categoría: `states` en el puerto (tipos de work item y estados de cada uno) y la categoría en
   cada tarea traída; columna por categoría cuando el estado no está configurado, moviendo también las ya traídas que
   no cambiaron aquí. Pruebas contra servidor falso con estados fuera de la lista de respaldo
 - [ ] 2.5 Criterios de filtro declarados por el proveedor (tipo, estado, asignado, iteración, área y etiqueta) y sus

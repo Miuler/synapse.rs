@@ -92,6 +92,14 @@ pub struct IssueEntry {
     pub changes: Vec<FieldChange>,
 }
 
+/// Los estados que admite un tipo de tarea, cada uno con su categoría.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TypeStates {
+    #[serde(rename = "type")]
+    pub issue_type: String,
+    pub states: Vec<IssueState>,
+}
+
 /// La cuenta con la que entra una credencial.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Account {

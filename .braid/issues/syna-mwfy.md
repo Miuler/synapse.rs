@@ -18,3 +18,4 @@ Hoy states de azure_devops solo se cambia editando el frontmatter.
 
 En un uso real (2026-11-27) los estados «Blocked», «Resolving» y «Escalated» no corresponden a ninguna columna por defecto, y esas tarjetas caen en la primera. La comparación no distingue mayúsculas.
 
+Resuelto en parte (tarea 2.4 de add-issue-providers): sin configurar nada, cada estado va a la columna de la categoría que declara el proveedor. Falta poder cambiarlo desde la interfaz.

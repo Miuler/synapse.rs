@@ -20,6 +20,8 @@ const server = Bun.serve({
     if (!['token-falso', 'token-de-op', 'token-pegado'].includes(token)) return new Response('', { status: 401 });
     tokens.push(token);
     const path = new URL(request.url).pathname;
+    // Los estados de cada tipo: sin ninguno, valen los nombres habituales
+    if (request.method === 'GET') return Response.json({ value: [] });
     const body = (await request.json()) as any;
     if (path === '/org/Demo/_apis/wit/wiql') return Response.json({ workItems: [...items.keys()].map((id) => ({ id })) });
     if (path === '/org/_apis/wit/workitemsbatch') {

@@ -7,7 +7,7 @@ use crate::application::service::credential_store::GlobalCredential;
 use crate::application::service::issue_provider::{IssueProvider, ProviderFuture};
 use crate::domain::issue::connection::{self, Connection};
 use crate::domain::issue::issue::{
-    Account, Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory,
+    Account, Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory, TypeStates,
 };
 use crate::domain::issue::issue_error::{IssueError, IssueErrorKind as Kind};
 use crate::domain::issue::provider_descriptor::{
@@ -19,6 +19,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use reqwest::{Method, Url};
 use serde::Serialize;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::time::Duration;
 
@@ -428,6 +429,18 @@ fn person(value: &Value) -> Option<Person> {
     })
 }
 
+/// La categoría que declara Azure DevOps. «Resolved» sigue en curso hasta que se cierra; una que no
+/// se conozca se deduce del nombre del estado. («Removed» no figura en la documentación consultada.)
+fn category(declared: &str, name: &str) -> StateCategory {
+    match declared {
+        "Proposed" => StateCategory::Todo,
+        "InProgress" | "Resolved" => StateCategory::Doing,
+        "Completed" => StateCategory::Done,
+        "Removed" => StateCategory::Cancelled,
+        _ => StateCategory::from_name(name),
+    }
+}
+
 fn issue(value: &Value) -> Option<Issue> {
     let field = |name: &str| value["fields"][name].as_str().unwrap_or_default().to_string();
     let id = value["id"].as_u64()?;
@@ -509,6 +522,54 @@ impl AzureDevOpsClient {
     }
 }
 
+impl AzureDevOpsClient {
+    /// Los estados de un tipo de work item, con su categoría.
+    async fn type_states(
+        &self,
+        project: &Project,
+        issue_type: &str,
+    ) -> Result<Vec<IssueState>, IssueError> {
+        let mut url = Url::parse(&project.url("workitemtypes"))
+            .map_err(|_| IssueError::new(Kind::InvalidUrl, &project.name))?;
+        if let Ok(mut path) = url.path_segments_mut() {
+            path.push(issue_type).push("states");
+        }
+        url.set_query(Some(API));
+        let response = self.send(Method::GET, url.as_str(), None).await?;
+        let states = response["value"].as_array();
+        Ok(states
+            .map(|states| {
+                states
+                    .iter()
+                    .filter_map(|state| {
+                        let name = state["name"].as_str()?;
+                        Some(IssueState {
+                            category: category(state["category"].as_str().unwrap_or_default(), name),
+                            name: name.to_string(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// Pone a cada tarea la categoría que su proyecto declara para su estado. Si los estados no se
+    /// pueden leer, queda la deducida del nombre: traer las tareas importa más.
+    async fn declare_categories(&self, project: &Project, issues: &mut [Issue]) {
+        let types: BTreeSet<String> = issues.iter().map(|i| i.issue_type.clone()).collect();
+        for issue_type in types.iter().filter(|t| !t.is_empty()) {
+            let Ok(states) = self.type_states(project, issue_type).await else {
+                continue;
+            };
+            for issue in issues.iter_mut().filter(|i| &i.issue_type == issue_type) {
+                if let Some(state) = states.iter().find(|s| s.name == issue.state.name) {
+                    issue.state.category = state.category;
+                }
+            }
+        }
+    }
+}
+
 impl IssueProvider for AzureDevOpsClient {
     fn describe(&self) -> ProviderDescriptor {
         Self::descriptor()
@@ -532,6 +593,25 @@ impl IssueProvider for AzureDevOpsClient {
             Ok(Account {
                 name: name.map(str::to_string),
             })
+        })
+    }
+
+    fn states<'a>(&'a self, scope: &'a str) -> ProviderFuture<'a, Vec<TypeStates>> {
+        Box::pin(async move {
+            let project = self.project(scope)?;
+            let url = project.url(&format!("workitemtypes?{API}"));
+            let response = self.send(Method::GET, &url, None).await?;
+            let types = response["value"].as_array().cloned().unwrap_or_default();
+            let mut found = Vec::new();
+            for issue_type in types.iter().filter(|t| t["isDisabled"] != true) {
+                if let Some(name) = issue_type["name"].as_str() {
+                    found.push(TypeStates {
+                        issue_type: name.to_string(),
+                        states: self.type_states(&project, name).await?,
+                    });
+                }
+            }
+            Ok(found)
         })
     }
 
@@ -576,6 +656,7 @@ impl IssueProvider for AzureDevOpsClient {
                     found.extend(items.iter().filter_map(issue));
                 }
             }
+            self.declare_categories(&project, &mut found).await;
             Ok(found)
         })
     }
@@ -1031,6 +1112,88 @@ mod tests {
         let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}})).unwrap();
         assert_eq!((bare.assignee, bare.updated_at), (None, None));
         assert_eq!(person(&json!("Ana")).unwrap().name, "Ana");
+    }
+
+    /// Como `serve`, para varias peticiones seguidas: responde cada cuerpo JSON en orden.
+    fn serve_json(bodies: Vec<&'static str>) -> (String, JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let handle = std::thread::spawn(move || {
+            bodies
+                .into_iter()
+                .map(|body| {
+                    let (mut stream, _) = listener.accept().unwrap();
+                    let mut chunk = [0u8; 4096];
+                    let mut received = Vec::new();
+                    loop {
+                        let n = stream.read(&mut chunk).unwrap();
+                        received.extend_from_slice(&chunk[..n]);
+                        let text = String::from_utf8_lossy(&received);
+                        let complete = text.split_once("\r\n\r\n").is_some_and(|(head, sent)| {
+                            let length = head
+                                .to_lowercase()
+                                .lines()
+                                .find_map(|l| l.strip_prefix("content-length:")?.trim().parse().ok())
+                                .unwrap_or(0);
+                            sent.len() >= length
+                        });
+                        if n == 0 || complete {
+                            break;
+                        }
+                    }
+                    let length = body.len();
+                    let reply = format!(
+                        "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: {length}\r\n\r\n{body}"
+                    );
+                    stream.write_all(reply.as_bytes()).unwrap();
+                    String::from_utf8_lossy(&received).into_owned()
+                })
+                .collect()
+        });
+        (origin, handle)
+    }
+
+    #[test]
+    fn la_categoria_declarada_manda_sobre_el_nombre() {
+        assert_eq!(category("InProgress", "En espera"), StateCategory::Doing);
+        assert_eq!(category("Resolved", "Hecho a medias"), StateCategory::Doing);
+        assert_eq!(category("Completed", "En espera"), StateCategory::Done);
+        assert_eq!(category("Proposed", "Done"), StateCategory::Todo);
+        assert_eq!(category("Removed", "x"), StateCategory::Cancelled);
+        assert_eq!(category("", "Closed"), StateCategory::Done);
+    }
+
+    #[tokio::test]
+    async fn lo_traido_lleva_la_categoria_de_su_tipo() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"value":[{"id":1,"rev":1,"fields":{"System.State":"En espera","System.WorkItemType":"Mi tipo"}}]}"#,
+            r#"{"value":[{"name":"En espera","category":"InProgress"}]}"#,
+        ]);
+        let scope = format!("{origin}/org/Proyecto");
+        let found = client(Some(&format!("{origin}/org")))
+            .get(&scope, &["1".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(found[0].state.category, StateCategory::Doing);
+        let requests = requests.join().unwrap();
+        assert!(requests[1].starts_with(
+            "GET /org/Proyecto/_apis/wit/workitemtypes/Mi%20tipo/states?api-version=7.1 "
+        ));
+    }
+
+    #[tokio::test]
+    async fn los_estados_se_leen_de_cada_tipo_activo() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"value":[{"name":"Task"},{"name":"Viejo","isDisabled":true}]}"#,
+            r#"{"value":[{"name":"New","category":"Proposed"}]}"#,
+        ]);
+        let found = client(Some(&format!("{origin}/org")))
+            .states(&format!("{origin}/org/Proyecto"))
+            .await
+            .unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].states[0].category, StateCategory::Todo);
+        requests.join().unwrap();
     }
 
     #[tokio::test]

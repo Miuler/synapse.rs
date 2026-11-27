@@ -76,6 +76,33 @@ describe('Traer', () => {
     expect(result.doc.source!.links!.t1).toEqual(link(1, 'Base', 'To Do', 'todo'));
   });
 
+  it('pone cada estado en la columna de su categoría aunque su nombre no se conozca', () => {
+    const waiting = (id: number): Issue => ({ ...item(id, 'A', 'En espera'), state: { name: 'En espera', category: 'doing' } });
+    // t1 se trajo antes de saberlo y nadie la movió; t2 sí se movió aquí; la 3 es nueva
+    const doc = board([task('t1', 'A', 'todo'), task('t2', 'A', 'done')], {
+      t1: link(1, 'A', 'En espera', 'todo'),
+      t2: link(2, 'A', 'En espera', 'todo'),
+    });
+    const result = applyPull(doc, provider, [waiting(1), waiting(2), waiting(3)], ['1', '2', '3'], '2026-02-02');
+    expect(result.doc.tasks.map((t) => [t.id, t.status])).toEqual([
+      ['t1', 'doing'],
+      ['t2', 'done'],
+      ['ado-3', 'doing'],
+    ]);
+    expect([result.updated, result.conflicts]).toEqual([1, []]);
+    expect(result.doc.source!.links!.t1.column).toBe('doing');
+    // Y moverla a la columna que ya le corresponde no pide cambiar nada
+    const moved = { ...doc, tasks: [task('t2', 'A', 'doing')] };
+    expect(buildPushPlan(moved, provider, [waiting(2)]).changes).toEqual([]);
+  });
+
+  it('los estados configurados en el tablero mandan sobre la categoría', () => {
+    const doc = board([], {});
+    doc.source!.states = { done: ['En espera'] };
+    const waiting: Issue = { ...item(1, 'A', 'En espera'), state: { name: 'En espera', category: 'doing' } };
+    expect(applyPull(doc, provider, [waiting], ['1'], '2026-02-02').doc.tasks[0].status).toBe('done');
+  });
+
   it('desvincula lo que ya no existe sin borrar la tarea, y no toca vínculos que no se pidieron', () => {
     const doc = board([task('t1', 'A', 'todo'), task('t2', 'B', 'todo')], {
       t1: link(1, 'A', 'To Do', 'todo'),

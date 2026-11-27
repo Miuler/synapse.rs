@@ -41,7 +41,8 @@ export interface Issue {
   id: string;
   type: string;
   title: string;
-  state: { name: string };
+  /** `category` es la que declara el proveedor para ese estado. */
+  state: { name: string; category?: 'todo' | 'doing' | 'done' | 'cancelled' };
   /** Versión leída: una escritura solo se admite sobre ella. */
   revision: string | null;
 }
@@ -63,9 +64,19 @@ function statesOf(source: IssueSource, provider: IssueProvider, column: string):
   return source.states?.[column] ?? provider.default_states[column] ?? [];
 }
 
-function columnOf(doc: BoardDocument, provider: IssueProvider, state: string): string | undefined {
-  const wanted = state.toLowerCase();
-  return doc.columns.find((c) => statesOf(doc.source!, provider, c.id).some((s) => s.toLowerCase() === wanted))?.id;
+/**
+ * La columna de un estado remoto: la que lo tenga configurado en el tablero; si no, la de la categoría
+ * que declara el proveedor; y, como respaldo, la que lo tenga entre sus nombres habituales.
+ */
+function columnOf(doc: BoardDocument, provider: IssueProvider, state: Issue['state']): string | undefined {
+  const wanted = state.name.toLowerCase();
+  const listing = (states: (column: string) => string[] | undefined) =>
+    doc.columns.find((c) => states(c.id)?.some((s) => s.toLowerCase() === wanted))?.id;
+  return (
+    listing((column) => doc.source!.states?.[column]) ??
+    doc.columns.find((c) => c.id === state.category)?.id ??
+    listing((column) => statesOf(doc.source!, provider, column))
+  );
 }
 
 /** Un título tal como queda en una celda de la tabla. */
@@ -119,8 +130,8 @@ export function applyPull(
       else conflict = true;
     }
 
+    const column = columnOf(doc, provider, item.state);
     if (item.state.name !== link.state) {
-      const column = columnOf(doc, provider, item.state.name);
       if (column === task.status) {
         base.state = item.state.name;
         base.column = column;
@@ -129,6 +140,9 @@ export function applyPull(
         next.status = base.column = column ?? task.status;
         base.state = item.state.name;
       } else conflict = true;
+    } else if (column && column !== task.status && task.status === link.column) {
+      // El estado no cambió, pero ahora se sabe su columna y aquí nadie movió la tarjeta
+      next.status = base.column = column;
     }
 
     if (conflict) conflicts.push(task.id);
@@ -146,7 +160,7 @@ export function applyPull(
     while (used.has(id)) id += '_';
     used.add(id);
     const title = cellText(item.title);
-    const status = columnOf(doc, provider, item.state.name) ?? doc.columns[0]?.id ?? 'todo';
+    const status = columnOf(doc, provider, item.state) ?? doc.columns[0]?.id ?? 'todo';
     tasks.push({ id, title, status, start: today, duration: 1, dependsOn: '-', progress: 0, comments: [] });
     links[id] = { id: item.id, title, state: item.state.name, column: status };
     added++;
@@ -211,7 +225,8 @@ export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items
     if (task.status !== link.column) {
       const states = statesOf(source, provider, task.status);
       if (states.length === 0) plan.unmapped.push(task.id);
-      else if (!states.some((s) => s.toLowerCase() === item.state.name.toLowerCase())) {
+      // Si su estado remoto ya es de esta columna, no hay nada que cambiar
+      else if (columnOf(doc, provider, item.state) !== task.status) {
         change.state = states[0];
         change.conflict ||= item.state.name !== link.state;
       }
@@ -288,7 +303,7 @@ export async function runPush(
       if (!task || doc.source?.links?.[taskId]) continue;
       let item = await writer.create(doc.source?.issue_type?.trim() || provider.default_issue_type, task.title);
       // Nace en su estado inicial; la columna de la tarea se envía después
-      const initial = columnOf(doc, provider, item.state.name) ?? doc.columns[0]?.id ?? 'todo';
+      const initial = columnOf(doc, provider, item.state) ?? doc.columns[0]?.id ?? 'todo';
       const link: IssueLink = { id: item.id, title: cellText(item.title), state: item.state.name, column: initial };
       save(taskId, { ...link });
       result.created++;

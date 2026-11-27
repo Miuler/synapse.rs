@@ -21,11 +21,15 @@ const server = Bun.serve({
     received.push({ org, token });
     if (token !== TOKENS[org]) return new Response('', { status: 401 });
     if (path.endsWith('/_apis/connectionData')) return Response.json({ authenticatedUser: { providerDisplayName: PEOPLE[org] } });
+    // Un estado que ninguna lista conoce: su columna sale de la categoría declarada
+    if (path.endsWith('/_apis/wit/workitemtypes/Task/states')) {
+      return Response.json({ value: [{ name: 'En espera de terceros', category: 'InProgress' }] });
+    }
     if (path.endsWith('/_apis/wit/wiql')) return Response.json({ workItems: [{ id: org === 'org' ? 1 : 2 }] });
     if (path.endsWith('/_apis/wit/workitemsbatch')) {
       const { ids } = (await request.json()) as { ids: number[] };
       return Response.json({
-        value: ids.map((id) => ({ id, rev: 1, fields: { 'System.Title': `Tarea de ${org}`, 'System.State': 'To Do', 'System.WorkItemType': 'Task' } })),
+        value: ids.map((id) => ({ id, rev: 1, fields: { 'System.Title': `Tarea de ${org}`, 'System.State': org === 'org' ? 'En espera de terceros' : 'To Do', 'System.WorkItemType': 'Task' } })),
       });
     }
     return Response.json({ message: `ruta inesperada ${path}` }, { status: 500 });
@@ -37,6 +41,7 @@ type: board
 default_view: table
 columns:
   - { id: todo, label: "Por hacer", color: "var(--text-muted)" }
+  - { id: doing, label: "En progreso", color: "var(--accent)" }
 azure_devops:
   project_url: ${server.url.origin}/${org}/Demo
 ---
@@ -146,6 +151,7 @@ async function pull(file: string, org: string) {
 
 it('cada tablero usa la conexión de su organización', async () => {
   await pull('uno.board.md', 'org');
+  expect(readFileSync(join(s.vault, 'uno.board.md'), 'utf8')).toContain('| ado-1 | Tarea de org | doing |');
   await pull('dos.board.md', 'otra');
 }, 120_000);
 
