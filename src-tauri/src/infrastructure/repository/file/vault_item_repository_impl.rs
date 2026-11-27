@@ -1,10 +1,45 @@
 use crate::domain::vault::file_name::FileName;
+use crate::domain::board::protection;
+use crate::infrastructure::repository::file::board_guard;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Servicio de infraestructura para operaciones de sistema de archivos dentro de la bóveda.
 #[derive(Clone)]
 pub struct VaultItemRepositoryImpl;
+
+/// La carpeta de tareas que acompaña a un archivo de tablero, si existe.
+fn board_tasks(board: &Path) -> Option<PathBuf> {
+    protection::folder_of(board).filter(|folder| board.is_file() && folder.is_dir())
+}
+
+/// Dónde iría la carpeta de un tablero que pasa a llamarse `target`: libre, y sin dejar de ser tablero.
+fn free_board_folder(target: &Path) -> Result<PathBuf, String> {
+    let folder = protection::folder_of(target).ok_or_else(|| {
+        "Un tablero con carpeta de tareas conserva la extensión «.board.md»".to_string()
+    })?;
+    if folder.exists() {
+        return Err(format!(
+            "Ya existe «{}»",
+            folder.file_name().unwrap_or_default().to_string_lossy()
+        ));
+    }
+    Ok(folder)
+}
+
+/// Renombra o mueve; si es un tablero con carpeta, la carpeta va con él.
+fn rename_with_board(source: &Path, target: &Path) -> Result<(), String> {
+    let Some(tasks) = board_tasks(source) else {
+        return fs::rename(source, target).map_err(|e| e.to_string());
+    };
+    let tasks_target = free_board_folder(target)?;
+    fs::rename(source, target).map_err(|e| e.to_string())?;
+    fs::rename(&tasks, &tasks_target).map_err(|e| {
+        // Separados, la carpeta dejaría de estar protegida: se deshace
+        let _ = fs::rename(target, source);
+        e.to_string()
+    })
+}
 
 impl VaultItemRepositoryImpl {
     /// Resuelve una ruta relativa o absoluta segura dentro de los límites de la bóveda (sin `..`).
@@ -133,12 +168,34 @@ impl VaultItemRepositoryImpl {
             .ok_or_else(|| "Nombre de elemento inválido".to_string())?;
 
         let same_folder = canonical_source.parent() == Some(canonical_dest);
-        let final_name = if same_folder || dest_dir.join(&name).exists() {
+        let board = board_tasks(canonical_source).and(name.strip_suffix(".board.md"));
+        let final_name = if let Some(stem) = board {
+            // La copia de un tablero se numera antes de «.board.md», y exige libre también su carpeta
+            let taken = |n: &str| {
+                let stem = n.strip_suffix(".md").unwrap_or(n);
+                dest_dir.join(format!("{stem}.board.md")).exists()
+                    || dest_dir.join(format!("{stem}.board")).exists()
+            };
+            let plain = format!("{stem}.md");
+            let free = if same_folder || taken(&plain) {
+                FileName::next_available_copy_name(&plain, false, taken)
+            } else {
+                plain
+            };
+            format!("{}.board.md", free.strip_suffix(".md").unwrap_or(&free))
+        } else if same_folder || dest_dir.join(&name).exists() {
             FileName::next_available_copy_name(&name, is_folder, |n| dest_dir.join(n).exists())
         } else {
             name
         };
         let target = dest_dir.join(&final_name);
+        board_guard::ensure_writable(&target)?;
+        // La carpeta de un tablero copiado va con él, así que su destino también tiene que estar libre
+        let tasks = board_tasks(canonical_source);
+        let tasks_target = match &tasks {
+            Some(_) => Some(free_board_folder(&target)?),
+            None => None,
+        };
 
         if is_folder {
             Self::copy_dir_recursive(canonical_source, &target)
@@ -146,6 +203,10 @@ impl VaultItemRepositoryImpl {
         } else {
             fs::copy(canonical_source, &target)
                 .map_err(|e| format!("Error al copiar archivo: {}", e))?;
+        }
+        if let (Some(tasks), Some(tasks_target)) = (tasks, tasks_target) {
+            Self::copy_dir_recursive(&tasks, &tasks_target)
+                .map_err(|e| format!("Error al copiar la carpeta del tablero: {}", e))?;
         }
 
         Ok(Self::to_relative(vault_path, &target))
@@ -200,7 +261,10 @@ impl VaultItemRepositoryImpl {
             ));
         }
 
-        fs::rename(&source, &target).map_err(|e| format!("Error al mover elemento: {}", e))?;
+        board_guard::ensure_writable(&source)?;
+        board_guard::ensure_writable(&target)?;
+        rename_with_board(&source, &target)
+            .map_err(|e| format!("Error al mover elemento: {}", e))?;
         Ok(Self::to_relative(vault_path, &target))
     }
 
@@ -240,7 +304,10 @@ impl VaultItemRepositoryImpl {
             return Err(format!("Ya existe un elemento llamado '{}'", new_name));
         }
 
-        fs::rename(&source, &target).map_err(|e| format!("Error al renombrar elemento: {}", e))?;
+        board_guard::ensure_writable(&source)?;
+        board_guard::ensure_writable(&target)?;
+        rename_with_board(&source, &target)
+            .map_err(|e| format!("Error al renombrar elemento: {}", e))?;
 
         // Markdown renombrado: si su frontmatter tenía `title` igual al nombre anterior, pasa al nuevo
         // (un título propio, distinto del nombre, se respeta; sin `title` no se añade)
@@ -282,6 +349,7 @@ impl VaultItemRepositoryImpl {
             return Err("No se puede eliminar la raíz de la bóveda".to_string());
         }
 
+        board_guard::ensure_writable(&target_path)?;
         if !target_path.exists() {
             return Err(format!("El elemento '{}' no existe", relative_path));
         }
@@ -315,6 +383,7 @@ impl VaultItemRepositoryImpl {
         if target == vault_path {
             return Err("No se puede escribir directamente en la raíz de la bóveda".to_string());
         }
+        board_guard::ensure_writable(&target)?;
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         if let Some(parent) = target.parent() {
@@ -346,6 +415,7 @@ impl VaultItemRepositoryImpl {
     /// Crea una carpeta dentro de la bóveda garantizando los límites de seguridad.
     pub fn create_folder(vault_path: &Path, relative_path: &str) -> Result<(), String> {
         let target = Self::resolve(vault_path, relative_path)?;
+        board_guard::ensure_writable(&target)?;
         fs::create_dir_all(&target).map_err(|e| format!("Error al crear carpeta: {}", e))
     }
 }
@@ -412,12 +482,16 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
     }
 
     fn ensure_folder(&self, vault_path: &Path, relative_path: &str) -> Result<(), String> {
-        fs::create_dir_all(vault_path.join(relative_path)).map_err(|e| e.to_string())
+        let target = vault_path.join(relative_path);
+        board_guard::ensure_writable(&target)?;
+        fs::create_dir_all(target).map_err(|e| e.to_string())
     }
 
     fn relocate(&self, vault_path: &Path, source_rel: &str, dest_rel: &str) -> Result<(), String> {
-        fs::rename(vault_path.join(source_rel), vault_path.join(dest_rel))
-            .map_err(|e| e.to_string())
+        let (source, target) = (vault_path.join(source_rel), vault_path.join(dest_rel));
+        board_guard::ensure_writable(&source)?;
+        board_guard::ensure_writable(&target)?;
+        fs::rename(source, target).map_err(|e| e.to_string())
     }
 
     fn list_folder(

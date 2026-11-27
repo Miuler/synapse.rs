@@ -5,4 +5,5 @@
 pub mod board_error;
 pub mod board_file;
 pub mod board_repository;
+pub mod protection;
 pub mod task_file;

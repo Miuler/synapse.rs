@@ -1,4 +1,5 @@
 use crate::domain::note::note::Note;
+use crate::infrastructure::repository::file::board_guard;
 use crate::domain::note::note_path::NoteRelativePath;
 use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::vault::file_types::SupportedFileTypes;
@@ -289,6 +290,7 @@ impl NoteRepository for NoteRepositoryImpl {
 
     fn save_note(&self, vault_path: &Path, note: &Note) -> Result<(), String> {
         let abs_path = self.resolve_absolute_path(vault_path, &note.relative_path);
+        board_guard::ensure_writable(&abs_path)?;
 
         // Crear directorio padre si no existe
         if let Some(parent) = abs_path.parent() {
@@ -321,6 +323,7 @@ impl NoteRepository for NoteRepositoryImpl {
         relative_path: &NoteRelativePath,
     ) -> Result<(), String> {
         let abs_path = self.resolve_absolute_path(vault_path, relative_path);
+        board_guard::ensure_writable(&abs_path)?;
         if !abs_path.exists() {
             return Err(format!("El archivo no existe en {:?}", abs_path));
         }
@@ -387,6 +390,7 @@ impl NoteRepository for NoteRepositoryImpl {
     }
 
     fn save_standalone_file(&self, path: &Path, note: &Note) -> Result<(), String> {
+        board_guard::ensure_writable(path)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }

@@ -8,6 +8,7 @@ use crate::domain::board::board_file::{self, BoardFile};
 use crate::domain::board::board_repository::{
     BoardRepository, BoardSnapshot, StoredTask, TaskCard, TaskProblem,
 };
+use crate::domain::board::protection;
 use crate::domain::board::task_file::{self, TaskFile, is_valid_task_id};
 use crate::domain::issue::issue::EntryKind;
 use crate::domain::note::note_content::NoteContent;
@@ -45,16 +46,8 @@ fn io(path: &Path, error: std::io::Error) -> BoardError {
 
 /// La carpeta de tareas de `Nombre.board.md`.
 fn folder(board: &Path) -> Result<PathBuf, BoardError> {
-    let name = board
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or_default();
-    match name.strip_suffix(".md") {
-        Some(stem) if stem.ends_with(".board") && stem.len() > ".board".len() => {
-            Ok(board.with_file_name(stem))
-        }
-        _ => Err(BoardError::new(Kind::Path, board.display().to_string())),
-    }
+    protection::folder_of(board)
+        .ok_or_else(|| BoardError::new(Kind::Path, board.display().to_string()))
 }
 
 fn task_path(board: &Path, id: &str) -> Result<PathBuf, BoardError> {

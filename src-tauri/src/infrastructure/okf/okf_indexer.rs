@@ -34,10 +34,14 @@ fn name_of(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-/// Archivos que no entran en el índice: el propio índice, el log y lo oculto
+/// Archivos que no entran en el índice: el propio índice, el log, lo oculto y las carpetas de
+/// tablero (`Nombre.board/`), que solo escribe su tablero
 fn skipped(path: &str) -> bool {
     let name = name_of(path);
-    name == INDEX_FILE || name == LOG_FILE || path.split('/').any(|seg| seg.starts_with('.'))
+    name == INDEX_FILE
+        || name == LOG_FILE
+        || path.split('/').any(|seg| seg.starts_with('.'))
+        || path.split('/').rev().skip(1).any(|folder| folder.ends_with(".board"))
 }
 
 impl OkfIndexer {

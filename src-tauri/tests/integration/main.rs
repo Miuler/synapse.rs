@@ -5,6 +5,7 @@
 
 mod architecture;
 mod baseline_measurements;
+mod board_protection_tests;
 mod characterization_tests;
 mod full_text_tests;
 mod mcp_characterization_tests;
