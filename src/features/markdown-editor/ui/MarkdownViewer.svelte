@@ -24,6 +24,7 @@
   import { imagePasteExtension } from '../lib/image-paste';
   import { taskToggleExtension } from '../lib/task-toggle';
   import MarkdownReadingView from './MarkdownReadingView.svelte';
+  import { useWallpaper } from '@entities/settings';
   import { recordSpan } from '@shared/lib/perf-probe';
   import { lineKeymap, minimalChange, foldAllLevels, registerVimFolding, unfoldAll, renameOccurrencesKeymap, gitDiffGutter, setGitBaseContent } from '@shared/ui/code-editor';
 
@@ -94,6 +95,12 @@
   const pluginExtensionsCompartment = new Compartment();
 
   let readingViewRef = $state<any>(null);
+
+  // Los index.md llevan el fondo de la pestaña vacía como marca de agua
+  const wallpaper = useWallpaper();
+  const indexWallpaper = $derived(
+    isMarkdown && /(^|\/)index\.md$/i.test(filePath ?? '') ? wallpaper.style : undefined,
+  );
 
   export function triggerSearch() {
     if (viewMode === 'reading') {
@@ -1317,7 +1324,13 @@
   });
 </script>
 
-<div class="editor-wrapper synapse-editor" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
+<div
+  class="editor-wrapper synapse-editor"
+  class:index-wallpaper={!!indexWallpaper}
+  style={indexWallpaper}
+  bind:this={wrapperRef}
+  onscrollcapture={scheduleHeadingUpdate}
+>
   {#if isMarkdown && viewMode === 'reading'}
     <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} scrollToTerms={readingTerms} scrollToHeading={readingHeading} onRendered={onReadingRendered} {onNavigate} {isActive} {vimMode} {gitStatuses} {lockedFiles} />
   {/if}
@@ -1365,5 +1378,34 @@
     padding: 16px 24px;
     overflow: auto;
     height: 100%;
+  }
+
+  /* Marca de agua de los index.md: una capa desenfocada y casi transparente bajo el texto, que no
+     se desplaza con él. Un tema la ajusta con `--index-wallpaper-blur` y `--index-wallpaper-opacity`
+     (docs/temas.md) */
+  .editor-wrapper.index-wallpaper {
+    --wallpaper: var(--wallpaper-light);
+    position: relative;
+    isolation: isolate;
+  }
+
+  :global([data-theme='dark']) .editor-wrapper.index-wallpaper {
+    --wallpaper: var(--wallpaper-dark);
+  }
+
+  .editor-wrapper.index-wallpaper::before {
+    content: '';
+    position: absolute;
+    /* Sobresale para que el desenfoque no aclare los bordes */
+    inset: calc(-4 * var(--index-wallpaper-blur, 6px));
+    z-index: -1;
+    pointer-events: none;
+    background: var(--wallpaper) center / cover no-repeat;
+    filter: blur(var(--index-wallpaper-blur, 6px));
+    opacity: var(--index-wallpaper-opacity, 0.1);
+  }
+
+  .editor-wrapper.index-wallpaper :global(.markdown-reading-wrapper) {
+    background-color: transparent;
   }
 </style>

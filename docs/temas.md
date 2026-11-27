@@ -97,6 +97,20 @@ de lectura y en el editor en vivo. El modo código fuente conserva su estilo pro
 `--icon-folder` y `--icon-folder-open` reciben un `url(...)` a una imagen (SVG en línea, PNG…). Reemplazan
 el ícono de la app conservando los colores de la imagen. Sin definirlas se usa el ícono normal.
 
+### Marca de agua de los index.md
+
+Los `index.md` llevan de fondo, muy tenue, la imagen de la pestaña vacía (si en ella se elige fondo
+«Ninguno», no llevan nada). Un tema puede ajustar cuánto se difumina; lo que no defina se hereda.
+
+| Variable | Uso | Por defecto |
+|---|---|---|
+| `--index-wallpaper-blur` | Desenfoque de la imagen (`0px`: nítida) | `6px` |
+| `--index-wallpaper-opacity` | Cuánto se ve, de `0` (nada) a `1` | `0.1` |
+
+```css
+html[data-theme] { --index-wallpaper-blur: 2px; --index-wallpaper-opacity: 0.18; }
+```
+
 ## 2. Zonas públicas
 
 Clases estables para apuntar a cada parte de la app. No cambian entre versiones; las demás clases son

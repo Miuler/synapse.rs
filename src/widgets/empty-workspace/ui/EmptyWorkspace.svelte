@@ -3,8 +3,7 @@
   import {
     FileText, Plus, ChevronRight, ChevronDown, Workflow, Network, Shapes, PenTool, PencilRuler, Kanban,
   } from 'lucide-svelte';
-  import { convertFileSrc } from '@tauri-apps/api/core';
-  import { appSettings, NO_WALLPAPER } from '@entities/settings';
+  import { appSettings, useWallpaper } from '@entities/settings';
   import { FileIcon } from '@entities/file-type';
   import { vaultItemStore } from '@entities/vault-item';
   import { NEW_FILE_KINDS, type NewFileKind } from '@features/markdown-editor/lib/folder-index-actions';
@@ -12,9 +11,6 @@
   import CustomizeEmptyTab from './CustomizeEmptyTab.svelte';
   import ShortcutTip from './ShortcutTip.svelte';
   import { t } from '@shared/lib/i18n';
-  // Fondos por defecto según el tema; Vite los empaqueta y van dentro del binario
-  import defaultWallpaperDark from '@shared/assets/synapsers_w_dark.webp';
-  import defaultWallpaperLight from '@shared/assets/synapsers_w_light.webp';
 
   interface Props {
     hasVaultItems?: boolean;
@@ -53,32 +49,13 @@
   // Los últimos abiertos que siguen en la bóveda
   const lastOpened = $derived(recentFiles.filter((path) => vaultItemStore.get(path)).slice(0, appSettings.recentsCount));
   const shown = $derived(appSettings.emptyTab);
-  // Si el fondo ya no se puede leer (se borró o no está autorizado), queda el de por defecto
-  let brokenWallpaper = $state<string | null>(null);
-  const noWallpaper = $derived(appSettings.wallpaper === NO_WALLPAPER);
-  const ownWallpaper = $derived(noWallpaper ? undefined : appSettings.wallpaper);
-  let wallpaperUrl = $derived(
-    ownWallpaper && ownWallpaper !== brokenWallpaper ? convertFileSrc(ownWallpaper) : null,
-  );
-  $effect(() => {
-    const path = ownWallpaper;
-    if (!path) return;
-    brokenWallpaper = null;
-    const probe = new Image();
-    probe.onerror = () => (brokenWallpaper = path);
-    probe.src = convertFileSrc(path);
-    return () => (probe.onerror = null);
-  });
+  const wallpaper = useWallpaper();
 </script>
 
 <div
   class="empty-workspace synapse-empty-tab"
-  class:has-wallpaper={!noWallpaper}
-  style={noWallpaper
-    ? undefined
-    : wallpaperUrl
-      ? `--wallpaper: url("${wallpaperUrl}")`
-      : `--wallpaper-light: url("${defaultWallpaperLight}"); --wallpaper-dark: url("${defaultWallpaperDark}")`}
+  class:has-wallpaper={!!wallpaper.style}
+  style={wallpaper.style}
 >
   {#if hasVaultItems && onSelectFile && shown.search}
     <div class="empty-search">
