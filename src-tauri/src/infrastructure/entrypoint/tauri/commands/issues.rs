@@ -8,9 +8,11 @@ use crate::application::use_cases::issue::delete_connection_use_case::DeleteConn
 use crate::application::use_cases::issue::fetch_issues_use_case::{
     FetchIssuesUseCase, FetchedIssues,
 };
+use crate::application::use_cases::issue::filter_issues_use_case::FilterIssuesUseCase;
 use crate::application::use_cases::issue::list_connections_use_case::ListConnectionsUseCase;
 use crate::application::use_cases::issue::save_connection_use_case::SaveConnectionUseCase;
 use crate::application::use_cases::issue::update_issue_use_case::UpdateIssueUseCase;
+use crate::domain::issue::filter::{Criterion, IssueFilter};
 use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue};
 use crate::domain::issue::issue_error::{IssueError, IssueErrorKind};
 use crate::domain::issue::provider_descriptor::ProviderDescriptor;
@@ -128,6 +130,33 @@ pub async fn set_azure_token(value: String) -> Result<TokenSetting, IssueError> 
 #[tauri::command]
 pub fn issues_providers() -> Vec<ProviderDescriptor> {
     issue_providers::descriptors()
+}
+
+/// Los valores elegibles de un criterio del filtro.
+#[tauri::command]
+pub async fn issues_filter_values(
+    provider: String,
+    connection: Option<String>,
+    scope: String,
+    criterion: Criterion,
+) -> Result<Vec<String>, IssueError> {
+    FilterIssuesUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
+        .values(&scope, criterion)
+        .await
+}
+
+/// La consulta del proveedor para un filtro.
+#[tauri::command]
+pub async fn issues_filter_query(
+    provider: String,
+    connection: Option<String>,
+    scope: String,
+    filter: IssueFilter,
+    today: String,
+) -> Result<String, IssueError> {
+    FilterIssuesUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
+        .query(&scope, &filter, &today)
+        .await
 }
 
 #[tauri::command]

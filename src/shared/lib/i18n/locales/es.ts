@@ -312,6 +312,7 @@ export const es: TranslationSchema = {
     confirm: 'Enviar ({count})',
     sent: 'Enviado: {updated} actualizadas, {created} creadas, {comments} comentarios.',
     errors: {
+      no_current_iteration: 'Hoy no hay ninguna iteración del proyecto en curso.',
       connection_credential: 'La conexión «{detail}» no tiene token.',
       no_connection: 'Ninguna conexión cubre {detail}. Crea una para ese servidor.',
       ambiguous_connection: 'Varias conexiones cubren {detail}: el tablero tiene que elegir una.',

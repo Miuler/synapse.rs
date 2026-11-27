@@ -1,3 +1,4 @@
+use crate::domain::issue::filter::{Criterion, IssueFilter};
 use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue, TypeStates};
 use crate::domain::issue::issue_error::IssueError;
 use crate::domain::issue::provider_descriptor::ProviderDescriptor;
@@ -16,6 +17,21 @@ pub trait IssueProvider: Send + Sync {
 
     /// Los tipos de tarea del ámbito con sus estados.
     fn states<'a>(&'a self, scope: &'a str) -> ProviderFuture<'a, Vec<TypeStates>>;
+
+    /// Los valores que se pueden elegir en un criterio del filtro.
+    fn values<'a>(
+        &'a self,
+        scope: &'a str,
+        criterion: Criterion,
+    ) -> ProviderFuture<'a, Vec<String>>;
+
+    /// La consulta del proveedor para un filtro. `today` (`AAAA-MM-DD`) decide la iteración en curso.
+    fn filter_query<'a>(
+        &'a self,
+        scope: &'a str,
+        filter: &'a IssueFilter,
+        today: &'a str,
+    ) -> ProviderFuture<'a, String>;
 
     /// Ids que devuelve la consulta.
     fn search<'a>(&'a self, scope: &'a str, query: &'a str) -> ProviderFuture<'a, Vec<String>>;

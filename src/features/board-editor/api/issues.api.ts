@@ -3,7 +3,7 @@ import type { Issue, IssueProvider, IssueSource, IssueWriter } from '../model/is
 
 /** Error que devuelve Rust: la clase decide el texto, el detalle lo pone el proveedor. */
 export interface IssueError {
-  kind: 'missing_token' | 'keyring' | 'token_reference' | 'one_password' | 'host_not_allowed' | 'invalid_url' | 'auth' | 'not_found' | 'conflict' | 'rule' | 'request' | 'unknown_provider' | 'connection_credential' | 'no_connection' | 'ambiguous_connection';
+  kind: 'missing_token' | 'keyring' | 'token_reference' | 'one_password' | 'host_not_allowed' | 'invalid_url' | 'auth' | 'not_found' | 'conflict' | 'rule' | 'request' | 'unknown_provider' | 'connection_credential' | 'no_connection' | 'ambiguous_connection' | 'no_current_iteration';
   detail: string;
 }
 

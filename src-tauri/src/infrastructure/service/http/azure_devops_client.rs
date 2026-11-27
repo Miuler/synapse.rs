@@ -6,6 +6,7 @@
 use crate::application::service::credential_store::GlobalCredential;
 use crate::application::service::issue_provider::{IssueProvider, ProviderFuture};
 use crate::domain::issue::connection::{self, Connection};
+use crate::domain::issue::filter::{CURRENT, Criterion, IssueFilter, ME};
 use crate::domain::issue::issue::{
     Account, Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory, TypeStates,
 };
@@ -13,6 +14,7 @@ use crate::domain::issue::issue_error::{IssueError, IssueErrorKind as Kind};
 use crate::domain::issue::provider_descriptor::{
     Capabilities, ConflictCheck, ConnectionField, ProviderDescriptor, StateChange,
 };
+use crate::infrastructure::service::http::azure_devops_wiql;
 use crate::infrastructure::service::os::secret_store::SecretStore;
 use crate::infrastructure::service::os::{git_binary, one_password};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
@@ -507,6 +509,14 @@ impl AzureDevOpsClient {
             .into(),
             task_prefix: "ado".into(),
             scope_example: "https://dev.azure.com/organization/project".into(),
+            filter_criteria: vec![
+                Criterion::Type,
+                Criterion::State,
+                Criterion::Assignee,
+                Criterion::Iteration,
+                Criterion::Area,
+                Criterion::Tag,
+            ],
             connection_fields: vec![ConnectionField {
                 id: "server".into(),
                 required: true,
@@ -570,6 +580,73 @@ impl AzureDevOpsClient {
     }
 }
 
+/// Un nodo de áreas o iteraciones: su ruta en WIQL (los nombres desde la raíz, que es el proyecto) y
+/// las fechas de la iteración.
+#[derive(Debug, PartialEq)]
+struct Node {
+    path: String,
+    start: Option<String>,
+    finish: Option<String>,
+}
+
+/// El árbol en preorden. La ruta se compone con los nombres: el formato del campo `path` de la
+/// respuesta no está documentado.
+fn nodes(node: &Value, parent: &str, found: &mut Vec<Node>) {
+    let Some(name) = node["name"].as_str() else {
+        return;
+    };
+    let path = if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{parent}\\{name}")
+    };
+    // Las fechas llegan como `2026-01-01T00:00:00Z`
+    let date = |key: &str| node["attributes"][key].as_str().and_then(|d| d.get(..10)).map(str::to_string);
+    found.push(Node {
+        path: path.clone(),
+        start: date("startDate"),
+        finish: date("finishDate"),
+    });
+    for child in node["children"].as_array().into_iter().flatten() {
+        nodes(child, &path, found);
+    }
+}
+
+fn current_iterations(nodes: &[Node], today: &str) -> Vec<String> {
+    nodes
+        .iter()
+        .filter(|n| {
+            n.start.as_deref().is_some_and(|s| s <= today)
+                && n.finish.as_deref().is_some_and(|f| today <= f)
+        })
+        .map(|n| n.path.clone())
+        .collect()
+}
+
+impl AzureDevOpsClient {
+    /// `group` es `Areas` o `Iterations`.
+    async fn classification(&self, project: &Project, group: &str) -> Result<Vec<Node>, IssueError> {
+        let url = project.url(&format!("classificationnodes/{group}?$depth=14&{API}"));
+        let response = self.send(Method::GET, &url, None).await?;
+        let mut found = Vec::new();
+        nodes(&response, "", &mut found);
+        Ok(found)
+    }
+
+    async fn tags(&self, project: &Project) -> Result<Vec<String>, IssueError> {
+        let url = project.url(&format!("tags?{API}"));
+        let response = self.send(Method::GET, &url, None).await?;
+        // La documentación muestra tanto `{value}` como esa respuesta dentro de una lista
+        let wrapped = response.get(0).unwrap_or(&response);
+        let tags = wrapped["value"].as_array().or_else(|| response.as_array());
+        Ok(tags
+            .into_iter()
+            .flatten()
+            .filter_map(|t| t["name"].as_str().map(str::to_string))
+            .collect())
+    }
+}
+
 impl IssueProvider for AzureDevOpsClient {
     fn describe(&self) -> ProviderDescriptor {
         Self::descriptor()
@@ -612,6 +689,64 @@ impl IssueProvider for AzureDevOpsClient {
                 }
             }
             Ok(found)
+        })
+    }
+
+    fn values<'a>(
+        &'a self,
+        scope: &'a str,
+        criterion: Criterion,
+    ) -> ProviderFuture<'a, Vec<String>> {
+        Box::pin(async move {
+            let project = self.project(scope)?;
+            let paths = |nodes: Vec<Node>| nodes.into_iter().map(|n| n.path);
+            Ok(match criterion {
+                // Listar el equipo pide un alcance que un token de work items no tiene: los demás
+                // nombres los pone quien ya los vio o se escriben
+                Criterion::Assignee => vec![ME.to_string()],
+                Criterion::Type => {
+                    let url = project.url(&format!("workitemtypes?{API}"));
+                    let response = self.send(Method::GET, &url, None).await?;
+                    response["value"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|t| t["isDisabled"] != true)
+                        .filter_map(|t| t["name"].as_str().map(str::to_string))
+                        .collect()
+                }
+                Criterion::State => {
+                    let mut names: Vec<String> = Vec::new();
+                    for state in self.states(scope).await?.into_iter().flat_map(|t| t.states) {
+                        if !names.contains(&state.name) {
+                            names.push(state.name);
+                        }
+                    }
+                    names
+                }
+                Criterion::Iteration => std::iter::once(CURRENT.to_string())
+                    .chain(paths(self.classification(&project, "Iterations").await?))
+                    .collect(),
+                Criterion::Area => paths(self.classification(&project, "Areas").await?).collect(),
+                Criterion::Tag => self.tags(&project).await?,
+            })
+        })
+    }
+
+    fn filter_query<'a>(
+        &'a self,
+        scope: &'a str,
+        filter: &'a IssueFilter,
+        today: &'a str,
+    ) -> ProviderFuture<'a, String> {
+        Box::pin(async move {
+            let project = self.project(scope)?;
+            let current = if filter.iterations.iter().any(|i| i == CURRENT) {
+                current_iterations(&self.classification(&project, "Iterations").await?, today)
+            } else {
+                Vec::new()
+            };
+            azure_devops_wiql::compile(filter, &current)
         })
     }
 
@@ -1193,6 +1328,44 @@ mod tests {
             .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].states[0].category, StateCategory::Todo);
+        requests.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn la_iteracion_en_curso_se_resuelve_por_fechas() {
+        let tree = r#"{"name":"Proyecto","children":[
+            {"name":"Sprint 1","attributes":{"startDate":"2026-01-01T00:00:00Z","finishDate":"2026-01-14T00:00:00Z"}},
+            {"name":"Sprint 2","attributes":{"startDate":"2026-01-15T00:00:00Z","finishDate":"2026-01-28T00:00:00Z"}}]}"#;
+        let (origin, requests) = serve_json(vec![tree, tree]);
+        let azure = client(Some(&format!("{origin}/org")));
+        let scope = format!("{origin}/org/Proyecto");
+        let filter = IssueFilter {
+            iterations: vec![CURRENT.into()],
+            ..Default::default()
+        };
+        // El último día todavía cuenta
+        let query = azure.filter_query(&scope, &filter, "2026-01-14").await.unwrap();
+        assert!(query.contains("[System.IterationPath] UNDER 'Proyecto\\Sprint 1'"), "{query}");
+        let values = azure.values(&scope, Criterion::Iteration).await.unwrap();
+        assert_eq!(values, [CURRENT, "Proyecto", "Proyecto\\Sprint 1", "Proyecto\\Sprint 2"]);
+        let requests = requests.join().unwrap();
+        assert!(requests[0].starts_with(
+            "GET /org/Proyecto/_apis/wit/classificationnodes/Iterations?$depth=14&api-version=7.1 "
+        ));
+    }
+
+    #[tokio::test]
+    async fn las_etiquetas_se_leen_con_o_sin_envoltorio() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"count":1,"value":[{"name":"a"}]}"#,
+            r#"[{"count":1,"value":[{"name":"b"}]}]"#,
+            r#"[{"name":"c"}]"#,
+        ]);
+        let azure = client(Some(&format!("{origin}/org")));
+        let scope = format!("{origin}/org/Proyecto");
+        for expected in ["a", "b", "c"] {
+            assert_eq!(azure.values(&scope, Criterion::Tag).await.unwrap(), [expected]);
+        }
         requests.join().unwrap();
     }
 

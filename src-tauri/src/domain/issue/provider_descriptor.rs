@@ -1,5 +1,6 @@
 //! Lo que un proveedor declara de sí mismo: las diferencias se muestran, no se disimulan.
 
+use crate::domain::issue::filter::Criterion;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -57,5 +58,7 @@ pub struct ProviderDescriptor {
     /// Ejemplo del ámbito que se pide al usuario.
     pub scope_example: String,
     pub connection_fields: Vec<ConnectionField>,
+    /// Por qué se puede filtrar.
+    pub filter_criteria: Vec<Criterion>,
     pub capabilities: Capabilities,
 }

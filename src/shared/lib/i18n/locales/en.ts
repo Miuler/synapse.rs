@@ -311,6 +311,7 @@ export const en = {
     confirm: 'Send ({count})',
     sent: 'Sent: {updated} updated, {created} created, {comments} comments.',
     errors: {
+      no_current_iteration: 'No iteration of the project is under way today.',
       connection_credential: 'The connection “{detail}” has no token.',
       no_connection: 'No connection covers {detail}. Add one for that server.',
       ambiguous_connection: 'Several connections cover {detail}: the board has to choose one.',

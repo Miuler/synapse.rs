@@ -25,7 +25,7 @@
 - [x] 2.4 Estados con su categoría: `states` en el puerto (tipos de work item y estados de cada uno) y la categoría en
   cada tarea traída; columna por categoría cuando el estado no está configurado, moviendo también las ya traídas que
   no cambiaron aquí. Pruebas contra servidor falso con estados fuera de la lista de respaldo
-- [ ] 2.5 Criterios de filtro declarados por el proveedor (tipo, estado, asignado, iteración, área y etiqueta) y sus
+- [x] 2.5 Criterios de filtro declarados por el proveedor (tipo, estado, asignado, iteración, área y etiqueta) y sus
   valores, compilados a la consulta con una función pura que escapa los valores. El asignado se ofrece sin el endpoint
   de miembros (`@Me`, los ya vistos y texto libre) y la iteración actual se resuelve por fechas. Pruebas de la
   compilación y contra servidor falso

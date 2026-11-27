@@ -28,6 +28,8 @@ pub enum IssueErrorKind {
     NoConnection,
     /// Varias conexiones cubren el ámbito: hay que elegir una.
     AmbiguousConnection,
+    /// El filtro pide la iteración en curso y hoy no hay ninguna.
+    NoCurrentIteration,
 }
 
 /// Se entrega a la interfaz como clase de error y detalle: el texto visible lo pone ella.
