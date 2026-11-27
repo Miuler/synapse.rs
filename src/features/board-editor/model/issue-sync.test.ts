@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { applyPull, buildPushPlan, runPush, type Issue, type IssueLink, type IssueProvider, type IssueWriter } from './issue-sync';
+import { applyPull, buildPushPlan, runPush, usesFilter, type Issue, type IssueLink, type IssueProvider, type IssueWriter } from './issue-sync';
 import { parseBoardMarkdown, type BoardDocument, type BoardTask } from './board.svelte';
 
 const provider: IssueProvider = {
@@ -101,6 +101,25 @@ describe('Traer', () => {
     doc.source!.states = { done: ['En espera'] };
     const waiting: Issue = { ...item(1, 'A', 'En espera'), state: { name: 'En espera', category: 'doing' } };
     expect(applyPull(doc, provider, [waiting], ['1'], '2026-02-02').doc.tasks[0].status).toBe('done');
+  });
+
+  it('marca lo que la consulta ya no devuelve y lo desmarca si vuelve', () => {
+    const doc = board([task('t1', 'A', 'todo')], { t1: link(1, 'A', 'To Do', 'todo') });
+    const items = [item(1, 'A', 'To Do'), item(2, 'B', 'To Do')];
+    const out = applyPull(doc, provider, items, ['2', '1'], '2026-02-02', ['2']);
+    expect(out.outside).toEqual(['t1']);
+    expect(out.doc.source!.links!.t1.outside).toBe(true);
+    expect(out.doc.source!.links!['ado-2'].outside).toBeUndefined();
+    expect(out.doc.tasks).toHaveLength(2);
+    const back = applyPull(out.doc, provider, items, ['1', '2'], '2026-02-03', ['1', '2']);
+    expect(back.doc.source!.links!.t1.outside).toBeUndefined();
+  });
+
+  it('el filtro por criterios deja de mandar si la consulta se edita a mano', () => {
+    const source = { ...board([]).source!, filter: { type: ['Bug'] }, query: 'Q', filter_query: 'Q' };
+    expect(usesFilter(source)).toBe(true);
+    expect(usesFilter({ ...source, query: 'otra' })).toBe(false);
+    expect(usesFilter({ ...source, filter: undefined })).toBe(false);
   });
 
   it('desvincula lo que ya no existe sin borrar la tarea, y no toca vínculos que no se pidieron', () => {

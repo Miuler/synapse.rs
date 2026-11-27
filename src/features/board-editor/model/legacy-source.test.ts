@@ -64,6 +64,19 @@ azure_devops:
     expect(parseBoardMarkdown(text).source!.connection).toBe('trabajo');
   });
 
+  it('guarda el filtro, su consulta y la marca de lo que queda fuera', () => {
+    const doc = parseBoardMarkdown(stored);
+    Object.assign(doc.source!, { filter: { type: ['Bug'], assignee: ['@me'] }, query: 'SELECT 1', filter_query: 'SELECT 1' });
+    doc.source!.links!.t1.outside = true;
+    const text = serializeBoardMarkdown(doc);
+    const read = parseBoardMarkdown(text).source!;
+    expect(read.filter).toEqual({ type: ['Bug'], assignee: ['@me'] });
+    // La versión anterior solo lee `query`: ahí queda la consulta del filtro
+    expect(read.query).toBe('SELECT 1');
+    expect(read.links!.t1.outside).toBe(true);
+    expect(serializeBoardMarkdown(parseBoardMarkdown(text))).toBe(text);
+  });
+
   it('al quitar un campo desaparece del archivo', () => {
     const doc = parseBoardMarkdown(stored);
     delete doc.source!.issue_type;

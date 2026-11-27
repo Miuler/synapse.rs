@@ -7,7 +7,7 @@ export const LEGACY_KEY = 'azure_devops';
 const PROVIDER = 'azure_devops';
 
 /** Nombre de cada campo en el archivo. */
-const FIELDS = { query: 'query', issue_type: 'work_item_type', assignee: 'assigned_to', states: 'states' } as const;
+const FIELDS = { query: 'query', filter: 'filter', filter_query: 'filter_query', issue_type: 'work_item_type', assignee: 'assigned_to', states: 'states' } as const;
 
 type Stored = Record<string, unknown>;
 

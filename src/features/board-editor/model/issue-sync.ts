@@ -14,7 +14,13 @@ export interface IssueLink {
   column: string;
   /** Fechas (`timestamp`) de los comentarios ya enviados. */
   sent?: string[];
+  /** Ya no la devuelve la consulta del tablero: sigue en él, marcada. */
+  outside?: boolean;
 }
+
+export type Criterion = 'type' | 'state' | 'assignee' | 'iteration' | 'area' | 'tag';
+/** Dentro de un criterio basta un valor; entre criterios se exigen todos. */
+export type IssueFilter = Partial<Record<Criterion, string[]>>;
 
 /** De dónde vienen las tareas de un tablero. */
 export interface IssueSource {
@@ -25,6 +31,10 @@ export interface IssueSource {
   scope: string;
   /** Consulta propia; vacía, la que el proveedor usa por defecto. */
   query?: string;
+  /** Criterios elegidos. */
+  filter?: IssueFilter;
+  /** La consulta que salió de ellos: si `query` ya no es esta, se editó a mano y manda ella. */
+  filter_query?: string;
   /** Tipo de las tareas que se crean. */
   issue_type?: string;
   /** A quién se asignan las que se crean; vacío, a nadie. */
@@ -45,6 +55,7 @@ export interface Issue {
   state: { name: string; category?: 'todo' | 'doing' | 'done' | 'cancelled' };
   /** Versión leída: una escritura solo se admite sobre ella. */
   revision: string | null;
+  assignee?: { name: string; id: string } | null;
 }
 
 /** Lo que un proveedor declara de sí mismo. */
@@ -58,6 +69,7 @@ export interface IssueProvider {
   /** Prefijo del identificador de las tareas que se traen (`prefijo-id`). */
   task_prefix: string;
   scope_example: string;
+  filter_criteria?: Criterion[];
 }
 
 function statesOf(source: IssueSource, provider: IssueProvider, column: string): string[] {
@@ -79,6 +91,11 @@ function columnOf(doc: BoardDocument, provider: IssueProvider, state: Issue['sta
   );
 }
 
+/** El filtro por criterios sigue valiendo mientras su consulta no se haya editado a mano. */
+export function usesFilter(source: IssueSource): source is IssueSource & { filter: IssueFilter } {
+  return !!source.filter && !!source.query && source.query.trim() === source.filter_query?.trim();
+}
+
 /** Un título tal como queda en una celda de la tabla. */
 const cellText = (title: string) => title.replace(/\s*[\r\n]+\s*/g, ' ').trim();
 
@@ -90,6 +107,8 @@ export interface PullResult {
   conflicts: string[];
   /** Tareas que el proveedor ya no devuelve: se desvinculan, la fila se queda. */
   missing: string[];
+  /** Tareas vinculadas que la consulta ya no devuelve. */
+  outside: string[];
 }
 
 /**
@@ -102,12 +121,15 @@ export function applyPull(
   items: Issue[],
   requested: string[],
   today: string,
+  /** Lo que devolvió la consulta; sin saberlo, ninguna se marca. */
+  matched?: string[],
 ): PullResult {
   const source = doc.source!;
   const byId = new Map(items.map((item) => [item.id, item]));
   const links: Record<string, IssueLink> = {};
   const conflicts: string[] = [];
   const missing: string[] = [];
+  const outside: string[] = [];
   let updated = 0;
 
   const tasks = doc.tasks.map((task) => {
@@ -145,6 +167,13 @@ export function applyPull(
       next.status = base.column = column;
     }
 
+    if (matched) {
+      if (matched.includes(link.id)) delete base.outside;
+      else {
+        base.outside = true;
+        outside.push(task.id);
+      }
+    }
     if (conflict) conflicts.push(task.id);
     if (next.title !== task.title || next.status !== task.status) updated++;
     links[task.id] = base;
@@ -166,7 +195,7 @@ export function applyPull(
     added++;
   }
 
-  return { doc: { ...doc, tasks, source: { ...source, links } }, added, updated, conflicts, missing };
+  return { doc: { ...doc, tasks, source: { ...source, links } }, added, updated, conflicts, missing, outside };
 }
 
 /** Lo que «Enviar» cambiaría en una tarea ya vinculada. */

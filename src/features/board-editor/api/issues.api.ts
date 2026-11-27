@@ -1,5 +1,5 @@
 import { invokeTauri } from '@shared/api';
-import type { Issue, IssueProvider, IssueSource, IssueWriter } from '../model/issue-sync';
+import type { Criterion, Issue, IssueFilter, IssueProvider, IssueSource, IssueWriter } from '../model/issue-sync';
 
 /** Error que devuelve Rust: la clase decide el texto, el detalle lo pone el proveedor. */
 export interface IssueError {
@@ -14,8 +14,20 @@ const target = ({ provider, connection, scope }: IssueSource) => ({ provider, co
 
 /** Las tareas de `query` (vacía, ninguna) y las de `linked`. */
 export function fetchIssues(source: IssueSource, query: string, linked: string[]) {
-  return invokeTauri<{ items: Issue[]; requested: string[] }>('issues_fetch', { ...target(source), query, linked });
+  return invokeTauri<{ items: Issue[]; requested: string[]; matched: string[] }>('issues_fetch', { ...target(source), query, linked });
 }
+
+/** Los valores elegibles de un criterio. */
+export const filterValues = (source: IssueSource, criterion: Criterion) =>
+  invokeTauri<string[]>('issues_filter_values', { ...target(source), criterion });
+
+/** La consulta del proveedor para un filtro, con la iteración en curso a día de hoy. */
+export const filterQuery = (source: IssueSource, filter: IssueFilter) =>
+  invokeTauri<string>('issues_filter_query', {
+    ...target(source),
+    filter,
+    today: new Date().toLocaleDateString('sv-SE'),
+  });
 
 export function issueWriter(source: IssueSource): IssueWriter {
   const to = target(source);

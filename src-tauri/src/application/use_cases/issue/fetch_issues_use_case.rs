@@ -8,6 +8,8 @@ pub struct FetchedIssues {
     pub items: Vec<Issue>,
     /// Ids pedidos: los que falten en `items` ya no existen o no se pueden leer.
     pub requested: Vec<String>,
+    /// Los que devolvió la consulta: una vinculada que no esté quedó fuera de ella.
+    pub matched: Vec<String>,
 }
 
 /// Las tareas de la consulta y las que ya estaban vinculadas.
@@ -27,17 +29,22 @@ impl FetchIssuesUseCase {
         linked: &[String],
     ) -> Result<FetchedIssues, IssueError> {
         // Sin consulta, solo las vinculadas
-        let mut requested = if query.is_empty() {
+        let matched = if query.is_empty() {
             Vec::new()
         } else {
             self.provider.search(scope, query).await?
         };
+        let mut requested = matched.clone();
         for id in linked {
             if !requested.contains(id) {
                 requested.push(id.clone());
             }
         }
         let items = self.provider.get(scope, &requested).await?;
-        Ok(FetchedIssues { items, requested })
+        Ok(FetchedIssues {
+            items,
+            requested,
+            matched,
+        })
     }
 }
