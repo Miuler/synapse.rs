@@ -12,6 +12,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Añadido
 
 - Tableros de tareas (`.board.md`): editor con vistas Tabla, Kanban y Gantt sobre una tabla Markdown, con comentarios por tarea; se crean desde el menú del explorador («Nuevo tablero»), la paleta de comandos o el índice de una carpeta.
+- Los tableros de tareas se sincronizan con Azure DevOps en dos acciones separadas: «Traer» trae los work items de un proyecto (título y estado; por defecto los abiertos asignados a ti, cambiados o creados por ti, o tu propia consulta WIQL) y «Enviar» muestra lo que cambió en el tablero antes de mandarlo (título, estado, comentarios nuevos) y solo crea como work items las tareas que marques. Lo que cambió en los dos lados se avisa y no se sobrescribe salvo que lo marques. El token se lee de `AZURE_DEVOPS_PAT` o `ADO_PAT`, nunca se guarda en el tablero y solo se envía a Azure DevOps o al servidor de `AZURE_DEVOPS_URL`. No se sincronizan fechas, dependencias, progreso ni descripciones.
 - Puntero láser en diagramas e imágenes: `K` lo activa o desactiva y `Escape` lo apaga (con el puntero sobre el visor); mantener el clic derecho arrastra la vista, también en modo láser.
 - El modo láser muestra un cursor con forma de puntero láser en lugar de la cruz.
 - Puntero láser: punto y rayo más finos, con el tamaño del punto configurable en Configuración; el punto se dibuja separado del icono del cursor. El botón del medio también arrastra la vista en los visores de imágenes y diagramas.

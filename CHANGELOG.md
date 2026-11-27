@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Task boards (`.board.md`): an editor with Table, Kanban and Gantt views over a Markdown table, with comments per task; create one from the explorer menu («New board»), the command palette or a folder index.
+- Task boards sync with Azure DevOps in two separate actions: «Pull» brings the work items of a project (title and state; by default the open ones assigned to, changed or created by you, or your own WIQL query) and «Push» shows what changed on the board before sending it (title, state, new comments) and creates as work items only the tasks you check. What changed on both sides is reported and not overwritten unless you check it. The token is read from `AZURE_DEVOPS_PAT` or `ADO_PAT`, is never saved in the board and is only sent to Azure DevOps or to the server in `AZURE_DEVOPS_URL`. Dates, dependencies, progress and descriptions are not synced.
 - Laser pointer in diagrams and images: `K` turns it on or off and `Escape` turns it off (with the pointer over the viewer); holding the right button drags the view, also in laser mode.
 - Laser mode shows a laser-pointer cursor instead of the crosshair.
 - Laser pointer: thinner dot and beam, with the dot size configurable in Settings; the dot is drawn away from the cursor icon. The middle button also drags the view in image and diagram viewers.

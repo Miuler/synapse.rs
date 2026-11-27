@@ -1,3 +1,6 @@
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import type { AzureSyncConfig } from './azure-sync';
+
 export type BoardViewMode = 'table' | 'kanban' | 'gantt';
 
 export interface BoardColumn {
@@ -26,6 +29,10 @@ export interface BoardDocument {
   defaultView: BoardViewMode;
   columns: BoardColumn[];
   tasks: BoardTask[];
+  /** Sincronización con Azure DevOps (clave `azure_devops` del frontmatter). */
+  azure?: AzureSyncConfig;
+  /** Bloques del frontmatter que el tablero no interpreta: se guardan tal cual. */
+  extraFrontmatter?: string;
 }
 
 export const DEFAULT_COLUMNS: BoardColumn[] = [
@@ -34,10 +41,44 @@ export const DEFAULT_COLUMNS: BoardColumn[] = [
   { id: 'done', label: 'Hecho', color: '#22c55e' },
 ];
 
+const OWN_KEYS = ['type', 'default_view', 'columns'];
+
+/** Separa la configuración de Azure DevOps y lo que no es del tablero, bloque a bloque de primer nivel. */
+function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'extraFrontmatter'> {
+  const blocks: { key: string; lines: string[] }[] = [];
+  for (const line of fmText.split(/\r?\n/)) {
+    const key = line.match(/^([^\s#-][^:]*):/)?.[1];
+    if (key !== undefined || blocks.length === 0) blocks.push({ key: key ?? '', lines: [line] });
+    else blocks[blocks.length - 1].lines.push(line);
+  }
+
+  let azure: AzureSyncConfig | undefined;
+  const extra: string[] = [];
+  for (const block of blocks) {
+    if (OWN_KEYS.includes(block.key)) continue;
+    const text = block.lines.join('\n');
+    if (block.key === 'azure_devops') {
+      try {
+        const value = parseYaml(text)?.azure_devops;
+        if (value && typeof value === 'object') {
+          azure = value as AzureSyncConfig;
+          continue;
+        }
+      } catch {
+        // YAML a medio escribir: se conserva como texto
+      }
+    }
+    extra.push(text);
+  }
+  return { azure, extraFrontmatter: extra.join('\n') || undefined };
+}
+
 function parseFrontmatter(raw: string): {
   defaultView: BoardViewMode;
   columns: BoardColumn[];
   body: string;
+  azure?: AzureSyncConfig;
+  extraFrontmatter?: string;
 } {
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!fmMatch) {
@@ -64,6 +105,7 @@ function parseFrontmatter(raw: string): {
     defaultView,
     columns: columns.length > 0 ? columns : [...DEFAULT_COLUMNS],
     body,
+    ...parseOtherKeys(fmText),
   };
 }
 
@@ -97,7 +139,7 @@ function parseCommentsSection(body: string): Map<string, BoardComment[]> {
 }
 
 export function parseBoardMarkdown(raw: string): BoardDocument {
-  const { defaultView, columns, body } = parseFrontmatter(raw);
+  const { defaultView, columns, body, azure, extraFrontmatter } = parseFrontmatter(raw);
   const commentsMap = parseCommentsSection(body);
 
   const tablePart = body.split(/^##\s+Comentarios\s*$/m)[0];
@@ -107,9 +149,9 @@ export function parseBoardMarkdown(raw: string): BoardDocument {
   // Saltar cabecera (0) y separador (1)
   for (let i = 2; i < lines.length; i++) {
     const cells = lines[i]
-      .split('|')
+      .split(/(?<!\\)\|/)
       .slice(1, -1)
-      .map((c) => c.trim());
+      .map((c) => c.trim().replace(/\\\|/g, '|'));
     if (cells.length < 7) continue;
 
     const id = cells[0] || `t-${i - 1}`;
@@ -134,7 +176,7 @@ export function parseBoardMarkdown(raw: string): BoardDocument {
     });
   }
 
-  return { defaultView, columns, tasks };
+  return { defaultView, columns, tasks, azure, extraFrontmatter };
 }
 
 export function serializeBoardMarkdown(doc: BoardDocument): string {
@@ -142,12 +184,17 @@ export function serializeBoardMarkdown(doc: BoardDocument): string {
     .map((c) => `  - { id: ${c.id}, label: "${c.label.replace(/"/g, '\\"')}", color: "${c.color}" }`)
     .join('\n');
 
+  const azureYaml =
+    doc.azure && stringifyYaml({ azure_devops: doc.azure }, { lineWidth: 0 }).trimEnd();
+
   const frontmatter = [
     '---',
     'type: board',
     `default_view: ${doc.defaultView}`,
     'columns:',
     colsYaml,
+    ...(azureYaml ? [azureYaml] : []),
+    ...(doc.extraFrontmatter ? [doc.extraFrontmatter] : []),
     '---',
   ].join('\n');
 

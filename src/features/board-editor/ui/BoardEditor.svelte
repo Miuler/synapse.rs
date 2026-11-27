@@ -10,6 +10,7 @@
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
   import CommentsPanel from './CommentsPanel.svelte';
+  import AzureSync from './AzureSync.svelte';
 
   interface Props {
     content: string;
@@ -25,22 +26,24 @@
   let selectedTask = $derived(doc.tasks.find((t) => t.id === selectedTaskId) ?? null);
 
   function commit(nextTasks: BoardTask[], nextDefaultView: BoardViewMode = doc.defaultView) {
-    onChange(
-      serializeBoardMarkdown({
-        defaultView: nextDefaultView,
-        columns: doc.columns,
-        tasks: nextTasks,
-      })
-    );
+    onChange(serializeBoardMarkdown({ ...doc, defaultView: nextDefaultView, tasks: nextTasks }));
   }
 
   function updateTask(id: string, patch: Partial<BoardTask>) {
     commit(doc.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }
 
+  function write(next: typeof doc) {
+    onChange(serializeBoardMarkdown(next));
+  }
+
   function deleteTask(id: string) {
     if (selectedTaskId === id) selectedTaskId = null;
-    commit(doc.tasks.filter((t) => t.id !== id));
+    const tasks = doc.tasks.filter((t) => t.id !== id);
+    if (!doc.azure?.links?.[id]) return commit(tasks);
+    // Sin su vínculo, una tarea nueva con el mismo id no hereda el work item
+    const { [id]: _, ...links } = doc.azure.links;
+    write({ ...doc, tasks, azure: { ...doc.azure, links } });
   }
 
   function addTask(status?: string) {
@@ -97,6 +100,8 @@
         <GanttChartSquare size={14} /> Gantt
       </button>
     </div>
+
+    <AzureSync read={() => doc} {write} />
   </header>
 
   <div class="board-body">
@@ -150,6 +155,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     padding: 8px 16px;
     border-bottom: 1px solid var(--border-primary);
     background: var(--bg-secondary);

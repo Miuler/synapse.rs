@@ -8,4 +8,5 @@ pub mod spreadsheet;
 pub mod system;
 pub mod vault_item;
 pub mod version;
+pub mod work_item;
 pub mod workspace;
