@@ -48,6 +48,9 @@ compact_str = { version = "0.10", features = ["serde"] }
 jwalk = "0.9"
 notify = "9.0"
 pulldown-cmark = "0.13"
+# HTML de los gestores de issues a Markdown (ya venía con tauri-utils; futures-util, con reqwest)
+dom_query = "0.28"
+futures-util = "0.3"
 log = "0.4.35"
 tracing = "0.1.44"
 rfd = { version = "0.18", optional = true }

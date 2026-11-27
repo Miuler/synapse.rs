@@ -16,3 +16,5 @@ acceptance:
 ---
 
 Pedido por el usuario. Hoy solo se envían comentarios. Cada entrada necesita un campo que diga si es comentario o historia, con autor e id remoto (## Actividad, tareas 3.2 y 3.3). Falta verificar los endpoints de Azure DevOps en su documentación.
+
+Avance 2026-11-27: «Traer» guarda comentarios e histórico en los tableros de carpeta (tarea 3.6), probado contra un servidor falso. Falta comprobarlo contra un Azure DevOps real y que lleguen antes los comentarios editados allí.

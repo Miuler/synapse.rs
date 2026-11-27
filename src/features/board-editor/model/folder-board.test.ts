@@ -30,7 +30,7 @@ describe('formato de carpeta', () => {
   it('pasa a documento con sus vínculos y vuelve sin perder lo ajeno', () => {
     const doc = folderDocument(snapshot());
     expect(doc.tasks.map((t) => [t.id, t.status, t.type])).toEqual([['a', 'todo', 'Bug'], ['b', 'todo', undefined]]);
-    expect(doc.source!.links).toEqual({ a: { id: '1', title: 'A', state: 'New', column: 'todo' } });
+    expect(doc.source!.links).toEqual({ a: { id: '1', rev: '3', title: 'A', state: 'New', column: 'todo' } });
     const file = boardFile(snapshot().board, doc);
     expect(file.source).toEqual({ provider: 'p', connection: '', scope: 's', issue_type: 'Bug' });
     expect([file.extraFrontmatter, file.body, file.order]).toEqual(['tags: [a]', 'apuntes', ['a', 'b']]);

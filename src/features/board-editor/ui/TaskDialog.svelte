@@ -64,7 +64,9 @@
         {:else}
           {#each task.comments as comment, i (i)}
             <div class="comment-item">
-              <div class="comment-ts">{comment.timestamp.replace('T', ' ').slice(0, 19)}</div>
+              <div class="comment-ts">
+                {comment.timestamp.replace('T', ' ').slice(0, 19)}{comment.author ? ` · ${comment.author}` : ''}
+              </div>
               <div class="comment-text">{comment.text}</div>
             </div>
           {/each}
@@ -76,8 +78,8 @@
         <ul class="history">
           {#each history as entry, i (i)}
             <li>
-              <small>{entry.at.replace('T', ' ').slice(0, 19)}{entry.author ? ` · ${entry.author}` : ''}</small>
-              {entry.text}
+              <small>{entry.at.replace('T', ' ').slice(0, 19)}{entry.author ? ` · ${entry.author}` : ''}</small
+              >{entry.text}
             </li>
           {/each}
         </ul>

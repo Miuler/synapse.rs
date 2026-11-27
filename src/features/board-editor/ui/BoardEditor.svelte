@@ -235,7 +235,7 @@
       </button>
     </div>
 
-    <IssueSync read={() => doc} {write} {isNew} />
+    <IssueSync read={() => doc} {write} {isNew} readTask={folder && store ? (id) => store!.readTask(id) : undefined} />
   </header>
 
   {#if !folder && path && beforeConvert}

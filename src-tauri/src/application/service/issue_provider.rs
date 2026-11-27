@@ -1,5 +1,5 @@
 use crate::domain::issue::filter::{Criterion, IssueFilter};
-use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue, TypeStates};
+use crate::domain::issue::issue::{Account, Issue, IssueChanges, IssueEntry, NewIssue, TypeStates};
 use crate::domain::issue::issue_error::IssueError;
 use crate::domain::issue::provider_descriptor::ProviderDescriptor;
 use std::future::Future;
@@ -39,6 +39,9 @@ pub trait IssueProvider: Send + Sync {
     /// Las tareas que existen y se pueden leer entre las pedidas.
     fn get<'a>(&'a self, scope: &'a str, ids: &'a [String]) -> ProviderFuture<'a, Vec<Issue>>;
 
+    /// Los comentarios y el histórico de una tarea, del más antiguo al más reciente.
+    fn activity<'a>(&'a self, scope: &'a str, id: &'a str) -> ProviderFuture<'a, Vec<IssueEntry>>;
+
     fn create<'a>(&'a self, scope: &'a str, issue: &'a NewIssue) -> ProviderFuture<'a, Issue>;
 
     /// `revision` es la leída: si la tarea cambió desde entonces, falla sin escribir.
@@ -50,10 +53,11 @@ pub trait IssueProvider: Send + Sync {
         changes: &'a IssueChanges,
     ) -> ProviderFuture<'a, Issue>;
 
+    /// Devuelve el id del comentario creado, si el proveedor lo dice.
     fn add_comment<'a>(
         &'a self,
         scope: &'a str,
         id: &'a str,
         text: &'a str,
-    ) -> ProviderFuture<'a, ()>;
+    ) -> ProviderFuture<'a, Option<String>>;
 }

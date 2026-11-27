@@ -163,6 +163,20 @@ Editing a board while it is still a table rewrites it with the seven columns Syn
 are lost then, so convert before editing if they matter. Versions of Synapse without this format show a converted
 board without tasks.
 
+### Description, comments and history
+
+On a folder board, «Pull» also saves in each task file its description and activity (comments and history changes,
+each with author and date, in UTC). Table boards do not get them: convert first.
+
+- The description is the main text of the issue (in Azure DevOps, «Repro Steps» for a Bug, else «Description») as
+  sanitized Markdown: no HTML or scripts, and images become links so that nothing is loaded from the network.
+- Activity is requested only for tasks whose revision or number of comments changed, so a comment edited in the
+  provider arrives the next time the issue itself changes. A task that cannot be read is tried again on the next pull;
+  the first pull after converting reads every linked task and can take a while.
+- Nothing local is overwritten: if the description changed on both sides, the local one is kept and the task is
+  reported. Comments already sent are not repeated, and pulled ones are never sent back.
+- The board keeps the date of the last pull in `source.synced_at`.
+
 ## MCP server
 
 When enabled for a vault, Synapse serves the [Model Context Protocol](https://modelcontextprotocol.io) (version

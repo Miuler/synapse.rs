@@ -1,4 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import type { ActivityEntry } from './folder-board';
 import type { IssueSource } from './issue-sync';
 import { LEGACY_KEY, readLegacySource, writeLegacySource } from './legacy-source';
 
@@ -13,6 +14,9 @@ export interface BoardColumn {
 export interface BoardComment {
   timestamp: string;
   text: string;
+  /** Su id en el proveedor: ya está allí (solo en el formato de carpeta). */
+  remote?: string;
+  author?: string;
 }
 
 export interface BoardTask {
@@ -30,6 +34,13 @@ export interface BoardTask {
   /** Referencia en el proveedor (`AB#123`). */
   key?: string;
   url?: string;
+  /** Lo recién traído del proveedor, hasta que se guarda en el archivo de la tarea. */
+  incoming?: {
+    entries: ActivityEntry[];
+    description?: string;
+    /** Huella de la descripción a la que sustituye. */
+    over?: string;
+  };
 }
 
 export interface BoardDocument {

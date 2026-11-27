@@ -10,7 +10,20 @@ type Item = { id: number; rev: number; title: string; state: string };
 const items = new Map<number, Item>([[7, { id: 7, rev: 1, title: 'Preparar | entorno', state: 'To Do' }]]);
 const writes: string[] = [];
 const tokens: string[] = [];
-const asWorkItem = (i: Item) => ({ id: i.id, rev: i.rev, fields: { 'System.Title': i.title, 'System.State': i.state, 'System.WorkItemType': 'Task' } });
+const asWorkItem = (i: Item) => ({
+  id: i.id,
+  rev: i.rev,
+  fields: {
+    'System.Title': i.title,
+    'System.State': i.state,
+    'System.WorkItemType': 'Task',
+    'System.Description': '<p>Descripción de <b>Azure</b></p>',
+  },
+});
+/** Los comentarios de cada work item, en HTML como los devuelve Azure DevOps. */
+const remoteComments = new Map<number, { id: number; text: string; author: string }[]>([[7, [{ id: 900, text: '<div>visto por <i>Ana</i></div>', author: 'Ana' }]]]);
+let nextComment = 901;
+const activityReads: string[] = [];
 
 const server = Bun.serve({
   port: 0,
@@ -20,6 +33,22 @@ const server = Bun.serve({
     if (!['token-falso', 'token-de-op', 'token-pegado'].includes(token)) return new Response('', { status: 401 });
     tokens.push(token);
     const path = new URL(request.url).pathname;
+    const listed = path.match(/\/workItems\/(\d+)\/comments$/);
+    if (request.method === 'GET' && listed) {
+      activityReads.push(`comments ${listed[1]}`);
+      return Response.json({
+        comments: (remoteComments.get(Number(listed[1])) ?? []).map((c) => ({
+          commentId: c.id,
+          renderedText: c.text,
+          createdBy: { displayName: c.author },
+          createdDate: `2026-02-01T10:00:${String(c.id % 60).padStart(2, '0')}Z`,
+        })),
+      });
+    }
+    if (request.method === 'GET' && /\/workItems\/\d+\/updates$/.test(path)) {
+      const fields = { 'System.State': { newValue: 'To Do' }, 'System.ChangedDate': { newValue: '2026-01-01T09:00:00Z' } };
+      return Response.json({ value: [{ id: 1, revisedBy: { displayName: 'Luis' }, fields }] });
+    }
     // Los estados de cada tipo: sin ninguno, valen los nombres habituales
     if (request.method === 'GET') return Response.json({ value: [] });
     const body = (await request.json()) as any;
@@ -37,7 +66,11 @@ const server = Bun.serve({
     const comment = path.match(/\/workItems\/(\d+)\/comments$/);
     if (comment) {
       writes.push(`comment ${comment[1]} ${body.text}`);
-      return Response.json({});
+      const id = nextComment++;
+      const target = items.get(Number(comment[1]))!;
+      target.rev++;
+      remoteComments.set(target.id, [...(remoteComments.get(target.id) ?? []), { id, text: body.text, author: 'Yo' }]);
+      return Response.json({ id });
     }
     const update = path.match(/\/workitems\/(\d+)$/);
     if (update) {
@@ -300,4 +333,39 @@ it('tras convertir un tablero, «Enviar» manda cada comentario pendiente una so
   await s.browser.$(`${pane} .issues-push`).click();
   await until(async () => (await shown()).includes('No hay nada que enviar'), 'volvió a proponer cambios');
   expect(comments()).toHaveLength(2);
-}, 120_000);
+
+  // Lo enviado ya tiene el id que le dio el proveedor
+  await until(() => /comment · id:90\d\n  nuevo/.test(task()), 'no se anotó el id del comentario');
+
+  // «Traer» guarda la descripción y la actividad sin repetir lo enviado
+  const count = (text: string) => task().split(`\n  ${text}\n`).length - 1;
+  activityReads.length = 0;
+  await s.browser.$(`${pane} .issues-pull`).click();
+  await until(() => task().includes('## Description\n\n> Descripción de **Azure**'), 'no se guardó la descripción');
+  await until(() => task().includes('visto por *Ana*'), 'no se guardó el comentario ajeno');
+  expect(task()).toMatch(/history · Luis · id:rev-1\n  State: To Do/);
+  expect(task()).toMatch(/comment · Ana · id:900/);
+  expect([count('pendiente'), count('nuevo'), count('ya enviado')]).toEqual([1, 1, 1]);
+  expect(activityReads).toContain('comments 7');
+  expect(readFileSync(join(s.vault, 'convertido.board.md'), 'utf8')).toContain('synced_at:');
+
+  await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
+  await s.browser.$('.task-dialog .history').waitForExist({ timeout: 10_000 });
+  expect(await s.browser.$('.task-dialog .description').getText()).toBe('Descripción de **Azure**');
+  await until(async () => (await s.browser.$('.task-dialog .comments-list').getText()).includes('Ana'), 'no se ve quién comentó');
+  await shot('azure-actividad');
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+
+  // Sin cambios en el proveedor no se vuelve a pedir la actividad
+  activityReads.length = 0;
+  const saved = task();
+  await s.browser.$(`${pane} .issues-pull`).click();
+  await until(async () => (await shown()).includes('0 nuevas, 0 actualizadas'), 'no se trajo otra vez');
+  expect(activityReads).toEqual([]);
+  expect(task()).toBe(saved);
+  // Lo traído no se ofrece para enviar
+  await s.browser.$(`${pane} .issues-push`).click();
+  await until(async () => (await shown()).includes('No hay nada que enviar'), 'ofreció enviar lo traído');
+  expect(comments()).toHaveLength(2);
+}, 180_000);

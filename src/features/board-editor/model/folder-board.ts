@@ -1,6 +1,7 @@
 // El formato de carpeta (`format: 2`): `Nombre.board.md` define el tablero y cada tarea tiene su
 // archivo. Rust lee y escribe los archivos; aquí se convierten al documento que usan las vistas y se
 // guarda solo lo que cambió.
+import { fingerprint, mergeActivity } from './activity';
 import { DEFAULT_COLUMNS, type BoardColumn, type BoardDocument, type BoardTask, type BoardViewMode } from './board.svelte';
 import type { IssueLink, IssueSource } from './issue-sync';
 
@@ -13,7 +14,7 @@ export interface ActivityEntry {
   text: string;
 }
 
-export type TaskSync = IssueLink & { rev?: string };
+export type TaskSync = IssueLink;
 
 interface TaskData {
   title: string;
@@ -81,8 +82,7 @@ export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
   const links: Record<string, IssueLink> = {};
   const list = tasks.map((card) => {
     if (card.sync) {
-      const { rev: _, ...link } = card.sync;
-      links[card.id] = link;
+      links[card.id] = card.sync;
     }
     const task: BoardTask = {
       id: card.id,
@@ -92,7 +92,12 @@ export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
       duration: card.duration,
       dependsOn: card.dependsOn,
       progress: card.progress,
-      comments: card.comments.map((c) => ({ timestamp: c.at, text: c.text })),
+      comments: card.comments.map((c) => ({
+        timestamp: c.at,
+        text: c.text,
+        ...(c.id && { remote: c.id }),
+        ...(c.author && { author: c.author }),
+      })),
     };
     for (const key of OPTIONAL) if (card[key]) task[key] = card[key]!;
     return task;
@@ -180,13 +185,26 @@ export function applyTask(
   const changed = (key: keyof BoardTask) => !before || !same(before.task[key], after.task[key]);
   for (const key of REQUIRED) if (changed(key)) Object.assign(next, { [key]: after.task[key] });
   for (const key of OPTIONAL) if (changed(key)) next[key] = after.task[key] ?? null;
-  const known = new Set((before?.task.comments ?? []).map((c) => `${c.timestamp}\n${c.text}`));
-  const added = after.task.comments.filter((c) => !known.has(`${c.timestamp}\n${c.text}`));
+  const key = (c: BoardTask['comments'][number]) => `${c.timestamp}\n${c.text}`;
+  const known = new Map((before?.task.comments ?? []).map((c) => [key(c), c]));
+  const added = after.task.comments.filter((c) => !known.has(key(c)));
+  // Los recién enviados ya tienen id en el proveedor
+  for (const c of after.task.comments) {
+    if (!c.remote || !known.has(key(c)) || known.get(key(c))!.remote) continue;
+    const at = next.activity.findIndex((e) => e.kind === 'comment' && !e.id && e.at === c.timestamp && e.text === c.text);
+    if (at >= 0) next.activity = next.activity.with(at, { ...next.activity[at], id: c.remote });
+  }
   if (added.length) {
     next.activity = [
       ...next.activity,
-      ...added.map((c) => ({ at: c.timestamp, kind: 'comment' as const, author: null, id: null, edited: false, text: c.text })),
+      ...added.map((c) => ({ at: c.timestamp, kind: 'comment' as const, author: null, id: c.remote ?? null, edited: false, text: c.text })),
     ];
+  }
+  const incoming = after.task.incoming;
+  if (incoming && incoming !== before?.task.incoming) {
+    next.activity = mergeActivity(next.activity, incoming.entries, after.link?.sent);
+    // Solo si la de aquí sigue siendo la que se iba a sustituir
+    if (incoming.description !== undefined && fingerprint(next.description) === incoming.over) next.description = incoming.description;
   }
   if (!before || !same(before.link, after.link)) next.sync = after.link ? { rev: next.sync?.rev, ...after.link } : null;
   return next;

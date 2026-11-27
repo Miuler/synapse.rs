@@ -5,6 +5,9 @@ use crate::application::use_cases::issue::add_issue_comment_use_case::AddIssueCo
 use crate::application::use_cases::issue::check_connection_use_case::CheckConnectionUseCase;
 use crate::application::use_cases::issue::create_issue_use_case::CreateIssueUseCase;
 use crate::application::use_cases::issue::delete_connection_use_case::DeleteConnectionUseCase;
+use crate::application::use_cases::issue::fetch_activity_use_case::{
+    FetchActivityUseCase, FetchedActivity,
+};
 use crate::application::use_cases::issue::fetch_issues_use_case::{
     FetchIssuesUseCase, FetchedIssues,
 };
@@ -172,6 +175,21 @@ pub async fn issues_fetch(
         .await
 }
 
+/// Los comentarios y el histórico de las tareas pedidas.
+#[tauri::command]
+pub async fn issues_activity(
+    provider: String,
+    connection: Option<String>,
+    scope: String,
+    ids: Vec<String>,
+) -> Result<FetchedActivity, IssueError> {
+    Ok(
+        FetchActivityUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
+            .execute(&scope, &ids)
+            .await,
+    )
+}
+
 #[tauri::command]
 pub async fn issues_update(
     provider: String,
@@ -205,7 +223,7 @@ pub async fn issues_add_comment(
     scope: String,
     id: String,
     text: String,
-) -> Result<(), IssueError> {
+) -> Result<Option<String>, IssueError> {
     AddIssueCommentUseCase::new(connect(&provider, connection.as_deref(), &scope)?)
         .execute(&scope, &id, &text)
         .await

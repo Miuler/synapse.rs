@@ -324,6 +324,7 @@ export const en = {
     linked: 'Linked issue',
     syncing: 'Syncing…',
     pulled: 'Pulled: {added} new, {updated} updated.',
+    activityFailed: 'Comments and history of {count} tasks could not be read; they will be tried again. {detail}',
     conflicts: 'Changed on both sides, local version kept: {tasks}.',
     missing: 'Issues not found, tasks unlinked: {ids}.',
     unmapped: 'Column without a remote state: {tasks}.',

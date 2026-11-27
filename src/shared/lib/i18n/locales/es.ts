@@ -325,6 +325,7 @@ export const es: TranslationSchema = {
     linked: 'Tarea vinculada',
     syncing: 'Sincronizando…',
     pulled: 'Traído: {added} nuevas, {updated} actualizadas.',
+    activityFailed: 'No se pudieron leer los comentarios y el histórico de {count} tareas; se volverá a intentar. {detail}',
     conflicts: 'Cambiaron en los dos lados y se conserva lo local: {tasks}.',
     missing: 'Tareas que no se encuentran en el proveedor, desvinculadas: {ids}.',
     unmapped: 'Columna sin estado en el proveedor: {tasks}.',

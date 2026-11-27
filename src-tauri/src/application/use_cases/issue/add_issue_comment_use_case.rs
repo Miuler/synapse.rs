@@ -11,7 +11,7 @@ impl AddIssueCommentUseCase {
         Self { provider }
     }
 
-    pub async fn execute(&self, scope: &str, id: &str, text: &str) -> Result<(), IssueError> {
+    pub async fn execute(&self, scope: &str, id: &str, text: &str) -> Result<Option<String>, IssueError> {
         self.provider.add_comment(scope, id, text).await
     }
 }

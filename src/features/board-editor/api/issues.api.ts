@@ -1,4 +1,5 @@
 import { invokeTauri } from '@shared/api';
+import type { RemoteEntry } from '../model/activity';
 import type { Criterion, Issue, IssueFilter, IssueProvider, IssueSource, IssueWriter } from '../model/issue-sync';
 
 /** Error que devuelve Rust: la clase decide el texto, el detalle lo pone el proveedor. */
@@ -16,6 +17,13 @@ const target = ({ provider, connection, scope }: IssueSource) => ({ provider, co
 export function fetchIssues(source: IssueSource, query: string, linked: string[]) {
   return invokeTauri<{ items: Issue[]; requested: string[]; matched: string[] }>('issues_fetch', { ...target(source), query, linked });
 }
+
+/** Los comentarios y el histórico de las tareas pedidas. */
+export const fetchActivity = (source: IssueSource, ids: string[]) =>
+  invokeTauri<{ items: Record<string, RemoteEntry[]>; failed: { id: string; error: IssueError }[] }>('issues_activity', {
+    ...target(source),
+    ids,
+  });
 
 /** Los valores elegibles de un criterio. */
 export const filterValues = (source: IssueSource, criterion: Criterion) =>

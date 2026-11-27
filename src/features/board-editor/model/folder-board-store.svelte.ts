@@ -29,7 +29,10 @@ export class FolderBoard {
     this.doc = next;
     this.error = null;
     void this.#enqueue(async () => {
-      if (this.#file) this.#file = await persist(this.api, this.path, this.#file, before, next);
+      if (!this.#file) return;
+      this.#file = await persist(this.api, this.path, this.#file, before, next);
+      // Lo traído del proveedor solo se ve al releer los archivos
+      if (next.tasks.some((task) => task.incoming && !before.tasks.includes(task))) await this.#read();
     });
   }
 

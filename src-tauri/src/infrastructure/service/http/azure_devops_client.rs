@@ -8,13 +8,14 @@ use crate::application::service::issue_provider::{IssueProvider, ProviderFuture}
 use crate::domain::issue::connection::{self, Connection};
 use crate::domain::issue::filter::{CURRENT, Criterion, IssueFilter, ME};
 use crate::domain::issue::issue::{
-    Account, Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory, TypeStates,
+    Account, EntryKind, FieldChange, Issue, IssueChanges, IssueEntry, IssueState, NewIssue,
+    Person, StateCategory, TypeStates,
 };
 use crate::domain::issue::issue_error::{IssueError, IssueErrorKind as Kind};
 use crate::domain::issue::provider_descriptor::{
     Capabilities, ConflictCheck, ConnectionField, ProviderDescriptor, StateChange,
 };
-use crate::infrastructure::service::http::azure_devops_wiql;
+use crate::infrastructure::service::http::{azure_devops_wiql, html_markdown};
 use crate::infrastructure::service::os::secret_store::SecretStore;
 use crate::infrastructure::service::os::{git_binary, one_password};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
@@ -28,14 +29,40 @@ use std::time::Duration;
 /// Valor de `provider` de este adaptador.
 pub const PROVIDER: &str = "azure_devops";
 const API: &str = "api-version=7.1";
+const DESCRIPTION: &str = "System.Description";
+/// El texto principal de un error (Bug).
+const REPRO_STEPS: &str = "Microsoft.VSTS.TCM.ReproSteps";
+/// Los cambios del histórico que se guardan; el resto son contadores y fechas internas.
+const HISTORY_FIELDS: [&str; 11] = [
+    "System.WorkItemType",
+    "System.Title",
+    "System.State",
+    "System.Reason",
+    "System.AssignedTo",
+    "System.IterationPath",
+    "System.AreaPath",
+    "System.Tags",
+    "Microsoft.VSTS.Common.Priority",
+    DESCRIPTION,
+    REPRO_STEPS,
+];
+/// Entradas por página de comentarios y de cambios.
+const PAGE: usize = 200;
+/// Tope de páginas de una tarea: ningún servidor puede dejar pidiendo sin fin.
+const MAX_PAGES: usize = 50;
 /// Los campos de un work item que entran en el modelo común.
-const FIELDS: [&str; 5] = [
+const FIELDS: [&str; 8] = [
     "System.Title",
     "System.State",
     "System.WorkItemType",
     "System.AssignedTo",
     "System.ChangedDate",
+    DESCRIPTION,
+    REPRO_STEPS,
+    COMMENT_COUNT,
 ];
+/// Cuántos comentarios tiene: delata uno nuevo aunque no cambie la revisión.
+const COMMENT_COUNT: &str = "System.CommentCount";
 /// Lo abierto en el proyecto y relacionado con quien sincroniza.
 const DEFAULT_QUERY: &str = "SELECT [System.Id] FROM WorkItems
 WHERE [System.TeamProject] = @project
@@ -43,6 +70,8 @@ WHERE [System.TeamProject] = @project
   AND ([System.AssignedTo] = @me OR [System.ChangedBy] = @me OR [System.CreatedBy] = @me)
 ORDER BY [System.ChangedDate] DESC";
 const COMMENTS_API: &str = "api-version=7.1-preview.3";
+/// La lectura admite además el texto ya convertido a HTML.
+const COMMENT_LIST_API: &str = "api-version=7.1-preview.4";
 /// Máximo de ids por llamada a `workitemsbatch`.
 const BATCH: usize = 200;
 /// Nombre del token en el llavero.
@@ -455,7 +484,7 @@ fn issue(value: &Value) -> Option<Issue> {
         url: None,
         issue_type: field("System.WorkItemType"),
         title: field("System.Title"),
-        description: None,
+        description: description(value),
         state: IssueState {
             category: StateCategory::from_name(&state),
             name: state,
@@ -464,7 +493,116 @@ fn issue(value: &Value) -> Option<Issue> {
         labels: Vec::new(),
         updated_at: Some(field("System.ChangedDate")).filter(|d| !d.is_empty()),
         revision: Some(value["rev"].as_u64()?.to_string()),
-        extra: Default::default(),
+        extra: value["fields"][COMMENT_COUNT]
+            .as_u64()
+            .map(|count| ("comment_count".to_string(), count.to_string()))
+            .into_iter()
+            .collect(),
+    })
+}
+
+/// El texto principal como Markdown: en un Bug, los pasos para reproducirlo; si no, la descripción.
+fn description(value: &Value) -> Option<String> {
+    let bug = value["fields"]["System.WorkItemType"] == "Bug";
+    let order = if bug {
+        [REPRO_STEPS, DESCRIPTION]
+    } else {
+        [DESCRIPTION, REPRO_STEPS]
+    };
+    order.iter().find_map(|field| {
+        let text = value["fields"][field].as_str()?;
+        // Las organizaciones con campos en Markdown lo dicen aquí (no figura en la referencia)
+        let format = value["multilineFieldsFormat"][field].as_str();
+        Some(html_markdown::from_text(text, format)).filter(|t| !t.is_empty())
+    })
+}
+
+/// `2026-01-02T03:04:05.678Z` como `2026-01-02T03:04:05`, la forma de las fechas del tablero (UTC).
+fn instant(date: &str) -> String {
+    date.get(..19).unwrap_or(date).to_string()
+}
+
+fn comment_entry(value: &Value) -> Option<IssueEntry> {
+    if value["isDeleted"] == true {
+        return None;
+    }
+    // La referencia lo llama `id` y sus ejemplos, `commentId`
+    let id = value["commentId"].as_u64().or_else(|| value["id"].as_u64())?;
+    let text = match value["renderedText"].as_str().filter(|t| !t.is_empty()) {
+        Some(html) => html_markdown::from_html(html),
+        None => html_markdown::from_text(
+            value["text"].as_str().unwrap_or_default(),
+            value["format"].as_str(),
+        ),
+    };
+    Some(IssueEntry {
+        id: id.to_string(),
+        kind: EntryKind::Comment,
+        author: person(&value["createdBy"]),
+        at: instant(value["createdDate"].as_str().unwrap_or_default()),
+        text,
+        changes: Vec::new(),
+    })
+}
+
+/// Un valor del histórico en una línea.
+fn shown(value: &Value) -> Option<String> {
+    let text = match value {
+        Value::Null => return None,
+        Value::String(text) => text.clone(),
+        Value::Object(_) => person(value)?.name,
+        other => other.to_string(),
+    };
+    let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(line.chars().take(200).collect::<String>()).filter(|l| !l.is_empty())
+}
+
+/// Un cambio del work item; `None` si no tocó nada que se guarde.
+fn history_entry(value: &Value) -> Option<IssueEntry> {
+    let fields = &value["fields"];
+    let mut changes = Vec::new();
+    let mut lines = Vec::new();
+    for field in HISTORY_FIELDS {
+        let change = &fields[field];
+        let name = field.rsplit('.').next().unwrap_or(field);
+        let long = field == DESCRIPTION || field == REPRO_STEPS;
+        let (from, to) = (shown(&change["oldValue"]), shown(&change["newValue"]));
+        if from == to {
+            continue;
+        }
+        let (from, to) = if long { (None, None) } else { (from, to) };
+        lines.push(match (&from, &to) {
+            _ if long => format!("{name} changed"),
+            (None, Some(to)) => format!("{name}: {to}"),
+            (from, to) => format!(
+                "{name}: {} → {}",
+                from.as_deref().unwrap_or("—"),
+                to.as_deref().unwrap_or("—")
+            ),
+        });
+        changes.push(FieldChange {
+            field: name.to_string(),
+            from,
+            to,
+        });
+    }
+    if changes.is_empty() {
+        return None;
+    }
+    // `revisedDate` es hasta cuándo valió la revisión (9999 en la última): la fecha del cambio va aparte
+    let at = fields["System.ChangedDate"]["newValue"].as_str().or_else(|| {
+        value["revisedDate"]
+            .as_str()
+            .filter(|d| !d.starts_with("9999"))
+    });
+    let author = &value["revisedBy"];
+    Some(IssueEntry {
+        id: format!("rev-{}", value["id"].as_u64()?),
+        kind: EntryKind::History,
+        author: person(author).or_else(|| person(&author["name"])),
+        at: instant(at.unwrap_or_default()),
+        text: lines.join("\n"),
+        changes,
     })
 }
 
@@ -534,6 +672,58 @@ impl AzureDevOpsClient {
 }
 
 impl AzureDevOpsClient {
+    async fn comments(&self, project: &Project, id: u64) -> Result<Vec<IssueEntry>, IssueError> {
+        let base = project.url(&format!("workItems/{id}/comments"));
+        let mut found = Vec::new();
+        let mut next: Option<String> = None;
+        for _ in 0..MAX_PAGES {
+            let mut url = format!("{base}?$top={PAGE}&$expand=renderedText&{COMMENT_LIST_API}");
+            if let Some(token) = &next {
+                let token: String =
+                    url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
+                url.push_str(&format!("&continuationToken={token}"));
+            }
+            let response = self.send(Method::GET, &url, None).await?;
+            let page = response["comments"].as_array();
+            found.extend(page.into_iter().flatten().filter_map(comment_entry));
+            let token = response["continuationToken"]
+                .as_str()
+                .filter(|t| !t.is_empty())
+                .map(str::to_string);
+            // Un token repetido no avanza
+            if token.is_none() || token == next {
+                break;
+            }
+            next = token;
+        }
+        Ok(found)
+    }
+
+    async fn history(&self, project: &Project, id: u64) -> Result<Vec<IssueEntry>, IssueError> {
+        let base = project.url(&format!("workItems/{id}/updates"));
+        let mut found = Vec::new();
+        let mut skip = 0;
+        let mut last = 0;
+        // La referencia no dice cuánto trae una página: se pide hasta que no llegue nada nuevo
+        for _ in 0..MAX_PAGES {
+            let url = format!("{base}?$top={PAGE}&$skip={skip}&{API}");
+            let response = self.send(Method::GET, &url, None).await?;
+            let page = response["value"].as_array().cloned().unwrap_or_default();
+            // Llegan del más antiguo al más reciente
+            let fresh: Vec<&Value> = page
+                .iter()
+                .filter(|u| u["id"].as_u64().is_some_and(|id| id > last))
+                .collect();
+            let Some(newest) = fresh.iter().filter_map(|u| u["id"].as_u64()).max() else {
+                break;
+            };
+            last = newest;
+            skip += page.len();
+            found.extend(fresh.into_iter().filter_map(history_entry));
+        }
+        Ok(found)
+    }
+
     /// Los estados de un tipo de work item, con su categoría.
     async fn type_states(
         &self,
@@ -819,6 +1009,17 @@ impl IssueProvider for AzureDevOpsClient {
         })
     }
 
+    fn activity<'a>(&'a self, scope: &'a str, id: &'a str) -> ProviderFuture<'a, Vec<IssueEntry>> {
+        Box::pin(async move {
+            let id = work_item_id(id)?;
+            let project = self.project(scope)?;
+            let mut found = self.comments(&project, id).await?;
+            found.extend(self.history(&project, id).await?);
+            found.sort_by(|a, b| a.at.cmp(&b.at));
+            Ok(found)
+        })
+    }
+
     fn create<'a>(&'a self, scope: &'a str, new: &'a NewIssue) -> ProviderFuture<'a, Issue> {
         Box::pin(async move {
             let base = self.project(scope)?.url("workitems");
@@ -844,15 +1045,16 @@ impl IssueProvider for AzureDevOpsClient {
         scope: &'a str,
         id: &'a str,
         text: &'a str,
-    ) -> ProviderFuture<'a, ()> {
+    ) -> ProviderFuture<'a, Option<String>> {
         Box::pin(async move {
             let id = work_item_id(id)?;
             let url = self
                 .project(scope)?
                 .url(&format!("workItems/{id}/comments?{COMMENTS_API}"));
             let body = ("application/json", json!({ "text": comment_html(text) }));
-            self.send(Method::POST, &url, Some(body)).await?;
-            Ok(())
+            let created = self.send(Method::POST, &url, Some(body)).await?;
+            let id = created["commentId"].as_u64().or_else(|| created["id"].as_u64());
+            Ok(id.map(|id| id.to_string()))
         })
     }
 }
@@ -1411,5 +1613,101 @@ mod tests {
         assert_eq!(kind(412, "{}"), Kind::Conflict);
         assert_eq!(kind(400, r#"{"typeKey":"RuleValidationException"}"#), Kind::Rule);
         assert_eq!(kind(500, ""), Kind::Request);
+    }
+
+    #[test]
+    fn el_texto_principal_depende_del_tipo_y_llega_como_markdown() {
+        let item = |kind: &str, extra: Value| {
+            let mut value = json!({"id": 1, "rev": 1, "fields": {
+                "System.WorkItemType": kind,
+                "System.Description": "<div>la <b>descripción</b></div>",
+                "Microsoft.VSTS.TCM.ReproSteps": "<ol><li>paso</li></ol>",
+            }});
+            if !extra.is_null() {
+                value["multilineFieldsFormat"] = extra;
+            }
+            issue(&value).unwrap().description.unwrap()
+        };
+        assert_eq!(item("Task", Value::Null), "la **descripción**");
+        assert_eq!(item("Bug", Value::Null), "1. paso");
+        let markdown = json!({"System.Description": "markdown"});
+        assert_eq!(item("Task", markdown), "&lt;div>la &lt;b>descripción&lt;/b>&lt;/div>");
+        let empty = json!({"id": 1, "rev": 1, "fields": {"System.Description": "<div><br></div>"}});
+        assert_eq!(issue(&empty).unwrap().description, None);
+    }
+
+    #[tokio::test]
+    async fn la_actividad_une_comentarios_e_historico_por_fecha() {
+        let (origin, requests) = serve_json(vec![
+            r#"{"comments":[{"commentId":11,"text":"x","renderedText":"<div>Hola <b>equipo</b></div>","createdBy":{"displayName":"Ana"},"createdDate":"2026-01-03T10:00:00.5Z"}],"continuationToken":"a+b="}"#,
+            r#"{"comments":[{"id":12,"text":"borrado","isDeleted":true},{"id":13,"text":"**md**","format":"markdown","createdDate":"2026-01-05T10:00:00Z"}]}"#,
+            r#"{"value":[
+                {"id":1,"revisedBy":{"displayName":"Luis"},"revisedDate":"2026-01-02T09:00:00Z","fields":{"System.State":{"newValue":"New"},"System.Rev":{"newValue":1},"System.ChangedDate":{"newValue":"2026-01-01T09:00:00Z"}}},
+                {"id":2,"revisedDate":"2026-01-04T00:00:00Z","fields":{"System.Rev":{"newValue":2}}},
+                {"id":3,"revisedBy":{"name":"Eva"},"revisedDate":"9999-01-01T00:00:00Z","fields":{"System.State":{"oldValue":"New","newValue":"Active"},"System.AssignedTo":{"newValue":{"displayName":"Ana"}},"System.Description":{"oldValue":"<p>a</p>","newValue":"<p>b</p>"},"System.ChangedDate":{"newValue":"2026-01-04T09:00:00.12Z"}}}
+            ]}"#,
+            r#"{"value":[]}"#,
+        ]);
+        let found = client(Some(&origin))
+            .activity(&format!("{origin}/org/Proyecto"), "7")
+            .await
+            .unwrap();
+        let lines: Vec<(&str, &str, &str)> = found
+            .iter()
+            .map(|e| (e.id.as_str(), e.at.as_str(), e.text.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("rev-1", "2026-01-01T09:00:00", "State: New"),
+                ("11", "2026-01-03T10:00:00", "Hola **equipo**"),
+                (
+                    "rev-3",
+                    "2026-01-04T09:00:00",
+                    "State: New → Active\nAssignedTo: Ana\nDescription changed"
+                ),
+                ("13", "2026-01-05T10:00:00", "**md**"),
+            ]
+        );
+        assert_eq!(found[1].kind, EntryKind::Comment);
+        assert_eq!(found[2].author.as_ref().unwrap().name, "Eva");
+        let requests = requests.join().unwrap();
+        assert!(requests[0].starts_with("GET /org/Proyecto/_apis/wit/workItems/7/comments?$top=200&$expand=renderedText&api-version=7.1-preview.4 "), "{}", requests[0]);
+        assert!(requests[1].contains("&continuationToken=a%2Bb%3D "), "{}", requests[1]);
+        assert!(requests[2].starts_with("GET /org/Proyecto/_apis/wit/workItems/7/updates?$top=200&$skip=0&api-version=7.1 "), "{}", requests[2]);
+    }
+
+    /// Una página de cambios de estado con esos ids.
+    fn updates(ids: std::ops::RangeInclusive<u64>) -> &'static str {
+        let value: Vec<Value> = ids
+            .map(|id| json!({"id": id, "fields": {"System.State": {"newValue": format!("E{id}")}}}))
+            .collect();
+        Box::leak(json!({ "value": value }).to_string().into_boxed_str())
+    }
+
+    async fn history_of(pages: Vec<&'static str>) -> (usize, Vec<String>) {
+        let mut replies = vec![r#"{"comments":[]}"#];
+        replies.extend(pages);
+        let (origin, requests) = serve_json(replies);
+        let found = client(Some(&origin))
+            .activity(&format!("{origin}/org/Proyecto"), "7")
+            .await
+            .unwrap();
+        let ids = found.into_iter().map(|e| e.id).collect();
+        (requests.join().unwrap().len() - 1, ids)
+    }
+
+    #[tokio::test]
+    async fn el_historico_sigue_aunque_la_pagina_venga_corta() {
+        let pages = vec![updates(1..=100), updates(101..=130), r#"{"value":[]}"#];
+        let (requests, ids) = history_of(pages).await;
+        assert_eq!((requests, ids.len()), (3, 130));
+        assert_eq!(ids.last().unwrap(), "rev-130");
+    }
+
+    #[tokio::test]
+    async fn una_pagina_repetida_no_se_pide_sin_fin() {
+        let (requests, ids) = history_of(vec![updates(1..=200), updates(1..=200)]).await;
+        assert_eq!((requests, ids.len()), (2, 200));
     }
 }

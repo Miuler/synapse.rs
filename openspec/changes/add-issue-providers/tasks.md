@@ -53,9 +53,13 @@
   Los tableros nuevos se crean ya en el formato de carpeta, sin tareas de ejemplo. La conexión del tablero se deja como
   estaba (vacía, la resuelve el servidor o la credencial global): la conversión no propone ni crea conexiones (paso 2
   del plan de migración); se crean desde Configuración
-- [ ] 3.6 Traer descripción y actividad de Azure DevOps (comentarios e histórico) solo de lo cambiado desde la última
+- [x] 3.6 Traer descripción y actividad de Azure DevOps (comentarios e histórico) solo de lo cambiado desde la última
   sincronización, tras verificar sus endpoints; pruebas contra servidor falso y e2e de «Traer» y «Enviar».
-  Añade `activity` al puerto
+  Añade `activity` al puerto.
+  Solo en los tableros de carpeta. Los endpoints se comprobaron en la documentación, no contra una cuenta real. Se
+  pide la actividad completa de cada tarea cuya revisión o número de comentarios cambió: un comentario editado en el
+  proveedor llega cuando cambie la tarea. Si la descripción cambió en los dos lados se conserva la local y se avisa,
+  sin forma de resolverlo hasta la 3.7
 - [ ] 3.7 Editar en el detalle de la tarea todos sus campos y comentarios, desde Kanban, tabla y Gantt, con aviso y
   marca al cambiar el histórico; e2e de la edición, de cancelar el aviso y de que traer no la pisa
 - [ ] 3.8 Enviar los cambios de descripción, tipo, asignado y comentarios, tras verificar sus endpoints, indicando lo

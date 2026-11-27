@@ -86,6 +86,7 @@ fn source(
                         column: link.column,
                         sent: link.sent,
                         outside: link.outside,
+                        description: None,
                     };
                     links.insert(task, sync);
                 }

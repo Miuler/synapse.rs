@@ -16,3 +16,5 @@ acceptance:
 ---
 
 El usuario preguntó si se traen. No: solo título, estado y tipo (que se descarta). La descripción llega como HTML y hay que sanearla o convertirla. No estaba en la propuesta add-issue-providers. Comentarios e histórico: syna-pwgq.
+
+Avance 2026-11-27: «Traer» guarda la descripción como Markdown saneado en los tableros de carpeta (tarea 3.6), probado contra un servidor falso. Falta comprobarlo contra un Azure DevOps real.

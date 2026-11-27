@@ -6,7 +6,9 @@
   import SourceDialog from './SourceDialog.svelte';
   import { azureToken } from '../api/azure-devops.api';
   import { connectionsApi, type Connection } from '../api/connections.api';
-  import { fetchIssues, filterQuery, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
+  import { fetchActivity, fetchIssues, filterQuery, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
+  import { changedIssues, receive } from '../model/activity';
+  import type { TaskFile } from '../model/folder-board';
   import {
     applyPull,
     buildPushPlan,
@@ -24,9 +26,11 @@
     write: (next: BoardDocument) => void;
     /** El tablero se acaba de crear: si se puede sincronizar, se pregunta de dónde salen sus tareas. */
     isNew?: boolean;
+    /** Solo en los tableros de carpeta: con ella se guarda también la descripción y la actividad. */
+    readTask?: (id: string) => Promise<{ task: TaskFile }>;
   }
 
-  let { read, write, isNew = false }: Props = $props();
+  let { read, write, isNew = false, readTask }: Props = $props();
 
   let busy = $state(false);
   let providers = $state<IssueProvider[]>([]);
@@ -120,11 +124,37 @@
       const { items, requested, matched } = await fetchIssues(source, query, linkedIds(read()));
       if (read().source?.scope !== source.scope) return;
       const today = new Date().toLocaleDateString('sv-SE');
-      const result = applyPull(read(), declared, items, requested, today, matched);
-      write(result.doc);
+      const apply = () => applyPull(read(), declared, items, requested, today, matched);
+      // En un tablero de carpeta, además, la actividad de lo que cambió
+      let activity: Awaited<ReturnType<typeof fetchActivity>> | undefined;
+      const files: Record<string, TaskFile> = {};
+      if (readTask) {
+        const ids = changedIssues(apply().doc, items);
+        activity = ids.length ? await fetchActivity(source, ids) : { items: {}, failed: [] };
+        const existing = Object.entries(read().source?.links ?? {}).filter(([, link]) => activity!.items[link.id]);
+        const present = new Set(read().tasks.map((task) => task.id));
+        await Promise.all(
+          existing.filter(([id]) => present.has(id)).map(async ([id]) => (files[id] = (await readTask(id)).task)),
+        );
+        if (read().source?.scope !== source.scope) return;
+      }
+      const result = apply();
+      let { doc } = result;
+      let changed = result.changed;
+      let conflicts = result.conflicts;
+      if (activity) {
+        const received = receive(doc, items, activity.items, files);
+        doc = received.doc;
+        doc = { ...doc, source: { ...doc.source!, synced_at: new Date().toISOString().slice(0, 19) } };
+        changed = [...new Set([...changed, ...received.changed])];
+        conflicts = [...new Set([...conflicts, ...received.conflicts])];
+      }
+      write(doc);
+      const failed = activity?.failed ?? [];
       messages = [
-        t('issues.pulled', { added: result.added, updated: result.updated }),
-        ...(result.conflicts.length ? [t('issues.conflicts', { tasks: result.conflicts.join(', ') })] : []),
+        t('issues.pulled', { added: result.added, updated: changed.length }),
+        ...(failed.length ? [t('issues.activityFailed', { count: failed.length, detail: errorText(failed[0].error) })] : []),
+        ...(conflicts.length ? [t('issues.conflicts', { tasks: conflicts.join(', ') })] : []),
         ...(result.missing.length ? [t('issues.missing', { ids: result.missing.join(', ') })] : []),
         ...(result.outside.length ? [t('issues.outsideCount', { tasks: result.outside.join(', ') })] : []),
       ];
@@ -162,9 +192,22 @@
         declared,
         issueWriter(source),
         read,
-        (taskId, link) => {
+        (taskId, link, sent) => {
           const doc = read();
-          if (doc.source) write({ ...doc, source: { ...doc.source, links: { ...doc.source.links, [taskId]: link } } });
+          if (!doc.source) return;
+          const tasks = !sent
+            ? doc.tasks
+            : doc.tasks.map((task) =>
+                task.id !== taskId
+                  ? task
+                  : {
+                      ...task,
+                      comments: task.comments.map((c) =>
+                        c.timestamp === sent.timestamp && c.text === sent.text ? { ...c, remote: sent.remote } : c,
+                      ),
+                    },
+              );
+          write({ ...doc, tasks, source: { ...doc.source, links: { ...doc.source.links, [taskId]: link } } });
         },
         plan.changes.filter((c) => chosen[c.taskId]),
         plan.unlinked.filter((u) => toCreate[u.id]).map((u) => u.id),

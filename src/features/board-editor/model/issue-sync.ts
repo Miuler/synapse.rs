@@ -16,6 +16,10 @@ export interface IssueLink {
   sent?: string[];
   /** Ya no la devuelve la consulta del tablero: sigue en él, marcada. */
   outside?: boolean;
+  /** Versión de la que se guardó la descripción y la actividad (formato de carpeta). */
+  rev?: string;
+  /** Huella de la última descripción que ambos lados tenían. */
+  description?: string;
 }
 
 export type Criterion = 'type' | 'state' | 'assignee' | 'iteration' | 'area' | 'tag';
@@ -42,6 +46,8 @@ export interface IssueSource {
   /** Estados de cada columna: el primero es el que se envía, todos valen al traer. */
   states?: Record<string, string[]>;
   links?: Record<string, IssueLink>;
+  /** Cuándo se trajeron las tareas por última vez (formato de carpeta, UTC). */
+  synced_at?: string;
   /** Lo leído del archivo, para devolverle lo que no se interpreta. */
   original?: Record<string, unknown>;
 }
@@ -58,6 +64,10 @@ export interface Issue {
   assignee?: { name: string; id: string } | null;
   key?: string;
   url?: string | null;
+  /** Markdown. */
+  description?: string | null;
+  /** Lo que no cabe en el modelo común. */
+  extra?: Record<string, string>;
 }
 
 /** Lo que un proveedor declara de sí mismo. */
@@ -113,6 +123,8 @@ export interface PullResult {
   updated: number;
   /** Tareas con cambios distintos en los dos lados: se conserva lo local. */
   conflicts: string[];
+  /** Las que cambiaron de título o columna. */
+  changed: string[];
   /** Tareas que el proveedor ya no devuelve: se desvinculan, la fila se queda. */
   missing: string[];
   /** Tareas vinculadas que la consulta ya no devuelve. */
@@ -138,7 +150,7 @@ export function applyPull(
   const conflicts: string[] = [];
   const missing: string[] = [];
   const outside: string[] = [];
-  let updated = 0;
+  const changed: string[] = [];
 
   const tasks = doc.tasks.map((task) => {
     const link = source.links?.[task.id];
@@ -187,7 +199,7 @@ export function applyPull(
       }
     }
     if (conflict) conflicts.push(task.id);
-    if (next.title !== task.title || next.status !== task.status) updated++;
+    if (next.title !== task.title || next.status !== task.status) changed.push(task.id);
     links[task.id] = base;
     return next;
   });
@@ -207,7 +219,7 @@ export function applyPull(
     added++;
   }
 
-  return { doc: { ...doc, tasks, source: { ...source, links } }, added, updated, conflicts, missing, outside };
+  return { doc: { ...doc, tasks, source: { ...source, links } }, added, updated: changed.length, changed, conflicts, missing, outside };
 }
 
 /** Lo que «Enviar» cambiaría en una tarea ya vinculada. */
@@ -253,7 +265,8 @@ export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items
       taskId: task.id,
       item,
       column: task.status,
-      comments: task.comments.filter((c) => !link.sent?.includes(c.timestamp)),
+      // Lo que ya está en el proveedor tiene su id
+      comments: task.comments.filter((c) => !c.remote && !link.sent?.includes(c.timestamp)),
       conflict: false,
     };
 
@@ -284,7 +297,8 @@ export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items
 export interface IssueWriter {
   update(id: string, revision: string | null, changes: { title?: string; state?: string }): Promise<Issue>;
   create(type: string, title: string): Promise<Issue>;
-  comment(id: string, text: string): Promise<void>;
+  /** Devuelve el id del comentario creado, si el proveedor lo dice. */
+  comment(id: string, text: string): Promise<string | null | void>;
 }
 export interface PushResult {
   updated: number;
@@ -301,7 +315,7 @@ export async function runPush(
   provider: IssueProvider,
   writer: IssueWriter,
   read: () => BoardDocument,
-  save: (taskId: string, link: IssueLink) => void,
+  save: (taskId: string, link: IssueLink, comment?: { timestamp: string; text: string; remote: string }) => void,
   changes: PushChange[],
   create: string[],
 ): Promise<PushResult> {
@@ -309,9 +323,9 @@ export async function runPush(
 
   async function sendComments(taskId: string, link: IssueLink, comments: PushChange['comments']) {
     for (const c of comments) {
-      await writer.comment(link.id, c.text);
+      const remote = await writer.comment(link.id, c.text);
       link.sent = [...(link.sent ?? []), c.timestamp];
-      save(taskId, { ...link });
+      save(taskId, { ...link }, remote ? { timestamp: c.timestamp, text: c.text, remote } : undefined);
       result.comments++;
     }
   }
@@ -355,7 +369,8 @@ export async function runPush(
         link.column = task.status;
         save(taskId, { ...link });
       }
-      await sendComments(taskId, link, task.comments);
+      // Los traídos de una tarea de antes no son comentarios por enviar
+      await sendComments(taskId, link, task.comments.filter((c) => !c.remote));
     } catch (error) {
       result.errors.push({ taskId, error });
     }
