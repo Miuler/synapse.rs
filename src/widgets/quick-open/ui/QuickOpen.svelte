@@ -521,10 +521,21 @@
   }
 
   function closeDialog() {
-    if (!inline) isOpen = false;
-    searchQuery = '';
+    // El diálogo recuerda lo escrito (y sus filtros) para la próxima vez; el de la pestaña vacía no
+    if (inline) searchQuery = '';
+    else isOpen = false;
     visibleCount = PAGE_SIZE;
     if (onClose) onClose();
+  }
+
+  let dialogEl = $state<HTMLElement | null>(null);
+
+  /** Al abrir, lo recordado queda seleccionado: escribir lo reemplaza. */
+  function selectQueryOnOpen(e: Event) {
+    e.preventDefault();
+    const input = dialogEl?.querySelector('input');
+    input?.focus();
+    input?.select();
   }
 
   function selectFile(path: string, matchedTerms?: string[]) {
@@ -849,6 +860,8 @@
   <Dialog.Portal>
     <Dialog.Overlay class="quick-open-backdrop" />
     <Dialog.Content
+      bind:ref={dialogEl}
+      onOpenAutoFocus={selectQueryOnOpen}
       class={`quick-open-container synapse-dialog synapse-quick-open ${dialogSize.resizing ? 'is-resizing' : ''}`}
       style={dialogSize.style}
     >

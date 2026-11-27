@@ -83,6 +83,8 @@
         .then((resp) => {
           if (active) {
             hits = resp.hits;
+            // Resultados nuevos: Enter abre el primero (la selección anterior puede no estar entre ellos)
+            selectedCommandValue = resp.hits[0]?.note_path ?? '';
             totalHits = resp.total_hits;
             elapsedMs = resp.elapsed_ms;
             status = resp.status;
@@ -131,9 +133,18 @@
 
   function closeDialog() {
     isOpen = false;
-    searchQuery = '';
     hits = [];
     if (onClose) onClose();
+  }
+
+  let dialogEl = $state<HTMLElement | null>(null);
+
+  /** Al abrir, lo recordado queda seleccionado: escribir lo reemplaza. */
+  function selectQueryOnOpen(e: Event) {
+    e.preventDefault();
+    const input = dialogEl?.querySelector('input');
+    input?.focus();
+    input?.select();
   }
 
   function selectHit(hit: FullTextHit) {
@@ -175,6 +186,8 @@
   <Dialog.Portal>
     <Dialog.Overlay class="fts-backdrop" />
     <Dialog.Content
+      bind:ref={dialogEl}
+      onOpenAutoFocus={selectQueryOnOpen}
       class={`synapse-dialog fts-container ${dialogSize.resizing ? 'is-resizing' : ''}`}
       style={dialogSize.style}
     >

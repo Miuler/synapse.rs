@@ -81,6 +81,9 @@ it('el Quick Open agrupa recientes solo sin búsqueda', async () => {
   await s.browser.keys(['Control', 'o']);
   const input = s.browser.$('.quick-open-command-root input');
   await input.waitForExist({ timeout: 10_000 });
+  // El diálogo recuerda la búsqueda anterior y la deja seleccionada: escribir la reemplaza
+  expect(await input.getValue()).toBe('idea');
+  await s.browser.keys(['Backspace']);
   await s.browser.waitUntil(async () => (await dividers()).length > 0, { timeout: 10_000, timeoutMsg: 'sin separadores en la lista sin búsqueda' });
   const grouped = (await dividers()).map((t) => t.toLowerCase());
   expect(grouped[0]).toBe('recientes');
@@ -95,6 +98,24 @@ it('el Quick Open agrupa recientes solo sin búsqueda', async () => {
   expect(searching.filter((t) => t === 'archivos').length).toBeLessThanOrEqual(1);
   await shot('02b-quick-open-busqueda');
   await s.browser.keys(['Escape']);
+});
+
+it('los buscadores recuerdan lo escrito, con sus filtros', async () => {
+  const check = async (keys: string[], selector: string, query: string) => {
+    const input = s.browser.$(selector);
+    await s.browser.keys(keys);
+    await input.waitForExist({ timeout: 10_000 });
+    await input.setValue(query);
+    await s.browser.keys(['Escape']);
+    await input.waitForExist({ reverse: true, timeout: 10_000 });
+    await s.browser.keys(keys);
+    await input.waitForExist({ timeout: 10_000 });
+    expect(await input.getValue()).toBe(query);
+    await s.browser.keys(['Escape']);
+    await input.waitForExist({ reverse: true, timeout: 10_000 });
+  };
+  await check(['Control', 'o'], '.quick-open-container:not(.is-inline) .quick-open-command-root input', '/docs/notas');
+  await check(['Control', 'Shift', 'f'], '.fts-container input', 'idea path:docs');
 });
 
 it('cambiar el título renombra el archivo y el explorador se actualiza', async () => {

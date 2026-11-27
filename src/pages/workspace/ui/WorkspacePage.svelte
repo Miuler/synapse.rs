@@ -381,10 +381,8 @@
 
   function openQuickOpenModal() {
     if (isFullTextSearchOpen) {
-      const carriedQuery = ftsSearchQuery;
       isFullTextSearchOpen = false;
-      ftsSearchQuery = "";
-      quickOpenSearchQuery = carriedQuery;
+      quickOpenSearchQuery = ftsSearchQuery;
     }
     if (isPaletteOpen) {
       isPaletteOpen = false;
@@ -398,7 +396,6 @@
         ? quickOpenSearchQuery.slice(1).trim()
         : quickOpenSearchQuery;
       isQuickOpenOpen = false;
-      quickOpenSearchQuery = "";
       ftsSearchQuery = carriedQuery;
     }
     if (isPaletteOpen) {

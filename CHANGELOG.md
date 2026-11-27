@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- File finder (Ctrl+O) and content search (Ctrl+Shift+F) remember what you typed, filters included, until you close Synapse; it reopens selected, so typing replaces it.
 - The search index is rebuilt once on opening each vault: PDFs are now indexed page by page and Word documents paragraph by paragraph.
 - Agent panel: closing it only hides it, so reopening it is faster with long conversations and keeps the scroll position.
 - Agent panel: when docked, the pin takes the place of the close button (the panel is closed from its toolbar button); floating, the close button stays.

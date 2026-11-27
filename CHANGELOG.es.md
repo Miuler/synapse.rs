@@ -37,6 +37,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- El buscador de archivos (Ctrl+O) y el de contenido (Ctrl+Shift+F) recuerdan lo escrito, filtros incluidos, hasta cerrar Synapse; reaparece seleccionado, así que escribir lo reemplaza.
 - El índice de búsqueda se reconstruye una vez al abrir cada bóveda: los PDF se indexan ahora página a página y los documentos de Word párrafo a párrafo.
 - Panel del agente: cerrarlo solo lo oculta; reabrirlo es más rápido con conversaciones largas y conserva el scroll.
 - Panel del agente: acoplado, el pin ocupa el lugar de la X (el panel se cierra con su botón de la barra); flotante conserva la X.
