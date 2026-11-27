@@ -255,7 +255,7 @@
   /** Solo letras y números, para comparar una línea del archivo con el texto renderizado. */
   const plainText = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
-  function scrollReadingToEditorAnchor() {
+  function scrollReadingToEditorAnchor(): HTMLElement | undefined {
     const lineNo = editorAnchorLine;
     const root = wrapperRef?.querySelector<HTMLElement>('.markdown-body');
     if (lineNo === null || !root) return;
@@ -266,7 +266,7 @@
     if (rowEl) {
       readingViewRef?.reveal(rowEl);
       rowEl.scrollIntoView({ block: 'start' });
-      return;
+      return rowEl;
     }
     // Texto de la primera línea con contenido desde la línea visible
     let wanted = '';
@@ -302,14 +302,66 @@
     }
     if (target) readingViewRef?.reveal(target);
     target?.scrollIntoView({ block: 'start' });
+    return target;
   }
+
+  // Volviendo de edición: la posición se recupera cuando la lectura (que se crea de nuevo) ha pintado
+  // la nota, lo que tarda según sus enlaces e incrustaciones.
+  let restoringReading = false;
+  let releaseReadingHold: (() => void) | null = null;
+  /** Tiempo sin cambios de tamaño tras el que se deja de sujetar la posición. */
+  const READING_HOLD_MS = 3000;
+
+  /** Mantiene `target` arriba mientras cargan imágenes y diagramas; cualquier acción del usuario lo suelta. */
+  function holdInView(target: HTMLElement) {
+    const article = target.closest('.markdown-body');
+    if (!article) return;
+    const inputs = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+    const release = () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      for (const type of inputs) window.removeEventListener(type, release, true);
+      releaseReadingHold = null;
+    };
+    const observer = new ResizeObserver(() => {
+      if (!target.isConnected) return release();
+      target.scrollIntoView({ block: 'start' });
+      clearTimeout(timer);
+      timer = setTimeout(release, READING_HOLD_MS);
+    });
+    let timer = setTimeout(release, READING_HOLD_MS);
+    for (const type of inputs) window.addEventListener(type, release, true);
+    observer.observe(article);
+    releaseReadingHold = release;
+  }
+
+  function onReadingRendered() {
+    if (!restoringReading) return;
+    restoringReading = false;
+    // Un destino nuevo (un título o una búsqueda) manda sobre la posición que se tenía
+    if (readingHeading || readingTerms.length) return;
+    const target = scrollReadingToEditorAnchor();
+    if (target) holdInView(target);
+  }
+
+  // Destinos de navegación ya atendidos editando: al volver a lectura no se salta otra vez a ellos
+  let editedHeading = $state.raw<HeadingTarget>();
+  let editedTerms = $state.raw<string[]>();
+  $effect(() => {
+    if (viewMode === 'reading') return;
+    editedHeading = scrollToHeading;
+    editedTerms = scrollToTerms;
+  });
+  let readingHeading = $derived(scrollToHeading === editedHeading ? undefined : scrollToHeading);
+  let readingTerms = $derived(scrollToTerms === editedTerms ? [] : scrollToTerms);
 
   function scheduleHeadingUpdate() {
     if (headingFrame) return;
     headingFrame = requestAnimationFrame(() => {
       headingFrame = 0;
-      if (viewMode === 'reading') captureReadingAnchor();
-      else captureEditorAnchor();
+      // Hasta recuperar la posición, lo que se ve en lectura no es donde está el usuario
+      if (viewMode !== 'reading') captureEditorAnchor();
+      else if (!restoringReading) captureReadingAnchor();
       if (!onHeadingLineChange) return;
       const line = currentHeadingLine();
       if (line !== lastHeadingLine) {
@@ -1070,6 +1122,7 @@
   });
 
   onDestroy(() => {
+    releaseReadingHold?.();
     if (editorView) {
       editorView.destroy();
       editorView = null;
@@ -1201,6 +1254,10 @@
     const previousMode = previousViewMode;
     const fromReading = previousMode === 'reading' && mode !== 'reading';
     previousViewMode = mode;
+    releaseReadingHold?.();
+    restoringReading = mode === 'reading' && previousMode !== null && previousMode !== 'reading';
+    // Si se vuelve a editar antes de que se pinte, el editor se queda donde estaba
+    if (restoringReading) readingAnchor = null;
     if (editorView) {
       editorView.dispatch({
         effects: viewModeCompartment.reconfigure(getActiveExtensions(mode)),
@@ -1215,13 +1272,8 @@
       }
     }
     if (mode === 'reading') {
-      const fromEditing = previousMode !== null && previousMode !== 'reading';
       tick().then(() => {
-        requestAnimationFrame(() => {
-          // Viniendo de edición: la lectura arranca donde se estaba editando
-          if (fromEditing) scrollReadingToEditorAnchor();
-          readingViewRef?.focus();
-        });
+        requestAnimationFrame(() => readingViewRef?.focus());
       });
     }
   });
@@ -1267,7 +1319,7 @@
 
 <div class="editor-wrapper synapse-editor" bind:this={wrapperRef} onscrollcapture={scheduleHeadingUpdate}>
   {#if isMarkdown && viewMode === 'reading'}
-    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} {scrollToTerms} {scrollToHeading} {onNavigate} {isActive} {vimMode} {gitStatuses} {lockedFiles} />
+    <MarkdownReadingView bind:this={readingViewRef} {content} {filePath} scrollToTerms={readingTerms} scrollToHeading={readingHeading} onRendered={onReadingRendered} {onNavigate} {isActive} {vimMode} {gitStatuses} {lockedFiles} />
   {/if}
   <div
     class="editor-container"

@@ -28,6 +28,8 @@
     vimMode?: boolean;
     gitStatuses?: Record<string, GitFileStatusKind>;
     lockedFiles?: Set<string>;
+    /** La nota ya está pintada (las imágenes y diagramas pueden seguir cargando). */
+    onRendered?: () => void;
   }
 
   let {
@@ -40,6 +42,7 @@
     vimMode = false,
     gitStatuses = {},
     lockedFiles,
+    onRendered,
   }: Props = $props();
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -804,6 +807,7 @@
       } else {
         body?.classList.remove('okf-folder-index');
       }
+      onRendered?.();
       if (scrollToHeading) {
         goToHeading(scrollToHeading.text);
       } else if (scrollToTerms && scrollToTerms.length > 0) {
@@ -821,6 +825,7 @@
       } catch {
         renderedHtml = escapeHtml(bodyContent);
       }
+      tick().then(() => isCurrent && onRendered?.());
     });
 
     return () => {

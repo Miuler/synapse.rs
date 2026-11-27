@@ -44,6 +44,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
+- Notas: al volver de edición a lectura se conserva la posición también en las notas que tardan en pintarse (muchos enlaces, incrustaciones o imágenes), en vez de saltar al principio o a un título visitado antes.
 - MCP: `full_text_search` con `OR` (`TIEL OR QTI1`) no encontraba nada: la última palabra se buscaba también como prefijo y se exigían las dos partes.
 
 - Búsqueda en el chat del agente y en documentos de Word: una sola letra con salidas largas de herramientas ya no congela la aplicación; solo se resaltan las coincidencias a la vista.

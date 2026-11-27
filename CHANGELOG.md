@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Notes: going back from editing to reading keeps the position also in notes that take a moment to render (many links, embeds or images), instead of jumping to the top or to a heading visited before.
 - MCP: `full_text_search` with `OR` (`TIEL OR QTI1`) found nothing: the last word was also searched as a prefix and both parts were required.
 
 - Search in the agent chat and in Word documents: a single letter with long tool output no longer freezes the app; only the visible matches are highlighted.
