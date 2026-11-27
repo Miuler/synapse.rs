@@ -1,16 +1,17 @@
 <script lang="ts">
   import { DropdownMenu } from 'bits-ui';
   import {
-    FileText, Plus, ImagePlus, ImageOff, ChevronRight, ChevronDown, Workflow, Network, Shapes, PenTool, PencilRuler, Kanban,
+    FileText, Plus, ChevronRight, ChevronDown, Workflow, Network, Shapes, PenTool, PencilRuler, Kanban,
   } from 'lucide-svelte';
   import { convertFileSrc } from '@tauri-apps/api/core';
-  import { appSettings } from '@entities/settings';
+  import { appSettings, NO_WALLPAPER } from '@entities/settings';
   import { FileIcon } from '@entities/file-type';
   import { vaultItemStore } from '@entities/vault-item';
   import { NEW_FILE_KINDS, type NewFileKind } from '@features/markdown-editor/lib/folder-index-actions';
   import { QuickOpen } from '@widgets/quick-open';
+  import CustomizeEmptyTab from './CustomizeEmptyTab.svelte';
+  import ShortcutTip from './ShortcutTip.svelte';
   import { t } from '@shared/lib/i18n';
-  import { invokeTauri } from '@shared/repositories/tauri';
   // Fondos por defecto según el tema; Vite los empaqueta y van dentro del binario
   import defaultWallpaperDark from '@shared/assets/synapsers_w_dark.webp';
   import defaultWallpaperLight from '@shared/assets/synapsers_w_light.webp';
@@ -35,6 +36,8 @@
   }: Props = $props();
 
   let searchQuery = $state('');
+  // Con el buscador oculto no queda nada escrito que tape lo demás
+  const searching = $derived(appSettings.emptyTab.search && searchQuery.trim().length > 0);
 
   // Un icono y un color por tipo, para distinguirlos de un vistazo (en el árbol los diagramas comparten icono)
   const KIND_LOOK: Record<NewFileKind, { icon: typeof FileText; color: string; ext: string }> = {
@@ -49,41 +52,35 @@
 
   // Los últimos abiertos que siguen en la bóveda
   const lastOpened = $derived(recentFiles.filter((path) => vaultItemStore.get(path)).slice(0, appSettings.recentsCount));
+  const shown = $derived(appSettings.emptyTab);
   // Si el fondo ya no se puede leer (se borró o no está autorizado), queda el de por defecto
   let brokenWallpaper = $state<string | null>(null);
+  const noWallpaper = $derived(appSettings.wallpaper === NO_WALLPAPER);
+  const ownWallpaper = $derived(noWallpaper ? undefined : appSettings.wallpaper);
   let wallpaperUrl = $derived(
-    appSettings.wallpaper && appSettings.wallpaper !== brokenWallpaper ? convertFileSrc(appSettings.wallpaper) : null,
+    ownWallpaper && ownWallpaper !== brokenWallpaper ? convertFileSrc(ownWallpaper) : null,
   );
   $effect(() => {
-    const path = appSettings.wallpaper;
+    const path = ownWallpaper;
     if (!path) return;
+    brokenWallpaper = null;
     const probe = new Image();
     probe.onerror = () => (brokenWallpaper = path);
     probe.src = convertFileSrc(path);
     return () => (probe.onerror = null);
   });
-
-  async function chooseWallpaper() {
-    try {
-      const path = await invokeTauri<string | null>('pick_image_file');
-      if (path) {
-        brokenWallpaper = null;
-        appSettings.setWallpaper(path);
-      }
-    } catch (err) {
-      console.warn('No se pudo elegir el fondo:', err);
-    }
-  }
 </script>
 
 <div
-  class="empty-workspace has-wallpaper synapse-empty-tab"
-  class:has-search-open={searchQuery.trim().length > 0}
-  style={wallpaperUrl
-    ? `--wallpaper: url("${wallpaperUrl}")`
-    : `--wallpaper-light: url("${defaultWallpaperLight}"); --wallpaper-dark: url("${defaultWallpaperDark}")`}
+  class="empty-workspace synapse-empty-tab"
+  class:has-wallpaper={!noWallpaper}
+  style={noWallpaper
+    ? undefined
+    : wallpaperUrl
+      ? `--wallpaper: url("${wallpaperUrl}")`
+      : `--wallpaper-light: url("${defaultWallpaperLight}"); --wallpaper-dark: url("${defaultWallpaperDark}")`}
 >
-  {#if hasVaultItems && onSelectFile}
+  {#if hasVaultItems && onSelectFile && shown.search}
     <div class="empty-search">
       <QuickOpen
         inline
@@ -97,7 +94,7 @@
     </div>
   {/if}
 
-  {#if onSelectFile && lastOpened.length > 0 && !searchQuery.trim()}
+  {#if shown.recents && onSelectFile && lastOpened.length > 0 && !searching}
     {@const collapsed = appSettings.recentsCollapsed}
     <section class="empty-recents">
       <button
@@ -122,27 +119,18 @@
     </section>
   {/if}
 
-  <div class="empty-message">
-  <FileText
-    class="empty-icon"
-    size={56}
-    strokeWidth={1.5}
-  />
-  <h2>
-    {!hasVaultItems
-      ? "No hay archivos en la bóveda"
-      : "Ningún archivo abierto"}
-  </h2>
-  <p>
-    {!hasVaultItems
-      ? "Crea un nuevo archivo para comenzar a escribir."
-      : "Selecciona un archivo del panel lateral para abrirlo."}
-  </p>
-  {#if onCreateNew}
+  {#if !hasVaultItems}
+    <div class="empty-message">
+      <h2>{t('emptyTab.noFiles')}</h2>
+      <p>{t('emptyTab.noFilesHint')}</p>
+    </div>
+  {/if}
+
+  {#if shown.create && onCreateNew && !searching}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="create-btn">
         <Plus size={16} />
-        <span>Crear nuevo archivo</span>
+        <span>{t('emptyTab.create')}</span>
         <ChevronDown size={14} />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -159,20 +147,12 @@
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   {/if}
-  </div>
 
-  <div class="wallpaper-actions">
-    <button type="button" class="wallpaper-btn" onclick={chooseWallpaper} title="Cambiar el fondo de la pestaña vacía">
-      <ImagePlus size={14} />
-      <span>Cambiar fondo</span>
-    </button>
-    {#if appSettings.wallpaper}
-      <button type="button" class="wallpaper-btn" onclick={() => appSettings.setWallpaper(undefined)} title="Quitar el fondo">
-        <ImageOff size={14} />
-        <span>Quitar</span>
-      </button>
-    {/if}
-  </div>
+  {#if shown.tips && !searching}
+    <ShortcutTip />
+  {/if}
+
+  <CustomizeEmptyTab {active} />
 </div>
 
 <style>
@@ -191,13 +171,6 @@
     color: var(--text-secondary, #656d76);
     text-align: center;
     user-select: none;
-  }
-
-  :global(.empty-icon) {
-    width: 56px;
-    height: 56px;
-    color: var(--border-primary, #d0d7de);
-    margin-bottom: 8px;
   }
 
   /* Sin fondo propio se usa el de la app según el tema */
@@ -326,47 +299,11 @@
   .empty-message {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    margin-top: 6vh;
-  }
-
-  /* Con fondo, el texto va sobre una tarjeta para que se lea */
-  .has-wallpaper .empty-message {
+    gap: 8px;
     padding: 20px 28px;
     border-radius: 12px;
     background: color-mix(in srgb, var(--bg-primary, #ffffff) 82%, transparent);
-    backdrop-filter: blur(6px);
-  }
-
-  .has-search-open .empty-message {
-    display: none;
-  }
-
-  .wallpaper-actions {
-    position: absolute;
-    right: 16px;
-    bottom: 16px;
-    display: flex;
-    gap: 8px;
-  }
-
-  .wallpaper-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    font-size: 12px;
-    color: var(--text-secondary, #656d76);
-    background: color-mix(in srgb, var(--bg-primary, #ffffff) 85%, transparent);
-    border: 1px solid var(--border-primary, #d0d7de);
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .wallpaper-btn:hover {
-    color: var(--text-primary, #1f2328);
-    border-color: var(--accent, #0969da);
+    z-index: 1;
   }
 
   .empty-workspace h2 {
@@ -386,9 +323,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 12px;
+    flex-shrink: 0;
+    z-index: 1;
     padding: 8px 16px;
-    background-color: var(--accent-bg, rgba(9, 105, 218, 0.1));
+    background-color: color-mix(in srgb, var(--bg-primary, #ffffff) 90%, transparent);
     color: var(--accent, #0969da);
     border: 1px solid var(--accent-border, rgba(9, 105, 218, 0.3));
     border-radius: 8px;

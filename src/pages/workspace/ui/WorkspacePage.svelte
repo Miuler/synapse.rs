@@ -4374,8 +4374,10 @@
         return;
       }
       // Los atajos «fuera de texto» ceden la tecla a campos, editores y Excalidraw, que la usan
+      // El buscador de la pestaña vacía tiene el foco de entrada: sin texto, no hay palabras que saltar
+      const idleSearch = e.target instanceof HTMLInputElement && !e.target.value && !!e.target.closest('.empty-search');
       const outsideText = (spec: string) =>
-        matchesShortcut(e, spec) && !isTyping(e.target) && !(e.target as Element).closest?.('.excalidraw');
+        matchesShortcut(e, spec) && (idleSearch || !isTyping(e.target)) && !(e.target as Element).closest?.('.excalidraw');
       if (matchesShortcut(e, ws.next_tab) || outsideText(ws.next_tab_outside_text)) {
         stopEvent();
         switchToNextTab();

@@ -11,6 +11,11 @@ export type PropertiesViewMode = 'expanded' | 'collapsed' | 'hidden';
 export type FolderClickMode = 'index' | 'expand';
 export type { SupportedLocale, AgentCompletionSound };
 
+export const EMPTY_TAB_PARTS = ['search', 'recents', 'create', 'tips'] as const;
+export type EmptyTabPart = (typeof EMPTY_TAB_PARTS)[number];
+/** Valor de «fondo» para no mostrar ninguno (sin valor se usa el de la app). */
+export const NO_WALLPAPER = 'none';
+
 export interface AppSettings {
   mermaidRenderer: MermaidRendererType;
   lastOpenedFolder?: string;
@@ -40,8 +45,10 @@ export interface AppSettings {
   agentWatermark: number;
   /** Lista de archivos recientes de la pestaña vacía, plegada. */
   recentsCollapsed: boolean;
-  /** Cuántos archivos recientes lista la pestaña vacía (0 oculta la lista). */
+  /** Cuántos archivos recientes lista la pestaña vacía. */
   recentsCount: number;
+  /** Qué muestra la pestaña vacía sobre el fondo. */
+  emptyTab: Record<EmptyTabPart, boolean>;
   /** Grosor del puntero láser en px (radio del punto; el rayo es algo más ancho), de 1 a 8. */
   laserSize: number;
   /** Imagen de fondo de la pestaña vacía elegida en cada bóveda: ruta de la bóveda → ruta absoluta. */
@@ -85,6 +92,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   agentWatermark: 10, // Opacidad (%) de la marca de agua del agente en el chat
   recentsCollapsed: false,
   recentsCount: 3,
+  emptyTab: { search: true, recents: true, create: true, tips: true },
   laserSize: 2, // Grosor (px) del puntero láser
 };
 
@@ -96,7 +104,7 @@ function clampWatermark(value: number): number {
 export const MAX_RECENTS_COUNT = 15;
 
 function clampRecentsCount(value: number): number {
-  return Math.min(MAX_RECENTS_COUNT, Math.max(0, Math.round(value)));
+  return Math.min(MAX_RECENTS_COUNT, Math.max(1, Math.round(value)));
 }
 
 function clampLaserSize(value: number): number {
@@ -168,6 +176,11 @@ function loadInitialSettings(): AppSettings {
       }
       if (typeof parsed.recentsCount === 'number' && Number.isFinite(parsed.recentsCount)) {
         settings.recentsCount = clampRecentsCount(parsed.recentsCount);
+      }
+      if (parsed.emptyTab && typeof parsed.emptyTab === 'object') {
+        settings.emptyTab = Object.fromEntries(
+          EMPTY_TAB_PARTS.map((part) => [part, parsed.emptyTab[part] !== false]),
+        ) as Record<EmptyTabPart, boolean>;
       }
       if (typeof parsed.laserSize === 'number' && Number.isFinite(parsed.laserSize)) {
         settings.laserSize = clampLaserSize(parsed.laserSize);
@@ -510,6 +523,15 @@ class SettingsManager {
   setRecentsCount(count: number) {
     if (!Number.isFinite(count)) return;
     this.settings = { ...this.settings, recentsCount: clampRecentsCount(count) };
+    this.persist();
+  }
+
+  get emptyTab(): Record<EmptyTabPart, boolean> {
+    return this.settings.emptyTab;
+  }
+
+  setEmptyTab(parts: Partial<Record<EmptyTabPart, boolean>>) {
+    this.settings = { ...this.settings, emptyTab: { ...this.settings.emptyTab, ...parts } };
     this.persist();
   }
 

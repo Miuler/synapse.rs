@@ -5,6 +5,7 @@
   import {
     appSettings,
     MAX_RECENTS_COUNT,
+    NO_WALLPAPER,
     shortcutsConfig,
     type ShortcutsConfig,
     type ThemeMode,
@@ -234,7 +235,9 @@
     if (path) appSettings.setWallpaper(path);
   }
 
-  let wallpaperUrl = $derived(appSettings.wallpaper ? convertFileSrc(appSettings.wallpaper) : null);
+  let wallpaperUrl = $derived(
+    appSettings.wallpaper && appSettings.wallpaper !== NO_WALLPAPER ? convertFileSrc(appSettings.wallpaper) : null,
+  );
 </script>
 
 <Dialog.Root bind:open>
@@ -297,7 +300,7 @@
             </span>
             <input
               type="number"
-              min="0"
+              min="1"
               max={MAX_RECENTS_COUNT}
               aria-label={t('emptyTab.countSetting')}
               value={appSettings.recentsCount}

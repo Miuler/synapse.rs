@@ -63,7 +63,20 @@ it('plegada, se recuerda así', async () => {
   await s.browser.waitUntil(async () => (await recents()).length === 3, { timeout: 5_000 });
 }, 90_000);
 
-it('la cantidad de recientes se cambia en Configuración y 0 oculta la lista', async () => {
+const visible = (selector: string) =>
+  s.browser.execute(
+    (sel) => [...document.querySelectorAll<HTMLElement>(sel)].some((e) => e.closest('.tab-pane.hidden') === null),
+    selector,
+  ) as Promise<boolean>;
+
+async function waitVisible(selector: string, shown: boolean) {
+  await s.browser.waitUntil(async () => (await visible(selector)) === shown, {
+    timeout: 5_000,
+    timeoutMsg: `${selector} ${shown ? 'no se muestra' : 'sigue a la vista'}`,
+  });
+}
+
+it('la cantidad de recientes se cambia en Configuración', async () => {
   if (!(await active()).startsWith('empty:')) await newEmptyTab();
   const setCount = async (count: number) => {
     await s.browser.$('[aria-label="Configuración"]').click();
@@ -76,10 +89,76 @@ it('la cantidad de recientes se cambia en Configuración y 0 oculta la lista', a
   };
   await setCount(2);
   await s.browser.waitUntil(async () => (await recents()).length === 2, { timeout: 5_000 });
-  await setCount(0);
-  await s.browser.waitUntil(async () => !(await s.browser.$('.empty-recents').isExisting()), { timeout: 5_000 });
   await setCount(3);
   await s.browser.waitUntil(async () => (await recents()).length === 3, { timeout: 5_000 });
+}, 60_000);
+
+it('sin mensajes de «ningún archivo»: un pulpo sugiere un atajo y cambia al hacerle clic', async () => {
+  if (!(await active()).startsWith('empty:')) await newEmptyTab();
+  expect(await visible('.empty-message')).toBe(false);
+  const tip = s.browser.$('.tab-pane:not(.hidden) .shortcut-tip');
+  await tip.waitForDisplayed({ timeout: 5_000 });
+  const before = await tip.getText();
+  expect(await tip.$('kbd').getText()).toContain('+');
+  await tip.click();
+  await s.browser.waitUntil(async () => (await tip.getText()) !== before, { timeout: 5_000, timeoutMsg: 'no cambió la sugerencia' });
+}, 60_000);
+
+it('«Personalizar» muestra u oculta cada parte y el fondo, y se recuerda', async () => {
+  if (!(await active()).startsWith('empty:')) await newEmptyTab();
+  const openPanel = async () => {
+    await s.browser.$('.tab-pane:not(.hidden) .customize-btn').click();
+    await s.browser.$('.customize-panel').waitForDisplayed({ timeout: 5_000 });
+  };
+  await openPanel();
+  await s.browser.$('.customize-panel input[data-part="recents"]').click();
+  await waitVisible('.empty-recents', false);
+  await s.browser.$('.customize-panel input[data-part="recents"]').click();
+  await waitVisible('.empty-recents', true);
+  const count = s.browser.$('.customize-count');
+  await count.setValue(1);
+  await s.browser.keys(Key.Tab);
+  await s.browser.waitUntil(async () => (await recents()).length === 1, { timeout: 5_000 });
+  await s.browser.$('.customize-panel button[data-wallpaper="none"]').click();
+  await waitVisible('.empty-workspace.has-wallpaper', false);
+  await s.browser.$('.customize-all').click();
+  for (const part of ['.empty-search', '.empty-recents', '.create-btn', '.shortcut-tip']) await waitVisible(part, false);
+  await s.browser.keys(Key.Escape);
+  await s.browser.pause(2000);
+  await s.browser.refresh();
+  await s.browser.$('.file-tree-item[data-path="d.md"]').waitForExist({ timeout: 30_000 });
+  await s.browser.$('.tab-title-container.active').waitForExist({ timeout: 10_000 });
+  await s.browser.keys([Key.Ctrl, 't']);
+  await s.browser.$('.tab-pane:not(.hidden) .customize-btn').waitForExist({ timeout: 10_000 });
+  expect(await visible('.empty-search')).toBe(false);
+  expect(await visible('.shortcut-tip')).toBe(false);
+  await openPanel();
+  await s.browser.$('.customize-all').click();
+  await s.browser.$('.customize-panel button[data-wallpaper="default"]').click();
+  for (const part of ['.empty-search', '.empty-recents', '.create-btn', '.shortcut-tip', '.empty-workspace.has-wallpaper']) {
+    await waitVisible(part, true);
+  }
+  await s.browser.keys(Key.Escape);
+  await s.browser.$('.customize-panel').waitForExist({ reverse: true, timeout: 5_000 });
+}, 90_000);
+
+it('con el buscador vacío y enfocado, Ctrl+← cambia de pestaña; con texto, no', async () => {
+  const focused = () =>
+    s.browser.waitUntil(
+      () => s.browser.execute(() => !!(document.activeElement as HTMLInputElement | null)?.closest('.empty-search')) as Promise<boolean>,
+      { timeout: 5_000, timeoutMsg: 'el buscador no tiene el foco' },
+    );
+  await newEmptyTab();
+  await focused();
+  const empty = await active();
+  await s.browser.keys('plan');
+  await s.browser.keys([Key.Ctrl, Key.ArrowLeft]);
+  await s.browser.pause(500);
+  expect(await active()).toBe(empty);
+  await s.browser.keys(Key.Escape);
+  await focused();
+  await s.browser.keys([Key.Ctrl, Key.ArrowLeft]);
+  await s.browser.waitUntil(async () => (await active()) !== empty, { timeout: 5_000, timeoutMsg: 'no cambió de pestaña' });
 }, 60_000);
 
 it('«Crear nuevo archivo» ofrece los tipos y crea el elegido', async () => {
