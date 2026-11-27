@@ -168,7 +168,9 @@ export function applyPull(
     }
 
     if (matched) {
-      if (matched.includes(link.id)) delete base.outside;
+      // Las consultas dejan fuera lo terminado: su columna ya dice por qué no vino
+      const closed = item.state.category === 'done' || item.state.category === 'cancelled';
+      if (closed || matched.includes(link.id)) delete base.outside;
       else {
         base.outside = true;
         outside.push(task.id);

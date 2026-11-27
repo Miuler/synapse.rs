@@ -115,6 +115,18 @@ describe('Traer', () => {
     expect(back.doc.source!.links!.t1.outside).toBeUndefined();
   });
 
+  it('lo que se termina o se cancela pasa a su columna sin marcarse como fuera del filtro', () => {
+    const closed = (id: number, name: string, category: 'done' | 'cancelled'): Issue => ({ ...item(id, 'A', name), state: { name, category } });
+    const doc = board([task('t1', 'A', 'todo'), task('t2', 'A', 'todo')], {
+      t1: link(1, 'A', 'To Do', 'todo'),
+      t2: { ...link(2, 'A', 'Removed', 'todo'), outside: true },
+    });
+    const result = applyPull(doc, provider, [closed(1, 'Done', 'done'), closed(2, 'Removed', 'cancelled')], ['1', '2'], '2026-02-02', []);
+    expect(result.doc.tasks.map((t) => t.status)).toEqual(['done', 'todo']);
+    expect(result.outside).toEqual([]);
+    expect(Object.values(result.doc.source!.links!).map((l) => l.outside)).toEqual([undefined, undefined]);
+  });
+
   it('el filtro por criterios deja de mandar si la consulta se edita a mano', () => {
     const source = { ...board([]).source!, filter: { type: ['Bug'] }, query: 'Q', filter_query: 'Q' };
     expect(usesFilter(source)).toBe(true);
