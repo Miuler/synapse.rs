@@ -4,6 +4,12 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum WorkItemErrorKind {
     MissingToken,
+    /// El llavero del sistema no respondió.
+    Keyring,
+    /// La referencia configurada para el token no es de la forma `op://…`.
+    TokenReference,
+    /// 1Password no entregó el token.
+    OnePassword,
     /// La URL del proyecto apunta a un servidor al que no se envían credenciales.
     HostNotAllowed,
     InvalidUrl,

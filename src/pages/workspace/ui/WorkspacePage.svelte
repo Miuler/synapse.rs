@@ -549,7 +549,7 @@
       const d = (e as CustomEvent<FolderIndexAction>).detail;
       if (!d) return;
       if (d.action === 'new-file') {
-        void createNewVaultItem(undefined, d.kind, d.folder);
+        void createNewVaultItem(folderIndexTab(focusedTabPath()) ?? undefined, d.kind, d.folder);
         return;
       }
       const name = window.prompt(d.folder ? `Nueva subcarpeta en «${d.folder}»:` : 'Nueva carpeta:')?.trim();
@@ -923,12 +923,20 @@
     tabHistory.recordVisit(path);
   }
 
+  function selectFromHistory(path: string) {
+    const from = activeTabPath;
+    if (from && !openTabPaths.includes(path) && (openedInPlace.has(`${from}\n${path}`) || openedInPlace.has(`${path}\n${from}`))) {
+      takeTabPlace(from, path);
+    }
+    selectTab(path);
+  }
+
   function safeNavigateBack() {
-    tabHistory.navigateBack(selectTab);
+    tabHistory.navigateBack(selectFromHistory);
   }
 
   function safeNavigateForward() {
-    tabHistory.navigateForward(selectTab);
+    tabHistory.navigateForward(selectFromHistory);
   }
 
   const navigateBack = safeNavigateBack;
@@ -1481,18 +1489,44 @@
     persistTabsState();
   }
 
-  function handleNavigateLink(targetPath: string) {
+  /** Pares «índice → abierto en su pestaña»: Atrás y Adelante vuelven a cambiar el uno por el otro. */
+  const openedInPlace = new Set<string>();
+
+  /** `tab`, si es la pestaña de un índice de carpeta: lo que se abre desde él ocupa su lugar. */
+  function folderIndexTab(tab: string | null | undefined): string | null {
+    return tab && isGeneratedOkfIndex(tab, openedNotes[tab]?.content ?? '') ? tab : null;
+  }
+
+  /** Pone `path` en la posición de la pestaña `from`, que se cierra (un índice no tiene cambios que perder). */
+  function takeTabPlace(from: string, path: string) {
+    const right = !openTabPaths.includes(from);
+    const tabs = right ? [...splitTabPaths] : [...openTabPaths];
+    if (from === path || !tabs.includes(from)) return;
+    if (tabs.includes(path)) tabs.splice(tabs.indexOf(path), 1);
+    tabs[tabs.indexOf(from)] = path;
+    if (right) splitTabPaths = tabs;
+    else openTabPaths = tabs;
+    openedInPlace.add(`${from}\n${path}`);
+    if (!openTabPaths.includes(from) && !splitTabPaths.includes(from)) {
+      // Al volver se lee de nuevo: el índice se regenera cuando cambia la carpeta
+      delete openedNotes[from];
+      delete tabSelections[from];
+    }
+  }
+
+  function handleNavigateLink(targetPath: string, fromTab?: string) {
     if (!targetPath) return;
+    const replace = folderIndexTab(fromTab);
     let { path: cleanPath, anchor } = splitNavigationTarget(targetPath);
     // Enlace a una carpeta (`carpeta/`, como en los index.md OKF): se abre el index.md de esa carpeta
     if (cleanPath && cleanPath.endsWith('/')) cleanPath = `${cleanPath}index.md`;
     if (cleanPath) {
       // Si no es una ruta exacta de la bóveda: tal cual relativo a la nota, único por nombre o ambiguo
       if (!vaultItemStore.get(cleanPath) && !isSyntheticTab(cleanPath)) {
-        void resolveAndOpenLink(cleanPath, anchor, focusedTabPath(), true);
+        void resolveAndOpenLink(cleanPath, anchor, replace ?? focusedTabPath(), true, replace);
         return;
       }
-      openLinkTarget(cleanPath, anchor);
+      openLinkTarget(cleanPath, anchor, replace);
     } else if (anchor && activeTabPath) {
       pendingScrollTerms[activeTabPath] = [anchor];
     }
@@ -1545,8 +1579,11 @@
     openLinkTarget(path, anchor && !/^L\d+/i.test(anchor) ? anchor : null);
   }
 
-  function openLinkTarget(path: string, anchor?: string | null) {
-    selectTab(path);
+  function openLinkTarget(path: string, anchor?: string | null, replace?: string | null) {
+    const right = !!replace && !openTabPaths.includes(replace) && splitTabPaths.includes(replace);
+    if (replace) takeTabPlace(replace, path);
+    if (right) selectSplitTab(path);
+    else selectTab(path);
     if (anchor) pendingScrollHeadings[path] = { text: anchor, id: ++headingRequestId };
   }
 
@@ -1562,7 +1599,13 @@
    * Resuelve un enlace con la regla única (tal cual, único por nombre o ambiguo) y lo abre; si es
    * ambiguo pregunta cuál. `fixable`: el enlace está en una nota que se puede corregir (no en el chat).
    */
-  async function resolveAndOpenLink(target: string, anchor: string | null | undefined, source: string | null, fixable: boolean) {
+  async function resolveAndOpenLink(
+    target: string,
+    anchor: string | null | undefined,
+    source: string | null,
+    fixable: boolean,
+    replace?: string | null
+  ) {
     let r: Awaited<ReturnType<typeof vaultApi.resolveVaultLinkDetailed>>;
     try {
       r = await vaultApi.resolveVaultLinkDetailed(target, source);
@@ -1571,7 +1614,7 @@
     }
     if (r.status === 'resolved') {
       const [path, ownAnchor] = r.path.split('#');
-      openLinkTarget(path, anchor || ownAnchor);
+      openLinkTarget(path, anchor || ownAnchor, replace);
     } else if (r.status === 'ambiguous') {
       linkChoice = {
         target,
@@ -1581,7 +1624,7 @@
         canFix: fixable && !!source && !unsavedChanges.isLocked(source),
       };
     } else {
-      openLinkTarget(target, anchor);
+      openLinkTarget(target, anchor, replace);
     }
   }
 
@@ -3648,7 +3691,12 @@
       openTabPaths[idx] = newRelPath;
       delete openedNotes[targetEmptyPath];
       delete tabSelections[targetEmptyPath];
-      tabHistory.replaceTab(targetEmptyPath, newRelPath);
+      // Una pestaña vacía se olvida; un índice queda en el historial para poder volver
+      if (targetEmptyPath.startsWith('empty:')) tabHistory.replaceTab(targetEmptyPath, newRelPath);
+      else {
+        openedInPlace.add(`${targetEmptyPath}\n${newRelPath}`);
+        recordTabVisit(newRelPath);
+      }
       activeTabPath = newRelPath;
       activeFocusedPane = 'left';
     } else if (activeFocusedPane === 'right' && isSplit) {
@@ -5094,7 +5142,7 @@
                       isActive={tabPath === activePath}
                       scrollToTerms={pendingScrollTerms[tabPath]}
                       scrollToHeading={pendingScrollHeadings[tabPath]}
-                      onNavigate={handleNavigateLink}
+                      onNavigate={(target: string) => handleNavigateLink(target, tabPath)}
                       onChange={(updatedMarkdown: string) => {
                         if (openedNotes[tabFile]) {
                           openedNotes[tabFile].content = updatedMarkdown;

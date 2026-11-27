@@ -1,3 +1,6 @@
+use crate::application::dto::version::change_history_command::ChangeHistoryCommand;
+use crate::application::dto::version::squash_preview_query::SquashPreviewQuery;
+use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
 use crate::application::dto::version::checkout_branch_command::CheckoutBranchCommand;
 use crate::application::dto::version::create_branch_command::CreateBranchCommand;
 use crate::application::dto::version::get_branches_query::GetBranchesQuery;
@@ -421,6 +424,40 @@ pub fn git_fast_forward(
 ) -> Result<String, String> {
     let vault_path = repo_dir(&state, repo.as_deref())?;
     state.fast_forward_use_case.execute(FastForwardCommand { vault_path, branch, target, dry_run: dry_run.unwrap_or(false) })
+}
+
+/// Qué uniría un squash desde `from` hasta el último commit de la rama actual.
+#[tauri::command]
+pub fn git_squash_preview(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    from: String,
+) -> Result<SquashPreview, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    state
+        .squash_preview_use_case
+        .execute(SquashPreviewQuery { vault_path, from })
+}
+
+/// Squash, revert o reset de la rama actual, y su deshacer.
+#[tauri::command]
+pub fn git_change_history(
+    state: State<'_, AppState>,
+    repo: Option<String>,
+    action: HistoryAction,
+) -> Result<Option<UndoPoint>, String> {
+    let vault_path = repo_dir(&state, repo.as_deref())?;
+    let result = state
+        .change_history_use_case
+        .execute(ChangeHistoryCommand { vault_path, action });
+
+    // Sincronizar el árbol: revert y reset --hard cambian archivos (también si fallan a medias)
+    if let Ok(guard) = state.navigation_engine.lock()
+        && let Some(ref engine) = *guard {
+            engine.spawn_reconciliation();
+        }
+
+    result
 }
 
 /// Borra un tag (`kind` = `tag`) o una rama local (`kind` = `branch`, `force` = `-D`).

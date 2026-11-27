@@ -75,12 +75,19 @@ fn config_path(config_dir: &Path) -> PathBuf {
     config_dir.join("config.jsonc")
 }
 
-fn read_config(config_dir: &Path) -> Value {
+pub(crate) fn read_config(config_dir: &Path) -> Value {
     std::fs::read_to_string(config_path(config_dir))
         .ok()
         .and_then(|raw| serde_json_lenient::from_str::<Value>(&raw).ok())
         .filter(Value::is_object)
         .unwrap_or_else(|| json!({}))
+}
+
+pub(crate) fn write_config(config_dir: &Path, config: &Value) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| format!("No se pudo crear {}: {e}", config_dir.display()))?;
+    let body = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(config_path(config_dir), format!("{HEADER}{body}\n"))
+        .map_err(|e| format!("No se pudo guardar {}: {e}", config_path(config_dir).display()))
 }
 
 /// Carga `git.path` de la configuración al arrancar.
@@ -122,10 +129,7 @@ pub fn save(config_dir: &Path, path: Option<&str>) -> Result<GitInfo, String> {
             }
         }
     }
-    std::fs::create_dir_all(config_dir).map_err(|e| format!("No se pudo crear {}: {e}", config_dir.display()))?;
-    let body = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    std::fs::write(config_path(config_dir), format!("{HEADER}{body}\n"))
-        .map_err(|e| format!("No se pudo guardar {}: {e}", config_path(config_dir).display()))?;
+    write_config(config_dir, &config)?;
     if let Ok(mut c) = CONFIGURED.write() {
         *c = path;
     }

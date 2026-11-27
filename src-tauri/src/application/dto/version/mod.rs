@@ -18,3 +18,5 @@ pub mod create_tag_command;
 pub mod fast_forward_command;
 pub mod delete_ref_command;
 pub mod docx_source_query;
+pub mod change_history_command;
+pub mod squash_preview_query;

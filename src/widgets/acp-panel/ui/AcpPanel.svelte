@@ -358,18 +358,24 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_interactive_supports_focus -->
           <div class="acp-menu" role="menu" onclick={(e) => e.stopPropagation()}>
             {#if c.sessionId}
-              <dl class="acp-session-info">
+              <div class="acp-session-info">
                 {#if c.nativeTitle}
-                  <dt>{t('nativeSession.name')}</dt>
-                  <dd class="acp-session-name">{c.nativeTitle}</dd>
+                  <button type="button" role="menuitem" title={t('nativeSession.copyName')} onclick={() => copy(c.nativeTitle)}>
+                    <span>
+                      <small>{t('nativeSession.name')}</small>
+                      <span class="acp-session-name">{c.nativeTitle}</span>
+                    </span>
+                    <Copy size={13} />
+                  </button>
                 {/if}
-                <dt>{t('nativeSession.id')}</dt>
-                <dd class="acp-session-id">{c.sessionId}</dd>
-              </dl>
-              <button type="button" role="menuitem" onclick={() => copy(c.sessionId)}><Copy size={13} /> {t('nativeSession.copyId')}</button>
-              {#if c.nativeTitle}
-                <button type="button" role="menuitem" onclick={() => copy(c.nativeTitle)}><Copy size={13} /> {t('nativeSession.copyName')}</button>
-              {/if}
+                <button type="button" role="menuitem" title={t('nativeSession.copyId')} onclick={() => copy(c.sessionId)}>
+                  <span>
+                    <small>{t('nativeSession.id')}</small>
+                    <span class="acp-session-id">{c.sessionId}</span>
+                  </span>
+                  <Copy size={13} />
+                </button>
+              </div>
             {/if}
             {#if c.session?.capabilities.session_title}
               {#if newName === null}
@@ -923,22 +929,30 @@
     cursor: default;
   }
   .acp-session-info {
-    margin: 0 0 2px;
-    padding: 4px 8px 6px;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 2px;
+    padding-bottom: 2px;
     border-bottom: 1px solid var(--border-primary);
     max-width: 260px;
-    font-size: 11px;
-    text-align: left;
-    cursor: default;
   }
-  .acp-session-info dt {
+  .acp-menu .acp-session-info button {
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .acp-session-info button > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .acp-session-info button :global(svg) {
+    flex: none;
     color: var(--text-muted);
   }
-  .acp-session-info dd {
-    margin: 0 0 2px;
-    color: var(--text-primary);
-    overflow-wrap: anywhere;
-    user-select: text;
+  .acp-session-info small {
+    font-size: 11px;
+    color: var(--text-muted);
   }
   .acp-session-id {
     font-family: var(--font-mono, monospace);

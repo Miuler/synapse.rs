@@ -295,3 +295,47 @@ it('las insignias de Git quedan alineadas en columna y pegadas al nombre más la
     expect(gap).toBeLessThan(20);
   }
 }, 80_000);
+
+it('lo que se abre desde un índice ocupa su pestaña, y «Atrás» vuelve a él en el mismo sitio', async () => {
+  const tabs = () =>
+    s.browser.execute(() => [...document.querySelectorAll('.tab-title-container[data-path]')].map((t) => t.getAttribute('data-path'))) as Promise<string[]>;
+  const active = () => s.browser.execute(() => document.querySelector('.tab-title-container.active')?.getAttribute('data-path')) as Promise<string>;
+  const until = (check: () => Promise<boolean>, what: string) => s.browser.waitUntil(check, { timeout: 10_000, timeoutMsg: what });
+  const follow = async (href: string) => {
+    await until(
+      async () =>
+        (await s.browser.execute((href) => {
+          const a = document.querySelector(`.tab-pane:not(.hidden) .okf-explorer-row a[href="${href}"]`) as HTMLElement | null;
+          a?.click();
+          return !!a;
+        }, href)) as boolean,
+      `el índice no muestra ${href}`,
+    );
+  };
+
+  // Una nota que ninguna prueba anterior dejó abierta
+  writeFileSync(join(s.vault, 'otra.md'), '# Otra\n');
+  await until(async () => read('index.md').includes('(otra.md)'), 'el índice raíz no listó la nota');
+  await s.browser.execute(() => (document.querySelector('.file-tree-item[data-path="index.md"]') as HTMLElement).click());
+  await until(async () => (await active()) === 'index.md', 'no se abrió el índice raíz');
+  const before = await tabs();
+  const slot = before.indexOf('index.md');
+  expect(before).not.toContain('otra.md');
+
+  // Una nota: ocupa el sitio del índice, sin pestaña nueva
+  await follow('otra.md');
+  await until(async () => (await active()) === 'otra.md', 'no se abrió la nota');
+  expect(await tabs()).toEqual(before.with(slot, 'otra.md'));
+
+  await s.browser.keys(['Alt', 'ArrowLeft']);
+  await until(async () => (await active()) === 'index.md', '«Atrás» no volvió al índice');
+  expect(await tabs()).toEqual(before);
+
+  // Una carpeta abre su índice en la misma pestaña (si ya estaba abierto, se mueve a ella)
+  await follow('proyecto/');
+  await until(async () => (await active()) === 'proyecto/index.md', 'no se abrió el índice de la carpeta');
+  const after = await tabs();
+  expect(after).not.toContain('index.md');
+  expect(after.filter((p) => p === 'proyecto/index.md')).toHaveLength(1);
+  expect(after.length).toBe(before.includes('proyecto/index.md') ? before.length - 1 : before.length);
+}, 60_000);

@@ -29,6 +29,9 @@ standard error.
 | `SYNAPSE_DMABUF=0` | Linux: disable the fast WebKitGTK renderer if the window is blank or flickers |
 | `SYNAPSE_OKF_INDEX=0` | Do not generate the OKF `index.md` files |
 | `SYNAPSE_ACP_REGISTRY_URL` | Use another ACP agent registry |
+| `AZURE_DEVOPS_PAT`, `ADO_PAT` | Azure DevOps token for task boards, if none is set in Synapse |
+| `AZURE_DEVOPS_URL` | Own Azure DevOps Server that may also receive the token |
+| `SYNAPSE_OP_PATH` | 1Password CLI to use instead of `op` from the `PATH` |
 
 ## Files
 
@@ -59,13 +62,24 @@ Stored in `~/.config/synapsers/`. Files ending in `.jsonc` accept comments.
 
 | File | Contents |
 |---|---|
-| `config.jsonc` | Global settings, such as `git.path` and `appearance.theme_dirs` |
+| `config.jsonc` | Global settings, such as `git.path`, `appearance.theme_dirs` and `azure_devops.token` |
 | `shortcuts.jsonc` | Keyboard shortcuts |
 | `themes/*.css` | Custom themes ([guide, in Spanish](temas.md)) |
 | `workspaces.json` | Recent and pinned vaults |
 | `agents.json` | Custom ACP agents |
 | `mcp-ports.json` | MCP port assigned to each vault |
 | `wallpapers.json` | Wallpapers chosen by the user |
+
+The Azure DevOps token is set in Settings → Azure DevOps. A pasted token is saved in the system keyring (service
+`synapsers`). `azure_devops.token` only holds a [1Password secret reference](https://developer.1password.com/docs/cli/secret-references/), never
+the token itself. Synapse reads it with `op read` when a task board is synced with
+Azure DevOps:
+
+```jsonc
+{
+  "azure_devops": { "token": "op://vault/item/field" }
+}
+```
 
 ## MCP server
 

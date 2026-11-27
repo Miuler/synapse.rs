@@ -2,6 +2,7 @@
   import { Dialog } from 'bits-ui';
   import { CloudDownload, CloudUpload, Settings2, X } from 'lucide-svelte';
   import { t } from '@shared/lib/i18n';
+  import AzureTokenField from './AzureTokenField.svelte';
   import { azureWriter, fetchWorkItems, type AzureError } from '../api/azure-devops.api';
   import {
     applyPull,
@@ -23,6 +24,7 @@
   let { read, write }: Props = $props();
 
   let busy = $state(false);
+  let tokenField = $state<ReturnType<typeof AzureTokenField>>();
   let messages = $state<string[]>([]);
   let settings = $state<Required<Pick<AzureSyncConfig, 'project_url' | 'work_item_type' | 'assigned_to' | 'query'>> | null>(null);
   let review = $state<PushPlan | null>(null);
@@ -50,8 +52,10 @@
     };
   }
 
-  function saveSettings(event: SubmitEvent) {
+  async function saveSettings(event: SubmitEvent) {
     event.preventDefault();
+    // El token no va en el tablero; si no se puede guardar, el diálogo sigue abierto con el motivo
+    if (tokenField && !(await tokenField.save())) return;
     if (!settings) return;
     const doc = read();
     const projectUrl = settings.project_url.trim();
@@ -185,6 +189,7 @@
             {t('azure.projectUrl')}
             <input name="project_url" type="url" required placeholder="https://dev.azure.com/organization/project" bind:value={settings.project_url} />
           </label>
+          <AzureTokenField bind:this={tokenField} />
           <label>
             {t('azure.workItemType')}
             <input name="work_item_type" placeholder={DEFAULT_WORK_ITEM_TYPE} bind:value={settings.work_item_type} />
@@ -197,7 +202,6 @@
             {t('azure.query')}
             <textarea name="query" rows="6" placeholder={DEFAULT_QUERY} bind:value={settings.query}></textarea>
           </label>
-          <p class="azure-note">{t('azure.tokenNote')}</p>
           {#if read().azure?.links && read().azure?.project_url !== settings.project_url.trim()}
             <p class="azure-note warning">{t('azure.linksCleared')}</p>
           {/if}

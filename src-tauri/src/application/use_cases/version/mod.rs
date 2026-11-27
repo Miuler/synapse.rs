@@ -18,3 +18,5 @@ pub mod create_tag_use_case;
 pub mod fast_forward_use_case;
 pub mod delete_ref_use_case;
 pub mod diff_docx_use_case;
+pub mod change_history_use_case;
+pub mod squash_preview_use_case;

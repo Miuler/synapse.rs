@@ -12,6 +12,9 @@ export interface IpcLogEntry {
   args?: Record<string, unknown>;
 }
 
+/** Órdenes cuyos argumentos son secretos: se anotan sin ellos. */
+const SECRET_ARGS = new Set(['set_azure_token']);
+
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // En producción solo se registra si el build se hizo con VITE_SYNAPSE_IPC_LOG=1 (mediciones).
   if (!import.meta.env.DEV && import.meta.env.VITE_SYNAPSE_IPC_LOG !== '1') return invokeTauriRaw<T>(cmd, args);
@@ -20,7 +23,7 @@ export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>
     return await invokeTauriRaw<T>(cmd, args);
   } finally {
     const log = ((window as unknown as { __synapseIpcLog?: IpcLogEntry[] }).__synapseIpcLog ??= []);
-    log.push({ cmd, start, ms: performance.now() - start, args });
+    log.push({ cmd, start, ms: performance.now() - start, args: SECRET_ARGS.has(cmd) ? undefined : args });
   }
 }
 

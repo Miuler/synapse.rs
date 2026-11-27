@@ -3,6 +3,7 @@ pub use crate::domain::version::version::{
     FileVersionHistory, FileVersionState, ImageDiff, RepoCommit, RepoLog, VaultVersionState,
     VersionEntry,
 };
+use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
 use crate::domain::version::version::RepoInfo;
 use crate::domain::version::version_control::VersionControl;
 use super::repo_routing as routing;
@@ -157,6 +158,14 @@ impl VersionControl for VersionControlImpl {
 
     fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String> {
         repo_log::fast_forward_branch(vault_path, branch, target, dry_run)
+    }
+
+    fn squash_preview(&self, vault_path: &Path, from: &str) -> Result<SquashPreview, String> {
+        repo_log::squash_preview(vault_path, from)
+    }
+
+    fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String> {
+        repo_log::change_history(vault_path, action)
     }
 
     fn checkout_branch(&self, vault_path: &Path, branch_name: &str) -> Result<String, String> {
@@ -2406,6 +2415,91 @@ mod tests {
     }
 
     #[test]
+    fn squash_revert_y_reset_de_la_rama_actual_se_pueden_deshacer() {
+        use crate::domain::version::history_change::HistoryAction as Action;
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .current_dir(dir)
+                .args(["-c", "user.name=t", "-c", "user.email=t@local", "-c", "commit.gpgsign=false"])
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        let write = |name: &str, text: &str| std::fs::write(dir.join(name), text).unwrap();
+        let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap();
+        let commit = |name: &str, text: &str, message: &str| {
+            write(name, text);
+            git(&["add", name]);
+            git(&["commit", "-qm", message]);
+            git(&["rev-parse", "HEAD"])
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.name", "t"]);
+        git(&["config", "user.email", "t@local"]);
+        git(&["config", "commit.gpgsign", "false"]);
+        let first = commit("a.txt", "1\n", "inicio");
+        let second = commit("a.txt", "2\n", "dos");
+        let third = commit("b.txt", "b\n", "tres");
+        let repo = VersionControlImpl;
+        let change = |action: Action| repo.change_history(dir, &action);
+
+        // Squash: un solo commit, sin tocar lo que está sin confirmar
+        write("a.txt", "sin confirmar\n");
+        let preview = repo.squash_preview(dir, &second).unwrap();
+        assert_eq!((preview.commits, preview.message.as_str(), preview.published), (2, "dos\n\ntres", false));
+        assert!(repo.squash_preview(dir, &third).is_err(), "un solo commit no se une");
+        let point = change(Action::Squash { from: second.clone(), message: "unidos".into() }).unwrap().unwrap();
+        assert_eq!(git(&["log", "--format=%s"]), "unidos\ninicio");
+        assert_eq!(read("a.txt"), "sin confirmar\n");
+        change(Action::Undo { point: point.clone() }).unwrap();
+        assert_eq!(git(&["rev-parse", "HEAD"]), third);
+        assert!(change(Action::Undo { point }).is_err(), "la rama ya no está donde se dejó");
+
+        // Reset soft: mueve la rama y deja los cambios preparados
+        let point = change(Action::Reset { commit: first.clone(), hard: false }).unwrap().unwrap();
+        assert_eq!(git(&["rev-parse", "HEAD"]), first);
+        assert_eq!(read("b.txt"), "b\n");
+        change(Action::Undo { point }).unwrap();
+
+        // Reset hard: descarta, pero lo guarda en el stash y se recupera al deshacer
+        let point = change(Action::Reset { commit: first.clone(), hard: true }).unwrap().unwrap();
+        assert_eq!(read("a.txt"), "1\n");
+        assert!(!dir.join("b.txt").exists() && point.stash.is_some());
+        // No pisa un archivo sin versionar
+        write("b.txt", "mío\n");
+        let error = change(Action::Reset { commit: third.clone(), hard: true }).unwrap_err();
+        assert!(error.contains("b.txt"), "{error}");
+        assert_eq!(read("b.txt"), "mío\n");
+        std::fs::remove_file(dir.join("b.txt")).unwrap();
+        change(Action::Undo { point }).unwrap();
+        assert_eq!(git(&["rev-parse", "HEAD"]), third);
+        assert_eq!(read("a.txt"), "sin confirmar\n");
+        git(&["checkout", "--", "a.txt"]);
+
+        // Revert, y uno con conflicto que deja todo como estaba
+        let point = change(Action::Revert { commit: third.clone() }).unwrap().unwrap();
+        assert!(!dir.join("b.txt").exists());
+        change(Action::Undo { point }).unwrap();
+        assert_eq!(read("b.txt"), "b\n");
+        let fourth = commit("a.txt", "3\n", "cuatro");
+        let error = change(Action::Revert { commit: second.clone() }).unwrap_err();
+        assert!(error.contains("como estaba"), "{error}");
+        assert_eq!(git(&["rev-parse", "HEAD"]), fourth);
+        assert_eq!(git(&["status", "--porcelain"]), "");
+
+        // Con fusiones en el tramo no hay squash
+        git(&["checkout", "-qb", "otra", &third]);
+        commit("c.txt", "c\n", "rama");
+        git(&["checkout", "-q", "main"]);
+        git(&["merge", "-q", "--no-ff", "otra", "-m", "fusión"]);
+        assert!(repo.squash_preview(dir, &second).unwrap_err().contains("fusiones"));
+    }
+
+    #[test]
     fn checkout_de_rama_remota_crea_la_local_con_seguimiento_y_respeta_ramas_con_barra() {
         let dir = tempfile::tempdir().unwrap();
         let origen = dir.path().join("origen");
@@ -2851,6 +2945,7 @@ mod tag_refs_tests {
 /// Log de todas las ramas del repositorio y detalles de un commit, con la CLI de git.
 mod repo_log {
     use super::{CommitDetails, CommitFileChange, CommitRef, RepoCommit, RepoLog};
+    use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
     use std::path::Path;
 
     fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
@@ -3036,6 +3131,187 @@ mod repo_log {
         }
         let n = git(dir, &["rev-list", "--count", &format!("{old}..{new}")]).map(|s| s.trim().to_string()).unwrap_or_default();
         Ok(format!("«{branch}» avanzó {n} commit(s) hasta {}", &new[..new.len().min(7)]))
+    }
+
+    /// El commit al que apunta `name`.
+    fn commit_id(dir: &Path, name: &str) -> Result<String, String> {
+        let name = name.trim();
+        if name.is_empty() || name.starts_with('-') {
+            return Err(format!("Commit no válido: {name}"));
+        }
+        git(dir, &["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")])
+            .map(|s| s.trim().to_string())
+            .map_err(|_| format!("No se encontró «{name}»"))
+    }
+
+    fn current_branch(dir: &Path) -> Result<String, String> {
+        git(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"])
+            .map(|s| s.trim().to_string())
+            .map_err(|_| "HEAD está separado: cambia antes a una rama".to_string())
+    }
+
+    /// ¿Hay una fusión, rebase, cherry-pick o revert sin terminar?
+    fn has_state(dir: &Path, name: &str) -> bool {
+        git(dir, &["rev-parse", "--git-path", name]).is_ok_and(|p| dir.join(p.trim()).exists())
+    }
+
+    fn nothing_in_progress(dir: &Path) -> Result<(), String> {
+        let busy = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"]
+            .iter()
+            .any(|name| has_state(dir, name));
+        if busy {
+            return Err("Hay una fusión, rebase, cherry-pick o revert sin terminar".to_string());
+        }
+        Ok(())
+    }
+
+    pub fn squash_preview(dir: &Path, from: &str) -> Result<SquashPreview, String> {
+        let branch = current_branch(dir)?;
+        nothing_in_progress(dir)?;
+        let from = commit_id(dir, from)?;
+        if git(dir, &["merge-base", "--is-ancestor", &from, "HEAD"]).is_err() {
+            return Err(format!("Ese commit no está en «{branch}»"));
+        }
+        // El primer commit del repositorio no tiene padre: entra toda la rama
+        let range = match commit_id(dir, &format!("{from}^")) {
+            Ok(parent) => format!("{parent}..HEAD"),
+            Err(_) => "HEAD".to_string(),
+        };
+        let count = |args: &[&str]| -> Result<usize, String> {
+            git(dir, args)?.trim().parse().map_err(|_| "git rev-list".to_string())
+        };
+        if count(&["rev-list", "--count", "--merges", &range])? > 0 {
+            return Err("El tramo incluye fusiones: no se puede unir en un commit".to_string());
+        }
+        let commits = count(&["rev-list", "--count", &range])?;
+        if commits < 2 {
+            return Err("Hacen falta al menos dos commits".to_string());
+        }
+        let message = git(dir, &["log", "--reverse", "--format=%B%x1e", &range])?
+            .split('\x1e')
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let published = !git(dir, &["branch", "--remotes", "--contains", &from])?.trim().is_empty();
+        Ok(SquashPreview { branch, commits, message, published })
+    }
+
+    /// Un commit nuevo con el contenido del último, y la rama movida a él: no toca los archivos ni
+    /// lo preparado, y si algo falla la rama sigue donde estaba.
+    fn squash(dir: &Path, from: &str, message: &str) -> Result<UndoPoint, String> {
+        let branch = squash_preview(dir, from)?.branch;
+        let message = message.trim();
+        if message.is_empty() {
+            return Err("Escribe el mensaje del commit".to_string());
+        }
+        let before = commit_id(dir, "HEAD")?;
+        let tree = format!("{before}^{{tree}}");
+        let parent = commit_id(dir, &format!("{}^", commit_id(dir, from)?)).ok();
+        let mut args = vec!["commit-tree", tree.as_str(), "-m", message];
+        if let Some(parent) = &parent {
+            args.extend(["-p", parent.as_str()]);
+        }
+        // `commit-tree` no mira `commit.gpgsign`
+        if git(dir, &["config", "--bool", "commit.gpgsign"]).is_ok_and(|v| v.trim() == "true") {
+            args.push("-S");
+        }
+        let after = git(dir, &args)?.trim().to_string();
+        git(dir, &["update-ref", "-m", "synapse: squash", &format!("refs/heads/{branch}"), &after, &before])?;
+        Ok(UndoPoint { branch, before, after, stash: None, files: false })
+    }
+
+    /// Si hay conflictos, el revert se cancela y el repositorio queda como estaba.
+    fn revert_commit(dir: &Path, commit: &str) -> Result<UndoPoint, String> {
+        let branch = current_branch(dir)?;
+        nothing_in_progress(dir)?;
+        let commit = commit_id(dir, commit)?;
+        let before = commit_id(dir, "HEAD")?;
+        let mut args = vec!["revert", "--no-edit"];
+        // De una fusión se deshace lo que trajo la otra rama
+        if commit_id(dir, &format!("{commit}^2")).is_ok() {
+            args.extend(["-m", "1"]);
+        }
+        args.push(&commit);
+        if let Err(error) = git(dir, &args) {
+            if has_state(dir, "REVERT_HEAD") {
+                git(dir, &["revert", "--abort"])?;
+                return Err(format!("No se pudo revertir sin conflictos; se canceló y todo quedó como estaba.\n{error}"));
+            }
+            return Err(format!("No se pudo revertir: {error}"));
+        }
+        let after = commit_id(dir, "HEAD")?;
+        Ok(UndoPoint { branch, before, after, stash: None, files: true })
+    }
+
+    /// `reset --hard` pisaría estos archivos sin versionar (o ignorados), que git no puede recuperar.
+    fn untracked_overwritten(root: &Path, target: &str) -> Result<Vec<String>, String> {
+        let untracked = git(root, &["ls-files", "--others", "-z"])?;
+        if untracked.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tree = git(root, &["ls-tree", "-r", "--name-only", "-z", target])?;
+        let tracked: std::collections::HashSet<&str> = tree.split('\0').collect();
+        Ok(untracked
+            .split('\0')
+            .filter(|f| !f.is_empty() && tracked.contains(f))
+            .map(str::to_string)
+            .collect())
+    }
+
+    fn reset(dir: &Path, commit: &str, hard: bool) -> Result<UndoPoint, String> {
+        let branch = current_branch(dir)?;
+        let after = commit_id(dir, commit)?;
+        let before = commit_id(dir, "HEAD")?;
+        if !hard {
+            git(dir, &["reset", "--soft", "--quiet", &after])?;
+            return Ok(UndoPoint { branch, before, after, stash: None, files: false });
+        }
+        let root = std::path::PathBuf::from(git(dir, &["rev-parse", "--show-toplevel"])?.trim());
+        let overwritten = untracked_overwritten(&root, &after)?;
+        if !overwritten.is_empty() {
+            return Err(format!(
+                "Se perderían archivos sin versionar: {}. Muévelos o confírmalos antes.",
+                overwritten.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            ));
+        }
+        // Los cambios sin confirmar se guardan en el stash antes de descartarlos
+        let stash = git(dir, &["stash", "create"])?.trim().to_string();
+        let stash = (!stash.is_empty()).then_some(stash);
+        if let Some(stash) = &stash {
+            git(dir, &["stash", "store", "-m", "synapse: antes de reset --hard", stash])?;
+        }
+        git(dir, &["reset", "--hard", "--quiet", &after])?;
+        Ok(UndoPoint { branch, before, after, stash, files: true })
+    }
+
+    fn undo(dir: &Path, point: &UndoPoint) -> Result<(), String> {
+        let before = commit_id(dir, &point.before)?;
+        if current_branch(dir)? != point.branch || commit_id(dir, "HEAD")? != point.after {
+            return Err("La rama cambió después: ya no se puede deshacer desde aquí (usa reset)".to_string());
+        }
+        if !point.files {
+            let name = format!("refs/heads/{}", point.branch);
+            git(dir, &["update-ref", "-m", "synapse: deshacer", &name, &before, &point.after])?;
+            return Ok(());
+        }
+        // `--keep` conserva los cambios hechos después, o se niega si chocan
+        git(dir, &["reset", "--keep", "--quiet", &before])?;
+        if let Some(stash) = &point.stash {
+            let stash = commit_id(dir, stash)?;
+            git(dir, &["stash", "apply", "--index", "--quiet", &stash])
+                .map_err(|e| format!("La rama volvió, pero los cambios sin confirmar siguen en el stash: {e}"))?;
+        }
+        Ok(())
+    }
+
+    pub fn change_history(dir: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String> {
+        match action {
+            HistoryAction::Squash { from, message } => squash(dir, from, message).map(Some),
+            HistoryAction::Revert { commit } => revert_commit(dir, commit).map(Some),
+            HistoryAction::Reset { commit, hard } => reset(dir, commit, *hard).map(Some),
+            HistoryAction::Undo { point } => undo(dir, point).map(|()| None),
+        }
     }
 
     pub fn delete_branch(dir: &Path, name: &str, force: bool) -> Result<String, String> {

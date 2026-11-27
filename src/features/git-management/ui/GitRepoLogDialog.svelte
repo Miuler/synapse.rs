@@ -5,14 +5,18 @@
   import { ResizableDialog } from '@shared/ui/dialog-resize';
   import {
     GitGraph, Search, Loader2, AlertCircle, Tag, GitBranch, Cloud, FileText, RefreshCw,
-    GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward,
+    GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward, Combine, Undo2, History,
   } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import {
     gitApi,
     gitDialogState,
     type GitRepoCommit,
     type GitCommitDetails,
     type GitCommitFileChange,
+    type GitHistoryAction,
+    type GitSquashPreview,
+    type GitUndoPoint,
   } from '@entities/git';
   import { buildRepoLogGraph, reachableFrom } from '../lib/repo-log-graph';
   import type { GraphRow } from '../lib/file-log-graph';
@@ -214,6 +218,9 @@
     );
   });
 
+  /** Commits que están en la historia de HEAD: solo esos se pueden revertir. */
+  const inHead = $derived(new Set(head ? reachableFrom(commits, head).map((c) => c.commit_hash) : []));
+
   // El grafo solo tiene sentido sin filtro de texto (con el de rama el conjunto sigue cerrado)
   const LANE = 14;
   const COLORS = ['#378add', '#ba7517', '#1d9e75', '#d4537e', '#7f77dd', '#d85a30', '#3b9fa0', '#9a8a20'];
@@ -243,13 +250,31 @@
   let confirmAction = $state<{ text: string; run: () => Promise<string> } | null>(null);
   let busy = $state(false);
   let notice = $state<{ text: string; error: boolean } | null>(null);
+  /** ¿Se pueden unir los commits desde el del menú? `null` = no aplica (o aún no se sabe). */
+  let squashCheck = $state<{ hash: string; preview?: GitSquashPreview; reason?: string } | null>(null);
+  /** Mensaje del commit que resultará del squash. */
+  let squash = $state<{ from: string; preview: GitSquashPreview; message: string } | null>(null);
+  /** Último squash, revert o reset, mientras se pueda deshacer. */
+  let undo = $state<{ repo: string; point: GitUndoPoint } | null>(null);
 
   function openMenu(e: MouseEvent, c: GitRepoCommit) {
     e.preventDefault();
     void selectCommit(c.commit_hash);
     menu = { x: e.clientX, y: e.clientY, commit: c };
     ffCheck = null;
+    squashCheck = null;
     const branch = headBranch;
+    if (branch && c.commit_hash !== head) {
+      const hash = c.commit_hash;
+      gitApi
+        .gitSquashPreview(hash, repo)
+        .then((preview) => (squashCheck = { hash, preview }))
+        .catch((err) => {
+          const reason = err instanceof Error ? err.message : String(err);
+          // Solo se ofrece (desactivado) si lo impiden las fusiones; en otras ramas no aplica
+          if (reason.includes('fusiones')) squashCheck = { hash, reason };
+        });
+    }
     if (branch && c.commit_hash !== head) {
       gitApi
         .gitFastForward(branch, c.commit_hash, repo, true)
@@ -293,6 +318,7 @@
     menu = null;
     busy = true;
     notice = null;
+    undo = null;
     try {
       const msg = await action();
       notice = { text: msg, error: false };
@@ -329,6 +355,48 @@
   function askConfirm(text: string, action: () => Promise<string>) {
     menu = null;
     confirmAction = { text, run: action };
+  }
+
+  /** Cambia la historia de la rama y, si se puede, deja a mano el deshacer. */
+  async function changeHistory(action: GitHistoryAction, done: string): Promise<string> {
+    const target = repo;
+    const point = await gitApi.gitChangeHistory(action, target);
+    if (point) undo = { repo: target, point };
+    return done;
+  }
+
+  // Reciben los datos al pulsar: el menú (y el botón de deshacer) ya no existen cuando git responde
+  function askRevert({ commit_hash, short_hash }: GitRepoCommit, branch: string) {
+    askConfirm(t('gitLog.revertConfirm', { commit: short_hash, branch }), () =>
+      changeHistory({ kind: 'revert', commit: commit_hash }, t('gitLog.reverted', { commit: short_hash }))
+    );
+  }
+
+  function askReset({ commit_hash, short_hash }: GitRepoCommit, branch: string, hard: boolean) {
+    const question = !hard ? 'gitLog.resetSoftConfirm' : commit_hash === head ? 'gitLog.discardConfirm' : 'gitLog.resetHardConfirm';
+    askConfirm(t(question, { commit: short_hash, branch }), () =>
+      changeHistory({ kind: 'reset', commit: commit_hash, hard }, t('gitLog.resetDone', { commit: short_hash, branch }))
+    );
+  }
+
+  function undoLast(point: GitUndoPoint) {
+    void run(() => changeHistory({ kind: 'undo', point }, t('gitLog.undone')), true);
+  }
+
+  function askSquash(from: string, preview: GitSquashPreview) {
+    menu = null;
+    squash = { from, preview, message: preview.message };
+    queueMicrotask(() => (document.querySelector('.repo-log-prompt textarea') as HTMLTextAreaElement | null)?.focus());
+  }
+
+  function submitSquash() {
+    if (!squash || !squash.message.trim()) return;
+    const { from, preview, message } = squash;
+    squash = null;
+    void run(
+      () => changeHistory({ kind: 'squash', from, message }, t('gitLog.squashed', { count: preview.commits, branch: preview.branch })),
+      true
+    );
   }
 
   async function copyHash(hash: string) {
@@ -414,6 +482,18 @@
       <span class="repo-log-notice"><Loader2 size={12} class="spin" /> Ejecutando…</span>
     {:else if notice}
       <span class="repo-log-notice" class:error={notice.error} aria-live="polite">{notice.text}</span>
+    {/if}
+    {#if undo && undo.repo === repo && !busy}
+      {@const point = undo.point}
+      <button
+        type="button"
+        class="repo-log-undo"
+        data-action="undo-history"
+        title={t('gitLog.undoHint', { commit: point.before.slice(0, 7), branch: point.branch })}
+        onclick={() => undoLast(point)}
+      >
+        <Undo2 size={12} /> {t('gitLog.undo')}
+      </button>
     {/if}
     <span class="repo-log-count">
       {visibleCommits.length} {visibleCommits.length === 1 ? 'commit' : 'commits'}
@@ -643,6 +723,37 @@
       <button type="button" role="menuitem" data-action="new-tag" onclick={() => askName('tag', c)}>
         <Tag size={13} /> Crear tag aquí…
       </button>
+      {#if headBranch}
+        {@const branch = headBranch}
+        {@const hash = c.commit_hash}
+        <div class="menu-sep"></div>
+        {#if squashCheck?.hash === hash}
+          {@const preview = squashCheck.preview}
+          <button
+            type="button"
+            role="menuitem"
+            data-action="squash"
+            disabled={!preview}
+            title={preview ? undefined : squashCheck.reason}
+            onclick={() => preview && askSquash(hash, preview)}
+          >
+            <Combine size={13} /> {preview ? t('gitLog.squash', { count: preview.commits }) : t('gitLog.squashUnavailable')}
+          </button>
+        {/if}
+        {#if inHead.has(hash)}
+          <button type="button" role="menuitem" data-action="revert" onclick={() => askRevert(c, branch)}>
+            <Undo2 size={13} /> {t('gitLog.revert')}
+          </button>
+        {/if}
+        {#if hash !== head}
+          <button type="button" role="menuitem" data-action="reset-soft" onclick={() => askReset(c, branch, false)}>
+            <History size={13} /> {t('gitLog.resetSoft', { branch })}
+          </button>
+        {/if}
+        <button type="button" role="menuitem" class="danger" data-action="reset-hard" onclick={() => askReset(c, branch, true)}>
+          <History size={13} /> {hash === head ? t('gitLog.discard') : t('gitLog.resetHard', { branch })}
+        </button>
+      {/if}
       {#if tags.length || locals.some((r) => r.name !== headBranch)}<div class="menu-sep"></div>{/if}
       {#each tags as r (r.name)}
         <button
@@ -713,6 +824,27 @@
         <div class="prompt-actions">
           <button type="button" onclick={() => (prompt = null)}>Cancelar</button>
           <button type="submit" class="primary" disabled={!prompt.name.trim()}>Crear</button>
+        </div>
+      </form>
+    </div>
+  {/if}
+
+  {#if squash}
+    <div class="repo-log-overlay">
+      <form
+        class="repo-log-prompt repo-log-squash"
+        onsubmit={(e) => {
+          e.preventDefault();
+          submitSquash();
+        }}
+      >
+        <div class="prompt-title">{t('gitLog.squashTitle', { count: squash.preview.commits, branch: squash.preview.branch })}</div>
+        <textarea rows="8" bind:value={squash.message} aria-label={t('gitLog.squashMessage')}></textarea>
+        <div class="prompt-text">{t('gitLog.squashNote')}</div>
+        {#if squash.preview.published}<div class="prompt-text warning">{t('gitLog.squashPublished')}</div>{/if}
+        <div class="prompt-actions">
+          <button type="button" onclick={() => (squash = null)}>{t('common.cancel')}</button>
+          <button type="submit" class="primary" data-action="confirm-squash" disabled={!squash.message.trim()}>{t('gitLog.squashConfirm')}</button>
         </div>
       </form>
     </div>
@@ -1143,6 +1275,31 @@
     align-items: center;
     gap: 6px;
     font-size: 12.5px;
+  }
+  .repo-log-squash textarea {
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    resize: vertical;
+  }
+  .prompt-text.warning {
+    color: var(--warning, #d97706);
+  }
+  .repo-log-undo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: var(--bg-primary);
+    color: var(--accent);
+    cursor: pointer;
   }
   .prompt-actions {
     display: flex;

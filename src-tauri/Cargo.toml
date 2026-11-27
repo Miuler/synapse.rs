@@ -107,12 +107,20 @@ umya-spreadsheet = "=4.0.0-beta.1"
 # La misma que usa tauri-plugin-notification: sin ella no se puede enviar la imagen de la notificación
 notify-rust = "4"
 webkit2gtk-nvidia-quirk = { version = "2.3.0", optional = true }
+# Llavero del sistema (Secret Service) para el token de Azure DevOps
+keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", features = ["windows-native"] }
 
 [lints.clippy]
 # `note::note`: un módulo por capa y su tipo principal con el mismo nombre

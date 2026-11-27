@@ -1029,6 +1029,15 @@ it('renombra la sesión en el agente y guarda con la conversación su nombre y s
   await s.browser.$('.acp-row button[aria-label="Más acciones"]').click();
   const id = (await text('.acp-session-id'))[0]!;
   expect(id).toMatch(/^ses-e2e-\d+$/);
+  // El propio id es el botón que lo copia (sin una entrada aparte): al pulsarlo, copia y cierra el menú
+  await s.browser.execute(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (v: string) => void ((window as any).__copied = v) } });
+  });
+  await s.browser.$('.acp-session-id').click();
+  expect(await s.browser.execute(() => (window as any).__copied)).toBe(id);
+  await s.browser.$('.acp-menu').waitForExist({ reverse: true, timeout: 5_000 });
+  await s.browser.$('.acp-row button[aria-label="Más acciones"]').click();
   const item = (label: string) =>
     s.browser.execute((label) => {
       const b = [...document.querySelectorAll('.acp-menu button')].find((x) => x.textContent?.trim() === label);

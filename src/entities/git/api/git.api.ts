@@ -10,6 +10,28 @@ import type {
   GitCommitDetails,
 } from '../model/types';
 
+export interface GitSquashPreview {
+  branch: string;
+  commits: number;
+  message: string;
+  /** Alguno ya está en una rama remota */
+  published: boolean;
+}
+
+export interface GitUndoPoint {
+  branch: string;
+  before: string;
+  after: string;
+  stash: string | null;
+  files: boolean;
+}
+
+export type GitHistoryAction =
+  | { kind: 'squash'; from: string; message: string }
+  | { kind: 'revert'; commit: string }
+  | { kind: 'reset'; commit: string; hard: boolean }
+  | { kind: 'undo'; point: GitUndoPoint };
+
 export const gitApi = {
   async getGitStatus(folderPath?: string): Promise<VaultGitStatus | null> {
     return await invokeTauri<VaultGitStatus | null>('get_vault_git_status', { folderPath });
@@ -84,6 +106,16 @@ export const gitApi = {
   /** Avanza la rama local `branch` hasta `target` (commit o rama) solo si es fast-forward; `dryRun` solo comprueba. */
   async gitFastForward(branch: string, target: string, repo = '', dryRun = false): Promise<string> {
     return await invokeTauri<string>('git_fast_forward', { repo, branch, target, dryRun });
+  },
+
+  /** Qué uniría un squash desde `from` hasta el último commit de la rama actual. */
+  async gitSquashPreview(from: string, repo = ''): Promise<GitSquashPreview> {
+    return await invokeTauri<GitSquashPreview>('git_squash_preview', { repo, from });
+  },
+
+  /** Squash, revert o reset de la rama actual; devuelve cómo deshacerlo (`null` al deshacer). */
+  async gitChangeHistory(action: GitHistoryAction, repo = ''): Promise<GitUndoPoint | null> {
+    return await invokeTauri<GitUndoPoint | null>('git_change_history', { repo, action });
   },
 
   /** Borra un tag o una rama local (`force` = `git branch -D`). */

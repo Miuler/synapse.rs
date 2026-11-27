@@ -1,6 +1,7 @@
 use crate::domain::version::version::{
     BranchList, CommitDetails, FileDiff, FileRevision, FileVersionHistory, ImageDiff, RepoLog, VaultVersionState,
 };
+use crate::domain::version::history_change::{HistoryAction, SquashPreview, UndoPoint};
 use std::path::Path;
 
 pub trait VersionControl: Send + Sync {
@@ -56,6 +57,10 @@ pub trait VersionControl: Send + Sync {
     /// Avanza la rama local `branch` hasta `target` solo si es un avance rápido (fast-forward).
     /// Con `dry_run` solo comprueba si se puede.
     fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String>;
+    /// Lo que haría un squash desde `from`; el error dice por qué no se puede.
+    fn squash_preview(&self, vault_path: &Path, from: &str) -> Result<SquashPreview, String>;
+    /// Cambia la historia de la rama actual. Devuelve cómo deshacerlo (deshacer no devuelve nada).
+    fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String>;
     fn create_branch(
         &self,
         vault_path: &Path,
@@ -170,6 +175,14 @@ impl<T: VersionControl + ?Sized> VersionControl for &T {
 
     fn fast_forward_branch(&self, vault_path: &Path, branch: &str, target: &str, dry_run: bool) -> Result<String, String> {
         (**self).fast_forward_branch(vault_path, branch, target, dry_run)
+    }
+
+    fn squash_preview(&self, vault_path: &Path, from: &str) -> Result<SquashPreview, String> {
+        (**self).squash_preview(vault_path, from)
+    }
+
+    fn change_history(&self, vault_path: &Path, action: &HistoryAction) -> Result<Option<UndoPoint>, String> {
+        (**self).change_history(vault_path, action)
     }
 
     fn create_branch(

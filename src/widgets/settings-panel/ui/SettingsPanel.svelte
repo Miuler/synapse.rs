@@ -21,6 +21,7 @@
   import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT, MAX_QUOTA_MINUTES } from '@entities/acp-agent';
   import { appUpdates } from '@features/app-updates';
   import { gitBinary } from '@entities/git';
+  import { AzureTokenField } from '@features/board-editor';
 
   // Bóvedas aceptadas o rechazadas por esta (se leen al abrir Ajustes)
   let peerDecisions = $state(agentStore.peers.decisions());
@@ -39,7 +40,7 @@
     { centeredX: true, centeredY: false, maxHeightMargin: 96 },
   );
 
-  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'git' | 'updates' | 'shortcuts';
+  type Section = 'appearance' | 'editor' | 'diagrams' | 'agents' | 'git' | 'azure' | 'updates' | 'shortcuts';
 
   interface Props {
     open?: boolean;
@@ -54,6 +55,7 @@
     { id: 'diagrams', label: 'Diagramas' },
     { id: 'agents', label: 'Agentes de IA' },
     { id: 'git', label: 'Git' },
+    { id: 'azure', label: 'Azure DevOps' },
     { id: 'updates', label: 'Actualizaciones' },
     { id: 'shortcuts', label: 'Atajos de teclado' },
   ];
@@ -721,6 +723,9 @@
             Ver el estado, el historial y las versiones no necesita Git; commit, cambiar de rama, push, clone y
             Git LFS sí. La ruta se guarda en <code>config.jsonc</code> (<code>git.path</code>).
           </p>
+        {:else if section === 'azure'}
+          <h3>Azure DevOps</h3>
+          <AzureTokenField autosave />
         {:else if section === 'updates'}
           <h3>Actualizaciones</h3>
           <label class="row">
