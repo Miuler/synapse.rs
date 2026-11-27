@@ -186,4 +186,9 @@ export const en = {
     setting: 'Agent logo watermark',
     hint: 'Opacity of the agent logo shown in the corner of the chat. 0 % hides it.',
   },
+  board: {
+    newMenu: 'New board (.board.md)',
+    newKind: 'Task board (Kanban, Gantt)',
+    defaultName: 'Board',
+  },
 } as const;

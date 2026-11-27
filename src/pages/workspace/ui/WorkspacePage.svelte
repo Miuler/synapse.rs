@@ -25,7 +25,7 @@
   import {PlantUmlViewer} from "@features/plantuml-editor";
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
-  import {BoardEditor} from "@features/board-editor";
+  import {BoardEditor, createDefaultBoardMarkdown} from "@features/board-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
@@ -3542,7 +3542,7 @@
 
   async function createNewVaultItem(
     emptyTabPathToReplace?: string,
-    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown',
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' | 'board' = 'markdown',
     /** Carpeta donde crearlo (por defecto la raíz de la bóveda) */
     folder = ''
   ) {
@@ -3595,6 +3595,10 @@
       }
 
       initialContent = createCanonicalExcalidrawContent(templateContent);
+    } else if (fileType === 'board') {
+      extension = 'board.md';
+      defaultBaseTitle = t('board.defaultName');
+      initialContent = createDefaultBoardMarkdown();
     }
 
     const prefix = folder ? `${folder.replace(/\/+$/, '')}/` : '';
@@ -3754,6 +3758,13 @@
         category: "file",
         action: () => {
           createNewVaultItem(undefined, 'plantuml');
+        },
+      },
+      {
+        id: "cmd-new-board",
+        category: "file",
+        action: () => {
+          createNewVaultItem(undefined, 'board');
         },
       },
       {
@@ -4631,6 +4642,7 @@
     <!-- 2. PANEL LATERAL (EXPLORADOR DE ARCHIVOS DE LA BÓVEDA) -->
     <VaultExplorer
       bind:this={vaultExplorerRef}
+      newBoardContent={createDefaultBoardMarkdown}
       {activeRibbonTab}
       {sidebarWidth}
       {isResizingSidebar}

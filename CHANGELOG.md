@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task boards (`.board.md`): an editor with Table, Kanban and Gantt views over a Markdown table, with comments per task; create one from the explorer menu («New board»), the command palette or a folder index.
 - Laser pointer in diagrams and images: `K` turns it on or off and `Escape` turns it off (with the pointer over the viewer); holding the right button drags the view, also in laser mode.
 - Laser mode shows a laser-pointer cursor instead of the crosshair.
 - Laser pointer: thinner dot and beam, with the dot size configurable in Settings; the dot is drawn away from the cursor icon. The middle button also drags the view in image and diagram viewers.

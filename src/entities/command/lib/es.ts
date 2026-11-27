@@ -36,6 +36,7 @@ export const commands: Record<keyof typeof enCommands, CommandText> = {
   'cmd-new-mermaid': { name: 'Crear nuevo diagrama Mermaid (.mmd)' },
   'cmd-new-d2': { name: 'Crear nuevo archivo D2 (.d2)' },
   'cmd-new-plantuml': { name: 'Crear nuevo diagrama PlantUML (.puml)' },
+  'cmd-new-board': { name: 'Crear nuevo tablero (.board.md)', keywords: ['kanban', 'gantt', 'tareas', 'board'] },
   'cmd-new-excalidraw': { name: 'Crear nuevo dibujo Excalidraw (.excalidraw)' },
   'cmd-new-obsidian-excalidraw': { name: 'Excalidraw: Crear nuevo dibujo (.excalidraw.md)' },
   'cmd-close-tab': { name: 'Cerrar pestaña actual' },

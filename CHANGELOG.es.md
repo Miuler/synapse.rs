@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Tableros de tareas (`.board.md`): editor con vistas Tabla, Kanban y Gantt sobre una tabla Markdown, con comentarios por tarea; se crean desde el menú del explorador («Nuevo tablero»), la paleta de comandos o el índice de una carpeta.
 - Puntero láser en diagramas e imágenes: `K` lo activa o desactiva y `Escape` lo apaga (con el puntero sobre el visor); mantener el clic derecho arrastra la vista, también en modo láser.
 - El modo láser muestra un cursor con forma de puntero láser en lugar de la cruz.
 - Puntero láser: punto y rayo más finos, con el tamaño del punto configurable en Configuración; el punto se dibuja separado del icono del cursor. El botón del medio también arrastra la vista en los visores de imágenes y diagramas.

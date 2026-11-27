@@ -1,0 +1,52 @@
+// Un tablero se crea desde el explorador (o la paleta), se abre en su editor y guarda sus cambios.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterAll, beforeAll, expect, it } from 'bun:test';
+import { startApp, type Session } from './harness';
+
+let s: Session;
+
+beforeAll(async () => {
+  s = await startApp({ 'nota.md': '# Nota\n' });
+  await s.browser.$('.file-tree-item[data-path="nota.md"]').waitForExist({ timeout: 30_000 });
+}, 120_000);
+afterAll(() => s?.close());
+
+const cards = () =>
+  s.browser.execute(() => [...document.querySelectorAll('.tab-pane:not(.hidden) .kanban-view .card-title')].map((e) => e.textContent?.trim())) as Promise<string[]>;
+
+it('«Nuevo tablero» del explorador crea un .board.md con su Kanban y guarda lo que se añade', async () => {
+  await s.browser.$('.file-tree-item[data-path="nota.md"]').click({ button: 'right' });
+  await s.browser.$('.context-menu-item').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() =>
+    ([...document.querySelectorAll('.context-menu-item')].find((i) => i.textContent?.includes('Nuevo tablero')) as HTMLElement).click(),
+  );
+  await s.browser.$('.tab-pane:not(.hidden) .kanban-view').waitForExist({ timeout: 15_000 });
+  // Las tareas de ejemplo, en el orden de sus columnas («En progreso» antes que «Hecho»)
+  expect(await cards()).toEqual(['Implementar MVP', 'Definir alcance']);
+  const file = () => readFileSync(join(s.vault, 'Tablero.board.md'), 'utf8');
+  expect(file()).toContain('| t1 | Definir alcance | done |');
+
+  await s.browser.$('.tab-pane:not(.hidden) .add-card-btn').click();
+  await s.browser.waitUntil(async () => (await cards()).includes('Nueva tarea'), { timeout: 5_000 });
+  await s.browser.waitUntil(async () => file().includes('| t3 | Nueva tarea | todo |'), { timeout: 10_000, timeoutMsg: 'no se guardó la tarea' });
+}, 90_000);
+
+it('también se crea desde la paleta de comandos', async () => {
+  await s.browser.$('.tab-pane:not(.hidden) .view-switcher').click();
+  await s.browser.keys(['Control', 'p']);
+  const input = await s.browser.$('.synapse-command-palette input');
+  await input.waitForExist({ timeout: 15_000 });
+  await input.setValue('nuevo tablero');
+  await s.browser.waitUntil(
+    async () => (await s.browser.execute(() => document.querySelector('.synapse-command-palette .command-item')?.textContent ?? '') as string).includes('tablero'),
+    { timeout: 15_000, timeoutMsg: 'la paleta no ofrece el tablero' },
+  );
+  await s.browser.keys(['Enter']);
+  await s.browser.waitUntil(
+    () =>
+      s.browser.execute(() => !!document.querySelector('.tab-title-container.active[data-path$=".board.md"]:not([data-path="Tablero.board.md"])') && !!document.querySelector('.tab-pane:not(.hidden) .kanban-view')) as Promise<boolean>,
+    { timeout: 15_000, timeoutMsg: 'no se abrió el tablero nuevo' },
+  );
+  expect(await cards()).toEqual(['Implementar MVP', 'Definir alcance']);
+}, 90_000);

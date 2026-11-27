@@ -187,4 +187,9 @@ export const es: TranslationSchema = {
     setting: 'Marca de agua del agente',
     hint: 'Opacidad del logo del agente en la esquina del chat. 0 % la oculta.',
   },
+  board: {
+    newMenu: 'Nuevo tablero (.board.md)',
+    newKind: 'Tablero de tareas (Kanban, Gantt)',
+    defaultName: 'Tablero',
+  },
 };

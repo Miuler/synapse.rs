@@ -14,7 +14,8 @@
   import { medianRowPitch } from '../lib/row-pitch';
   import { buildGitTree, buildDeletedTree, childrenAt, mergeDeleted, collectFolderPaths, sortSiblings, type GitTreeNode } from '../lib/git-tree';
   import { createCanonicalExcalidrawContent } from '@shared/obsidian-api';
-  import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
+  import { GitBranch, GitCommitHorizontal, GitGraph, GitCompare, GitCompareArrows, Link, Copy, ClipboardPaste, Trash2, Check, ChevronRight, ChevronDown, PanelLeftClose, Pin, PinOff, Files, FilePlus, FileCode, PenTool, RotateCcw, Undo2, Plus, RefreshCw, Crosshair, Pencil, Filter, ExternalLink, Eye, Columns, History, Lock, Unlock, FolderSearch, Cloud, FolderPlus, Scissors, FolderInput, ImageDown, ChevronsDownUp, ChevronsUpDown, Kanban } from 'lucide-svelte';
   import VaultDeleteDialog, { type ItemToDelete } from './VaultDeleteDialog.svelte';
   import VaultRestoreDialog from './VaultRestoreDialog.svelte';
   import { measured } from '@shared/lib/perf-probe';
@@ -64,6 +65,8 @@
     onOpenWithDrawio?: (path: string) => void;
     lockedFiles?: Set<string>;
     onToggleLockFile?: (path: string) => void;
+    /** Contenido de un tablero nuevo (lo aporta quien conoce su formato). */
+    newBoardContent: () => string;
   }
 
   let {
@@ -80,6 +83,7 @@
     onGitPush,
     lockedFiles,
     onToggleLockFile,
+    newBoardContent,
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
@@ -1242,7 +1246,7 @@
 
   async function handleNewNote(
     fromKeyboard: boolean | unknown = false,
-    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' = 'markdown'
+    fileType: 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' | 'board' = 'markdown'
   ) {
     if (isCreatingNote) return;
     isCreatingNote = true;
@@ -1286,6 +1290,10 @@
         extension = 'excalidraw.md';
         baseTitle = 'Dibujo';
         initialContent = createCanonicalExcalidrawContent();
+      } else if (fileType === 'board') {
+        extension = 'board.md';
+        baseTitle = t('board.defaultName');
+        initialContent = newBoardContent();
       }
 
       let title = baseTitle;
@@ -1349,7 +1357,7 @@
       // Abrir la nueva nota en una pestaña activa
       onSelectTab(candidateRelPath);
 
-      showToast(`Nueva nota creada: "${title}.md"`);
+      showToast(`Nueva nota creada: "${title}.${extension}"`);
 
       if (onRefreshGit) {
         await onRefreshGit();
@@ -2839,6 +2847,14 @@
         >
           <PenTool class="context-menu-item-icon" />
           <span>Nuevo dibujo Excalidraw Obsidian (.excalidraw.md)</span>
+        </ContextMenu.Item>
+
+        <ContextMenu.Item
+          class="context-menu-item"
+          onSelect={() => handleNewNote(false, 'board')}
+        >
+          <Kanban class="context-menu-item-icon" />
+          <span>{t('board.newMenu')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Separator class="context-menu-divider" />

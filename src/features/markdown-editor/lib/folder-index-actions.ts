@@ -3,11 +3,12 @@
 import { mount, unmount } from 'svelte';
 import { Lock } from 'lucide-svelte';
 import { FolderIcon } from '@shared/ui/icons';
+import { t } from '@shared/lib/i18n';
 import { FileIcon } from '@entities/file-type';
 import { parseGitStatusInfo, GitStatusBadge } from '@entities/git';
 import type { GitFileStatusKind } from '@shared/repositories';
 
-export type NewFileKind = 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw';
+export type NewFileKind = 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' | 'board';
 
 export const NEW_FILE_KINDS: { kind: NewFileKind; label: string }[] = [
   { kind: 'markdown', label: 'Nota Markdown' },
@@ -16,6 +17,8 @@ export const NEW_FILE_KINDS: { kind: NewFileKind; label: string }[] = [
   { kind: 'plantuml', label: 'Diagrama PlantUML' },
   { kind: 'excalidraw', label: 'Dibujo Excalidraw' },
   { kind: 'obsidian-excalidraw', label: 'Dibujo Excalidraw (Obsidian, .excalidraw.md)' },
+  // Se traduce al leerlo: el idioma puede cambiar
+  { kind: 'board', get label() { return t('board.newKind'); } },
 ];
 
 export const FOLDER_INDEX_EVENT = 'synapse:folder-index-action';

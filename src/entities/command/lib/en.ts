@@ -38,6 +38,7 @@ export const commands = {
   'cmd-new-mermaid': { name: 'Create new Mermaid diagram (.mmd)' },
   'cmd-new-d2': { name: 'Create new D2 file (.d2)', keywords: ['diagram'] },
   'cmd-new-plantuml': { name: 'Create new PlantUML diagram (.puml)' },
+  'cmd-new-board': { name: 'Create new board (.board.md)', keywords: ['kanban', 'gantt', 'tasks', 'tablero'] },
   'cmd-new-excalidraw': { name: 'Create new Excalidraw drawing (.excalidraw)' },
   'cmd-new-obsidian-excalidraw': { name: 'Excalidraw: Create new drawing (.excalidraw.md)' },
   'cmd-close-tab': { name: 'Close current tab', keywords: ['close tab'] },
