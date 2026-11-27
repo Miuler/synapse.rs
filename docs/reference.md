@@ -115,6 +115,38 @@ Linked tasks the query no longer returns stay on the board, marked as outside th
 connection of a board with linked tasks unlinks them, after confirmation. A remote state goes to the column that lists
 it in `states` of the board, else to the column of the category the provider declares, else by its usual name.
 
+### Folder boards (`format: 2`)
+
+A board marked `format: 2` keeps one file per task in the folder next to it. `Name.board.md` only holds the board:
+`default_view`, `columns`, `column_widths`, `source`, `fields` and the order of the tasks under `## Order` (`- <id>`).
+`fields: { card: [key, type, assignee], table: [key, type, assignee] }` chooses what Kanban cards and the table show;
+without it cards show the three and the table those that some task has. Each `Name.board/<id>.md` holds a task:
+
+```markdown
+# Title
+
+- status: doing
+- type: Bug
+- assignee: Ana
+- key: AB#123
+- start: 2026-11-20
+- duration: 2d
+- depends: -
+- progress: 0%
+
+## Description
+
+> Quoted, so nothing in it looks like part of the format.
+
+## Activity
+
+- `2026-11-26T10:00:00` comment · Ana · id:987
+  Text of the comment.
+```
+
+Unknown keys and sections are kept. The folder can be read but only the board changes it; changes made by other
+applications are read again. Existing boards are not converted yet, and new ones are still created as a table.
+
 ## MCP server
 
 When enabled for a vault, Synapse serves the [Model Context Protocol](https://modelcontextprotocol.io) (version

@@ -3,7 +3,7 @@
 
 use crate::domain::board::board_error::BoardError;
 use crate::domain::board::board_file::BoardFile;
-use crate::domain::board::task_file::{TaskFile, TaskSync};
+use crate::domain::board::task_file::{ActivityEntry, TaskFile, TaskSync};
 use serde::Serialize;
 use std::path::Path;
 
@@ -28,8 +28,8 @@ pub struct TaskCard {
     pub progress: u8,
     pub sync: Option<TaskSync>,
     pub extra: Vec<(String, String)>,
-    /// Cuántos comentarios tiene.
-    pub comments: usize,
+    /// Sus comentarios (el histórico no).
+    pub comments: Vec<ActivityEntry>,
 }
 
 /// Un archivo de la carpeta que no se pudo leer como tarea.

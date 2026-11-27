@@ -8,6 +8,7 @@
   import { t } from '@shared/lib/i18n';
   import type { BoardColumn, BoardTask } from '../model/board.svelte';
   import type { IssueLink } from '../model/issue-sync';
+  import type { TaskFile } from '../model/folder-board';
 
   interface Props {
     task: BoardTask;
@@ -16,11 +17,14 @@
     columns: BoardColumn[];
     /** La tarea del proveedor enlazada, si la hay. */
     link?: IssueLink;
+    /** El archivo de la tarea, en los tableros de carpeta. */
+    file?: TaskFile;
     onClose: () => void;
     onAddComment: (taskId: string, text: string) => void;
   }
 
-  let { task, tasks, columns, link, onClose, onAddComment }: Props = $props();
+  let { task, tasks, columns, link, file, onClose, onAddComment }: Props = $props();
+  let history = $derived(file?.activity.filter((entry) => entry.kind === 'history') ?? []);
   let column = $derived(columns.find((c) => c.id === task.status));
   let dependency = $derived(tasks.find((other) => other.id === task.dependsOn));
   let draft = $state('');
@@ -49,6 +53,10 @@
 
   <div class="task-columns">
     <section class="task-main">
+      {#if file?.description}
+        <h3>{t('board.detail.description')}</h3>
+        <div class="description">{file.description}</div>
+      {/if}
       <h3>{t('board.detail.comments')}</h3>
       <div class="comments-list">
         {#if task.comments.length === 0}
@@ -62,6 +70,18 @@
           {/each}
         {/if}
       </div>
+
+      {#if history.length}
+        <h3>{t('board.detail.history')}</h3>
+        <ul class="history">
+          {#each history as entry, i (i)}
+            <li>
+              <small>{entry.at.replace('T', ' ').slice(0, 19)}{entry.author ? ` · ${entry.author}` : ''}</small>
+              {entry.text}
+            </li>
+          {/each}
+        </ul>
+      {/if}
 
       <form class="comment-form" onsubmit={submit}>
         <!-- Con algo escrito, Escape no cierra el diálogo: se perdería -->
@@ -84,6 +104,18 @@
 
       <h3>{t('board.detail.details')}</h3>
       <dl class="details">
+        {#if task.key}
+          <dt>{t('board.detail.key')}</dt>
+          <dd class="detail-key">{task.key}</dd>
+        {/if}
+        {#if task.type}
+          <dt>{t('board.type')}</dt>
+          <dd class="detail-type">{task.type}</dd>
+        {/if}
+        {#if task.assignee}
+          <dt>{t('board.assignee')}</dt>
+          <dd class="detail-assignee">{task.assignee}</dd>
+        {/if}
         <dt>{t('board.detail.start')}</dt>
         <dd class="detail-start">{task.start}</dd>
         <dt>{t('board.detail.duration')}</dt>
@@ -204,6 +236,36 @@
   .detail-note {
     display: block;
     color: var(--text-secondary);
+  }
+
+  .description,
+  .history {
+    max-height: 30%;
+    overflow-y: auto;
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-primary);
+    user-select: text;
+  }
+
+  .description {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .history {
+    padding: 0;
+    list-style: none;
+  }
+
+  .history li {
+    padding: 4px 0;
+    white-space: pre-wrap;
+  }
+
+  .history small {
+    display: block;
+    color: var(--text-muted);
   }
 
   .comments-list {

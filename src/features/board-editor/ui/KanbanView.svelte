@@ -9,6 +9,8 @@
     columns: BoardColumn[];
     /** Ids de las tareas fuera del filtro. */
     outside: Set<string>;
+    /** Datos del proveedor que se ven en la tarjeta: `key`, `type`, `assignee`. */
+    fields: string[];
     /** Anchos propios, en píxeles, por columna. */
     widths: Record<string, number>;
     onResizeColumn: (id: string, width: number | null) => void;
@@ -19,7 +21,7 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, outside, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
+  let { tasks, columns, outside, fields, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
     $props();
 
   // Arrastre con eventos de puntero: el de HTML5 no llega a soltar en el webview (Tauri atiende el
@@ -212,13 +214,19 @@
             ondblclick={(e) => openOnDoubleClick(e, task.id)}
           >
             <div class="card-top">
-              <span class="card-id">{task.id}</span>
+              <span class="card-id">{(fields.includes('key') && task.key) || task.id}</span>
               {#if outside.has(task.id)}<span class="outside-badge">{t('issues.outside')}</span>{/if}
               {#if task.dependsOn !== '-'}
                 <span class="dep-badge">↳ {task.dependsOn}</span>
               {/if}
             </div>
             <div class="card-title">{task.title}</div>
+            {#if (fields.includes('type') && task.type) || (fields.includes('assignee') && task.assignee)}
+              <div class="card-data">
+                {#if fields.includes('type') && task.type}<span class="card-type">{task.type}</span>{/if}
+                {#if fields.includes('assignee') && task.assignee}<span class="card-assignee">{task.assignee}</span>{/if}
+              </div>
+            {/if}
             <div class="progress-bar">
               <div class="progress-fill" style="width: {task.progress}%"></div>
             </div>
@@ -434,6 +442,21 @@
     justify-content: space-between;
     font-size: 11px;
     color: var(--text-muted);
+  }
+
+  .card-data {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .card-type {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
   }
 
   .outside-badge {

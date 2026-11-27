@@ -89,9 +89,9 @@ fn card(id: &str, content: &str) -> Result<TaskCard, String> {
     let task = task_file::parse(content).map_err(|e| e.detail)?;
     let comments = task
         .activity
-        .iter()
+        .into_iter()
         .filter(|a| a.kind == EntryKind::Comment)
-        .count();
+        .collect();
     Ok(TaskCard {
         id: id.to_string(),
         hash: NoteContent::hash(content),

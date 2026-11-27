@@ -9,6 +9,8 @@
     columns: BoardColumn[];
     /** Ids de las tareas fuera del filtro. */
     outside: Set<string>;
+    /** Datos del proveedor que se ven: `key`, `type`, `assignee`. */
+    fields: string[];
     sort: TaskSort | null;
     onSort: (sort: TaskSort | null) => void;
     onUpdateTask: (id: string, patch: Partial<BoardTask>) => void;
@@ -17,17 +19,19 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, outside, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, outside, fields, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
 
-  const HEADERS: { key: TaskSortKey; label: string; class?: string }[] = [
+  let headers = $derived<{ key: TaskSortKey; label: string; class?: string }[]>([
     { key: 'id', label: 'ID', class: 'col-id' },
+    ...(fields.includes('type') ? [{ key: 'type' as const, label: t('board.type') }] : []),
     { key: 'title', label: 'Tarea' },
     { key: 'status', label: 'Estado' },
+    ...(fields.includes('assignee') ? [{ key: 'assignee' as const, label: t('board.assignee') }] : []),
     { key: 'start', label: 'Inicio' },
     { key: 'duration', label: 'Duración (d)', class: 'col-num' },
     { key: 'dependsOn', label: 'Depende' },
     { key: 'progress', label: 'Progreso %', class: 'col-num' },
-  ];
+  ]);
 
   // Se ordena al elegir columna y al añadir o quitar tareas, no mientras se escribe: la fila no salta
   let ids = $derived(tasks.map((task) => task.id).join('\n'));
@@ -49,7 +53,7 @@
   <table>
     <thead>
       <tr>
-        {#each HEADERS as header (header.key)}
+        {#each headers as header (header.key)}
           {@const active = sort?.key === header.key ? sort : null}
           <th class={header.class} aria-sort={active ? (active.descending ? 'descending' : 'ascending') : 'none'}>
             <button
@@ -76,8 +80,10 @@
         >
           <td class="col-id">
             <code>{task.id}</code>
+            {#if fields.includes('key') && task.key}<small class="task-key">{task.key}</small>{/if}
             {#if outside.has(task.id)}<small class="outside-badge">{t('issues.outside')}</small>{/if}
           </td>
+          {#if fields.includes('type')}<td class="cell-type">{task.type ?? ''}</td>{/if}
           <td>
             <input
               type="text"
@@ -95,6 +101,7 @@
               {/each}
             </select>
           </td>
+          {#if fields.includes('assignee')}<td class="cell-assignee">{task.assignee ?? ''}</td>{/if}
           <td>
             <input
               type="date"
@@ -180,6 +187,17 @@
 
   .sort-btn:hover {
     color: var(--text-primary);
+  }
+
+  .task-key {
+    display: block;
+    color: var(--text-secondary);
+  }
+
+  .cell-type,
+  .cell-assignee {
+    padding: 4px 8px;
+    white-space: nowrap;
   }
 
   .outside-badge {

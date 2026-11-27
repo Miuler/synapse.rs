@@ -56,6 +56,8 @@ export interface Issue {
   /** Versión leída: una escritura solo se admite sobre ella. */
   revision: string | null;
   assignee?: { name: string; id: string } | null;
+  key?: string;
+  url?: string | null;
 }
 
 /** Lo que un proveedor declara de sí mismo. */
@@ -89,6 +91,12 @@ function columnOf(doc: BoardDocument, provider: IssueProvider, state: Issue['sta
     doc.columns.find((c) => c.id === state.category)?.id ??
     listing((column) => statesOf(doc.source!, provider, column))
   );
+}
+
+/** Lo que de una tarea solo dice el proveedor. */
+function remoteFields(item: Issue): Partial<BoardTask> {
+  const fields: Partial<BoardTask> = { type: item.type || undefined, assignee: item.assignee?.name, key: item.key, url: item.url ?? undefined };
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
 }
 
 /** El filtro por criterios sigue valiendo mientras su consulta no se haya editado a mano. */
@@ -141,7 +149,9 @@ export function applyPull(
       else links[task.id] = link;
       return task;
     }
-    const next: BoardTask = { ...task };
+    const next: BoardTask = { ...task, ...remoteFields(item) };
+    // Sin asignar en el proveedor, deja de estarlo aquí
+    if (item.assignee === null) delete next.assignee;
     const base: IssueLink = { ...link };
     let conflict = false;
 
@@ -192,7 +202,7 @@ export function applyPull(
     used.add(id);
     const title = cellText(item.title);
     const status = columnOf(doc, provider, item.state) ?? doc.columns[0]?.id ?? 'todo';
-    tasks.push({ id, title, status, start: today, duration: 1, dependsOn: '-', progress: 0, comments: [] });
+    tasks.push({ id, title, status, start: today, duration: 1, dependsOn: '-', progress: 0, comments: [], ...remoteFields(item) });
     links[id] = { id: item.id, title, state: item.state.name, column: status };
     added++;
   }

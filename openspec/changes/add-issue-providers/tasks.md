@@ -43,7 +43,7 @@
 - [x] 3.3 Proteger la carpeta del tablero en las escrituras del editor, el explorador y MCP, con candado fijo en la
   interfaz, y renombrar o borrar la carpeta junto con su tablero; pruebas en Rust de cada vía y e2e que confirma que no
   se puede desbloquear
-- [ ] 3.4 Adaptar el editor del tablero (Kanban, tabla, Gantt, Raw y detalle) al nuevo formato, mostrando referencia,
+- [x] 3.4 Adaptar el editor del tablero (Kanban, tabla, Gantt, Raw y detalle) al nuevo formato, mostrando referencia,
   tipo y asignado según `fields`; e2e de tableros y documentación del formato.
   Volver a leer el tablero cuando el observador avise de cambios en su carpeta
 - [ ] 3.5 Convertir con confirmación los tableros con tabla y la clave `azure_devops`; pruebas con tableros actuales,

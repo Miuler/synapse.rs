@@ -3,6 +3,7 @@
   import { untrack } from 'svelte';
   import { t } from '@shared/lib/i18n';
   import { CodeEditor } from '@shared/ui/code-editor';
+  import { vaultApi } from '@entities/vault-item';
   import {
     parseBoardMarkdown,
     placeTask,
@@ -12,6 +13,10 @@
     type TaskSort,
   } from '../model/board.svelte';
   import { takeNewBoard } from '../model/new-boards';
+  import { boardsApi, type BoardError } from '../api/boards.api';
+  import { isFolderBoard, type TaskFile } from '../model/folder-board';
+  import { FolderBoard } from '../model/folder-board-store.svelte';
+  import { DEFAULT_COLUMNS, type BoardDocument } from '../model/board.svelte';
   import TableView from './TableView.svelte';
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
@@ -30,7 +35,38 @@
 
   const isNew = untrack(() => takeNewBoard(path));
 
-  let doc = $derived(parseBoardMarkdown(content));
+  // Un tablero de carpeta (`format: 2`) tiene sus tareas en archivos; los demás, en la tabla del contenido
+  let folder = $derived(isFolderBoard(content));
+  let store = $state.raw<FolderBoard | null>(null);
+  const loading: BoardDocument = { defaultView: 'kanban', columns: DEFAULT_COLUMNS, tasks: [] };
+  let doc = $derived(folder ? (store?.doc ?? loading) : parseBoardMarkdown(content));
+
+  $effect(() => {
+    if (!folder || !path) return;
+    const opened = new FolderBoard(boardsApi, path);
+    store = opened;
+    void opened.load();
+    const tasksFolder = `${path.slice(0, -'.md'.length)}/`;
+    const mine = (changed: string) => changed === path || changed.startsWith(tasksFolder);
+    const unlisten = vaultApi.onFilesChanged(({ paths, deleted }) => {
+      if ([...paths, ...deleted].some(mine)) void opened.load();
+    });
+    return () => {
+      store = null;
+      void unlisten.then((stop) => stop());
+    };
+  });
+  // El archivo del tablero cambió en la pestaña (se recargó del disco)
+  $effect(() => {
+    void content;
+    void untrack(() => store)?.load();
+  });
+
+  let storeError = $derived.by(() => {
+    const error = store?.error as Partial<BoardError> | null | undefined;
+    if (!error) return '';
+    return error.kind ? t(`board.errors.${error.kind}`, { detail: error.detail ?? '' }) : String(error);
+  });
   // «raw» solo se mira: no se guarda como vista del tablero
   let activeView = $state<BoardViewMode | 'raw' | null>(null);
   let currentView = $derived(activeView ?? doc.defaultView);
@@ -44,7 +80,7 @@
   let selectedTask = $derived(doc.tasks.find((t) => t.id === selectedTaskId) ?? null);
 
   function commit(nextTasks: BoardTask[], nextDefaultView: BoardViewMode = doc.defaultView) {
-    onChange(serializeBoardMarkdown({ ...doc, defaultView: nextDefaultView, tasks: nextTasks }));
+    write({ ...doc, defaultView: nextDefaultView, tasks: nextTasks });
   }
 
   function updateTask(id: string, patch: Partial<BoardTask>) {
@@ -63,8 +99,9 @@
     write({ ...doc, columnWidths: width === null ? others : { ...others, [id]: width } });
   }
 
-  function write(next: typeof doc) {
-    onChange(serializeBoardMarkdown(next));
+  function write(next: BoardDocument) {
+    if (folder) store?.write(next);
+    else onChange(serializeBoardMarkdown(next));
   }
 
   function deleteTask(id: string) {
@@ -94,6 +131,31 @@
     };
     commit([...doc.tasks, newTask]);
   }
+
+  /** Lo que solo está en el archivo de la tarea (descripción e histórico). */
+  let details = $state.raw<{ id: string; task: TaskFile } | null>(null);
+  $effect(() => {
+    const id = selectedTaskId;
+    const opened = store;
+    void doc;
+    if (!id || !opened) {
+      details = null;
+      return;
+    }
+    let stale = false;
+    opened
+      .readTask(id)
+      .then(({ task }) => !stale && (details = { id, task }))
+      .catch(() => !stale && (details = null));
+    return () => (stale = true);
+  });
+
+  /** Qué datos del proveedor se ven en las tarjetas y en la tabla. */
+  const KNOWN_FIELDS = ['key', 'type', 'assignee'] as const;
+  let cardFields = $derived(doc.fields?.card?.length ? doc.fields.card : [...KNOWN_FIELDS]);
+  let tableFields = $derived(
+    doc.fields?.table?.length ? doc.fields.table : KNOWN_FIELDS.filter((field) => doc.tasks.some((task) => task[field])),
+  );
 
   function addComment(taskId: string, text: string) {
     const timestamp = new Date().toISOString().slice(0, 19);
@@ -143,11 +205,19 @@
     <IssueSync read={() => doc} {write} {isNew} />
   </header>
 
+  {#if storeError}<p class="board-problem" role="alert">{storeError}</p>{/if}
+  {#if folder && store?.problems.length}
+    <p class="board-problem" role="status">
+      {t('board.unreadable', { files: store.problems.map((p) => `${p.file} (${p.detail})`).join(', ') })}
+    </p>
+  {/if}
+
   <div class="board-body">
     <div class="board-main">
       {#if currentView === 'table'}
         <TableView
           tasks={doc.tasks}
+          fields={tableFields}
           {outside}
           sort={tableSort}
           onSort={(sort) => (tableSort = sort)}
@@ -160,6 +230,7 @@
       {:else if currentView === 'kanban'}
         <KanbanView
           tasks={doc.tasks}
+          fields={cardFields}
           {outside}
           columns={doc.columns}
           widths={doc.columnWidths ?? {}}
@@ -190,6 +261,7 @@
           tasks={doc.tasks}
           columns={doc.columns}
           link={doc.source?.links?.[selectedTask.id]}
+          file={details?.id === selectedTask.id ? details.task : undefined}
           onClose={() => (selectedTaskId = null)}
           onAddComment={addComment}
         />
@@ -199,6 +271,16 @@
 </div>
 
 <style>
+  .board-problem {
+    margin: 0;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--warning, #d97706);
+    border-bottom: 1px solid var(--border-primary);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
   .board-editor {
     display: flex;
     flex-direction: column;

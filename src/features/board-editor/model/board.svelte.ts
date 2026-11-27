@@ -24,6 +24,12 @@ export interface BoardTask {
   dependsOn: string; // id de otra tarea o '-'
   progress: number; // 0-100
   comments: BoardComment[];
+  /** Solo los guarda el formato de carpeta. */
+  type?: string;
+  assignee?: string;
+  /** Referencia en el proveedor (`AB#123`). */
+  key?: string;
+  url?: string;
 }
 
 export interface BoardDocument {
@@ -37,6 +43,8 @@ export interface BoardDocument {
   columnWidths?: Record<string, number>;
   /** Sincronización con un gestor de issues. */
   source?: IssueSource;
+  /** Qué datos se ven en las tarjetas y en la tabla (formato de carpeta); sin decirlo, los habituales. */
+  fields?: { card?: string[]; table?: string[] };
   /** Bloques del frontmatter que el tablero no interpreta: se guardan tal cual. */
   extraFrontmatter?: string;
 }
@@ -271,7 +279,7 @@ export function placeTask(tasks: BoardTask[], id: string, status: string, before
   return task.status === status && order(rest) === order(tasks) ? tasks : rest;
 }
 
-export type TaskSortKey = 'id' | 'title' | 'status' | 'start' | 'duration' | 'dependsOn' | 'progress';
+export type TaskSortKey = 'id' | 'type' | 'assignee' | 'title' | 'status' | 'start' | 'duration' | 'dependsOn' | 'progress';
 export interface TaskSort {
   key: TaskSortKey;
   descending: boolean;
@@ -282,7 +290,7 @@ export function sortTasks(tasks: BoardTask[], sort: TaskSort | null, columns: Bo
   if (!sort) return tasks;
   const { key } = sort;
   const value = (t: BoardTask) =>
-    key === 'status' ? columns.findIndex((c) => c.id === t.status) : key === 'dependsOn' && t[key] === '-' ? '' : t[key];
+    key === 'status' ? columns.findIndex((c) => c.id === t.status) : key === 'dependsOn' && t[key] === '-' ? '' : (t[key] ?? '');
   const direction = sort.descending ? -1 : 1;
   return [...tasks].sort((a, b) => {
     const [x, y] = [value(a), value(b)];

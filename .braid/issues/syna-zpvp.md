@@ -17,3 +17,5 @@ acceptance:
 ---
 
 Pedido por el usuario. Hoy las tarjetas traídas muestran ado-123 como id, las creadas en Synapse conservan t1 aunque estén enlazadas, y el tipo de item se lee y se descarta. Asignado y tipo, de solo lectura. Tareas 3.1 y 3.4 de la propuesta add-issue-providers.
+
+En los tableros «format: 2» ya se ven la referencia, el tipo y el asignado según `fields`. Falta abrir la tarea en el proveedor (Azure DevOps todavía no da su enlace) y verlo en un tablero real tras la conversión.

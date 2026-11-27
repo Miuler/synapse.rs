@@ -1,0 +1,64 @@
+import type { BoardDocument } from './board.svelte';
+import { folderDocument, persist, type BoardApi, type BoardFile, type BoardSnapshot } from './folder-board';
+
+/**
+ * Un tablero de carpeta abierto. Las vistas ven cada cambio al momento y se guarda detrás, en orden;
+ * si una escritura falla, se vuelve a leer lo que hay en disco.
+ */
+export class FolderBoard {
+  doc = $state.raw<BoardDocument | null>(null);
+  problems = $state.raw<BoardSnapshot['problems']>([]);
+  error = $state.raw<unknown>(null);
+  #file: { board: BoardFile; hash: string } | null = null;
+  #queue: Promise<void> = Promise.resolve();
+  #pending = 0;
+
+  constructor(
+    private api: BoardApi,
+    private path: string,
+  ) {}
+
+  /** Lee el tablero cuando no queden escrituras pendientes. */
+  load(): Promise<void> {
+    return this.#enqueue(() => this.#read());
+  }
+
+  write(next: BoardDocument): void {
+    const before = this.doc;
+    if (!before) return;
+    this.doc = next;
+    this.error = null;
+    void this.#enqueue(async () => {
+      if (this.#file) this.#file = await persist(this.api, this.path, this.#file, before, next);
+    });
+  }
+
+  readTask(id: string) {
+    return this.#queue.then(() => this.api.readTask(this.path, id));
+  }
+
+  async #read() {
+    // Con cambios por guardar, lo de disco aún no los tiene: ya se leerá después
+    const snapshot = await this.api.read(this.path);
+    this.#file = { board: snapshot.board, hash: snapshot.hash };
+    this.problems = snapshot.problems;
+    if (this.#pending === 1) this.doc = folderDocument(snapshot);
+  }
+
+  #enqueue(task: () => Promise<void>): Promise<void> {
+    this.#pending++;
+    this.#queue = this.#queue.then(async () => {
+      try {
+        await task();
+      } catch (error) {
+        this.error = error;
+        // Lo que se veía ya no es lo guardado
+        this.#pending = 1;
+        await this.#read().catch(() => {});
+      } finally {
+        this.#pending = Math.max(0, this.#pending - 1);
+      }
+    });
+    return this.#queue;
+  }
+}
