@@ -45,7 +45,9 @@
   se puede desbloquear
 - [x] 3.4 Adaptar el editor del tablero (Kanban, tabla, Gantt, Raw y detalle) al nuevo formato, mostrando referencia,
   tipo y asignado según `fields`; e2e de tableros y documentación del formato.
-  Volver a leer el tablero cuando el observador avise de cambios en su carpeta
+  Volver a leer el tablero cuando el observador avise de cambios en su carpeta.
+  El Gantt lee y escribe el formato, sin datos nuevos (`fields` solo gobierna tarjetas y tabla); la referencia se ve
+  como texto, sin enlace para abrirla en el proveedor
 - [ ] 3.5 Convertir con confirmación los tableros con tabla y la clave `azure_devops`; pruebas con tableros actuales,
   documentación en `docs/reference.md` y en los dos CHANGELOG
 - [ ] 3.6 Traer descripción y actividad de Azure DevOps (comentarios e histórico) solo de lo cambiado desde la última

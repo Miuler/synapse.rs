@@ -119,8 +119,8 @@ it in `states` of the board, else to the column of the category the provider dec
 
 A board marked `format: 2` keeps one file per task in the folder next to it. `Name.board.md` only holds the board:
 `default_view`, `columns`, `column_widths`, `source`, `fields` and the order of the tasks under `## Order` (`- <id>`).
-`fields: { card: [key, type, assignee], table: [key, type, assignee] }` chooses what Kanban cards and the table show;
-without it cards show the three and the table those that some task has. Each `Name.board/<id>.md` holds a task:
+`fields: { card: [key, type, assignee], table: [key, type, assignee] }` chooses which of those three Kanban cards and
+the table show; without it cards show them all and the table those that some task has. Each `Name.board/<id>.md` holds a task:
 
 ```markdown
 # Title

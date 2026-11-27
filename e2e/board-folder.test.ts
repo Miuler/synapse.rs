@@ -140,6 +140,16 @@ it('lo que cambia por fuera se vuelve a leer, y un archivo roto se avisa', async
   );
 }, 90_000);
 
+it('el Gantt pinta las tareas de los archivos', async () => {
+  await s.browser.$(`${pane} .view-switcher button:nth-child(3)`).click();
+  await s.browser.$(`${pane} .gantt-view`).waitForExist({ timeout: 5_000 });
+  const titles = await s.browser.execute(() =>
+    [...document.querySelectorAll('.tab-pane:not(.hidden) .gantt-row-label .task-title')].map((t) => t.textContent!.trim()),
+  );
+  expect(titles).toEqual(['Cambiada fuera', 'Primera']);
+  await shot('carpeta-gantt');
+}, 60_000);
+
 it('la vista Raw muestra el archivo del tablero tal como quedó', async () => {
   await s.browser.$(`${pane} .view-raw`).click();
   await until(

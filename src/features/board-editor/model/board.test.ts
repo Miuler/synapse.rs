@@ -103,3 +103,15 @@ describe('sortTasks', () => {
     expect(sortTasks(list, null, columns)).toBe(list);
   });
 });
+
+describe('tablero de tabla', () => {
+  it('no gana columnas por los datos que solo guarda el formato de carpeta', () => {
+    const doc = parseBoardMarkdown('| id | Tarea | Estado | Inicio | Duración | Depende | Progreso |\n|---|---|---|---|---|---|---|\n');
+    const plain = serializeBoardMarkdown({ ...doc, tasks: [task('a', 'todo')] });
+    const synced = serializeBoardMarkdown({
+      ...doc,
+      tasks: [{ ...task('a', 'todo'), type: 'Bug', assignee: 'Ana', key: 'AB#1', url: 'https://example.test/1' }],
+    });
+    expect(synced).toBe(plain);
+  });
+});
