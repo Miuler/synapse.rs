@@ -10,6 +10,7 @@ type Item = { id: number; rev: number; title: string; state: string };
 const items = new Map<number, Item>([[7, { id: 7, rev: 1, title: 'Preparar | entorno', state: 'To Do' }]]);
 const writes: string[] = [];
 const tokens: string[] = [];
+let description = '<p>Descripción de <b>Azure</b></p>';
 const asWorkItem = (i: Item) => ({
   id: i.id,
   rev: i.rev,
@@ -17,7 +18,7 @@ const asWorkItem = (i: Item) => ({
     'System.Title': i.title,
     'System.State': i.state,
     'System.WorkItemType': 'Task',
-    'System.Description': '<p>Descripción de <b>Azure</b></p>',
+    'System.Description': description,
   },
 });
 /** Los comentarios de cada work item, en HTML como los devuelve Azure DevOps. */
@@ -368,4 +369,98 @@ it('tras convertir un tablero, «Enviar» manda cada comentario pendiente una so
   await s.browser.$(`${pane} .issues-push`).click();
   await until(async () => (await shown()).includes('No hay nada que enviar'), 'ofreció enviar lo traído');
   expect(comments()).toHaveLength(2);
+}, 180_000);
+
+it('traer no pisa lo editado en el detalle y avisa de lo que cambió en los dos lados', async () => {
+  const pane = '.tab-pane:not(.hidden)';
+  const task = () => readFileSync(join(s.vault, 'convertido.board/ado-7.md'), 'utf8');
+  const shown = () =>
+    s.browser.execute(() => document.querySelector('.tab-pane:not(.hidden) .issues-status')?.textContent ?? '') as Promise<string>;
+  const write = (value: string) =>
+    s.browser.execute((value) => {
+      const field = document.querySelector('.task-dialog .editor textarea') as HTMLTextAreaElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }, value);
+  const save = async () => {
+    await s.browser.$('.task-dialog .editor-save').click();
+    await s.browser.$('.task-dialog .editor').waitForExist({ reverse: true, timeout: 10_000 });
+  };
+
+  await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').click();
+  await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+  await write('Mi versión');
+  await save();
+  await s.browser.$('.task-dialog .history button[aria-label="Editar la entrada del histórico"]').click();
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
+  await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+  await write('Historia corregida');
+  await save();
+  await s.browser.execute(() => {
+    const field = document.querySelector('.task-dialog .detail-type input') as HTMLInputElement;
+    field.value = 'Bug';
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await until(() => task().includes('- type: Bug\n') && task().includes('"type":"Task"'), 'no se anotó el tipo anterior');
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+
+  // El proveedor cambia la tarea: su descripción ya no es la que había
+  const target = items.get(7)!;
+  target.rev++;
+  description = '<p>Otra de Azure</p>';
+  activityReads.length = 0;
+  const saved = task();
+  await s.browser.$(`${pane} .issues-pull`).click();
+  await until(async () => (await shown()).includes('en los dos lados'), 'no se avisó del conflicto');
+  await until(() => task() !== saved, 'no se anotó la revisión');
+  expect(activityReads).toContain('comments 7');
+  expect(task()).toContain('> Mi versión');
+  expect(task()).toContain('- type: Bug\n');
+  expect(task()).toMatch(/history · Luis · id:rev-1 · edited\n  Historia corregida\n/);
+
+  // Lo editado no se ofrece para enviar
+  await s.browser.$(`${pane} .issues-push`).click();
+  await until(async () => (await shown()).includes('No hay nada que enviar'), 'ofreció enviar lo editado');
+
+  // Se puede renunciar a la versión de aquí: Escape con texto sin guardar pregunta antes
+  await s.browser.$(`${pane} .card[data-task="ado-7"] .card-title`).doubleClick();
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').click();
+  await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+  await until(
+    () => s.browser.execute(() => document.activeElement === document.querySelector('.task-dialog .editor textarea')),
+    'el editor no tomó el foco',
+  );
+  await write('a medias');
+  const keepEditing = async () => {
+    await s.browser.$('.confirm-dialog-btn.cancel').waitForExist({ timeout: 5_000 });
+    await s.browser.$('.confirm-dialog-btn.cancel').click();
+    await s.browser.$('.confirm-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+    await s.browser.pause(300);
+    expect(await s.browser.$('.task-dialog .editor textarea').getValue()).toBe('a medias');
+  };
+  await s.browser.keys(['Escape']);
+  await keepEditing();
+  // Con el foco fuera del editor, Escape y el clic fuera preguntan por el diálogo entero
+  await s.browser.execute(() => (document.activeElement as HTMLElement).blur());
+  await s.browser.keys(['Escape']);
+  await keepEditing();
+  await s.browser.action('pointer').move({ x: 5, y: 300 }).down().up().perform();
+  await keepEditing();
+  await s.browser.$('.task-dialog .editor-cancel').click();
+  await s.browser.$('.task-dialog .take-provider').waitForExist({ timeout: 5_000 });
+  await shot('azure-conflicto');
+  await s.browser.$('.task-dialog .take-provider').click();
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
+  await s.browser.$('.task-dialog .take-pending').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
+  await s.browser.$(`${pane} .issues-pull`).click();
+  await until(() => task().includes('> Otra de Azure'), 'no se tomó la del proveedor');
+  expect(task()).toMatch(/history · Luis · id:rev-1 · edited\n  Historia corregida\n/);
 }, 180_000);

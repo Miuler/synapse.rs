@@ -159,10 +159,13 @@ it('el doble clic abre el diálogo de la tarea sin moverla, y Escape lo cierra',
   await dialog().waitForExist({ timeout: 5_000 });
   const text = (selector: string) => s.browser.$(`.task-dialog ${selector}`).getText();
   expect(await text('.resizable-dialog-title')).toBe('Segunda');
-  expect((await text('.detail-status')).toLowerCase()).toBe('en progreso');
-  expect(await text('.detail-start')).toBe('2026-01-01');
-  expect(await text('.detail-duration')).toBe('1 d');
-  expect(await text('.detail-progress')).toBe('0%');
+  const value = (selector: string) => s.browser.$(`.task-dialog ${selector}`).getValue();
+  expect(await value('.detail-status')).toBe('doing');
+  expect(await value('.detail-start input')).toBe('2026-01-01');
+  expect(await value('.detail-duration input')).toBe('1');
+  expect(await value('.detail-progress input')).toBe('0');
+  // Una tabla no guarda tipo ni asignado
+  expect(await s.browser.$('.task-dialog .detail-assignee').isExisting()).toBe(false);
   expect(await columns()).toEqual(before);
 
   // Con un comentario a medio escribir, Escape no cierra; al enviarlo se guarda

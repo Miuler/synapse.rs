@@ -97,6 +97,7 @@ export function folderDocument({ board, tasks }: BoardSnapshot): BoardDocument {
         text: c.text,
         ...(c.id && { remote: c.id }),
         ...(c.author && { author: c.author }),
+        ...(c.edited && { edited: true }),
       })),
     };
     for (const key of OPTIONAL) if (card[key]) task[key] = card[key]!;
@@ -208,6 +209,51 @@ export function applyTask(
   }
   if (!before || !same(before.link, after.link)) next.sync = after.link ? { rev: next.sync?.rev, ...after.link } : null;
   return next;
+}
+
+/** Lo que se iba a cambiar ya no está como se veía. */
+const changedMeanwhile = (detail: string) => Object.assign(new Error(detail), { kind: 'conflict', detail });
+
+/** La descripción nueva, si la del archivo sigue siendo la que se estaba editando. */
+export function editDescription(file: TaskFile, previous: string, text: string): TaskFile {
+  if (file.description !== previous) throw changedMeanwhile('description');
+  // Se anota de cuál se partió: así traer distingue que aquí cambió
+  const sync = file.sync && { ...file.sync, description: file.sync.description ?? fingerprint(previous) };
+  return { ...file, description: text, sync };
+}
+
+/** Si la descripción de aquí no es la última que el proveedor y el tablero tenían en común. */
+export function ownDescription({ sync, description }: TaskFile): boolean {
+  if (!sync) return false;
+  return sync.description === undefined ? !!description : fingerprint(description) !== sync.description;
+}
+
+/** Marcada para que el próximo «Traer» ponga la descripción del proveedor en lugar de la de aquí. */
+export function takeProviderDescription(file: TaskFile, previous: string): TaskFile {
+  if (file.description !== previous || !file.sync) throw changedMeanwhile('description');
+  // Como si aquí no hubiera cambiado y su actividad estuviera sin leer
+  const { rev: _, ...sync } = file.sync;
+  return { ...file, sync: { ...sync, description: fingerprint(previous) } };
+}
+
+/** Si está pendiente de que «Traer» la sustituya. */
+export const awaitsProviderDescription = ({ sync, description }: TaskFile) =>
+  !!sync && !sync.rev && sync.description === fingerprint(description);
+
+export type EntryRef = Pick<ActivityEntry, 'kind' | 'id' | 'at' | 'text'>;
+
+/**
+ * El texto nuevo de un comentario o de una entrada del histórico. Lo que también está en el
+ * proveedor queda marcado como editado: traer no lo pisa.
+ */
+export function editEntry(file: TaskFile, entry: EntryRef, text: string): TaskFile {
+  const at = file.activity.findIndex(
+    (e) => e.kind === entry.kind && e.id === entry.id && e.at === entry.at && e.text === entry.text,
+  );
+  if (at < 0) throw changedMeanwhile(entry.kind);
+  const old = file.activity[at];
+  const edited = old.edited || !!old.id || old.kind === 'history';
+  return { ...file, activity: file.activity.with(at, { ...old, text, edited }) };
 }
 
 /** Guarda lo que cambió entre `before` y `after`; devuelve cómo quedó el archivo del tablero. */

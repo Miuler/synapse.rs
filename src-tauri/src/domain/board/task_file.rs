@@ -38,6 +38,12 @@ pub struct TaskSync {
     /// Huella de la última descripción que ambos lados tenían.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// El tipo que había antes de cambiarlo aquí: mientras difiera, traer no lo pisa.
+    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
+    pub issue_type: Option<String>,
+    /// Como `type`, para el asignado; vacío, no tenía.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assignee: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -414,6 +420,8 @@ mod tests {
                 sent: vec!["2026-01-01T10:00:00".into()],
                 outside: true,
                 description: Some("0a1b2c3d".into()),
+                issue_type: Some("Bug".into()),
+                assignee: Some(String::new()),
             }),
             extra: vec![("Prioridad".into(), "alta: ya".into()), ("equipo".into(), "".into())],
             description: "  con sangría\n\n# Encabezado\n## Description\n---\n> cita\n> > anidada\n```\n- `x` comment\n```".into(),

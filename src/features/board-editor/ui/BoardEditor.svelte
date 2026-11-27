@@ -15,7 +15,14 @@
   } from '../model/board.svelte';
   import { takeNewBoard } from '../model/new-boards';
   import { boardsApi, type BoardError } from '../api/boards.api';
-  import { isFolderBoard, type TaskFile } from '../model/folder-board';
+  import {
+    editDescription,
+    editEntry,
+    isFolderBoard,
+    takeProviderDescription,
+    type EntryRef,
+    type TaskFile,
+  } from '../model/folder-board';
   import { FolderBoard } from '../model/folder-board-store.svelte';
   import { DEFAULT_COLUMNS, type BoardDocument } from '../model/board.svelte';
   import TableView from './TableView.svelte';
@@ -115,7 +122,27 @@
   }
 
   function updateTask(id: string, patch: Partial<BoardTask>) {
-    commit(doc.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const tasks = doc.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t));
+    const task = doc.tasks.find((t) => t.id === id);
+    const link = doc.source?.links?.[id];
+    // Al cambiar el tipo o el asignado de una vinculada se anota el anterior: traer no lo pisará
+    const edited = (['type', 'assignee'] as const).filter(
+      (field) => field in patch && link && link[field] === undefined && (task?.[field] ?? '') !== (patch[field] ?? ''),
+    );
+    if (!folder || !task || !link || edited.length === 0) return commit(tasks);
+    const base = Object.fromEntries(edited.map((field) => [field, task[field] ?? '']));
+    write({ ...doc, tasks, source: { ...doc.source!, links: { ...doc.source!.links, [id]: { ...link, ...base } } } });
+  }
+
+  /** Guarda un comentario o una entrada del histórico con otro texto. */
+  async function saveEntry(id: string, entry: EntryRef, text: string) {
+    if (folder) return store?.edit(id, (file) => editEntry(file, entry, text));
+    // En la tabla cada comentario es una línea
+    const line = text.replace(/\s*\n\s*/g, ' ');
+    const task = doc.tasks.find((t) => t.id === id);
+    if (!task) return;
+    const at = task.comments.findIndex((c) => c.timestamp === entry.at && c.text === entry.text);
+    if (at >= 0) updateTask(id, { comments: task.comments.with(at, { ...task.comments[at], text: line }) });
   }
 
   function moveTask(id: string, status: string, before: string | null) {
@@ -304,8 +331,16 @@
           columns={doc.columns}
           link={doc.source?.links?.[selectedTask.id]}
           file={details?.id === selectedTask.id ? details.task : undefined}
+          {folder}
+          {errorText}
           onClose={() => (selectedTaskId = null)}
           onAddComment={addComment}
+          onUpdate={(patch) => updateTask(selectedTask!.id, patch)}
+          onSaveDescription={(previous, text) =>
+            store!.edit(selectedTask!.id, (file) => editDescription(file, previous, text))}
+          onSaveEntry={(entry, text) => saveEntry(selectedTask!.id, entry, text)}
+          onTakeProviderDescription={(previous) =>
+            store!.edit(selectedTask!.id, (file) => takeProviderDescription(file, previous))}
         />
       {/key}
     {/if}

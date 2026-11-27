@@ -177,6 +177,20 @@ each with author and date, in UTC). Table boards do not get them: convert first.
   reported. Comments already sent are not repeated, and pulled ones are never sent back.
 - The board keeps the date of the last pull in `source.synced_at`.
 
+### Editing a task
+
+Double-clicking a task in Kanban, table or Gantt opens its detail. On a folder board everything is edited there:
+title, state, type, assignee, planning, description, comments and history. Table boards edit only title, state,
+planning and comments, and keep each comment on one line. Own columns of a converted board are only seen in the file.
+
+- A history entry is edited after a warning, because the provider keeps its record. It is marked `edited`, as are
+  edited comments that are also in the provider, and pulling does not overwrite them. A comment sent without a known id
+  can be edited after the next pull.
+- A pull keeps a description, type or assignee changed here and reports the tasks that changed on both sides (the
+  description is reported once, when the new one is read). For the type and assignee, `sync` keeps the previous value;
+  setting it back follows the provider again. «Use the provider's description» replaces yours on the next pull.
+- «Push» does not send the description, type, assignee or edited comments yet.
+
 ## MCP server
 
 When enabled for a vault, Synapse serves the [Model Context Protocol](https://modelcontextprotocol.io) (version

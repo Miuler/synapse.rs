@@ -1,5 +1,5 @@
 import type { BoardDocument } from './board.svelte';
-import { folderDocument, persist, type BoardApi, type BoardFile, type BoardSnapshot } from './folder-board';
+import { folderDocument, persist, type BoardApi, type BoardFile, type BoardSnapshot, type TaskFile } from './folder-board';
 
 /**
  * Un tablero de carpeta abierto. Las vistas ven cada cambio al momento y se guarda detrás, en orden;
@@ -34,6 +34,22 @@ export class FolderBoard {
       // Lo traído del proveedor solo se ve al releer los archivos
       if (next.tasks.some((task) => task.incoming && !before.tasks.includes(task))) await this.#read();
     });
+  }
+
+  /** Cambia lo que de una tarea no está en el documento y relee el tablero. */
+  async edit(id: string, change: (task: TaskFile) => TaskFile): Promise<void> {
+    let failure: { error: unknown } | null = null;
+    await this.#enqueue(async () => {
+      try {
+        const { task, hash } = await this.api.readTask(this.path, id);
+        await this.api.writeTask(this.path, id, change(task), hash);
+      } catch (error) {
+        // Quien edita lo muestra junto a lo que estaba escribiendo
+        failure = { error };
+      }
+      await this.#read();
+    });
+    if (failure) throw (failure as { error: unknown }).error;
   }
 
   readTask(id: string) {

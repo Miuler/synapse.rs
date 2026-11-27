@@ -58,10 +58,13 @@
   Añade `activity` al puerto.
   Solo en los tableros de carpeta. Los endpoints se comprobaron en la documentación, no contra una cuenta real. Se
   pide la actividad completa de cada tarea cuya revisión o número de comentarios cambió: un comentario editado en el
-  proveedor llega cuando cambie la tarea. Si la descripción cambió en los dos lados se conserva la local y se avisa,
-  sin forma de resolverlo hasta la 3.7
-- [ ] 3.7 Editar en el detalle de la tarea todos sus campos y comentarios, desde Kanban, tabla y Gantt, con aviso y
-  marca al cambiar el histórico; e2e de la edición, de cancelar el aviso y de que traer no la pisa
+  proveedor llega cuando cambie la tarea. Si la descripción cambió en los dos lados se conserva la local y se avisa;
+  desde la 3.7 se puede volver a la del proveedor
+- [x] 3.7 Editar en el detalle de la tarea todos sus campos y comentarios, desde Kanban, tabla y Gantt, con aviso y
+  marca al cambiar el histórico; e2e de la edición, de cancelar el aviso y de que traer no la pisa.
+  Los tableros con tabla solo editan título, estado, planificación y comentarios (de una línea); las columnas propias de
+  un tablero convertido no se ven ni se editan en el detalle. El aviso de conflicto en la descripción sale una vez, y
+  se resuelve volviendo a la del proveedor o dejando la local. Enviar lo editado queda para la 3.8
 - [ ] 3.8 Enviar los cambios de descripción, tipo, asignado y comentarios, tras verificar sus endpoints, indicando lo
   no admitido y avisando del formato que se perdería; pruebas contra servidor falso de conflictos y rechazos
 

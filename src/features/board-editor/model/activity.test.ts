@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { changedIssues, fingerprint, mergeActivity, mergeDescription, receive, type RemoteEntry } from './activity';
-import { applyTask, folderDocument, type ActivityEntry, type BoardSnapshot, type TaskFile } from './folder-board';
-import { buildPushPlan, runPush, type Issue, type IssueProvider, type IssueWriter } from './issue-sync';
+import { applyTask, awaitsProviderDescription, editDescription, editEntry, folderDocument, ownDescription, takeProviderDescription, type ActivityEntry, type BoardSnapshot, type TaskFile } from './folder-board';
+import { applyPull, buildPushPlan, runPush, type Issue, type IssueProvider, type IssueWriter } from './issue-sync';
 
 const entry = (id: string | null, text: string, at = '2026-01-01T00:00:00', extra: Partial<ActivityEntry> = {}): ActivityEntry => ({
   at, kind: 'comment', author: null, id, edited: false, text, ...extra,
@@ -103,5 +103,67 @@ describe('actividad traída', () => {
     const task = { ...doc.tasks[0], comments: doc.tasks[0].comments.map((c) => (c.timestamp === 't1' ? { ...c, remote: '8' } : c)) };
     const written = applyTask(file({ activity: [entry('7', 'de Ana', 't0'), entry(null, 'mío', 't1')] }), { task: doc.tasks[0] }, { task });
     expect(written.activity.map((e) => e.id)).toEqual(['7', '8']);
+  });
+});
+
+describe('editar en el detalle', () => {
+  it('la descripción anota de cuál se partió, para que traer no la pise', () => {
+    const stored = file({ description: 'del proveedor', sync: { id: '1', title: 'A', state: 'New', column: 'todo' } });
+    const edited = editDescription(stored, 'del proveedor', 'mía');
+    expect([edited.description, edited.sync!.description]).toEqual(['mía', fingerprint('del proveedor')]);
+    expect(mergeDescription(edited.description, 'del proveedor', edited.sync!.description)).toEqual({ base: edited.sync!.description });
+    expect(mergeDescription(edited.description, 'otra', edited.sync!.description).conflict).toBe(true);
+    expect(() => editDescription(stored, 'otra cosa', 'mía')).toThrow();
+  });
+
+  it('se puede volver a la del proveedor: el siguiente «Traer» la pone', () => {
+    const sync = { id: '1', title: 'A', state: 'New', column: 'todo', rev: '4', description: fingerprint('vieja') };
+    const stored = file({ description: 'mía', sync });
+    expect(ownDescription(stored)).toBe(true);
+    const marked = takeProviderDescription(stored, 'mía');
+    expect([awaitsProviderDescription(marked), ownDescription(marked), marked.sync!.rev]).toEqual([true, false, undefined]);
+    // Sin revisión se vuelve a pedir, y la de aquí ya no cuenta como cambiada
+    const doc = folderDocument(board(marked.sync!));
+    expect(changedIssues(doc, [item('4')])).toEqual(['1']);
+    const { conflicts, doc: next } = receive(doc, [item('4', 'del proveedor')], { '1': [] }, { a: marked });
+    expect(conflicts).toEqual([]);
+    expect(next.tasks[0].incoming!.description).toBe('del proveedor');
+  });
+
+  it('marca lo que también está en el proveedor y traer no lo pisa', () => {
+    const history = entry('rev-1', 'original', 't', { kind: 'history' });
+    const mine = entry(null, 'mío', 'u');
+    const stored = file({ activity: [history, mine] });
+    const edited = editEntry(editEntry(stored, history, 'corregido'), mine, 'mío 2');
+    expect(edited.activity.map((e) => [e.text, e.edited])).toEqual([['corregido', true], ['mío 2', false]]);
+    const pulled = mergeActivity(edited.activity, [entry('rev-1', 'original', 't', { kind: 'history' })]);
+    expect(pulled[0].text).toBe('corregido');
+    expect(() => editEntry(edited, history, 'x')).toThrow();
+  });
+
+  it('traer conserva el tipo y el asignado cambiados aquí', () => {
+    const read = board({ type: 'Task', assignee: '' });
+    read.tasks[0] = { ...read.tasks[0], type: 'Bug', assignee: 'Eva' };
+    const doc = folderDocument(read);
+    const pulled = (type: string, name: string) =>
+      applyPull(doc, provider, [{ ...item('4'), type, assignee: { name, id: name } }], ['1'], '2026-01-01');
+
+    // El proveedor sigue como estaba: se queda lo de aquí, sin conflicto
+    const same = pulled('Task', '');
+    expect([same.doc.tasks[0].type, same.doc.tasks[0].assignee, same.conflicts]).toEqual(['Bug', 'Eva', []]);
+    expect(same.doc.source!.links!.a).toMatchObject({ type: 'Task', assignee: '' });
+    // Cambió en los dos lados
+    const both = pulled('Epic', 'Ana');
+    expect([both.doc.tasks[0].type, both.doc.tasks[0].assignee, both.conflicts]).toEqual(['Bug', 'Eva', ['a']]);
+    // Ya coinciden: no queda nada pendiente
+    const agreed = pulled('Bug', 'Eva');
+    expect(agreed.doc.source!.links!.a.type).toBeUndefined();
+    expect(agreed.doc.source!.links!.a.assignee).toBeUndefined();
+  });
+
+  it('sin cambios locales, el tipo y el asignado siguen al proveedor', () => {
+    const doc = folderDocument(board());
+    const result = applyPull(doc, provider, [{ ...item('4'), type: 'Epic', assignee: { name: 'Ana', id: 'a' } }], ['1'], '2026-01-01');
+    expect([result.doc.tasks[0].type, result.doc.tasks[0].assignee]).toEqual(['Epic', 'Ana']);
   });
 });

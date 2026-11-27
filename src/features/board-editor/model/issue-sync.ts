@@ -20,6 +20,10 @@ export interface IssueLink {
   rev?: string;
   /** Huella de la última descripción que ambos lados tenían. */
   description?: string;
+  /** El tipo que había antes de cambiarlo aquí (formato de carpeta). */
+  type?: string;
+  /** Como `type`, para el asignado; vacío, no tenía. */
+  assignee?: string;
 }
 
 export type Criterion = 'type' | 'state' | 'assignee' | 'iteration' | 'area' | 'tag';
@@ -166,6 +170,19 @@ export function applyPull(
     if (item.assignee === null) delete next.assignee;
     const base: IssueLink = { ...link };
     let conflict = false;
+
+    // Lo cambiado aquí, que tiene su valor anterior en el vínculo, no se pisa
+    for (const field of ['type', 'assignee'] as const) {
+      if (link[field] === undefined) continue;
+      const [local, remote] = [task[field] ?? '', next[field] ?? ''];
+      if (local === remote || local === link[field]) {
+        delete base[field];
+        continue;
+      }
+      if (task[field] === undefined) delete next[field];
+      else next[field] = task[field];
+      if (remote !== link[field]) conflict = true;
+    }
 
     const title = cellText(item.title);
     if (task.title === title) base.title = title;

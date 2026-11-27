@@ -87,6 +87,8 @@ fn source(
                         sent: link.sent,
                         outside: link.outside,
                         description: None,
+                        issue_type: None,
+                        assignee: None,
                     };
                     links.insert(task, sync);
                 }

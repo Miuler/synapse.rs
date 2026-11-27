@@ -104,7 +104,7 @@ it('el detalle muestra descripción e histórico, y un comentario va al archivo 
   await s.browser.$('.task-dialog .description').waitForExist({ timeout: 10_000 });
   expect(await s.browser.$('.task-dialog .description').getText()).toBe('Texto largo\nen dos líneas');
   expect(await s.browser.$('.task-dialog .history').getText()).toContain('Estado: New → To Do');
-  expect(await s.browser.$('.task-dialog .detail-assignee').getText()).toBe('Ana');
+  expect(await s.browser.$('.task-dialog .detail-assignee input').getValue()).toBe('Ana');
   await s.browser.$('.task-dialog .comment-form input').click();
   await s.browser.keys('hola');
   await s.browser.keys(['Enter']);
@@ -113,6 +113,113 @@ it('el detalle muestra descripción e histórico, y un comentario va al archivo 
   await s.browser.$('.task-dialog .resizable-dialog-close').click();
   await s.browser.$('.task-dialog').waitForExist({ reverse: true, timeout: 5_000 });
 }, 90_000);
+
+/** Pone un valor en un campo del detalle y lo confirma, como al salir de él. */
+const set = (selector: string, value: string) =>
+  s.browser.execute(
+    (selector, value) => {
+      const field = document.querySelector(`.task-dialog ${selector}`) as HTMLInputElement;
+      field.value = value;
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    selector,
+    value,
+  );
+const write = (selector: string, value: string) =>
+  s.browser.execute(
+    (selector, value) => {
+      const field = document.querySelector(`.task-dialog ${selector}`) as HTMLTextAreaElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    },
+    selector,
+    value,
+  );
+const gone = (selector: string) => s.browser.$(selector).waitForExist({ reverse: true, timeout: 10_000 });
+
+it('desde la tabla y el Gantt se abre el mismo detalle, y todo lo editado va a los archivos', async () => {
+  const view = (n: number) => s.browser.$(`${pane} .view-switcher button:nth-child(${n})`).click();
+  await view(3);
+  // En el Gantt se abre con doble clic en el nombre
+  await s.browser.$(`${pane} .gantt-row-label`).waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => {
+    const label = [...document.querySelectorAll('.tab-pane:not(.hidden) .gantt-row-label')].find((l) => l.textContent?.includes('Primera'))!;
+    label.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }));
+  });
+  await s.browser.$('.task-dialog .detail-title').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await gone('.task-dialog');
+  await view(1);
+  await s.browser.$(`${pane} .table-view td.col-id code`).waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => {
+    const cell = [...document.querySelectorAll('.tab-pane:not(.hidden) .table-view td.col-id code')].find((c) => c.textContent === 'ado-1')!;
+    cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+  });
+  await s.browser.$('.task-dialog .description').waitForExist({ timeout: 10_000 });
+  const task = () => read('Equipo.board/ado-1.md');
+
+  await set('.detail-title', 'Primera editada');
+  await set('.detail-type input', 'Task');
+  await set('.detail-assignee input', 'Eva');
+  await set('.detail-start input', '2026-03-04');
+  await set('.detail-duration input', '5');
+  await set('.detail-depends select', 't1');
+  await set('.detail-progress input', '250');
+  await set('select.detail-status', 'todo');
+  for (const line of ['# Primera editada', '- type: Task', '- assignee: Eva', '- start: 2026-03-04', '- duration: 5d', '- depends: t1', '- progress: 100%', '- status: todo']) {
+    await until(() => task().includes(`${line}\n`), `no se guardó ${line}`);
+  }
+
+  // La descripción: lo escrito no se pierde al cerrar sin guardar
+  await s.browser.$('.task-dialog button[aria-label="Editar la descripción"]').click();
+  await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+  await write('.editor textarea', 'Nueva descripción\n\ncon dos párrafos');
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await s.browser.$('.confirm-dialog-btn.cancel').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.confirm-dialog-btn.cancel').click();
+  await gone('.confirm-dialog');
+  await s.browser.$('.task-dialog .editor-save').click();
+  await until(() => task().includes('## Description\n\n> Nueva descripción\n>\n> con dos párrafos\n'), 'no se guardó la descripción');
+  await gone('.task-dialog .editor');
+
+  // Un comentario propio se cambia sin más
+  await s.browser.$('.task-dialog .comment-item button[aria-label="Editar el comentario"]').click();
+  await s.browser.$('.task-dialog .editor textarea').waitForExist({ timeout: 5_000 });
+  await write('.editor textarea', 'hola de nuevo');
+  await s.browser.$('.task-dialog .editor-save').click();
+  await until(() => / comment\n  hola de nuevo\n/.test(task()), 'no se guardó el comentario');
+  await gone('.task-dialog .editor');
+
+  // El histórico avisa antes; cancelar no abre nada
+  const history = '.task-dialog .history button[aria-label="Editar la entrada del histórico"]';
+  const before = task();
+  await s.browser.$(history).click();
+  await s.browser.$('.confirm-dialog').waitForExist({ timeout: 5_000 });
+  await shot('carpeta-aviso-historico');
+  await s.browser.$('.confirm-dialog-btn.cancel').click();
+  await gone('.confirm-dialog');
+  expect(await s.browser.$('.task-dialog .editor').isExisting()).toBe(false);
+  expect(task()).toBe(before);
+
+  await s.browser.$(history).click();
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 5_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
+  await s.browser.$('.task-dialog .history .editor textarea').waitForExist({ timeout: 5_000 });
+  await write('.editor textarea', 'Estado: corregido');
+  await s.browser.$('.task-dialog .editor-save').click();
+  await until(() => /history · Luis · id:rev-1 · edited\n  Estado: corregido\n/.test(task()), 'no se marcó la entrada');
+  await until(async () => (await s.browser.$('.task-dialog .history .edited').isExisting()), 'no se ve la marca');
+  await shot('carpeta-editado');
+  await s.browser.$('.task-dialog .resizable-dialog-close').click();
+  await gone('.task-dialog');
+  // Lo no tocado sigue en el archivo
+  for (const kept of ['- prioridad: alta', '- key: AB#1']) expect(task()).toContain(kept);
+
+  // Se devuelve a como lo esperan las pruebas siguientes
+  writeFileSync(join(s.vault, 'Equipo.board/ado-1.md'), task().replace('# Primera editada', '# Primera'));
+  await view(2);
+  await until(async () => (await columns())[0].includes('Primera'), 'no volvió el Kanban');
+}, 120_000);
 
 it('añadir crea un archivo y eliminar lo quita', async () => {
   await s.browser.$(`${pane} .add-card-btn`).click();

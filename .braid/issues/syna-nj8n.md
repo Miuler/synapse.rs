@@ -16,3 +16,5 @@ acceptance:
 ---
 
 Decidido por el usuario: todo se actualiza desde la interfaz (Kanban, Gantt, tabla y detalle); solo al cambiar el histórico se advierte. Tareas 3.7 y 3.8 de openspec/changes/add-issue-providers. Hoy el detalle solo añade comentarios.
+
+Avance 2026-11-27: el detalle de la tarea edita todos los campos, los comentarios y el histórico con aviso (tarea 3.7). Falta enviar al proveedor la descripción, el tipo, el asignado y los comentarios editados (3.8), y probarlo en un tablero real.

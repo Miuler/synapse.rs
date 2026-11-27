@@ -17,6 +17,8 @@ export interface BoardComment {
   /** Su id en el proveedor: ya está allí (solo en el formato de carpeta). */
   remote?: string;
   author?: string;
+  /** Cambiado aquí: el proveedor sigue teniendo el original. */
+  edited?: boolean;
 }
 
 export interface BoardTask {
