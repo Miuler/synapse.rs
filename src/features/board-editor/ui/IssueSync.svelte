@@ -3,13 +3,15 @@
   import { Dialog } from 'bits-ui';
   import { CloudDownload, CloudUpload, Settings2, X } from 'lucide-svelte';
   import { t } from '@shared/lib/i18n';
-  import AzureTokenField from './AzureTokenField.svelte';
-  import { connectionsApi } from '../api/connections.api';
-  import { fetchIssues, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
+  import SourceDialog from './SourceDialog.svelte';
+  import { azureToken } from '../api/azure-devops.api';
+  import { connectionsApi, type Connection } from '../api/connections.api';
+  import { fetchIssues, filterQuery, issueProviders, issueWriter, type IssueError } from '../api/issues.api';
   import {
     applyPull,
     buildPushPlan,
     runPush,
+    usesFilter,
     type IssueProvider,
     type IssueSource,
     type PushPlan,
@@ -20,19 +22,19 @@
     /** El tablero tal como está ahora: se vuelve a leer después de cada llamada. */
     read: () => BoardDocument;
     write: (next: BoardDocument) => void;
+    /** El tablero se acaba de crear: si se puede sincronizar, se pregunta de dónde salen sus tareas. */
+    isNew?: boolean;
   }
 
-  let { read, write }: Props = $props();
+  let { read, write, isNew = false }: Props = $props();
 
   let busy = $state(false);
-  let tokenField = $state<ReturnType<typeof AzureTokenField>>();
   let providers = $state<IssueProvider[]>([]);
-  /** Con conexiones del proveedor, el token es el de cada una. */
-  let hasConnections = $state(false);
   // El del tablero o, si no tiene origen, el primero que haya
   let provider = $derived(providers.find((p) => p.id === read().source?.provider) ?? providers[0]);
   let messages = $state<string[]>([]);
-  let settings = $state<Required<Pick<IssueSource, 'scope' | 'issue_type' | 'assignee' | 'query'>> | null>(null);
+  /** El diálogo del origen: abierto con las conexiones de ese momento. */
+  let editing = $state<{ connections: Connection[]; isNew: boolean } | null>(null);
   let review = $state<PushPlan | null>(null);
   let chosen = $state<Record<string, boolean>>({});
   let toCreate = $state<Record<string, boolean>>({});
@@ -47,8 +49,16 @@
   }
 
   onMount(() => {
-    loadProviders().catch((error) => (messages = [errorText(error)]));
+    loadProviders()
+      .then(() => isNew && !read().source && offerSource())
+      .catch((error) => (messages = [errorText(error)]));
   });
+
+  /** Solo se pregunta si hay con qué sincronizar: una conexión o el token único. */
+  async function offerSource() {
+    const [connections, token] = await Promise.all([connectionsApi.list(), azureToken.get().catch(() => null)]);
+    if (connections.length || token?.reference || token?.stored) editing = { connections, isNew: true };
+  }
 
   function errorText(error: unknown): string {
     const e = error as Partial<IssueError>;
@@ -56,37 +66,18 @@
     return t(`issues.errors.${e.kind}`, { provider: provider?.name ?? '', detail: e.detail ?? '' });
   }
 
-  function openSettings() {
-    const source = read().source;
-    connectionsApi
-      .list()
-      .then((all) => (hasConnections = all.some((c) => c.provider === (source?.provider ?? provider?.id))))
-      .catch((error) => (messages = [errorText(error)]));
-    settings = {
-      scope: source?.scope ?? '',
-      issue_type: source?.issue_type ?? '',
-      assignee: source?.assignee ?? '',
-      query: source?.query ?? '',
-    };
+  async function openSettings() {
+    try {
+      await loadProviders();
+      editing = { connections: await connectionsApi.list(), isNew: false };
+    } catch (error) {
+      messages = [errorText(error)];
+    }
   }
 
-  async function saveSettings(event: SubmitEvent) {
-    event.preventDefault();
-    // El token no va en el tablero; si no se puede guardar, el diálogo sigue abierto con el motivo
-    if (tokenField && !(await tokenField.save())) return;
-    if (!settings || !provider) return;
-    const doc = read();
-    const scope = settings.scope.trim();
-    const source: IssueSource = { ...(doc.source ?? { provider: provider.id, connection: '' }), scope };
-    for (const key of ['issue_type', 'assignee', 'query'] as const) {
-      const value = settings[key].trim();
-      if (value) source[key] = value;
-      else delete source[key];
-    }
-    // Los ids vinculados son del ámbito anterior: con otro no se conservan
-    if (doc.source && doc.source.scope !== scope) delete source.links;
-    write({ ...doc, source });
-    settings = null;
+  function saveSource(source: IssueSource) {
+    write({ ...read(), source });
+    editing = null;
     messages = [];
   }
 
@@ -107,6 +98,8 @@
       await action(source, declared);
     } catch (error) {
       messages = [errorText(error)];
+      // Varias conexiones sirven: hay que elegir una
+      if ((error as Partial<IssueError>).kind === 'ambiguous_connection') await openSettings();
     } finally {
       busy = false;
     }
@@ -114,15 +107,26 @@
 
   const pull = () =>
     sync(async (source, declared) => {
-      const query = source.query?.trim() || declared.default_query;
-      const { items, requested } = await fetchIssues(source, query, linkedIds(read()));
+      let query = source.query?.trim() || declared.default_query;
+      // «La iteración en curso» cambia con los días: la consulta del filtro se rehace al traer
+      if (usesFilter(source)) {
+        const compiled = await filterQuery(source, source.filter);
+        const doc = read();
+        if (compiled !== query && doc.source && usesFilter(doc.source)) {
+          write({ ...doc, source: { ...doc.source, query: compiled, filter_query: compiled } });
+        }
+        query = compiled;
+      }
+      const { items, requested, matched } = await fetchIssues(source, query, linkedIds(read()));
       if (read().source?.scope !== source.scope) return;
-      const result = applyPull(read(), declared, items, requested, new Date().toLocaleDateString('sv-SE'));
+      const today = new Date().toLocaleDateString('sv-SE');
+      const result = applyPull(read(), declared, items, requested, today, matched);
       write(result.doc);
       messages = [
         t('issues.pulled', { added: result.added, updated: result.updated }),
         ...(result.conflicts.length ? [t('issues.conflicts', { tasks: result.conflicts.join(', ') })] : []),
         ...(result.missing.length ? [t('issues.missing', { ids: result.missing.join(', ') })] : []),
+        ...(result.outside.length ? [t('issues.outsideCount', { tasks: result.outside.join(', ') })] : []),
       ];
     });
 
@@ -201,46 +205,17 @@
   </div>
 {/if}
 
-<Dialog.Root open={settings !== null} onOpenChange={(open) => { if (!open) settings = null; }}>
-  <Dialog.Portal>
-    <Dialog.Overlay class="issues-overlay" />
-    <Dialog.Content class="issues-dialog synapse-dialog">
-      <Dialog.Title class="issues-title">{t('issues.settingsTitle', { provider: provider?.name ?? '' })}</Dialog.Title>
-      {#if settings}
-        <form onsubmit={saveSettings}>
-          <label>
-            {t('issues.projectUrl')}
-            <input name="scope" type="url" required placeholder={provider?.scope_example} bind:value={settings.scope} />
-          </label>
-          {#if hasConnections}
-            <p class="issues-note">{t('connections.boardHint')}</p>
-          {:else}
-            <AzureTokenField bind:this={tokenField} />
-          {/if}
-          <label>
-            {t('issues.issueType')}
-            <input name="issue_type" placeholder={provider?.default_issue_type} bind:value={settings.issue_type} />
-          </label>
-          <label>
-            {t('issues.assignee')}
-            <input name="assignee" bind:value={settings.assignee} />
-          </label>
-          <label>
-            {t('issues.query', { language: provider?.query_language ?? '' })}
-            <textarea name="query" rows="6" placeholder={provider?.default_query} bind:value={settings.query}></textarea>
-          </label>
-          {#if read().source?.links && read().source?.scope !== settings.scope.trim()}
-            <p class="issues-note warning">{t('issues.linksCleared')}</p>
-          {/if}
-          <div class="issues-actions">
-            <button type="button" onclick={() => (settings = null)}>{t('common.cancel')}</button>
-            <button type="submit" class="primary">{t('common.save')}</button>
-          </div>
-        </form>
-      {/if}
-    </Dialog.Content>
-  </Dialog.Portal>
-</Dialog.Root>
+{#if editing && provider}
+  <SourceDialog
+    source={read().source}
+    {provider}
+    connections={editing.connections}
+    isNew={editing.isNew}
+    {errorText}
+    onSave={saveSource}
+    onClose={() => (editing = null)}
+  />
+{/if}
 
 <Dialog.Root open={review !== null} onOpenChange={(open) => { if (!open) review = null; }}>
   <Dialog.Portal>
@@ -370,31 +345,10 @@
     font-weight: 600;
   }
 
-  form,
   .issues-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
-  }
-
-  form label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  form input,
-  textarea {
-    padding: 6px 8px;
-    border: 1px solid var(--border-primary);
-    border-radius: 6px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font: inherit;
-  }
-
-  textarea {
-    font-family: var(--font-mono, monospace);
   }
 
   .issues-list {

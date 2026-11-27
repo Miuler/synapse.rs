@@ -106,6 +106,7 @@
           <dd class="detail-link">
             #{link.id}
             <span class="detail-note">{t('board.detail.syncedState', { state: link.state })}</span>
+            {#if link.outside}<span class="detail-note detail-outside">{t('issues.outside')}</span>{/if}
           </dd>
         {/if}
       </dl>

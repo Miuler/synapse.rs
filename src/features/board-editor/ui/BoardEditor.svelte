@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Table, Kanban, GanttChartSquare, FileCode } from 'lucide-svelte';
+  import { untrack } from 'svelte';
   import { t } from '@shared/lib/i18n';
   import { CodeEditor } from '@shared/ui/code-editor';
   import {
@@ -10,6 +11,7 @@
     type BoardViewMode,
     type TaskSort,
   } from '../model/board.svelte';
+  import { takeNewBoard } from '../model/new-boards';
   import TableView from './TableView.svelte';
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
@@ -18,11 +20,15 @@
 
   interface Props {
     content: string;
+    /** Ruta del tablero en la bóveda. */
+    path?: string;
     vimMode?: boolean;
     onChange: (nextContent: string) => void;
   }
 
-  let { content, vimMode = false, onChange }: Props = $props();
+  let { content, path = '', vimMode = false, onChange }: Props = $props();
+
+  const isNew = untrack(() => takeNewBoard(path));
 
   let doc = $derived(parseBoardMarkdown(content));
   // «raw» solo se mira: no se guarda como vista del tablero
@@ -31,6 +37,10 @@
   // El orden de la tabla es solo para mirar: dura lo que la pestaña
   let tableSort = $state<TaskSort | null>(null);
   let selectedTaskId = $state<string | null>(null);
+  /** Las tareas vinculadas que la consulta del tablero ya no devuelve. */
+  let outside = $derived(
+    new Set(Object.entries(doc.source?.links ?? {}).flatMap(([id, link]) => (link.outside ? [id] : []))),
+  );
   let selectedTask = $derived(doc.tasks.find((t) => t.id === selectedTaskId) ?? null);
 
   function commit(nextTasks: BoardTask[], nextDefaultView: BoardViewMode = doc.defaultView) {
@@ -130,7 +140,7 @@
       </button>
     </div>
 
-    <IssueSync read={() => doc} {write} />
+    <IssueSync read={() => doc} {write} {isNew} />
   </header>
 
   <div class="board-body">
@@ -138,6 +148,7 @@
       {#if currentView === 'table'}
         <TableView
           tasks={doc.tasks}
+          {outside}
           sort={tableSort}
           onSort={(sort) => (tableSort = sort)}
           columns={doc.columns}
@@ -149,6 +160,7 @@
       {:else if currentView === 'kanban'}
         <KanbanView
           tasks={doc.tasks}
+          {outside}
           columns={doc.columns}
           widths={doc.columnWidths ?? {}}
           onResizeColumn={resizeColumn}

@@ -227,6 +227,9 @@ it('la configuración se guarda en el tablero y un servidor ajeno no recibe el t
   await shot('azure-configurar');
   await url.setValue('https://ejemplo.invalid/org/Demo');
   await s.browser.$('.issues-dialog button[type="submit"]').click();
+  // Con tareas vinculadas, otro proyecto se confirma
+  await s.browser.$('.confirm-dialog-btn.confirm').waitForExist({ timeout: 10_000 });
+  await s.browser.$('.confirm-dialog-btn.confirm').click();
   await until(() => file().includes('project_url: https://ejemplo.invalid/org/Demo') && !file().includes('id: 101'), 'no se guardó');
   await s.browser.$('.issues-pull').click();
   await until(async () => (await status()).includes('Ninguna conexión cubre https://ejemplo.invalid/org/Demo'), 'no se rechazó el servidor');

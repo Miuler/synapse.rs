@@ -1,5 +1,6 @@
 export { default as BoardEditor } from './ui/BoardEditor.svelte';
 export { default as ConnectionsSettings } from './ui/ConnectionsSettings.svelte';
+export { markNewBoard } from './model/new-boards';
 export {
   createDefaultBoardMarkdown,
   parseBoardMarkdown,

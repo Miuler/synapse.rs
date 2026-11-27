@@ -7,6 +7,8 @@
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    /** Ids de las tareas fuera del filtro. */
+    outside: Set<string>;
     sort: TaskSort | null;
     onSort: (sort: TaskSort | null) => void;
     onUpdateTask: (id: string, patch: Partial<BoardTask>) => void;
@@ -15,7 +17,7 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
+  let { tasks, columns, outside, sort, onSort, onUpdateTask, onDeleteTask, onAddTask, onSelectComments }: Props = $props();
 
   const HEADERS: { key: TaskSortKey; label: string; class?: string }[] = [
     { key: 'id', label: 'ID', class: 'col-id' },
@@ -72,7 +74,10 @@
           ondblclick={(e) =>
             !(e.target as HTMLElement).closest('input, select, button') && onSelectComments(task.id)}
         >
-          <td class="col-id"><code>{task.id}</code></td>
+          <td class="col-id">
+            <code>{task.id}</code>
+            {#if outside.has(task.id)}<small class="outside-badge">{t('issues.outside')}</small>{/if}
+          </td>
           <td>
             <input
               type="text"
@@ -175,6 +180,11 @@
 
   .sort-btn:hover {
     color: var(--text-primary);
+  }
+
+  .outside-badge {
+    display: block;
+    color: var(--warning, #d97706);
   }
 
   .table-view {

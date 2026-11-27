@@ -7,6 +7,8 @@
   interface Props {
     tasks: BoardTask[];
     columns: BoardColumn[];
+    /** Ids de las tareas fuera del filtro. */
+    outside: Set<string>;
     /** Anchos propios, en píxeles, por columna. */
     widths: Record<string, number>;
     onResizeColumn: (id: string, width: number | null) => void;
@@ -17,7 +19,7 @@
     onSelectComments: (id: string) => void;
   }
 
-  let { tasks, columns, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
+  let { tasks, columns, outside, widths, onResizeColumn, onMoveTask, onOpenTask, onAddTask, onSelectComments }: Props =
     $props();
 
   // Arrastre con eventos de puntero: el de HTML5 no llega a soltar en el webview (Tauri atiende el
@@ -211,6 +213,7 @@
           >
             <div class="card-top">
               <span class="card-id">{task.id}</span>
+              {#if outside.has(task.id)}<span class="outside-badge">{t('issues.outside')}</span>{/if}
               {#if task.dependsOn !== '-'}
                 <span class="dep-badge">↳ {task.dependsOn}</span>
               {/if}
@@ -431,6 +434,13 @@
     justify-content: space-between;
     font-size: 11px;
     color: var(--text-muted);
+  }
+
+  .outside-badge {
+    padding: 0 5px;
+    border: 1px dashed var(--warning, #d97706);
+    border-radius: 4px;
+    color: var(--warning, #d97706);
   }
 
   .dep-badge {

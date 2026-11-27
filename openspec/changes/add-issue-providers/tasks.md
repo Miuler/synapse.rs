@@ -29,7 +29,7 @@
   valores, compilados a la consulta con una función pura que escapa los valores. El asignado se ofrece sin el endpoint
   de miembros (`@Me`, los ya vistos y texto libre) y la iteración actual se resuelve por fechas. Pruebas de la
   compilación y contra servidor falso
-- [ ] 2.6 Al crear un tablero, pedir conexión, ámbito y filtro (criterios o consulta propia), permitir cambiarlo y
+- [x] 2.6 Al crear un tablero, pedir conexión, ámbito y filtro (criterios o consulta propia), permitir cambiarlo y
   marcar lo que queda fuera; cambiar conexión o ámbito con tareas vinculadas exige confirmación
 - [ ] 2.7 e2e con dos tableros del mismo proyecto y filtros distintos, y documentación en `docs/reference.md` y en los
   dos CHANGELOG

@@ -25,7 +25,7 @@
   import {PlantUmlViewer} from "@features/plantuml-editor";
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
-  import {BoardEditor, createDefaultBoardMarkdown} from "@features/board-editor";
+  import {BoardEditor, createDefaultBoardMarkdown, markNewBoard} from "@features/board-editor";
   import {ImageViewer} from "@features/image-viewer";
   import {PdfViewer} from "@features/pdf-viewer";
   import {SpreadsheetViewer} from "@features/spreadsheet-viewer";
@@ -3659,6 +3659,8 @@
       newRelPath = `${prefix}${newTitle}.${extension}`;
     }
 
+    if (fileType === 'board') markNewBoard(newRelPath);
+
     const newVaultItem: VaultItem = {
       id: String(counter),
       title: newTitle,
@@ -4702,6 +4704,7 @@
     <VaultExplorer
       bind:this={vaultExplorerRef}
       newBoardContent={createDefaultBoardMarkdown}
+      onNewBoard={markNewBoard}
       {activeRibbonTab}
       {sidebarWidth}
       {isResizingSidebar}
@@ -5032,6 +5035,7 @@
                 {:else if tabFile.toLowerCase().endsWith('.board.md')}
                   <BoardEditor
                     {content}
+                    path={tabFile}
                     vimMode={isVimMode}
                     onChange={(updatedContent) => {
                       if (openedNotes[tabFile]) {

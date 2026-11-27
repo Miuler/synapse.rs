@@ -67,6 +67,8 @@
     onToggleLockFile?: (path: string) => void;
     /** Contenido de un tablero nuevo (lo aporta quien conoce su formato). */
     newBoardContent: () => string;
+    /** Se llama antes de abrir un tablero recién creado. */
+    onNewBoard?: (path: string) => void;
   }
 
   let {
@@ -84,6 +86,7 @@
     lockedFiles,
     onToggleLockFile,
     newBoardContent,
+    onNewBoard,
     onSelectTab,
     onOpenVaultFolder,
     onDeleteItem,
@@ -1355,6 +1358,7 @@
       scrollPathIntoView(candidateRelPath);
 
       // Abrir la nueva nota en una pestaña activa
+      if (fileType === 'board') onNewBoard?.(candidateRelPath);
       onSelectTab(candidateRelPath);
 
       showToast(`Nueva nota creada: "${title}.${extension}"`);
