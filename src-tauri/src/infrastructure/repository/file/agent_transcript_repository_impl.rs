@@ -104,6 +104,8 @@ mod tests {
             updated_at,
             usage: json!({"used": 1, "size": 2}),
             items: json!([{"type": "user", "text": "hola"}]),
+            native_title: Some("Mi sesión".into()),
+            asides: json!([{"id": "a1", "items": [], "acp_session_id": "s-aparte"}]),
         }
     }
 

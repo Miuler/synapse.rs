@@ -15,10 +15,17 @@ let promptId: unknown = null;
 /** Turno lento en curso («trabajo lento»): termina solo o con session/cancel */
 let slow: { id: unknown; timer: ReturnType<typeof setTimeout> } | null = null;
 /** Pregunta aparte esperando la respuesta a su permiso */
-let side: { id: unknown; sessionId: string; context: boolean } | null = null;
+let side: { id: unknown; sessionId: string; context: boolean; slow: boolean } | null = null;
 let mcp: string[] = [];
 /** Con `--config`, anuncia modelo y esfuerzo en `configOptions` (sin `models`), como Claude */
 const withConfig = process.argv.includes('--config');
+/** Con `--fork`, bifurca sus sesiones (`session/fork`), como Claude */
+const withFork = process.argv.includes('--fork');
+/** Con `--resume`, cierra sus sesiones (`session/close`) y las retoma (`session/load`) */
+const withResume = process.argv.includes('--resume');
+const closed = new Set<string>();
+/** Veces que se retomó cada sesión cerrada. */
+const reloads = new Map<string, number>();
 let fakeModel = 'uno';
 let fakeEffort = 'default';
 const choice = (id: string, category: string, currentValue: string, values: string[]) => ({
@@ -109,8 +116,37 @@ for await (const line of createInterface({ input: process.stdin })) {
     send({
       jsonrpc: '2.0',
       id: msg.id,
-      result: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { embeddedContext: true } } },
+      result: {
+        protocolVersion: 1,
+        agentCapabilities: {
+          promptCapabilities: { embeddedContext: true },
+          ...(withResume ? { loadSession: true } : {}),
+          sessionCapabilities: { title: {}, ...(withFork ? { fork: {} } : {}), ...(withResume ? { close: {} } : {}) },
+        },
+      },
     });
+  } else if (msg.method === 'session/close') {
+    closed.add(msg.params.sessionId);
+    send({ jsonrpc: '2.0', id: msg.id, result: {} });
+  } else if (msg.method === 'session/load') {
+    current = msg.params.sessionId;
+    if (closed.delete(current)) reloads.set(current, (reloads.get(current) ?? 0) + 1);
+    // Vuelve con el modelo por defecto: quien la retoma pide el suyo
+    fakeModel = 'uno';
+    fakeEffort = 'default';
+    send({
+      jsonrpc: '2.0',
+      id: msg.id,
+      result: {
+        ...(withConfig ? { configOptions: configOptions() } : {}),
+        modes: { currentModeId: 'ask', availableModes: [{ id: 'ask', name: 'Preguntar' }] },
+      },
+    });
+  } else if (msg.method === 'session/fork') {
+    current = `ses-e2e-${++opened}`;
+    fakeModel = 'uno';
+    fakeEffort = 'default';
+    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: current, ...(withConfig ? { configOptions: configOptions() } : {}) } });
   } else if (msg.method === 'session/new') {
     cwd = msg.params?.cwd ?? cwd;
     current = `ses-e2e-${++opened}`;
@@ -141,6 +177,11 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (msg.params.configId === 'model') fakeModel = msg.params.value;
     else fakeEffort = msg.params.value;
     send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: configOptions() } });
+  } else if (msg.method === 'session/set_title') {
+    // Como el adaptador de Claude: avisa del nombre nuevo y lo devuelve
+    current = msg.params.sessionId;
+    update({ sessionUpdate: 'session_info_update', title: msg.params.title });
+    send({ jsonrpc: '2.0', id: msg.id, result: { title: msg.params.title } });
   } else if (msg.method === 'session/set_mode') {
     send({ jsonrpc: '2.0', id: msg.id, result: {} });
   } else if (msg.method === 'session/prompt') {
@@ -149,7 +190,8 @@ for await (const line of createInterface({ input: process.stdin })) {
     const said: string = msg.params.prompt.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('\n');
     // Pregunta aparte (`/btw`): pide un permiso y, al recibir la respuesta, contesta
     if (said.includes('[Pregunta aparte')) {
-      side = { id: msg.id, sessionId: current, context: said.includes('Usuario: trabajo muy lento') };
+      // «despacio»: la respuesta tarda (para recoger la ventana mientras contesta)
+      side = { id: msg.id, sessionId: current, context: said.includes('Usuario: trabajo muy lento'), slow: said.includes('despacio') };
       send({
         jsonrpc: '2.0',
         id: 'perm-btw',
@@ -327,12 +369,24 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (msg.id === 'perm-btw' && side) {
     const chosen = msg.result?.outcome?.optionId ?? 'cancelado';
     current = side.sessionId;
-    update({
-      sessionUpdate: 'agent_message_chunk',
-      content: { type: 'text', text: `Respuesta aparte (${side.context ? 'con contexto' : 'sin contexto'}, permiso: ${chosen})` },
-    });
-    send({ jsonrpc: '2.0', id: side.id, result: { stopReason: 'end_turn' } });
+    // Razonamiento y una herramienta: la pregunta aparte los muestra como el chat principal
+    update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Pensando aparte.' } });
+    update({ sessionUpdate: 'tool_call', toolCallId: `t-side-${opened}-${Date.now()}`, title: 'Leer aparte', kind: 'read', status: 'completed' });
+    update({ sessionUpdate: 'usage_update', used: 50_000, size: 200_000 });
+    const asked = side;
     side = null;
+    const answer = () => {
+      current = asked.sessionId;
+      const reloaded = reloads.has(asked.sessionId) ? ` retomada×${reloads.get(asked.sessionId)}` : '';
+      const model = withConfig ? ` modelo:${fakeModel}/${fakeEffort}` : '';
+      update({
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: `Respuesta aparte (${asked.context ? 'con contexto' : 'sin contexto'}, permiso: ${chosen}) [${asked.sessionId}]${reloaded}${model}` },
+      });
+      send({ jsonrpc: '2.0', id: asked.id, result: { stopReason: 'end_turn' } });
+    };
+    if (asked.slow) setTimeout(answer, 2_000);
+    else answer();
   } else if (msg.id === 'el-form-1') {
     const c = msg.result?.content ?? {};
     (globalThis as any).__elFormRes = `${msg.result?.action}:${c.env}:${c.nombre}:${c.confirmar}`;

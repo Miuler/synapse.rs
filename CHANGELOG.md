@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP: when a path does not exist, the error names the active vault, the other vaults where that path does exist, and files with the same name; and `search_notes` warns when no Markdown matches but files of other types do.
 
 - Agent chat: the logo of the agent in use appears as a faint watermark in the bottom-right corner; its opacity is adjustable in Settings (0 % hides it).
+- Agent chat: the «⋯» menu of a conversation shows the agent's own session ID and name, with buttons to copy them; with agents that support it (Claude) the session can also be renamed there. A conversation is now titled with the name the agent gives its session (Claude, Antigravity) instead of your first question.
+- Agent chat: `/btw` side questions open in a floating window that can be dragged and resized, with the same chat inside (reasoning, tools, attachments, context used) to keep asking in the same session. It shows the history the side question started from and, collapsed, what was sent to the agent to start it, can be minimized (`Esc`) into a card above the send button, lists several as tabs, and is saved with its conversation until you delete it. The command hint says `/btw` is handled by Synapse, not by the agent. A side question you are not viewing (minimized or on another tab) closes its session once it has answered, with agents that can resume it (Claude, agy), and resumes it when you ask again. It starts with the model and effort of its conversation; what you change inside it is only its own, is kept, and does not change the default remembered for the agent.
 - Image viewer: laser pointer in the toolbar, like the one in diagrams.
 - `Ctrl+F` in Word documents and spreadsheets. In a spreadsheet it searches every sheet, ignoring case and accents.
 - Word documents in the Git diff and history: «Changes» shows the paragraphs, headings, table cells and images that changed, and «2 Panels» draws both versions side by side.
@@ -46,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Notes: going back from editing to reading keeps the position also in notes that take a moment to render (many links, embeds or images), instead of jumping to the top or to a heading visited before.
+- Agent conversations: closing one now also closes its session in the agent (`session/close`); with Claude its processes stayed alive while other conversations shared the adapter.
 - MCP: `full_text_search` with `OR` (`TIEL OR QTI1`) found nothing: the last word was also searched as a prefix and both parts were required.
 
 - Search in the agent chat and in Word documents: a single letter with long tool output no longer freezes the app; only the visible matches are highlighted.

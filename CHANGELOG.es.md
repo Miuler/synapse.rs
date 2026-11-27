@@ -25,6 +25,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 - MCP: cuando una ruta no existe, el error indica la bóveda activa, las otras bóvedas donde esa ruta sí existe y los archivos con el mismo nombre; y `search_notes` avisa cuando ninguna nota Markdown coincide pero sí archivos de otros tipos.
 
 - Chat del agente: el logo del agente en uso aparece como marca de agua tenue en la esquina inferior derecha; su opacidad se ajusta en Configuración (0 % la oculta).
+- Chat del agente: el menú «⋯» de una conversación muestra el id y el nombre que la sesión tiene en el propio agente, con botones para copiarlos; con los agentes que lo admiten (Claude) también se puede renombrar ahí. La conversación se titula ahora con el nombre que el agente le da a su sesión (Claude, Antigravity) en lugar de tu primera pregunta.
+- Chat del agente: las preguntas aparte (`/btw`) se abren en una ventana flotante que se arrastra y cambia de tamaño, con el mismo chat dentro (razonamiento, herramientas, adjuntos, contexto usado) para seguir preguntando en la misma sesión. Muestra el historial del que partió y, plegado, lo que se envió al agente para empezarla, se minimiza (`Esc`) en una tarjeta encima del botón Enviar, varias se ven como pestañas y se guardan con su conversación hasta que las borres. La ayuda del comando avisa de que `/btw` lo resuelve Synapse, no el agente. Una pregunta aparte que no estás viendo (minimizada o en otra pestaña) cierra su sesión cuando termina de responder, con los agentes que saben retomarla (Claude, agy), y la retoma cuando vuelves a preguntar. Se abre con el modelo y el esfuerzo de su conversación; lo que cambies dentro es solo suyo, se conserva y no cambia el predeterminado recordado para el agente.
 - Visor de imágenes: puntero láser en la barra, como el de los diagramas.
 - `Ctrl+F` en documentos de Word y hojas de cálculo. En una hoja de cálculo busca en todas las hojas, sin distinguir mayúsculas ni tildes.
 - Documentos de Word en el diff y el historial de Git: «Cambios» muestra los párrafos, títulos, celdas de tabla e imágenes que cambiaron, y «2 Paneles» dibuja las dos versiones lado a lado.
@@ -46,6 +48,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 ### Corregido
 
 - Notas: al volver de edición a lectura se conserva la posición también en las notas que tardan en pintarse (muchos enlaces, incrustaciones o imágenes), en vez de saltar al principio o a un título visitado antes.
+- Conversaciones con agentes: al cerrar una ahora se cierra también su sesión en el agente (`session/close`); con Claude sus procesos seguían vivos mientras otras conversaciones compartieran el adaptador.
 - MCP: `full_text_search` con `OR` (`TIEL OR QTI1`) no encontraba nada: la última palabra se buscaba también como prefijo y se exigían las dos partes.
 
 - Búsqueda en el chat del agente y en documentos de Word: una sola letra con salidas largas de herramientas ya no congela la aplicación; solo se resaltan las coincidencias a la vista.

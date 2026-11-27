@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { btwPrompt, conversationTitle, forkItems, readOnlyMode, rejectOption } from './side-question';
+import { asideBase, btwPrompt, conversationTitle, forkItems, readOnlyMode, rejectOption } from './side-question';
 import type { ChatItem } from './types';
 
 const user = (id: number, text: string): ChatItem => ({ type: 'user', id, text, attachments: [] });
@@ -21,6 +21,16 @@ describe('/fork y /btw', () => {
       { type: 'permission', id: 3, request, answered: 'ok' },
     ];
     expect(forkItems(items).map((i) => i.id)).toEqual([1, 3]);
+  });
+
+  it('reconstruye lo que heredó una pregunta aparte, sin lo posterior', () => {
+    const items = [user(1, 'hola'), user(2, 'sigue'), user(7, 'después')];
+    expect(asideBase(items, 2, '#3', 'hola')).toEqual([
+      items[0],
+      items[1],
+      { type: 'fork', id: 3, handle: '#3', title: 'hola' },
+    ]);
+    expect(asideBase(items, 0, '#3', '')).toEqual([]);
   });
 
   it('rechaza una sola vez si puede y nunca permite', () => {

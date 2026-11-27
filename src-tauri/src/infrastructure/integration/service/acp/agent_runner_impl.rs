@@ -20,6 +20,8 @@ pub type AgentEventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 
 /// Tiempo que un proceso sin sesiones sigue vivo, por si se abre otra conversación enseguida.
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(30);
+/// Espera máxima a que el agente confirme el cierre de una sesión.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Conversaciones por proceso: con más, se lanza otro proceso del mismo agente. Así una
 /// conversación con un turno largo o un fallo del proceso no arrastra a demasiadas otras.
 pub const MAX_SESSIONS_PER_PROCESS: usize = 4;
@@ -530,6 +532,50 @@ impl AgentRunner for AgentRunnerImpl {
             .map(|r| config_of(&r))
     }
 
+    async fn set_title(&self, session_id: &str, title: &str) -> Result<String, String> {
+        let result = self
+            .conn(session_id)
+            .await?
+            .request(
+                "session/set_title",
+                json!({"sessionId": session_id, "title": title}),
+            )
+            .await?;
+        // El agente puede recortarlo o limpiarlo: manda el que devuelve
+        Ok(result["title"].as_str().unwrap_or(title).to_string())
+    }
+
+    async fn title(&self, session_id: &str) -> Result<Option<String>, String> {
+        let (conn, cwd) = {
+            let sessions = self.sessions.lock().await;
+            let session = sessions
+                .get(session_id)
+                .ok_or("La sesión del agente ya no está abierta")?;
+            if !session.capabilities.list_sessions {
+                return Ok(None);
+            }
+            (session.conn.clone(), session.cwd.clone())
+        };
+        let mut params = json!({"cwd": cwd});
+        for _ in 0..MAX_SESSION_PAGES {
+            let page = conn.request("session/list", params.clone()).await?;
+            let found = page["sessions"]
+                .as_array()
+                .and_then(|s| s.iter().find(|s| s["sessionId"] == session_id));
+            if let Some(found) = found {
+                return Ok(found["title"]
+                    .as_str()
+                    .filter(|t| !t.trim().is_empty())
+                    .map(str::to_string));
+            }
+            let Some(cursor) = page["nextCursor"].as_str() else {
+                break;
+            };
+            params["cursor"] = json!(cursor);
+        }
+        Ok(None)
+    }
+
     fn set_process_limit(&self, agent_id: &str, limit: usize) {
         if let Ok(mut l) = self.limits.lock() {
             l.insert(agent_id.to_string(), limit.max(1));
@@ -541,11 +587,19 @@ impl AgentRunner for AgentRunnerImpl {
         let Some(session) = self.sessions.lock().await.remove(session_id) else {
             return Ok(());
         };
-        // ACP no tiene un cierre de sesión estándar: se cancela por si estaba trabajando
-        let _ = session
-            .conn
-            .notify("session/cancel", json!({"sessionId": session_id}))
-            .await;
+        let params = json!({"sessionId": session_id});
+        // Se cancela por si estaba trabajando
+        let _ = session.conn.notify("session/cancel", params.clone()).await;
+        // `session/close` (nunca `session/delete`: se podrá retomar) libera lo que el agente tenga
+        // abierto para ella; Claude mantiene un proceso por sesión, que cancelar no cierra
+        if session.capabilities.close_session {
+            let close = session.conn.request("session/close", params);
+            match tokio::time::timeout(CLOSE_TIMEOUT, close).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => tracing::warn!("Falló session/close de la sesión {session_id}: {e}"),
+                Err(_) => tracing::warn!("session/close de la sesión {session_id} no respondió a tiempo"),
+            }
+        }
         let mut processes = self.processes.lock().await;
         if let Some(process) = processes.get_mut(&session.process_key) {
             process.sessions.remove(session_id);
@@ -556,6 +610,9 @@ impl AgentRunner for AgentRunnerImpl {
         Ok(())
     }
 }
+
+/// Páginas de `session/list` que se recorren buscando una sesión.
+const MAX_SESSION_PAGES: usize = 10;
 
 /// Nombre con que se inyecta el MCP de Synapse en las sesiones.
 pub const SYNAPSE_TOOLS: &str = "synapse_instance";
@@ -623,6 +680,9 @@ fn capabilities_of(init: &Value) -> AgentCapabilities {
         tools_over_http: flag(&caps["mcpCapabilities"]["http"]),
         load_session: flag(&caps["loadSession"]),
         fork_session: caps["sessionCapabilities"]["fork"].is_object(),
+        session_title: caps["sessionCapabilities"]["title"].is_object(),
+        list_sessions: caps["sessionCapabilities"]["list"].is_object(),
+        close_session: caps["sessionCapabilities"]["close"].is_object(),
     }
 }
 
@@ -1123,6 +1183,87 @@ mod tests {
         // Sin contexto en el agente: la interfaz lo reenvía (`resumed` es falso)
         let fallback = start(Some("perdida"), true).await.unwrap();
         assert_eq!((fallback.id.as_str(), fallback.resumed), ("ses-2", false));
+    }
+
+    /// Agente falso que nombra sus sesiones: las lista en dos páginas y deja renombrarlas.
+    async fn titled_agent(io: tokio::io::DuplexStream) {
+        let (r, mut w) = tokio::io::split(io);
+        let mut lines = BufReader::new(r).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let msg: Value = serde_json::from_str(&line).unwrap();
+            let id = &msg["id"];
+            let reply = match msg.get("method").and_then(Value::as_str) {
+                Some("initialize") => json!({"jsonrpc":"2.0","id":id,"result":{"protocolVersion":1,
+                    "agentCapabilities":{"sessionCapabilities":{"title":{},"list":{}}}}}),
+                Some("session/new") => json!({"jsonrpc":"2.0","id":id,"result":{"sessionId":"ses-1"}}),
+                Some("session/list") if msg["params"]["cursor"] == "2" => {
+                    json!({"jsonrpc":"2.0","id":id,"result":{"sessions":[{"sessionId":"ses-1","title":"La mía"}]}})
+                }
+                Some("session/list") => json!({"jsonrpc":"2.0","id":id,"result":{
+                    "sessions":[{"sessionId":"otra","title":"Ajena"}],"nextCursor":"2"}}),
+                Some("session/set_title") => {
+                    let title = msg["params"]["title"].as_str().unwrap().to_uppercase();
+                    json!({"jsonrpc":"2.0","id":id,"result":{"title":title}})
+                }
+                _ => continue,
+            };
+            w.write_all(format!("{reply}\n").as_bytes()).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn al_parar_cierra_la_sesion_en_el_agente_si_lo_admite() {
+        for (capabilities, expected) in [
+            (json!({"close":{}}), &["session/cancel", "session/close"][..]),
+            (json!({}), &["session/cancel"][..]),
+        ] {
+            let runner = AgentRunnerImpl::new(Arc::new(|_, _| {}));
+            let (client, agent) = duplex(64 * 1024);
+            let (seen, mut received) = tokio::sync::mpsc::unbounded_channel();
+            tokio::spawn(async move {
+                let (r, mut w) = tokio::io::split(agent);
+                let mut lines = BufReader::new(r).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let msg: Value = serde_json::from_str(&line).unwrap();
+                    let method = msg["method"].as_str().unwrap_or_default().to_string();
+                    let result = match method.as_str() {
+                        "initialize" => json!({"protocolVersion":1,
+                            "agentCapabilities":{"sessionCapabilities":capabilities}}),
+                        "session/new" => json!({"sessionId":"ses-1"}),
+                        _ => json!({}),
+                    };
+                    seen.send(method).unwrap();
+                    if let Some(id) = msg.get("id") {
+                        let reply = json!({"jsonrpc":"2.0","id":id,"result":result});
+                        w.write_all(format!("{reply}\n").as_bytes()).await.unwrap();
+                    }
+                }
+            });
+            let (r, w) = tokio::io::split(client);
+            let session = runner.open_with(r, w, "/boveda").await.unwrap();
+            runner.stop(&session.id).await.unwrap();
+            let mut methods = Vec::new();
+            // Tras `initialize` y `session/new`
+            while methods.len() < 2 + expected.len() {
+                let next = tokio::time::timeout(Duration::from_secs(2), received.recv()).await;
+                methods.push(next.expect("no llegó el cierre").unwrap());
+            }
+            assert_eq!(&methods[2..], expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn lee_y_cambia_el_nombre_de_la_sesion_en_el_agente() {
+        let runner = AgentRunnerImpl::new(Arc::new(|_, _| {}));
+        let (client, agent) = duplex(64 * 1024);
+        tokio::spawn(titled_agent(agent));
+        let (r, w) = tokio::io::split(client);
+        let session = runner.open_with(r, w, "/boveda").await.unwrap();
+        assert!(session.capabilities.session_title && session.capabilities.list_sessions);
+        assert_eq!(runner.title("ses-1").await.unwrap().as_deref(), Some("La mía"));
+        // Manda el nombre que devuelve el agente
+        assert_eq!(runner.set_title("ses-1", "nuevo").await.unwrap(), "NUEVO");
+        assert!(runner.set_title("cerrada", "x").await.is_err());
     }
 
     fn synapse_tools() -> Vec<ToolServer> {

@@ -307,6 +307,13 @@ fn update_events(params: &Value) -> Vec<(&'static str, Value)> {
             "acp://mode",
             json!({"sessionId": session_id, "modeId": update.get("currentModeId").cloned().unwrap_or(Value::Null)}),
         )],
+        "session_info_update" => match update.get("title").and_then(Value::as_str) {
+            Some(title) => vec![(
+                "acp://session-info",
+                json!({"sessionId": session_id, "title": title}),
+            )],
+            None => vec![],
+        },
         "config_option_update" => vec![(
             "acp://config",
             json!({"sessionId": session_id, "config": config_of(update)}),
@@ -367,6 +374,17 @@ mod tests {
         );
         assert_eq!(usage[0].0, "acp://usage");
         assert!(usage[0].1["quota"].is_null());
+
+        let info = update_events(
+            &json!({"sessionId": "s", "update": {"sessionUpdate": "session_info_update", "title": "Mi sesión"}}),
+        );
+        assert_eq!(info[0].0, "acp://session-info");
+        assert_eq!(info[0].1["title"], "Mi sesión");
+        // Una actualización sin título (solo la fecha) no lo borra
+        let untitled = update_events(
+            &json!({"sessionId": "s", "update": {"sessionUpdate": "session_info_update", "updatedAt": "2026-01-01T00:00:00Z"}}),
+        );
+        assert!(untitled.is_empty());
     }
 
     #[test]

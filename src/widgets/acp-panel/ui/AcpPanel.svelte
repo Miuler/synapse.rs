@@ -18,6 +18,8 @@
     Pin,
     PinOff,
     Ellipsis,
+    Copy,
+    Pencil,
   } from 'lucide-svelte';
   import { untrack } from 'svelte';
   import { t } from '@shared/lib/i18n';
@@ -62,6 +64,15 @@
   let confirmDeleteAll = $state(false);
   /** Conversación con el menú ⋯ abierto. */
   let menuFor = $state<string | null>(null);
+  /** Nombre nuevo de la sesión mientras se escribe en el menú; `null` = sin renombrar. */
+  let newName = $state<string | null>(null);
+  $effect(() => {
+    if (!menuFor) newName = null;
+  });
+  const copy = (text: string | null) => {
+    menuFor = null;
+    if (text) void navigator.clipboard?.writeText(text);
+  };
   $effect(() => {
     if (!menuFor) return;
     const close = () => (menuFor = null);
@@ -326,8 +337,8 @@
 {/snippet}
 
 {#snippet convExtras(c: Conversation)}
-  {#if c.session}
-      {#if c.session.tool_servers.includes('synapse_instance')}
+  {#if c.session || c.sessionId}
+      {#if c.session?.tool_servers.includes('synapse_instance')}
         <span class="acp-badge" title="El agente puede usar las herramientas MCP de Synapse (notas, búsqueda, Git…)">MCP Synapse</span>
       {/if}
       <div class="acp-more">
@@ -346,6 +357,51 @@
         {#if menuFor === c.id}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_interactive_supports_focus -->
           <div class="acp-menu" role="menu" onclick={(e) => e.stopPropagation()}>
+            {#if c.sessionId}
+              <dl class="acp-session-info">
+                {#if c.nativeTitle}
+                  <dt>{t('nativeSession.name')}</dt>
+                  <dd class="acp-session-name">{c.nativeTitle}</dd>
+                {/if}
+                <dt>{t('nativeSession.id')}</dt>
+                <dd class="acp-session-id">{c.sessionId}</dd>
+              </dl>
+              <button type="button" role="menuitem" onclick={() => copy(c.sessionId)}><Copy size={13} /> {t('nativeSession.copyId')}</button>
+              {#if c.nativeTitle}
+                <button type="button" role="menuitem" onclick={() => copy(c.nativeTitle)}><Copy size={13} /> {t('nativeSession.copyName')}</button>
+              {/if}
+            {/if}
+            {#if c.session?.capabilities.session_title}
+              {#if newName === null}
+                <button type="button" role="menuitem" disabled={c.status === 'working'} onclick={() => (newName = c.nativeTitle ?? c.title)}
+                  ><Pencil size={13} /> {t('nativeSession.rename')}</button
+                >
+              {:else}
+                <form
+                  class="acp-rename"
+                  onsubmit={(e) => {
+                    e.preventDefault();
+                    const name = newName ?? '';
+                    menuFor = null;
+                    void c.rename(name);
+                  }}
+                >
+                  <!-- svelte-ignore a11y_autofocus -->
+                  <input
+                    bind:value={newName}
+                    autofocus
+                    aria-label={t('nativeSession.newName')}
+                    onkeydown={(e) => {
+                      if (e.key !== 'Escape') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      newName = null;
+                    }}
+                  />
+                  <button type="submit" disabled={!newName.trim() || c.status === 'working'}>{t('nativeSession.save')}</button>
+                </form>
+              {/if}
+            {/if}
             <button
               type="button"
               role="menuitem"
@@ -861,6 +917,48 @@
   }
   .acp-menu button:hover {
     background: var(--bg-tertiary);
+  }
+  .acp-menu button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .acp-session-info {
+    margin: 0 0 2px;
+    padding: 4px 8px 6px;
+    border-bottom: 1px solid var(--border-primary);
+    max-width: 260px;
+    font-size: 11px;
+    text-align: left;
+    cursor: default;
+  }
+  .acp-session-info dt {
+    color: var(--text-muted);
+  }
+  .acp-session-info dd {
+    margin: 0 0 2px;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+  .acp-session-id {
+    font-family: var(--font-mono, monospace);
+    font-size: 10.5px;
+  }
+  .acp-rename {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+  }
+  .acp-rename input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 12px;
+    padding: 3px 6px;
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
   }
   .acp-menu button.danger {
     color: var(--danger);

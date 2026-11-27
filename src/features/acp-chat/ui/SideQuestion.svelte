@@ -1,82 +1,143 @@
 <script lang="ts">
+  // Ventana flotante de las preguntas aparte (`/btw`) de una conversación: se mueve por su cabecera y
+  // cambia de tamaño desde la esquina. El chat de dentro es el mismo del panel (llega en `children`).
   import type { Conversation } from '@entities/acp-agent';
-  import { AlertCircle, GitFork, Loader2, X } from 'lucide-svelte';
-  import { renderAgentMarkdown } from '../lib/markdown';
+  import { t } from '@shared/lib/i18n';
+  import { GitFork, Loader2, Minus, Trash2 } from 'lucide-svelte';
+  import { onMount, type Snippet } from 'svelte';
+  import { loadWindow, placeWindow, saveWindow, type WindowBox } from '../lib/aside-window';
 
   interface Props {
-    /** Pregunta aparte (`/btw`) de la conversación. */
+    /** Las preguntas aparte de la conversación y la que está a la vista. */
+    asides: Conversation[];
     side: Conversation;
-    zoom: number;
-    onLink: (e: MouseEvent) => void;
-    onClose: () => void;
-    onPromote: () => void;
+    onSelect: (id: string) => void;
+    onMinimize: () => void;
+    onRemove: (id: string) => void;
+    onPromote: (id: string) => void;
+    children: Snippet;
   }
 
-  let { side, zoom, onLink, onClose, onPromote }: Props = $props();
+  let { asides, side, onSelect, onMinimize, onRemove, onPromote, children }: Props = $props();
 
   const working = $derived(side.status === 'working');
   const cost = $derived(side.usage?.cost);
+
+  let el = $state<HTMLElement | null>(null);
+  /** Lugar y tamaño; `null` hasta saber dónde está el chat del que sale. */
+  let box = $state<WindowBox | null>(null);
+  const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
+  const chatRect = () => el?.parentElement?.getBoundingClientRect() ?? null;
+
+  export function focus() {
+    el?.querySelector('textarea')?.focus();
+  }
+
+  const label = (c: Conversation) => {
+    const first = c.items.find((i) => i.type === 'user');
+    return (first?.type === 'user' ? first.text : c.draft) || t('aside.title');
+  };
+
+  onMount(() => {
+    box = placeWindow(loadWindow(), chatRect(), viewport());
+    // El tamaño que se cambie desde la esquina se recuerda
+    const resized = new ResizeObserver(() => {
+      // Con el panel oculto mide 0: no es un tamaño elegido
+      if (!el?.offsetWidth || !box || (el.offsetWidth === box.w && el.offsetHeight === box.h)) return;
+      box = { ...box, w: el.offsetWidth, h: el.offsetHeight };
+      saveWindow(box);
+    });
+    resized.observe(el!);
+    const fit = () => box && (box = placeWindow(box, chatRect(), viewport()));
+    window.addEventListener('resize', fit);
+    return () => {
+      resized.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  });
+
+  function startDrag(e: PointerEvent) {
+    if (e.button !== 0 || !box || (e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    const x0 = e.clientX - box.x;
+    const y0 = e.clientY - box.y;
+    const move = (ev: PointerEvent) => (box = placeWindow({ ...box!, x: ev.clientX - x0, y: ev.clientY - y0 }, null, viewport()));
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (box) saveWindow(box);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div
   class="acp-side"
   role="dialog"
-  aria-label="Pregunta aparte"
+  aria-label={t('aside.title')}
   tabindex="-1"
+  data-aside={side.id}
+  bind:this={el}
+  style={box ? `left: ${box.x}px; top: ${box.y}px; width: ${box.w}px; height: ${box.h}px;` : 'visibility: hidden;'}
   onkeydown={(e) => {
     if (e.key !== 'Escape') return;
+    e.preventDefault();
     e.stopPropagation();
-    onClose();
+    onMinimize();
   }}
 >
-  <div class="acp-side-head">
-    <span class="acp-side-title">Pregunta aparte</span>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="acp-side-head" title={t('aside.drag')} onpointerdown={startDrag}>
+    {#if asides.length > 1}
+      <div class="acp-side-tabs" role="tablist">
+        {#each asides as a (a.id)}
+          <button type="button" role="tab" class="acp-side-tab" aria-selected={a === side} title={label(a)} onclick={() => onSelect(a.id)}>
+            {#if a.status === 'working'}<Loader2 size={10} class="acp-spin" />{:else if a.unseen && a !== side}<span class="acp-side-unread" title={t('aside.unread')}></span>{/if}
+            <span>{label(a)}</span>
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <span class="acp-side-title">{t('aside.title')}</span>
+    {/if}
     {#if cost}<span class="acp-side-cost">{cost.amount} {cost.currency}</span>{/if}
     <button
       type="button"
       class="acp-side-promote"
-      title="Seguir en una conversación propia, con el contexto de esta"
-      disabled={side.connection !== 'ready' || !side.lastText('agent')}
-      onclick={onPromote}><GitFork size={11} /> Convertir en conversación</button
+      title={t('aside.promoteHint')}
+      disabled={working || !side.lastText('agent')}
+      onclick={() => onPromote(side.id)}><GitFork size={11} /> {t('aside.promote')}</button
     >
-    <button type="button" aria-label="Cerrar la pregunta aparte" title="Cerrar (Esc): no queda guardada" onclick={onClose}>
-      <X size={12} />
+    <button type="button" class="acp-side-minimize" aria-label={t('aside.minimize')} title={t('aside.minimize')} onclick={onMinimize}>
+      <Minus size={12} />
+    </button>
+    <button type="button" class="acp-side-remove" aria-label={t('aside.remove')} title={t('aside.remove')} onclick={() => onRemove(side.id)}>
+      <Trash2 size={12} />
     </button>
   </div>
-  <div class="acp-side-body" style={`zoom:${zoom}`}>
-    {#each side.items as item (item.id)}
-      {#if item.type === 'user'}
-        <div class="acp-side-question">{item.text}</div>
-      {:else if item.type === 'agent'}
-        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-        <div class="acp-side-answer" onclick={onLink}>{@html renderAgentMarkdown(item.text)}</div>
-      {:else if item.type === 'info'}
-        <div class="acp-side-info">{item.text}</div>
-      {:else if item.type === 'error'}
-        <div class="acp-side-info error"><AlertCircle size={12} /> {item.text}</div>
-      {/if}
-    {/each}
-    {#if working}<div class="acp-side-info"><Loader2 size={12} class="acp-spin" /> Respondiendo…</div>{/if}
-  </div>
+  {@render children()}
 </div>
 
 <style>
   .acp-side {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 100%;
-    margin-bottom: 4px;
+    position: fixed;
+    z-index: 950;
     display: flex;
     flex-direction: column;
-    max-height: 45vh;
+    min-width: 300px;
+    min-height: 260px;
+    max-width: 100vw;
+    max-height: 100vh;
+    resize: both;
+    overflow: hidden;
     background: var(--bg-primary);
+    color: var(--text-primary);
     border: 1px solid var(--accent);
     border-radius: 8px;
-    box-shadow: var(--popover-shadow);
+    box-shadow: var(--modal-shadow);
     font-size: 13px;
-    z-index: 4;
   }
   .acp-side:focus {
     outline: none;
@@ -87,14 +148,51 @@
     gap: 6px;
     padding: 4px 8px;
     border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
     font-size: 11px;
     color: var(--text-muted);
+    cursor: move;
+    user-select: none;
+    touch-action: none;
   }
   .acp-side-title {
     flex: 1;
   }
+  .acp-side-tabs {
+    flex: 1;
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .acp-side-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  /* Se estrechan con puntos suspensivos antes de tener que desplazarlas */
+  .acp-side-head .acp-side-tab {
+    flex: 0 1 140px;
+    min-width: 56px;
+  }
+  .acp-side-tab span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .acp-side-head .acp-side-tab[aria-selected='true'] {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+  .acp-side-unread {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
   .acp-side-head button {
     display: inline-flex;
+    white-space: nowrap;
     align-items: center;
     gap: 3px;
     padding: 2px 6px;
@@ -112,56 +210,5 @@
   .acp-side-head button:disabled {
     opacity: 0.5;
     cursor: default;
-  }
-  .acp-side-body {
-    min-height: 0;
-    overflow-y: auto;
-    padding: 8px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    overflow-wrap: anywhere;
-    line-height: 1.45;
-  }
-  .acp-side-question {
-    color: var(--text-secondary);
-    font-weight: 600;
-    white-space: pre-wrap;
-  }
-  .acp-side-answer :global(p) {
-    margin: 0 0 0.6em;
-  }
-  .acp-side-answer :global(:last-child) {
-    margin-bottom: 0;
-  }
-  .acp-side-answer :global(ul),
-  .acp-side-answer :global(ol) {
-    margin: 0 0 0.6em;
-    padding-left: 1.4em;
-  }
-  .acp-side-answer :global(pre) {
-    margin: 0 0 0.6em;
-    padding: 8px;
-    border-radius: 6px;
-    overflow-x: auto;
-    background: var(--bg-tertiary);
-  }
-  .acp-side-answer :global(code) {
-    font-family: var(--font-mono, monospace);
-    font-size: 0.9em;
-  }
-  .acp-side-answer :global(a) {
-    color: var(--accent);
-    cursor: pointer;
-  }
-  .acp-side-info {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-  .acp-side-info.error {
-    color: var(--danger);
   }
 </style>

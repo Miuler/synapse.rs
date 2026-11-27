@@ -54,6 +54,15 @@ pub struct ChangeAgentModelCommand {
     pub model_id: String,
 }
 
+pub struct RenameAgentSessionCommand {
+    pub session_id: String,
+    pub title: String,
+}
+
+pub struct GetAgentSessionTitleQuery {
+    pub session_id: String,
+}
+
 pub struct CancelAgentPromptCommand {
     pub session_id: String,
 }

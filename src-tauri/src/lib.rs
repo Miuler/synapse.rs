@@ -232,6 +232,8 @@ pub fn run() {
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_respond_elicitation,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_stop_session,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_mode,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_title,
+            infrastructure::entrypoint::controller::tauri::agent_controller::agent_session_title,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_model,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_set_option,
             infrastructure::entrypoint::controller::tauri::agent_controller::agent_save_transcript,

@@ -65,6 +65,19 @@ pub trait AgentRunner: Send + Sync {
         value: &str,
     ) -> impl Future<Output = Result<AgentConfig, String>> + Send;
 
+    /// Cambia el nombre de la sesión en el agente y devuelve el que quedó.
+    fn set_title(
+        &self,
+        session_id: &str,
+        title: &str,
+    ) -> impl Future<Output = Result<String, String>> + Send;
+
+    /// Nombre que el agente tiene para la sesión; `None` si no lista sus sesiones o no tiene.
+    fn title(
+        &self,
+        session_id: &str,
+    ) -> impl Future<Output = Result<Option<String>, String>> + Send;
+
     fn stop(&self, session_id: &str) -> impl Future<Output = Result<(), String>> + Send;
 
     /// Conversaciones que comparte un mismo proceso de `agent_id` (con más, se lanza otro).

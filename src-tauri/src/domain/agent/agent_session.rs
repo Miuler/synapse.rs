@@ -14,6 +14,15 @@ pub struct AgentCapabilities {
     /// Puede bifurcar una conversación conservando su contexto (`session/fork`).
     #[serde(default)]
     pub fork_session: bool,
+    /// Permite cambiar el nombre de sus sesiones (`session/set_title`).
+    #[serde(default)]
+    pub session_title: bool,
+    /// Lista sus sesiones con su nombre (`session/list`).
+    #[serde(default)]
+    pub list_sessions: bool,
+    /// Cierra una sesión liberando lo que tenga abierto para ella (`session/close`).
+    #[serde(default)]
+    pub close_session: bool,
 }
 
 /// Una opción elegible del agente (un modo o un modelo).

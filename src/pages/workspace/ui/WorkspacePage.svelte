@@ -4255,7 +4255,9 @@
         const inPanel = document.activeElement?.closest('.synapse-agent-panel');
         if (inPanel) {
           const row = document.activeElement?.closest('section')?.querySelector<HTMLElement>('[data-conversation]');
-          const id = row?.dataset.conversation ?? agentStore.focused?.id;
+          // En una pregunta aparte (ventana flotante), la búsqueda es la suya
+          const aside = document.activeElement?.closest<HTMLElement>('[data-aside]')?.dataset.aside;
+          const id = aside ?? row?.dataset.conversation ?? agentStore.focused?.id;
           if (id) {
             stopEvent();
             agentStore.searchIn(id);

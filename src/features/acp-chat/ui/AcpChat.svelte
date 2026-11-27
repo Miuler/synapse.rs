@@ -25,6 +25,8 @@
   import ElicitationCard from './ElicitationCard.svelte';
   import ChatSearch from './ChatSearch.svelte';
   import SideQuestion from './SideQuestion.svelte';
+  // La pregunta aparte lleva dentro este mismo chat
+  import Self from './AcpChat.svelte';
   import {
     Bot,
     Send,
@@ -47,6 +49,7 @@
     ClipboardType,
     Clock,
     Check,
+    MessageCircleQuestion,
   } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
@@ -79,6 +82,9 @@
   }
 
   let { cwd, onOpenSettings, onOpenNote, onOutsideFile, conv }: Props = $props();
+  /** El chat de una pregunta aparte (`/btw`): sin otras `/btw` ni `/fork`, ni modo, cuota o menciones a conversaciones. */
+  const isAside = $derived(conv.isAside);
+  const items = $derived(conv.history.length ? [...conv.history, ...conv.items] : conv.items);
 
   // Enlaces en las respuestas: notas de la bóveda se abren en Synapse; el resto, fuera
   /** Tamaño del mensaje de otro agente, para el resumen cerrado. */
@@ -141,7 +147,8 @@
     const el = chatRoot;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey || !e.deltaY) return;
+      // `defaultPrevented`: ya lo atendió el chat de la pregunta aparte, que está dentro
+      if (!e.ctrlKey || !e.deltaY || e.defaultPrevented) return;
       e.preventDefault();
       appSettings.setViewerZoom('chat', stepViewerZoom(appSettings.chatZoom, e.deltaY < 0 ? 1 : -1));
     };
@@ -178,7 +185,8 @@
   let pickIndex = $state(0);
 
   const busy = $derived(conv.connection === 'busy');
-  const ready = $derived(conv.connection === 'ready' || busy);
+  // Una pregunta aparte se conecta al volver a preguntarle: su caja admite texto sin sesión
+  const ready = $derived(conv.connection === 'ready' || busy || (isAside && (conv.connection === 'idle' || conv.connection === 'error')));
 
   // Bajar al final cuando llega contenido nuevo; si llegó con el panel oculto, al mostrarlo. Sin nada
   // nuevo, al mostrarlo se conserva el scroll.
@@ -275,6 +283,7 @@
 
   /** Conversaciones de esta ventana (`#2`) que coinciden con `query`. */
   function localConversationRows(query: string, start: number): Suggestion[] {
+    if (isAside) return [];
     return agentStore.conversations
       .filter((c) => c.id !== conv.id)
       .filter((c) => `${c.number} ${c.title} ${c.agent?.name ?? c.agentId}`.toLowerCase().includes(query))
@@ -331,7 +340,7 @@
       const scoped = /^(agents?|a|files?|f):(.*)$/.exec(m.query);
       const scope = scoped ? (scoped[1].startsWith('a') ? 'agents' : 'files') : null;
       const q = scoped ? scoped[2] : m.query;
-      if (q.includes('#') && scope !== 'files') return remoteConversationRows(q, m.start);
+      if (q.includes('#') && scope !== 'files') return isAside ? [] : remoteConversationRows(q, m.start);
       // `@this`: el archivo de la pestaña que se está viendo
       const note = agentStore.activeNote;
       const self: Suggestion[] =
@@ -348,7 +357,7 @@
             ]
           : [];
       const vaultRows: Suggestion[] =
-        scope === 'files'
+        scope === 'files' || isAside
           ? []
           : vaults
               .filter((v) => fuzzy(v.name.toLowerCase(), q))
@@ -424,14 +433,15 @@
       const native = !!conv.session?.capabilities.fork_session;
       const how = native ? 'contexto completo' : 'contexto reenviado como texto';
       // «Synapse» marca lo que resuelve Synapse; con `session/fork`, la bifurcación es del agente
-      for (const [name, detail] of [
-        ['btw', `Synapse · pregunta aparte, sin interrumpir al agente (${how})`],
-        ['fork', `${native ? '' : 'Synapse · '}abre otra conversación a partir de esta (${how})`],
+      for (const [name, detail, tooltip] of [
+        ['btw', t('aside.commandDetail', { how }), t('aside.commandTooltip', { agent: conv.agent?.name ?? conv.agentId })],
+        ['fork', `${native ? '' : 'Synapse · '}abre otra conversación a partir de esta (${how})`, undefined],
       ]) {
-        if (!name.startsWith(slash)) continue;
+        if (isAside || !name!.startsWith(slash)) continue;
         own.push({
           label: `/${name}`,
-          detail,
+          detail: detail!,
+          tooltip,
           pick: () => {
             conv.draft = `/${name} `;
             tick().then(() => textarea?.focus());
@@ -458,10 +468,30 @@
     pickIndex = 0;
   });
 
+  /** La pregunta aparte a la vista; sin ella, las que haya quedan recogidas en su tarjeta. */
+  const openAside = $derived(conv.asides.find((a) => a.id === conv.openAside) ?? null);
+  let sidePanel = $state<ReturnType<typeof SideQuestion> | null>(null);
+  const minimizedAsides = $derived(openAside ? 0 : conv.asides.length);
+  const asideWorking = $derived(conv.asides.some((a) => a.status === 'working'));
+  const asideUnread = $derived(conv.asides.some((a) => a.unseen));
+
+  /** La tarjeta abre la que tenga una respuesta sin leer o, si no, la última. */
+  async function openAsides() {
+    const aside = conv.asides.findLast((a) => a.unseen) ?? conv.asides.at(-1);
+    if (!aside) return;
+    conv.showAside(aside.id);
+    await tick();
+    sidePanel?.focus();
+  }
+
   async function submit() {
     const text = conv.draft.trim();
     if (!text || !ready) return;
     const own = /^\/(btw|fork)(?:\s+([\s\S]*))?$/.exec(text);
+    if (own && isAside) {
+      conv.push({ type: 'info', text: t('aside.noNested', { command: `/${own[1]}` }) });
+      return;
+    }
     if (own) {
       const rest = own[2] ?? '';
       if (own[1] === 'btw' && !rest) return;
@@ -484,7 +514,9 @@
       return v && starting.has(v.path) ? [starting.get(v.path)!] : [];
     });
     if (waiting.length) await Promise.all(waiting);
-    conv.send(text, used.length ? { prompt, mentions: used } : {});
+    const opts = used.length ? { prompt, mentions: used } : {};
+    if (isAside) void conv.askAside(text, opts);
+    else conv.send(text, opts);
   }
 
   /** Vuelve a poner en la caja los mensajes sacados de la cola (con sus menciones) */
@@ -505,10 +537,10 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && conv.side) {
+    if (e.key === 'Escape' && openAside) {
       e.preventDefault();
       e.stopPropagation();
-      conv.closeSide();
+      conv.minimizeAsides();
       return;
     }
     if (suggestions.length) {
@@ -712,7 +744,7 @@
         </div>
       {/if}
 
-      {#each conv.items as item (item.id)}
+      {#each items as item (item.id)}
         {#if item.type === 'user' && item.from}
           <!-- Mensaje de otro agente: cerrado; al abrirlo se ve renderizado (tu agente ya lo resume) -->
           <details class="acp-msg user from-agent acp-incoming">
@@ -854,6 +886,11 @@
           <div class="acp-msg info markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'compact'}
           <div class="acp-compact-marker" role="separator">— contexto compactado —</div>
+        {:else if item.type === 'context'}
+          <details class="acp-context">
+            <summary>{t('aside.contextSent')} <span class="acp-incoming-size">{incomingSize(item.text)}</span></summary>
+            <pre>{item.text}</pre>
+          </details>
         {:else if item.type === 'fork'}
           <div class="acp-compact-marker acp-fork-marker" role="separator" title={item.title}>— bifurcada de {item.title || item.handle} —</div>
         {/if}
@@ -867,7 +904,7 @@
 
     {#if conv.session || conv.usage}
       <div class="acp-usage-row">
-        {#if conv.session && (conv.session.models.length || conv.session.efforts.length || conv.session.modes.length)}
+        {#if conv.session && (conv.session.models.length || conv.session.efforts.length || (!isAside && conv.session.modes.length))}
           <div class="acp-agent-opts">
             <button
               type="button"
@@ -918,7 +955,7 @@
                     >
                   {/each}
                 {/if}
-                {#if conv.session.modes.length}
+                {#if !isAside && conv.session.modes.length}
                   <div class="acp-opts-head">Modo</div>
                   {#each conv.session.modes as m (m.id)}
                     <button
@@ -950,7 +987,7 @@
         {:else}
           <span class="acp-usage-spacer"></span>
         {/if}
-        {#if quota && quotaWindow}
+        {#if quota && quotaWindow && !isAside}
           <button
             type="button"
             class="acp-quota {quotaLevel(quotaWindow.remaining)}"
@@ -993,18 +1030,6 @@
       ondragleave={() => (dragOver = false)}
       ondrop={onDrop}
     >
-      {#if conv.side}
-        <SideQuestion
-          side={conv.side}
-          zoom={appSettings.chatZoom}
-          onLink={onMessageClick}
-          onClose={() => {
-            conv.closeSide();
-            textarea?.focus();
-          }}
-          onPromote={() => conv.promoteSide()}
-        />
-      {/if}
       {#if suggestions.length}
         <div class="acp-suggest" role="listbox">
           {#each suggestions as sug, i (sug.detail + sug.label)}
@@ -1039,7 +1064,7 @@
           <div class="acp-queue-hint">En cola: se envía al terminar el turno · ↑ edita el último · Detener lo devuelve a la caja</div>
         </div>
       {/if}
-      {#if conv.pendingAttachments.length}
+      {#if conv.pendingAttachments.length || minimizedAsides}
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
@@ -1048,6 +1073,14 @@
               <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>
           {/each}
+          {#if minimizedAsides}
+            {@const state = asideWorking ? t('aside.answering') : asideUnread ? t('aside.unread') : t('aside.show')}
+            <button type="button" class="acp-aside-card" class:unread={asideUnread} title={state} aria-label="{t('aside.card', { count: minimizedAsides })}: {state}" onclick={openAsides}>
+              {#if asideWorking}<Loader2 size={12} class="acp-spin" />{:else}<MessageCircleQuestion size={12} />{/if}
+              {t('aside.card', { count: minimizedAsides })}
+              {#if asideUnread && !asideWorking}<span class="acp-aside-dot" aria-hidden="true"></span>{/if}
+            </button>
+          {/if}
         </div>
       {/if}
       <form
@@ -1067,7 +1100,9 @@
           onclick={(e) => (caret = e.currentTarget.selectionStart)}
           oninput={(e) => (caret = e.currentTarget.selectionStart)}
           rows="3"
-          placeholder={busy
+          placeholder={isAside
+            ? t('aside.placeholder')
+            : busy
             ? `${conv.agent?.name ?? 'El agente'} está trabajando: Enter deja el mensaje en cola, /btw pregunta aparte`
             : ready
             ? `Escribe a ${conv.agent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
@@ -1085,6 +1120,27 @@
         {/if}
       </form>
     </div>
+    {#if openAside}
+      <SideQuestion
+        bind:this={sidePanel}
+        asides={conv.asides}
+        side={openAside}
+        onSelect={(id) => conv.showAside(id)}
+        onMinimize={() => {
+          conv.minimizeAsides();
+          textarea?.focus();
+        }}
+        onRemove={(id) => {
+          void conv.removeAside(id);
+          textarea?.focus();
+        }}
+        onPromote={(id) => void conv.promoteAside(id)}
+      >
+        {#key openAside.id}
+          <Self {cwd} {onOpenSettings} {onOpenNote} {onOutsideFile} conv={openAside} />
+        {/key}
+      </SideQuestion>
+    {/if}
   {/if}
 </div>
 
@@ -1388,6 +1444,50 @@
     flex-wrap: wrap;
     gap: 4px;
     padding: 6px 8px 0;
+  }
+  /* Preguntas aparte minimizadas: a la derecha de los adjuntos, encima del botón Enviar */
+  .acp-aside-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    padding: 3px 9px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .acp-aside-card:hover,
+  .acp-aside-card.unread {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .acp-aside-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .acp-context {
+    font-size: 12px;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-primary);
+    border-radius: 8px;
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  .acp-context summary {
+    cursor: pointer;
+  }
+  .acp-context pre {
+    margin: 6px 0 0;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 11px;
   }
   .acp-chips.sent {
     padding: 6px 0 0;

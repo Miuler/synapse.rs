@@ -16,6 +16,7 @@ import type {
   PlanEvent,
   PromptBlock,
   RecordIterationPayload,
+  SessionInfoEvent,
   UsageEvent,
   StatusEvent,
   StreamEvent,
@@ -42,6 +43,10 @@ export const agentApi = {
   sendPrompt: (sessionId: string, blocks: PromptBlock[]) => invokeTauri<string>('agent_send_prompt', { sessionId, blocks }),
   setMode: (sessionId: string, modeId: string) => invokeTauri<void>('agent_set_mode', { sessionId, modeId }),
   setModel: (sessionId: string, modelId: string) => invokeTauri<void>('agent_set_model', { sessionId, modelId }),
+  /** Renombra la sesión en el agente; devuelve el nombre que quedó. */
+  setTitle: (sessionId: string, title: string) => invokeTauri<string>('agent_set_title', { sessionId, title }),
+  /** Nombre que el agente tiene para la sesión, si lista sus sesiones. */
+  sessionTitle: (sessionId: string) => invokeTauri<string | null>('agent_session_title', { sessionId }),
   /** Cambia una opción de configuración (modelo, esfuerzo) y devuelve cómo quedó. */
   setOption: (sessionId: string, optionId: string, value: string) =>
     invokeTauri<AgentConfig>('agent_set_option', { sessionId, optionId, value }),
@@ -78,6 +83,7 @@ export interface AgentEventHandlers {
   onCommands: (e: CommandsEvent) => void;
   onUsage: (e: UsageEvent) => void;
   onMode: (e: ModeEvent) => void;
+  onSessionInfo: (e: SessionInfoEvent) => void;
   onConfig: (e: ConfigEvent) => void;
 }
 
@@ -93,6 +99,7 @@ export async function listenAgentEvents(h: AgentEventHandlers): Promise<Unlisten
     listen<CommandsEvent>('acp://commands', (e) => h.onCommands(e.payload)),
     listen<UsageEvent>('acp://usage', (e) => h.onUsage(e.payload)),
     listen<ModeEvent>('acp://mode', (e) => h.onMode(e.payload)),
+    listen<SessionInfoEvent>('acp://session-info', (e) => h.onSessionInfo(e.payload)),
     listen<ConfigEvent>('acp://config', (e) => h.onConfig(e.payload)),
   ]);
   return () => offs.forEach((off) => off());

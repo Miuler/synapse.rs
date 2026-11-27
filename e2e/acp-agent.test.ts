@@ -739,7 +739,7 @@ it('/btw pregunta aparte con el turno en curso, sin dejar rastro; se convierte e
   };
   const working = () => s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'));
   const answered = () =>
-    s.browser.waitUntil(async () => (await text('.acp-side-answer')).some((t) => t?.startsWith('Respuesta aparte')), {
+    s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.agent')).some((t) => t?.startsWith('Respuesta aparte')), {
       timeout: 20_000,
       timeoutMsg: 'no llegó la respuesta aparte',
     });
@@ -750,24 +750,91 @@ it('/btw pregunta aparte con el turno en curso, sin dejar rastro; se convierte e
   await say('/btw ¿qué haces?');
   await answered();
   // Con contexto y con el permiso rechazado solo; no se encola ni entra en la conversación
-  expect((await text('.acp-side-answer')).join()).toContain('con contexto, permiso: reject');
-  expect((await text('.acp-side-info')).join()).toContain('Permiso rechazado');
+  expect((await text('.acp-side .acp-msg.agent')).join()).toContain('con contexto, permiso: reject');
+  expect((await text('.acp-side .acp-msg.info')).join()).toContain('Permiso rechazado');
   expect(await count('.acp-queued')).toBe(0);
-  expect((await text('.acp-msg.user')).join()).not.toContain('¿qué haces?');
+  expect((await text('.acp-chat:not(.acp-side .acp-chat) > .acp-messages .acp-msg.user')).join()).not.toContain('¿qué haces?');
+  // El mismo chat que el principal: razonamiento, herramienta y contexto usado; sin modo ni cuota
+  expect(await count('.acp-side .acp-thought')).toBe(1);
+  expect((await text('.acp-side .acp-tool')).join()).toContain('Leer aparte');
+  expect(await text('.acp-side .acp-usage-text')).toEqual(['25%']);
+  expect(await count('.acp-side .acp-quota')).toBe(0);
+  // Lo que se le mandó para empezarla, plegado
+  expect(await text('.acp-side .acp-context summary')).toEqual([expect.stringContaining('Enviado al agente para iniciar este chat')]);
+  expect(await s.browser.execute(() => (document.querySelector('.acp-side .acp-context') as HTMLDetailsElement).open)).toBe(false);
+  // Se arrastra por la cabecera para dejar libre el chat, y el lugar se recuerda
+  const place = () => s.browser.execute(() => {
+    const r = document.querySelector('.acp-side')!.getBoundingClientRect();
+    return { x: Math.round(r.x), y: Math.round(r.y) };
+  }) as Promise<{ x: number; y: number }>;
+  const before = await place();
+  const grip = (await s.browser.execute(() => {
+    const r = document.querySelector('.acp-side-title, .acp-side-head')!.getBoundingClientRect();
+    return { x: Math.round(r.x + 20), y: Math.round(r.y + r.height / 2) };
+  })) as { x: number; y: number };
+  await s.browser
+    .action('pointer')
+    .move({ x: grip.x, y: grip.y })
+    .down()
+    .move({ x: grip.x - 80, y: grip.y + 60, duration: 100 })
+    .up()
+    .perform();
+  const after = await place();
+  expect(after).toEqual({ x: before.x - 80, y: before.y + 60 });
+  expect(JSON.parse((await s.browser.execute(() => localStorage.getItem('synapse.agent.aside.window'))) as string)).toMatchObject(after);
+  // Dentro no hay otra `/btw` ni `/fork`
+  const aside = s.browser.$('.acp-side .acp-input textarea');
+  await aside.setValue('/bt');
+  expect(await count('.acp-side .acp-suggest-label')).toBe(0);
+  await aside.setValue('/btw otra');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.info')).some((t) => t?.includes('no está disponible')), { timeout: 5_000 });
+  await aside.clearValue();
+  // En el chat principal, `/btw` avisa de que no es un comando del agente
+  await input.setValue('/bt');
+  await s.browser.waitUntil(async () => (await count('.acp-suggest button')) > 0, { timeout: 5_000 });
+  expect(await s.browser.execute(() => document.querySelector('.acp-suggest button')!.getAttribute('title'))).toContain('no es un comando nativo');
+  await input.clearValue();
   expect(await count('.acp-row')).toBe(rows);
-  // Esc la cierra y el turno principal termina en su conversación
+  const answers = async () => (await text('.acp-side .acp-msg.agent')).filter((t) => t?.startsWith('Respuesta aparte'));
+  const session = (await answers())[0]?.match(/\[(ses-e2e-\d+)\]/)?.[1];
+  expect(session).toBeDefined();
+  // Esc la recoge en una tarjeta junto a los adjuntos, sin borrarla
   await input.click();
+  await s.browser.keys('Escape');
+  expect(await count('.acp-side')).toBe(0);
+  expect(await text('.acp-chips .acp-aside-card')).toEqual(['btw · 1']);
+  // La tarjeta la reabre y desde su caja se repregunta en la misma sesión
+  await s.browser.$('.acp-aside-card').click();
+  await s.browser.$('.acp-side .acp-input textarea').waitForExist({ timeout: 5_000 });
+  expect(await count('.acp-aside-card')).toBe(0);
+  await s.browser.$('.acp-side .acp-input textarea').setValue('¿y luego?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await answers()).length === 2, { timeout: 20_000, timeoutMsg: 'no llegó la repregunta' });
+  expect((await answers())[1]).toContain(`permiso: reject) [${session}]`);
+  expect(await text('.acp-side .acp-msg.user.markdown')).toEqual(['¿qué haces?', '¿y luego?']);
+  // Esc dentro del panel también la recoge
+  await s.browser.$('.acp-side .acp-input textarea').click();
   await s.browser.keys('Escape');
   expect(await count('.acp-side')).toBe(0);
   await s.browser.waitUntil(async () => !(await working()), { timeout: 15_000, timeoutMsg: 'el turno principal no terminó' });
   expect((await text('.acp-msg.agent')).some((t) => t?.includes('Empiezo un trabajo lento… terminado.'))).toBe(true);
 
-  // Convertirla en conversación
+  // Otra pregunta aparte: pestañas en el panel; la papelera borra solo la que está a la vista
   await say('/btw ¿y ahora?');
-  await answered();
+  await s.browser.waitUntil(async () => (await count('.acp-side-tab')) === 2 && (await answers()).length === 1, { timeout: 20_000, timeoutMsg: 'no hay dos pestañas' });
+  await s.browser.$('.acp-side-remove').click();
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.user.markdown')).join() === '¿qué haces?,¿y luego?', { timeout: 5_000, timeoutMsg: 'no se borró' });
+  expect(await count('.acp-side-tab')).toBe(0);
+  await s.browser.$('.acp-side-minimize').click();
+  expect(await text('.acp-aside-card')).toEqual(['btw · 1']);
+
+  // Convertirla en conversación
+  await s.browser.$('.acp-aside-card').click();
   await s.browser.$('.acp-side-promote:not([disabled])').click();
   await s.browser.waitUntil(async () => (await count('.acp-row')) === rows + 1, { timeout: 5_000, timeoutMsg: 'no se convirtió' });
   expect(await count('.acp-side')).toBe(0);
+  expect(await count('.acp-aside-card')).toBe(0);
   expect((await text('.acp-fork-marker')).length).toBe(1);
   expect((await text('.acp-msg.agent')).some((t) => t?.startsWith('Respuesta aparte'))).toBe(true);
 
@@ -933,3 +1000,200 @@ it('Ctrl+F en el panel busca en la conversación, sin distinguir tildes y tambi�
   expect(await count('.synapse-agent-panel:not(.is-hidden)')).toBe(1);
   expect(await marked()).toEqual([0, 0]);
 }, 60_000);
+
+it('renombra la sesión en el agente y guarda con la conversación su nombre y sus preguntas aparte', async () => {
+  // Una conversación nueva, sola
+  await s.browser.execute(() => {
+    (async () => {
+      const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+      for (const c of [...agentStore.conversations]) await agentStore.close(c.id);
+      await agentStore.newConversation(agentStore.cwd, 'falso');
+    })();
+  });
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => (await count('.acp-row')) === 1 && (await input.isExisting()) && !(await input.getAttribute('disabled')), {
+    timeout: 15_000,
+    timeoutMsg: 'no se abrió la conversación',
+  });
+  const say = async (msg: string) => {
+    await input.setValue(msg);
+    await s.browser.keys('Enter');
+  };
+  await say('razonamiento y herramienta');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Listo.')), { timeout: 10_000, timeoutMsg: 'no respondió' });
+  await say('/btw ¿guardada?');
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.agent')).some((t) => t?.startsWith('Respuesta aparte')), { timeout: 20_000 });
+  await s.browser.$('.acp-side-minimize').click();
+
+  // El menú muestra el id de la sesión y deja renombrarla
+  await s.browser.$('.acp-row button[aria-label="Más acciones"]').click();
+  const id = (await text('.acp-session-id'))[0]!;
+  expect(id).toMatch(/^ses-e2e-\d+$/);
+  const item = (label: string) =>
+    s.browser.execute((label) => {
+      const b = [...document.querySelectorAll('.acp-menu button')].find((x) => x.textContent?.trim() === label);
+      (b as HTMLButtonElement).click();
+    }, label);
+  await item('Renombrar la sesión…');
+  await s.browser.$('.acp-rename input').setValue('Mi sesión');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-row-title'))[0]?.includes('Mi sesión') === true, { timeout: 5_000, timeoutMsg: 'no cambió el nombre' });
+
+  // Se cierra y se reabre del historial: nombre y pregunta aparte siguen ahí
+  const saved = () => {
+    const dir = join(s.vault, '.synapse/agent-sessions');
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
+      .find((t) => t.native_title === 'Mi sesión');
+  };
+  await s.browser.waitUntil(async () => saved()?.asides?.length === 1, { timeout: 5_000, timeoutMsg: 'no se guardó' });
+  const transcript = saved();
+  expect(transcript.title).toBe('Mi sesión');
+  expect(transcript.asides[0].items.map((i: { type: string }) => i.type)).toContain('user');
+  // Lo heredado no se guarda como mensajes (solo, aparte, el texto que se le envió), y la pregunta no
+  // entra en los de la conversación
+  const own = transcript.asides[0].items.filter((i: { type: string }) => i.type !== 'context');
+  expect(JSON.stringify(own)).not.toContain('razonamiento y herramienta');
+  expect(transcript.asides[0].items[0].type).toBe('context');
+  expect(JSON.stringify(transcript.items)).not.toContain('¿guardada?');
+  // La pregunta aparte no tiene archivo propio
+  expect(existsSync(join(s.vault, '.synapse/agent-sessions', `${transcript.asides[0].id}.json`))).toBe(false);
+
+  await s.browser.$('.acp-row button[aria-label="Cerrar conversación"]').click();
+  await s.browser.waitUntil(async () => (await count('.acp-row')) === 0, { timeout: 5_000 });
+  await s.browser.waitUntil(async () => (await text('select[aria-label="Historial de conversaciones"] option')).some((t) => t?.startsWith('Mi sesión')), {
+    timeout: 5_000,
+    timeoutMsg: 'el historial no muestra el nombre',
+  });
+  await s.browser.execute((value) => {
+    const select = document.querySelector('select[aria-label="Historial de conversaciones"]') as HTMLSelectElement;
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }, transcript.id);
+  await s.browser.$('.acp-aside-card').waitForExist({ timeout: 15_000 });
+  expect((await text('.acp-row-title'))[0]).toContain('Mi sesión');
+  await s.browser.$('.acp-aside-card').click();
+  expect(await text('.acp-side .acp-msg.user.markdown')).toEqual(['¿guardada?']);
+  // El agente falso no retoma sesiones: la repregunta va en una nueva, con el contexto reenviado
+  await s.browser.$('.acp-side .acp-input textarea').setValue('¿sigues?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.agent')).length === 2, { timeout: 20_000, timeoutMsg: 'no respondió al reabrir' });
+
+  // También al volver a cargar la ventana, como al abrir de nuevo Synapse
+  await s.browser.waitUntil(async () => saved()?.asides?.[0]?.items.filter((i: { type: string }) => i.type === 'agent').length === 2, { timeout: 5_000, timeoutMsg: 'no se guardó la repregunta' });
+  // El agente falso no retoma sesiones: aun en una nueva, el nombre puesto se conserva
+  expect(saved().native_title).toBe('Mi sesión');
+  await s.browser.refresh();
+  await s.browser.$('.acp-aside-card').waitForExist({ timeout: 30_000 });
+  await s.browser.$('.acp-aside-card').click();
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.user.markdown')).map((t) => t?.split('\n')[0].trim()).join() === '¿guardada?,¿sigues?', { timeout: 5_000, timeoutMsg: 'no siguen tras recargar' });
+}, 120_000);
+
+it('con un agente que bifurca su sesión, la pregunta aparte muestra el historial heredado y la cierra al dejar de verse', async () => {
+  await s.browser.$('.acp-side-minimize').click();
+  await s.browser.$('.synapse-agent-panel button[title="Ajustes de agentes"]').click();
+  await s.browser.$('.agent-form').waitForExist({ timeout: 5_000 });
+  await s.browser.$('input[placeholder="Identificador (mi-agente)"]').setValue('bifurca');
+  await s.browser.$('input[placeholder="Nombre"]').setValue('Agente que bifurca');
+  await s.browser.$('input[placeholder="Comando (ruta o nombre en el PATH)"]').setValue(process.execPath);
+  await s.browser.$('input[placeholder="Argumentos separados por espacios"]').setValue(`${FAKE_AGENT} --fork --resume --config`);
+  await s.browser.$('.agent-form button[type="submit"]').click();
+  await s.browser.waitUntil(async () => (await text('.agent-row .row-label')).some((t) => t?.startsWith('Agente que bifurca')), { timeout: 5_000 });
+  await s.browser.keys('Escape');
+  // Sin fijar, ese Esc puede haber cerrado el panel
+  if (await count('.synapse-agent-panel.is-hidden')) await s.browser.$('.editor-header .agent-toggle').click();
+  await s.browser.$('.synapse-agent-panel:not(.is-hidden)').waitForExist({ timeout: 5_000 });
+  await s.browser.execute(() => {
+    (async () => {
+      const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+      for (const c of [...agentStore.conversations]) await agentStore.close(c.id);
+      await agentStore.refresh();
+      await agentStore.newConversation(agentStore.cwd, 'bifurca');
+    })();
+  });
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => (await count('.acp-row')) === 1 && (await input.isExisting()) && !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  await input.setValue('razonamiento y herramienta');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-msg.agent')).some((t) => t?.includes('Listo.')), { timeout: 10_000 });
+  await input.setValue('/btw ¿y eso?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await text('.acp-side .acp-msg.agent')).some((t) => t?.startsWith('Respuesta aparte')), { timeout: 20_000 });
+  const asked = await text('.acp-side .acp-msg.user.markdown');
+  expect(asked).toEqual([expect.stringMatching(/^razonamiento y herramienta/), '¿y eso?']);
+  expect(await count('.acp-side .acp-fork-marker')).toBe(1);
+  // Bifurcada, lo enviado es solo la indicación y la pregunta, sin el historial
+  const sent = async () =>
+    (await s.browser.execute(() => [...document.querySelectorAll('.acp-side .acp-context pre')].map((p) => p.textContent ?? ''))) as string[];
+  expect(await sent()).toEqual([expect.stringMatching(/^\[Pregunta aparte[\s\S]*¿y eso\?$/)]);
+  expect((await sent())[0]).not.toContain('Usuario: ');
+
+  const answers = async () => (await text('.acp-side .acp-msg.agent')).filter((t) => t?.startsWith('Respuesta aparte'));
+  const session = (await answers())[0]!.match(/\[(ses-e2e-\d+)\]/)![1];
+  const side = s.browser.$('.acp-side .acp-input textarea');
+  const reopen = async () => {
+    await s.browser.$('.acp-aside-card').click();
+    await side.waitForExist({ timeout: 5_000 });
+  };
+  // Minimizada, cierra su sesión; la repregunta la retoma, sin reenviar el contexto
+  await s.browser.$('.acp-side-minimize').click();
+  await reopen();
+  await side.setValue('despacio, ¿y ahora?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await count('.acp-side .acp-send[title^="Detener"]')) === 1, { timeout: 10_000, timeoutMsg: 'no empezó a responder' });
+  // Recogida mientras contesta: termina de responder y entonces se cierra
+  await s.browser.$('.acp-side-minimize').click();
+  await s.browser.$('.acp-aside-card.unread').waitForExist({ timeout: 15_000, timeoutMsg: 'no terminó la respuesta' });
+  await reopen();
+  expect((await answers())[1]).toContain(`[${session}] retomada×1`);
+  await side.setValue('¿otra vez?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await answers()).length === 3, { timeout: 20_000, timeoutMsg: 'no respondió tras cerrarse' });
+  expect((await answers())[2]).toContain(`[${session}] retomada×2`);
+  // Las repreguntas no añaden otro bloque
+  expect(await count('.acp-side .acp-context')).toBe(1);
+
+  // El modelo y el esfuerzo elegidos en ella son solo suyos: no cambian los recordados para el agente
+  const chip = async () => (await text('.acp-side .acp-model-chip'))[0] ?? '';
+  const choose = async (label: string) => {
+    await s.browser.$('.acp-side .acp-opts-btn').click();
+    await s.browser.$(`.acp-side .acp-opts-menu`).$(`button=${label}`).click();
+  };
+  const remembered = () =>
+    s.browser.execute(() => [localStorage.getItem('synapse.agent.model.bifurca'), localStorage.getItem('synapse.agent.effort.bifurca')]);
+  const before = await remembered();
+  await choose('high');
+  await s.browser.waitUntil(async () => (await chip()).includes('high'), { timeout: 5_000, timeoutMsg: 'no cambió el esfuerzo' });
+  expect(await remembered()).toEqual(before);
+  const mainChip = async () =>
+    (await s.browser.execute(() => document.querySelector('.acp-model-chip')?.textContent ?? '')) as string;
+  expect(await mainChip()).not.toContain('high');
+  // Los conserva al cerrar y reabrir la conversación
+  await s.browser.execute(() => {
+    (async () => {
+      const { agentStore } = await new Function("return import('/src/entities/acp-agent/index.ts')")();
+      const [c] = agentStore.conversations;
+      const { cwd, id } = c;
+      await agentStore.close(id);
+      await agentStore.openFromHistory(cwd, id);
+    })();
+  });
+  await s.browser.$('.acp-aside-card').waitForExist({ timeout: 15_000 });
+  await reopen();
+  await side.setValue('¿con qué modelo?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await answers()).length === 4, { timeout: 20_000, timeoutMsg: 'no respondió al reabrir la conversación' });
+  expect((await answers())[3]).toContain('modelo:uno/high');
+  await s.browser.waitUntil(async () => (await chip()).includes('high'), { timeout: 5_000 });
+  // El modelo, igual
+  await choose('Modelo dos');
+  await s.browser.waitUntil(async () => (await chip()).includes('Modelo dos'), { timeout: 5_000, timeoutMsg: 'no cambió el modelo' });
+  expect(await remembered()).toEqual(before);
+  await s.browser.$('.acp-side-minimize').click();
+  await reopen();
+  await side.setValue('¿y ahora?');
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await answers()).length === 5, { timeout: 20_000, timeoutMsg: 'no respondió tras minimizar' });
+  expect((await answers())[4]).toContain('modelo:dos/');
+}, 120_000);

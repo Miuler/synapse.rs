@@ -30,6 +30,15 @@ export function forkItems(items: ChatItem[]): ChatItem[] {
   return items.filter((i) => !((i.type === 'permission' || i.type === 'elicitation') && i.answered === null));
 }
 
+/**
+ * Lo que una pregunta aparte hereda de su conversación: los mensajes hasta `until` (el último que
+ * había al preguntar) y la marca de bifurcación.
+ */
+export function asideBase(items: ChatItem[], until: number, handle: string, title: string): ChatItem[] {
+  const base = forkItems(items.filter((i) => i.id <= until));
+  return base.length ? [...base, { type: 'fork', id: until + 1, handle, title }] : [];
+}
+
 /** Título: la primera pregunta; en una bifurcación, la primera tras bifurcar (o la de origen). */
 export function conversationTitle(items: ChatItem[]): string {
   const at = items.findLastIndex((i) => i.type === 'fork');

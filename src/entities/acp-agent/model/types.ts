@@ -23,6 +23,12 @@ export interface AgentCapabilities {
   load_session: boolean;
   /** Bifurca él mismo la sesión (`session/fork`); si no, Synapse le reenvía la conversación. */
   fork_session?: boolean;
+  /** Permite cambiar el nombre de sus sesiones. */
+  session_title?: boolean;
+  /** Lista sus sesiones con su nombre. */
+  list_sessions?: boolean;
+  /** Cierra una sesión liberando lo que tenga abierto para ella. */
+  close_session?: boolean;
 }
 
 export interface AgentOption {
@@ -71,6 +77,29 @@ export interface AgentTranscript extends AgentTranscriptSummary {
   /** Contexto usado la última vez */
   usage?: { used: number; size: number; cost: { amount: number; currency: string } | null } | null;
   items: ChatItem[];
+  /** Nombre que el agente le da a la sesión. */
+  native_title?: string | null;
+  /** Preguntas aparte (`/btw`) de la conversación. */
+  asides?: SavedAside[];
+}
+
+/** Pregunta aparte guardada con su conversación: solo sus mensajes, sin los heredados. */
+export interface SavedAside {
+  id: string;
+  items: ChatItem[];
+  acp_session_id: string | null;
+  native_title?: string | null;
+  usage?: AgentTranscript['usage'];
+  created_at: number;
+  /** Último mensaje de la conversación cuando se preguntó: lo que la pregunta heredó. */
+  base_until: number;
+  /** El agente bifurcó su sesión: tiene lo heredado y se muestra como historial. */
+  native?: boolean;
+  /** Pregunta que aún no se pudo enviar. */
+  draft?: string;
+  /** Su modelo y esfuerzo, que no son los recordados para el agente. */
+  model?: string | null;
+  effort?: string | null;
 }
 
 export interface ToolCallTelemetry {
@@ -260,6 +289,11 @@ export interface UsageEvent {
   quota?: AgentQuota | null;
 }
 
+export interface SessionInfoEvent {
+  sessionId: string;
+  title: string;
+}
+
 export interface ModeEvent {
   sessionId: string;
   modeId: string;
@@ -344,6 +378,8 @@ export type ChatItem =
   | { type: 'compact'; id: number }
   /** Punto desde el que se bifurcó otra conversación (`/fork`): lo anterior es heredado. */
   | { type: 'fork'; id: number; handle: string; title: string }
+  /** Lo que Synapse envió al agente para empezar una pregunta aparte (se ve plegado). */
+  | { type: 'context'; id: number; text: string }
   /** Información de Synapse en el chat (no la escribe el agente), por ejemplo `/usage`. */
   | { type: 'info'; id: number; text: string };
 

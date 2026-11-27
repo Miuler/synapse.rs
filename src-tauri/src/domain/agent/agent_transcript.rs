@@ -25,6 +25,12 @@ pub struct AgentTranscript {
     /// Mensajes tal como los muestra la interfaz.
     #[serde(default)]
     pub items: Value,
+    /// Nombre que el agente le da a la sesión.
+    #[serde(default)]
+    pub native_title: Option<String>,
+    /// Preguntas aparte (`/btw`) de la conversación, cada una con sus mensajes y su sesión.
+    #[serde(default)]
+    pub asides: Value,
 }
 
 /// Datos de una conversación guardada, sin sus mensajes, para listarla.

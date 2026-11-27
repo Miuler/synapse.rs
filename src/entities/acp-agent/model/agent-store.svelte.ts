@@ -9,7 +9,7 @@ import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/
 import { feedbackPrompt } from './feedback-prompt';
 import { savedModelChoice } from './legacy-model';
 import { replayText } from './replay-text';
-import { btwPrompt, conversationTitle, forkItems, PROMOTED_NOTE, readOnlyMode, rejectOption } from './side-question';
+import { asideBase, btwPrompt, conversationTitle, forkItems, PROMOTED_NOTE, readOnlyMode, rejectOption } from './side-question';
 import type {
   AgentCommand,
   AgentConfig,
@@ -26,6 +26,7 @@ import type {
   PlanEntry,
   PromptBlock,
   QueuedMessage,
+  SavedAside,
 } from './types';
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -103,10 +104,29 @@ export class Conversation {
   waitingFor = $state<string[]>([]);
   /** Conversación abierta por otra bóveda de Synapse (🐙), con su origen. */
   incoming = $state<{ vault: string; handle: string; title: string } | null>(null);
-  /** Pregunta aparte (`/btw`) en curso o ya respondida, hasta que se cierre. */
-  side = $state<Conversation | null>(null);
-  /** Es una pregunta aparte: no se guarda, no suena y no concede permisos. */
-  ephemeral = false;
+  /** Preguntas aparte (`/btw`) de esta conversación: se guardan con ella hasta que se borren. */
+  asides = $state<Conversation[]>([]);
+  /** La pregunta aparte a la vista; `null` = minimizadas en su tarjeta. */
+  openAside = $state<string | null>(null);
+  /**
+   * Conversación de la que es una pregunta aparte. Siendo aparte no tiene archivo propio (se guarda
+   * dentro de la otra), no suena, no cuenta en la telemetría y no concede permisos.
+   */
+  #parent = $state<Conversation | null>(null);
+  /** El agente bifurcó la sesión de la original: tiene lo heredado, y la pregunta aparte lo muestra. */
+  #nativeHistory = $state(false);
+  /** Último mensaje de la original cuando se bifurcó. */
+  #baseUntil = 0;
+  /** Nombre que el agente le da a la sesión (manda sobre la primera pregunta). */
+  nativeTitle = $state<string | null>(null);
+  /** Una pregunta aparte preparándose para enviar: su sesión no se cierra aunque deje de verse. */
+  #preparing = false;
+  /** Cierre en curso de su sesión: se espera antes de volver a conectarla. */
+  #closing: Promise<void> | null = null;
+  /** Ya está en el historial: se sigue guardando aunque se borren sus preguntas aparte. */
+  #saved = false;
+  /** Borrada: lo que aún termine no debe volver a crear su archivo. */
+  #discarded = false;
   /** Saltos entre agentes del turno en curso (0 si lo empezó el usuario). */
   #turnHops = 0;
   /** Contador de iteraciones (turnos) completados en esta conversación. */
@@ -120,14 +140,17 @@ export class Conversation {
   #createdAt = Date.now();
   /** Último mensaje, para la lista de menciones. */
   lastActivity = $state(Date.now());
-  #acpSessionId: string | null = null;
+  #acpSessionId = $state<string | null>(null);
   #replay: string | null = null;
   /** Mensajes heredados de la original, para convertir la pregunta aparte en conversación. */
   #base: ChatItem[] = [];
   /** Sesión del agente que se bifurca al conectar, y lo que llevaba del turno en curso. */
   #forkOf: string | null = null;
   #turnReplay: string | null = null;
-  /** Modelo de la conversación de origen (manda sobre el recordado para el agente). */
+  /**
+   * Modelo y esfuerzo propios (mandan sobre los recordados para el agente): los de la conversación de
+   * origen y, en una pregunta aparte, los que se elijan en ella.
+   */
   #inheritedModel: string | null = null;
   #inheritedEffort: string | null = null;
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -150,7 +173,26 @@ export class Conversation {
     return this.#store.agents.find((a) => a.id === this.agentId) ?? null;
   }
   get title(): string {
-    return conversationTitle(this.items);
+    return this.nativeTitle || conversationTitle(this.items);
+  }
+  /** Id de la sesión en el agente: la abierta o la última que tuvo. */
+  get sessionId(): string | null {
+    return this.session?.id ?? this.#acpSessionId;
+  }
+  get isAside(): boolean {
+    return this.#parent !== null;
+  }
+  /** La conversación de la que es pregunta aparte. */
+  get parent(): Conversation | null {
+    return this.#parent;
+  }
+  /** Lo heredado que se muestra antes de sus mensajes (con el historial bifurcado por el agente). */
+  get history(): ChatItem[] {
+    return this.#nativeHistory && this.#parent ? this.#inheritedItems() : [];
+  }
+  /** Id que se guarda para retomarla: con contexto sin enviar la sesión está vacía y retomarla lo perdería. */
+  get #resumableId(): string | null {
+    return this.#replay && this.#replay !== PROMOTED_NOTE ? null : this.sessionId;
   }
   get pendingPermissions(): number {
     return this.items.filter(
@@ -184,13 +226,16 @@ export class Conversation {
   }
 
   /** Guarda la conversación en la bóveda (agrupa cambios seguidos). */
-  persist(now = false) {
+  persist(now = false): void {
+    if (this.#parent) return this.#parent.persist(now);
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;
-    if (this.ephemeral) return;
     const run = () => {
       const agent = this.agent;
-      if (!agent || !this.items.some((i) => i.type === 'user')) return;
+      if (!agent || this.#discarded) return;
+      const asides = this.asides.flatMap((a) => a.#asSaved() ?? []);
+      if (!this.#saved && !asides.length && !this.items.some((i) => i.type === 'user')) return;
+      this.#saved = true;
       agentApi
         .saveTranscript({
           id: this.id,
@@ -198,8 +243,9 @@ export class Conversation {
           agent_name: agent.name,
           cwd: this.#cwd,
           title: this.title,
-          // Con contexto aún sin enviar, la sesión del agente está vacía: retomarla lo perdería
-          acp_session_id: this.#replay ? null : (this.session?.id ?? this.#acpSessionId),
+          acp_session_id: this.#resumableId,
+          native_title: this.nativeTitle,
+          asides,
           created_at: this.#createdAt,
           updated_at: Date.now(),
           usage: $state.snapshot(this.usage),
@@ -210,6 +256,52 @@ export class Conversation {
     };
     if (now) run();
     else this.#saveTimer = setTimeout(run, 800);
+  }
+
+  /** Cómo se guarda como pregunta aparte; `null` si aún no hay nada que guardar. */
+  #asSaved(): SavedAside | null {
+    if (!this.draft && !this.items.some((i) => i.type === 'user')) return null;
+    return {
+      id: this.id,
+      items: $state.snapshot(this.items) as ChatItem[],
+      acp_session_id: this.#resumableId,
+      native_title: this.nativeTitle,
+      usage: $state.snapshot(this.usage),
+      created_at: this.#createdAt,
+      base_until: this.#baseUntil,
+      native: this.#nativeHistory || undefined,
+      draft: this.draft || undefined,
+      model: this.#inheritedModel,
+      effort: this.#inheritedEffort,
+    };
+  }
+
+  /** Una pregunta aparte guardada: sin conectar hasta que se le vuelva a preguntar. */
+  #restoreAside(saved: SavedAside): Conversation {
+    const c = new Conversation(this.#store, this.agentId, this.#cwd, saved.id);
+    c.#parent = this;
+    c.items = Array.isArray(saved.items) ? saved.items : [];
+    c.#baseUntil = saved.base_until ?? 0;
+    c.#nativeHistory = !!saved.native;
+    c.#nextId = c.items.reduce((m, i) => Math.max(m, i.id), c.#baseUntil + 1) + 1;
+    c.#createdAt = saved.created_at;
+    c.#acpSessionId = saved.acp_session_id;
+    c.nativeTitle = saved.native_title ?? null;
+    c.usage = saved.usage ?? null;
+    c.draft = saved.draft ?? '';
+    c.#inheritedModel = saved.model ?? null;
+    c.#inheritedEffort = saved.effort ?? null;
+    return c;
+  }
+
+  /** Lo heredado de la conversación de origen (solo para una pregunta aparte). */
+  #inheritedItems(): ChatItem[] {
+    const parent = this.#parent;
+    // Una restaurada lo reconstruye una sola vez
+    if (!this.#base.length && parent) {
+      this.#base = asideBase($state.snapshot(parent.items) as ChatItem[], this.#baseUntil, parent.handle, parent.title);
+    }
+    return this.#base;
   }
 
   /** Carga una conversación guardada (sus mensajes) antes de conectar. */
@@ -224,6 +316,9 @@ export class Conversation {
     this.#createdAt = t.created_at;
     this.lastActivity = t.updated_at ?? t.created_at;
     this.#acpSessionId = t.acp_session_id;
+    this.nativeTitle = t.native_title ?? null;
+    this.asides = (Array.isArray(t.asides) ? t.asides : []).map((a) => this.#restoreAside(a));
+    this.#saved = true;
     // El agente no repite el contexto hasta responder: mientras tanto, el de la última vez
     if (t.acp_session_id && t.usage?.size) this.usage = t.usage;
     if (!t.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
@@ -245,10 +340,22 @@ export class Conversation {
       // Bifurcada por el agente: ya tiene el contexto, salvo lo que la original lleve del turno en curso
       if (!resume && this.session.resumed) this.#replay = this.#turnReplay;
       if (resume && !this.session.resumed) {
-        // Sesión nueva en el agente: el contexto guardado ya no es el suyo
+        // Sesión nueva en el agente: el contexto guardado ya no es el suyo. El nombre se conserva
+        // hasta que el agente le ponga otro
         this.usage = null;
-        if (this.items.length) this.#replay = replayText(this.items);
       }
+      if (this.#parent) {
+        if (!resume && this.session.resumed) this.#nativeHistory = true;
+        else if (!this.session.resumed) this.#nativeHistory = false;
+      }
+      // Sin su contexto en el agente, viaja con el próximo mensaje (a una pregunta aparte, con lo heredado)
+      if (!this.session.resumed && (resume || (this.#parent && !this.#replay)) && this.items.length) {
+        this.#replay = replayText([...(this.#parent ? this.#inheritedItems() : []), ...this.items]);
+      }
+      this.#acpSessionId = this.session.id;
+      const title = this.#store.takeEarlyTitle(this.session.id);
+      if (title) this.nativeTitle = title;
+      else void this.refreshTitle();
       this.currentMode = this.session.current_mode;
       this.currentModel = this.session.current_model;
       this.currentEffort = this.session.current_effort;
@@ -258,16 +365,43 @@ export class Conversation {
       // Modelo recordado para este agente: no hay que elegirlo en cada conversación nueva
       const savedModel = this.#inheritedModel ?? load(`synapse.agent.model.${agent.id}`);
       const choice = savedModel ? savedModelChoice(savedModel, this.session.models, this.session.efforts) : null;
+      const effort = this.#inheritedEffort ?? load(`synapse.agent.effort.${agent.id}`) ?? choice?.effort;
       if (choice && choice.model !== this.currentModel) await this.setModel(choice.model, !this.#inheritedModel);
       // El esfuerzo va después: los niveles dependen del modelo
-      const effort = this.#inheritedEffort ?? load(`synapse.agent.effort.${agent.id}`) ?? choice?.effort;
       if (effort && effort !== this.currentEffort && this.session?.efforts.some((e) => e.id === effort)) {
         await this.setEffort(effort, !this.#inheritedEffort);
       }
+      if (this.isAside) this.#keepConfig();
       if (resume) this.persist(true);
       this.deliverNext();
     } catch (e) {
       this.connection = 'error';
+      this.error(e);
+    }
+  }
+
+  /** El agente puso o cambió el nombre de la sesión. */
+  setNativeTitle(title: string) {
+    if (!title || title === this.nativeTitle) return;
+    this.nativeTitle = title;
+    this.persist();
+  }
+
+  /** Pide el nombre de la sesión a un agente que lista las suyas. */
+  async refreshTitle() {
+    const session = this.session;
+    if (!session?.capabilities.list_sessions) return;
+    const title = await agentApi.sessionTitle(session.id).catch(() => null);
+    if (title && this.session?.id === session.id) this.setNativeTitle(title);
+  }
+
+  /** Renombra la sesión en el propio agente. */
+  async rename(title: string) {
+    const session = this.session;
+    if (!session?.capabilities.session_title || !title.trim()) return;
+    try {
+      this.setNativeTitle(await agentApi.setTitle(session.id, title.trim()));
+    } catch (e) {
       this.error(e);
     }
   }
@@ -286,7 +420,8 @@ export class Conversation {
    */
   enqueue(text: string, opts: { prompt?: string; mentions?: Mention[] } = {}) {
     if (!text.trim()) return;
-    this.queue.push({ id: this.#queueId++, text, prompt: opts.prompt, mentions: opts.mentions ?? [], attachments: this.pendingAttachments });
+    const prompt = this.isAside ? this.#asidePrompt(text, opts.prompt) : opts.prompt;
+    this.queue.push({ id: this.#queueId++, text, prompt, mentions: opts.mentions ?? [], attachments: this.pendingAttachments });
     this.attachments = [];
     const note = this.#store.activeNote;
     if (note) this.dismissedActiveNote = note.path;
@@ -441,11 +576,18 @@ export class Conversation {
     const feedback = this.#store.feedbackAvailable ? /^\/feedback(?:\s+([\s\S]*))?$/.exec(text.trim()) : null;
     const attachments = opts.attachments ?? this.pendingAttachments;
     const blocks: PromptBlock[] = [];
-    if (this.#replay) {
-      blocks.push({ type: 'text', text: this.#replay });
+    const replay = this.#replay;
+    if (replay) {
+      blocks.push({ type: 'text', text: replay });
       this.#replay = null;
     }
-    blocks.push({ type: 'text', text: opts.prompt ?? (feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text) });
+    const prompt = opts.prompt ?? (feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text);
+    blocks.push({ type: 'text', text: prompt });
+    // En una pregunta aparte se ve (plegado) lo que se le manda para empezarla: su primer envío y,
+    // si se abre otra sesión, el contexto que se le reenvía
+    if (this.isAside && (replay || !this.items.some((i) => i.type === 'user'))) {
+      this.push({ type: 'context', text: replay ? `${replay}\n\n${prompt}` : prompt });
+    }
     for (const a of attachments) {
       blocks.push(
         a.kind === 'file'
@@ -490,7 +632,7 @@ export class Conversation {
       if (!this.#store.isVisible(this)) this.unseen = true;
       this.persist(true);
       const agent = this.agent;
-      if (agent && !this.ephemeral) {
+      if (agent && !this.isAside) {
         const toolCalls = this.items
           .slice(turnStart)
           .filter((i): i is Extract<ChatItem, { type: 'tool' }> => i.type === 'tool')
@@ -563,12 +705,16 @@ export class Conversation {
       }
       this.#turnHops = 0;
       void this.#store.refreshQuota(this.agentId);
-      if (stopReason !== 'cancelled' && !opts.replyTo && !this.ephemeral && this.queue.length === 0) {
+      // Un agente que no avisa de su nombre lo tiene tras el primer turno
+      if (!this.nativeTitle && !this.session?.capabilities.session_title) void this.refreshTitle();
+      if (stopReason !== 'cancelled' && !opts.replyTo && !this.isAside && this.queue.length === 0) {
         void playAgentCompletionSound();
         const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error');
         notifyIfUnfocused(notice.title, notice.body);
       }
       this.deliverNext();
+      // Una pregunta aparte que respondió sin estar a la vista ya no necesita su sesión
+      this.#releaseIfHidden();
     }
   }
 
@@ -591,13 +737,15 @@ export class Conversation {
 
   async setModel(modelId: string, remember = true) {
     if (!this.session) return;
-    if (remember) save(`synapse.agent.model.${this.session.agent_id}`, modelId);
+    // Lo elegido en una pregunta aparte es solo suyo: no cambia el recordado para el agente
+    if (remember && !this.isAside) save(`synapse.agent.model.${this.session.agent_id}`, modelId);
     const previous = this.currentModel;
     this.currentModel = modelId;
     try {
       const option = this.session.model_option;
       if (option) this.applyConfig(await agentApi.setOption(this.session.id, option, modelId));
       else await agentApi.setModel(this.session.id, modelId);
+      if (remember && this.isAside) this.#keepConfig();
     } catch (e) {
       this.currentModel = previous;
       this.error(e);
@@ -607,15 +755,23 @@ export class Conversation {
   async setEffort(effortId: string, remember = true) {
     const option = this.session?.effort_option;
     if (!this.session || !option) return;
-    if (remember) save(`synapse.agent.effort.${this.session.agent_id}`, effortId);
+    if (remember && !this.isAside) save(`synapse.agent.effort.${this.session.agent_id}`, effortId);
     const previous = this.currentEffort;
     this.currentEffort = effortId;
     try {
       this.applyConfig(await agentApi.setOption(this.session.id, option, effortId));
+      if (remember && this.isAside) this.#keepConfig();
     } catch (e) {
       this.currentEffort = previous;
       this.error(e);
     }
+  }
+
+  /** Conserva el modelo y el esfuerzo que tiene ahora, para volver a ellos al reconectar. */
+  #keepConfig() {
+    this.#inheritedModel = this.currentModel;
+    this.#inheritedEffort = this.currentEffort;
+    this.persist();
   }
 
   /** Modelos y esfuerzos tal como los deja el agente (cambiar de modelo puede cambiar los niveles). */
@@ -689,7 +845,8 @@ export class Conversation {
   /** Toma el contexto de `parent`: sus mensajes hasta ahora viajan con el primer envío. */
   #inherit(parent: Conversation) {
     const items = forkItems($state.snapshot(parent.items) as ChatItem[]);
-    this.#nextId = items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
+    this.#baseUntil = items.reduce((m, i) => Math.max(m, i.id), 0);
+    this.#nextId = this.#baseUntil + 1;
     this.#base = items.length ? [...items, { type: 'fork', id: this.#nextId++, handle: parent.handle, title: parent.title }] : [];
     if (items.some((i) => i.type === 'user')) this.#replay = replayText(items);
     this.#inheritedModel = parent.currentModel;
@@ -714,39 +871,142 @@ export class Conversation {
 
   /** `/btw`: pregunta aparte, sin tocar el turno en curso ni el contexto de esta conversación. */
   async ask(question: string) {
-    this.closeSide();
     const c = new Conversation(this.#store, this.agentId, this.#cwd);
-    c.ephemeral = true;
+    c.#parent = this;
     c.#inherit(this);
-    this.side = c;
-    const side = this.side;
-    await side.connect();
-    // Se cerró (o la reemplazó otra) mientras conectaba
-    if (this.side !== side) return side.stop();
-    const mode = readOnlyMode(side.session?.modes ?? []);
-    if (mode && mode !== side.currentMode) await side.setMode(mode);
-    if (this.side !== side) return side.stop();
-    await side.send(question, { prompt: btwPrompt(question), attachments: [] });
+    c.draft = question;
+    this.asides = [...this.asides, c];
+    this.openAside = c.id;
+    this.#releaseHiddenAsides();
+    // La primera pregunta viene de la caja principal: sus adjuntos se quedan allí
+    await c.askAside(question, { attachments: [] });
   }
 
-  closeSide() {
-    const side = this.side;
-    this.side = null;
-    void side?.stop();
+  /** Sigue siendo suya: ni se borró ni se cerró su conversación. */
+  get #attached(): boolean {
+    const parent = this.#parent;
+    return !!parent && parent.asides.includes(this) && !!this.#store.byId(parent.id);
   }
 
-  /** Convierte la pregunta aparte, ya respondida, en una conversación normal. */
-  async promoteSide() {
-    const c = this.side;
-    if (!c?.session || c.connection !== 'ready') return;
-    this.side = null;
-    c.ephemeral = false;
-    c.items = [...c.#base, ...c.items];
-    c.#replay = PROMOTED_NOTE;
-    const initial = c.session.current_mode;
+  /** Lo que recibe una pregunta aparte: con la indicación de no actuar, salvo un `/comando`. */
+  #asidePrompt(text: string, prompt?: string): string | undefined {
+    return text.startsWith('/') ? prompt : btwPrompt(prompt ?? text);
+  }
+
+  /**
+   * Pregunta (o repregunta) en la misma sesión aparte, conectándola si hace falta. Sin `attachments`
+   * van los de su caja.
+   */
+  async askAside(question: string, opts: { prompt?: string; mentions?: Mention[]; attachments?: Attachment[] } = {}) {
+    if (!question.trim() || !['idle', 'ready', 'error'].includes(this.connection)) return;
+    // Si no llega a enviarse, queda escrita para reintentar
+    this.draft = question;
+    this.#preparing = true;
+    try {
+      await this.#reconnect();
+      if (!this.#attached) return this.stop();
+      if (!this.session) return this.persist();
+      const mode = readOnlyMode(this.session.modes);
+      if (mode && mode !== this.currentMode) await this.setMode(mode);
+      if (!this.#attached) return this.stop();
+    } finally {
+      this.#preparing = false;
+    }
+    this.draft = '';
+    await this.send(question, { ...opts, prompt: this.#asidePrompt(question, opts.prompt) });
+  }
+
+  /** Conecta una pregunta aparte que no tiene sesión, retomando la que tuvo. */
+  async #reconnect() {
+    if (this.session) return;
+    if (this.#closing) {
+      // Ocupada desde ya: mientras se cierra la anterior no admite otra pregunta
+      this.connection = 'starting';
+      await this.#closing;
+    }
+    await this.connect(this.#acpSessionId);
+  }
+
+  /**
+   * Una pregunta aparte que dejó de verse cierra su sesión, si está libre y el agente sabe cerrarla y
+   * retomarla; se vuelve a conectar al preguntarle otra vez. Plegar la conversación o el panel no cuenta.
+   */
+  #releaseIfHidden() {
+    const parent = this.#parent;
+    const capabilities = this.session?.capabilities;
+    if (!parent || parent.openAside === this.id || this.#preparing) return;
+    if (this.connection !== 'ready' || this.queue.length) return;
+    if (!capabilities?.load_session || !capabilities.close_session) return;
+    // Al retomarla sigue con el modelo y el esfuerzo que tenía
+    this.#keepConfig();
+    // Como una recién restaurada: sin comandos hasta que el agente los vuelva a anunciar
+    this.commands = [];
+    this.#closing = this.stop().finally(() => (this.#closing = null));
+  }
+
+  #releaseHiddenAsides() {
+    for (const aside of this.asides) aside.#releaseIfHidden();
+  }
+
+  showAside(id: string) {
+    const aside = this.asides.find((a) => a.id === id);
+    if (!aside) return;
+    this.openAside = id;
+    aside.unseen = false;
+    this.#releaseHiddenAsides();
+  }
+
+  /** Recoge las preguntas aparte en su tarjeta, sin cerrar nada. */
+  minimizeAsides() {
+    const open = this.asides.find((a) => a.id === this.openAside);
+    if (open) open.unseen = false;
+    this.openAside = null;
+    this.#releaseHiddenAsides();
+  }
+
+  /** Borra una pregunta aparte (lo único que la quita). */
+  async removeAside(id: string) {
+    const i = this.asides.findIndex((a) => a.id === id);
+    if (i < 0) return;
+    const aside = this.asides[i];
+    this.asides = this.asides.filter((a) => a !== aside);
+    if (this.openAside === id) this.openAside = this.asides[Math.min(i, this.asides.length - 1)]?.id ?? null;
+    await aside.stop();
+    this.persist(true);
+  }
+
+  /** Convierte una pregunta aparte, ya respondida, en una conversación normal. */
+  async promoteAside(id: string) {
+    const c = this.asides.find((a) => a.id === id);
+    if (!c || c.status === 'working') return;
+    c.#preparing = true;
+    try {
+      await c.#reconnect();
+    } finally {
+      c.#preparing = false;
+    }
+    if (!c.#attached) return c.stop();
+    const session = c.session;
+    if (!session) return;
+    const base = c.#inheritedItems();
+    this.asides = this.asides.filter((a) => a !== c);
+    if (this.openAside === id) this.openAside = null;
+    c.#parent = null;
+    c.items = [...base, ...c.items];
+    c.#replay = c.#replay ? `${c.#replay}\n\n${PROMOTED_NOTE}` : PROMOTED_NOTE;
+    // Fuera del modo de solo lectura: el de la sesión al abrirse o, si era ese, el de la original
+    const readOnly = readOnlyMode(session.modes);
+    const mode = session.current_mode !== readOnly ? session.current_mode : this.currentMode;
     this.#store.addConversation(c);
-    if (initial && initial !== c.currentMode) await c.setMode(initial);
+    if (mode && mode !== c.currentMode) await c.setMode(mode);
     c.persist(true);
+    this.persist(true);
+  }
+
+  /** Deja de guardarse: se va a borrar. */
+  discard() {
+    this.#discarded = true;
+    if (this.#saveTimer) clearTimeout(this.#saveTimer);
   }
 
   /** Una pregunta aparte no concede nada: rechaza y lo deja dicho en el panel. */
@@ -759,7 +1019,7 @@ export class Conversation {
 
   /** Cierra la sesión del agente; la conversación queda guardada en el historial. */
   async stop() {
-    this.closeSide();
+    const asides = this.asides.map((a) => a.stop());
     const session = this.session;
     if (session) {
       this.#acpSessionId = session.id;
@@ -768,6 +1028,7 @@ export class Conversation {
     this.session = null;
     this.connection = 'idle';
     if (session) await agentApi.stopSession(session.id).catch(() => {});
+    await Promise.all(asides);
   }
 
   /** Eventos del agente para esta conversación. */
@@ -864,6 +1125,7 @@ export class AgentStore {
   /** Conversaciones con otras bóvedas de Synapse (canal `/peer`). */
   readonly peers = new PeerLink(this);
   #early = new Map<string, AgentCommand[]>();
+  #earlyTitles = new Map<string, string>();
   #listening: Promise<unknown> | null = null;
 
   pinnedConversation = $derived(this.conversations.find((c) => c.id === this.pinned) ?? null);
@@ -882,12 +1144,14 @@ export class AgentStore {
   #bySession(sessionId: string) {
     for (const c of this.conversations) {
       if (c.session?.id === sessionId) return c;
-      if (c.side?.session?.id === sessionId) return c.side;
+      const aside = c.asides.find((a) => a.session?.id === sessionId);
+      if (aside) return aside;
     }
     return null;
   }
 
-  isVisible(c: Conversation) {
+  isVisible(c: Conversation): boolean {
+    if (c.parent) return c.parent.openAside === c.id && this.isVisible(c.parent);
     return this.pinned === c.id || this.expanded.includes(c.id);
   }
 
@@ -895,6 +1159,12 @@ export class AgentStore {
     const commands = this.#early.get(sessionId) ?? [];
     this.#early.delete(sessionId);
     return commands;
+  }
+
+  takeEarlyTitle(sessionId: string): string | null {
+    const title = this.#earlyTitles.get(sessionId) ?? null;
+    this.#earlyTitles.delete(sessionId);
+    return title;
   }
 
   #listen() {
@@ -917,6 +1187,12 @@ export class AgentStore {
       onMode: (e) => {
         const c = this.#bySession(e.sessionId);
         if (c) c.currentMode = e.modeId;
+      },
+      onSessionInfo: (e) => {
+        // Como los comandos: puede llegar antes de conocer la sesión
+        const c = this.#bySession(e.sessionId);
+        if (c) c.setNativeTitle(e.title);
+        else this.#earlyTitles.set(e.sessionId, e.title);
       },
       onConfig: (e) => this.#bySession(e.sessionId)?.applyConfig(e.config),
       onStream: (e) => this.#bySession(e.sessionId)?.onStream(e.kind, e.text),
@@ -958,7 +1234,7 @@ export class AgentStore {
       onPermission: (e) => {
         const c = this.#bySession(e.sessionId);
         if (!c) return;
-        if (c.ephemeral) return c.rejectPermission(e);
+        if (c.isAside) return c.rejectPermission(e);
         c.push({ type: 'permission', request: e, answered: null });
         const item = c.items.at(-1)!;
         if (!this.isVisible(c)) c.unseen = true;
@@ -974,7 +1250,7 @@ export class AgentStore {
           (e.sessionId ? this.#bySession(e.sessionId) : undefined) ??
           this.conversations.find((x) => x.connection === 'busy');
         if (!c) return;
-        if (c.ephemeral) {
+        if (c.isAside) {
           c.push({ type: 'info', text: `El agente pidió información: ${e.message}` });
           void agentApi.respondElicitation(c.session?.id ?? '', e.requestId, 'cancel', null).catch(() => {});
           return;
@@ -1052,8 +1328,10 @@ export class AgentStore {
 
   /** Abre la búsqueda de una conversación, desplegándola si hace falta. */
   searchIn(id: string) {
-    if (!this.byId(id)) return;
-    if (!this.isVisible(this.byId(id)!)) this.expand(id);
+    const aside = this.conversations.some((c) => c.asides.some((a) => a.id === id));
+    const c = this.byId(id);
+    if (!c && !aside) return;
+    if (c && !this.isVisible(c)) this.expand(id);
     this.searchRequest = id;
   }
 
@@ -1111,7 +1389,7 @@ export class AgentStore {
     request?: unknown;
   }): Promise<unknown> {
     if (req.action === 'peer') return this.peers.handlePeer(req.request as PeerRequest);
-    if (req.action === 'send' && this.conversations.some((c) => c.side && c.side.id === req.caller)) {
+    if (req.action === 'send' && this.conversations.some((c) => c.asides.some((a) => a.id === req.caller))) {
       throw new Error('Una pregunta aparte (/btw) no puede escribir a otras conversaciones.');
     }
     const caller = req.caller ? this.byId(req.caller) : null;
@@ -1403,6 +1681,7 @@ export class AgentStore {
   }
 
   async deleteTranscript(cwd: string, id: string) {
+    this.byId(id)?.discard();
     await this.close(id);
     await agentApi.deleteTranscript(cwd, id).catch(() => {});
     await this.loadHistory(cwd);

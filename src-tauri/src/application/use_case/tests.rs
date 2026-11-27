@@ -100,6 +100,14 @@ impl AgentRunner for MockAgentRunnerImpl {
     ) -> Result<(), String> {
         Ok(())
     }
+    async fn set_title(&self, _s: &str, title: &str) -> Result<String, String> {
+        Ok(title.to_string())
+    }
+
+    async fn title(&self, _s: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
     async fn set_mode(&self, _s: &str, _m: &str) -> Result<(), String> {
         Ok(())
     }

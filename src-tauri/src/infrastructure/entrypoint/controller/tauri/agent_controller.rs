@@ -178,6 +178,30 @@ pub async fn agent_send_prompt(
         .await
 }
 
+/// Renombra la sesión en el agente y devuelve el nombre que quedó.
+#[tauri::command]
+pub async fn agent_set_title(
+    state: State<'_, AgentState>,
+    session_id: String,
+    title: String,
+) -> Result<String, String> {
+    state
+        .rename_agent_session
+        .execute(RenameAgentSessionCommand { session_id, title })
+        .await
+}
+
+#[tauri::command]
+pub async fn agent_session_title(
+    state: State<'_, AgentState>,
+    session_id: String,
+) -> Result<Option<String>, String> {
+    state
+        .get_agent_session_title
+        .execute(GetAgentSessionTitleQuery { session_id })
+        .await
+}
+
 #[tauri::command]
 pub async fn agent_set_mode(
     state: State<'_, AgentState>,
