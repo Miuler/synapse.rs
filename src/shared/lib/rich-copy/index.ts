@@ -102,11 +102,16 @@ export function taskAwareCopy(sel: Selection | null, root: HTMLElement): { html:
   return toRich(box);
 }
 
-/** Todo el contenido de `el` como HTML limpio y texto plano (casillas como ☐ / ✅) */
-export function richCopyOfElement(el: HTMLElement): { html: string; text: string } {
+/** Estos nodos como HTML limpio y texto plano (casillas como ☐ / ✅) */
+export function richCopyOfNodes(nodes: Iterable<Node>): { html: string; text: string } {
   const box = document.createElement('div');
-  for (const child of el.childNodes) box.append(child.cloneNode(true));
+  for (const node of nodes) box.append(node.cloneNode(true));
   return toRich(box);
+}
+
+/** Todo el contenido de `el`, como `richCopyOfNodes` */
+export function richCopyOfElement(el: HTMLElement): { html: string; text: string } {
+  return richCopyOfNodes(el.childNodes);
 }
 
 /**

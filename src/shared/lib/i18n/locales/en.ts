@@ -182,6 +182,17 @@ export const en = {
     settingHint: 'For Antigravity: the last answer is reused for this long. Clicking the indicator checks again. Claude attaches it to the conversation.',
     label: 'Account quota',
   },
+  replyCopy: {
+    copy: 'Copy',
+    done: 'Copied',
+    hint: 'Copy as Markdown; where formatting is accepted (e-mail, Teams) it pastes formatted',
+  },
+  agentNotice: {
+    setting: 'Turn-end notification',
+    hint: 'Text of the system notification shown when the agent finishes and Synapse is not focused.',
+    answer: "The agent's final answer",
+    query: 'The question you asked',
+  },
   watermark: {
     setting: 'Agent logo watermark',
     hint: 'Opacity of the agent logo shown in the corner of the chat. 0 % hides it.',

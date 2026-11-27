@@ -554,6 +554,20 @@
               >Probar</button>
             </div>
           </div>
+          <label class="row">
+            <span class="row-label">
+              {t('agentNotice.setting')}
+              <span class="hint">{t('agentNotice.hint')}</span>
+            </span>
+            <select
+              class="agent-notice-content"
+              value={appSettings.agentNoticeContent}
+              onchange={(e) => appSettings.setAgentNoticeContent(e.currentTarget.value as 'answer' | 'query')}
+            >
+              <option value="answer">{t('agentNotice.answer')}</option>
+              <option value="query">{t('agentNotice.query')}</option>
+            </select>
+          </label>
           <div class="row">
             <span class="row-label">
               {t('watermark.setting')}

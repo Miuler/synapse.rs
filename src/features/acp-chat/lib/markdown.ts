@@ -28,6 +28,15 @@ export function renderAgentMarkdown(text: string): string {
   }
 }
 
+/** Bloques de primer nivel de un Markdown: su texto original y cuántos elementos pinta cada uno. */
+export function markdownBlocks(text: string): { raw: string; elements: number }[] {
+  return marked.lexer(text).map(({ raw }) => {
+    const box = document.createElement('template');
+    box.innerHTML = renderAgentMarkdown(raw);
+    return { raw, elements: box.content.childElementCount };
+  });
+}
+
 /** Ruta relativa a la bóveda de un enlace `file://` que apunta dentro de ella, o `null`. */
 export function vaultPathOfLink(href: string, cwd: string | null): string | null {
   if (!cwd || !href.startsWith('file://')) return null;

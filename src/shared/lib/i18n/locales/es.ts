@@ -183,6 +183,17 @@ export const es: TranslationSchema = {
     settingHint: 'Para Antigravity: cuánto se reutiliza la última respuesta. Un clic en el indicador vuelve a consultar. Claude la adjunta a la conversación.',
     label: 'Cuota de la cuenta',
   },
+  replyCopy: {
+    copy: 'Copiar',
+    done: 'Copiado',
+    hint: 'Copiar como Markdown; donde se admite formato (correo, Teams) se pega con formato',
+  },
+  agentNotice: {
+    setting: 'Notificación al terminar un turno',
+    hint: 'Texto de la notificación del sistema cuando el agente termina y Synapse no está al frente.',
+    answer: 'La respuesta final del agente',
+    query: 'La pregunta que hiciste',
+  },
   watermark: {
     setting: 'Marca de agua del agente',
     hint: 'Opacidad del logo del agente en la esquina del chat. 0 % la oculta.',

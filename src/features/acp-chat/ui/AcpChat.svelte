@@ -46,7 +46,6 @@
     Shrink,
     ChevronDown,
     Copy,
-    ClipboardType,
     Clock,
     Check,
     MessageCircleQuestion,
@@ -54,6 +53,7 @@
   import { tick, untrack } from 'svelte';
   import { OctopusIcon } from '@shared/ui/icons';
   import { renderAgentMarkdown, renderUserMarkdown, vaultPathOfLink, formatRaw } from '../lib/markdown';
+  import { blockCopy } from '../lib/copy-blocks';
   import { taskAwareCopy, richCopyOfElement, writeRichClipboard } from '@shared/lib/rich-copy';
   import { appSettings } from '@entities/settings';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
@@ -156,21 +156,26 @@
     return () => el.removeEventListener('wheel', onWheel);
   });
 
-  // Copiar una respuesta: Markdown tal cual o con formato (HTML + texto, casillas como ☐ / ✅)
-  let copied = $state<{ id: string; how: 'md' | 'rich' } | null>(null);
+  // Copiar: una respuesta va como Markdown (texto plano) y con formato (HTML, casillas como ☐ / ✅);
+  // quien pega elige: un campo de texto toma el Markdown y un correo, el formato
+  let copied = $state<string | null>(null);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
-  function flagCopied(id: string, how: 'md' | 'rich') {
-    copied = { id, how };
+  function flagCopied(id: string) {
+    copied = id;
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied = null), 1500);
   }
   function copyMarkdown(id: string, text: string) {
-    navigator.clipboard?.writeText(text).then(() => flagCopied(id, 'md')).catch(() => {});
+    navigator.clipboard?.writeText(text).then(() => flagCopied(id)).catch(() => {});
   }
-  function copyRich(id: string, button: HTMLElement) {
+  function copyReply(id: string, text: string, button: HTMLElement) {
     const msg = button.closest('.acp-agent-wrap')?.querySelector<HTMLElement>('.acp-msg.agent');
-    if (msg) writeRichClipboard(richCopyOfElement(msg)).then((ok) => ok && flagCopied(id, 'rich'));
+    if (msg) writeRichClipboard({ html: richCopyOfElement(msg).html, text }).then((ok) => ok && flagCopied(id));
   }
+  const replySource = (id: string) => {
+    const item = conv?.items.find((i) => String(i.id) === id);
+    return item?.type === 'agent' ? item.text : undefined;
+  };
 
   // La caja crece con el texto (desde 3 líneas) hasta el 40 % de la ventana; después, scroll propio
   $effect(() => {
@@ -713,8 +718,14 @@
       bind:this={scroller}
       style={`zoom:${appSettings.chatZoom}`}
       oncopy={(e) => {
-        // Con casillas de tarea: se copian como ☐ / ✅ (como en el modo lectura de las notas)
-        const out = taskAwareCopy(window.getSelection(), e.currentTarget as HTMLElement);
+        // Bloques completos de una respuesta: su Markdown original. En un fragmento con casillas de
+        // tarea, estas van como ☐ / ✅ (como en el modo lectura de las notas)
+        // `defaultPrevented`: ya lo escribió el botón «Copiar» (aunque haya una selección) o el chat
+        // de la pregunta aparte, si está dentro
+        if (e.defaultPrevented) return;
+        const root = e.currentTarget as HTMLElement;
+        const sel = window.getSelection();
+        const out = blockCopy(sel, root, replySource) ?? taskAwareCopy(sel, root);
         if (!out || !e.clipboardData) return;
         e.preventDefault();
         e.clipboardData.setData('text/html', out.html);
@@ -786,7 +797,7 @@
           </div>
             <div class="acp-msg-actions">
               <button type="button" class="acp-copy-user" title="Copiar el texto tal como lo escribiste (para reusarlo)" onclick={() => copyMarkdown(String(item.id), item.text)}>
-                {#if copied?.id === String(item.id) && copied.how === 'md'}<Check size={11} /> Copiado{:else}<Copy size={11} /> Copiar{/if}
+                {#if copied === String(item.id)}<Check size={11} /> Copiado{:else}<Copy size={11} /> Copiar{/if}
               </button>
             </div>
           </div>
@@ -794,18 +805,10 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="acp-agent-wrap">
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <div class="acp-msg agent markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
+            <div class="acp-msg agent markdown" data-reply={item.id} onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
             <div class="acp-msg-actions">
-              <button type="button" class="acp-copy-md" title="Copiar el Markdown tal cual" onclick={() => copyMarkdown(item.id, item.text)}>
-                {#if copied?.id === item.id && copied.how === 'md'}<Check size={11} /> Copiado{:else}<Copy size={11} /> Markdown{/if}
-              </button>
-              <button
-                type="button"
-                class="acp-copy-rich"
-                title="Copiar con formato, para pegar en un correo o en Teams (las tareas como ☐ / ✅)"
-                onclick={(e) => copyRich(item.id, e.currentTarget)}
-              >
-                {#if copied?.id === item.id && copied.how === 'rich'}<Check size={11} /> Copiado{:else}<ClipboardType size={11} /> Con formato{/if}
+              <button type="button" class="acp-copy-reply" title={t('replyCopy.hint')} onclick={(e) => copyReply(item.id, item.text, e.currentTarget)}>
+                {#if copied === item.id}<Check size={11} /> {t('replyCopy.done')}{:else}<Copy size={11} /> {t('replyCopy.copy')}{/if}
               </button>
             </div>
           </div>

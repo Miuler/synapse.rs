@@ -46,6 +46,8 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Chat del agente: la notificación de fin de turno muestra ahora la respuesta final del agente en lugar de tu pregunta; en Configuración se puede volver a la pregunta.
+- Chat del agente: copiar una respuesta (un solo botón «Copiar») o bloques completos de ella con `Ctrl+C` pone el Markdown original como texto plano y la versión con formato como HTML: en un campo de texto se pega Markdown y en un correo, con formato.
 - El buscador de archivos (Ctrl+O) y el de contenido (Ctrl+Shift+F) recuerdan lo escrito, filtros incluidos, hasta cerrar Synapse; reaparece seleccionado, así que escribir lo reemplaza.
 - El índice de búsqueda se reconstruye una vez al abrir cada bóveda: los PDF se indexan ahora página a página y los documentos de Word párrafo a párrafo.
 - Panel del agente: cerrarlo solo lo oculta; reabrirlo es más rápido con conversaciones largas y conserva el scroll.

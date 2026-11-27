@@ -429,7 +429,7 @@ it('un agente consulta otra bóveda con permiso del usuario', async () => {
   expect(existsSync(join(s.vault, '.synapse/vault-access.json'))).toBe(true);
 }, 120_000);
 
-it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selección y zoom', async () => {
+it('respuesta con tareas: casillas, copiar como Markdown y con formato, copiar selección y zoom', async () => {
   const input = s.browser.$('.acp-input textarea');
   await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
   await input.setValue('dame la lista de tareas');
@@ -446,7 +446,7 @@ it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selecc
   })) as { checked: boolean; disabled: boolean }[];
   expect(boxes).toEqual([{ checked: false, disabled: true }, { checked: true, disabled: true }]);
 
-  // «Con formato» y la selección copian ☐ / ✅. Se captura lo que se escribe en el portapapeles
+  // El botón y la selección de bloques llevan el Markdown original y, en HTML, ☐ / ✅. Se captura lo que se escribe en el portapapeles
   // (evento copy o ClipboardItem); el botón se pulsa con un clic real (copiar exige un gesto del usuario)
   await s.browser.execute(() => {
     const w = window as any;
@@ -460,34 +460,57 @@ it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selecc
       for (const it of items) for (const t of it.types) w.__copied[t] = await (await it.getType(t)).text();
     };
   });
-  const rich = s.browser.$('.acp-agent-wrap[data-test="tareas"] .acp-copy-rich');
-  await rich.scrollIntoView();
-  await rich.moveTo();
-  await rich.click();
+  const copyButton = s.browser.$('.acp-agent-wrap[data-test="tareas"] .acp-copy-reply');
+  await copyButton.scrollIntoView();
+  await copyButton.moveTo();
+  await copyButton.click();
   await s.browser.waitUntil(async () => !!(await s.browser.execute(() => (window as any).__copied['text/plain'])), {
     timeout: 5_000,
-    timeoutMsg: '«Con formato» no escribió en el portapapeles',
+    timeoutMsg: '«Copiar» no escribió en el portapapeles',
   });
   const captured = (await s.browser.execute(() => {
     const w = window as any;
     const out = [{ html: w.__copied['text/html'] ?? '', text: w.__copied['text/plain'] ?? '' }];
-    const wrap = document.querySelector('.acp-agent-wrap[data-test="tareas"]')!;
-    const ul = wrap.querySelector('.acp-msg.agent ul')!;
-    const range = document.createRange();
-    range.selectNodeContents(ul);
-    const sel = window.getSelection()!;
-    sel.removeAllRanges();
-    sel.addRange(range);
-    const data = new DataTransfer();
-    ul.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
-    out.push({ html: data.getData('text/html'), text: data.getData('text/plain') });
+    const msg = document.querySelector('.acp-agent-wrap[data-test="tareas"] .acp-msg.agent')!;
+    const ul = msg.querySelector('ul')!;
+    const copyOf = (select: (range: Range) => void) => {
+      const range = document.createRange();
+      select(range);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      const data = new DataTransfer();
+      ul.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+      out.push({ html: data.getData('text/html'), text: data.getData('text/plain') });
+    };
+    // Un bloque completo, la respuesta entera y un fragmento (una sola tarea)
+    copyOf((r) => r.selectNodeContents(ul));
+    copyOf((r) => r.selectNodeContents(msg));
+    copyOf((r) => r.selectNodeContents(ul.querySelector('li')!));
     return out;
   })) as { html: string; text: string }[];
-  expect(captured[0].text).toBe('Avance\n- ☐ 00. Modelo de Dato\n- ✅ 02. Diagrama de Software');
-  expect(captured[0].html).toContain('<h2>Avance</h2>');
-  expect(captured[0].html).toContain('<strong>02.</strong>');
-  expect(captured[0].html).not.toContain('<input');
-  expect(captured[1].text).toBe('- ☐ 00. Modelo de Dato\n- ✅ 02. Diagrama de Software');
+  const list = '- [ ] 00. Modelo de Dato\n- [x] **02.** Diagrama de Software';
+  const [button, block, whole, fragment] = captured;
+  for (const copy of [button, whole]) {
+    expect(copy.text).toBe(`## Avance\n\n${list}`);
+    expect(copy.html).toContain('<h2>Avance</h2>');
+    expect(copy.html).toContain('<strong>02.</strong>');
+    expect(copy.html).not.toContain('<input');
+  }
+  expect(block.text).toBe(list);
+  expect(block.html).toContain('<strong>02.</strong>');
+  expect(block.html).not.toContain('<h2>');
+  // Un fragmento se copia como antes: texto sin marcas
+  expect(fragment.text).toBe('☐ 00. Modelo de Dato');
+  // Con un bloque seleccionado, el botón sigue copiando la respuesta entera
+  await s.browser.execute(() => {
+    (window as any).__copied = {};
+    const ul = document.querySelector('.acp-agent-wrap[data-test="tareas"] .acp-msg.agent ul')!;
+    window.getSelection()!.selectAllChildren(ul);
+  });
+  await copyButton.click();
+  await s.browser.waitUntil(async () => !!(await s.browser.execute(() => (window as any).__copied['text/plain'])), { timeout: 5_000 });
+  expect(await s.browser.execute(() => (window as any).__copied['text/plain'])).toBe(`## Avance\n\n${list}`);
 
   // Zoom del chat: Ctrl++ con el foco en los mensajes, Ctrl+0 vuelve
   const zoom = () => s.browser.execute(() => (document.querySelector('.acp-messages') as HTMLElement).style.zoom) as Promise<string>;
@@ -512,6 +535,34 @@ it('respuesta con tareas: casillas, copiar Markdown / con formato, copiar selecc
   expect(grown.h).toBeGreaterThan(h1 * 2);
   expect(grown.h).toBeLessThanOrEqual(grown.max + 1);
   await input.clearValue();
+}, 60_000);
+
+it('la notificación de fin de turno lleva la respuesta final, o la consulta si así se configura', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  // Los avisos enviados al sistema, del registro de llamadas IPC
+  const notices = () =>
+    s.browser.execute(() =>
+      ((window as any).__synapseIpcLog ?? []).filter((e: any) => e.cmd === 'notify_if_unfocused').map((e: any) => e.args.body),
+    ) as Promise<string[]>;
+  const ask = async () => {
+    await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
+    await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+    const before = (await notices()).length;
+    await input.setValue('dame la lista de tareas');
+    await s.browser.keys('Enter');
+    await s.browser.waitUntil(async () => (await notices()).length > before, { timeout: 15_000, timeoutMsg: 'no hubo notificación' });
+    return (await notices()).at(-1);
+  };
+  expect(await ask()).toBe('Avance ☐ 00. Modelo de Dato ✅ 02. Diagrama de Software');
+
+  await s.browser.$('.synapse-agent-panel button[title="Ajustes de agentes"]').click();
+  const select = s.browser.$('select.agent-notice-content');
+  await select.waitForExist({ timeout: 5_000 });
+  expect(await select.getValue()).toBe('answer');
+  await select.selectByAttribute('value', 'query');
+  await s.browser.keys('Escape');
+  await s.browser.$('.settings-panel').waitForExist({ reverse: true, timeout: 5_000 });
+  expect(await ask()).toBe('Terminó la consulta: "dame la lista de tareas"');
 }, 60_000);
 
 it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ edita; Detener lo devuelve a la caja', async () => {

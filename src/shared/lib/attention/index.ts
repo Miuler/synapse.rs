@@ -15,3 +15,14 @@ export function requestAttention(title: string, body: string): void {
 export function notifyIfUnfocused(title: string, body: string): void {
   invokeTauri('notify_if_unfocused', { title, body }).catch(() => {});
 }
+
+/** Qué muestra la notificación de fin de turno de un agente; se elige en Configuración. */
+export type AgentNoticeContent = 'answer' | 'query';
+
+let noticeContent: AgentNoticeContent = 'answer';
+
+export const agentNoticeContent = (): AgentNoticeContent => noticeContent;
+
+export function setAgentNoticeContent(content: AgentNoticeContent): void {
+  noticeContent = content;
+}

@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Agent chat: the notification shown when a turn ends now carries the agent's final answer instead of your question; Settings lets you go back to the question.
+- Agent chat: copying a reply (one «Copy» button) or whole blocks of it with `Ctrl+C` puts the original Markdown as plain text and the formatted version as HTML, so a text field pastes Markdown and an e-mail pastes it formatted.
 - File finder (Ctrl+O) and content search (Ctrl+Shift+F) remember what you typed, filters included, until you close Synapse; it reopens selected, so typing replaces it.
 - The search index is rebuilt once on opening each vault: PDFs are now indexed page by page and Word documents paragraph by paragraph.
 - Agent panel: closing it only hides it, so reopening it is faster with long conversations and keeps the scroll position.

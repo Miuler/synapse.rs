@@ -1,6 +1,6 @@
 import { t } from '@shared/lib/i18n';
 import { quotaMarkdown } from '../lib/quota';
-import { notifyIfUnfocused, requestAttention } from '@shared/lib/attention';
+import { agentNoticeContent, notifyIfUnfocused, requestAttention } from '@shared/lib/attention';
 import { playAgentCompletionSound } from '@shared/lib/sound';
 import { completionNotice } from './completion-notice';
 import { PeerLink, type PeerRequest, type RemoteRef } from './peer-link';
@@ -709,7 +709,10 @@ export class Conversation {
       if (!this.nativeTitle && !this.session?.capabilities.session_title) void this.refreshTitle();
       if (stopReason !== 'cancelled' && !opts.replyTo && !this.isAside && this.queue.length === 0) {
         void playAgentCompletionSound();
-        const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error');
+        // La respuesta final es el último mensaje del turno (los anteriores acompañan a sus herramientas)
+        const last = this.items.slice(turnStart).findLast((i) => i.type === 'agent');
+        const answer = agentNoticeContent() === 'answer' && last?.type === 'agent' ? last.text : undefined;
+        const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error', answer);
         notifyIfUnfocused(notice.title, notice.body);
       }
       this.deliverNext();

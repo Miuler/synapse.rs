@@ -1,6 +1,7 @@
 import { invokeTauri, isTauriEnvironment } from '@shared/repositories/tauri';
 import { i18n, type SupportedLocale } from '@shared/lib/i18n';
 import { setAgentCompletionSound, type AgentCompletionSound } from '@shared/lib/sound';
+import { setAgentNoticeContent, type AgentNoticeContent } from '@shared/lib/attention';
 
 export type MermaidRendererType = 'mermaidjs' | 'merman';
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -9,7 +10,7 @@ export type ExcalidrawViewerType = 'native' | 'obsidian';
 export type PropertiesViewMode = 'expanded' | 'collapsed' | 'hidden';
 /** Clic en una carpeta del explorador: abre su `index.md` (por defecto) o la despliega */
 export type FolderClickMode = 'index' | 'expand';
-export type { SupportedLocale, AgentCompletionSound };
+export type { SupportedLocale, AgentCompletionSound, AgentNoticeContent };
 
 export const EMPTY_TAB_PARTS = ['search', 'recents', 'create', 'tips'] as const;
 export type EmptyTabPart = (typeof EMPTY_TAB_PARTS)[number];
@@ -41,6 +42,8 @@ export interface AppSettings {
   chatZoom: number;
   /** Sonido al terminar un turno del agente ACP. */
   agentCompletionSound: AgentCompletionSound;
+  /** Texto de la notificación de fin de turno: la respuesta final del agente o la consulta. */
+  agentNoticeContent: AgentNoticeContent;
   /** Opacidad de la marca de agua con el logo del agente en el chat, de 0 (oculta) a 40 %. */
   agentWatermark: number;
   /** Lista de archivos recientes de la pestaña vacía, plegada. */
@@ -89,6 +92,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sheetZoom: 1, // Zoom del visor de hojas de cálculo
   chatZoom: 1, // Zoom del chat del agente
   agentCompletionSound: 'burbuja_fm', // Sonido al terminar un turno del agente ACP
+  agentNoticeContent: 'answer',
   agentWatermark: 10, // Opacidad (%) de la marca de agua del agente en el chat
   recentsCollapsed: false,
   recentsCount: 3,
@@ -168,6 +172,9 @@ function loadInitialSettings(): AppSettings {
       ) {
         settings.agentCompletionSound = parsed.agentCompletionSound;
       }
+      if (parsed.agentNoticeContent === 'answer' || parsed.agentNoticeContent === 'query') {
+        settings.agentNoticeContent = parsed.agentNoticeContent;
+      }
       if (typeof parsed.agentWatermark === 'number' && Number.isFinite(parsed.agentWatermark)) {
         settings.agentWatermark = clampWatermark(parsed.agentWatermark);
       }
@@ -218,6 +225,7 @@ class SettingsManager {
       i18n.setLocale(this.settings.locale);
     }
     setAgentCompletionSound(this.settings.agentCompletionSound || 'burbuja_fm');
+    setAgentNoticeContent(this.settings.agentNoticeContent);
     this.applyLaserSize();
 
     if (typeof window !== 'undefined') {
@@ -493,6 +501,16 @@ class SettingsManager {
   setAgentCompletionSound(sound: AgentCompletionSound) {
     this.settings = { ...this.settings, agentCompletionSound: sound };
     setAgentCompletionSound(sound);
+    this.persist();
+  }
+
+  get agentNoticeContent(): AgentNoticeContent {
+    return this.settings.agentNoticeContent;
+  }
+
+  setAgentNoticeContent(content: AgentNoticeContent) {
+    this.settings = { ...this.settings, agentNoticeContent: content };
+    setAgentNoticeContent(content);
     this.persist();
   }
 
