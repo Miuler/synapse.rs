@@ -432,7 +432,8 @@ fn person(value: &Value) -> Option<Person> {
 }
 
 /// La categoría que declara Azure DevOps. «Resolved» sigue en curso hasta que se cierra; una que no
-/// se conozca se deduce del nombre del estado. («Removed» no figura en la documentación consultada.)
+/// se conozca se deduce del nombre del estado. («Removed» no figura en la documentación de los estados, pero
+/// la API lo declara.)
 fn category(declared: &str, name: &str) -> StateCategory {
     match declared {
         "Proposed" => StateCategory::Todo,
