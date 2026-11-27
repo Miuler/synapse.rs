@@ -14,6 +14,7 @@
   import { normalizeHeadingText, type HeadingTarget } from '../lib/heading-anchor';
   import { expandSectionEmbeds, type EmbedLoader } from '../lib/section-embed';
   import { vaultApi } from '@entities/vault-item';
+  import { mountBoardReferences } from '@entities/board';
   import { extractYouTubeId, getYouTubeThumbnailUrl } from '../lib/youtube';
   import { extractFrontmatterAndBody } from '../lib/frontmatter-extractor';
   import NoteProperties from './NoteProperties.svelte';
@@ -49,6 +50,7 @@
   let renderedHtml = $state('');
   let frontmatterData = $state<Record<string, any>>({});
   let cleanupFolderIndex: (() => void) | null = null;
+  let cleanupBoards: (() => void) | null = null;
 
   const article = () => containerRef?.querySelector<HTMLElement>('.markdown-body') ?? null;
 
@@ -137,6 +139,8 @@
     cancelScheduledSearch();
     cleanupFolderIndex?.();
     cleanupFolderIndex = null;
+    cleanupBoards?.();
+    cleanupBoards = null;
   });
 
   export function triggerSearch() {
@@ -522,6 +526,9 @@
             </div>
           </div>`;
         }
+        if (cleanLang === 'board') {
+          return `<div class="board-ref" data-code="${encodeURIComponent(text)}"></div>`;
+        }
         if (cleanLang === 'excalidraw') {
           return `<div class="reading-excalidraw-card" data-code="${encodeURIComponent(text)}">
             <div class="reading-mermaid-header">
@@ -807,6 +814,9 @@
       } else {
         body?.classList.remove('okf-folder-index');
       }
+      // Bloques `board` y enlaces a tareas; un índice de carpeta se queda como explorador
+      cleanupBoards?.();
+      cleanupBoards = body && !isGeneratedFolderIndex(filePath, raw) ? mountBoardReferences(body, filePath, vaultApi) : null;
       onRendered?.();
       if (scrollToHeading) {
         goToHeading(scrollToHeading.text);

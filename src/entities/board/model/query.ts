@@ -35,6 +35,8 @@ export interface ReferenceError {
     | 'bad_value'
     | 'missing_board'
     | 'ambiguous_board'
+    | 'table_board'
+    | 'unreadable'
     | 'missing_task';
   detail: string;
   /** Lo que sí se admite en ese sitio. */
@@ -119,23 +121,6 @@ export function taskReference(target: string): { board: string; task: string } |
   const path = target.split('|')[0].split('#')[0].trim();
   const found = path.match(/^(.*[^/]\.board)\/([A-Za-z0-9_-]+)(?:\.md)?$/);
   return found && found[2].toLowerCase() !== 'index' ? { board: found[1], task: found[2] } : null;
-}
-
-const folderOf = (path: string) => path.slice(0, path.lastIndexOf('/') + 1);
-
-/**
- * El `.board.md` que nombra una nota: la ruta desde la raíz o desde su carpeta y, si solo es un
- * nombre, el único de la bóveda que se llame así.
- */
-export function resolveBoardPath(name: string, notePath: string, files: string[]): Result<string> {
-  const wanted = name.trim().replace(/^\.?\//, '').replace(/\.md$/i, '').replace(/\.board$/i, '');
-  const file = `${wanted}.board.md`.toLowerCase();
-  const find = (path: string) => files.find((f) => f.toLowerCase() === path);
-  const near = find(folderOf(notePath).toLowerCase() + file) ?? find(file);
-  if (near) return { ok: true, value: near };
-  const matches = files.filter((f) => f.toLowerCase().endsWith(`/${file}`));
-  if (matches.length === 1) return { ok: true, value: matches[0] };
-  return matches.length ? fail('ambiguous_board', name, matches) : fail('missing_board', name);
 }
 
 /** Los datos de un tablero que usa una referencia (los de `board_read`). */

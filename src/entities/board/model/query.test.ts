@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  parseBoardBlock, resolveBoardPath, resolveQuery, resolveTask, taskReference, type BoardQuery, type ReferencedBoard,
+  parseBoardBlock, resolveQuery, resolveTask, taskReference, type BoardQuery, type ReferencedBoard,
 } from './query';
 
 type Task = ReferencedBoard['tasks'][number];
@@ -148,16 +148,5 @@ describe('referencias', () => {
     }
     expect(resolveTask(data, 'ADO-123')).toMatchObject({ ok: true, value: { key: 'AB#123', title: 'ado-123', state: 'In Progress' } });
     expect(resolveTask(data, 'nada')).toMatchObject({ ok: false, error: { kind: 'missing_task', detail: 'nada' } });
-  });
-
-  it('encuentra el tablero por su ruta o por su nombre', () => {
-    const files = ['Equipo.board.md', 'a/Equipo.board.md', 'b/Otro.board.md', 'c/Otro.board.md', 'd/Solo.board.md'];
-    const found = (name: string, note: string) => resolveBoardPath(name, note, files);
-    expect(found('Equipo.board', 'a/nota.md')).toEqual({ ok: true, value: 'a/Equipo.board.md' });
-    expect(found('equipo.board.md', 'z/nota.md')).toEqual({ ok: true, value: 'Equipo.board.md' });
-    expect(found('b/Otro', 'nota.md')).toEqual({ ok: true, value: 'b/Otro.board.md' });
-    expect(found('Solo.board', 'nota.md')).toEqual({ ok: true, value: 'd/Solo.board.md' });
-    expect(found('Otro.board', 'nota.md')).toMatchObject({ ok: false, error: { kind: 'ambiguous_board' } });
-    expect(found('Falta.board', 'nota.md')).toMatchObject({ ok: false, error: { kind: 'missing_board', detail: 'Falta.board' } });
   });
 });

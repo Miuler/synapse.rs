@@ -1,0 +1,133 @@
+/* Referencias a tableros dentro de una nota (lectura y vista en vivo). */
+.board-ref {
+  margin: 0.8em 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  font-size: 0.9em;
+}
+
+.board-ref p,
+.board-ref ul {
+  margin: 0;
+}
+
+.board-ref-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.board-ref-header small,
+.board-ref-empty,
+.board-ref-updated,
+.board-ref-start,
+.board-ref-duration {
+  color: var(--text-muted);
+}
+
+.board-ref-name {
+  font-weight: 600;
+}
+
+.board-ref-error {
+  color: var(--warning, #d97706);
+  overflow-wrap: anywhere;
+}
+
+a.board-task-ref .board-ref-error {
+  font-size: 0.85em;
+}
+
+.board-ref-state {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.board-ref-state.is-doing {
+  border-color: var(--accent);
+}
+
+.board-ref-state.is-done {
+  border-color: #22c55e;
+}
+
+.board-ref-state.is-cancelled {
+  text-decoration: line-through;
+}
+
+.board-ref .board-ref-list {
+  list-style: none;
+  padding: 0;
+}
+
+.board-ref-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 2px 0;
+}
+
+.board-ref .board-ref-group {
+  margin: 6px 0 2px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.board-ref-table {
+  width: 100%;
+  margin: 0;
+}
+
+.board-ref-kanban {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.board-ref-column {
+  flex: 1 0 150px;
+  min-width: 0;
+}
+
+.board-ref-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.board-ref-bar {
+  height: 6px;
+  margin: 6px 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+}
+
+.board-ref-bar div {
+  height: 100%;
+  background: #22c55e;
+}
+
+.board-ref .board-ref-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 0;
+  list-style: none;
+}

@@ -82,8 +82,12 @@
   y, si no dicen nada, de su sitio en el tablero; el avance no cuenta lo cancelado. Para ordenar por `updated`, «Traer»
   guarda ahora la fecha de cambio de cada tarea que lee (las anteriores quedan al final hasta que cambien). Las
   referencias solo resuelven tableros de carpeta
-- [ ] 4.2 Pintar en lectura el bloque `board` y el enlace a una tarea, saneados y actualizados al cambiar el tablero;
-  e2e de las cuatro vistas, de una referencia inexistente y de un título con HTML
+- [x] 4.2 Pintar en lectura el bloque `board` y el enlace a una tarea, saneados y actualizados al cambiar el tablero;
+  e2e de las cuatro vistas, de una referencia inexistente y de un título con HTML.
+  Pulsar un enlace abre el archivo de la tarea, no el tablero en ella, y todavía no hay «Actualizar» (4.4). Las fechas
+  salen en UTC. Solo tableros de carpeta: de uno con tabla se pide convertirlo. El tablero se busca con el resolvedor
+  de enlaces de la bóveda (sustituye a la función propia de la 4.1; un nombre ambiguo no tiene prueba). La sintaxis se
+  documenta en la 4.4
 - [ ] 4.3 Pintarlos en la vista en vivo; e2e de edición alrededor del widget
 - [ ] 4.4 «Actualizar» desde un bloque y abrir el tablero en una tarea; e2e que confirma que abrir la nota no hace
   peticiones; documentar la sintaxis con ejemplos

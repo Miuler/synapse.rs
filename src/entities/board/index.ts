@@ -6,7 +6,6 @@ export {
   VIEWS,
   boardRows,
   parseBoardBlock,
-  resolveBoardPath,
   resolveQuery,
   resolveTask,
   summarize,
@@ -23,3 +22,4 @@ export {
   type Row,
   type Summary,
 } from './model/query';
+export { mountBoardReferences, type BoardVault } from './ui/mount';
