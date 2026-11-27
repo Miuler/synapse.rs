@@ -1,5 +1,5 @@
 export { default as BoardEditor } from './ui/BoardEditor.svelte';
-export { default as AzureTokenField } from './ui/AzureTokenField.svelte';
+export { default as ConnectionsSettings } from './ui/ConnectionsSettings.svelte';
 export {
   createDefaultBoardMarkdown,
   parseBoardMarkdown,

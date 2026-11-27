@@ -71,7 +71,7 @@ pub fn info() -> GitInfo {
     }
 }
 
-fn config_path(config_dir: &Path) -> PathBuf {
+pub(crate) fn config_path(config_dir: &Path) -> PathBuf {
     config_dir.join("config.jsonc")
 }
 

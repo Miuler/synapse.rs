@@ -102,7 +102,7 @@ En `~/.config/synapsers/config.jsonc`, nunca en la bóveda:
 }
 ```
 
-En el llavero, entrada `issues/<id>` del servicio `synapsers`. La credencial solo se envía al `server` de su
+En el llavero, entrada `issues-<id>` del servicio `synapsers` (el id solo admite `[a-z0-9-]`). La credencial solo se envía al `server` de su
 conexión, por HTTPS (HTTP solo si la conexión apunta a este equipo). **Cambiar el servidor de una conexión borra su
 credencial** y obliga a ponerla de nuevo: así ni un script del webview puede redirigir un token guardado. Esto
 sustituye a la lista de servidores admitidos y a `AZURE_DEVOPS_URL`.
@@ -324,7 +324,9 @@ Alternativa descartada: histórico de solo lectura (el usuario quiere poder corr
 2. Si tiene `azure_devops`, se propone la conexión cuyo servidor coincida o se crea «Azure DevOps» con la credencial
    global existente, y su consulta pasa a ser el filtro.
 3. `azure_devops.token`, la entrada `azure-devops-token` del llavero y las variables `AZURE_DEVOPS_PAT`/`ADO_PAT`
-   solo se usan para crear esa primera conexión.
+   sirven mientras no haya ninguna conexión (una implícita, solo hacia la nube de Azure DevOps) y para copiarlos a
+   una conexión de esa nube cuando el usuario lo pida. Leer nunca reescribe `config.jsonc` y nada anterior se borra,
+   para que la versión instalada siga funcionando.
 4. Volver atrás: restaurar el `.board.md` desde el control de versiones o la copia previa y borrar la carpeta.
 
 ## Open Questions

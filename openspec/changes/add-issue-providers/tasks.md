@@ -7,18 +7,19 @@
 - [x] 1.2 Convertir `azure_devops_client.rs` en adaptador del puerto, con registro por `provider` y órdenes
   `issues_*`; verificar que las pruebas actuales del cliente y `e2e/board-azure.test.ts` pasan sin llamadas a las
   órdenes antiguas
-- [ ] 1.3 Traducir el tablero y «Traer»/«Enviar» al modelo común, sin tipos de Azure DevOps en
-  `features/board-editor`; verificar con `bun test ./src` y una búsqueda sin referencias a `azure` fuera de la API
-  de conexiones
+- [x] 1.3 Traducir el tablero y «Traer»/«Enviar» al modelo común (ids de texto, revisión opaca y estados por defecto
+  de `issues_providers`); lo propio de Azure DevOps queda solo en el módulo que lee el formato anterior (hasta la 3.5)
+  y en el campo de la credencial (hasta el grupo 2); verificar con `bun test ./src`, las e2e de tableros y una búsqueda
+  sin otras referencias a Azure en `features/board-editor`
 
 ## 2. Conexiones y credenciales
 
-- [ ] 2.1 Guardar conexiones en `issues.connections` y su credencial en el llavero (`issues/<id>`) o como `op://`,
+- [x] 2.1 Guardar conexiones en `issues.connections` y su credencial en el llavero (`issues-<id>`) o como `op://`,
   descartándola al cambiar el servidor; pruebas en Rust de varias conexiones del mismo proveedor, del cambio de
   servidor y de que ningún token llega a `config.jsonc` ni a la respuesta de las órdenes
-- [ ] 2.2 Enviar cada credencial solo al servidor de su conexión (HTTPS o equipo local) y retirar la lista de
+- [x] 2.2 Enviar cada credencial solo al servidor de su conexión (HTTPS o equipo local) y retirar la lista de
   servidores admitidos; pruebas con un tablero que indique otro servidor y con redirecciones
-- [ ] 2.3 Pantalla de conexiones en Configuración, con formulario generado por el proveedor, «Probar» y borrado;
+- [x] 2.3 Pantalla de conexiones en Configuración, con formulario generado por el proveedor, «Probar» y borrado;
   e2e que crea dos conexiones de Azure DevOps contra servidores falsos y confirma que cada tablero usa la suya.
   Añade `check` al puerto, tras verificar su endpoint
 - [ ] 2.4 Al crear un tablero, pedir conexión, ámbito y filtro (criterios que declara el proveedor o su consulta),

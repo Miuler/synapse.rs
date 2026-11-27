@@ -7,15 +7,15 @@
   import { ResizableDialog } from '@shared/ui/dialog-resize';
   import { t } from '@shared/lib/i18n';
   import type { BoardColumn, BoardTask } from '../model/board.svelte';
-  import type { AzureLink } from '../model/azure-sync';
+  import type { IssueLink } from '../model/issue-sync';
 
   interface Props {
     task: BoardTask;
     /** Todas las tareas, para nombrar de la que depende. */
     tasks: BoardTask[];
     columns: BoardColumn[];
-    /** El work item de Azure DevOps enlazado, si lo hay. */
-    link?: AzureLink;
+    /** La tarea del proveedor enlazada, si la hay. */
+    link?: IssueLink;
     onClose: () => void;
     onAddComment: (taskId: string, text: string) => void;
   }
@@ -102,8 +102,8 @@
           <div class="progress-bar"><div style="width: {task.progress}%"></div></div>
         </dd>
         {#if link}
-          <dt>Azure DevOps</dt>
-          <dd class="detail-azure">
+          <dt>{t('issues.linked')}</dt>
+          <dd class="detail-link">
             #{link.id}
             <span class="detail-note">{t('board.detail.syncedState', { state: link.state })}</span>
           </dd>

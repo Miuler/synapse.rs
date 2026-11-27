@@ -14,7 +14,7 @@
   import KanbanView from './KanbanView.svelte';
   import GanttView from './GanttView.svelte';
   import TaskDialog from './TaskDialog.svelte';
-  import AzureSync from './AzureSync.svelte';
+  import IssueSync from './IssueSync.svelte';
 
   interface Props {
     content: string;
@@ -60,10 +60,10 @@
   function deleteTask(id: string) {
     if (selectedTaskId === id) selectedTaskId = null;
     const tasks = doc.tasks.filter((t) => t.id !== id);
-    if (!doc.azure?.links?.[id]) return commit(tasks);
-    // Sin su vínculo, una tarea nueva con el mismo id no hereda el work item
-    const { [id]: _, ...links } = doc.azure.links;
-    write({ ...doc, tasks, azure: { ...doc.azure, links } });
+    if (!doc.source?.links?.[id]) return commit(tasks);
+    // Sin su vínculo, una tarea nueva con el mismo id no hereda la del proveedor
+    const { [id]: _, ...links } = doc.source.links;
+    write({ ...doc, tasks, source: { ...doc.source, links } });
   }
 
   function addTask(status?: string) {
@@ -130,7 +130,7 @@
       </button>
     </div>
 
-    <AzureSync read={() => doc} {write} />
+    <IssueSync read={() => doc} {write} />
   </header>
 
   <div class="board-body">
@@ -177,7 +177,7 @@
           task={selectedTask}
           tasks={doc.tasks}
           columns={doc.columns}
-          link={doc.azure?.links?.[selectedTask.id]}
+          link={doc.source?.links?.[selectedTask.id]}
           onClose={() => (selectedTaskId = null)}
           onAddComment={addComment}
         />

@@ -6987,6 +6987,7 @@ dependencies = [
  "tracing-indicatif",
  "tracing-subscriber",
  "umya-spreadsheet",
+ "url",
  "vergen",
  "vergen-gix",
  "webkit2gtk-nvidia-quirk",

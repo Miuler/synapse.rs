@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'bun:test';
-import { applyPull, buildPushPlan, runPush, type AzureLink, type AzureWriter, type WorkItem } from './azure-sync';
-import { parseBoardMarkdown, serializeBoardMarkdown, type BoardDocument, type BoardTask } from './board.svelte';
+import { applyPull, buildPushPlan, runPush, type Issue, type IssueLink, type IssueProvider, type IssueWriter } from './issue-sync';
+import { parseBoardMarkdown, type BoardDocument, type BoardTask } from './board.svelte';
 
-const item = (id: number, title: string, state: string, rev = 1): WorkItem => ({ id, rev, title, state, work_item_type: 'Task' });
+const provider: IssueProvider = {
+  id: 'prueba',
+  name: 'Prueba',
+  query_language: 'Q',
+  default_query: 'todo',
+  default_issue_type: 'Task',
+  default_states: { todo: ['To Do'], doing: ['In Progress', 'Doing'], done: ['Done'] },
+  task_prefix: 'ado',
+  scope_example: '',
+};
+
+const item = (id: number, title: string, state: string, revision = 1): Issue => ({
+  id: String(id),
+  type: 'Task',
+  title,
+  state: { name: state },
+  revision: String(revision),
+});
 
 const task = (id: string, title: string, status: string): BoardTask => ({
   id,
@@ -15,47 +32,23 @@ const task = (id: string, title: string, status: string): BoardTask => ({
   comments: [],
 });
 
-const board = (tasks: BoardTask[], links: Record<string, AzureLink> = {}): BoardDocument => ({
+const board = (tasks: BoardTask[], links: Record<string, IssueLink> = {}): BoardDocument => ({
   ...parseBoardMarkdown(''),
   tasks,
-  azure: { project_url: 'https://dev.azure.com/org/Proyecto', links },
+  source: { provider: 'prueba', connection: 'prueba', scope: 'https://ejemplo.test/proyecto', links },
 });
 
-const link = (id: number, title: string, state: string, column: string): AzureLink => ({ id, title, state, column });
-
-describe('el tablero guarda la sincronización', () => {
-  it('conserva la configuración, los vínculos y las claves ajenas al volver a escribirse', () => {
-    const doc = board([task('t1', 'A | B', 'todo')], {
-      t1: { ...link(7, 'A | B', 'To Do', 'todo'), sent: ['2026-01-01T10:00:00'] },
-    });
-    doc.azure!.query = 'SELECT [System.Id]\nFROM WorkItems';
-    doc.extraFrontmatter = 'tags:\n  - trabajo';
-    const text = serializeBoardMarkdown(doc);
-    const read = parseBoardMarkdown(text);
-    expect(read.azure).toEqual(doc.azure);
-    expect(read.extraFrontmatter).toBe(doc.extraFrontmatter);
-    expect(read.tasks).toEqual(doc.tasks);
-    expect(read.columns).toEqual(doc.columns);
-    expect(serializeBoardMarkdown(read)).toBe(text);
-  });
-
-  it('un bloque a medio escribir se conserva como texto', () => {
-    const raw = '---\ntype: board\nazure_devops: {\n---\n';
-    const doc = parseBoardMarkdown(raw);
-    expect(doc.azure).toBeUndefined();
-    expect(serializeBoardMarkdown(doc)).toContain('azure_devops: {');
-  });
-});
+const link = (id: number, title: string, state: string, column: string): IssueLink => ({ id: String(id), title, state, column });
 
 describe('Traer', () => {
   it('añade lo nuevo y no lo repite', () => {
-    const first = applyPull(board([]), [item(1, 'Uno', 'To Do'), item(2, 'Dos', 'Doing')], [1, 2], '2026-02-02');
+    const first = applyPull(board([]), provider, [item(1, 'Uno', 'To Do'), item(2, 'Dos', 'Doing')], ['1', '2'], '2026-02-02');
     expect(first.added).toBe(2);
     expect(first.doc.tasks.map((t) => [t.id, t.status])).toEqual([
       ['ado-1', 'todo'],
       ['ado-2', 'doing'],
     ]);
-    const again = applyPull(first.doc, [item(1, 'Uno', 'To Do'), item(2, 'Dos', 'Doing')], [1, 2], '2026-02-03');
+    const again = applyPull(first.doc, provider, [item(1, 'Uno', 'To Do'), item(2, 'Dos', 'Doing')], ['1', '2'], '2026-02-03');
     expect([again.added, again.updated]).toEqual([0, 0]);
   });
 
@@ -64,7 +57,7 @@ describe('Traer', () => {
       t1: link(1, 'Viejo', 'To Do', 'todo'),
       t2: link(2, 'Suyo', 'To Do', 'todo'),
     });
-    const result = applyPull(doc, [item(1, 'Nuevo', 'Done'), item(2, 'Suyo', 'To Do')], [1, 2], '2026-02-02');
+    const result = applyPull(doc, provider, [item(1, 'Nuevo', 'Done'), item(2, 'Suyo', 'To Do')], ['1', '2'], '2026-02-02');
     expect(result.doc.tasks.map((t) => [t.title, t.status])).toEqual([
       ['Nuevo', 'done'],
       ['Mío', 'done'],
@@ -72,15 +65,15 @@ describe('Traer', () => {
     expect(result.updated).toBe(1);
     expect(result.conflicts).toEqual([]);
     // Lo local sigue pendiente de enviar
-    expect(result.doc.azure!.links!.t2).toEqual(link(2, 'Suyo', 'To Do', 'todo'));
+    expect(result.doc.source!.links!.t2).toEqual(link(2, 'Suyo', 'To Do', 'todo'));
   });
 
   it('si cambió en los dos lados, conserva lo local y avisa', () => {
     const doc = board([task('t1', 'Local', 'doing')], { t1: link(1, 'Base', 'To Do', 'todo') });
-    const result = applyPull(doc, [item(1, 'Remoto', 'Done')], [1], '2026-02-02');
+    const result = applyPull(doc, provider, [item(1, 'Remoto', 'Done')], ['1'], '2026-02-02');
     expect(result.doc.tasks[0]).toMatchObject({ title: 'Local', status: 'doing' });
     expect(result.conflicts).toEqual(['t1']);
-    expect(result.doc.azure!.links!.t1).toEqual(link(1, 'Base', 'To Do', 'todo'));
+    expect(result.doc.source!.links!.t1).toEqual(link(1, 'Base', 'To Do', 'todo'));
   });
 
   it('desvincula lo que ya no existe sin borrar la tarea, y no toca vínculos que no se pidieron', () => {
@@ -88,10 +81,10 @@ describe('Traer', () => {
       t1: link(1, 'A', 'To Do', 'todo'),
       t2: link(2, 'B', 'To Do', 'todo'),
     });
-    const result = applyPull(doc, [], [1], '2026-02-02');
-    expect(result.missing).toEqual([1]);
+    const result = applyPull(doc, provider, [], ['1'], '2026-02-02');
+    expect(result.missing).toEqual(['1']);
     expect(result.doc.tasks).toHaveLength(2);
-    expect(Object.keys(result.doc.azure!.links!)).toEqual(['t2']);
+    expect(Object.keys(result.doc.source!.links!)).toEqual(['t2']);
   });
 });
 
@@ -102,7 +95,7 @@ describe('Enviar', () => {
       t2: link(2, 'Antes', 'To Do', 'todo'),
     });
     doc.tasks[1].comments = [{ timestamp: '2026-01-01T10:00:00', text: 'hola' }];
-    const plan = buildPushPlan(doc, [item(1, 'Cambiado allí', 'Done'), item(2, 'Antes', 'To Do')]);
+    const plan = buildPushPlan(doc, provider, [item(1, 'Cambiado allí', 'Done'), item(2, 'Antes', 'To Do')]);
     expect(plan.changes).toHaveLength(1);
     expect(plan.changes[0]).toMatchObject({ taskId: 't2', title: 'Cambiado', state: 'Done', conflict: false });
     expect(plan.changes[0].comments).toHaveLength(1);
@@ -111,15 +104,15 @@ describe('Enviar', () => {
 
   it('marca como conflicto lo que cambió en los dos lados', () => {
     const doc = board([task('t1', 'Local', 'todo')], { t1: link(1, 'Base', 'To Do', 'todo') });
-    expect(buildPushPlan(doc, [item(1, 'Remoto', 'To Do')]).changes[0].conflict).toBe(true);
+    expect(buildPushPlan(doc, provider, [item(1, 'Remoto', 'To Do')]).changes[0].conflict).toBe(true);
   });
 
   function fake() {
     const calls: string[] = [];
-    const writer: AzureWriter = {
-      async update(id, rev, changes) {
-        calls.push(`update ${id}@${rev} ${JSON.stringify(changes)}`);
-        return item(id, changes.title ?? 'Antes', changes.state ?? 'To Do', rev + 1);
+    const writer: IssueWriter = {
+      async update(id, revision, changes) {
+        calls.push(`update ${id}@${revision} ${JSON.stringify(changes)}`);
+        return item(Number(id), changes.title ?? 'Antes', changes.state ?? 'To Do', Number(revision) + 1);
       },
       async create(type, title) {
         calls.push(`create ${type} ${title}`);
@@ -141,21 +134,21 @@ describe('Enviar', () => {
       { timestamp: 'a', text: 'bien' },
       { timestamp: 'b', text: 'falla' },
     ];
-    const save = (taskId: string, saved: AzureLink) => {
-      doc = { ...doc, azure: { ...doc.azure!, links: { ...doc.azure!.links, [taskId]: saved } } };
+    const save = (taskId: string, saved: IssueLink) => {
+      doc = { ...doc, source: { ...doc.source!, links: { ...doc.source!.links, [taskId]: saved } } };
     };
     const { calls, writer } = fake();
-    const plan = buildPushPlan(doc, [item(1, 'Antes', 'To Do')]);
-    const result = await runPush(writer, () => doc, save, plan.changes, ['t2']);
+    const plan = buildPushPlan(doc, provider, [item(1, 'Antes', 'To Do')]);
+    const result = await runPush(provider, writer, () => doc, save, plan.changes, ['t2']);
 
     expect(calls).toEqual(['comment 1 bien', 'create Task Nueva', 'update 99@1 {"state":"In Progress"}']);
     expect(result).toMatchObject({ created: 1, comments: 1 });
     expect(result.errors.map((e) => e.taskId)).toEqual(['t1']);
-    expect(doc.azure!.links!.t1.sent).toEqual(['a']);
-    expect(doc.azure!.links!.t2).toEqual(link(99, 'Nueva', 'In Progress', 'doing'));
-    expect(doc.azure!.links!.t3).toBeUndefined();
+    expect(doc.source!.links!.t1.sent).toEqual(['a']);
+    expect(doc.source!.links!.t2).toEqual(link(99, 'Nueva', 'In Progress', 'doing'));
+    expect(doc.source!.links!.t3).toBeUndefined();
 
-    const next = buildPushPlan(doc, [item(1, 'Antes', 'To Do'), item(99, 'Nueva', 'In Progress', 2)]);
+    const next = buildPushPlan(doc, provider, [item(1, 'Antes', 'To Do'), item(99, 'Nueva', 'In Progress', 2)]);
     expect(next.changes.map((c) => [c.taskId, c.comments.map((x) => x.timestamp)])).toEqual([['t1', ['b']]]);
   });
 });

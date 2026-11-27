@@ -31,6 +31,16 @@ pub struct Capabilities {
     pub conflict_check: ConflictCheck,
 }
 
+/// Un dato que pide una conexión, además de su nombre y su credencial. El texto visible lo pone la
+/// interfaz a partir del identificador.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ConnectionField {
+    /// `server` o `user`.
+    pub id: String,
+    pub required: bool,
+    pub example: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ProviderDescriptor {
     /// Valor de `provider` en la configuración y en los tableros.
@@ -42,5 +52,10 @@ pub struct ProviderDescriptor {
     pub default_issue_type: String,
     /// Estados de cada columna habitual: el primero es el que se envía, todos valen al traer.
     pub default_states: BTreeMap<String, Vec<String>>,
+    /// Prefijo del identificador en el tablero de las tareas que se traen (`prefijo-id`).
+    pub task_prefix: String,
+    /// Ejemplo del ámbito que se pide al usuario.
+    pub scope_example: String,
+    pub connection_fields: Vec<ConnectionField>,
     pub capabilities: Capabilities,
 }

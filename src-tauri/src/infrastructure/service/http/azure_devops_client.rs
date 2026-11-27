@@ -1,13 +1,17 @@
-//! API REST de Azure DevOps. El token sale de 1Password (`azure_devops.token` de `config.jsonc`,
-//! una referencia `op://`), del llavero del sistema o del entorno, y solo viaja a los servidores de
-//! Azure DevOps, o al que se indique en `AZURE_DEVOPS_URL`: la URL del proyecto sale de un archivo
-//! de la bóveda, que puede venir de cualquiera.
+//! API REST de Azure DevOps. Cada conexión tiene su servidor y su token (en 1Password o en el
+//! llavero), y el token solo viaja a ese servidor: la URL del proyecto sale de un archivo de la
+//! bóveda, que puede venir de cualquiera. Sin conexiones configuradas queda la implícita: la nube de
+//! Azure DevOps con la credencial única anterior (`azure_devops.token`, llavero o entorno).
 
+use crate::application::service::credential_store::GlobalCredential;
 use crate::application::service::issue_provider::{IssueProvider, ProviderFuture};
-use crate::domain::issue::issue::{Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory};
+use crate::domain::issue::connection::{self, Connection};
+use crate::domain::issue::issue::{
+    Account, Issue, IssueChanges, IssueState, NewIssue, Person, StateCategory,
+};
 use crate::domain::issue::issue_error::{IssueError, IssueErrorKind as Kind};
 use crate::domain::issue::provider_descriptor::{
-    Capabilities, ConflictCheck, ProviderDescriptor, StateChange,
+    Capabilities, ConflictCheck, ConnectionField, ProviderDescriptor, StateChange,
 };
 use crate::infrastructure::service::os::secret_store::SecretStore;
 use crate::infrastructure::service::os::{git_binary, one_password};
@@ -46,10 +50,12 @@ const KEYRING_NAME: &str = "azure-devops-token";
 enum Token {
     /// Referencia `op://` que se lee en 1Password justo antes de enviar.
     Reference(String),
-    /// Lo configurado no es una referencia. No se guarda: puede ser un token pegado tal cual.
-    NotAReference,
+    /// Lo configurado (la clave que se indica) no es una referencia: puede ser un token pegado.
+    NotAReference(&'static str),
     /// Sin referencia configurada: el del llavero o, si no hay, el del entorno.
     Local { env: Option<String> },
+    /// El de una conexión, guardado en el llavero.
+    Stored { keyring: String, connection: String },
 }
 
 impl Token {
@@ -57,7 +63,7 @@ impl Token {
     fn choose(configured: Option<String>, env: Option<String>) -> Self {
         match configured {
             Some(c) if c.starts_with("op://") => Self::Reference(c),
-            Some(_) => Self::NotAReference,
+            Some(_) => Self::NotAReference("azure_devops.token"),
             None => Self::Local { env },
         }
     }
@@ -160,9 +166,46 @@ fn save_reference(config_dir: &Path, reference: Option<&str>) -> Result<(), Issu
     git_binary::write_config(config_dir, &config).map_err(|e| IssueError::new(Kind::Request, e))
 }
 
+/// Los servidores de Microsoft, a los que vale la credencial única anterior.
+fn is_cloud(url: &Url) -> bool {
+    url.scheme() == "https"
+        && url.port().is_none()
+        && url
+            .host_str()
+            .is_some_and(|h| h == "dev.azure.com" || h.ends_with(".visualstudio.com"))
+}
+
+/// La credencial única anterior a las conexiones.
+pub struct AzureGlobalCredential<'a> {
+    pub config_dir: &'a Path,
+    pub store: &'a SecretStore,
+}
+
+impl GlobalCredential for AzureGlobalCredential<'_> {
+    fn for_server(&self, provider: &str, server: &str) -> Result<Option<String>, IssueError> {
+        if provider != PROVIDER || !Url::parse(server).is_ok_and(|url| is_cloud(&url)) {
+            return Ok(None);
+        }
+        // El mismo orden con el que se usa: la referencia, el llavero y el entorno
+        match configured_token(self.config_dir) {
+            Some(value) if value.starts_with("op://") => Ok(Some(value)),
+            Some(_) => Err(IssueError::new(Kind::TokenReference, "azure_devops.token")),
+            None => Ok(self
+                .store
+                .get(KEYRING_NAME)
+                .map_err(keyring_error)?
+                .or_else(env_token)),
+        }
+    }
+}
+
+fn env_token() -> Option<String> {
+    env("AZURE_DEVOPS_PAT").or_else(|| env("ADO_PAT"))
+}
+
 pub struct AzureDevOpsClient {
     token: Token,
-    /// Servidor propio (Azure DevOps Server) admitido además de los de Microsoft.
+    /// El servidor de la conexión; sin él (la implícita), la nube de Microsoft.
     server: Option<String>,
     /// Ejecutable del CLI de 1Password.
     op: String,
@@ -191,13 +234,21 @@ fn env(name: &str) -> Option<String> {
 
 impl AzureDevOpsClient {
     /// Se lee en cada acción: cambiar la configuración no pide reiniciar.
-    pub fn configured(config_dir: &Path) -> Self {
+    pub fn configured(config_dir: &Path, connection: Option<&Connection>) -> Self {
+        let token = match connection {
+            Some(c) => match &c.secret {
+                Some(secret) if secret.starts_with("op://") => Token::Reference(secret.clone()),
+                Some(_) => Token::NotAReference("issues.connections"),
+                None => Token::Stored {
+                    keyring: c.keyring_name(),
+                    connection: c.name.clone(),
+                },
+            },
+            None => Token::choose(configured_token(config_dir), env_token()),
+        };
         Self {
-            token: Token::choose(
-                configured_token(config_dir),
-                env("AZURE_DEVOPS_PAT").or_else(|| env("ADO_PAT")),
-            ),
-            server: env("AZURE_DEVOPS_URL"),
+            token,
+            server: connection.map(|c| c.server.clone()),
             op: env("SYNAPSE_OP_PATH").unwrap_or_else(|| "op".to_string()),
             store: SecretStore::from_env(),
         }
@@ -205,11 +256,19 @@ impl AzureDevOpsClient {
 
     async fn token(&self) -> Result<String, IssueError> {
         let env = match &self.token {
-            Token::NotAReference => {
-                return Err(IssueError::new(
-                    Kind::TokenReference,
-                    "azure_devops.token",
-                ));
+            Token::NotAReference(key) => {
+                return Err(IssueError::new(Kind::TokenReference, *key));
+            }
+            Token::Stored {
+                keyring,
+                connection,
+            } => {
+                let (store, name) = (self.store.clone(), keyring.clone());
+                return tokio::task::spawn_blocking(move || store.get(&name))
+                    .await
+                    .map_err(|e| keyring_error(e.to_string()))?
+                    .map_err(keyring_error)?
+                    .ok_or_else(|| IssueError::new(Kind::ConnectionCredential, connection));
             }
             Token::Reference(_) => None,
             Token::Local { env } => {
@@ -252,23 +311,23 @@ impl AzureDevOpsClient {
             .filter(|s| !s.is_empty())
             .collect();
         let origin = url.origin().ascii_serialization();
-        let microsoft = url.scheme() == "https" && url.port().is_none();
-        let own_server = self
-            .server
-            .as_deref()
-            .and_then(|s| Url::parse(s).ok())
-            .is_some_and(|s| s.origin() == url.origin());
+        let allowed = match &self.server {
+            Some(server) => connection::covers(server, project_url).is_some(),
+            None => is_cloud(&url),
+        };
+        if !allowed {
+            return Err(IssueError::new(Kind::HostNotAllowed, origin));
+        }
 
         // Cuántos tramos forman la colección y cuál es el proyecto
-        let (collection, name) = if microsoft && host == "dev.azure.com" {
+        let (collection, name) = if is_cloud(&url) && host == "dev.azure.com" {
             (1, 1)
-        } else if microsoft && host.ends_with(".visualstudio.com") {
+        } else if is_cloud(&url) {
             (0, 0)
-        } else if own_server {
+        } else {
+            // Servidor propio: el último tramo es el proyecto
             let last = segments.len().checked_sub(1).ok_or_else(invalid)?;
             (last, last)
-        } else {
-            return Err(IssueError::new(Kind::HostNotAllowed, origin));
         };
         let name = segments.get(name).ok_or_else(invalid)?.to_string();
         let mut base = origin;
@@ -433,6 +492,13 @@ impl AzureDevOpsClient {
                 ("done".to_string(), states(&["Done", "Closed", "Completed"])),
             ]
             .into(),
+            task_prefix: "ado".into(),
+            scope_example: "https://dev.azure.com/organization/project".into(),
+            connection_fields: vec![ConnectionField {
+                id: "server".into(),
+                required: true,
+                example: "https://dev.azure.com/organization".into(),
+            }],
             capabilities: Capabilities {
                 create: true,
                 comment: true,
@@ -446,6 +512,27 @@ impl AzureDevOpsClient {
 impl IssueProvider for AzureDevOpsClient {
     fn describe(&self) -> ProviderDescriptor {
         Self::descriptor()
+    }
+
+    /// `connectionData` de la organización o colección: es lo que usa el cliente oficial de
+    /// Microsoft para saber quién entra (no figura en la referencia REST) y vale con cualquier
+    /// alcance del token, a diferencia de la lista de proyectos.
+    fn check<'a>(&'a self) -> ProviderFuture<'a, Account> {
+        Box::pin(async move {
+            let server = self
+                .server
+                .as_deref()
+                .ok_or_else(|| IssueError::new(Kind::NoConnection, ""))?;
+            let url = format!("{server}/_apis/connectionData");
+            let response = self.send(Method::GET, &url, None).await?;
+            let user = &response["authenticatedUser"];
+            let name = ["customDisplayName", "providerDisplayName"]
+                .iter()
+                .find_map(|key| user[*key].as_str().filter(|v| !v.is_empty()));
+            Ok(Account {
+                name: name.map(str::to_string),
+            })
+        })
     }
 
     fn search<'a>(&'a self, scope: &'a str, query: &'a str) -> ProviderFuture<'a, Vec<String>> {
@@ -586,7 +673,7 @@ mod tests {
         assert_eq!(Token::choose(None, some("del-entorno")).reference(), None);
         assert_eq!(
             Token::choose(some("pegado-tal-cual"), None),
-            Token::NotAReference
+            Token::NotAReference("azure_devops.token")
         );
     }
 
@@ -599,7 +686,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            AzureDevOpsClient::configured(dir.path()).token,
+            AzureDevOpsClient::configured(dir.path(), None).token,
             Token::Reference("op://b/e/c".into())
         );
     }
@@ -742,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    fn solo_admite_los_servidores_de_azure_devops_y_el_configurado() {
+    fn sin_conexion_solo_admite_la_nube_de_azure_devops() {
         let azure = client(None);
         let project = |url| azure.project(url);
         assert_eq!(
@@ -774,7 +861,10 @@ mod tests {
         ] {
             assert_eq!(project(url).unwrap_err().kind, Kind::InvalidUrl, "{url}");
         }
+    }
 
+    #[test]
+    fn con_una_conexion_solo_admite_lo_que_esta_en_su_servidor() {
         let own = client(Some("http://tfs.local:8080/tfs"));
         assert_eq!(
             own.project("http://tfs.local:8080/tfs/Coleccion/Proyecto")
@@ -784,7 +874,60 @@ mod tests {
                 name: "Proyecto".into()
             }
         );
-        assert!(own.project("http://tfs.local:9090/Coleccion/Proyecto").is_err());
+        let work = client(Some("https://dev.azure.com/org"));
+        assert!(work.project("https://dev.azure.com/org/Proyecto").is_ok());
+        for (azure, url) in [
+            (&own, "http://tfs.local:9090/tfs/Coleccion/Proyecto"),
+            (&own, "http://tfs.local:8080/otro/Proyecto"),
+            (&own, "https://dev.azure.com/org/Proyecto"),
+            (&work, "https://dev.azure.com/otra/Proyecto"),
+        ] {
+            assert_eq!(azure.project(url).unwrap_err().kind, Kind::HostNotAllowed, "{url}");
+        }
+    }
+
+    #[tokio::test]
+    async fn cada_conexion_usa_su_credencial_y_sin_ella_no_envia_nada() {
+        let dir = tempfile::tempdir().unwrap();
+        let (origin, request) = serve(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\n{}",
+        );
+        let work = Connection {
+            id: "trabajo".into(),
+            provider: PROVIDER.into(),
+            name: "Trabajo".into(),
+            server: format!("{origin}/org"),
+            user: None,
+            secret: None,
+        };
+        let mut azure = AzureDevOpsClient::configured(dir.path(), Some(&work));
+        azure.store = SecretStore::File(dir.path().to_path_buf());
+        let scope = format!("{origin}/org/Proyecto");
+        let error = azure.search(&scope, "SELECT").await.unwrap_err();
+        assert_eq!(
+            (error.kind, error.detail.as_str()),
+            (Kind::ConnectionCredential, "Trabajo")
+        );
+        azure.store.set("issues-trabajo", "falso").unwrap();
+        // La credencial global no sirve a una conexión
+        azure.store.set(KEYRING_NAME, "global").unwrap();
+        azure.search(&scope, "SELECT").await.unwrap();
+        assert!(request.join().unwrap().contains("authorization: Basic OmZhbHNv"));
+    }
+
+    #[test]
+    fn la_credencial_global_solo_se_entrega_para_la_nube() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SecretStore::File(dir.path().join("llavero"));
+        store.set(KEYRING_NAME, "global").unwrap();
+        let global = AzureGlobalCredential {
+            config_dir: dir.path(),
+            store: &store,
+        };
+        let of = |provider, server| global.for_server(provider, server).unwrap();
+        assert_eq!(of(PROVIDER, "https://dev.azure.com/org").as_deref(), Some("global"));
+        assert_eq!(of(PROVIDER, "https://ajeno.test/org"), None);
+        assert_eq!(of("otro", "https://dev.azure.com/org"), None);
     }
 
     /// Atiende una petición con `reply` y devuelve lo que se recibió.
@@ -888,6 +1031,26 @@ mod tests {
         let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}})).unwrap();
         assert_eq!((bare.assignee, bare.updated_at), (None, None));
         assert_eq!(person(&json!("Ana")).unwrap().name, "Ana");
+    }
+
+    #[tokio::test]
+    async fn probar_dice_con_que_cuenta_se_entra() {
+        let (origin, request) = serve(
+            "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 69\r\n\r\n{\"authenticatedUser\":{\"providerDisplayName\":\"Ana\",\"id\":\"1234567890\"}}",
+        );
+        let account = client(Some(&format!("{origin}/org")))
+            .check()
+            .await
+            .unwrap();
+        assert_eq!(account.name.as_deref(), Some("Ana"));
+        assert!(
+            request
+                .join()
+                .unwrap()
+                .starts_with("GET /org/_apis/connectionData ")
+        );
+        // Sin conexión no hay nada que probar
+        assert_eq!(client(None).check().await.unwrap_err().kind, Kind::NoConnection);
     }
 
     #[tokio::test]

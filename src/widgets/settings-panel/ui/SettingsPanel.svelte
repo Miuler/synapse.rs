@@ -23,7 +23,7 @@
   import { agentApi, agentStore, DEFAULT_PROCESS_LIMIT, MAX_QUOTA_MINUTES } from '@entities/acp-agent';
   import { appUpdates } from '@features/app-updates';
   import { gitBinary } from '@entities/git';
-  import { AzureTokenField } from '@features/board-editor';
+  import { ConnectionsSettings } from '@features/board-editor';
 
   // Bóvedas aceptadas o rechazadas por esta (se leen al abrir Ajustes)
   let peerDecisions = $state(agentStore.peers.decisions());
@@ -57,7 +57,7 @@
     { id: 'diagrams', label: 'Diagramas' },
     { id: 'agents', label: 'Agentes de IA' },
     { id: 'git', label: 'Git' },
-    { id: 'azure', label: 'Azure DevOps' },
+    { id: 'azure', get label() { return t('connections.title'); } },
     { id: 'updates', label: 'Actualizaciones' },
     { id: 'shortcuts', label: 'Atajos de teclado' },
   ];
@@ -747,8 +747,8 @@
             Git LFS sí. La ruta se guarda en <code>config.jsonc</code> (<code>git.path</code>).
           </p>
         {:else if section === 'azure'}
-          <h3>Azure DevOps</h3>
-          <AzureTokenField autosave />
+          <h3>{t('connections.title')}</h3>
+          <ConnectionsSettings />
         {:else if section === 'updates'}
           <h3>Actualizaciones</h3>
           <label class="row">

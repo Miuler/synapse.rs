@@ -22,6 +22,12 @@ pub enum IssueErrorKind {
     Request,
     /// La conexión pide un proveedor que esta versión no tiene.
     UnknownProvider,
+    /// La conexión no tiene credencial.
+    ConnectionCredential,
+    /// Ninguna conexión cubre el ámbito del tablero, o la que pide no existe.
+    NoConnection,
+    /// Varias conexiones cubren el ámbito: hay que elegir una.
+    AmbiguousConnection,
 }
 
 /// Se entrega a la interfaz como clase de error y detalle: el texto visible lo pone ella.

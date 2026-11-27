@@ -92,6 +92,13 @@ pub struct IssueEntry {
     pub changes: Vec<FieldChange>,
 }
 
+/// La cuenta con la que entra una credencial.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Account {
+    /// `None` si el servidor acepta la credencial sin decir de quién es.
+    pub name: Option<String>,
+}
+
 /// Cambios de una tarea existente: solo se escribe lo presente.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct IssueChanges {

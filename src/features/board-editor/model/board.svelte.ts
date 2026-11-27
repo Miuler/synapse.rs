@@ -1,5 +1,6 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { AzureSyncConfig } from './azure-sync';
+import type { IssueSource } from './issue-sync';
+import { LEGACY_KEY, readLegacySource, writeLegacySource } from './legacy-source';
 
 export type BoardViewMode = 'table' | 'kanban' | 'gantt';
 
@@ -34,8 +35,8 @@ export interface BoardDocument {
    * de `columns` para que una versión anterior, que solo entiende `id`, `label` y `color`, no las pierda.
    */
   columnWidths?: Record<string, number>;
-  /** Sincronización con Azure DevOps (clave `azure_devops` del frontmatter). */
-  azure?: AzureSyncConfig;
+  /** Sincronización con un gestor de issues. */
+  source?: IssueSource;
   /** Bloques del frontmatter que el tablero no interpreta: se guardan tal cual. */
   extraFrontmatter?: string;
 }
@@ -57,8 +58,8 @@ function parseColumnWidths(value: object): Record<string, number> {
   return Object.fromEntries(widths.map(([id, width]) => [id, clampColumnWidth(width as number)]));
 }
 
-/** Separa lo que va en YAML libre (Azure DevOps, anchos) y lo que no es del tablero, bloque a bloque. */
-function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'columnWidths' | 'extraFrontmatter'> {
+/** Separa lo que va en YAML libre (origen, anchos) y lo que no es del tablero, bloque a bloque. */
+function parseOtherKeys(fmText: string): Pick<BoardDocument, 'source' | 'columnWidths' | 'extraFrontmatter'> {
   const blocks: { key: string; lines: string[] }[] = [];
   for (const line of fmText.split(/\r?\n/)) {
     const key = line.match(/^([^\s#-][^:]*):/)?.[1];
@@ -66,17 +67,17 @@ function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'columnWi
     else blocks[blocks.length - 1].lines.push(line);
   }
 
-  let azure: AzureSyncConfig | undefined;
+  let source: IssueSource | undefined;
   let columnWidths: BoardDocument['columnWidths'];
   const extra: string[] = [];
   for (const block of blocks) {
     if (OWN_KEYS.includes(block.key)) continue;
     const text = block.lines.join('\n');
-    if (block.key === 'azure_devops' || block.key === 'column_widths') {
+    if (block.key === LEGACY_KEY || block.key === 'column_widths') {
       try {
         const value = parseYaml(text)?.[block.key];
         if (value && typeof value === 'object') {
-          if (block.key === 'azure_devops') azure = value as AzureSyncConfig;
+          if (block.key === LEGACY_KEY) source = readLegacySource(value);
           else columnWidths = parseColumnWidths(value);
           continue;
         }
@@ -86,14 +87,14 @@ function parseOtherKeys(fmText: string): Pick<BoardDocument, 'azure' | 'columnWi
     }
     extra.push(text);
   }
-  return { azure, columnWidths, extraFrontmatter: extra.join('\n') || undefined };
+  return { source, columnWidths, extraFrontmatter: extra.join('\n') || undefined };
 }
 
 function parseFrontmatter(raw: string): {
   defaultView: BoardViewMode;
   columns: BoardColumn[];
   body: string;
-  azure?: AzureSyncConfig;
+  source?: IssueSource;
   columnWidths?: Record<string, number>;
   extraFrontmatter?: string;
 } {
@@ -156,7 +157,7 @@ function parseCommentsSection(body: string): Map<string, BoardComment[]> {
 }
 
 export function parseBoardMarkdown(raw: string): BoardDocument {
-  const { defaultView, columns, body, azure, columnWidths, extraFrontmatter } = parseFrontmatter(raw);
+  const { defaultView, columns, body, source, columnWidths, extraFrontmatter } = parseFrontmatter(raw);
   const commentsMap = parseCommentsSection(body);
 
   const tablePart = body.split(/^##\s+Comentarios\s*$/m)[0];
@@ -193,7 +194,7 @@ export function parseBoardMarkdown(raw: string): BoardDocument {
     });
   }
 
-  return { defaultView, columns, tasks, azure, columnWidths, extraFrontmatter };
+  return { defaultView, columns, tasks, source, columnWidths, extraFrontmatter };
 }
 
 export function serializeBoardMarkdown(doc: BoardDocument): string {
@@ -201,8 +202,7 @@ export function serializeBoardMarkdown(doc: BoardDocument): string {
     .map((c) => `  - { id: ${c.id}, label: "${c.label.replace(/"/g, '\\"')}", color: "${c.color}" }`)
     .join('\n');
 
-  const azureYaml =
-    doc.azure && stringifyYaml({ azure_devops: doc.azure }, { lineWidth: 0 }).trimEnd();
+  const sourceYaml = doc.source && stringifyYaml(writeLegacySource(doc.source), { lineWidth: 0 }).trimEnd();
 
   const widthsYaml =
     Object.keys(doc.columnWidths ?? {}).length > 0 &&
@@ -215,7 +215,7 @@ export function serializeBoardMarkdown(doc: BoardDocument): string {
     'columns:',
     colsYaml,
     ...(widthsYaml ? [widthsYaml] : []),
-    ...(azureYaml ? [azureYaml] : []),
+    ...(sourceYaml ? [sourceYaml] : []),
     ...(doc.extraFrontmatter ? [doc.extraFrontmatter] : []),
     '---',
   ].join('\n');

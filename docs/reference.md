@@ -30,7 +30,6 @@ standard error.
 | `SYNAPSE_OKF_INDEX=0` | Do not generate the OKF `index.md` files |
 | `SYNAPSE_ACP_REGISTRY_URL` | Use another ACP agent registry |
 | `AZURE_DEVOPS_PAT`, `ADO_PAT` | Azure DevOps token for task boards, if none is set in Synapse |
-| `AZURE_DEVOPS_URL` | Own Azure DevOps Server that may also receive the token |
 | `SYNAPSE_OP_PATH` | 1Password CLI to use instead of `op` from the `PATH` |
 
 ## Files
@@ -62,7 +61,7 @@ Stored in `~/.config/synapsers/`. Files ending in `.jsonc` accept comments.
 
 | File | Contents |
 |---|---|
-| `config.jsonc` | Global settings, such as `git.path`, `appearance.theme_dirs` and `azure_devops.token` |
+| `config.jsonc` | Global settings, such as `git.path`, `appearance.theme_dirs` and `issues.connections` |
 | `shortcuts.jsonc` | Keyboard shortcuts |
 | `themes/*.css` | Custom themes ([guide, in Spanish](temas.md)) |
 | `workspaces.json` | Recent and pinned vaults |
@@ -70,16 +69,34 @@ Stored in `~/.config/synapsers/`. Files ending in `.jsonc` accept comments.
 | `mcp-ports.json` | MCP port assigned to each vault |
 | `wallpapers.json` | Wallpapers chosen by the user |
 
-The Azure DevOps token is set in Settings → Azure DevOps. A pasted token is saved in the system keyring (service
-`synapsers`). `azure_devops.token` only holds a [1Password secret reference](https://developer.1password.com/docs/cli/secret-references/), never
-the token itself. Synapse reads it with `op read` when a task board is synced with
-Azure DevOps:
+### Issue provider connections
+
+Task boards sync through connections: any number of them, also several of the same provider. Each one has its own
+server, and its token is only sent there (HTTPS, or HTTP to this computer); changing the server discards the token.
 
 ```jsonc
 {
-  "azure_devops": { "token": "op://vault/item/field" }
+  "issues": {
+    "connections": [
+      { "id": "work", "provider": "azure_devops", "name": "Work",
+        "server": "https://dev.azure.com/organization", "secret": "op://vault/item/field" },
+      { "id": "local", "provider": "azure_devops", "name": "Own server",
+        "server": "https://tfs.example.com/tfs" } // token in the keyring, entry `issues-local`
+    ]
+  }
 }
 ```
+
+`secret` only holds a [1Password secret reference](https://developer.1password.com/docs/cli/secret-references/), never
+the token itself; a pasted token is saved in the system keyring (service `synapsers`, entry `issues-<id>`). A board uses
+the connection whose server contains its project URL.
+
+Connections are managed in Settings → Connections. «Test» asks the server which account the token signs in with
+(`_apis/connectionData`).
+
+With no connections, boards use Azure DevOps (`dev.azure.com` and `*.visualstudio.com` only) with the single token
+set in Settings → Connections: a pasted token (keyring) or an `op://` reference in `azure_devops.token`, else
+`AZURE_DEVOPS_PAT` / `ADO_PAT`. Synapse reads references with `op read` when a board is synced.
 
 ## MCP server
 

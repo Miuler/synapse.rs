@@ -13,7 +13,7 @@ export interface IpcLogEntry {
 }
 
 /** Órdenes cuyos argumentos son secretos: se anotan sin ellos. */
-const SECRET_ARGS = new Set(['set_azure_token']);
+const SECRET_ARGS = new Set(['set_azure_token', 'issues_save_connection']);
 
 export async function invokeTauri<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // En producción solo se registra si el build se hizo con VITE_SYNAPSE_IPC_LOG=1 (mediciones).

@@ -1,6 +1,7 @@
 //! Secretos en el llavero del sistema (Secret Service en Linux, Llavero en macOS, Administrador de
 //! credenciales en Windows). Las llamadas bloquean y pueden pedir que se desbloquee el llavero.
 
+use crate::application::service::credential_store::CredentialStore;
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
 
@@ -56,6 +57,20 @@ impl SecretStore {
                 _ => Ok(()),
             },
         }
+    }
+}
+
+impl CredentialStore for SecretStore {
+    fn get(&self, name: &str) -> Result<Option<String>, String> {
+        SecretStore::get(self, name)
+    }
+
+    fn set(&self, name: &str, value: &str) -> Result<(), String> {
+        SecretStore::set(self, name, value)
+    }
+
+    fn delete(&self, name: &str) -> Result<(), String> {
+        SecretStore::delete(self, name)
     }
 }
 

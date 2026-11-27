@@ -1,6 +1,7 @@
 pub mod agent_profile_repository_impl;
 pub mod agent_telemetry_repository_impl;
 pub mod agent_transcript_repository_impl;
+pub mod connection_repository_impl;
 pub mod global_theme_repository_impl;
 pub mod installed_plugin_repository_impl;
 pub mod mcp_repository_impl;

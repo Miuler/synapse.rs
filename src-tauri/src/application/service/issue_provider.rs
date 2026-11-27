@@ -1,4 +1,4 @@
-use crate::domain::issue::issue::{Issue, IssueChanges, NewIssue};
+use crate::domain::issue::issue::{Account, Issue, IssueChanges, NewIssue};
 use crate::domain::issue::issue_error::IssueError;
 use crate::domain::issue::provider_descriptor::ProviderDescriptor;
 use std::future::Future;
@@ -10,6 +10,9 @@ pub type ProviderFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, IssueErro
 /// (proyecto o repositorio), en la forma que entienda el proveedor.
 pub trait IssueProvider: Send + Sync {
     fn describe(&self) -> ProviderDescriptor;
+
+    /// Comprueba la conexión y su credencial.
+    fn check<'a>(&'a self) -> ProviderFuture<'a, Account>;
 
     /// Ids que devuelve la consulta.
     fn search<'a>(&'a self, scope: &'a str, query: &'a str) -> ProviderFuture<'a, Vec<String>>;

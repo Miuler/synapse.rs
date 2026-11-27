@@ -1,10 +1,12 @@
-// Sincronización de un tablero con Azure DevOps en dos acciones separadas: «Traer» y «Enviar».
+// Sincronización de un tablero con un gestor de issues en dos acciones separadas: «Traer» y «Enviar».
 // El tablero guarda, por tarea vinculada, lo último que ambos lados tenían en común (`links`): así se
-// distingue qué cambió aquí y qué cambió allí, y no se repiten envíos.
+// distingue qué cambió aquí y qué cambió allí, y no se repiten envíos. De qué proveedor son las
+// tareas solo se sabe por lo que él declara.
 import type { BoardDocument, BoardTask } from './board.svelte';
 
-export interface AzureLink {
-  id: number;
+export interface IssueLink {
+  /** Identificador en el proveedor. */
+  id: string;
   /** Título y estado remotos de la última sincronización. */
   title: string;
   state: string;
@@ -14,47 +16,56 @@ export interface AzureLink {
   sent?: string[];
 }
 
-export interface AzureSyncConfig {
-  project_url: string;
-  /** WIQL propio; vacío, los work items abiertos relacionados con quien sincroniza. */
+/** De dónde vienen las tareas de un tablero. */
+export interface IssueSource {
+  provider: string;
+  /** Id de la conexión; vacío, la que cubra el ámbito. */
+  connection: string;
+  /** Proyecto o repositorio, en la forma que entienda el proveedor. */
+  scope: string;
+  /** Consulta propia; vacía, la que el proveedor usa por defecto. */
   query?: string;
-  /** Tipo de los work items que se crean (`Task` por defecto). */
-  work_item_type?: string;
-  /** A quién se asignan los que se crean (correo); vacío, a nadie. */
-  assigned_to?: string;
+  /** Tipo de las tareas que se crean. */
+  issue_type?: string;
+  /** A quién se asignan las que se crean; vacío, a nadie. */
+  assignee?: string;
   /** Estados de cada columna: el primero es el que se envía, todos valen al traer. */
   states?: Record<string, string[]>;
-  links?: Record<string, AzureLink>;
+  links?: Record<string, IssueLink>;
+  /** Lo leído del archivo, para devolverle lo que no se interpreta. */
+  original?: Record<string, unknown>;
 }
 
-export interface WorkItem {
-  id: number;
-  rev: number;
+/** La parte del modelo común que el tablero usa. */
+export interface Issue {
+  id: string;
+  type: string;
   title: string;
-  state: string;
-  work_item_type: string;
+  state: { name: string };
+  /** Versión leída: una escritura solo se admite sobre ella. */
+  revision: string | null;
 }
 
-export const DEFAULT_QUERY = `SELECT [System.Id] FROM WorkItems
-WHERE [System.TeamProject] = @project
-  AND [System.State] NOT IN ('Closed', 'Cancelled', 'Removed', 'Done')
-  AND ([System.AssignedTo] = @me OR [System.ChangedBy] = @me OR [System.CreatedBy] = @me)
-ORDER BY [System.ChangedDate] DESC`;
-
-export const DEFAULT_STATES: Record<string, string[]> = {
-  todo: ['To Do', 'New', 'Proposed'],
-  doing: ['In Progress', 'Doing', 'Active', 'Committed', 'Resolved'],
-  done: ['Done', 'Closed', 'Completed'],
-};
-
-export const DEFAULT_WORK_ITEM_TYPE = 'Task';
-
-function statesOf(azure: AzureSyncConfig, column: string): string[] {
-  return azure.states?.[column] ?? DEFAULT_STATES[column] ?? [];
+/** Lo que un proveedor declara de sí mismo. */
+export interface IssueProvider {
+  id: string;
+  name: string;
+  query_language: string;
+  default_query: string;
+  default_issue_type: string;
+  default_states: Record<string, string[]>;
+  /** Prefijo del identificador de las tareas que se traen (`prefijo-id`). */
+  task_prefix: string;
+  scope_example: string;
 }
 
-function columnOf(doc: BoardDocument, state: string): string | undefined {
-  return doc.columns.find((c) => statesOf(doc.azure!, c.id).some((s) => s.toLowerCase() === state.toLowerCase()))?.id;
+function statesOf(source: IssueSource, provider: IssueProvider, column: string): string[] {
+  return source.states?.[column] ?? provider.default_states[column] ?? [];
+}
+
+function columnOf(doc: BoardDocument, provider: IssueProvider, state: string): string | undefined {
+  const wanted = state.toLowerCase();
+  return doc.columns.find((c) => statesOf(doc.source!, provider, c.id).some((s) => s.toLowerCase() === wanted))?.id;
 }
 
 /** Un título tal como queda en una celda de la tabla. */
@@ -66,24 +77,30 @@ export interface PullResult {
   updated: number;
   /** Tareas con cambios distintos en los dos lados: se conserva lo local. */
   conflicts: string[];
-  /** Work items que Azure DevOps ya no devuelve: se desvinculan, la tarea se queda. */
-  missing: number[];
+  /** Tareas que el proveedor ya no devuelve: se desvinculan, la fila se queda. */
+  missing: string[];
 }
 
 /**
- * Aplica al tablero lo traído de Azure DevOps. `items` son los de la consulta y los ya vinculados;
- * `requested`, los ids por los que se preguntó (un vínculo creado mientras tanto no se toca).
+ * Aplica al tablero lo traído del proveedor. `items` son las tareas de la consulta y las ya
+ * vinculadas; `requested`, los ids por los que se preguntó (un vínculo creado mientras tanto no se toca).
  */
-export function applyPull(doc: BoardDocument, items: WorkItem[], requested: number[], today: string): PullResult {
-  const azure = doc.azure!;
+export function applyPull(
+  doc: BoardDocument,
+  provider: IssueProvider,
+  items: Issue[],
+  requested: string[],
+  today: string,
+): PullResult {
+  const source = doc.source!;
   const byId = new Map(items.map((item) => [item.id, item]));
-  const links: Record<string, AzureLink> = {};
+  const links: Record<string, IssueLink> = {};
   const conflicts: string[] = [];
-  const missing: number[] = [];
+  const missing: string[] = [];
   let updated = 0;
 
   const tasks = doc.tasks.map((task) => {
-    const link = azure.links?.[task.id];
+    const link = source.links?.[task.id];
     if (!link) return task;
     const item = byId.get(link.id);
     if (!item) {
@@ -92,7 +109,7 @@ export function applyPull(doc: BoardDocument, items: WorkItem[], requested: numb
       return task;
     }
     const next: BoardTask = { ...task };
-    const base: AzureLink = { ...link };
+    const base: IssueLink = { ...link };
     let conflict = false;
 
     const title = cellText(item.title);
@@ -102,15 +119,15 @@ export function applyPull(doc: BoardDocument, items: WorkItem[], requested: numb
       else conflict = true;
     }
 
-    if (item.state !== link.state) {
-      const column = columnOf(doc, item.state);
+    if (item.state.name !== link.state) {
+      const column = columnOf(doc, provider, item.state.name);
       if (column === task.status) {
-        base.state = item.state;
+        base.state = item.state.name;
         base.column = column;
       } else if (task.status === link.column) {
         // Un estado sin columna deja la tarjeta donde está
         next.status = base.column = column ?? task.status;
-        base.state = item.state;
+        base.state = item.state.name;
       } else conflict = true;
     }
 
@@ -125,29 +142,29 @@ export function applyPull(doc: BoardDocument, items: WorkItem[], requested: numb
   let added = 0;
   for (const item of items) {
     if (linked.has(item.id) || missing.includes(item.id)) continue;
-    let id = `ado-${item.id}`;
+    let id = `${provider.task_prefix}-${item.id}`;
     while (used.has(id)) id += '_';
     used.add(id);
     const title = cellText(item.title);
-    const status = columnOf(doc, item.state) ?? doc.columns[0]?.id ?? 'todo';
+    const status = columnOf(doc, provider, item.state.name) ?? doc.columns[0]?.id ?? 'todo';
     tasks.push({ id, title, status, start: today, duration: 1, dependsOn: '-', progress: 0, comments: [] });
-    links[id] = { id: item.id, title, state: item.state, column: status };
+    links[id] = { id: item.id, title, state: item.state.name, column: status };
     added++;
   }
 
-  return { doc: { ...doc, tasks, azure: { ...azure, links } }, added, updated, conflicts, missing };
+  return { doc: { ...doc, tasks, source: { ...source, links } }, added, updated, conflicts, missing };
 }
 
-/** Lo que «Enviar» cambiaría en un work item ya vinculado. */
+/** Lo que «Enviar» cambiaría en una tarea ya vinculada. */
 export interface PushChange {
   taskId: string;
-  item: WorkItem;
+  item: Issue;
   title?: string;
   state?: string;
   /** Columna de la tarea al preparar el envío: la que pide ese estado. */
   column: string;
   comments: { timestamp: string; text: string }[];
-  /** El mismo campo cambió también en Azure DevOps: solo se envía si se marca. */
+  /** El mismo campo cambió también en el proveedor: solo se envía si se marca. */
   conflict: boolean;
 }
 
@@ -155,19 +172,19 @@ export interface PushPlan {
   changes: PushChange[];
   /** Tareas sin vínculo: se crean solo las que se marquen. */
   unlinked: BoardTask[];
-  /** Vinculadas a un work item que ya no se encuentra. */
-  missing: { taskId: string; id: number }[];
-  /** Cambiaron de columna a una que no tiene estado en Azure DevOps. */
+  /** Vinculadas a una tarea que ya no se encuentra. */
+  missing: { taskId: string; id: string }[];
+  /** Cambiaron de columna a una que no tiene estado en el proveedor. */
   unmapped: string[];
 }
 
-export function buildPushPlan(doc: BoardDocument, items: WorkItem[]): PushPlan {
-  const azure = doc.azure!;
+export function buildPushPlan(doc: BoardDocument, provider: IssueProvider, items: Issue[]): PushPlan {
+  const source = doc.source!;
   const byId = new Map(items.map((item) => [item.id, item]));
   const plan: PushPlan = { changes: [], unlinked: [], missing: [], unmapped: [] };
 
   for (const task of doc.tasks) {
-    const link = azure.links?.[task.id];
+    const link = source.links?.[task.id];
     if (!link) {
       plan.unlinked.push(task);
       continue;
@@ -192,11 +209,11 @@ export function buildPushPlan(doc: BoardDocument, items: WorkItem[]): PushPlan {
     }
 
     if (task.status !== link.column) {
-      const states = statesOf(azure, task.status);
+      const states = statesOf(source, provider, task.status);
       if (states.length === 0) plan.unmapped.push(task.id);
-      else if (!states.some((s) => s.toLowerCase() === item.state.toLowerCase())) {
+      else if (!states.some((s) => s.toLowerCase() === item.state.name.toLowerCase())) {
         change.state = states[0];
-        change.conflict ||= item.state !== link.state;
+        change.conflict ||= item.state.name !== link.state;
       }
     }
 
@@ -207,13 +224,12 @@ export function buildPushPlan(doc: BoardDocument, items: WorkItem[]): PushPlan {
   return plan;
 }
 
-/** Escrituras en Azure DevOps. */
-export interface AzureWriter {
-  update(id: number, rev: number, changes: { title?: string; state?: string }): Promise<WorkItem>;
-  create(type: string, title: string): Promise<WorkItem>;
-  comment(id: number, text: string): Promise<void>;
+/** Escrituras en el proveedor. */
+export interface IssueWriter {
+  update(id: string, revision: string | null, changes: { title?: string; state?: string }): Promise<Issue>;
+  create(type: string, title: string): Promise<Issue>;
+  comment(id: string, text: string): Promise<void>;
 }
-
 export interface PushResult {
   updated: number;
   created: number;
@@ -226,15 +242,16 @@ export interface PushResult {
  * escritura se confirma, para que un fallo a medias no repita lo ya hecho.
  */
 export async function runPush(
-  writer: AzureWriter,
+  provider: IssueProvider,
+  writer: IssueWriter,
   read: () => BoardDocument,
-  save: (taskId: string, link: AzureLink) => void,
+  save: (taskId: string, link: IssueLink) => void,
   changes: PushChange[],
   create: string[],
 ): Promise<PushResult> {
   const result: PushResult = { updated: 0, created: 0, comments: 0, errors: [] };
 
-  async function sendComments(taskId: string, link: AzureLink, comments: PushChange['comments']) {
+  async function sendComments(taskId: string, link: IssueLink, comments: PushChange['comments']) {
     for (const c of comments) {
       await writer.comment(link.id, c.text);
       link.sent = [...(link.sent ?? []), c.timestamp];
@@ -245,14 +262,14 @@ export async function runPush(
 
   for (const change of changes) {
     try {
-      const current = read().azure?.links?.[change.taskId];
+      const current = read().source?.links?.[change.taskId];
       if (!current) continue;
       const link = { ...current };
       if (change.title !== undefined || change.state !== undefined) {
-        const item = await writer.update(change.item.id, change.item.rev, { title: change.title, state: change.state });
+        const item = await writer.update(change.item.id, change.item.revision, { title: change.title, state: change.state });
         if (change.title !== undefined) link.title = cellText(item.title);
         if (change.state !== undefined) {
-          link.state = item.state;
+          link.state = item.state.name;
           link.column = change.column;
         }
         save(change.taskId, { ...link });
@@ -268,17 +285,17 @@ export async function runPush(
     try {
       const doc = read();
       const task = doc.tasks.find((t) => t.id === taskId);
-      if (!task || doc.azure?.links?.[taskId]) continue;
-      let item = await writer.create(doc.azure?.work_item_type?.trim() || DEFAULT_WORK_ITEM_TYPE, task.title);
-      // Un work item nace en su estado inicial; la columna de la tarea se envía después
-      const initial = columnOf(doc, item.state) ?? doc.columns[0]?.id ?? 'todo';
-      const link: AzureLink = { id: item.id, title: cellText(item.title), state: item.state, column: initial };
+      if (!task || doc.source?.links?.[taskId]) continue;
+      let item = await writer.create(doc.source?.issue_type?.trim() || provider.default_issue_type, task.title);
+      // Nace en su estado inicial; la columna de la tarea se envía después
+      const initial = columnOf(doc, provider, item.state.name) ?? doc.columns[0]?.id ?? 'todo';
+      const link: IssueLink = { id: item.id, title: cellText(item.title), state: item.state.name, column: initial };
       save(taskId, { ...link });
       result.created++;
-      const state = statesOf(doc.azure!, task.status)[0];
+      const state = statesOf(doc.source!, provider, task.status)[0];
       if (state && task.status !== initial) {
-        item = await writer.update(item.id, item.rev, { state });
-        link.state = item.state;
+        item = await writer.update(item.id, item.revision, { state });
+        link.state = item.state.name;
         link.column = task.status;
         save(taskId, { ...link });
       }

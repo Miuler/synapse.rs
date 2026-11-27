@@ -54,6 +54,14 @@ const server = Bun.serve({
   },
 });
 
+/** Una conexión al servidor falso; `secret`, su referencia de 1Password. */
+function writeConfig(secret?: string) {
+  const config = join(s.home, '.config/synapsers');
+  const connection = { id: 'pruebas', provider: 'azure_devops', name: 'Pruebas', server: `${server.url.origin}/org`, secret };
+  mkdirSync(config, { recursive: true });
+  writeFileSync(join(config, 'config.jsonc'), JSON.stringify({ issues: { connections: [connection] } }));
+}
+
 const board = `---
 type: board
 default_view: table
@@ -71,7 +79,7 @@ azure_devops:
 `;
 
 let s: Session;
-const saved = ['AZURE_DEVOPS_PAT', 'AZURE_DEVOPS_URL', 'SYNAPSE_OP_PATH', 'SYNAPSE_KEYRING_FILE'].map((name) => [name, process.env[name]] as const);
+const saved = ['AZURE_DEVOPS_PAT', 'SYNAPSE_OP_PATH', 'SYNAPSE_KEYRING_FILE'].map((name) => [name, process.env[name]] as const);
 // Un `op` falso: anota con qué se le llama y entrega otro token
 const bin = mkdtempSync(join(tmpdir(), 'synapse-op-'));
 const opCalls = join(bin, 'llamadas');
@@ -79,15 +87,18 @@ writeFileSync(join(bin, 'op'), `#!/bin/sh\necho "$@" >> '${opCalls}'\nprintf tok
 chmodSync(join(bin, 'op'), 0o755);
 
 beforeAll(async () => {
-  process.env.AZURE_DEVOPS_PAT = 'token-falso';
-  process.env.AZURE_DEVOPS_URL = server.url.origin;
+  // La credencial global no debe servir a la conexión
+  process.env.AZURE_DEVOPS_PAT = 'token-global';
   process.env.SYNAPSE_OP_PATH = join(bin, 'op');
   // El llavero de las pruebas es una carpeta: no se toca el del sistema
   process.env.SYNAPSE_KEYRING_FILE = join(bin, 'llavero');
+  mkdirSync(join(bin, 'llavero'));
+  writeFileSync(join(bin, 'llavero/issues-pruebas'), 'token-falso');
   s = await startApp({ 'equipo.board.md': board });
+  writeConfig();
   await s.browser.$('.file-tree-item[data-path="equipo.board.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="equipo.board.md"]').click();
-  await s.browser.$('.azure-pull').waitForExist({ timeout: 15_000 });
+  await s.browser.$('.issues-pull').waitForExist({ timeout: 15_000 });
 }, 120_000);
 afterAll(async () => {
   for (const [name, value] of saved) {
@@ -102,13 +113,13 @@ afterAll(async () => {
 const file = () => readFileSync(join(s.vault, 'equipo.board.md'), 'utf8');
 const until = (check: () => boolean | Promise<boolean>, what: string) =>
   s.browser.waitUntil(async () => check(), { timeout: 15_000, timeoutMsg: what });
-const status = () => s.browser.execute(() => document.querySelector('.azure-status')?.textContent ?? '') as Promise<string>;
+const status = () => s.browser.execute(() => document.querySelector('.issues-status')?.textContent ?? '') as Promise<string>;
 const shot = async (name: string) => {
   if (process.env.E2E_SHOTS) await s.browser.saveScreenshot(`${process.env.E2E_SHOTS}/${name}.png`);
 };
 
 it('«Traer» añade los work items y guarda el vínculo sin tocar Azure DevOps', async () => {
-  await s.browser.$('.azure-pull').click();
+  await s.browser.$('.issues-pull').click();
   await until(async () => (await status()).includes('1 nuevas'), 'no se trajo el work item');
   await until(() => file().includes('| ado-7 | Preparar \\| entorno | todo |') && file().includes('id: 7'), 'no se guardó');
   expect(writes).toEqual([]);
@@ -125,37 +136,35 @@ it('«Enviar» pide revisar, envía lo cambiado y solo crea lo marcado, sin repe
   });
   await until(() => file().includes('entorno | doing |'), 'no se movió la tarea');
 
-  await s.browser.$('.azure-push').click();
-  await s.browser.$('.azure-confirm').waitForExist({ timeout: 15_000 });
+  await s.browser.$('.issues-push').click();
+  await s.browser.$('.issues-confirm').waitForExist({ timeout: 15_000 });
   await shot('azure-revisar');
   expect(writes).toEqual([]);
-  await s.browser.$('.azure-confirm').click();
+  await s.browser.$('.issues-confirm').click();
   await until(async () => (await status()).includes('1 actualizadas, 0 creadas'), 'no se envió');
   expect(writes).toEqual(['update 7 In Progress']);
 
   // La tarea sin vínculo se crea solo si se marca
-  await s.browser.$('.azure-push').click();
-  const create = await s.browser.$('.azure-create[data-task="t1"] input');
+  await s.browser.$('.issues-push').click();
+  const create = await s.browser.$('.issues-create[data-task="t1"] input');
   await create.waitForExist({ timeout: 15_000 });
-  expect(await s.browser.$('.azure-confirm').isEnabled()).toBe(false);
+  expect(await s.browser.$('.issues-confirm').isEnabled()).toBe(false);
   await create.click();
-  await s.browser.$('.azure-confirm').click();
+  await s.browser.$('.issues-confirm').click();
   await until(async () => (await status()).includes('1 creadas'), 'no se creó');
   await until(() => file().includes('id: 101'), 'no se guardó el vínculo nuevo');
   expect(writes).toEqual(['update 7 In Progress', 'create 101']);
 
-  await s.browser.$('.azure-push').click();
+  await s.browser.$('.issues-push').click();
   await until(async () => (await status()).includes('No hay nada que enviar'), 'volvió a proponer cambios');
   expect(writes).toHaveLength(2);
 }, 120_000);
 
 it('con una referencia en la configuración, el token sale de 1Password', async () => {
   expect(new Set(tokens)).toEqual(new Set(['token-falso']));
-  const config = join(s.home, '.config/synapsers');
-  mkdirSync(config, { recursive: true });
-  writeFileSync(join(config, 'config.jsonc'), '{ "azure_devops": { "token": "op://Pruebas/Azure/token" } }');
+  writeConfig('op://Pruebas/Azure/token');
   tokens.length = 0;
-  await s.browser.$('.azure-pull').click();
+  await s.browser.$('.issues-pull').click();
   await until(async () => (await status()).includes('0 nuevas'), 'no se trajo con el token de 1Password');
   expect(new Set(tokens)).toEqual(new Set(['token-de-op']));
   // Una sola lectura para las dos peticiones de «Traer»
@@ -165,10 +174,12 @@ it('con una referencia en la configuración, el token sale de 1Password', async 
 it('en Configuración se cambia la ruta de 1Password, o se pega un token que va al llavero', async () => {
   const config = () => readFileSync(join(s.home, '.config/synapsers/config.jsonc'), 'utf8');
   const keyring = join(bin, 'llavero/azure-devops-token');
+  // La credencial única anterior, sin conexiones
+  writeFileSync(join(s.home, '.config/synapsers/config.jsonc'), '{ "azure_devops": { "token": "op://Pruebas/Azure/token" } }');
   await s.browser.$('[aria-label="Configuración"]').click();
   await s.browser.$('.settings-nav-item').waitForExist({ timeout: 15_000 });
   await s.browser.execute(() =>
-    ([...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent?.trim() === 'Azure DevOps') as HTMLElement).click(),
+    ([...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent?.trim() === 'Conexiones') as HTMLElement).click(),
   );
   const input = await s.browser.$('.azure-token-input');
   await input.waitForExist({ timeout: 15_000 });
@@ -195,31 +206,27 @@ it('en Configuración se cambia la ruta de 1Password, o se pega un token que va 
   await s.browser.keys(['Escape']);
   await s.browser.$('.synapse-settings').waitForExist({ reverse: true, timeout: 10_000 });
 
-  // El tablero usa ahora ese token
-  tokens.length = 0;
-  await s.browser.$('.azure-pull').click();
-  await until(() => tokens.length > 0, 'no se usó el token del llavero');
-  await until(async () => (await status()).includes('0 nuevas'), 'no terminó de traer');
-  expect(new Set(tokens)).toEqual(new Set(['token-pegado']));
-
   // También se quita desde la configuración del tablero
-  await s.browser.$('.azure-settings').click();
-  await s.browser.$('.azure-dialog .azure-token-remove').waitForExist({ timeout: 15_000 });
+  await s.browser.$('.issues-settings').click();
+  await s.browser.$('.issues-dialog .azure-token-remove').waitForExist({ timeout: 15_000 });
   await shot('azure-configurar-token');
-  await s.browser.$('.azure-dialog .azure-token-remove').click();
+  await s.browser.$('.issues-dialog .azure-token-remove').click();
   await until(() => !existsSync(keyring), 'no se quitó del llavero');
   await s.browser.keys(['Escape']);
-  await s.browser.$('.azure-dialog').waitForExist({ reverse: true, timeout: 10_000 });
+  await s.browser.$('.issues-dialog').waitForExist({ reverse: true, timeout: 10_000 });
 }, 120_000);
 
 it('la configuración se guarda en el tablero y un servidor ajeno no recibe el token', async () => {
-  await s.browser.$('.azure-settings').click();
-  const url = await s.browser.$('.azure-dialog input[name="project_url"]');
+  writeConfig();
+  tokens.length = 0;
+  await s.browser.$('.issues-settings').click();
+  const url = await s.browser.$('.issues-dialog input[name="scope"]');
   await url.waitForExist({ timeout: 15_000 });
   await shot('azure-configurar');
   await url.setValue('https://ejemplo.invalid/org/Demo');
-  await s.browser.$('.azure-dialog button[type="submit"]').click();
+  await s.browser.$('.issues-dialog button[type="submit"]').click();
   await until(() => file().includes('project_url: https://ejemplo.invalid/org/Demo') && !file().includes('id: 101'), 'no se guardó');
-  await s.browser.$('.azure-pull').click();
-  await until(async () => (await status()).includes('El token solo se envía a Azure DevOps'), 'no se rechazó el servidor');
+  await s.browser.$('.issues-pull').click();
+  await until(async () => (await status()).includes('Ninguna conexión cubre https://ejemplo.invalid/org/Demo'), 'no se rechazó el servidor');
+  expect(tokens).toEqual([]);
 }, 90_000);
