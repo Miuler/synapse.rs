@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Chat del agente: `@` completa también las carpetas de la bóveda (`@docs/guias/`; con `@f:` se ven solo archivos y carpetas): la carpeta va adjunta y se le indica al agente que liste su contenido.
 - Pestaña vacía: un botón «Personalizar» abajo a la derecha muestra u oculta el buscador, los archivos recientes, el botón de crear y las sugerencias, fija cuántos recientes se listan y elige el fondo (imagen, el original o ninguno). Un pulpo sugiere un atajo, otro en cada clic, en lugar de los mensajes «Ningún archivo abierto».
 - Pestaña vacía: bajo el buscador lista los últimos archivos abiertos (3 por defecto, hasta 15, configurable en Configuración), en una sección que se puede plegar (se recuerda así); «Crear nuevo archivo» abre ahora una lista de tipos de archivo, cada uno con su icono.
 - `Ctrl+←` / `Ctrl+→` cambian a la pestaña anterior o siguiente cuando no se está escribiendo; en editores, campos de texto y Excalidraw las teclas hacen lo de siempre. Configurable en Configuración.

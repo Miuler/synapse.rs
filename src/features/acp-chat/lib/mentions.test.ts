@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { ago, fileMention, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
+import { ago, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
 
 const conv = (status: 'working' | 'idle') => ({ handle: '#1', agent: 'Claude', title: 'x', status });
 
@@ -22,6 +22,17 @@ describe('menciones', () => {
       ['B', 'busy'],
       ['C', 'off'],
     ]);
+  });
+
+  it('saca las carpetas de las rutas y menciona una con barra final', () => {
+    expect(foldersOf(['docs/guias/a.md', 'docs/b.md', 'c.md'])).toEqual(['docs', 'docs/guias']);
+    const folder = folderMention('docs/mis guias');
+    expect(folder.token).toBe('@docs/mis_guias/');
+    // La carpeta no se confunde con un archivo suyo
+    const file = fileMention('docs/mis guias/a.md');
+    const { used } = mentionsPrompt(`mira ${file.token} y ${folder.token}, por favor`, [folder, file]);
+    expect(used).toEqual([folder, file]);
+    expect(mentionsPrompt(`mira ${file.token}`, [folder, file]).used).toEqual([file]);
   });
 
   it('explica al agente solo las menciones que siguen en el texto', () => {

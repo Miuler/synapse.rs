@@ -37,6 +37,7 @@
     AlertCircle,
     Loader2,
     FileText,
+    Folder,
     TextSelect,
     ImageIcon,
     X,
@@ -62,6 +63,8 @@
     conversationTooltip,
     fileMention,
     mentionsPrompt,
+    foldersOf,
+    folderMention,
     mergeVaults,
     STATUS_ICON,
     VAULT_ICON,
@@ -210,7 +213,8 @@
   const nameOf = (p: string) => p.split('/').pop() || p;
   const relOf = (p: string) => (cwd && p.startsWith(cwd) ? p.slice(cwd.length).replace(/^\//, '') : p);
 
-  // Autocompletado: `@nota` menciona una nota, `/comando` al inicio usa un comando del agente
+  // Autocompletado: `@nota` o `@carpeta` la mencionan, `/comando` al inicio usa un comando del agente
+  const vaultFolders = $derived(foldersOf(vaultItemStore.items.map((it) => it.relative_path)));
   let caret = $state(0);
   const mention = $derived.by(() => {
     const m = /(^|\s)@([^\s@]*)$/.exec(conv.draft.slice(0, caret));
@@ -340,7 +344,7 @@
     if (hash) return localConversationRows(hash.query, hash.start);
     if (mention) {
       // Filtro opcional: `@agent:` / `@a:` solo agentes (bóvedas y conversaciones), `@file:` / `@f:` solo
-      // archivos. El prefijo solo filtra: al elegir se inserta la mención sin él.
+      // archivos y carpetas. El prefijo solo filtra: al elegir se inserta la mención sin él.
       const m = mention;
       const scoped = /^(agents?|a|files?|f):(.*)$/.exec(m.query);
       const scope = scoped ? (scoped[1].startsWith('a') ? 'agents' : 'files') : null;
@@ -400,11 +404,28 @@
                   insertMention(m.start, fileMention(it.relative_path));
                 },
               }));
-      const files = [...self, ...fileRows];
+      // Carpetas: las que empiezan así van antes que los archivos (`@docs` → `docs/`)
+      const startsFolder = (path: string) => !!q && `${nameOf(path).toLowerCase()}/`.startsWith(q);
+      const folders =
+        scope === 'agents' || !q
+          ? []
+          : vaultFolders
+              .filter((path) => fuzzy(`${path.toLowerCase()}/`, q))
+              .sort((a, b) => Number(startsFolder(b)) - Number(startsFolder(a)))
+              .slice(0, scope ? 8 : 3);
+      const folderRows: Suggestion[] = folders.map((path) => ({
+        label: `📁 ${nameOf(path)}/`,
+        detail: `${path}/`,
+        pick: () => {
+          conv.attach({ kind: 'file', path: absPath(path), name: `${nameOf(path)}/` });
+          insertMention(m.start, folderMention(path));
+        },
+      }));
+      const files = folders.some(startsFolder) ? [...self, ...folderRows, ...fileRows] : [...self, ...fileRows, ...folderRows];
       const agents = [...vaultRows, ...localRows];
       // Encabezados con el atajo, solo cuando se ven los dos grupos
       if (!scope && files.length && agents.length) {
-        files[0] = { ...files[0], header: 'Archivos · @f: para ver solo estos' };
+        files[0] = { ...files[0], header: 'Archivos y carpetas · @f: para ver solo estos' };
         agents[0] = { ...agents[0], header: 'Bóvedas de Synapse · @a: para ver solo estas' };
       }
       // Si lo escrito es el comienzo del nombre de una bóveda, las bóvedas van primero
@@ -788,7 +809,7 @@
                     </button>
                   {:else}
                     <span class="acp-chip" title={a.path}
-                      >{#if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}{chipLabel(a)}</span
+                      >{#if a.kind === 'selection'}<TextSelect size={11} />{:else if a.name.endsWith('/')}<Folder size={11} />{:else}<FileText size={11} />{/if}{chipLabel(a)}</span
                     >
                   {/if}
                 {/each}
@@ -1071,7 +1092,7 @@
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
-              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => openImage(a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else}<FileText size={11} />{/if}
+              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => openImage(a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else if a.name.endsWith('/')}<Folder size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
               <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>

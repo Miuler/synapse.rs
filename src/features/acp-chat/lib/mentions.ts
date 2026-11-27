@@ -32,6 +32,28 @@ export const fileMention = (relPath: string): Mention => ({
   file: true,
 });
 
+/** Carpetas de la bóveda que contienen alguna de estas rutas, de la más corta a la más larga. */
+export function foldersOf(paths: Iterable<string>): string[] {
+  const folders = new Set<string>();
+  for (let path of paths) {
+    for (let cut = path.lastIndexOf('/'); cut > 0; cut = path.lastIndexOf('/')) {
+      path = path.slice(0, cut);
+      // Ya vista: sus carpetas superiores también
+      if (folders.has(path)) break;
+      folders.add(path);
+    }
+  }
+  return [...folders].sort((a, b) => a.length - b.length || a.localeCompare(b));
+}
+
+/** Referencia a una carpeta (`@docs/guias/`, la barra final la distingue); además va adjunta. */
+export const folderMention = (relPath: string): Mention => ({
+  token: `@${relPath.replace(/\s+/g, '_')}/`,
+  to: relPath,
+  title: `la carpeta «${relPath}»`,
+  file: true,
+});
+
 /** «hace 3 min», «hace 2 h»… */
 export function ago(ms: number | undefined, now = Date.now()): string {
   if (!ms) return '';

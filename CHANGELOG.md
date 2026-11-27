@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Agent chat: `@` also completes vault folders (`@docs/guides/`, with `@f:` to list only files and folders); the folder is attached and the agent is told to list its contents.
 - Empty tab: a «Customize» button in the bottom-right corner shows or hides the search box, the recent files, the create button and the tips, sets how many recent files are listed and chooses the background (image, default or none). An octopus gives a shortcut tip, another one on each click, in place of the «No open file» messages.
 - Empty tab: below the search box it lists the last files you opened (3 by default, up to 15, configurable in Settings), in a section you can collapse (it stays that way); «Create new file» now opens a list of file types, each with its own icon.
 - `Ctrl+←` / `Ctrl+→` switch to the previous or next tab when you are not typing; in editors, text fields and Excalidraw the keys keep their usual meaning. Configurable in Settings.

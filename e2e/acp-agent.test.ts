@@ -9,7 +9,12 @@ let s: Session;
 const FAKE_AGENT = join(import.meta.dir, 'fixtures/fake-acp-agent.ts');
 
 beforeAll(async () => {
-  s = await startApp({ 'nota.md': '# Nota\n', 'otra.md': '# Otra\n', 'flujo.mmd': 'graph TD\n  A[Inicio] --> B[Fin]\n' });
+  s = await startApp({
+    'nota.md': '# Nota\n',
+    'otra.md': '# Otra\n',
+    'flujo.mmd': 'graph TD\n  A[Inicio] --> B[Fin]\n',
+    'docs/guias/alta.md': '# Alta\n',
+  });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').waitForExist({ timeout: 30_000 });
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click();
 }, 120_000);
@@ -563,6 +568,28 @@ it('la notificación de fin de turno lleva la respuesta final, o la consulta si 
   await s.browser.keys('Escape');
   await s.browser.$('.settings-panel').waitForExist({ reverse: true, timeout: 5_000 });
   expect(await ask()).toBe('Terminó la consulta: "dame la lista de tareas"');
+}, 60_000);
+
+it('@carpeta se autocompleta, queda adjunta y el mensaje dice a qué apunta', async () => {
+  const input = s.browser.$('.acp-input textarea');
+  await s.browser.waitUntil(async () => !(await input.getAttribute('disabled')), { timeout: 15_000 });
+  // «lista de tareas»: el agente falso responde y termina el turno sin pedir permiso
+  await input.setValue('dame la lista de tareas de ');
+  await s.browser.keys('@gui'.split(''));
+  await s.browser.waitUntil(async () => (await text('.acp-suggest-label'))[0] === '📁 guias/', {
+    timeout: 5_000,
+    timeoutMsg: 'no se sugiere la carpeta en primer lugar',
+  });
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(async () => (await input.getValue()) === 'dame la lista de tareas de @docs/guias/ ', { timeout: 5_000, timeoutMsg: 'no se insertó la mención' });
+  expect((await text('.acp-composer .acp-chip')).some((t) => t?.trim() === 'guias/')).toBe(true);
+  await s.browser.keys('Enter');
+  await s.browser.waitUntil(
+    async () =>
+      (await s.browser.execute(() => [...document.querySelectorAll('.acp-msg.user .acp-mention')].map((m) => m.getAttribute('title'))) as (string | null)[]).some((t) => t?.includes('la carpeta «docs/guias»')),
+    { timeout: 10_000, timeoutMsg: 'el mensaje no marca la carpeta' },
+  );
+  await s.browser.waitUntil(async () => !(await s.browser.execute(() => !!document.querySelector('.acp-send[title^="Detener"]'))), { timeout: 15_000 });
 }, 60_000);
 
 it('cola: mientras trabaja, Enter encola; ✕ quita; al terminar se envía; ↑ edita; Detener lo devuelve a la caja', async () => {

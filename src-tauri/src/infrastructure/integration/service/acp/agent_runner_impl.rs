@@ -626,10 +626,22 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
             .trim_start_matches('/')
             .to_string()
     };
+    // Una carpeta llega como archivo cuyo nombre acaba en `/`
+    let folders: Vec<String> = blocks
+        .iter()
+        .filter_map(|b| match b {
+            PromptBlock::File { path, name } if name.ends_with('/') => {
+                Some(format!("`{}`", rel(path)))
+            }
+            _ => None,
+        })
+        .collect();
     let notes: Vec<String> = blocks
         .iter()
         .filter_map(|b| match b {
-            PromptBlock::File { path, .. } => Some(format!("`{}`", rel(path))),
+            PromptBlock::File { path, name } if !name.ends_with('/') => {
+                Some(format!("`{}`", rel(path)))
+            }
             PromptBlock::Selection {
                 path,
                 start_line,
@@ -642,8 +654,16 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
             _ => None,
         })
         .collect();
+    let folder_hint = (!folders.is_empty()).then(|| {
+        format!(
+            "[Contexto de Synapse] Las carpetas adjuntas están en la bóveda abierta en Synapse: {}. \
+             Mira su contenido con la herramienta MCP `list_folder_contents` del servidor \
+             `{SYNAPSE_TOOLS}`.",
+            folders.join(", ")
+        )
+    });
     if notes.is_empty() {
-        return None;
+        return folder_hint;
     }
     // Imágenes y diagramas adjuntos (también un `.drawio.png`): no se leen con read_note
     let visual = |n: &String| {
@@ -660,14 +680,18 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
     } else {
         String::new()
     };
-    Some(format!(
+    let notes_hint = format!(
         "[Contexto de Synapse] Las notas adjuntas están en la bóveda abierta en Synapse: {}. \
          Léelas con la herramienta MCP `read_note` del servidor `{SYNAPSE_TOOLS}` usando `relative_path`; \
          para notas largas pide primero `mode: \"outline_only\"` y luego `mode: \"section\"` o \
          `\"chunk\"` (`start_line`, `line_count`) en lugar de leer el archivo completo.{visual_hint} El servidor \
          `{SYNAPSE_TOOLS}` también ofrece búsqueda, enlaces, backlinks y Git sobre la bóveda.",
         notes.join(", ")
-    ))
+    );
+    Some(match folder_hint {
+        Some(folders) => format!("{notes_hint}\n{folders}"),
+        None => notes_hint,
+    })
 }
 
 /// Capacidades que el agente anuncia en `initialize`.
@@ -1547,5 +1571,16 @@ mod tests {
         assert!(hint.contains("`c.md` (líneas 3-5)"));
         assert!(hint.contains("read_note"));
         assert!(synapse_hint(&blocks[..1], "/b").is_none());
+
+        // Una carpeta adjunta se lista, no se lee como nota
+        let folder = PromptBlock::File {
+            path: "/b/notas".into(),
+            name: "notas/".into(),
+        };
+        let only = synapse_hint(std::slice::from_ref(&folder), "/b").unwrap();
+        assert!(only.contains("`notas`") && only.contains("list_folder_contents"));
+        assert!(!only.contains("read_note"));
+        let both = synapse_hint(&[blocks[1].clone(), folder], "/b").unwrap();
+        assert!(both.contains("read_note") && both.contains("list_folder_contents"));
     }
 }
