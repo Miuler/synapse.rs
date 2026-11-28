@@ -54,6 +54,10 @@ export interface BoardTask {
   completedWork?: string;
   boardColumn?: string;
   boardLane?: string;
+  stateChangedAt?: string;
+  activatedAt?: string;
+  resolvedAt?: string;
+  closedAt?: string;
   /** Lo recién traído del proveedor, hasta que se guarda en el archivo de la tarea. */
   incoming?: {
     entries: ActivityEntry[];

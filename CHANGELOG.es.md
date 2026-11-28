@@ -64,6 +64,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Tableros de tareas: en el diálogo de detalle de la tarea, los comentarios se muestran ahora del más reciente al más antiguo con la caja para comentar arriba, el asignado (`@`) y el creador aparecen debajo del título del diálogo, el panel de detalles es más ancho por defecto con un separador arrastrable, y la lista de detalles incluye «Creado por», «Modificado por» y fechas adicionales del ciclo de vida de Azure DevOps (modificado, cambio de estado, activado, resuelto y cerrado).
 - Historial del agente: cada conversación empieza por el número que tenía (`#1`) y su fecha, o solo la hora si es de hoy. Las guardadas antes no muestran número.
 - Chat del agente: la notificación de fin de turno muestra ahora la respuesta final del agente en lugar de tu pregunta; en Configuración se puede volver a la pregunta.
 - Chat del agente: copiar una respuesta (un solo botón «Copiar») o bloques completos de ella con `Ctrl+C` pone el Markdown original como texto plano y la versión con formato como HTML: en un campo de texto se pega Markdown y en un correo, con formato.

@@ -40,6 +40,10 @@ interface TaskData {
   completedWork: string | null;
   boardColumn: string | null;
   boardLane: string | null;
+  stateChangedAt: string | null;
+  activatedAt: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
   start: string;
   duration: number;
   dependsOn: string;
@@ -113,6 +117,10 @@ const OPTIONAL = [
   'completedWork',
   'boardColumn',
   'boardLane',
+  'stateChangedAt',
+  'activatedAt',
+  'resolvedAt',
+  'closedAt',
 ] as const;
 const REQUIRED = ['title', 'status', 'start', 'duration', 'dependsOn', 'progress'] as const;
 
@@ -218,6 +226,10 @@ const emptyTask = (): TaskFile => ({
   completedWork: null,
   boardColumn: null,
   boardLane: null,
+  stateChangedAt: null,
+  activatedAt: null,
+  resolvedAt: null,
+  closedAt: null,
   start: '',
   duration: 1,
   dependsOn: '-',

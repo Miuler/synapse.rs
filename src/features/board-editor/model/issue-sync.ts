@@ -147,6 +147,10 @@ const REMOTE_OPTIONAL = [
   'completedWork',
   'boardColumn',
   'boardLane',
+  'stateChangedAt',
+  'activatedAt',
+  'resolvedAt',
+  'closedAt',
 ] as const;
 
 /** Lo que de una tarea solo dice el proveedor. */
@@ -173,6 +177,10 @@ function remoteFields(item: Issue): Partial<BoardTask> {
     completedWork: item.extra?.completed_work,
     boardColumn: item.extra?.board_column,
     boardLane: item.extra?.board_lane,
+    stateChangedAt: item.extra?.state_changed_at,
+    activatedAt: item.extra?.activated_at,
+    resolvedAt: item.extra?.resolved_at,
+    closedAt: item.extra?.closed_at,
   };
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
 }

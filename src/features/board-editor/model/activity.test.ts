@@ -26,6 +26,7 @@ const board = (link: object = {}, comments: ActivityEntry[] = []): BoardSnapshot
     priority: null, severity: null, iteration: null, area: null, parent: null, estimate: null, dueDate: null,
     reason: null, createdBy: null, createdAt: null, changedBy: null, originalEstimate: null,
     remainingWork: null, completedWork: null, boardColumn: null, boardLane: null,
+    stateChangedAt: null, activatedAt: null, resolvedAt: null, closedAt: null,
     start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, extra: [], comments,
     sync: { id: '1', title: 'A', state: 'New', column: 'todo', ...link },
   }],
@@ -35,6 +36,7 @@ const file = (extra: Partial<TaskFile> = {}): TaskFile => ({
   priority: null, severity: null, iteration: null, area: null, parent: null, estimate: null, dueDate: null,
   reason: null, createdBy: null, createdAt: null, changedBy: null, originalEstimate: null,
   remainingWork: null, completedWork: null, boardColumn: null, boardLane: null,
+  stateChangedAt: null, activatedAt: null, resolvedAt: null, closedAt: null,
   start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, sync: null, extra: [],
   description: '', acceptanceCriteria: '', activity: [], preamble: '', sections: '', ...extra,
 });
@@ -203,6 +205,10 @@ describe('editar en el detalle', () => {
         completed_work: '5',
         board_column: 'Doing',
         board_lane: 'Expedite',
+        state_changed_at: '2026-02-02T11:00:00',
+        activated_at: '2026-02-01T09:00:00',
+        resolved_at: '2026-02-10T14:00:00',
+        closed_at: '2026-02-12T16:00:00',
       },
     };
     const emptyDoc = folderDocument({ ...board(), tasks: [] });
@@ -232,6 +238,10 @@ describe('editar en el detalle', () => {
       completedWork: '5',
       boardColumn: 'Doing',
       boardLane: 'Expedite',
+      stateChangedAt: '2026-02-02T11:00:00',
+      activatedAt: '2026-02-01T09:00:00',
+      resolvedAt: '2026-02-10T14:00:00',
+      closedAt: '2026-02-12T16:00:00',
     });
     const written = applyTask(null, null, { task, link: received.doc.source!.links!['ado-1'] });
     expect(written.acceptanceCriteria).toBe('- Todo verde');

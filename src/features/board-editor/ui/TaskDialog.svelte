@@ -46,8 +46,75 @@
     task, tasks, columns, link, file, folder, errorText, onClose, onAddComment, onUpdate, onSaveDescription, onSaveEntry,
     onTakeProviderDescription, readOnly = false,
   }: Props = $props();
+  const formatHandle = (name?: string) => (name ? (name.startsWith('@') ? name : `@${name}`) : undefined);
+  const formatDateTime = (iso?: string) => (iso ? iso.replace('T', ' ').replace(/Z$/, '').slice(0, 19) : undefined);
+
   let history = $derived(file?.activity.filter((entry) => entry.kind === 'history') ?? []);
+  let comments = $derived([...task.comments].reverse());
+  let assigneeHandle = $derived(formatHandle(task.assignee));
+  let creatorHandle = $derived(formatHandle(task.createdBy));
   let column = $derived(columns.find((c) => c.id === task.status));
+
+  const SIDE_WIDTH_KEY = 'synapse.boardTaskDialog.sideWidth';
+  const DEFAULT_SIDE_WIDTH = 340;
+  const MIN_SIDE_WIDTH = 240;
+  const MIN_MAIN_WIDTH = 260;
+
+  function readSideWidth(): number {
+    try {
+      const saved = Number(localStorage.getItem(SIDE_WIDTH_KEY));
+      if (Number.isFinite(saved) && saved >= MIN_SIDE_WIDTH) return saved;
+    } catch { /* sin acceso a localStorage */ }
+    return DEFAULT_SIDE_WIDTH;
+  }
+
+  let sideWidth = $state(readSideWidth());
+  let columnsEl = $state<HTMLDivElement | null>(null);
+  let resizingSide = $state(false);
+  let dragStart: { x: number; width: number } | null = null;
+
+  function onSideResizeStart(e: PointerEvent) {
+    e.preventDefault();
+    resizingSide = true;
+    dragStart = { x: e.clientX, width: sideWidth };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onSideResizeMove(e: PointerEvent) {
+    if (!resizingSide || !dragStart) return;
+    const maxWidth = Math.max(MIN_SIDE_WIDTH, (columnsEl?.clientWidth ?? 960) - MIN_MAIN_WIDTH);
+    sideWidth = Math.round(Math.min(maxWidth, Math.max(MIN_SIDE_WIDTH, dragStart.width + (dragStart.x - e.clientX))));
+  }
+
+  function onSideResizeEnd(e: PointerEvent) {
+    if (!resizingSide) return;
+    resizingSide = false;
+    dragStart = null;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    try {
+      localStorage.setItem(SIDE_WIDTH_KEY, String(sideWidth));
+    } catch { /* sin acceso a localStorage */ }
+  }
+
+  function resetSideWidth() {
+    sideWidth = DEFAULT_SIDE_WIDTH;
+    try {
+      localStorage.removeItem(SIDE_WIDTH_KEY);
+    } catch { /* sin acceso a localStorage */ }
+  }
+  let dateDetails = $derived(
+    (
+      [
+        ['dueDate', task.dueDate],
+        ['createdAt', formatDateTime(task.createdAt)],
+        ['updatedAt', formatDateTime(link?.updated)],
+        ['stateChangedAt', formatDateTime(task.stateChangedAt)],
+        ['activatedAt', formatDateTime(task.activatedAt)],
+        ['resolvedAt', formatDateTime(task.resolvedAt)],
+        ['closedAt', formatDateTime(task.closedAt)],
+      ] as const
+    ).filter(([, value]) => Boolean(value)),
+  );
   let remoteDetails = $derived(
     (
       [
@@ -57,16 +124,12 @@
         ['iteration', task.iteration],
         ['area', task.area],
         ['parent', task.parent],
-        ['dueDate', task.dueDate],
         ['reason', task.reason],
         ['boardColumn', task.boardColumn],
         ['boardLane', task.boardLane],
         ['originalEstimate', task.originalEstimate],
         ['remainingWork', task.remainingWork],
         ['completedWork', task.completedWork],
-        ['createdBy', task.createdBy],
-        ['createdAt', task.createdAt?.replace('T', ' ').slice(0, 19)],
-        ['changedBy', task.changedBy],
       ] as const
     ).filter(([, value]) => Boolean(value)),
   );
@@ -197,15 +260,27 @@
   holdClose={unsaved}
   title={task.title}
   sizeKey="synapse.boardTaskDialog.size"
-  defaultSize={{ w: 880, h: 560 }}
+  defaultSize={{ w: 960, h: 560 }}
   minSize={{ w: 520, h: 340 }}
   class="task-dialog"
   bodyPadding="0"
 >
   {#snippet icon()}<SquareCheckBig size={20} />{/snippet}
   {#snippet badge()}<code class="task-id">{task.id}</code>{/snippet}
+  {#snippet subtitle()}
+    {#if assigneeHandle || creatorHandle}
+      <div class="task-people">
+        {#if assigneeHandle}
+          <span class="task-person is-assignee" title={t('board.assignee')}>{assigneeHandle}</span>
+        {/if}
+        {#if creatorHandle}
+          <span class="task-person is-creator" title={t('board.createdBy')}>{t('board.createdBy')}: {creatorHandle}</span>
+        {/if}
+      </div>
+    {/if}
+  {/snippet}
 
-  <div class="task-columns">
+  <div class="task-columns" class:is-resizing-side={resizingSide} bind:this={columnsEl}>
     <section class="task-main">
       <input
         class="detail-title"
@@ -255,11 +330,25 @@
       {#if failed && !editing}<p class="editor-error" role="alert">{failed}</p>{/if}
 
       <h3>{t('board.detail.comments')}</h3>
+      {#if !readOnly}
+      <form class="comment-form" onsubmit={submit}>
+        <!-- Con algo escrito, Escape no cierra el diálogo: se perdería -->
+        <input
+          type="text"
+          placeholder={t('board.detail.commentPlaceholder')}
+          bind:value={draft}
+          onkeydown={(e) => e.key === 'Escape' && draft && e.stopPropagation()}
+        />
+        <button type="submit" aria-label={t('board.detail.send')}>
+          <Send size={14} />
+        </button>
+      </form>
+      {/if}
       <div class="comments-list">
-        {#if task.comments.length === 0}
+        {#if comments.length === 0}
           <p class="empty">{t('board.detail.noComments')}</p>
         {:else}
-          {#each task.comments as comment, i (i)}
+          {#each comments as comment, i (task.comments.length - 1 - i)}
             <div class="comment-item">
               <div class="comment-ts">
                 <span>
@@ -285,21 +374,6 @@
         {/if}
       </div>
 
-      {#if !readOnly}
-      <form class="comment-form" onsubmit={submit}>
-        <!-- Con algo escrito, Escape no cierra el diálogo: se perdería -->
-        <input
-          type="text"
-          placeholder={t('board.detail.commentPlaceholder')}
-          bind:value={draft}
-          onkeydown={(e) => e.key === 'Escape' && draft && e.stopPropagation()}
-        />
-        <button type="submit" aria-label={t('board.detail.send')}>
-          <Send size={14} />
-        </button>
-      </form>
-      {/if}
-
       {#if history.length}
         <h3>{t('board.detail.history')}</h3>
         <ul class="history">
@@ -323,7 +397,22 @@
       {/if}
     </section>
 
-    <aside class="task-side">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      class="side-resizer"
+      class:active={resizingSide}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t('board.detail.resizeDetails')}
+      title={t('board.resizeColumnHint')}
+      onpointerdown={onSideResizeStart}
+      onpointermove={onSideResizeMove}
+      onpointerup={onSideResizeEnd}
+      onpointercancel={onSideResizeEnd}
+      ondblclick={resetSideWidth}
+    ></div>
+
+    <aside class="task-side" style="width: {sideWidth}px;">
       <!-- El estado es la insignia: al elegir otro, la tarea cambia de columna -->
       <select
         class="detail-status"
@@ -373,6 +462,14 @@
             </dd>
           {/each}
         {/if}
+        {#if task.createdBy}
+          <dt>{t('board.createdBy')}</dt>
+          <dd class="detail-remote">{task.createdBy}</dd>
+        {/if}
+        {#if task.changedBy}
+          <dt>{t('board.changedBy')}</dt>
+          <dd class="detail-remote">{task.changedBy}</dd>
+        {/if}
         <dt>{t('board.detail.start')}</dt>
         <dd class="detail-start">
           <input
@@ -397,6 +494,10 @@
             onchange={(e) => numberField(e.currentTarget, 'duration', 1, 100000)}
           />
         </dd>
+        {#each dateDetails as [field, value] (field)}
+          <dt>{t(`board.${field}`)}</dt>
+          <dd class="detail-remote">{value}</dd>
+        {/each}
         <dt>{t('board.detail.dependsOn')}</dt>
         <dd class="detail-depends">
           <select aria-label={t('board.detail.dependsOn')} disabled={readOnly} value={task.dependsOn} onchange={(e) => onUpdate({ dependsOn: e.currentTarget.value })}>
@@ -496,6 +597,32 @@
 />
 
 <style>
+  .task-people {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .task-person {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .task-person.is-assignee {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .task-person.is-creator {
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+  }
+
   .task-id {
     font-size: 12px;
     color: var(--text-secondary);
@@ -507,18 +634,41 @@
   .task-columns {
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    grid-template-rows: minmax(0, 1fr);
+    display: flex;
+  }
+
+  .task-columns.is-resizing-side {
+    user-select: none;
+    cursor: col-resize;
   }
 
   .task-main {
+    flex: 1;
+    min-width: 260px;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
     padding: 16px 20px;
     gap: 10px;
+  }
+
+  .side-resizer {
+    width: 6px;
+    margin-left: -3px;
+    margin-right: -3px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    position: relative;
+    z-index: 6;
+    touch-action: none;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+
+  .side-resizer:hover,
+  .side-resizer.active {
+    background: var(--accent);
   }
 
   /* Lo de la columna principal se desplaza junto: nada se aplasta */
@@ -647,6 +797,8 @@
 
 
   .task-side {
+    flex-shrink: 0;
+    max-width: 70%;
     display: flex;
     flex-direction: column;
     align-items: flex-start;

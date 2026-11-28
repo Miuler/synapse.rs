@@ -36,6 +36,7 @@
     onOpenAutoFocus?: (e: Event) => void;
     icon: Snippet;
     badge?: Snippet;
+    subtitle?: Snippet;
     children: Snippet;
     footer?: Snippet;
   }
@@ -57,6 +58,7 @@
     onOpenAutoFocus,
     icon,
     badge,
+    subtitle,
     children,
     footer,
   }: Props = $props();
@@ -111,7 +113,9 @@
             <Dialog.Title class="resizable-dialog-title">{title}</Dialog.Title>
             {@render badge?.()}
           </div>
-          {#if description}
+          {#if subtitle}
+            {@render subtitle()}
+          {:else if description}
             <Dialog.Description class="resizable-dialog-desc">{description}</Dialog.Description>
           {/if}
         </div>

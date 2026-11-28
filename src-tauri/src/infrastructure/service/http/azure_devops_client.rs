@@ -671,6 +671,16 @@ fn extra(value: &Value) -> BTreeMap<String, String> {
             extra.insert(key.to_string(), val);
         }
     }
+    for (key, field_name) in [
+        ("state_changed_at", "Microsoft.VSTS.Common.StateChangeDate"),
+        ("activated_at", "Microsoft.VSTS.Common.ActivatedDate"),
+        ("resolved_at", "Microsoft.VSTS.Common.ResolvedDate"),
+        ("closed_at", "Microsoft.VSTS.Common.ClosedDate"),
+    ] {
+        if let Some(val) = non_empty_field(fields, field_name).map(|d| instant(&d)) {
+            extra.insert(key.to_string(), val);
+        }
+    }
     extra
 }
 
@@ -1740,6 +1750,10 @@ mod tests {
             "Microsoft.VSTS.Scheduling.CompletedWork": 6.5,
             "System.BoardColumn": "Doing",
             "System.BoardLane": "Expedite",
+            "Microsoft.VSTS.Common.StateChangeDate": "2026-01-02T03:04:05Z",
+            "Microsoft.VSTS.Common.ActivatedDate": "2026-01-01T12:00:00Z",
+            "Microsoft.VSTS.Common.ResolvedDate": "2026-01-10T15:30:00Z",
+            "Microsoft.VSTS.Common.ClosedDate": "2026-01-11T16:00:00Z",
         }});
         let found = issue(&value, Some(&project)).unwrap();
         assert_eq!((found.id.as_str(), found.key.as_str()), ("7", "AB#7"));
@@ -1770,6 +1784,10 @@ mod tests {
         assert_eq!(found.extra.get("completed_work").map(String::as_str), Some("6.5"));
         assert_eq!(found.extra.get("board_column").map(String::as_str), Some("Doing"));
         assert_eq!(found.extra.get("board_lane").map(String::as_str), Some("Expedite"));
+        assert_eq!(found.extra.get("state_changed_at").map(String::as_str), Some("2026-01-02T03:04:05"));
+        assert_eq!(found.extra.get("activated_at").map(String::as_str), Some("2026-01-01T12:00:00"));
+        assert_eq!(found.extra.get("resolved_at").map(String::as_str), Some("2026-01-10T15:30:00"));
+        assert_eq!(found.extra.get("closed_at").map(String::as_str), Some("2026-01-11T16:00:00"));
         // Sin asignar ni fecha
         let bare = issue(&json!({"id": 8, "rev": 1, "fields": {}}), None).unwrap();
         assert_eq!((bare.assignee, bare.updated_at, bare.url), (None, None, None));

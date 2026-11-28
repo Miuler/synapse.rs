@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Task boards: in the task detail dialog, comments are now shown newest first with the comment box at the top, the assignee (`@`) and creator appear below the dialog title, the details panel is wider by default with a draggable divider, and the details list includes «Created by», «Changed by», and additional Azure DevOps lifecycle dates (updated, state changed, activated, resolved, and closed).
 - Agent history: each conversation starts with the number it had (`#1`) and its date, or only the time if it is from today. Conversations saved earlier show no number.
 - Agent chat: the notification shown when a turn ends now carries the agent's final answer instead of your question; Settings lets you go back to the question.
 - Agent chat: copying a reply (one «Copy» button) or whole blocks of it with `Ctrl+C` puts the original Markdown as plain text and the formatted version as HTML, so a text field pastes Markdown and an e-mail pastes it formatted.
