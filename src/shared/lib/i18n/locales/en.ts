@@ -477,6 +477,18 @@ export const en = {
       request: 'The request to {provider} failed: {detail}',
     },
   },
+  reasons: {
+    emptyValue: 'empty value',
+    noAnswer: 'no answer',
+    noStates: 'the type declares no states',
+    duplicateName: 'same name as another file except for letter case',
+    noVault: 'no vault is open',
+    missingRevision: 'the revision is missing',
+    typeChange: 'this server does not support changing the type',
+    noWorkItem: 'the response has no work item',
+    configUnreadable: 'config.jsonc cannot be read: fix it before saving',
+    noKeyring: 'this system has no keyring',
+  },
   connections: {
     title: 'Connections',
     intro: 'Task boards sync through these connections. Each token is only sent to the server of its connection.',

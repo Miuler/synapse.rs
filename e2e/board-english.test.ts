@@ -27,6 +27,10 @@ beforeAll(async () => {
     // Las notas muestran tableros de carpeta: uno de tabla solo diría que hay que convertirlo
     'items.board.md': '---\ntype: board\nformat: 2\ncolumns:\n  - { id: "todo", label: "To do", color: "" }\n---\n\n## Order\n\n- t1\n',
     'items.board/t1.md': '# Only\n\n- status: todo\n',
+    // Dos tareas que en otros sistemas serían el mismo archivo: Rust avisa de la segunda
+    'twins.board.md': '---\ntype: board\nformat: 2\ncolumns:\n  - { id: "todo", label: "To do", color: "" }\n---\n',
+    'twins.board/T1.md': '# Upper\n\n- status: todo\n',
+    'twins.board/t1.md': '# Lower\n\n- status: todo\n',
     'plain.md': `# Plain\n\n${['table', 'summary', 'kanban'].map((v) => `\`\`\`board\nboard: items.board\nview: ${v}\n\`\`\``).join('\n\n')}\n\n\`\`\`board\nboard: missing.board\n\`\`\`\n`,
   });
   await s.browser.$('.file-tree-item[data-path="plain.md"]').waitForExist({ timeout: 30_000 });
@@ -144,6 +148,15 @@ it('un tablero de carpeta, el detalle de su tarea y el aviso de convertir', asyn
   await s.browser.$('.confirm-dialog-btn.cancel').click();
   await s.browser.$('.confirm-dialog').waitForExist({ reverse: true, timeout: 5_000 });
 }, 90_000);
+
+it('el motivo que escribe Rust sale en inglés', async () => {
+  await s.browser.$('.file-tree-item[data-path="twins.board.md"]').click();
+  await until(
+    async () => (await s.browser.$(`${pane} .board-editor`).getText()).includes('except for letter case'),
+    'no salió el aviso de la tarea repetida',
+  );
+  expect(await spanish(`${pane} .board-editor`)).toEqual([]);
+}, 60_000);
 
 it('la configuración de conexiones', async () => {
   await s.browser.$('[aria-label="Settings"]').click();

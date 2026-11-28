@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Plus, Pencil, Trash2, PlugZap } from 'lucide-svelte';
-  import { t } from '@shared/lib/i18n';
+  import { reasonText, t } from '@shared/lib/i18n';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import AzureTokenField from './AzureTokenField.svelte';
   import { azureToken } from '../api/azure-devops.api';
@@ -47,7 +47,7 @@
   function errorText(cause: unknown, id = form?.provider ?? ''): string {
     const e = cause as Partial<IssueError>;
     if (!e?.kind) return String(cause);
-    return t(`issues.errors.${e.kind}`, { provider: providerName(id), detail: e.detail ?? '' });
+    return t(`issues.errors.${e.kind}`, { provider: providerName(id), detail: reasonText(e.detail ?? '') });
   }
 
   async function load() {

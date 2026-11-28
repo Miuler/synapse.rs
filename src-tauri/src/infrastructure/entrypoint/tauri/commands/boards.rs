@@ -19,7 +19,7 @@ fn resolve(state: &State<'_, AppState>, path: &str) -> Result<PathBuf, BoardErro
         .lock()
         .map_err(|e| bad(e.to_string()))?
         .clone()
-        .ok_or_else(|| bad("No hay ninguna bóveda abierta".into()))?;
+        .ok_or_else(|| bad("no vault open".into()))?;
     Ok(vault.join(relative.as_str()))
 }
 

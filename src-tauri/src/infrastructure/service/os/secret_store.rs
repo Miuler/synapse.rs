@@ -104,7 +104,7 @@ mod system {
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 mod system {
-    const NONE: &str = "sin llavero en este sistema";
+    const NONE: &str = "no keyring on this system";
 
     pub fn get(_: &str) -> Result<Option<String>, String> {
         Err(NONE.into())

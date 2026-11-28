@@ -222,7 +222,7 @@ impl BoardRepository for BoardRepositoryImpl {
             };
             // `T1.md` y `t1.md` son el mismo archivo en otros sistemas
             if !seen.insert(name.to_ascii_lowercase()) {
-                problems.push(problem("nombre repetido salvo por las mayúsculas".into()));
+                problems.push(problem("duplicate name except for case".into()));
                 continue;
             }
             match &indexed[name].card {

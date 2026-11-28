@@ -55,7 +55,7 @@ impl ConnectionRepository for ConnectionRepositoryImpl {
             && !serde_json_lenient::from_str::<Value>(&raw).is_ok_and(|v| v.is_object())
         {
             return Err(failed(
-                "config.jsonc no se puede leer: corrígelo antes de guardar".into(),
+                "config.jsonc cannot be read: fix it before saving".into(),
             ));
         }
         let mut config = git_binary::read_config(&self.config_dir);

@@ -35,14 +35,14 @@ pub async fn read(program: &str, reference: &str) -> Result<String, String> {
     command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let output = tokio::time::timeout(AUTHORIZATION_TIMEOUT, command.output())
         .await
-        .map_err(|_| format!("{program}: sin respuesta"))?
+        .map_err(|_| format!("{program}: no answer"))?
         .map_err(|e| format!("{program}: {e}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
     }
     let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if value.is_empty() {
-        return Err(format!("{reference}: vacío"));
+        return Err(format!("{reference}: empty value"));
     }
     recent.insert(key, (value.clone(), Instant::now()));
     Ok(value)

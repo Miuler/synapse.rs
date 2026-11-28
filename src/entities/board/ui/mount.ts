@@ -1,7 +1,7 @@
 // Pinta en una nota ya renderizada los bloques `board` y los enlaces a tareas, y los vuelve a pintar
 // cuando cambia su tablero. Todo el texto entra como texto (`textContent`): lo que venga de un
 // proveedor no puede ejecutar nada ni cargar recursos.
-import { t } from '@shared/lib/i18n';
+import { reasonText, t } from '@shared/lib/i18n';
 import { referencedBoards } from '../api/board.api';
 import { sharedReads } from '../lib/shared-reads';
 import { boardRefresher, requestBoardTask } from '../model/actions';
@@ -61,7 +61,7 @@ async function load(vault: BoardVault, name: string, notePath: string | null): P
     return { ok: true, value: { path: found.path, data: await readBoard(found.path) } };
   } catch (error) {
     const { kind, detail } = error as { kind?: string; detail?: string };
-    return failure(kind === 'not_folder_board' ? 'table_board' : 'unreadable', detail || name);
+    return failure(kind === 'not_folder_board' ? 'table_board' : 'unreadable', reasonText(detail || name));
   }
 }
 

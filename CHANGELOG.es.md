@@ -73,7 +73,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Corregido
 
-- Tableros de tareas: con la aplicación en inglés, el editor de tableros, el diálogo de tarea y el marco de los diálogos redimensionables ya no muestran textos en español; los tableros y tareas nuevos reciben sus nombres por defecto en el idioma de la interfaz.
+- Tableros de tareas: con la aplicación en inglés, el editor de tableros, el diálogo de tarea y el marco de los diálogos redimensionables ya no muestran textos en español; los tableros y tareas nuevos reciben sus nombres por defecto en el idioma de la interfaz. También se traducen los motivos que llevan sus mensajes de error (un nombre de tarea repetido salvo por las mayúsculas, una revisión que falta, 1Password sin responder, un `config.jsonc` ilegible…); lo que escriben el sistema o el servidor sale como está.
 - Chat del agente: la lista de `@` ya no deja de filtrar cuando dos bóvedas de Synapse se llaman igual.
 - Chat del agente: `@` sigue buscando tras un espacio, así que se encuentran archivos y carpetas con espacios en el nombre (deben aparecer todas las palabras). `Enter` justo tras un espacio envía el mensaje; `Tab` elige la sugerencia.
 - Explorador: los archivos borrados muestran ahora una insignia «D», verde si el borrado ya está en stage (por eso no se ofrece «Git Add») y roja mientras no lo está; antes no tenían insignia. Una carpeta borrada cuyo borrado está entero en stage se ve en verde en vez de rojo.

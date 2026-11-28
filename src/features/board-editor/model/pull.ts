@@ -1,6 +1,6 @@
 // «Traer», se pida desde el tablero o desde una nota que lo muestra: pregunta al proveedor, aplica lo
 // que cambió y, en un tablero de carpeta, guarda además la descripción y la actividad.
-import { t } from '@shared/lib/i18n';
+import { reasonText, t } from '@shared/lib/i18n';
 import { fetchActivity, fetchIssues, filterQuery, type IssueError } from '../api/issues.api';
 import { changedIssues, receive } from './activity';
 import type { BoardDocument } from './board.svelte';
@@ -18,7 +18,7 @@ export interface PulledBoard {
 export function issueErrorText(error: unknown, provider: string): string {
   const e = error as Partial<IssueError>;
   if (!e?.kind) return String(error instanceof Error ? error.message : error);
-  return t(`issues.errors.${e.kind}`, { provider, detail: e.detail ?? '' });
+  return t(`issues.errors.${e.kind}`, { provider, detail: reasonText(e.detail ?? '') });
 }
 
 /** Los ids vinculados a tareas que siguen en el tablero. */

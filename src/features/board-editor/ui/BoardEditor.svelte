@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Table, Kanban, GanttChartSquare, FileCode } from 'lucide-svelte';
   import { untrack } from 'svelte';
-  import { t } from '@shared/lib/i18n';
+  import { reasonText, t } from '@shared/lib/i18n';
   import { CodeEditor } from '@shared/ui/code-editor';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
   import { vaultApi } from '@entities/vault-item';
@@ -79,7 +79,7 @@
 
   function errorText(error: unknown): string {
     const e = error as Partial<BoardError>;
-    if (e.kind) return t(`board.errors.${e.kind}`, { detail: e.detail ?? '' });
+    if (e.kind) return t(`board.errors.${e.kind}`, { detail: reasonText(e.detail ?? '') });
     return error instanceof Error ? error.message : String(error);
   }
   let storeError = $derived(store?.error ? errorText(store.error) : '');
@@ -308,7 +308,7 @@
   {#if storeError}<p class="board-problem" role="alert">{storeError}</p>{/if}
   {#if folder && store?.problems.length}
     <p class="board-problem" role="status">
-      {t('board.unreadable', { files: store.problems.map((p) => `${p.file} (${p.detail})`).join(', ') })}
+      {t('board.unreadable', { files: store.problems.map((p) => `${p.file} (${reasonText(p.detail)})`).join(', ') })}
     </p>
   {/if}
 

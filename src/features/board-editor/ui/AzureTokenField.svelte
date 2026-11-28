@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '@shared/lib/i18n';
+  import { reasonText, t } from '@shared/lib/i18n';
   import { azureToken, type AzureTokenSetting } from '../api/azure-devops.api';
   import type { IssueError } from '../api/issues.api';
 
@@ -24,7 +24,7 @@
 
   function fail(cause: unknown) {
     const e = cause as Partial<IssueError>;
-    error = e.kind ? t(`issues.errors.${e.kind}`, { provider: 'Azure DevOps', detail: e.detail ?? '' }) : String(cause);
+    error = e.kind ? t(`issues.errors.${e.kind}`, { provider: 'Azure DevOps', detail: reasonText(e.detail ?? '') }) : String(cause);
   }
 
   onMount(() => {

@@ -651,7 +651,7 @@ fn history_entry(value: &Value) -> Option<IssueEntry> {
 }
 
 fn expect_issue(value: &Value) -> Result<Issue, IssueError> {
-    issue(value).ok_or_else(|| IssueError::new(Kind::Request, "respuesta sin work item"))
+    issue(value).ok_or_else(|| IssueError::new(Kind::Request, "response without work item"))
 }
 
 /// Los ids de Azure DevOps son números; cualquier otra cosa no es un work item suyo.
@@ -746,7 +746,7 @@ impl AzureDevOpsClient {
             found = states.iter().find(|s| s.category == category);
         }
         let state = found.or_else(|| states.first()).ok_or_else(|| {
-            IssueError::new(Kind::Rule, format!("el tipo «{new_type}» no declara estados"))
+            IssueError::new(Kind::Rule, format!("{new_type}: type declares no states"))
         })?;
         Ok(set_field("System.State", &state.name))
     }
@@ -1116,11 +1116,11 @@ impl IssueProvider for AzureDevOpsClient {
             // Sin la revisión leída no hay forma de saber si se pisa un cambio ajeno
             let revision: u64 = revision
                 .and_then(|r| r.parse().ok())
-                .ok_or_else(|| IssueError::new(Kind::Conflict, "falta la revisión"))?;
+                .ok_or_else(|| IssueError::new(Kind::Conflict, "missing revision"))?;
             if changes.issue_type.is_some() && !self.editable(scope).contains(&"type".to_string()) {
                 return Err(IssueError::new(
                     Kind::Rule,
-                    "este servidor no admite cambiar el tipo",
+                    "this server does not support changing the type",
                 ));
             }
             let project = self.project(scope)?;

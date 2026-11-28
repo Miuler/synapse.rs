@@ -478,6 +478,18 @@ export const es: TranslationSchema = {
       request: 'Falló la petición a {provider}: {detail}',
     },
   },
+  reasons: {
+    emptyValue: 'vacío',
+    noAnswer: 'sin respuesta',
+    noStates: 'el tipo no declara estados',
+    duplicateName: 'nombre repetido salvo por las mayúsculas',
+    noVault: 'no hay ninguna bóveda abierta',
+    missingRevision: 'falta la revisión',
+    typeChange: 'este servidor no admite cambiar el tipo',
+    noWorkItem: 'respuesta sin work item',
+    configUnreadable: 'config.jsonc no se puede leer: corrígelo antes de guardar',
+    noKeyring: 'sin llavero en este sistema',
+  },
   connections: {
     title: 'Conexiones',
     intro: 'Los tableros de tareas se sincronizan por estas conexiones. Cada token solo se envía al servidor de su conexión.',

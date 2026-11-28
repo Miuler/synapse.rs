@@ -119,7 +119,7 @@ pub(crate) fn value<T: DeserializeOwned>(key: &str, lines: &[&str]) -> Result<T,
     let bad = |e: String| BoardError::new(Kind::Frontmatter, format!("{key}: {e}"));
     let mut map: BTreeMap<String, serde_yaml::Value> =
         serde_yaml::from_str(&lines.join("\n")).map_err(|e| bad(e.to_string()))?;
-    let found = map.remove(key).ok_or_else(|| bad("vacío".into()))?;
+    let found = map.remove(key).ok_or_else(|| bad("empty value".into()))?;
     serde_yaml::from_value(found).map_err(|e| bad(e.to_string()))
 }
 
