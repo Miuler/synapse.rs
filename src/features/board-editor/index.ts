@@ -2,6 +2,7 @@ export { default as BoardEditor } from './ui/BoardEditor.svelte';
 export { default as ConnectionsSettings } from './ui/ConnectionsSettings.svelte';
 export { markNewBoard } from './model/new-boards';
 export { refreshBoard } from './model/refresh';
+export { resetConfigDraft } from './model/config-draft';
 export {
   createDefaultBoardMarkdown,
   parseBoardMarkdown,

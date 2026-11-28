@@ -398,6 +398,10 @@ export const es: TranslationSchema = {
     sent: 'Enviado: {updated} actualizadas, {created} creadas, {comments} comentarios.',
     outside: 'Fuera del filtro',
     outsideCount: 'Fuera del filtro: {tasks}.',
+    assistant: {
+      notice: 'Mientras esto esté abierto, el agente del chat puede ver la conexión (nunca su credencial), probar consultas —recibe títulos y personas asignadas, también de otros proyectos si la consulta no los acota— y cambiar lo que se ve. Solo tú guardas.',
+      changed: 'Cambiado por el agente',
+    },
     source: {
       newTitle: '¿De dónde salen las tareas?',
       localOnly: 'Dejarlo local',
@@ -416,6 +420,8 @@ export const es: TranslationSchema = {
       unlinkTitle: '¿Desvincular las tareas?',
       unlinkHint: 'Las tareas siguen en el tablero, pero pierden su vínculo con las de {provider}.',
       unlink: 'Cambiar y desvincular',
+      states: 'Estados por columna',
+      statesHint: 'Separados por comas; el primero es el que se envía. Vacío, los habituales del proveedor.',
       criteriaMode: 'Por criterios',
       criteria: {
         type: 'Tipo',

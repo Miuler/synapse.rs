@@ -22,3 +22,5 @@ Pedido por el usuario: con la configuración del tablero abierta, pedir al agent
 Avance 2026-11-27: las herramientas `config_` ya se sirven solo a los agentes que abre Synapse, con un token por sesión (tarea 7.1); todavía responden que no hay ninguna configuración abierta. Límite anotado en tasks.md sobre cómo claude-acp pasa el token a su CLI.
 
 Avance 2026-11-27: las herramientas ya dan el contexto, describen el origen, prueban una consulta y cambian el borrador (tarea 7.2), probado contra un servidor falso. Falta conectar la configuración del tablero, sin que bloquee el chat (tarea 7.3).
+
+Avance 2026-11-27: la configuración del tablero es un panel junto al chat y el agente la prueba y la cambia sin guardar (tarea 7.3), con e2e de agente falso. Falta que el usuario lo pruebe con su agente real; por la conexión HTTP no está comprobado de extremo a extremo.

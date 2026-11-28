@@ -397,6 +397,10 @@ export const en = {
     sent: 'Sent: {updated} updated, {created} created, {comments} comments.',
     outside: 'Outside the filter',
     outsideCount: 'Outside the filter: {tasks}.',
+    assistant: {
+      notice: 'While this is open, the chat agent can see the connection (never its credential), test queries —it receives titles and assignees, also from other projects if the query does not limit them— and change what is on screen. Only you save.',
+      changed: 'Changed by the agent',
+    },
     source: {
       newTitle: 'Where do the tasks come from?',
       localOnly: 'Keep it local',
@@ -415,6 +419,8 @@ export const en = {
       unlinkTitle: 'Unlink the tasks?',
       unlinkHint: 'The tasks stay on the board but lose their link with the issues of {provider}.',
       unlink: 'Change and unlink',
+      states: 'States per column',
+      statesHint: 'Comma separated; the first one is sent. Empty, the usual ones of the provider.',
       criteriaMode: 'By criteria',
       criteria: {
         type: 'Type',

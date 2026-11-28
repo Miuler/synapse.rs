@@ -101,7 +101,8 @@ set in Settings → Connections: a pasted token (keyring) or an `op://` referenc
 ### Which tasks a board brings
 
 Set per board, from the settings button of the board; when a board is created and there is something to sync with,
-Synapse asks right away (cancelling keeps the board local). A board takes a connection (or the one whose server covers
+Synapse asks right away (cancelling keeps the board local). The settings open as a panel next to the board, so the rest
+of the window stays usable; «Pull» and «Push» wait until it is closed. A board takes a connection (or the one whose server covers
 the project), a project URL and one of:
 
 - **Mine** (default): open issues assigned to, changed or created by you.
@@ -113,7 +114,29 @@ the project), a project URL and one of:
 Criteria are saved in the board together with the query compiled from them; editing the query by hand makes it win.
 Linked tasks the query no longer returns stay on the board, marked as outside the filter. Changing the project or the
 connection of a board with linked tasks unlinks them, after confirmation. A remote state goes to the column that lists
-it in `states` of the board, else to the column of the category the provider declares, else by its usual name.
+it in `states` of the board, else to the column of the category the provider declares, else by its usual name. The
+panel edits `states` per column, comma separated (the first one is sent); an empty column uses the provider defaults.
+
+### Asking the agent to configure a board
+
+While the settings panel is open, an agent opened by Synapse in the chat can help with it, through four MCP tools that
+only those sessions see:
+
+| Tool | Purpose |
+|---|---|
+| `config_get_context` | The open settings: connection (name, provider and server), project, mode, query or filter, and states per column |
+| `config_describe_source` | Query language and accepted values: types, states, people, iterations, areas and tags (up to 200 each) |
+| `config_test_query` | Run a query or filter read-only: total count and up to 20 items (reference, type, title, state, assignee), or the error of the provider |
+| `config_update_draft` | Change the query, filter or states on screen |
+
+- The agent never receives the credential of the connection, and cannot change the connection or the project.
+- Nothing is saved, pulled or pushed by these tools: what the agent changes is marked in the panel, and only «Save»
+  writes it to the board.
+- A tested query returns titles and assignees to the agent. A query that does not limit the project can reach others of
+  the same organization, as far as the token allows.
+- Each session gets its own token (an HTTP header, or the environment of the stdio bridge): other MCP clients and web
+  pages neither see nor can call these tools. The `claude-acp` adapter passes its MCP servers to the Claude CLI as an
+  argument, so the token shows in the command line of that process.
 
 ### Folder boards (`format: 2`)
 

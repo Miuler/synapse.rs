@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Tableros de tareas: la configuración del origen es ahora un panel junto al tablero, así que se puede usar el chat del agente a la vez. Un agente abierto por Synapse puede ver la conexión (nunca su credencial), probar consultas en solo lectura y cambiar en pantalla la consulta, el filtro o los estados; sus cambios quedan marcados y solo tú los guardas. Ahí se editan también los estados de cada columna. Esas herramientas `config_` son privadas: otros clientes MCP y las páginas web no las ven ni pueden llamarlas.
 - Chat del agente: clic derecho en una respuesta para «Copiar bloque» (el párrafo, lista, tabla o código bajo el puntero, como Markdown y con formato) o «Copiar respuesta». Con texto marcado, o sobre un enlace o una imagen, sale el menú del sistema como antes.
 - Chat del agente: clic derecho en una herramienta del registro para copiarla (nombre, entrada y salida) o solo el texto marcado.
 - Hacer clic en una notificación del agente (fin de turno, permiso o pregunta) trae Synapse al frente y muestra esa conversación (Linux; en Hyprland la ventana se enfoca a través del compositor).

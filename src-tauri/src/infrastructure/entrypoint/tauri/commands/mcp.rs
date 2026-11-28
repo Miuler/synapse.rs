@@ -52,8 +52,12 @@ pub fn mcp_diagram_rendered(
 
 /// La configuración que el usuario tiene abierta, cada vez que cambia; `null` al cerrarla.
 #[tauri::command]
-pub fn mcp_config_draft(state: State<'_, AppState>, draft: Option<SourceDraft>) {
-    state.config_window.set(draft);
+pub fn mcp_config_draft(
+    window: tauri::WebviewWindow,
+    state: State<'_, AppState>,
+    draft: Option<SourceDraft>,
+) {
+    state.config_window.set(window.label(), draft);
 }
 
 /// Respuesta de la ventana a `mcp://config-change`: el borrador como quedó, o el motivo.

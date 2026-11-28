@@ -25,7 +25,7 @@
   import {PlantUmlViewer} from "@features/plantuml-editor";
   import {DrawioViewer} from "@features/drawio-editor";
   import {ExcalidrawViewer, ObsidianExcalidrawViewer} from "@features/excalidraw-editor";
-  import {BoardEditor, createDefaultBoardMarkdown, markNewBoard, refreshBoard} from "@features/board-editor";
+  import {BoardEditor, createDefaultBoardMarkdown, markNewBoard, refreshBoard, resetConfigDraft} from "@features/board-editor";
   import { setBoardRefresher } from "@entities/board";
   import {boardLockedPaths} from "@shared/lib/board-protection";
   import {ImageViewer} from "@features/image-viewer";
@@ -3081,6 +3081,8 @@
     }
     return () => clearTimeout(timer);
   });
+
+  onMount(() => resetConfigDraft());
 
   onMount(() => {
     if (isDetachedWindow) return;
