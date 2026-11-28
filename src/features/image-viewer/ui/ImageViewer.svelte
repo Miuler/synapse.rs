@@ -243,12 +243,12 @@
       }
 
       zoom = newZoom;
+    } else if (e.shiftKey) {
+      // WebKitGTK entrega Shift + rueda ya girado a `deltaX` (con `deltaY` en 0); otros, en `deltaY`
+      panX -= e.deltaX || e.deltaY;
     } else {
-      if (e.shiftKey) {
-        panX -= e.deltaY;
-      } else {
-        panY -= e.deltaY;
-      }
+      panX -= e.deltaX;
+      panY -= e.deltaY;
     }
   }
 

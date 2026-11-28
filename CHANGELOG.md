@@ -74,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Task boards: with the app in English, the board editor, the task dialog and the frame of resizable dialogs no longer show Spanish text; new boards and tasks get their default names in the interface language. The reasons inside their error messages (a task name repeated except for letter case, a missing revision, 1Password not answering, an unreadable `config.jsonc`…) are translated too; what the system or the server writes is shown as it is. So are the explorer's error notices and the reasons behind refused file operations (a file that belongs to a board, a name already taken, a missing item, an invalid path…).
+- Image viewer: `Shift` + mouse wheel scrolls the image horizontally (on Linux it did nothing), and so does horizontal touchpad scrolling.
 - Agent chat: the `@` list no longer stops filtering when two Synapse vaults have the same name.
 - Agent chat: `@` keeps searching after a space, so files and folders with spaces in their names can be found (each word must appear). `Enter` right after a space sends the message; `Tab` picks the suggestion.
 - Explorer: deleted files now show a «D» badge, green when the deletion is staged (so «Git Add» is not offered) and red while it is not; before, they had no badge. A deleted folder whose deletion is fully staged is shown in green instead of red.
