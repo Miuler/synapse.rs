@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { parseBoardMarkdown, placeTask, serializeBoardMarkdown, sortTasks, type BoardTask, type TaskSortKey } from './board.svelte';
+import { newTaskId, parseBoardMarkdown, placeTask, serializeBoardMarkdown, sortTasks, type BoardTask, type TaskSortKey } from './board.svelte';
 
 const task = (id: string, status: string): BoardTask => ({
   id, title: id, status, start: '2026-01-01', duration: 1, dependsOn: '-', progress: 0, comments: [],
@@ -113,5 +113,15 @@ describe('tablero de tabla', () => {
       tasks: [{ ...task('a', 'todo'), type: 'Bug', assignee: 'Ana', key: 'AB#1', url: 'https://example.test/1' }],
     });
     expect(synced).toBe(plain);
+  });
+});
+
+describe('newTaskId', () => {
+  it('genera un UUIDv7 en Crockford Base32 de 26 caracteres ordenable por fecha', () => {
+    const a = newTaskId(1_700_000_000_000);
+    const b = newTaskId(1_700_000_000_001);
+    expect(a).toMatch(/^[0-9a-hjkmnp-tv-z]{26}$/);
+    expect(b).toMatch(/^[0-9a-hjkmnp-tv-z]{26}$/);
+    expect(a < b).toBe(true);
   });
 });

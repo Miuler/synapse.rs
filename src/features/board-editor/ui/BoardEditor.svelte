@@ -7,6 +7,7 @@
   import { vaultApi } from '@entities/vault-item';
   import { onBoardTaskRequest, takeBoardTask } from '@entities/board';
   import {
+    newTaskId,
     parseBoardMarkdown,
     placeTask,
     serializeBoardMarkdown,
@@ -204,11 +205,8 @@
   }
 
   function addTask(status?: string) {
-    const nextNum = doc.tasks.length + 1;
-    let id = `t${nextNum}`;
-    while (doc.tasks.some((t) => t.id === id)) {
-      id = `t${nextNum}_${Math.floor(Math.random() * 100)}`;
-    }
+    let id = newTaskId();
+    while (doc.tasks.some((t) => t.id === id)) id = newTaskId();
     const newTask: BoardTask = {
       id,
       title: t('board.newTask'),
@@ -393,10 +391,12 @@
           tasks={doc.tasks}
           columns={doc.columns}
           link={doc.source?.links?.[selectedTask.id]}
+          links={doc.source?.links}
           file={details?.id === selectedTask.id ? details.task : undefined}
           {folder}
           {errorText}
           onClose={() => (selectedTaskId = null)}
+          onSelectTask={(id) => (selectedTaskId = id)}
           onAddComment={addComment}
           onUpdate={(patch) => updateTask(selectedTask!.id, patch)}
           {readOnly}

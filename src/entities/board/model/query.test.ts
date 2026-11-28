@@ -147,6 +147,8 @@ describe('referencias', () => {
       expect(taskReference(other)).toBeNull();
     }
     expect(resolveTask(data, 'ADO-123')).toMatchObject({ ok: true, value: { key: 'AB#123', title: 'ado-123', state: 'In Progress' } });
+    expect(resolveTask(data, '123')).toMatchObject({ ok: true, value: { id: 'ado-123', key: 'AB#123' } });
+    expect(resolveTask(data, 'AB#123')).toMatchObject({ ok: true, value: { id: 'ado-123', key: 'AB#123' } });
     expect(resolveTask(data, 'nada')).toMatchObject({ ok: false, error: { kind: 'missing_task', detail: 'nada' } });
   });
 });

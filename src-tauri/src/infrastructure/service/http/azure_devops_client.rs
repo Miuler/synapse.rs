@@ -813,7 +813,7 @@ impl AzureDevOpsClient {
                 ("done".to_string(), states(&["Done", "Closed", "Completed"])),
             ]
             .into(),
-            task_prefix: "ado".into(),
+            task_prefix: String::new(),
             scope_example: "https://dev.azure.com/organization/project".into(),
             filter_criteria: vec![
                 Criterion::Type,

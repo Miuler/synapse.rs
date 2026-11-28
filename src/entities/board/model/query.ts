@@ -297,8 +297,12 @@ export function resolveQuery(data: ReferencedBoard, query: BoardQuery): Resolved
   };
 }
 
-/** La tarea que nombra un enlace. */
+/** La tarea que nombra un enlace (por id local, clave remota o sufijo tras `#`). */
 export function resolveTask(data: ReferencedBoard, id: string): Result<Row> {
-  const found = boardRows(data).find((row) => row.id.toLowerCase() === id.toLowerCase());
+  const needle = id.toLowerCase();
+  const rows = boardRows(data);
+  const found =
+    rows.find((row) => row.id.toLowerCase() === needle) ??
+    rows.find((row) => row.key.toLowerCase() === needle || row.key.toLowerCase().endsWith(`#${needle}`));
   return found ? { ok: true, value: found } : fail('missing_task', id);
 }

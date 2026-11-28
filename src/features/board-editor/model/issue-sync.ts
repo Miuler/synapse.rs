@@ -301,7 +301,7 @@ export function applyPull(
   let added = 0;
   for (const item of items) {
     if (linked.has(item.id) || missing.includes(item.id)) continue;
-    let id = `${provider.task_prefix}-${item.id}`;
+    let id = provider.task_prefix ? `${provider.task_prefix}-${item.id}` : item.id;
     while (used.has(id)) id += '_';
     used.add(id);
     const title = cellText(item.title);

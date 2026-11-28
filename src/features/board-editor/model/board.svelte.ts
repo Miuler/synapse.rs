@@ -361,3 +361,26 @@ export function createDefaultBoardMarkdown(): string {
   );
   return ['---', 'type: board', 'format: 2', 'default_view: kanban', 'columns:', ...columns, '---', '', '## Order', ''].join('\n');
 }
+
+const CROCKFORD = '0123456789abcdefghjkmnpqrstvwxyz';
+
+/** UUIDv7 (RFC 9562) codificado en Crockford Base32 de 26 caracteres en minúsculas. */
+export function newTaskId(now = Date.now()): string {
+  const bytes = new Uint8Array(16);
+  let ts = BigInt(now);
+  for (let i = 5; i >= 0; i--) {
+    bytes[i] = Number(ts & 0xffn);
+    ts >>= 8n;
+  }
+  crypto.getRandomValues(bytes.subarray(6));
+  bytes[6] = (bytes[6] & 0x0f) | 0x70;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let out = '';
+  for (let i = 0; i < 26; i++) {
+    out = CROCKFORD[Number(n & 31n)] + out;
+    n >>= 5n;
+  }
+  return out;
+}

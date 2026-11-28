@@ -25,6 +25,8 @@
     columns: BoardColumn[];
     /** La tarea del proveedor enlazada, si la hay. */
     link?: IssueLink;
+    /** Todos los vínculos del tablero, para resolver referencias locales por id remoto. */
+    links?: Record<string, IssueLink>;
     /** El archivo de la tarea, en los tableros de carpeta. */
     file?: TaskFile;
     /** Tablero de carpeta: además tiene descripción, tipo, asignado e histórico. */
@@ -33,6 +35,7 @@
     readOnly?: boolean;
     errorText: (error: unknown) => string;
     onClose: () => void;
+    onSelectTask?: (taskId: string) => void;
     onAddComment: (taskId: string, text: string) => void;
     onUpdate: (patch: Partial<BoardTask>) => void;
     /** `previous` es la descripción que se estaba editando. */
@@ -43,11 +46,37 @@
   }
 
   let {
-    task, tasks, columns, link, file, folder, errorText, onClose, onAddComment, onUpdate, onSaveDescription, onSaveEntry,
-    onTakeProviderDescription, readOnly = false,
+    task, tasks, columns, link, links, file, folder, errorText, onClose, onSelectTask, onAddComment, onUpdate,
+    onSaveDescription, onSaveEntry, onTakeProviderDescription, readOnly = false,
   }: Props = $props();
   const formatHandle = (name?: string) => (name ? (name.startsWith('@') ? name : `@${name}`) : undefined);
   const formatDateTime = (iso?: string) => (iso ? iso.replace('T', ' ').replace(/Z$/, '').slice(0, 19) : undefined);
+
+  const ISSUE_REF_RE = /(?:AB)?#(\d+)\b/g;
+
+  function findLinkedTask(ref: string): BoardTask | undefined {
+    const clean = ref.trim();
+    const low = clean.toLowerCase();
+    const num = clean.replace(/^(?:AB)?#/i, '');
+    return (
+      tasks.find((item) => item.id.toLowerCase() === low) ??
+      tasks.find((item) => item.key?.toLowerCase() === low || item.id === num || links?.[item.id]?.id === num)
+    );
+  }
+
+  function splitIssueRefs(text: string): { text: string; target?: BoardTask }[] {
+    const parts: { text: string; target?: BoardTask }[] = [];
+    let last = 0;
+    for (const match of text.matchAll(ISSUE_REF_RE)) {
+      const start = match.index!;
+      if (start > last) parts.push({ text: text.slice(last, start) });
+      const target = findLinkedTask(match[0]);
+      parts.push(target && target.id !== task.id ? { text: match[0], target } : { text: match[0] });
+      last = start + match[0].length;
+    }
+    if (last < text.length) parts.push({ text: text.slice(last) });
+    return parts;
+  }
 
   let history = $derived(file?.activity.filter((entry) => entry.kind === 'history') ?? []);
   let comments = $derived([...task.comments].reverse());
@@ -280,6 +309,23 @@
     {/if}
   {/snippet}
 
+  {#snippet linkedText(text: string)}
+    {#each splitIssueRefs(text) as part, i (i)}
+      {#if part.target && onSelectTask}
+        <button
+          type="button"
+          class="issue-ref-link"
+          title={part.target.title}
+          onclick={() => onSelectTask(part.target!.id)}
+        >
+          {part.text}
+        </button>
+      {:else}
+        {part.text}
+      {/if}
+    {/each}
+  {/snippet}
+
   <div class="task-columns" class:is-resizing-side={resizingSide} bind:this={columnsEl}>
     <section class="task-main">
       <input
@@ -307,7 +353,7 @@
         {#if editing?.key === 'description'}
           {@render editor(t('board.detail.description'), 8)}
         {:else if file.description}
-          <div class="description">{file.description}</div>
+          <div class="description">{@render linkedText(file.description)}</div>
         {:else}
           <p class="empty">{t('board.detail.noDescription')}</p>
         {/if}
@@ -324,7 +370,7 @@
           <div class="section-title">
             <h3>{t('board.detail.acceptanceCriteria')}</h3>
           </div>
-          <div class="description">{file.acceptanceCriteria}</div>
+          <div class="description">{@render linkedText(file.acceptanceCriteria)}</div>
         {/if}
       {/if}
       {#if failed && !editing}<p class="editor-error" role="alert">{failed}</p>{/if}
@@ -367,7 +413,7 @@
               {#if editing?.key === commentKey(comment)}
                 {@render editor(t('board.detail.editComment'), 3)}
               {:else}
-                <div class="comment-text">{comment.text}</div>
+                <div class="comment-text">{@render linkedText(comment.text)}</div>
               {/if}
             </div>
           {/each}
@@ -389,7 +435,7 @@
               {#if editing?.key === `history ${entry.id} ${entry.at}`}
                 {@render editor(t('board.detail.editHistory'), 3)}
               {:else}
-                <div class="history-text">{entry.text}</div>
+                <div class="history-text">{@render linkedText(entry.text)}</div>
               {/if}
             </li>
           {/each}
@@ -532,8 +578,22 @@
           </dd>
         {/if}
         {#each remoteDetails as [field, value] (field)}
+          {@const linkedTarget = field === 'parent' ? findLinkedTask(value) : undefined}
           <dt>{t(`board.${field}`)}</dt>
-          <dd class="detail-remote">{value}</dd>
+          <dd class="detail-remote">
+            {#if linkedTarget && onSelectTask}
+              <button
+                type="button"
+                class="issue-ref-link"
+                title={linkedTarget.title}
+                onclick={() => onSelectTask(linkedTarget.id)}
+              >
+                {value}
+              </button>
+            {:else}
+              {value}
+            {/if}
+          </dd>
         {/each}
         {#if task.tags?.length}
           <dt>{t('board.tags')}</dt>
@@ -867,6 +927,20 @@
   .detail-note {
     display: block;
     color: var(--text-secondary);
+  }
+
+  .issue-ref-link {
+    display: inline;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .issue-ref-link:hover {
+    text-decoration: underline;
   }
 
   .detail-link-ext {
