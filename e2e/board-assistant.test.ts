@@ -30,6 +30,22 @@ const server = Bun.serve({
   },
 });
 
+/** Un tablero con dos tarjetas en la última columna, la que el panel deja a la vista. */
+const TEAM = `---
+type: board
+default_view: kanban
+columns:
+  - { id: todo, label: "Por hacer", color: "var(--text-muted)" }
+  - { id: doing, label: "En progreso", color: "var(--accent)" }
+  - { id: done, label: "Hecho", color: "#22c55e" }
+---
+
+| id | Tarea | Estado | Inicio | Duración | Depende | Progreso |
+|---|---|---|---|---|---|---|
+| t1 | Primera | done | 2026-01-01 | 1d | - | 0% |
+| t2 | Segunda | done | 2026-01-01 | 1d | - | 0% |
+`;
+
 let s: Session;
 const keyring = mkdtempSync(join(tmpdir(), 'synapse-llavero-'));
 const saved = process.env.SYNAPSE_KEYRING_FILE;
@@ -38,7 +54,7 @@ const scope = () => `${server.url.origin}/org/Demo`;
 beforeAll(async () => {
   process.env.SYNAPSE_KEYRING_FILE = keyring;
   writeFileSync(join(keyring, 'issues-pruebas'), 'token-falso');
-  s = await startApp({ 'nota.md': '# Nota\n' });
+  s = await startApp({ 'nota.md': '# Nota\n', 'equipo.board.md': TEAM });
   const config = join(s.home, '.config/synapsers');
   mkdirSync(config, { recursive: true });
   const connection = { id: 'pruebas', provider: 'azure_devops', name: 'Pruebas', server: `${server.url.origin}/org` };
@@ -97,6 +113,57 @@ async function ask() {
   }, 'el agente no respondió');
   return (await answers()).at(-1)!;
 }
+
+// Va primero: con el chat cerrado queda tablero a la vista junto al panel, y después del clic derecho de
+// la siguiente prueba WebKitWebDriver ya no emite `pointerdown` al arrastrar
+it('con la configuración abierta el tablero se sigue usando', async () => {
+  await s.browser.$('.file-tree-item[data-path="equipo.board.md"]').click();
+  const pane = '.tab-pane:not(.hidden)';
+  await s.browser.$(`${pane} .kanban-view .card`).waitForExist({ timeout: 15_000 });
+  await s.browser.$(`${pane} .issues-settings`).click();
+  await panel().waitForExist({ timeout: 15_000 });
+  await s.browser.execute(() => {
+    const kanban = document.querySelector('.tab-pane:not(.hidden) .kanban-view')!;
+    kanban.scrollLeft = kanban.scrollWidth;
+  });
+  const dialog = () => s.browser.$('.task-dialog');
+  const card = (title: string) =>
+    s.browser.execute((title) => {
+      const found = [...document.querySelectorAll('.tab-pane:not(.hidden) .card')].find((c) => c.textContent?.includes(title))!;
+      const box = found.getBoundingClientRect();
+      const at = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+      return { ...at, visible: found.contains(document.elementFromPoint(at.x, at.y)) };
+    }, title) as Promise<{ x: number; y: number; visible: boolean }>;
+  expect((await card('Primera')).visible).toBe(true);
+
+  // Abrir y cerrar una tarea, varias veces: con el botón y con Escape, sin cerrar la configuración
+  for (const how of ['botón', 'Escape', 'botón', 'Escape']) {
+    await s.browser.$(`${pane} .card[data-task="t1"] .comment-btn`).click();
+    await dialog().waitForExist({ timeout: 5_000 });
+    if (how === 'Escape') await s.browser.keys(['Escape']);
+    else await s.browser.$('.task-dialog .resizable-dialog-close').click();
+    await dialog().waitForExist({ reverse: true, timeout: 5_000 });
+    expect(await panel().isExisting()).toBe(true);
+  }
+
+  // Arrastrar una tarjeta encima de otra
+  const [from, to] = [await card('Segunda'), await card('Primera')];
+  await s.browser
+    .action('pointer', { parameters: { pointerType: 'mouse' } })
+    .move({ x: from.x, y: from.y })
+    .down()
+    .pause(100)
+    .move({ duration: 150, x: to.x, y: to.y - 15 })
+    .pause(100)
+    .up()
+    .perform();
+  const team = () => readFileSync(join(s.vault, 'equipo.board.md'), 'utf8');
+  await until(() => team().indexOf('| t2 |') < team().indexOf('| t1 |'), 'no se reordenó');
+  expect(await panel().isExisting()).toBe(true);
+  await shot('asistente-tablero');
+  await s.browser.$('.source-panel button.cancel').click();
+  await panel().waitForExist({ reverse: true, timeout: 10_000 });
+}, 120_000);
 
 it('con la configuración abierta, el agente prueba, corrige y deja el borrador sin guardar', async () => {
   await s.browser.$('.file-tree-item[data-path="nota.md"]').click({ button: 'right' });

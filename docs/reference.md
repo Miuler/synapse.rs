@@ -101,8 +101,9 @@ set in Settings → Connections: a pasted token (keyring) or an `op://` referenc
 ### Which tasks a board brings
 
 Set per board, from the settings button of the board; when a board is created and there is something to sync with,
-Synapse asks right away (cancelling keeps the board local). The settings open as a panel next to the board, so the rest
-of the window stays usable; «Pull» and «Push» wait until it is closed. A board takes a connection (or the one whose server covers
+Synapse asks right away (cancelling keeps the board local). The settings open as a panel on the left of the board
+(covering it when there is little room, for example with the chat open), so the rest of the window stays usable; «Pull»
+and «Push» wait until it is closed. A board takes a connection (or the one whose server covers
 the project), a project URL and one of:
 
 - **Mine** (default): open issues assigned to, changed or created by you.

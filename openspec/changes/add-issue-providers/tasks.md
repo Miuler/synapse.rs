@@ -143,6 +143,10 @@
 
 - [ ] 8.1 Un tablero por proveedor en la misma bóveda y una nota que referencie los tres; `cargo test`, `clippy`,
   `cargo deny`, `bun run check`, `bun test ./src` y las e2e de tableros
+  Avance 2026-11-27, solo con Azure DevOps: pasan `cargo test` (338 + 69), `clippy -D warnings`, `cargo deny` (avisos,
+  licencias y fuentes; quedan avisos de versiones duplicadas), `bun run check`, `bun test ./src` (367) y las e2e de
+  tableros (71). Añadida la e2e de abrir tareas y arrastrar tarjetas con la configuración abierta. Sigue abierta hasta
+  que existan GitHub y Jira (grupos 5 y 6)
 - [ ] 8.2 Comprobación manual de solo «Traer» con una cuenta real de cada proveedor disponible, y después una
   escritura sobre una tarea de prueba
 
