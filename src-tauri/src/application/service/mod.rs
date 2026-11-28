@@ -1,4 +1,5 @@
 pub mod community_plugin_downloader;
+pub mod config_window;
 pub mod conversation_hub;
 pub mod credential_store;
 pub mod diagram_renderer;

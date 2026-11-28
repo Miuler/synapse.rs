@@ -3,7 +3,8 @@ use crate::domain::note::note_repository::NoteRepository;
 use crate::domain::search::full_text_index::FullTextIndex;
 use crate::domain::version::version_control::VersionControl;
 use crate::infrastructure::entrypoint::mcp::dto::*;
-use crate::infrastructure::entrypoint::mcp::tool_handler::{McpToolHandler, PRIVATE_TOOL_PREFIX};
+use crate::infrastructure::entrypoint::mcp::config_tools::{ConfigAssistant, PRIVATE_TOOL_PREFIX};
+use crate::infrastructure::entrypoint::mcp::tool_handler::McpToolHandler;
 use crate::infrastructure::repository::file::note_repository_impl::NoteRepositoryImpl;
 use crate::infrastructure::repository::git::version_control_impl::VersionControlImpl;
 use serde_json::{Value, json};
@@ -226,6 +227,10 @@ pub trait McpContextProvider: Send + Sync {
         Option<Arc<dyn crate::application::service::vault_catalog::UserPrompter>>,
     ) {
         (None, None)
+    }
+    /// Ayuda a configurar lo que el usuario tiene abierto en la ventana, si la hay.
+    fn config_assistant(&self) -> Option<Arc<ConfigAssistant>> {
+        None
     }
     /// Las conversaciones de agentes de la ventana, si la hay.
     fn conversation_hub(
@@ -672,7 +677,8 @@ impl McpBackgroundRuntime {
                     .is_some_and(|token| session_tokens().accepts(token));
             let tool_handler = tool_handler
                 .with_vaults(catalog, prompter)
-                .with_private_tools(private);
+                .with_private_tools(private)
+                .with_config_assistant(provider.config_assistant());
             let stdio_server = McpStdioServer::new(tool_handler);
 
             let started_at = now_unix_ms();

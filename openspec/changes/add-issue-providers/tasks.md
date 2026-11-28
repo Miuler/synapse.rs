@@ -125,8 +125,14 @@
   si cambiaron. Límite: ese adaptador pasa los `mcpServers` al CLI de Claude como argumento (`--mcp-config`), así que el
   token se ve en la línea de órdenes de ese proceso; su SDK tiene la opción `mcpServersDelivery: "initialize"`, que lo
   evitaría (sin probar ni aplicar)
-- [ ] 7.2 Implementar contexto, descripción, prueba de consulta limitada y cambio del borrador; pruebas contra
+- [x] 7.2 Implementar contexto, descripción, prueba de consulta limitada y cambio del borrador; pruebas contra
   servidor falso de errores, límites y de que ninguna respuesta incluye credenciales ni guarda nada
+  La ventana avisa del borrador abierto con el comando `mcp_config_draft` (`null` al cerrarlo); un cambio le llega como
+  evento `mcp://config-change` y lo contesta con `mcp_config_changed` (espera máxima de 5 s). Ninguna vista lo usa
+  todavía, así que las herramientas siguen respondiendo que no hay nada abierto: conectar la configuración es parte de
+  la 7.3, que debe avisar de que el agente recibe títulos y asignados, y de que una consulta que no acote el proyecto
+  puede alcanzar otros de la organización. Topes: 20 tareas por prueba y 200 valores por criterio. De los fallos de
+  credencial no se entrega ningún detalle
 - [ ] 7.3 Configuración del tablero no modal junto al chat, con los cambios del agente marcados y el aviso de qué
   recibe; e2e con el agente falso que prueba, corrige y deja el borrador sin guardar; documentar en
   `docs/reference.md` y en los dos CHANGELOG

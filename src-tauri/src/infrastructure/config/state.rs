@@ -94,6 +94,8 @@ use crate::application::service::diagram_renderer::DiagramRenderer;
 use crate::application::service::vault_catalog::{UserPrompter, VaultCatalog};
 use crate::infrastructure::integration::service::vault_catalog_impl::VaultCatalogImpl;
 use crate::infrastructure::integration::service::webview_conversation_hub_impl::WebviewConversationHubImpl;
+use crate::infrastructure::entrypoint::mcp::config_tools::ConfigAssistant;
+use crate::infrastructure::integration::service::webview_config_window_impl::WebviewConfigWindowImpl;
 use crate::infrastructure::integration::service::webview_diagram_renderer_impl::WebviewDiagramRendererImpl;
 use crate::infrastructure::integration::service::webview_user_prompter_impl::WebviewUserPrompterImpl;
 use dashmap::DashMap;
@@ -113,6 +115,7 @@ pub struct DynamicMcpContextProvider {
     pub diagram_renderer: Arc<WebviewDiagramRendererImpl>,
     pub conversation_hub: Arc<WebviewConversationHubImpl>,
     pub user_prompter: Arc<WebviewUserPrompterImpl>,
+    pub config_window: Arc<WebviewConfigWindowImpl>,
 }
 
 impl McpContextProvider for DynamicMcpContextProvider {
@@ -123,6 +126,13 @@ impl McpContextProvider for DynamicMcpContextProvider {
                 .map(|ft| Arc::clone(&ft.index) as Arc<dyn FullTextIndex>)
         });
         (vault, fts)
+    }
+
+    fn config_assistant(&self) -> Option<Arc<ConfigAssistant>> {
+        Some(Arc::new(ConfigAssistant::new(
+            Arc::clone(&self.config_window) as _,
+            crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir(),
+        )))
     }
 
     fn diagram_renderer(&self) -> Option<Arc<dyn DiagramRenderer>> {
@@ -230,6 +240,8 @@ pub struct AppState {
     pub conversation_hub: Arc<WebviewConversationHubImpl>,
     /// Preguntas al usuario desde el MCP: la ventana responde con `mcp_confirm_reply`.
     pub user_prompter: Arc<WebviewUserPrompterImpl>,
+    /// La configuración abierta en la ventana (`mcp_config_draft`), para las herramientas `config_`.
+    pub config_window: Arc<WebviewConfigWindowImpl>,
 }
 
 pub fn open_vault_components(
@@ -317,11 +329,13 @@ impl AppState {
         let full_text = Arc::new(Mutex::new(None));
         let app_handle: Arc<Mutex<Option<tauri::AppHandle>>> = Arc::new(Mutex::new(None));
 
+        let config_window = Arc::new(WebviewConfigWindowImpl::new(Arc::clone(&app_handle)));
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
         let user_prompter = Arc::new(WebviewUserPrompterImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
             user_prompter: Arc::clone(&user_prompter),
+            config_window: Arc::clone(&config_window),
             conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
@@ -475,6 +489,7 @@ impl AppState {
             diagram_renderer,
             conversation_hub,
             user_prompter,
+            config_window,
         }
     }
 
@@ -496,11 +511,13 @@ impl AppState {
         let active_vault_path = Arc::new(Mutex::new(Some(initial_vault_path.clone())));
         let full_text = Arc::new(Mutex::new(Some(full_text_comps)));
 
+        let config_window = Arc::new(WebviewConfigWindowImpl::new(Arc::clone(&app_handle)));
         let diagram_renderer = Arc::new(WebviewDiagramRendererImpl::new(Arc::clone(&app_handle)));
         let conversation_hub = Arc::new(WebviewConversationHubImpl::new(Arc::clone(&app_handle)));
         let user_prompter = Arc::new(WebviewUserPrompterImpl::new(Arc::clone(&app_handle)));
         let mcp_provider = Arc::new(DynamicMcpContextProvider {
             user_prompter: Arc::clone(&user_prompter),
+            config_window: Arc::clone(&config_window),
             conversation_hub: Arc::clone(&conversation_hub),
             diagram_renderer: Arc::clone(&diagram_renderer),
             active_vault_path: Arc::clone(&active_vault_path),
@@ -656,6 +673,7 @@ impl AppState {
             diagram_renderer,
             conversation_hub,
             user_prompter,
+            config_window,
         }
     }
 

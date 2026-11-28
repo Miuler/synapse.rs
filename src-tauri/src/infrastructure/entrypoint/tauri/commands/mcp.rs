@@ -1,3 +1,4 @@
+use crate::application::dto::issue::source_draft::SourceDraft;
 use crate::domain::mcp::mcp::McpPortRegistry;
 use crate::infrastructure::config::state::AppState;
 use crate::infrastructure::entrypoint::mcp::dto::McpRuntimeStatus;
@@ -47,6 +48,27 @@ pub fn mcp_diagram_rendered(
         (_, err) => Err(err.unwrap_or_else(|| "La ventana no devolvió la imagen".into())),
     };
     state.diagram_renderer.resolve(&request_id, result);
+}
+
+/// La configuración que el usuario tiene abierta, cada vez que cambia; `null` al cerrarla.
+#[tauri::command]
+pub fn mcp_config_draft(state: State<'_, AppState>, draft: Option<SourceDraft>) {
+    state.config_window.set(draft);
+}
+
+/// Respuesta de la ventana a `mcp://config-change`: el borrador como quedó, o el motivo.
+#[tauri::command]
+pub fn mcp_config_changed(
+    state: State<'_, AppState>,
+    request_id: String,
+    draft: Option<SourceDraft>,
+    error: Option<String>,
+) {
+    let reply = match (draft, error) {
+        (Some(draft), None) => Ok(draft),
+        (_, error) => Err(error.unwrap_or_else(|| "La ventana no aplicó el cambio".into())),
+    };
+    state.config_window.changed(&request_id, reply);
 }
 
 /// Respuesta de la ventana a `mcp://conversations`.

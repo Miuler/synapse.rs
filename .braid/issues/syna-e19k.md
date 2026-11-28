@@ -19,4 +19,6 @@ acceptance:
 
 Pedido por el usuario: con la configuración del tablero abierta, pedir al agente que genere la consulta, la pruebe y la modifique. Tareas del grupo 7 y especificación config-assistant de openspec/changes/add-issue-providers. El servidor MCP actual no pide autenticación (límite conocido): las herramientas privadas necesitan un token por sesión.
 
-Avance 2026-11-27: las herramientas `config_` ya se sirven solo a los agentes que abre Synapse, con un token por sesión (tarea 7.1); todavía responden que no hay ninguna configuración abierta. Faltan las tareas 7.2 y 7.3. Límite anotado en tasks.md sobre cómo claude-acp pasa el token a su CLI.
+Avance 2026-11-27: las herramientas `config_` ya se sirven solo a los agentes que abre Synapse, con un token por sesión (tarea 7.1); todavía responden que no hay ninguna configuración abierta. Límite anotado en tasks.md sobre cómo claude-acp pasa el token a su CLI.
+
+Avance 2026-11-27: las herramientas ya dan el contexto, describen el origen, prueban una consulta y cambian el borrador (tarea 7.2), probado contra un servidor falso. Falta conectar la configuración del tablero, sin que bloquee el chat (tarea 7.3).

@@ -286,6 +286,13 @@ impl AzureDevOpsClient {
         }
     }
 
+    /// Para las pruebas: otro llavero y otro `op`, sin tocar el entorno.
+    #[cfg(test)]
+    pub(crate) fn with_credentials(mut self, store: SecretStore, op: String) -> Self {
+        (self.store, self.op) = (store, op);
+        self
+    }
+
     async fn token(&self) -> Result<String, IssueError> {
         let env = match &self.token {
             Token::NotAReference(key) => {
