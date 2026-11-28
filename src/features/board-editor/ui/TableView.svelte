@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { flushSync, untrack } from 'svelte';
   import { MessageSquare, Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-svelte';
   import { t } from '@shared/lib/i18n';
   import { sortTasks, type BoardColumn, type BoardTask, type TaskSort, type TaskSortKey } from '../model/board.svelte';
@@ -40,7 +40,23 @@
     void ids;
     return untrack(() => sortTasks(tasks, by, columns).map((task) => task.id));
   });
-  let rows = $derived(order.map((id) => tasks.find((task) => task.id === id)).filter((task) => task !== undefined));
+  let byId = $derived(new Map(tasks.map((task) => [task.id, task])));
+  let rows = $derived(order.map((id) => byId.get(id)).filter((task) => task !== undefined));
+
+  // Con muchas tareas, las primeras filas se ven ya y las demás entran en los fotogramas siguientes
+  const CHUNK = 100;
+  let limit = $state(CHUNK);
+  $effect(() => {
+    if (limit >= rows.length) return;
+    const frame = requestAnimationFrame(() => (limit += CHUNK));
+    return () => cancelAnimationFrame(frame);
+  });
+  let shown = $derived(rows.slice(0, limit));
+
+  // «Depende» ofrece todas las demás tareas: creadas en cada fila, con mil tareas serían un millón de
+  // opciones. La lista completa se crea al ir a usarla, antes de que se despliegue
+  let choosing = $state<string | null>(null);
+  const choose = (id: string) => flushSync(() => (choosing = id));
 
   /** Ascendente, descendente y de vuelta al orden del tablero. */
   function toggleSort(key: TaskSortKey) {
@@ -72,7 +88,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each rows as task (task.id)}
+      {#each shown as task (task.id)}
         <!-- Los campos editables conservan su doble clic (seleccionar texto) -->
         <tr
           ondblclick={(e) =>
@@ -120,13 +136,20 @@
           </td>
           <td>
             <select
+              class="depends"
               value={task.dependsOn}
+              onfocus={() => choose(task.id)}
+              onpointerdown={() => choose(task.id)}
               onchange={(e) => onUpdateTask(task.id, { dependsOn: e.currentTarget.value })}
             >
               <option value="-">-</option>
-              {#each tasks.filter((t) => t.id !== task.id) as other (other.id)}
-                <option value={other.id}>{other.id}</option>
-              {/each}
+              {#if choosing === task.id}
+                {#each tasks as other (other.id)}
+                  {#if other.id !== task.id}<option value={other.id}>{other.id}</option>{/if}
+                {/each}
+              {:else if task.dependsOn !== '-'}
+                <option value={task.dependsOn}>{task.dependsOn}</option>
+              {/if}
             </select>
           </td>
           <td class="col-num">
