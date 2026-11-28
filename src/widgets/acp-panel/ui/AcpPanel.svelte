@@ -154,8 +154,15 @@
     };
   });
 
+  /** Fecha y hora; de hoy, solo la hora. */
   function formatDate(ms: number) {
-    return new Date(ms).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const date = new Date(ms);
+    const today = date.toDateString() === new Date().toDateString();
+    return date.toLocaleString(undefined, {
+      ...(today ? {} : { day: '2-digit', month: 'short' }),
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   function startWith(agentId: string) {
@@ -310,7 +317,8 @@
           {agentStore.closedHistory.length ? `Historial (${agentStore.closedHistory.length})` : 'Sin conversaciones cerradas'}
         </option>
         {#each agentStore.closedHistory as h (h.id)}
-          <option value={h.id}>{h.title || 'Sin título'} · {h.agent_name} · {formatDate(h.updated_at)}</option>
+          <!-- Número y fecha delante: un título largo los dejaría fuera de la lista -->
+          <option value={h.id}>{h.number ? `#${h.number} · ` : ''}{formatDate(h.updated_at)} · {h.title || 'Sin título'} · {h.agent_name}</option>
         {/each}
       </select>
       {#if confirmDeleteAll}

@@ -243,6 +243,7 @@ export class Conversation {
           agent_name: agent.name,
           cwd: this.#cwd,
           title: this.title,
+          number: this.number,
           acp_session_id: this.#resumableId,
           native_title: this.nativeTitle,
           asides,

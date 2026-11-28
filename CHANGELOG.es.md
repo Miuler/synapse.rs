@@ -59,6 +59,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Cambiado
 
+- Historial del agente: cada conversación empieza por el número que tenía (`#1`) y su fecha, o solo la hora si es de hoy. Las guardadas antes no muestran número.
 - Chat del agente: la notificación de fin de turno muestra ahora la respuesta final del agente en lugar de tu pregunta; en Configuración se puede volver a la pregunta.
 - Chat del agente: copiar una respuesta (un solo botón «Copiar») o bloques completos de ella con `Ctrl+C` pone el Markdown original como texto plano y la versión con formato como HTML: en un campo de texto se pega Markdown y en un correo, con formato.
 - El buscador de archivos (Ctrl+O) y el de contenido (Ctrl+Shift+F) recuerdan lo escrito, filtros incluidos, hasta cerrar Synapse; reaparece seleccionado, así que escribir lo reemplaza.

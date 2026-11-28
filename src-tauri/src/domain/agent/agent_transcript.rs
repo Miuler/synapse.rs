@@ -31,6 +31,9 @@ pub struct AgentTranscript {
     /// Preguntas aparte (`/btw`) de la conversación, cada una con sus mensajes y su sesión.
     #[serde(default)]
     pub asides: Value,
+    /// Número que tenía en el panel (`#1`) la última vez que se guardó.
+    #[serde(default)]
+    pub number: Option<u32>,
 }
 
 /// Datos de una conversación guardada, sin sus mensajes, para listarla.
@@ -44,6 +47,7 @@ pub struct AgentTranscriptSummary {
     pub acp_session_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    pub number: Option<u32>,
 }
 
 impl From<&AgentTranscript> for AgentTranscriptSummary {
@@ -57,6 +61,7 @@ impl From<&AgentTranscript> for AgentTranscriptSummary {
             acp_session_id: t.acp_session_id.clone(),
             created_at: t.created_at,
             updated_at: t.updated_at,
+            number: t.number,
         }
     }
 }

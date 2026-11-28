@@ -106,6 +106,7 @@ mod tests {
             items: json!([{"type": "user", "text": "hola"}]),
             native_title: Some("Mi sesión".into()),
             asides: json!([{"id": "a1", "items": [], "acp_session_id": "s-aparte"}]),
+            number: Some(2),
         }
     }
 

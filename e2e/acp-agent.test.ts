@@ -251,6 +251,8 @@ it('registra un agente personalizado y conversa con él', async () => {
     timeoutMsg: 'la conversación cerrada no aparece en el historial',
   });
   expect(await count('.acp-pinned')).toBe(0);
+  // Delante, el número que tenía y, por ser de hoy, solo la hora
+  expect((await text('.acp-history option')).find((t) => t?.includes('hola'))).toMatch(/^#\d+ · \d{1,2}:\d{2}[^·]* · /);
   await s.browser.execute(() => {
     const sel = document.querySelector('.acp-history select') as HTMLSelectElement;
     sel.value = [...sel.options].find((o) => o.textContent?.includes('hola'))!.value;
@@ -1149,7 +1151,7 @@ it('renombra la sesión en el agente y guarda con la conversación su nombre y s
 
   await s.browser.$('.acp-row button[aria-label="Cerrar conversación"]').click();
   await s.browser.waitUntil(async () => (await count('.acp-row')) === 0, { timeout: 5_000 });
-  await s.browser.waitUntil(async () => (await text('select[aria-label="Historial de conversaciones"] option')).some((t) => t?.startsWith('Mi sesión')), {
+  await s.browser.waitUntil(async () => (await text('select[aria-label="Historial de conversaciones"] option')).some((t) => t?.includes('· Mi sesión ·')), {
     timeout: 5_000,
     timeoutMsg: 'el historial no muestra el nombre',
   });

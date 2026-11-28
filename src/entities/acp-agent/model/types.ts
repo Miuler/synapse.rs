@@ -71,6 +71,8 @@ export interface AgentTranscriptSummary {
   acp_session_id: string | null;
   created_at: number;
   updated_at: number;
+  /** Número que tenía en el panel (`#1`) la última vez que se guardó; las antiguas no lo traen. */
+  number?: number | null;
 }
 
 export interface AgentTranscript extends AgentTranscriptSummary {
