@@ -18,13 +18,13 @@ impl<A: WorkspaceRegistryRepository> SaveShortcutUseCase<A> {
     pub fn execute(&self, command: SaveShortcutCommand) -> Result<ShortcutsConfig, String> {
         if command.section != "welcome" && command.section != "workspace" {
             return Err(format!(
-                "Sección de atajos desconocida: {}",
+                "Unknown shortcuts section: {}",
                 command.section
             ));
         }
         let value = command.value.trim();
         if value.is_empty() {
-            return Err("El atajo no puede estar vacío".to_string());
+            return Err("Shortcut cannot be empty".to_string());
         }
         self.workspace_registry_repository
             .save_shortcut(&command.section, &command.action, value)

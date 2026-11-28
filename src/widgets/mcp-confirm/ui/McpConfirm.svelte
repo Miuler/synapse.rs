@@ -2,6 +2,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { invokeTauri } from '@shared/api';
   import { confirmQueue } from '@shared/lib/confirm';
+  import { t } from '@shared/lib/i18n';
   import { onMount } from 'svelte';
 
   /** Preguntas al usuario: las del MCP (backend) y las del panel de agentes, en una sola cola. */
@@ -24,10 +25,10 @@
     <div class="mcp-confirm synapse-dialog" role="alertdialog" aria-modal="true" aria-labelledby="mcp-confirm-title">
       <h3 id="mcp-confirm-title">{current.title}</h3>
       <p>{current.message}</p>
-      <p class="hint">Se recuerda para esta bóveda.</p>
+      <p class="hint">{t('mcpConfirm.hint')}</p>
       <div class="actions">
-        <button type="button" onclick={() => confirmQueue.answer(false)}>No permitir</button>
-        <button type="button" class="primary" onclick={() => confirmQueue.answer(true)}>Permitir</button>
+        <button type="button" onclick={() => confirmQueue.answer(false)}>{t('mcpConfirm.deny')}</button>
+        <button type="button" class="primary" onclick={() => confirmQueue.answer(true)}>{t('mcpConfirm.allow')}</button>
       </div>
     </div>
   </div>

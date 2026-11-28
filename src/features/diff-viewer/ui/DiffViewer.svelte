@@ -320,14 +320,14 @@
         class="diff-file-badge"
         class:is-staged={isStaged && !baseRevision}
         class:is-revision={Boolean(baseRevision || commitRevision)}
-        title={compareWith ? 'Comparación de dos archivos' : commitRevision && fromRevision ? `Diferencias entre las versiones ${fromRevision} y ${commitRevision}` : commitRevision ? `Cambios del commit ${commitRevision}` : baseRevision ? `Comparando con revisión ${baseRevision}` : (isStaged ? 'Cambios en el stage (índice)' : 'Cambios en el área de trabajo')}
+        title={compareWith ? t('diffViewer.badge.compareTwoFiles') : commitRevision && fromRevision ? t('diffViewer.badge.compareRevisions', { from: fromRevision, to: commitRevision }) : commitRevision ? t('diffViewer.badge.commitChanges', { commit: commitRevision }) : baseRevision ? t('diffViewer.badge.compareWithRev', { rev: baseRevision }) : (isStaged ? t('diffViewer.badge.stagedChanges') : t('diffViewer.badge.workingTreeChanges'))}
       >
         {#if compareWith}
           <GitCompare size={14} class="badge-icon" />
-          <span>ARCHIVOS</span>
+          <span>{t('diffViewer.badge.files')}</span>
         {:else if commitRevision && fromRevision}
           <GitCompare size={14} class="badge-icon" />
-          <span>VERSIONES: {fromRevision.slice(0, 7)} → {commitRevision.slice(0, 7)}</span>
+          <span>{t('diffViewer.badge.versions', { from: fromRevision.slice(0, 7), to: commitRevision.slice(0, 7) })}</span>
         {:else if commitRevision}
           <History size={14} class="badge-icon" />
           <span>COMMIT: {commitRevision.slice(0, 7)}</span>
@@ -357,7 +357,7 @@
             <span class="stat-deleted">-{diffStats.deleted}</span>
           {/if}
           {#if isSavingLocal}
-            <span class="diff-saving-indicator">Guardando…</span>
+            <span class="diff-saving-indicator">{t('diffViewer.saving')}</span>
           {/if}
         </div>
       {/if}
@@ -365,17 +365,17 @@
 
     <div class="diff-toolbar-right">
       {#if isVisualCandidate}
-        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización diff">
+        <div class="view-mode-toggle" role="group" aria-label={t('diffViewer.modeGroupAria')}>
           <!-- 1. LADO A LADO -->
           <button
             type="button"
             class="toggle-btn"
             class:active={activeVisualTab === 'side_by_side'}
             onclick={() => chooseVisualTab('side_by_side')}
-            title={isDocx ? t('docxDiff.panelsHint') : compareWith ? 'Vista dividida lado a lado' : 'Vista dividida lado a lado (Disco vs Git)'}
+            title={isDocx ? t('docxDiff.panelsHint') : compareWith ? t('diffViewer.twoPanesTitle') : t('diffViewer.twoPanesGitTitle')}
           >
             <Columns size={13} />
-            <span>2 Paneles</span>
+            <span>{t('diffViewer.twoPanes')}</span>
           </button>
 
           <!-- Word: cambios de texto, tablas e imágenes -->
@@ -399,10 +399,10 @@
               class="toggle-btn"
               class:active={activeVisualTab === 'highlight'}
               onclick={() => chooseVisualTab('highlight')}
-              title="Diff perceptual: píxeles modificados resaltados en memoria"
+              title={t('diffViewer.differencesTitle')}
             >
               <Sparkles size={13} />
-              <span>Diferencias</span>
+              <span>{t('diffViewer.differences')}</span>
             </button>
           {/if}
 
@@ -413,10 +413,10 @@
               class="toggle-btn"
               class:active={activeVisualTab === 'text'}
               onclick={() => chooseVisualTab('text')}
-              title="Vista de código / diff de texto"
+              title={t('diffViewer.textViewTitle')}
             >
               <FileCode size={13} />
-              <span>Texto</span>
+              <span>{t('diffViewer.textView')}</span>
             </button>
           {/if}
         </div>
@@ -425,61 +425,61 @@
       <!-- SUBOPCIONES DE TEXTO (Solo si no es binario y está en pestaña texto) -->
       {#if !isPureBinary && (!isVisualCandidate || activeVisualTab === 'text')}
         <!-- MODO DE VISTA: SPLIT, UNIFIED O TEXTO PLANO -->
-        <div class="view-mode-toggle" role="group" aria-label="Modo de vista diff">
+        <div class="view-mode-toggle" role="group" aria-label={t('diffViewer.textModeGroupAria')}>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showRawDiff && viewMode === 'split'}
             onclick={() => chooseTextMode('split')}
-            title="Vista dividida (Split)"
+            title={t('diffViewer.splitTitle')}
           >
             <Columns size={13} />
-            <span>Dividida</span>
+            <span>{t('diffViewer.split')}</span>
           </button>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showRawDiff && viewMode === 'unified'}
             onclick={() => chooseTextMode('unified')}
-            title="Vista unificada (Unified)"
+            title={t('diffViewer.unifiedTitle')}
           >
             <AlignJustify size={13} />
-            <span>Unificada</span>
+            <span>{t('diffViewer.unified')}</span>
           </button>
           <button
             type="button"
             class="toggle-btn"
             class:active={showRawDiff}
             onclick={() => chooseTextMode('raw')}
-            title="Vista de parche / texto sin formato (Raw diff)"
+            title={t('diffViewer.patchTitle')}
           >
             <FileCode size={13} />
-            <span>Parche</span>
+            <span>{t('diffViewer.patch')}</span>
           </button>
         </div>
 
         {#if !showRawDiff && hasDiff}
           <!-- NAVEGACIÓN ENTRE CAMBIOS -->
           {#if chunkInfo.total > 0}
-            <div class="chunk-nav" role="group" aria-label="Navegación de cambios">
+            <div class="chunk-nav" role="group" aria-label={t('diffViewer.chunkNavAria')}>
               <button
                 type="button"
                 class="chunk-nav-btn"
                 onclick={() => cmDiffRef?.prevChunk()}
-                title="Cambio anterior"
-                aria-label="Cambio anterior"
+                title={t('diffViewer.prevChange')}
+                aria-label={t('diffViewer.prevChange')}
               >
                 <ChevronUp size={14} />
               </button>
-              <span class="chunk-counter" title="Bloques de cambio">
+              <span class="chunk-counter" title={t('diffViewer.changeChunksTitle')}>
                 {chunkInfo.current > 0 ? `${chunkInfo.current}/${chunkInfo.total}` : `${chunkInfo.total}`}
               </span>
               <button
                 type="button"
                 class="chunk-nav-btn"
                 onclick={() => cmDiffRef?.nextChunk()}
-                title="Siguiente cambio"
-                aria-label="Siguiente cambio"
+                title={t('diffViewer.nextChange')}
+                aria-label={t('diffViewer.nextChange')}
               >
                 <ChevronDown size={14} />
               </button>
@@ -491,8 +491,8 @@
             type="button"
             class="action-btn"
             onclick={() => cmDiffRef?.openSearch()}
-            title="Buscar en el diff (Ctrl+F)"
-            aria-label="Buscar en el diff"
+            title={t('diffViewer.searchTitle')}
+            aria-label={t('diffViewer.searchAria')}
           >
             <Search size={14} />
           </button>
@@ -502,7 +502,7 @@
             type="button"
             class="action-btn"
             onclick={handleExpandAll}
-            title="Expandir todas las secciones"
+            title={t('diffViewer.expandAll')}
           >
             <ChevronsUpDown size={14} />
           </button>
@@ -510,7 +510,7 @@
             type="button"
             class="action-btn"
             onclick={handleCollapseAll}
-            title="Colapsar secciones no modificadas"
+            title={t('diffViewer.collapseAll')}
           >
             <ChevronsDownUp size={14} />
           </button>
@@ -522,7 +522,7 @@
           class="action-btn"
           class:active={enableWrap}
           onclick={handleToggleWrap}
-          title={enableWrap ? 'Desactivar ajuste de línea' : 'Activar ajuste de línea'}
+          title={enableWrap ? t('diffViewer.disableWrap') : t('diffViewer.enableWrap')}
         >
           <WrapText size={14} />
         </button>
@@ -537,7 +537,7 @@
           reloadKey++;
           void fetchDiff();
         }}
-        title="Recargar diferencias (F5)"
+        title={t('diffViewer.reloadTitle')}
       >
         <RotateCw size={14} class={loading ? 'spinning' : ''} />
       </button>
@@ -548,11 +548,11 @@
     <!-- Qué es cada lado del diff de texto (izquierda / «−» = antes, derecha / «+» = después) -->
     <div class="diff-sides-bar" class:unified={viewMode !== 'split' || showRawDiff}>
       {#if viewMode === 'split' && !showRawDiff}
-        <span class="diff-side before" title="Lado izquierdo: antes">◀ {sides.beforeLabel}</span>
-        <span class="diff-side after" title="Lado derecho: después">{sides.afterLabel} ▶</span>
+        <span class="diff-side before" title={t('diffViewer.leftBeforeTitle')}>◀ {sides.beforeLabel}</span>
+        <span class="diff-side after" title={t('diffViewer.rightAfterTitle')}>{sides.afterLabel} ▶</span>
       {:else}
-        <span class="diff-side before" title="Líneas «−»: antes">− {sides.beforeLabel}</span>
-        <span class="diff-side after" title="Líneas «+»: después">+ {sides.afterLabel}</span>
+        <span class="diff-side before" title={t('diffViewer.minusBeforeTitle')}>− {sides.beforeLabel}</span>
+        <span class="diff-side after" title={t('diffViewer.plusAfterTitle')}>+ {sides.afterLabel}</span>
       {/if}
     </div>
   {/if}
@@ -560,9 +560,9 @@
   {#if diffData?.only_staged && !isStaged && !baseRevision && !compareWith && !commitRevision}
     <!-- Como `git diff`: local contra stage. Todo está en stage: los cambios se ven en el diff de stage -->
     <div class="diff-only-staged" role="status">
-      <span>Sin cambios fuera de stage: todos los cambios de <strong>{fileName}</strong> ya están en stage.</span>
+      <span>{t('diffViewer.onlyStagedPrefix')} <strong>{fileName}</strong> {t('diffViewer.onlyStagedSuffix')}</span>
       {#if onOpenStaged}
-        <button type="button" class="diff-only-staged-btn" onclick={onOpenStaged}>Ver Diff --staged</button>
+        <button type="button" class="diff-only-staged-btn" onclick={onOpenStaged}>{t('diffViewer.viewDiffStaged')}</button>
       {/if}
     </div>
   {/if}
@@ -594,17 +594,17 @@
     {#if loading}
       <div class="diff-state-container">
         <div class="spinner"></div>
-        <p class="diff-state-text">Cargando diferencias de Git...</p>
+        <p class="diff-state-text">{t('diffViewer.loadingDiff')}</p>
       </div>
     {:else if error}
       <div class="diff-state-container error">
         <div class="state-icon error-icon">
           <AlertCircle size={32} />
         </div>
-        <h3 class="state-title">Error al generar diff</h3>
+        <h3 class="state-title">{t('diffViewer.errorTitle')}</h3>
         <p class="state-desc">{error}</p>
         <button type="button" class="retry-btn" onclick={fetchDiff}>
-          Reintentar
+          {t('gitFileLog.retry')}
         </button>
       </div>
     {:else if !hasDiff}
@@ -612,9 +612,9 @@
         <div class="state-icon success-icon">
           <CheckCircle2 size={32} />
         </div>
-        <h3 class="state-title">Sin diferencias</h3>
+        <h3 class="state-title">{t('diffViewer.noDiffTitle')}</h3>
         <p class="state-desc">
-          No hay cambios en <strong>{fileName}</strong> {compareWith ? `respecto a ${compareWith}` : commitRevision ? `en el commit ${commitRevision.slice(0, 7)}` : baseRevision ? `respecto a la revisión ${baseRevision.slice(0, 7)}` : (isStaged ? 'para el área de preparación (stage)' : 'para el árbol de trabajo')}.
+          {t('diffViewer.noDiffPrefix')} <strong>{fileName}</strong> {compareWith ? t('diffViewer.noDiffCompareWith', { path: compareWith }) : commitRevision ? t('diffViewer.noDiffCommit', { rev: commitRevision.slice(0, 7) }) : baseRevision ? t('diffViewer.noDiffRev', { rev: baseRevision.slice(0, 7) }) : (isStaged ? t('diffViewer.noDiffStaged') : t('diffViewer.noDiffWorktree'))}.
         </p>
       </div>
     {:else if diffData}

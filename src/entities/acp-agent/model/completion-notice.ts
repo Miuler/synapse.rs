@@ -1,3 +1,5 @@
+import { t } from '@shared/lib/i18n';
+
 const MAX_QUERY = 120;
 const MAX_ANSWER = 240;
 
@@ -37,6 +39,6 @@ export function completionNotice(
   const reply = failed ? '' : short(plain(answer ?? ''), MAX_ANSWER);
   return {
     title: `${agent} · ${handle}`,
-    body: reply || `${failed ? 'Falló' : 'Terminó'} la consulta: "${short(query, MAX_QUERY)}"`,
+    body: reply || t(failed ? 'acp.notice.failedQuery' : 'acp.notice.finishedQuery', { query: short(query, MAX_QUERY) }),
   };
 }

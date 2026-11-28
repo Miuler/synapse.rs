@@ -22,7 +22,7 @@ impl<V: VersionControl, I: VaultItemRepository, P: DocxParser, D: DocxDiffer> Di
         let old = self.read(vault_path, before)?;
         let new = self.read(vault_path, after)?;
         if old.is_none() && new.is_none() {
-            return Err(format!("{} no existe en ninguna de las dos versiones", after.path));
+            return Err(format!("{} does not exist in either version", after.path));
         }
         let mut diff = DocxDiff {
             old_exists: old.is_some(),

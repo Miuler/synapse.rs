@@ -30,8 +30,18 @@ function getInitialLocale(): SupportedLocale {
 
 class I18nManager {
   locale = $state<SupportedLocale>(getInitialLocale());
+  private listeners = new Set<() => void>();
+
+  /** Se ejecuta cada vez que cambia el idioma; devuelve cómo dejar de escuchar. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
 
   setLocale(locale: SupportedLocale) {
+    const changed = this.locale !== locale;
     this.locale = locale;
     if (typeof localStorage !== 'undefined') {
       try {
@@ -39,6 +49,9 @@ class I18nManager {
       } catch (e) {
         console.warn('No se pudo guardar locale en localStorage:', e);
       }
+    }
+    if (changed) {
+      for (const listener of this.listeners) listener();
     }
   }
 

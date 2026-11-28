@@ -15,7 +15,7 @@ impl<A: AgentRunner> RenameAgentSessionUseCase<A> {
     pub async fn execute(&self, command: RenameAgentSessionCommand) -> Result<String, String> {
         let title = command.title.trim();
         if title.is_empty() {
-            return Err("El nombre de la sesión no puede estar vacío".into());
+            return Err("session name cannot be empty".into());
         }
         self.runner.set_title(&command.session_id, title).await
     }

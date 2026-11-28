@@ -6,6 +6,7 @@
   import { diagramPixelDiff } from '../lib/diagram-pixel-diff';
   import { renderSideToImage } from '../lib/render-to-image';
   import { AlertCircle, CheckCircle2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     filePath: string;
@@ -70,7 +71,7 @@
       } else if (isDrawing) {
         diffResult = await excalidrawPixelDiff(before.content ?? '', after.content ?? '', filePath, isStaged);
       } else {
-        if (!before.dataUrl || !after.dataUrl) throw new Error('No se pudo leer una de las imágenes');
+        if (!before.dataUrl || !after.dataUrl) throw new Error(t('diffViewer.errors.cannotReadOneImage'));
         diffResult = await imagePixelDiff(before.dataUrl, after.dataUrl, filePath);
       }
     } catch (err: unknown) {
@@ -133,19 +134,19 @@
   {#if loading}
     <div class="state-container">
       <div class="spinner"></div>
-      <p>Calculando diferencias píxel por píxel en memoria...</p>
+      <p>{t('diffViewer.highlight.loading')}</p>
     </div>
   {:else if error}
     <div class="state-container error">
       <AlertCircle size={32} class="error-icon" />
-      <h3>Error en comparación de imagen</h3>
+      <h3>{t('diffViewer.highlight.errorTitle')}</h3>
       <p>{error}</p>
     </div>
   {:else if !diffResult?.diff_data_url}
     <div class="state-container empty">
       <CheckCircle2 size={32} class="success-icon" />
-      <h3>Sin imagen de comparación</h3>
-      <p>No se pudo generar el mapa de diferencias (posiblemente un archivo nuevo o eliminado).</p>
+      <h3>{t('diffViewer.highlight.emptyTitle')}</h3>
+      <p>{t('diffViewer.highlight.emptyDesc')}</p>
     </div>
   {:else}
     <!-- BARRA DE INFORMACIÓN DE DIFERENCIAS -->
@@ -153,7 +154,10 @@
       <div class="stat-pill" class:has-diff={diffResult.diff_count > 0}>
         <span class="stat-dot"></span>
         <span>
-          {diffResult.diff_count.toLocaleString()} píxeles distintos ({diffResult.diff_percentage.toFixed(2)}%)
+          {t('diffViewer.highlight.pixelsDifferent', {
+            count: diffResult.diff_count.toLocaleString(),
+            percent: diffResult.diff_percentage.toFixed(2),
+          })}
         </span>
       </div>
 
@@ -163,18 +167,18 @@
 
       <div class="color-legend">
         <span class="legend-swatch magenta"></span>
-        <span class="legend-label">Píxeles modificados</span>
+        <span class="legend-label">{t('diffViewer.highlight.modifiedPixelsLegend')}</span>
       </div>
 
       <div class="zoom-controls">
-        <button type="button" class="ctrl-btn" onclick={() => (scale = Math.min(10, scale * 1.2))} title="Acercar">
+        <button type="button" class="ctrl-btn" onclick={() => (scale = Math.min(10, scale * 1.2))} title={t('diffViewer.highlight.zoomIn')}>
           <ZoomIn size={14} />
         </button>
         <span class="zoom-value">{Math.round(scale * 100)}%</span>
-        <button type="button" class="ctrl-btn" onclick={() => (scale = Math.max(0.1, scale * 0.8))} title="Alejar">
+        <button type="button" class="ctrl-btn" onclick={() => (scale = Math.max(0.1, scale * 0.8))} title={t('diffViewer.highlight.zoomOut')}>
           <ZoomOut size={14} />
         </button>
-        <button type="button" class="ctrl-btn" onclick={resetZoom} title="Restablecer vista">
+        <button type="button" class="ctrl-btn" onclick={resetZoom} title={t('diffViewer.highlight.resetZoom')}>
           <RotateCcw size={13} />
         </button>
       </div>
@@ -190,7 +194,7 @@
       onmouseup={handleMouseUp}
       onmouseleave={handleMouseUp}
       role="region"
-      aria-label="Lienzo de imagen diferencial"
+      aria-label={t('diffViewer.highlight.canvasAria')}
     >
       <div
         class="image-transform-wrapper"
@@ -198,7 +202,7 @@
       >
         <img
           src={diffResult.diff_data_url}
-          alt="Diff perceptual de {fileName}"
+          alt={t('diffViewer.highlight.altText', { name: fileName })}
           class="diff-img"
           draggable="false"
         />

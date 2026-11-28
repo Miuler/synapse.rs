@@ -49,7 +49,7 @@ impl DiagramRenderer for WebviewDiagramRendererImpl {
             .lock()
             .ok()
             .and_then(|h| h.clone())
-            .ok_or("La ventana de Synapse no está disponible para dibujar el diagrama")?;
+            .ok_or("Synapse window is not available to render the diagram")?;
         let id = format!("r{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let (tx, rx) = mpsc::channel();
         self.pending
@@ -64,7 +64,7 @@ impl DiagramRenderer for WebviewDiagramRendererImpl {
             self.resolve(&id, Err(e.to_string()));
         }
         let result = rx.recv_timeout(RENDER_TIMEOUT).unwrap_or_else(|_| {
-            Err("La ventana de Synapse no respondió a tiempo al dibujar el diagrama".into())
+            Err("Synapse window did not respond in time while rendering the diagram".into())
         });
         if let Ok(mut p) = self.pending.lock() {
             p.remove(&id);

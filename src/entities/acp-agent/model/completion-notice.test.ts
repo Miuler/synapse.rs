@@ -1,5 +1,10 @@
-import { expect, it } from 'bun:test';
+import { afterEach, beforeEach, expect, it } from 'bun:test';
+import { i18n } from '@shared/lib/i18n';
 import { completionNotice } from './completion-notice';
+
+const initial = i18n.locale;
+beforeEach(() => i18n.setLocale('es'));
+afterEach(() => i18n.setLocale(initial));
 
 it('incluye la consulta en una línea y recortada', () => {
   expect(completionNotice('Claude', '#2', ' revisa\n  el  índice ', false)).toEqual({
@@ -8,6 +13,10 @@ it('incluye la consulta en una línea y recortada', () => {
   });
   expect(completionNotice('Claude', '#2', 'a'.repeat(300), false).body).toBe(`Terminó la consulta: "${'a'.repeat(120)}…"`);
   expect(completionNotice('Claude', '#2', 'x', true).body).toBe('Falló la consulta: "x"');
+
+  i18n.setLocale('en');
+  expect(completionNotice('Claude', '#2', 'x', false).body).toBe('Query finished: "x"');
+  expect(completionNotice('Claude', '#2', 'x', true).body).toBe('Query failed: "x"');
 });
 
 it('con la respuesta final la muestra como texto corrido, y sin ella o si falló, la consulta', () => {

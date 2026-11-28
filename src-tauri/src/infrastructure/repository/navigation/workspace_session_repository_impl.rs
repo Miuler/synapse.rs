@@ -63,7 +63,7 @@ impl WorkspaceSessionRepository for WorkspaceSessionRepositoryImpl {
     }
 
     fn view_mode(&self, relative_path: &str) -> Result<Option<String>, String> {
-        self.with_engine(Err("No hay ninguna bóveda abierta".to_string()), |e| {
+        self.with_engine(Err("no vault open".to_string()), |e| {
             Ok(e.get_note_view_mode(relative_path))
         })?
     }

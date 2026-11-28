@@ -280,7 +280,7 @@ impl VersionControlImpl {
     pub fn clone_repository(&self, repo_url: &str, target_path: &Path) -> Result<(), String> {
         let trimmed_url = repo_url.trim();
         if trimmed_url.is_empty() {
-            return Err("La URL del repositorio Git no puede estar vacía".to_string());
+            return Err("Git repository URL cannot be empty".to_string());
         }
 
         let output = crate::infrastructure::service::os::git_binary::git_command()
@@ -288,11 +288,11 @@ impl VersionControlImpl {
             .arg(trimmed_url)
             .arg(target_path)
             .output()
-            .map_err(|e| format!("Error al ejecutar git clone: {}", e))?;
+            .map_err(|e| format!("Failed to execute git clone: {}", e))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git clone falló: {}", stderr.trim()));
+            return Err(format!("git clone failed: {}", stderr.trim()));
         }
 
         Ok(())
@@ -532,7 +532,7 @@ impl VersionControlImpl {
         }
 
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -563,10 +563,10 @@ impl VersionControlImpl {
                 .args(["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"])
                 .args(&missing)
                 .output()
-                .map_err(|e| format!("Error al ejecutar git rm: {}", e))?;
+                .map_err(|e| format!("Failed to execute git rm: {}", e))?;
             if !output.status.success() {
                 return Err(format!(
-                    "git rm falló: {}",
+                    "git rm failed: {}",
                     String::from_utf8_lossy(&output.stderr).trim()
                 ));
             }
@@ -584,7 +584,7 @@ impl VersionControlImpl {
         }
 
         let output = cmd.output().map_err(|e| {
-            let err_msg = format!("Error al ejecutar git add: {}", e);
+            let err_msg = format!("Failed to execute git add: {}", e);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             err_msg
@@ -598,7 +598,7 @@ impl VersionControlImpl {
             } else {
                 stdout.trim()
             };
-            let err_msg = format!("git add falló: {}", detail);
+            let err_msg = format!("git add failed: {}", detail);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             return Err(err_msg);
@@ -644,7 +644,7 @@ impl VersionControlImpl {
         }
 
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         // Si la bóveda está en un subdirectorio del repositorio git, prefijar las rutas
@@ -677,7 +677,7 @@ impl VersionControlImpl {
         }
 
         let output = cmd.output().map_err(|e| {
-            let err_msg = format!("Error al ejecutar git restore: {}", e);
+            let err_msg = format!("Failed to execute git restore: {}", e);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             err_msg
@@ -691,7 +691,7 @@ impl VersionControlImpl {
             } else {
                 stdout.trim()
             };
-            let err_msg = format!("git restore falló: {}", detail);
+            let err_msg = format!("git restore failed: {}", detail);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             return Err(err_msg);
@@ -706,7 +706,7 @@ impl VersionControlImpl {
         }
 
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -739,7 +739,7 @@ impl VersionControlImpl {
         }
 
         let output = cmd.output().map_err(|e| {
-            let err_msg = format!("Error al ejecutar git restore --staged: {}", e);
+            let err_msg = format!("Failed to execute git restore --staged: {}", e);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             err_msg
@@ -753,7 +753,7 @@ impl VersionControlImpl {
             } else {
                 stdout.trim()
             };
-            let err_msg = format!("git restore --staged falló: {}", detail);
+            let err_msg = format!("git restore --staged failed: {}", detail);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             return Err(err_msg);
@@ -769,15 +769,15 @@ impl VersionControlImpl {
         message: &str,
     ) -> Result<String, String> {
         if paths.is_empty() {
-            return Err("No se especificaron archivos para commitear".to_string());
+            return Err("no files specified to commit".to_string());
         }
         let trimmed_msg = message.trim();
         if trimmed_msg.is_empty() {
-            return Err("El mensaje de commit no puede estar vacío".to_string());
+            return Err("commit message cannot be empty".to_string());
         }
 
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -809,7 +809,7 @@ impl VersionControlImpl {
         }
 
         let output = cmd.output().map_err(|e| {
-            let err_msg = format!("Error al ejecutar git commit: {}", e);
+            let err_msg = format!("Failed to execute git commit: {}", e);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             err_msg
@@ -823,7 +823,7 @@ impl VersionControlImpl {
             } else {
                 stdout.trim()
             };
-            let err_msg = format!("git commit falló: {}", err);
+            let err_msg = format!("git commit failed: {}", err);
             log::error!("[VersionControlImpl] {}", err_msg);
             eprintln!("[VersionControlImpl] {}", err_msg);
             return Err(err_msg);
@@ -841,7 +841,7 @@ impl VersionControlImpl {
         revision: Option<&str>,
     ) -> Result<FileDiff, String> {
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -864,7 +864,7 @@ impl VersionControlImpl {
         let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
-            return Err("Ruta de archivo no especificada para diff".to_string());
+            return Err("file path not specified for diff".to_string());
         }
 
         let repo_rel_path = match &prefix_from_workdir {
@@ -1178,7 +1178,7 @@ impl VersionControlImpl {
     /// Lee un archivo en una revisión, con el nombre que tenía entonces y resolviendo Git LFS.
     fn show_file(&self, vault_path: &Path, path: &str, revision: &str) -> Result<ShownFile, String> {
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -1201,7 +1201,7 @@ impl VersionControlImpl {
         let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
-            return Err("Ruta de archivo no especificada para revisión".to_string());
+            return Err("file path not specified for revision".to_string());
         }
 
         let repo_rel_path = match &prefix_from_workdir {
@@ -1226,7 +1226,7 @@ impl VersionControlImpl {
 
         let mut output = match cmd.output() {
             Ok(out) => out,
-            Err(e) => return Err(format!("Error ejecutando git show: {}", e)),
+            Err(e) => return Err(format!("Failed to execute git show: {}", e)),
         };
 
         // Ruta (relativa a la bóveda) con la que se leyó el archivo en esa revisión
@@ -1364,7 +1364,7 @@ impl VersionControlImpl {
         revision: Option<&str>,
     ) -> Result<ImageDiff, String> {
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -1387,7 +1387,7 @@ impl VersionControlImpl {
         let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
-            return Err("Ruta de archivo no especificada para diff de imagen".to_string());
+            return Err("file path not specified for image diff".to_string());
         }
 
         let repo_rel_path = match &prefix_from_workdir {
@@ -1464,7 +1464,7 @@ impl VersionControlImpl {
             Self::resolve_git_lfs_bytes_if_needed(work_dir, Some(repo.path()), &new_bytes);
 
         if old_bytes.is_empty() && new_bytes.is_empty() {
-            return Err("No se encontraron bytes de imagen para comparar".to_string());
+            return Err("no image bytes found to compare".to_string());
         }
 
         if old_bytes.is_empty() || new_bytes.is_empty() {
@@ -1489,7 +1489,7 @@ impl VersionControlImpl {
             .to_lowercase();
 
         if ext == "svg" {
-            return Err("El diff perceptual de píxeles no aplica a archivos SVG vectoriales (utiliza la vista dividida de 2 paneles o diff de texto)".to_string());
+            return Err("perceptual pixel diff does not apply to vector SVG files (use 2-pane split view or text diff)".to_string());
         }
 
         // 3. Decodificar ambas imágenes en memoria con la crate `image`
@@ -1517,14 +1517,14 @@ impl VersionControlImpl {
             reader
                 .decode()
                 .map(|img| img.to_rgba8())
-                .map_err(|e| format!("Error decodificando imagen: {}", e))
+                .map_err(|e| format!("Failed to decode image: {}", e))
         };
 
         let img1 = decode_image(&old_bytes)
-            .map_err(|e| format!("Error decodificando imagen base de Git: {}", e))?;
+            .map_err(|e| format!("Failed to decode Git base image: {}", e))?;
 
         let img2 = decode_image(&new_bytes)
-            .map_err(|e| format!("Error decodificando imagen modificada: {}", e))?;
+            .map_err(|e| format!("Failed to decode modified image: {}", e))?;
 
         // 4. Normalizar dimensiones si difieren
         let max_w = img1.width().max(img2.width());
@@ -1540,12 +1540,12 @@ impl VersionControlImpl {
         let mut png_buf1 = std::io::Cursor::new(Vec::new());
         canvas1
             .write_to(&mut png_buf1, image::ImageFormat::Png)
-            .map_err(|e| format!("Error preparando buffer PNG 1: {}", e))?;
+            .map_err(|e| format!("Failed to prepare PNG buffer 1: {}", e))?;
 
         let mut png_buf2 = std::io::Cursor::new(Vec::new());
         canvas2
             .write_to(&mut png_buf2, image::ImageFormat::Png)
-            .map_err(|e| format!("Error preparando buffer PNG 2: {}", e))?;
+            .map_err(|e| format!("Failed to prepare PNG buffer 2: {}", e))?;
 
         let mut out_png_buffer = std::io::Cursor::new(Vec::new());
 
@@ -1566,7 +1566,7 @@ impl VersionControlImpl {
                 diff_mask: false,
             }),
         )
-        .map_err(|e| format!("Error ejecutando pixelmatch: {}", e))?;
+        .map_err(|e| format!("Failed to run pixelmatch: {}", e))?;
 
         use base64::Engine;
         use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -1602,7 +1602,7 @@ impl VersionControlImpl {
         max_count: Option<usize>,
     ) -> Result<FileVersionHistory, String> {
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {}", e))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {}", e))?;
         let work_dir = repo.workdir().unwrap_or(vault_path);
 
         let prefix_from_workdir = vault_path.strip_prefix(work_dir).ok().and_then(|p| {
@@ -1625,7 +1625,7 @@ impl VersionControlImpl {
         let clean_path = clean_path.trim_start_matches('/');
 
         if clean_path.is_empty() {
-            return Err("Ruta de archivo no especificada para historial".to_string());
+            return Err("file path not specified for history".to_string());
         }
 
         let repo_rel_path = match &prefix_from_workdir {
@@ -1661,7 +1661,7 @@ impl VersionControlImpl {
 
         let output = cmd
             .output()
-            .map_err(|e| format!("Error ejecutando git log: {}", e))?;
+            .map_err(|e| format!("Failed to execute git log: {}", e))?;
 
         let mut commits = Vec::new();
         if output.status.success() {
@@ -1901,13 +1901,13 @@ impl VersionControlImpl {
             if stderr.contains("overwritten by checkout") || stderr.contains("would be overwritten")
             {
                 return Err(format!(
-                    "Conflicto: Tienes cambios locales sin guardar que serían sobreescritos al cambiar a '{checkout_target}'. Por favor haz commit o stash antes de cambiar de rama."
+                    "Conflict: You have uncommitted local changes that would be overwritten when switching to '{checkout_target}'. Commit or stash before switching branches."
                 ));
             }
-            return Err(format!("Error al cambiar de rama: {}", stderr.trim()));
+            return Err(format!("Failed to switch branch: {}", stderr.trim()));
         }
 
-        let msg = format!("Cambiado con éxito a la rama '{checkout_target}'");
+        let msg = format!("Switched to branch '{checkout_target}'");
         Ok(msg)
     }
 
@@ -1928,7 +1928,7 @@ impl VersionControlImpl {
         let base_branch = base_branch.trim();
 
         if new_branch.is_empty() {
-            return Err("El nombre de la nueva rama no puede estar vacío".to_string());
+            return Err("new branch name cannot be empty".to_string());
         }
 
         // Validar formato de nombre con check-ref-format
@@ -1936,11 +1936,11 @@ impl VersionControlImpl {
             .current_dir(&work_dir)
             .args(["check-ref-format", "--branch", new_branch])
             .output()
-            .map_err(|e| format!("Error al verificar formato de rama: {e}"))?;
+            .map_err(|e| format!("Failed to verify branch name format: {e}"))?;
 
         if !check_format.status.success() {
             return Err(format!(
-                "El nombre de rama '{new_branch}' no es válido según las reglas de Git."
+                "Branch name '{new_branch}' is not valid according to Git rules."
             ));
         }
 
@@ -1952,7 +1952,7 @@ impl VersionControlImpl {
 
         if let Ok(out) = check_exists
             && out.status.success() {
-                return Err(format!("La rama '{new_branch}' ya existe"));
+                return Err(format!("Branch '{new_branch}' already exists"));
             }
 
         let output = if checkout {
@@ -1984,13 +1984,13 @@ impl VersionControlImpl {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Error al crear rama: {}", stderr.trim()));
+            return Err(format!("Failed to create branch: {}", stderr.trim()));
         }
 
         let msg = if checkout {
-            format!("Rama '{new_branch}' creada y activada correctamente")
+            format!("Branch '{new_branch}' created and checked out")
         } else {
-            format!("Rama '{new_branch}' creada correctamente a partir de '{base_branch}'")
+            format!("Branch '{new_branch}' created from '{base_branch}'")
         };
 
         Ok(msg)
@@ -1998,7 +1998,7 @@ impl VersionControlImpl {
 
     pub fn git_push(&self, vault_path: &Path) -> Result<String, String> {
         let repo =
-            gix::discover(vault_path).map_err(|e| format!("No es un repositorio Git: {e}"))?;
+            gix::discover(vault_path).map_err(|e| format!("Not a git repository: {e}"))?;
         let work_dir = repo
             .workdir()
             .ok_or_else(|| "Bare repository not supported".to_string())?
@@ -2008,7 +2008,7 @@ impl VersionControlImpl {
             .current_dir(&work_dir)
             .arg("push")
             .output()
-            .map_err(|e| format!("Error al ejecutar git push: {e}"))?;
+            .map_err(|e| format!("Failed to execute git push: {e}"))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -2018,7 +2018,7 @@ impl VersionControlImpl {
             } else {
                 stdout.trim()
             };
-            return Err(format!("git push falló: {detail}"));
+            return Err(format!("git push failed: {detail}"));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -2028,7 +2028,7 @@ impl VersionControlImpl {
         } else if !stderr.trim().is_empty() {
             stderr.trim().to_string()
         } else {
-            "Push completado exitosamente".to_string()
+            "Push completed successfully".to_string()
         };
 
         Ok(out)
@@ -2362,7 +2362,7 @@ mod tests {
         // Try checking out feature-2
         let conflict_res = git_service.checkout_branch(&temp_dir, "feature-2");
         assert!(conflict_res.is_err());
-        assert!(conflict_res.unwrap_err().contains("Conflicto"));
+        assert!(conflict_res.unwrap_err().contains("Conflict"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
@@ -2408,7 +2408,7 @@ mod tests {
         svc.fast_forward_branch(&clon, "main", "origin/main", false).unwrap();
         assert_eq!(git(&clon, &["rev-parse", "main"]), git(&clon, &["rev-parse", "origin/main"]));
         assert_eq!(std::fs::read_to_string(clon.join("a.md")).unwrap(), "3");
-        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", true).unwrap_err().contains("ya está"));
+        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", true).unwrap_err().contains("already at that commit"));
 
         // Otra rama (no la actual): solo se mueve la ref
         svc.fast_forward_branch(&clon, "otra", "origin/otra", false).unwrap();
@@ -2423,7 +2423,7 @@ mod tests {
         git(&origen, &["commit", "-qam", "4"]);
         git(&clon, &["fetch", "-q"]);
         let antes = git(&clon, &["rev-parse", "main"]);
-        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", false).unwrap_err().contains("No es un avance rápido"));
+        assert!(svc.fast_forward_branch(&clon, "main", "origin/main", false).unwrap_err().contains("Not a fast-forward"));
         assert_eq!(git(&clon, &["rev-parse", "main"]), antes);
     }
 
@@ -2500,7 +2500,7 @@ mod tests {
         assert_eq!(read("b.txt"), "b\n");
         let fourth = commit("a.txt", "3\n", "cuatro");
         let error = change(Action::Revert { commit: second.clone() }).unwrap_err();
-        assert!(error.contains("como estaba"), "{error}");
+        assert!(error.contains("left repository unchanged"), "{error}");
         assert_eq!(git(&["rev-parse", "HEAD"]), fourth);
         assert_eq!(git(&["status", "--porcelain"]), "");
 
@@ -2509,7 +2509,7 @@ mod tests {
         commit("c.txt", "c\n", "rama");
         git(&["checkout", "-q", "main"]);
         git(&["merge", "-q", "--no-ff", "otra", "-m", "fusión"]);
-        assert!(repo.squash_preview(dir, &second).unwrap_err().contains("fusiones"));
+        assert!(repo.squash_preview(dir, &second).unwrap_err().contains("merge"));
     }
 
     #[test]
@@ -2986,7 +2986,7 @@ pub(super) mod repo_log {
             .current_dir(dir)
             .args(args)
             .output()
-            .map_err(|e| format!("Error ejecutando git: {e}"))?;
+            .map_err(|e| format!("Failed to run git: {e}"))?;
         if !out.status.success() {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
         }
@@ -3072,7 +3072,7 @@ pub(super) mod repo_log {
 
     pub fn get_commit_details(dir: &Path, commit: &str) -> Result<CommitDetails, String> {
         if commit.is_empty() || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(format!("Commit no válido: {commit}"));
+            return Err(format!("Invalid commit: {commit}"));
         }
         let header = git(
             dir,
@@ -3080,7 +3080,7 @@ pub(super) mod repo_log {
         )?;
         let p: Vec<&str> = header.splitn(7, '\x1f').collect();
         if p.len() < 7 {
-            return Err(format!("No se pudo leer el commit {commit}"));
+            return Err(format!("Could not read commit {commit}"));
         }
         let hash = p[0].trim().to_string();
         let parents: Vec<String> = p[1].split_whitespace().map(str::to_string).collect();
@@ -3105,7 +3105,7 @@ pub(super) mod repo_log {
     fn check_ref_name(dir: &Path, kind: &str, name: &str) -> Result<(), String> {
         let full = format!("refs/{kind}/{name}");
         if name.is_empty() || name.starts_with('-') || git(dir, &["check-ref-format", &full]).is_err() {
-            return Err(format!("«{name}» no es un nombre válido"));
+            return Err(format!("{name}: invalid item name"));
         }
         Ok(())
     }
@@ -3113,20 +3113,20 @@ pub(super) mod repo_log {
     pub fn create_tag(dir: &Path, name: &str, commit: &str, message: Option<&str>) -> Result<String, String> {
         check_ref_name(dir, "tags", name)?;
         if commit.is_empty() || !commit.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(format!("Commit no válido: {commit}"));
+            return Err(format!("Invalid commit: {commit}"));
         }
         match message {
             Some(m) => git(dir, &["tag", "-a", name, "-m", m, commit]),
             None => git(dir, &["tag", name, commit]),
         }
-        .map_err(|e| format!("No se pudo crear el tag: {e}"))?;
-        Ok(format!("Tag «{name}» creado"))
+        .map_err(|e| format!("Could not create tag: {e}"))?;
+        Ok(format!("Tag «{name}» created"))
     }
 
     pub fn delete_tag(dir: &Path, name: &str) -> Result<String, String> {
         check_ref_name(dir, "tags", name)?;
-        git(dir, &["tag", "-d", name]).map_err(|e| format!("No se pudo borrar el tag: {e}"))?;
-        Ok(format!("Tag «{name}» borrado"))
+        git(dir, &["tag", "-d", name]).map_err(|e| format!("Could not delete tag: {e}"))?;
+        Ok(format!("Tag «{name}» deleted"))
     }
 
     /// Avance rápido de una rama local hasta `target` (commit o rama, p. ej. `origin/main`). Si la
@@ -3136,20 +3136,20 @@ pub(super) mod repo_log {
         check_ref_name(dir, "heads", branch)?;
         let target = target.trim();
         if target.is_empty() || target.starts_with('-') {
-            return Err(format!("Destino no válido: {target}"));
+            return Err(format!("Invalid target: {target}"));
         }
         let rev = |r: &str| git(dir, &["rev-parse", "--verify", "--quiet", &format!("{r}^{{commit}}")]).map(|s| s.trim().to_string());
-        let old = rev(&format!("refs/heads/{branch}")).map_err(|_| format!("No existe la rama local «{branch}»"))?;
-        let new = rev(target).map_err(|_| format!("No se encontró «{target}»"))?;
+        let old = rev(&format!("refs/heads/{branch}")).map_err(|_| format!("{branch}: local branch not found"))?;
+        let new = rev(target).map_err(|_| format!("{target}: not found"))?;
         if old == new {
-            return Err(format!("«{branch}» ya está en ese commit"));
+            return Err(format!("{branch}: already at that commit"));
         }
         if git(dir, &["merge-base", "--is-ancestor", &new, &old]).is_ok() {
-            return Err(format!("«{branch}» ya incluye ese commit (está por delante)"));
+            return Err(format!("{branch}: already ahead of that commit"));
         }
         if git(dir, &["merge-base", "--is-ancestor", &old, &new]).is_err() {
             return Err(format!(
-                "No es un avance rápido: «{branch}» tiene commits que no están en «{target}». Hay que hacer rebase o merge."
+                "Not a fast-forward: «{branch}» has commits not in «{target}». Rebase or merge required."
             ));
         }
         if dry_run {
@@ -3157,30 +3157,30 @@ pub(super) mod repo_log {
         }
         let current = git(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"]).map(|s| s.trim().to_string()).ok();
         if current.as_deref() == Some(branch) {
-            git(dir, &["merge", "--ff-only", "--quiet", &new]).map_err(|e| format!("No se pudo avanzar «{branch}»: {e}"))?;
+            git(dir, &["merge", "--ff-only", "--quiet", &new]).map_err(|e| format!("Could not fast-forward «{branch}»: {e}"))?;
         } else {
-            git(dir, &["update-ref", "-m", &format!("synapse: fast-forward a {target}"), &format!("refs/heads/{branch}"), &new, &old])
-                .map_err(|e| format!("No se pudo avanzar «{branch}»: {e}"))?;
+            git(dir, &["update-ref", "-m", &format!("synapse: fast-forward to {target}"), &format!("refs/heads/{branch}"), &new, &old])
+                .map_err(|e| format!("Could not fast-forward «{branch}»: {e}"))?;
         }
         let n = git(dir, &["rev-list", "--count", &format!("{old}..{new}")]).map(|s| s.trim().to_string()).unwrap_or_default();
-        Ok(format!("«{branch}» avanzó {n} commit(s) hasta {}", &new[..new.len().min(7)]))
+        Ok(format!("«{branch}» fast-forwarded {n} commit(s) to {}", &new[..new.len().min(7)]))
     }
 
     /// El commit al que apunta `name`.
     pub(in super::super) fn commit_id(dir: &Path, name: &str) -> Result<String, String> {
         let name = name.trim();
         if name.is_empty() || name.starts_with('-') {
-            return Err(format!("Commit no válido: {name}"));
+            return Err(format!("Invalid commit: {name}"));
         }
         git(dir, &["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")])
             .map(|s| s.trim().to_string())
-            .map_err(|_| format!("No se encontró «{name}»"))
+            .map_err(|_| format!("{name}: not found"))
     }
 
     pub(in super::super) fn current_branch(dir: &Path) -> Result<String, String> {
         git(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"])
             .map(|s| s.trim().to_string())
-            .map_err(|_| "HEAD está separado: cambia antes a una rama".to_string())
+            .map_err(|_| "detached HEAD: switch to a branch first".to_string())
     }
 
     /// ¿Hay una fusión, rebase, cherry-pick o revert sin terminar?
@@ -3193,7 +3193,7 @@ pub(super) mod repo_log {
             .iter()
             .any(|name| has_state(dir, name));
         if busy {
-            return Err("Hay una fusión, rebase, cherry-pick o revert sin terminar".to_string());
+            return Err("unfinished merge, rebase, cherry-pick, or revert in progress".to_string());
         }
         Ok(())
     }
@@ -3203,7 +3203,7 @@ pub(super) mod repo_log {
         nothing_in_progress(dir)?;
         let from = commit_id(dir, from)?;
         if git(dir, &["merge-base", "--is-ancestor", &from, "HEAD"]).is_err() {
-            return Err(format!("Ese commit no está en «{branch}»"));
+            return Err(format!("That commit is not in «{branch}»"));
         }
         // El primer commit del repositorio no tiene padre: entra toda la rama
         let range = match commit_id(dir, &format!("{from}^")) {
@@ -3214,11 +3214,11 @@ pub(super) mod repo_log {
             git(dir, args)?.trim().parse().map_err(|_| "git rev-list".to_string())
         };
         if count(&["rev-list", "--count", "--merges", &range])? > 0 {
-            return Err("El tramo incluye fusiones: no se puede unir en un commit".to_string());
+            return Err("range contains merge commits: cannot squash into one commit".to_string());
         }
         let commits = count(&["rev-list", "--count", &range])?;
         if commits < 2 {
-            return Err("Hacen falta al menos dos commits".to_string());
+            return Err("at least two commits are required".to_string());
         }
         let message = git(dir, &["log", "--reverse", "--format=%B%x1e", &range])?
             .split('\x1e')
@@ -3236,7 +3236,7 @@ pub(super) mod repo_log {
         let branch = squash_preview(dir, from)?.branch;
         let message = message.trim();
         if message.is_empty() {
-            return Err("Escribe el mensaje del commit".to_string());
+            return Err("commit message cannot be empty".to_string());
         }
         let before = commit_id(dir, "HEAD")?;
         let tree = format!("{before}^{{tree}}");
@@ -3269,9 +3269,9 @@ pub(super) mod repo_log {
         if let Err(error) = git(dir, &args) {
             if has_state(dir, "REVERT_HEAD") {
                 git(dir, &["revert", "--abort"])?;
-                return Err(format!("No se pudo revertir sin conflictos; se canceló y todo quedó como estaba.\n{error}"));
+                return Err(format!("Could not revert without conflicts; aborted and left repository unchanged.\n{error}"));
             }
-            return Err(format!("No se pudo revertir: {error}"));
+            return Err(format!("Could not revert: {error}"));
         }
         let after = commit_id(dir, "HEAD")?;
         Ok(UndoPoint { branch, before, after, stash: None, files: true })
@@ -3304,7 +3304,7 @@ pub(super) mod repo_log {
         let overwritten = untracked_overwritten(&root, &after)?;
         if !overwritten.is_empty() {
             return Err(format!(
-                "Se perderían archivos sin versionar: {}. Muévelos o confírmalos antes.",
+                "Untracked files would be overwritten: {}. Move or commit them first.",
                 overwritten.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
             ));
         }
@@ -3312,7 +3312,7 @@ pub(super) mod repo_log {
         let stash = git(dir, &["stash", "create"])?.trim().to_string();
         let stash = (!stash.is_empty()).then_some(stash);
         if let Some(stash) = &stash {
-            git(dir, &["stash", "store", "-m", "synapse: antes de reset --hard", stash])?;
+            git(dir, &["stash", "store", "-m", "synapse: before reset --hard", stash])?;
         }
         git(dir, &["reset", "--hard", "--quiet", &after])?;
         Ok(UndoPoint { branch, before, after, stash, files: true })
@@ -3321,11 +3321,11 @@ pub(super) mod repo_log {
     fn undo(dir: &Path, point: &UndoPoint) -> Result<(), String> {
         let before = commit_id(dir, &point.before)?;
         if current_branch(dir)? != point.branch || commit_id(dir, "HEAD")? != point.after {
-            return Err("La rama cambió después: ya no se puede deshacer desde aquí (usa reset)".to_string());
+            return Err("branch changed afterwards: can no longer undo from here (use reset)".to_string());
         }
         if !point.files {
             let name = format!("refs/heads/{}", point.branch);
-            git(dir, &["update-ref", "-m", "synapse: deshacer", &name, &before, &point.after])?;
+            git(dir, &["update-ref", "-m", "synapse: undo", &name, &before, &point.after])?;
             return Ok(());
         }
         // `--keep` conserva los cambios hechos después, o se niega si chocan
@@ -3333,7 +3333,7 @@ pub(super) mod repo_log {
         if let Some(stash) = &point.stash {
             let stash = commit_id(dir, stash)?;
             git(dir, &["stash", "apply", "--index", "--quiet", &stash])
-                .map_err(|e| format!("La rama volvió, pero los cambios sin confirmar siguen en el stash: {e}"))?;
+                .map_err(|e| format!("Branch restored, but uncommitted changes remain in stash: {e}"))?;
         }
         Ok(())
     }
@@ -3351,12 +3351,12 @@ pub(super) mod repo_log {
         check_ref_name(dir, "heads", name)?;
         git(dir, &["branch", if force { "-D" } else { "-d" }, name]).map_err(|e| {
             if e.contains("not fully merged") {
-                format!("La rama «{name}» tiene commits sin fusionar")
+                format!("{name}: branch has unmerged commits")
             } else {
-                format!("No se pudo borrar la rama: {e}")
+                format!("Could not delete branch: {e}")
             }
         })?;
-        Ok(format!("Rama «{name}» borrada"))
+        Ok(format!("Branch «{name}» deleted"))
     }
 
     /// Salida de `--name-status -z`: `M\0ruta\0`, `R090\0vieja\0nueva\0`.
@@ -3459,7 +3459,7 @@ pub(super) mod repo_log {
             g(&["commit", "-qm", "suelto"]);
             g(&["checkout", "-q", "main"]);
             assert!(delete_branch(d, "suelta", false).is_ok());
-            assert!(delete_branch(d, "sin-fusionar", false).unwrap_err().contains("sin fusionar"));
+            assert!(delete_branch(d, "sin-fusionar", false).unwrap_err().contains("unmerged commits"));
             assert!(delete_branch(d, "sin-fusionar", true).is_ok());
         }
     }

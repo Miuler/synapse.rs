@@ -34,7 +34,7 @@ pub fn open_file_with_default_app(state: State<'_, AppState>, path: String) -> R
     state.check_path(&path)?;
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state
@@ -50,7 +50,7 @@ pub fn show_item_in_folder(state: State<'_, AppState>, path: String) -> Result<(
     state.check_path(&path)?;
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     state
@@ -175,7 +175,7 @@ pub fn open_tab_in_new_window(
         .resizable(true)
         .center()
         .build()
-        .map_err(|e| format!("Error creando nueva ventana: {}", e))?;
+        .map_err(|e| format!("Failed to create new window: {}", e))?;
 
     let tabs_map = Arc::clone(&state.detached_tabs);
     let label_for_event = window_label.clone();
@@ -209,18 +209,18 @@ pub async fn select_standalone_file(state: State<'_, AppState>) -> Result<Option
     #[cfg(feature = "desktop")]
     {
         let file = rfd::AsyncFileDialog::new()
-            .set_title("Abrir archivo")
+            .set_title("Open file")
             .add_filter(
-                "Archivos soportados (*.md, *.mermaid, *.excalidraw)",
+                "Supported files (*.md, *.mermaid, *.excalidraw)",
                 &["md", "markdown", "mermaid", "mmd", "excalidraw", "json"],
             )
             .add_filter("Markdown (*.md, *.markdown)", &["md", "markdown"])
-            .add_filter("Diagramas Mermaid (*.mermaid, *.mmd)", &["mermaid", "mmd"])
+            .add_filter("Mermaid diagrams (*.mermaid, *.mmd)", &["mermaid", "mmd"])
             .add_filter(
-                "Dibujos Excalidraw (*.excalidraw, *.excalidraw.md, *.excalidraw.json)",
+                "Excalidraw drawings (*.excalidraw, *.excalidraw.md, *.excalidraw.json)",
                 &["excalidraw", "json", "md"],
             )
-            .add_filter("Todos los archivos (*.*)", &["*"])
+            .add_filter("All files (*.*)", &["*"])
             .pick_file()
             .await;
 

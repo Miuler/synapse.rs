@@ -13,6 +13,7 @@
     ChevronRight,
   } from 'lucide-svelte';
   import type { GitCommitFileItem } from '@entities/git';
+  import { t } from '@shared/lib/i18n';
   import GitRepoSelect from './GitRepoSelect.svelte';
   import { buildCommitTree, type CommitTreeNode } from '../lib/commit-tree';
 
@@ -79,7 +80,7 @@
       return {
         path: clean,
         statusKind: 'modified',
-        statusLabel: 'Modificado',
+        statusLabel: t('gitUi.status.modified'),
         isDeleted: false,
       };
     });
@@ -217,8 +218,8 @@
   {open}
   onClose={handleCancel}
   busy={loading}
-  title="Hacer commit en Git"
-  description="Confirma los cambios de los archivos seleccionados en el historial de Git."
+  title={t('gitCommit.title')}
+  description={t('gitCommit.description')}
   sizeKey="synapse.gitCommitDialog.size"
   defaultSize={{ w: 820, h: 640 }}
   minSize={{ w: 420, h: 380 }}
@@ -234,7 +235,7 @@
   {#snippet badge()}
     <GitRepoSelect disabled={loading} />
     {#if branchName}
-      <span class="git-commit-branch-badge" title="Rama actual: {branchName}">
+      <span class="git-commit-branch-badge" title={t('gitCommit.currentBranchTitle', { branch: branchName })}>
         <GitBranch size={11} />
         <span>{branchName}</span>
       </span>
@@ -247,7 +248,7 @@
           onclick={handleCancel}
           disabled={loading}
         >
-          Cancelar
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -257,10 +258,10 @@
         >
           {#if loading}
             <Loader2 size={14} class="spin-icon" />
-            <span>Haciendo commit...</span>
+            <span>{t('gitCommit.submitting')}</span>
           {:else}
             <GitCommitHorizontal size={14} />
-            <span>Hacer commit ({selectedPaths.length})</span>
+            <span>{t('gitCommit.submit', { count: selectedPaths.length })}</span>
           {/if}
         </button>
   {/snippet}
@@ -269,15 +270,15 @@
       <div class="git-commit-files-box">
         <div class="git-commit-files-header">
           <span class="git-commit-files-title">
-            Archivos a confirmar ({selectedPaths.length} de {effectiveFiles.length} seleccionados):
+            {t('gitCommit.filesToCommit', { selected: selectedPaths.length, total: effectiveFiles.length })}
           </span>
           <span class="git-commit-files-actions">
           <button
             type="button"
             class="git-commit-view-btn"
             onclick={toggleView}
-            title={viewMode === 'list' ? 'Ver en árbol de carpetas' : 'Ver como lista'}
-            aria-label={viewMode === 'list' ? 'Ver en árbol de carpetas' : 'Ver como lista'}
+            title={viewMode === 'list' ? t('gitCommit.viewTree') : t('gitCommit.viewList')}
+            aria-label={viewMode === 'list' ? t('gitCommit.viewTree') : t('gitCommit.viewList')}
             aria-pressed={viewMode === 'tree'}
           >
             {#if viewMode === 'list'}<FolderTree size={13} />{:else}<List size={13} />{/if}
@@ -289,7 +290,7 @@
               onclick={toggleSelectAllFiltered}
               disabled={loading}
             >
-              {allFilteredSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              {allFilteredSelected ? t('gitCommit.deselectAll') : t('gitCommit.selectAll')}
             </button>
           {/if}
           </span>
@@ -301,7 +302,7 @@
             <input
               type="text"
               bind:value={filterText}
-              placeholder="Filtrar archivos..."
+              placeholder={t('gitCommit.filterPlaceholder')}
               class="git-commit-search-input"
               disabled={loading}
             />
@@ -310,7 +311,7 @@
                 type="button"
                 class="git-commit-search-clear"
                 onclick={() => (filterText = '')}
-                title="Limpiar filtro"
+                title={t('gitCommit.clearFilter')}
               >
                 ✕
               </button>
@@ -321,7 +322,7 @@
         <div class="git-commit-files-list" class:tree={viewMode === 'tree'}>
           {#if filteredFiles.length === 0}
             <div class="git-commit-empty-files">
-              {filterText ? 'No hay archivos que coincidan con el filtro' : 'No hay archivos con cambios'}
+              {filterText ? t('gitCommit.noMatchingFiles') : t('gitCommit.noChangedFiles')}
             </div>
           {:else if viewMode === 'list'}
             {#each filteredFiles as file (file.path)}
@@ -336,7 +337,7 @@
       <!-- Campo para el mensaje de commit -->
       <div class="git-commit-input-section">
         <label for="git-commit-message-input" class="git-commit-input-label">
-          Mensaje del commit <span class="required">*</span>
+          {t('gitCommit.messageLabel')} <span class="required">*</span>
         </label>
         <textarea
           id="git-commit-message-input"
@@ -344,11 +345,11 @@
           bind:value={message}
           class="git-commit-textarea"
           rows="3"
-          placeholder="Escribe un mensaje descriptivo para el commit..."
+          placeholder={t('gitCommit.messagePlaceholder')}
           disabled={loading}
         ></textarea>
         <div class="git-commit-hint">
-          <span>Presiona <strong>Ctrl+Enter</strong> para confirmar directamente</span>
+          <span>{t('gitCommit.submitHintPrefix')} <strong>Ctrl+Enter</strong> {t('gitCommit.submitHintSuffix')}</span>
         </div>
       </div>
 
@@ -386,15 +387,15 @@
     >
       {#if isDeleted}
         <Trash2 size={10} />
-        <span>Eliminado</span>
+        <span>{t('gitUi.status.deleted')}</span>
       {:else if file.statusKind === 'untracked'}
-        <span>Nuevo</span>
+        <span>{t('gitUi.status.new')}</span>
       {:else if file.statusKind === 'added'}
-        <span>Añadido</span>
+        <span>{t('gitUi.status.added')}</span>
       {:else if file.statusKind === 'staged'}
-        <span>Staged</span>
+        <span>{t('gitUi.status.staged')}</span>
       {:else}
-        <span>Modificado</span>
+        <span>{t('gitUi.status.modified')}</span>
       {/if}
     </span>
 
@@ -428,7 +429,7 @@
           class="git-commit-folder-chevron"
           class:open={isOpen}
           onclick={() => toggleCollapsed(node.path)}
-          aria-label={isOpen ? 'Plegar carpeta' : 'Desplegar carpeta'}
+          aria-label={isOpen ? t('gitCommit.collapseFolder') : t('gitCommit.expandFolder')}
           aria-expanded={isOpen}
         >
           <ChevronRight size={12} />
@@ -440,7 +441,7 @@
           onchange={() => toggleFolder(node.filePaths)}
           disabled={loading}
           class="git-commit-checkbox"
-          aria-label="Seleccionar la carpeta {node.path}"
+          aria-label={t('gitCommit.selectFolderAria', { path: node.path })}
         />
         <Folder size={13} class="git-commit-folder-icon" />
         <button type="button" class="git-commit-folder-name" onclick={() => toggleCollapsed(node.path)}>{node.name}/</button>

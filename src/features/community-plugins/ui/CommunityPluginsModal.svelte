@@ -15,6 +15,7 @@
     Boxes,
     ArrowUpCircle,
   } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import type { VaultRepository } from '@shared/repositories';
   import type { SynapseApp } from '@shared/obsidian-api';
   import { DialogResizeHandles, dialogOffset, persistedDialogSize } from '@shared/ui/dialog-resize';
@@ -130,7 +131,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="header-title-row"
-          title="Arrastra para mover; doble clic para centrar"
+          title={t('common.dialogMoveHint')}
           onpointerdown={(e) => offset.startDrag(e, dialogSize.size)}
           ondblclick={(e) => {
             if (!(e.target as HTMLElement).closest('button, input, select, textarea, a')) offset.reset();
@@ -138,9 +139,9 @@
         >
           <div class="header-title-group">
             <Boxes size={22} class="header-icon" />
-            <Dialog.Title class="header-title">Plugins de la Comunidad</Dialog.Title>
+            <Dialog.Title class="header-title">{t('plugins.title')}</Dialog.Title>
           </div>
-          <button class="icon-btn close-btn" onclick={closeModal} title="Cerrar (Esc)">
+          <button class="icon-btn close-btn" onclick={closeModal} title={t('common.closeEsc')}>
             <X size={18} />
           </button>
         </div>
@@ -157,7 +158,7 @@
                   communityPluginsState.resetPagination();
                 }}
               >
-                Explorar catálogo
+                {t('plugins.tabs.browse')}
               </button>
               <button
                 class="tab-btn"
@@ -167,9 +168,9 @@
                   communityPluginsState.resetPagination();
                 }}
               >
-                Instalados ({communityPluginsState.installed.length})
+                {t('plugins.tabs.installed', { count: communityPluginsState.installed.length })}
                 {#if communityPluginsState.updatesAvailableCount > 0}
-                  <span class="tab-update-badge" title="{communityPluginsState.updatesAvailableCount} actualizaciones disponibles">
+                  <span class="tab-update-badge" title={t('plugins.updatesAvailableTitle', { count: communityPluginsState.updatesAvailableCount })}>
                     {communityPluginsState.updatesAvailableCount}
                   </span>
                 {/if}
@@ -180,27 +181,27 @@
               {#if communityPluginsState.activeTab === 'installed'}
                 <button
                   class="action-btn-pill"
-                  title="Comprobar si existen versiones más recientes de tus plugins instalados"
+                  title={t('plugins.checkUpdatesTitle')}
                   onclick={() => communityPluginsState.checkForUpdates(repository)}
                   disabled={communityPluginsState.isCheckingUpdates || communityPluginsState.installed.length === 0}
                 >
                   <RefreshCw size={13} class={communityPluginsState.isCheckingUpdates ? 'spin' : ''} />
-                  <span>{communityPluginsState.isCheckingUpdates ? 'Buscando...' : 'Buscar actualizaciones'}</span>
+                  <span>{communityPluginsState.isCheckingUpdates ? t('plugins.checkingUpdates') : t('plugins.checkUpdates')}</span>
                 </button>
 
                 {#if communityPluginsState.updatesAvailableCount > 0}
                   <button
                     class="action-btn-pill primary"
-                    title="Actualizar todos los plugins con nueva versión disponible"
+                    title={t('plugins.updateAllTitle')}
                     onclick={() => communityPluginsState.updateAllPlugins(app, repository)}
                     disabled={communityPluginsState.isUpdatingAll}
                   >
                     {#if communityPluginsState.isUpdatingAll}
                       <Loader2 size={13} class="spin" />
-                      <span>Actualizando...</span>
+                      <span>{t('plugins.updating')}</span>
                     {:else}
                       <Download size={13} />
-                      <span>Actualizar todo ({communityPluginsState.updatesAvailableCount})</span>
+                      <span>{t('plugins.updateAll', { count: communityPluginsState.updatesAvailableCount })}</span>
                     {/if}
                   </button>
                 {/if}
@@ -208,7 +209,7 @@
 
               <button
                 class="icon-btn refresh-btn"
-                title="Actualizar catálogo y plugins"
+                title={t('plugins.refreshTitle')}
                 onclick={() => {
                   communityPluginsState.refreshInstalled(app, repository);
                   communityPluginsState.loadCatalogue(repository, true);
@@ -227,8 +228,8 @@
               <input
                 type="text"
                 placeholder={communityPluginsState.activeTab === 'community'
-                  ? 'Buscar plugins por nombre, descripción o autor...'
-                  : 'Buscar en plugins instalados...'}
+                  ? t('plugins.searchCataloguePlaceholder')
+                  : t('plugins.searchInstalledPlaceholder')}
                 value={searchInputValue}
                 oninput={(e) => onSearchInput(e.currentTarget.value)}
                 class="search-input"
@@ -237,7 +238,7 @@
                 <button
                   class="clear-search-btn"
                   onclick={clearSearch}
-                  title="Limpiar búsqueda"
+                  title={t('plugins.clearSearch')}
                 >
                   <X size={14} />
                 </button>
@@ -245,23 +246,23 @@
             </div>
 
             {#if communityPluginsState.activeTab === 'community'}
-              <label class="sort-selector" title="Mostrar solo los plugins comprobados (verified-plugins.jsonc)">
+              <label class="sort-selector" title={t('plugins.compatibleOnlyTitle')}>
                 <input
                   type="checkbox"
                   bind:checked={communityPluginsState.onlyCompatible}
                   onchange={() => communityPluginsState.resetPagination()}
                 />
-                <span class="sort-label">Solo compatibles</span>
+                <span class="sort-label">{t('plugins.compatibleOnly')}</span>
               </label>
               <div class="sort-selector">
-                <span class="sort-label">Ordenar:</span>
+                <span class="sort-label">{t('plugins.sortLabel')}</span>
                 <select
                   bind:value={communityPluginsState.sortOrder}
                   onchange={() => communityPluginsState.resetPagination()}
                   class="sort-select"
                 >
-                  <option value="downloads">Más descargados</option>
-                  <option value="name">Nombre (A-Z)</option>
+                  <option value="downloads">{t('plugins.sortDownloads')}</option>
+                  <option value="name">{t('plugins.sortName')}</option>
                 </select>
               </div>
             {/if}
@@ -299,7 +300,7 @@
                 }}
               >
                 <ArrowLeft size={16} />
-                <span>Volver a plugins</span>
+                <span>{t('plugins.backToPlugins')}</span>
               </button>
               <div class="settings-title-info">
                 <h3>{pluginItem?.manifest.name || activeId}</h3>
@@ -313,16 +314,16 @@
           {#if communityPluginsState.isLoadingCatalogue && communityPluginsState.catalogue.length === 0}
             <div class="loading-state">
               <Loader2 size={32} class="spin" />
-              <p>Descargando directorio oficial de plugins de Obsidian...</p>
+              <p>{t('plugins.loadingCatalogue')}</p>
             </div>
           {:else if communityPluginsState.filteredCatalogue.length === 0}
             <div class="empty-state">
               <Boxes size={40} />
-              <p>No se encontraron plugins que coincidan con la búsqueda.</p>
+              <p>{t('plugins.noSearchResults')}</p>
             </div>
           {:else}
             <div class="catalogue-stats-bar">
-              <span>Mostrando {communityPluginsState.displayedCatalogue.length} de {communityPluginsState.filteredCatalogue.length} plugins</span>
+              <span>{t('plugins.showingCount', { shown: communityPluginsState.displayedCatalogue.length, total: communityPluginsState.filteredCatalogue.length })}</span>
             </div>
             <div class="plugins-grid">
               {#each communityPluginsState.displayedCatalogue as plugin (plugin.id)}
@@ -334,10 +335,10 @@
                   <div class="card-header">
                     <div class="title-area">
                       <h4 class="plugin-title">{plugin.name}</h4>
-                      <span class="plugin-author">por {plugin.author}</span>
+                      <span class="plugin-author">{t('plugins.byAuthor', { author: plugin.author })}</span>
                     </div>
                     {#if plugin.downloads !== undefined}
-                      <div class="downloads-badge" title="{plugin.downloads.toLocaleString()} descargas totales">
+                      <div class="downloads-badge" title={t('plugins.totalDownloads', { count: plugin.downloads.toLocaleString() })}>
                         <Download size={13} />
                         <span>{formatDownloads(plugin.downloads)}</span>
                       </div>
@@ -352,7 +353,7 @@
                       target="_blank"
                       rel="noopener noreferrer"
                       class="repo-link"
-                      title="Ver repositorio en GitHub"
+                      title={t('plugins.viewRepoTitle')}
                     >
                       <ExternalLink size={13} />
                       <span>{plugin.repo}</span>
@@ -365,20 +366,20 @@
                             class="btn-update-card"
                             onclick={() => communityPluginsState.updateSinglePlugin(plugin.id, app, repository)}
                             disabled={isUpdating}
-                            title="Actualizar a la versión v{updateInfo.latestVersion}"
+                            title={t('plugins.updateToTitle', { version: updateInfo.latestVersion })}
                           >
                             {#if isUpdating}
                               <Loader2 size={13} class="spin" />
-                              <span>Actualizando...</span>
+                              <span>{t('plugins.updating')}</span>
                             {:else}
                               <Download size={13} />
-                              <span>Actualizar (v{updateInfo.latestVersion})</span>
+                              <span>{t('plugins.updateVersion', { version: updateInfo.latestVersion })}</span>
                             {/if}
                           </button>
                         {:else}
                           <span class="badge-installed">
                             <Check size={14} />
-                            Instalado
+                            {t('plugins.installed')}
                           </span>
                         {/if}
                       {:else}
@@ -389,10 +390,10 @@
                         >
                           {#if isInstalling}
                             <Loader2 size={14} class="spin" />
-                            <span>Instalando...</span>
+                            <span>{t('plugins.installing')}</span>
                           {:else}
                             <Download size={14} />
-                            <span>Instalar</span>
+                            <span>{t('plugins.install')}</span>
                           {/if}
                         </button>
                       {/if}
@@ -408,7 +409,7 @@
                   class="btn-load-more"
                   onclick={() => communityPluginsState.loadMoreCatalogue()}
                 >
-                  Cargar más plugins ({communityPluginsState.displayedCatalogue.length} de {communityPluginsState.filteredCatalogue.length})
+                  {t('plugins.loadMore', { shown: communityPluginsState.displayedCatalogue.length, total: communityPluginsState.filteredCatalogue.length })}
                 </button>
               </div>
             {/if}
@@ -418,17 +419,17 @@
           {#if communityPluginsState.isLoadingInstalled}
             <div class="loading-state">
               <Loader2 size={32} class="spin" />
-              <p>Escaneando plugins instalados...</p>
+              <p>{t('plugins.scanningInstalled')}</p>
             </div>
           {:else if communityPluginsState.filteredInstalled.length === 0}
             <div class="empty-state">
               <Boxes size={40} />
-              <p>No tienes plugins instalados en tu bóveda.</p>
+              <p>{t('plugins.noInstalled')}</p>
               <button
                 class="btn-primary-action"
                 onclick={() => (communityPluginsState.activeTab = 'community')}
               >
-                Explorar catálogo comunitario
+                {t('plugins.browseCommunity')}
               </button>
             </div>
           {:else}
@@ -443,9 +444,9 @@
                       <div class="item-title-row">
                         <h4 class="item-title">{item.manifest.name}</h4>
                         <span class="item-version">v{item.manifest.version}</span>
-                        <span class="item-source-badge" title="Ruta en la bóveda">{item.dir}</span>
+                        <span class="item-source-badge" title={t('plugins.vaultPathTitle')}>{item.dir}</span>
                       </div>
-                      <p class="item-author">por {item.manifest.author || 'Desconocido'}</p>
+                      <p class="item-author">{t('plugins.byAuthor', { author: item.manifest.author || t('plugins.unknownAuthor') })}</p>
                       {#if item.manifest.description}
                         <p class="item-desc">{item.manifest.description}</p>
                       {/if}
@@ -453,7 +454,7 @@
 
                     <div class="item-controls">
                       <!-- Switch Activar / Desactivar -->
-                      <label class="toggle-switch" title={item.isEnabled ? 'Desactivar plugin' : 'Activar plugin'}>
+                      <label class="toggle-switch" title={item.isEnabled ? t('plugins.disablePlugin') : t('plugins.enablePlugin')}>
                         <input
                           type="checkbox"
                           checked={item.isEnabled}
@@ -472,7 +473,7 @@
                       {#if item.hasSettingsTab}
                         <button
                           class="icon-action-btn"
-                          title="Opciones de configuración del plugin"
+                          title={t('plugins.settingsTitle')}
                           onclick={() => (communityPluginsState.activeSettingPluginId = item.id)}
                         >
                           <Settings size={16} />
@@ -482,9 +483,9 @@
                       <!-- Botón Desinstalar -->
                       <button
                         class="icon-action-btn danger"
-                        title="Desinstalar plugin de la bóveda"
+                        title={t('plugins.uninstallTitle')}
                         onclick={() => {
-                          if (confirm(`¿Estás seguro de que deseas desinstalar '${item.manifest.name}'?`)) {
+                          if (confirm(t('plugins.confirmUninstall', { name: item.manifest.name }))) {
                             communityPluginsState.uninstallPlugin(item.id, app, repository);
                           }
                         }}
@@ -503,20 +504,20 @@
                     <div class="item-update-banner">
                       <div class="update-banner-text">
                         <ArrowUpCircle size={15} class="update-icon" />
-                        <span>Nueva versión disponible: <strong>v{updateInfo.latestVersion}</strong> (actual: v{item.manifest.version})</span>
+                        <span>{t('plugins.newVersionAvailable')} <strong>v{updateInfo.latestVersion}</strong> ({t('plugins.currentVersion', { version: item.manifest.version })})</span>
                       </div>
                       <button
                         class="btn-update-item"
                         disabled={isUpdating || communityPluginsState.isUpdatingAll}
                         onclick={() => communityPluginsState.updateSinglePlugin(item.id, app, repository)}
-                        title="Actualizar plugin a la versión v{updateInfo.latestVersion}"
+                        title={t('plugins.updatePluginToTitle', { version: updateInfo.latestVersion })}
                       >
                         {#if isUpdating}
                           <Loader2 size={13} class="spin" />
-                          <span>Actualizando...</span>
+                          <span>{t('plugins.updating')}</span>
                         {:else}
                           <Download size={13} />
-                          <span>Actualizar ahora</span>
+                          <span>{t('plugins.updateNow')}</span>
                         {/if}
                       </button>
                     </div>

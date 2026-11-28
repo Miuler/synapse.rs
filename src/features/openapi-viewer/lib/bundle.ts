@@ -4,6 +4,7 @@
 // bóveda o de una revisión de Git). Nada sale de la bóveda: un `$ref` que apunta fuera o a una URL
 // se deja como está.
 import { parse } from 'yaml';
+import { t } from '@shared/lib/i18n';
 
 /** Devuelve el texto del archivo (ruta relativa a la bóveda, con `/`) o `null` si no existe. */
 export type ReadFile = (path: string) => Promise<string | null>;
@@ -98,14 +99,14 @@ export async function bundleOpenApi(content: string, path: string, read: ReadFil
       const [filePart, fragment = ''] = ref.split('#');
       const target = filePart ? joinPath(dirname(file), filePart) : file;
       if (target === null) {
-        problems.push(`${file}: «${ref}» apunta fuera de la bóveda`);
+        problems.push(t('openApiViewer.outsideVault', { file, ref }));
         return node;
       }
       const key = `${target}#${fragment}`;
       if (stack.includes(key)) return target === root ? { ...obj, $ref: `#${fragment}` } : node; // ciclo
       try {
         const value = pointer(await load(target), fragment);
-        if (value === undefined) throw new Error(`no se encontró «#${fragment}» en ${target}`);
+        if (value === undefined) throw new Error(t('openApiViewer.fragmentNotFound', { fragment, target }));
         const resolved = await walk(value, target, [...stack, key]);
         const { $ref: _, ...siblings } = obj;
         const rest = await walk(siblings, file, stack);
@@ -114,7 +115,7 @@ export async function bundleOpenApi(content: string, path: string, read: ReadFil
           : resolved;
       } catch (e) {
         problems.push(`${file}: «${ref}»: ${e instanceof Error ? e.message : e}`);
-        return { description: `⚠ No se pudo resolver «${ref}»` };
+        return { description: t('openApiViewer.cannotResolve', { ref }) };
       }
     }
     const out: Record<string, unknown> = {};

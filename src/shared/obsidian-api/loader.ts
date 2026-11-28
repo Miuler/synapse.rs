@@ -68,10 +68,10 @@ export class PluginLoader {
     const stylesPath = `${cleanDir}/styles.css`;
 
     if (!(await this.app.vault.adapter.exists(manifestPath))) {
-      throw new Error(`[PluginLoader] No se encontró manifest.json en ${cleanDir}`);
+      throw new Error(`[PluginLoader] manifest.json not found in ${cleanDir}`);
     }
     if (!(await this.app.vault.adapter.exists(mainJsPath))) {
-      throw new Error(`[PluginLoader] No se encontró main.js en ${cleanDir}`);
+      throw new Error(`[PluginLoader] main.js not found in ${cleanDir}`);
     }
 
     const rawManifest = await this.app.vault.adapter.read(manifestPath);
@@ -126,13 +126,13 @@ export class PluginLoader {
       recordSpan(`plugin ${manifest.id}: evaluar main.js`, spanStart);
     } catch (err) {
       styleEl?.remove();
-      throw new Error(`[PluginLoader] Error al evaluar main.js de ${manifest.id}: ${err}`);
+      throw new Error(`[PluginLoader] Failed to evaluate main.js for ${manifest.id}: ${err}`);
     }
 
     const PluginClass = moduleObj.exports.default || moduleObj.exports;
     if (typeof PluginClass !== 'function') {
       styleEl?.remove();
-      throw new Error(`[PluginLoader] El plugin ${manifest.id} no exportó una clase de plugin válida`);
+      throw new Error(`[PluginLoader] Plugin ${manifest.id} did not export a valid plugin class`);
     }
 
     // 3. Instanciar e iniciar ciclo de vida
@@ -192,7 +192,7 @@ export class PluginLoader {
         return this.loadPluginFromDir(targetDir);
       }
     }
-    throw new Error(`[PluginLoader] No se encontró el plugin '${pluginId}' en .synapse/plugins`);
+    throw new Error(`[PluginLoader] Plugin '${pluginId}' not found in .synapse/plugins`);
   }
 
   /**

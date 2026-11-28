@@ -17,11 +17,11 @@ impl<N: NoteRepository> AppendToNoteUseCase<N> {
 
     pub fn execute(&self, command: AppendToNoteCommand) -> Result<String, String> {
         let relative_path = NoteRelativePath::new(&command.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
         let note = self
             .note_repository
             .read_note(&command.vault_path, &relative_path)
-            .map_err(|e| format!("Error al leer nota: {}", e))?;
+            .map_err(|e| format!("Failed to read note: {}", e))?;
 
         let mut lines: Vec<String> = note.content.lines().map(|s| s.to_string()).collect();
 
@@ -29,7 +29,7 @@ impl<N: NoteRepository> AppendToNoteUseCase<N> {
             let target_h = heading.trim().trim_start_matches('#').trim().to_lowercase();
             let line_refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
             let (start_h, sec_level) = NoteContent::find_heading(&line_refs, &target_h)
-                .ok_or_else(|| format!("Encabezado de sección '{}' no encontrado", heading))?;
+                .ok_or_else(|| format!("Section heading '{}' not found", heading))?;
             let insert_idx = if command.position == "start_of_section" {
                 start_h + 1
             } else {
@@ -51,7 +51,7 @@ impl<N: NoteRepository> AppendToNoteUseCase<N> {
         );
         self.note_repository
             .save_note(&command.vault_path, &updated_note)
-            .map_err(|err| format!("Error al anexar contenido: {}", err))?;
+            .map_err(|err| format!("Failed to append content: {}", err))?;
         Ok(new_hash)
     }
 }

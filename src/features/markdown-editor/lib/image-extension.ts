@@ -4,6 +4,7 @@ import { activeFilePathFacet } from './mermaid-extension';
 import { extractImageTokens, resolveVaultImageUrl, type ImageToken } from './image-resolver';
 import { renderExcalidrawToSvg } from '@shared/lib/diagrams';
 import { vaultRepository } from '@shared/repositories';
+import { t } from '@shared/lib/i18n';
 
 class ImageWidget extends WidgetType {
   constructor(
@@ -38,13 +39,13 @@ class ImageWidget extends WidgetType {
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'cm-image-action-btn';
-    editBtn.title = 'Editar sintaxis de la imagen';
+    editBtn.title = t('readingView.imageEditTitle');
     editBtn.innerHTML = `
       <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
-      <span>Editar</span>
+      <span>${t('readingView.imageEdit')}</span>
     `;
     editBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -65,7 +66,7 @@ class ImageWidget extends WidgetType {
     loadingPlaceholder.className = 'cm-image-loading';
     loadingPlaceholder.innerHTML = `
       <span class="cm-image-spinner"></span>
-      <span>Cargando imagen...</span>
+      <span>${t('readingView.imageLoading')}</span>
     `;
     imgContainer.appendChild(loadingPlaceholder);
 
@@ -74,10 +75,10 @@ class ImageWidget extends WidgetType {
     const isExcalidraw = /\.(?:excalidraw|excalidraw\.json|excalidraw\.md)$/i.test(cleanSrcLower);
 
     if (isExcalidraw) {
-      editBtn.title = 'Editar dibujo Excalidraw';
+      editBtn.title = t('readingView.drawingEditTitle');
       loadingPlaceholder.innerHTML = `
         <span class="cm-image-spinner"></span>
-        <span>Cargando dibujo Excalidraw...</span>
+        <span>${t('readingView.drawingLoading')}</span>
       `;
 
       const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
@@ -96,7 +97,7 @@ class ImageWidget extends WidgetType {
 
           const note = await vaultRepository.readNote(targetPath);
           if (!note || !note.content) {
-            throw new Error(`No se encontró el archivo Excalidraw: ${targetPath}`);
+            throw new Error(t('readingView.drawingNotFound', { path: targetPath }));
           }
 
           const svgString = await renderExcalidrawToSvg(note.content, targetPath, isDark);
@@ -120,7 +121,7 @@ class ImageWidget extends WidgetType {
 
             imgContainer.appendChild(svgWrapper);
           } else {
-            throw new Error('No se pudo renderizar el SVG de Excalidraw.');
+            throw new Error(t('readingView.drawingSvgFailed'));
           }
         } catch (err: any) {
           loadingPlaceholder.remove();
@@ -132,7 +133,7 @@ class ImageWidget extends WidgetType {
               <line x1="12" y1="8" x2="12" y2="12"/>
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            <span>Error cargando Excalidraw: <code>${escapeHtml(err?.message || this.token.src)}</code></span>
+            <span>${t('readingView.drawingLoadError')} <code>${escapeHtml(err?.message || this.token.src)}</code></span>
           `;
           imgContainer.appendChild(errorEl);
         }
@@ -153,7 +154,7 @@ class ImageWidget extends WidgetType {
     }
 
     const img = document.createElement('img');
-    img.alt = this.token.alt || 'Imagen';
+    img.alt = this.token.alt || t('readingView.defaultImageAlt');
     if (this.token.title) {
       img.title = this.token.title;
     }
@@ -191,7 +192,7 @@ class ImageWidget extends WidgetType {
           <circle cx="9" cy="9" r="2"/>
           <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
         </svg>
-        <span>No se pudo cargar la imagen: <code>${escapeHtml(this.token.src)}</code></span>
+        <span>${t('readingView.imageLoadFailed')} <code>${escapeHtml(this.token.src)}</code></span>
       `;
       imgContainer.appendChild(errorEl);
       view.requestMeasure();

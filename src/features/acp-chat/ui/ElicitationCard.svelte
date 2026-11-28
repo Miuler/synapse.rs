@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ExternalLink, HelpCircle, Globe } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import type {
     ElicitationAction,
     ElicitationAnswer,
@@ -124,12 +125,14 @@
   }
 
   function answeredSummary(ans: ElicitationAnswer): string {
-    if (ans.action === 'decline') return 'Rechazado';
-    if (ans.action === 'cancel') return 'Cancelado';
-    if (request.mode === 'url') return 'Confirmado';
+    if (ans.action === 'decline') return t('acp.elicitation.declined');
+    if (ans.action === 'cancel') return t('acp.elicitation.cancelled');
+    if (request.mode === 'url') return t('acp.elicitation.confirmed');
     const entries = Object.entries(ans.content ?? {});
-    if (!entries.length) return 'Aceptado';
-    return `Aceptado: ${entries.map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(', ') : String(v)}`).join(' · ')}`;
+    if (!entries.length) return t('acp.elicitation.accepted');
+    return t('acp.elicitation.acceptedWith', {
+      fields: entries.map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(', ') : String(v)}`).join(' · '),
+    });
   }
 </script>
 
@@ -153,15 +156,15 @@
           <span class="acp-elicitation-url" title={request.url}>{request.url}</span>
           {#if /^https?:/i.test(request.url)}
             <button type="button" class="acp-btn" onclick={openExternalUrl}>
-              <ExternalLink size={12} /> Abrir enlace
+              <ExternalLink size={12} /> {t('acp.elicitation.openLink')}
             </button>
           {/if}
         </div>
       {/if}
       <div class="acp-elicitation-actions">
-        <button type="button" class="acp-btn primary" onclick={() => onRespond('accept')}>Confirmar</button>
-        <button type="button" class="acp-btn danger" onclick={() => onRespond('decline')}>Rechazar</button>
-        <button type="button" class="acp-btn" onclick={() => onRespond('cancel')}>Cancelar</button>
+        <button type="button" class="acp-btn primary" onclick={() => onRespond('accept')}>{t('acp.elicitation.confirm')}</button>
+        <button type="button" class="acp-btn danger" onclick={() => onRespond('decline')}>{t('acp.elicitation.decline')}</button>
+        <button type="button" class="acp-btn" onclick={() => onRespond('cancel')}>{t('acp.elicitation.cancel')}</button>
       </div>
     {:else}
       <form class="acp-elicitation-form" onsubmit={submitForm}>
@@ -212,7 +215,7 @@
                     values[key] = matched ? matched.value : e.currentTarget.value;
                   }}
                 >
-                  <option value="">Seleccionar…</option>
+                  <option value="">{t('acp.elicitation.selectPlaceholder')}</option>
                   {#each opts as opt (String(opt.value))}
                     <option value={String(opt.value)}>{opt.label}</option>
                   {/each}
@@ -259,9 +262,9 @@
         {/each}
 
         <div class="acp-elicitation-actions">
-          <button type="submit" class="acp-btn primary" disabled={!canAcceptForm}>Aceptar</button>
-          <button type="button" class="acp-btn danger" onclick={() => onRespond('decline')}>Rechazar</button>
-          <button type="button" class="acp-btn" onclick={() => onRespond('cancel')}>Cancelar</button>
+          <button type="submit" class="acp-btn primary" disabled={!canAcceptForm}>{t('acp.elicitation.accept')}</button>
+          <button type="button" class="acp-btn danger" onclick={() => onRespond('decline')}>{t('acp.elicitation.decline')}</button>
+          <button type="button" class="acp-btn" onclick={() => onRespond('cancel')}>{t('acp.elicitation.cancel')}</button>
         </div>
       </form>
     {/if}

@@ -45,7 +45,7 @@ pub fn mcp_diagram_rendered(
             mime_type: mime_type.unwrap_or_else(|| "image/png".into()),
             data_base64,
         }),
-        (_, err) => Err(err.unwrap_or_else(|| "La ventana no devolvió la imagen".into())),
+        (_, err) => Err(err.unwrap_or_else(|| "The window did not return the image".into())),
     };
     state.diagram_renderer.resolve(&request_id, result);
 }
@@ -70,7 +70,7 @@ pub fn mcp_config_changed(
 ) {
     let reply = match (draft, error) {
         (Some(draft), None) => Ok(draft),
-        (_, error) => Err(error.unwrap_or_else(|| "La ventana no aplicó el cambio".into())),
+        (_, error) => Err(error.unwrap_or_else(|| "The window did not apply the change".into())),
     };
     state.config_window.changed(&request_id, reply);
 }
@@ -86,7 +86,7 @@ pub fn mcp_conversations_reply(
     let outcome = match (result, error) {
         (_, Some(e)) => Err(e),
         (Some(v), None) => Ok(v),
-        (None, None) => Err("La ventana no respondió".into()),
+        (None, None) => Err("The window did not respond".into()),
     };
     state.conversation_hub.resolve(&request_id, outcome);
 }

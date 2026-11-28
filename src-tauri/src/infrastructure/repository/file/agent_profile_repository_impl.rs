@@ -27,7 +27,7 @@ impl AgentProfileRepositoryImpl {
     fn read(&self) -> Result<Vec<AgentProfile>, String> {
         match std::fs::read(&self.path) {
             Ok(data) => {
-                serde_json::from_slice(&data).map_err(|e| format!("agents.json inválido: {e}"))
+                serde_json::from_slice(&data).map_err(|e| format!("Invalid agents.json: {e}"))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(vec![]),
             Err(e) => Err(e.to_string()),

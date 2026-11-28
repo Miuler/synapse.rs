@@ -25,13 +25,13 @@ pub fn get_installed_community_plugins(
 ) -> Result<Vec<InstalledPluginInfo>, String> {
     let resolved_path = match vault_path {
         Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
-        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
+        Some(p) => return Err(format!("Unauthorized path: {p}")),
         None => state
             .active_vault_path
             .lock()
             .map_err(|e| e.to_string())?
             .clone()
-            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+            .ok_or_else(|| "no vault open".to_string())?,
     };
 
     state.get_installed_plugins_use_case.execute(
@@ -65,13 +65,13 @@ pub async fn install_community_plugin(
 ) -> Result<CommunityPluginInstallResult, String> {
     let resolved_path = match vault_path {
         Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
-        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
+        Some(p) => return Err(format!("Unauthorized path: {p}")),
         None => state
             .active_vault_path
             .lock()
             .map_err(|e| e.to_string())?
             .clone()
-            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+            .ok_or_else(|| "no vault open".to_string())?,
     };
 
     state
@@ -94,13 +94,13 @@ pub async fn uninstall_community_plugin(
 ) -> Result<(), String> {
     let resolved_path = match vault_path {
         Some(p) if state.is_known_vault(std::path::Path::new(&p)) => PathBuf::from(p),
-        Some(p) => return Err(format!("Ruta no autorizada: {p}")),
+        Some(p) => return Err(format!("Unauthorized path: {p}")),
         None => state
             .active_vault_path
             .lock()
             .map_err(|e| e.to_string())?
             .clone()
-            .ok_or_else(|| "No hay ninguna bóveda activa seleccionada".to_string())?,
+            .ok_or_else(|| "no vault open".to_string())?,
     };
 
     state

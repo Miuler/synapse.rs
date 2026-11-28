@@ -45,7 +45,7 @@ impl AgentQuotaSource for AgentQuotaSourceImpl {
 
 async fn fetch_antigravity() -> Result<AgentQuota, String> {
     let launch = local_cli::find(ANTIGRAVITY)
-        .ok_or("Antigravity no está en la lista de agentes")?
+        .ok_or("Antigravity is not in the agent list")?
         .launch()?;
     let mut cmd = tokio::process::Command::new(launch.command);
     // Sin shell y con argumentos fijos: la interfaz solo elige el agente
@@ -59,11 +59,11 @@ async fn fetch_antigravity() -> Result<AgentQuota, String> {
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let output = tokio::time::timeout(TIMEOUT, cmd.output())
         .await
-        .map_err(|_| "agy no respondió a tiempo".to_string())?
-        .map_err(|e| format!("No se pudo ejecutar agy: {e}"))?;
+        .map_err(|_| "agy timed out".to_string())?
+        .map_err(|e| format!("Could not run agy: {e}"))?;
     let json: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|_| "agy no devolvió su cuota en JSON".to_string())?;
-    parse_antigravity(&json, now_ms()).ok_or_else(|| "agy no informó su cuota".into())
+        .map_err(|_| "agy did not return its quota as JSON".to_string())?;
+    parse_antigravity(&json, now_ms()).ok_or_else(|| "agy did not report its quota".into())
 }
 
 /// `command.data` de `agy --print /usage --output-format json`. Lo que falte se omite.

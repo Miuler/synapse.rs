@@ -3,6 +3,7 @@
   import { DiagramSplitViewer } from '@shared/ui/diagram-viewer';
   import { initMerman, renderMermaidSvg, validate, parseMermanErrors } from '@shared/lib/diagrams';
   import type { EditorDiagnostic } from '@shared/ui/code-editor';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -37,7 +38,7 @@
       await initMerman();
       isReady = true;
     } catch (e) {
-      error = 'Error al cargar merman: ' + String(e);
+      error = t('diagramViewer.loadMermanError', { detail: String(e) });
     }
   });
 
@@ -46,7 +47,7 @@
       try {
         const valRes = validate(content);
         if (!valRes.valid) {
-          error = valRes.error || `Error de sintaxis (${valRes.code_name || 'MERMAN_PARSE_ERROR'})`;
+          error = valRes.error || t('diagramViewer.mermanSyntaxError', { code: valRes.code_name || 'MERMAN_PARSE_ERROR' });
           const errs = parseMermanErrors(valRes);
           diagnostics = errs.map((e) => ({
             line: e.line,
@@ -86,7 +87,7 @@
   {content}
   {filePath}
   engineName="Merman"
-  engineTooltip="Visualizador Merman basado en Rust y WebAssembly"
+  engineTooltip={t('diagramViewer.mermanTooltip')}
   mode="mermaid"
   {svgContent}
   {isReady}
@@ -96,7 +97,7 @@
   {showEditor}
   {vimMode}
   {isActive}
-  loadingMessage="Cargando Merman WASM..."
+  loadingMessage={t('diagramViewer.loadingMerman')}
   {onChange}
   {onSelectionChange}
 />

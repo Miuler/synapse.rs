@@ -22,7 +22,7 @@
     Pencil,
   } from 'lucide-svelte';
   import { untrack } from 'svelte';
-  import { t } from '@shared/lib/i18n';
+  import { i18n, t } from '@shared/lib/i18n';
   import { loadVaultFlag, saveVaultFlag } from '@shared/lib/vault-prefs';
 
   interface Props {
@@ -158,7 +158,7 @@
   function formatDate(ms: number) {
     const date = new Date(ms);
     const today = date.toDateString() === new Date().toDateString();
-    return date.toLocaleString(undefined, {
+    return date.toLocaleString(i18n.locale, {
       ...(today ? {} : { day: '2-digit', month: 'short' }),
       hour: '2-digit',
       minute: '2-digit',
@@ -182,7 +182,7 @@
   }
 
   function titleOf(c: Conversation) {
-    return c.title || 'Conversación nueva';
+    return c.title || t('acp.store.newConversation');
   }
 
   // Redimensionar el panel acoplado desde su borde izquierdo
@@ -247,19 +247,19 @@
     <Bot size={15} />
     <select
       class="acp-select"
-      aria-label="Nueva conversación con…"
-      title="Nueva conversación con un agente"
+      aria-label={t('acp.panel.newConvWith')}
+      title={t('acp.panel.newConvWithAgentTitle')}
       value=""
       onchange={onPickAgent}
       disabled={!cwd || agentStore.agents.length === 0}
     >
-      <option value="" disabled>Nueva conversación con…</option>
+      <option value="" disabled>{t('acp.panel.newConvWith')}</option>
       {#each agentStore.agents as a (a.id)}
-        <option value={a.id}>{a.name}{a.installed ? '' : ' (se descargará)'}</option>
+        <option value={a.id}>{a.name}{a.installed ? '' : t('acp.panel.willDownload')}</option>
       {/each}
     </select>
     {#if agentStore.working || agentStore.pendingPermissions}
-      <span class="acp-counts" title="Conversaciones trabajando y permisos pendientes">
+      <span class="acp-counts" title={t('acp.panel.countsTitle')}>
         {#if agentStore.working}<span class="acp-brain">🧠</span>{agentStore.working}{/if}
         {#if agentStore.pendingPermissions}· ⚠ {agentStore.pendingPermissions}{/if}
       </span>
@@ -267,21 +267,21 @@
     <button
       type="button"
       class="acp-icon"
-      title="Nueva conversación con el último agente (o el agente por defecto)"
-      aria-label="Nueva conversación"
+      title={t('acp.panel.newConvDefaultTitle')}
+      aria-label={t('acp.panel.newConvAria')}
       disabled={!cwd || !agentStore.fallbackAgentId}
       onclick={() => agentStore.fallbackAgentId && startWith(agentStore.fallbackAgentId)}><Plus size={15} /></button
     >
     <button
       type="button"
       class="acp-icon"
-      title={agentStore.floating ? 'Acoplar a la derecha' : 'Modo flotante'}
+      title={agentStore.floating ? t('acp.panel.dockRight') : t('acp.panel.floatingMode')}
       aria-pressed={agentStore.floating}
       onclick={() => agentStore.setFloating(!agentStore.floating)}
     >
       {#if agentStore.floating}<PanelRight size={14} />{:else}<PictureInPicture2 size={14} />{/if}
     </button>
-    <button type="button" class="acp-icon" title="Ajustes de agentes" onclick={onOpenSettings}>
+    <button type="button" class="acp-icon" title={t('acp.panel.agentSettings')} onclick={onOpenSettings}>
       <Settings size={14} />
     </button>
     <!-- Acoplado, el panel se cierra con su botón de la barra; flotante no hay pin y conserva la X -->
@@ -291,16 +291,16 @@
         class="acp-icon acp-pin-btn"
         class:active={pinned}
         aria-pressed={pinned}
-        aria-label={pinned ? 'Soltar panel del agente' : 'Fijar panel del agente'}
+        aria-label={pinned ? t('acp.panel.unpinPanelAria') : t('acp.panel.pinPanelAria')}
         title={pinned
-          ? 'Soltar: el panel flota sobre el editor y no le quita espacio (se oculta al hacer clic fuera)'
-          : 'Fijar: el panel ocupa su espacio al lado del editor'}
+          ? t('acp.panel.unpinPanelTitle')
+          : t('acp.panel.pinPanelTitle')}
         onclick={togglePinned}
       >
         {#if pinned}<Pin size={13} />{:else}<PinOff size={13} />{/if}
       </button>
     {:else}
-      <button type="button" class="acp-icon" title="Cerrar panel" onclick={onClose}><X size={14} /></button>
+      <button type="button" class="acp-icon" title={t('acp.panel.closePanel')} onclick={onClose}><X size={14} /></button>
     {/if}
   </header>
   {#if cwd}
@@ -308,17 +308,17 @@
       <History size={13} />
       <select
         class="acp-mini-select grow"
-        aria-label="Historial de conversaciones"
-        title="Reabrir una conversación cerrada"
+        aria-label={t('acp.panel.historyAria')}
+        title={t('acp.panel.reopenClosedTitle')}
         value=""
         onchange={onPickHistory}
       >
         <option value="" disabled>
-          {agentStore.closedHistory.length ? `Historial (${agentStore.closedHistory.length})` : 'Sin conversaciones cerradas'}
+          {agentStore.closedHistory.length ? t('acp.panel.historyCount', { count: agentStore.closedHistory.length }) : t('acp.panel.noClosedConvs')}
         </option>
         {#each agentStore.closedHistory as h (h.id)}
           <!-- Número y fecha delante: un título largo los dejaría fuera de la lista -->
-          <option value={h.id}>{h.number ? `#${h.number} · ` : ''}{formatDate(h.updated_at)} · {h.title || 'Sin título'} · {h.agent_name}</option>
+          <option value={h.id}>{h.number ? `#${h.number} · ` : ''}{formatDate(h.updated_at)} · {h.title || t('acp.panel.untitled')} · {h.agent_name}</option>
         {/each}
       </select>
       {#if confirmDeleteAll}
@@ -328,16 +328,16 @@
           onclick={() => {
             confirmDeleteAll = false;
             if (cwd) agentStore.deleteAllTranscripts(cwd);
-          }}>Borrar {agentStore.closedHistory.length}</button
+          }}>{t('acp.panel.deleteCount', { count: agentStore.closedHistory.length })}</button
         >
-        <button type="button" class="acp-icon small" title="Cancelar" onclick={() => (confirmDeleteAll = false)}><X size={12} /></button>
+        <button type="button" class="acp-icon small" title={t('common.cancel')} onclick={() => (confirmDeleteAll = false)}><X size={12} /></button>
       {:else}
         <button
           type="button"
           class="acp-link"
-          title="Borrar las conversaciones cerradas de esta bóveda"
+          title={t('acp.panel.deleteAllClosedTitle')}
           disabled={!agentStore.closedHistory.length}
-          onclick={() => (confirmDeleteAll = true)}>Borrar todas</button
+          onclick={() => (confirmDeleteAll = true)}>{t('acp.panel.deleteAll')}</button
         >
       {/if}
     </div>
@@ -347,14 +347,14 @@
 {#snippet convExtras(c: Conversation)}
   {#if c.session || c.sessionId}
       {#if c.session?.tool_servers.includes('synapse_instance')}
-        <span class="acp-badge" title="El agente puede usar las herramientas MCP de Synapse (notas, búsqueda, Git…)">MCP Synapse</span>
+        <span class="acp-badge" title={t('acp.panel.mcpBadgeTitle')}>MCP Synapse</span>
       {/if}
       <div class="acp-more">
         <button
           type="button"
           class="acp-icon small"
-          title="Más acciones"
-          aria-label="Más acciones"
+          title={t('acp.panel.moreActions')}
+          aria-label={t('acp.panel.moreActions')}
           aria-haspopup="menu"
           aria-expanded={menuFor === c.id}
           onclick={(e) => {
@@ -430,7 +430,7 @@
               onclick={() => {
                 menuFor = null;
                 c.openRaw();
-              }}><FileJson size={13} /> Ver en crudo (JSON)</button
+              }}><FileJson size={13} /> {t('acp.panel.openRawJson')}</button
             >
             <button
               type="button"
@@ -439,7 +439,7 @@
               onclick={() => {
                 menuFor = null;
                 if (cwd) agentStore.deleteTranscript(cwd, c.id);
-              }}><Trash2 size={13} /> Borrar conversación</button
+              }}><Trash2 size={13} /> {t('acp.panel.deleteConv')}</button
             >
           </div>
         {/if}
@@ -451,7 +451,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="acp-row" class:unseen={c.unseen} data-conversation={c.id} onclick={() => !pinned && agentStore.toggle(c.id)}>
     {#if c.incoming}
-      <span class="acp-octopus" data-status={c.status} title="Abierta por otra bóveda de Synapse: {c.incoming.vault}{c.incoming.handle}"
+      <span class="acp-octopus" data-status={c.status} title={t('acp.panel.openedByVault', { source: `${c.incoming.vault}${c.incoming.handle}` })}
         ><OctopusIcon size={14} /></span
       >
     {:else}
@@ -460,22 +460,22 @@
     {#if !pinned}
       {#if open}<ChevronDown size={13} />{:else}<ChevronRight size={13} />{/if}
     {/if}
-    <span class="acp-handle" title="Número para nombrarla desde otra conversación">{c.handle}</span>
+    <span class="acp-handle" title={t('acp.panel.handleTitle')}>{c.handle}</span>
     <span class="acp-row-title"
       >{#if c.incoming}<span class="acp-from-vault">⇠ {c.incoming.vault}{c.incoming.handle} ·</span>{/if}<AgentIcon agentId={c.agentId} /><span class="agent"
         >{c.agent?.name ?? c.agentId} ·</span
       > {titleOf(c)}</span
     >
-    {#if c.status === 'working'}<span class="acp-brain" title="Pensando">🧠</span>{/if}
-    {#if c.inbox.length}<span class="acp-inbox" title="Mensajes de otras conversaciones esperando a que termine su turno">✉ {c.inbox.length}</span>{/if}
-    {#if c.waitingFor.length}<span class="acp-waiting" title="Le preguntó a otra conversación y espera su respuesta">esperando a {c.waitingFor.join(', ')}</span>{/if}
-    {#if c.pendingPermissions}<span class="acp-perm-badge">permiso</span>{/if}
+    {#if c.status === 'working'}<span class="acp-brain" title={t('acp.panel.thinkingTitle')}>🧠</span>{/if}
+    {#if c.inbox.length}<span class="acp-inbox" title={t('acp.panel.inboxTitle')}>✉ {c.inbox.length}</span>{/if}
+    {#if c.waitingFor.length}<span class="acp-waiting" title={t('acp.panel.waitingTitle')}>{t('acp.panel.waitingFor', { targets: c.waitingFor.join(', ') })}</span>{/if}
+    {#if c.pendingPermissions}<span class="acp-perm-badge">{t('acp.panel.permBadge')}</span>{/if}
     {@render convExtras(c)}
     <button
       type="button"
       class="acp-icon small"
-      title={pinned ? 'Devolver al acordeón' : 'Fijar al costado'}
-      aria-label={pinned ? 'Desfijar' : 'Fijar al costado'}
+      title={pinned ? t('acp.panel.returnToAccordion') : t('acp.panel.pinAside')}
+      aria-label={pinned ? t('acp.panel.unpin') : t('acp.panel.pinAside')}
       onclick={(e) => {
         e.stopPropagation();
         agentStore.togglePin(c.id);
@@ -486,8 +486,8 @@
     <button
       type="button"
       class="acp-icon small"
-      title="Cerrar (queda en el historial)"
-      aria-label="Cerrar conversación"
+      title={t('acp.panel.closeKeepHistoryTitle')}
+      aria-label={t('acp.panel.closeConvAria')}
       onclick={(e) => {
         e.stopPropagation();
         agentStore.close(c.id);
@@ -500,19 +500,19 @@
   {#if agentStore.agents.length === 0}
     <div class="acp-empty-panel">
       <Bot size={28} />
-      <p>No hay agentes configurados.</p>
+      <p>{t('acp.panel.noAgentsConfigured')}</p>
       {#if agentStore.listError}<p class="acp-error-text">{agentStore.listError}</p>{/if}
-      <button type="button" class="acp-link" onclick={onOpenSettings}>Configurar agentes</button>
+      <button type="button" class="acp-link" onclick={onOpenSettings}>{t('acp.panel.configureAgents')}</button>
     </div>
   {:else if !cwd}
     <div class="acp-empty-panel">
       <Bot size={28} />
-      <p>Abre una bóveda para conversar con un agente.</p>
+      <p>{t('acp.panel.openVaultToChat')}</p>
     </div>
   {:else if agentStore.conversations.length === 0}
     <div class="acp-empty-panel">
       <Bot size={28} />
-      <p>Empieza una conversación con un agente, o reabre una del historial.</p>
+      <p>{t('acp.panel.startOrReopen')}</p>
       <div class="acp-start">
         {#each agentStore.agents as a (a.id)}
           <button type="button" onclick={() => startWith(a.id)}>{a.name}</button>
@@ -523,7 +523,7 @@
     <div class="acp-columns">
       {#if agentStore.pinnedConversation}
         {@const c = agentStore.pinnedConversation}
-        <section class="acp-pinned" aria-label="Conversación fijada">
+        <section class="acp-pinned" aria-label={t('acp.panel.pinnedConvAria')}>
           {@render row(c, true, true)}
           {#key c.id}<AcpChat {cwd} {onOpenSettings} {onOpenNote} {onOutsideFile} conv={c} />{/key}
         </section>
@@ -531,7 +531,7 @@
       <div class="acp-accordion">
         {#each agentStore.conversations.filter((x) => x.id !== agentStore.pinned) as c (c.id)}
           {@const open = agentStore.expanded.includes(c.id)}
-          <section class="acp-section" class:open aria-label="Conversación {titleOf(c)}">
+          <section class="acp-section" class:open aria-label={t('acp.panel.convAria', { title: titleOf(c) })}>
             {@render row(c, open, false)}
             {#if open}
               <div class="acp-section-body">
@@ -552,7 +552,7 @@
     {inert}
     bind:this={floatEl}
     style="left: {float.x}px; top: {float.y}px; width: {float.w}px; height: {float.h}px;"
-    aria-label="Agente"
+    aria-label={t('acp.panel.panelAria')}
   >
     {@render header()}
     {@render content()}
@@ -565,12 +565,12 @@
     {inert}
     bind:this={dockedEl}
     style="width: {dockedWidth}px;"
-    aria-label="Agente"
+    aria-label={t('acp.panel.panelAria')}
   >
     <div
       role="separator"
       tabindex="-1"
-      aria-label="Redimensionar panel del agente"
+      aria-label={t('acp.panel.resizePanelAria')}
       class="acp-resizer"
       onpointerdown={startResize}
     ></div>

@@ -13,6 +13,7 @@
     Check,
   } from 'lucide-svelte';
   import type { PropertiesViewMode } from '@entities/settings';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     metadata: Record<string, any>;
@@ -130,11 +131,11 @@
         {:else}
           <ChevronDown size={15} class="header-icon" />
         {/if}
-        <span class="header-title">Propiedades</span>
+        <span class="header-title">{t('noteProperties.title')}</span>
         <span class="header-badge">{visibleEntries.length}</span>
       </div>
       <span class="header-state-hint">
-        {isCollapsed ? 'Mostrar' : 'Ocultar'}
+        {isCollapsed ? t('noteProperties.show') : t('noteProperties.hide')}
       </span>
     </button>
 
@@ -169,7 +170,7 @@
                         type="button"
                         class="tag-pill"
                         onclick={(e) => handleTagClick(e, String(tagItem))}
-                        title="Buscar notas con esta etiqueta"
+                        title={t('noteProperties.searchTagTitle')}
                       >
                         <span class="tag-hash">#</span>{String(tagItem).replace(/^#/, '')}
                       </button>
@@ -203,10 +204,10 @@
                   <div class="boolean-badge" class:is-true={value} class:is-false={!value}>
                     {#if value}
                       <CheckCircle2 size={13} />
-                      <span>Verdadero</span>
+                      <span>{t('noteProperties.boolTrue')}</span>
                     {:else}
                       <XCircle size={13} />
-                      <span>Falso</span>
+                      <span>{t('noteProperties.boolFalse')}</span>
                     {/if}
                   </div>
                 {:else if typeof value === 'string' && isLinkValue(value)}
@@ -236,7 +237,7 @@
               <button
                 type="button"
                 class="copy-btn"
-                title="Copiar valor"
+                title={t('noteProperties.copyTitle')}
                 onclick={() => copyValue(key, value)}
               >
                 {#if copiedKey === key}

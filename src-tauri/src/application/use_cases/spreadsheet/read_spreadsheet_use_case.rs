@@ -22,7 +22,7 @@ impl<R: SpreadsheetReader> ReadSpreadsheetUseCase<R> {
     fn check(relative_path: &str) -> Result<(), String> {
         let rel = Path::new(relative_path);
         if rel.is_absolute() || rel.components().any(|c| matches!(c, Component::ParentDir)) {
-            return Err(format!("Ruta fuera de la bóveda: {relative_path}"));
+            return Err(format!("Path outside the vault: {relative_path}"));
         }
         Ok(())
     }

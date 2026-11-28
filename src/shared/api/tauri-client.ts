@@ -40,7 +40,7 @@ async function invokeTimed<T>(cmd: string, args?: Record<string, unknown>): Prom
 
 async function invokeTauriRaw<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (typeof window === 'undefined') {
-    throw new Error('Entorno no es un navegador');
+    throw new Error('Environment is not a browser');
   }
 
   const w = window as unknown as {
@@ -56,7 +56,7 @@ async function invokeTauriRaw<T>(cmd: string, args?: Record<string, unknown>): P
     return await w.__TAURI__.core.invoke(cmd, args);
   }
 
-  throw new Error('Backend de Rust (Tauri IPC) no detectado. Abre la aplicación con `tauri dev`.');
+  throw new Error('Rust backend (Tauri IPC) not detected. Open the application with `tauri dev`.');
 }
 
 export function isTauriEnvironment(): boolean {

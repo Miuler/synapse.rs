@@ -176,7 +176,7 @@ export class SynapseDataAdapter implements DataAdapter {
   async rawRead(normalizedPath: string): Promise<string> {
     const clean = normalizedPath.replace(/^\/+/, '');
     const note = await this.repository.readNote(clean);
-    if (!note) throw new Error(`Archivo no encontrado: ${clean}`);
+    if (!note) throw new Error(`File not found: ${clean}`);
     return note.content ?? '';
   }
 

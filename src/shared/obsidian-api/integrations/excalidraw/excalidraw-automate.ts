@@ -287,7 +287,7 @@ export class ExcalidrawAutomate {
     const el1 = this.getElement(id1);
     const el2 = this.getElement(id2);
     if (!el1 || !el2) {
-      throw new Error(`[ExcalidrawAutomate] Uno o ambos elementos no existen: ${id1}, ${id2}`);
+      throw new Error(`[ExcalidrawAutomate] One or both elements do not exist: ${id1}, ${id2}`);
     }
 
     const startX = el1.x + el1.width;
@@ -378,7 +378,7 @@ export class ExcalidrawAutomate {
     });
 
     if (!this.app) {
-      throw new Error('[ExcalidrawAutomate] SynapseApp requerida para createDrawing');
+      throw new Error('[ExcalidrawAutomate] SynapseApp is required for createDrawing');
     }
     return await this.app.vault.create(path, content);
   }

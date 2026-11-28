@@ -6,6 +6,7 @@
 
 import type { GitRepoInfo } from './types';
 import type { GitUndoPoint } from '../api/git.api';
+import { t } from '@shared/lib/i18n';
 
 /** Repositorio más cercano que contiene `path` (`''` = la raíz de la bóveda). */
 export function repoOf(path: string | null | undefined, repos: GitRepoInfo[]): string {
@@ -21,7 +22,7 @@ export function repoOf(path: string | null | undefined, repos: GitRepoInfo[]): s
 
 /** Nombre corto de un repositorio para la interfaz. */
 export function repoLabel(path: string): string {
-  return path ? path.split('/').pop() || path : 'Bóveda';
+  return path ? path.split('/').pop() || path : t('gitUi.vaultRoot');
 }
 
 class GitDialogState {

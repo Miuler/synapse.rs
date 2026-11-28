@@ -27,14 +27,14 @@ fn svg_url(server: &str, encoded: &str) -> Result<String, String> {
     let server = server.trim().trim_end_matches('/');
     if !(server.starts_with("http://") || server.starts_with("https://")) {
         return Err(format!(
-            "URL del servidor PlantUML no válida: {server} (debe empezar por http:// o https://)"
+            "Invalid PlantUML server URL: {server} (must start with http:// or https://)"
         ));
     }
     if !encoded
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '~')
     {
-        return Err("Diagrama codificado no válido".to_string());
+        return Err("Invalid encoded diagram".to_string());
     }
     Ok(format!("{server}/svg/{encoded}"))
 }
@@ -53,7 +53,7 @@ pub async fn fetch_svg(server: &str, encoded: &str) -> Result<PlantUmlResponse, 
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("No se pudo conectar con el servidor PlantUML {server}: {e}"))?;
+        .map_err(|e| format!("Could not connect to PlantUML server {server}: {e}"))?;
 
     let status = response.status();
     if let Some(error) = header(&response, "x-plantuml-diagram-error") {
@@ -67,19 +67,19 @@ pub async fn fetch_svg(server: &str, encoded: &str) -> Result<PlantUmlResponse, 
     }
     if status == reqwest::StatusCode::URI_TOO_LONG {
         return Err(format!(
-            "El diagrama es demasiado largo para el servidor PlantUML {server}"
+            "Diagram is too long for PlantUML server {server}"
         ));
     }
     if !status.is_success() {
-        return Err(format!("El servidor PlantUML {server} respondió {status}"));
+        return Err(format!("PlantUML server {server} responded with {status}"));
     }
 
     let svg = response
         .text()
         .await
-        .map_err(|e| format!("No se pudo leer la respuesta del servidor PlantUML: {e}"))?;
+        .map_err(|e| format!("Could not read response from PlantUML server: {e}"))?;
     if !svg.contains("<svg") {
-        return Err(format!("El servidor {server} no devolvió un SVG"));
+        return Err(format!("Server {server} did not return an SVG"));
     }
     Ok(PlantUmlResponse {
         svg: Some(svg),

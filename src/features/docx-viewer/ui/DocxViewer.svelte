@@ -35,7 +35,7 @@
     try {
       const data = await vaultRepository.readBinary(path);
       if (gen !== generation || !body || !styles) return;
-      if (!data.byteLength) throw new Error('No se pudo leer el archivo');
+      if (!data.byteLength) throw new Error(t('docxViewer.readError'));
       await renderDocx(data, body, styles);
     } catch (e) {
       if (gen === generation) error = e instanceof Error ? e.message : String(e);
@@ -105,11 +105,11 @@
 <div class="docx-viewer" data-path={path}>
   <div class="docx-toolbar">
     <span class="docx-status">
-      {#if loading}Leyendo documento…{:else if error}<TriangleAlert size={14} /> {error}{:else}Solo lectura{/if}
+      {#if loading}{t('docxViewer.loading')}{:else if error}<TriangleAlert size={14} /> {error}{:else}{t('docxViewer.readOnly')}{/if}
     </span>
     <ZoomControl {zoom} onChange={setZoom} onFit={fitWidth} />
-    <button type="button" class="open-external" title="Abrir con la aplicación del sistema para editarlo" onclick={openExternal}>
-      <ExternalLink size={14} /> Abrir en la aplicación
+    <button type="button" class="open-external" title={t('docxViewer.openExternalTitle')} onclick={openExternal}>
+      <ExternalLink size={14} /> {t('docxViewer.openExternal')}
     </button>
   </div>
   {#if searchOpen && body}

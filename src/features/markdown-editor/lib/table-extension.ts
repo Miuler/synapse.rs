@@ -2,6 +2,7 @@ import { EditorView, Decoration, type DecorationSet, WidgetType, ViewPlugin, typ
 import { StateField, StateEffect, type EditorState, type Range } from '@codemirror/state';
 import { mount, unmount } from 'svelte';
 import InteractiveTable from '../ui/InteractiveTable.svelte';
+import { t } from '@shared/lib/i18n';
 import {
   findTableBlocks,
   serializeMarkdownTable,
@@ -237,8 +238,8 @@ class TableVisualButtonWidget extends WidgetType {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cm-md-table-visual-btn';
-    btn.title = 'Editar esta tabla con el editor visual de celdas';
-    btn.textContent = 'Editor visual';
+    btn.title = t('readingView.tableEditTitle');
+    btn.textContent = t('readingView.tableVisualBtn');
     btn.addEventListener('mousedown', (e) => e.preventDefault());
     btn.addEventListener('click', (e) => {
       e.preventDefault();

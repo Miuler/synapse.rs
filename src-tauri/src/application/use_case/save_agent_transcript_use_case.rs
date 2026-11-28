@@ -14,7 +14,7 @@ impl<R: AgentTranscriptRepository> SaveAgentTranscriptUseCase<R> {
 
     pub fn execute(&self, command: SaveAgentTranscriptCommand) -> Result<(), String> {
         if !AgentTranscript::valid_id(&command.transcript.id) {
-            return Err("Identificador de conversación inválido".into());
+            return Err("invalid conversation ID".into());
         }
         self.transcripts.save(command.transcript)
     }

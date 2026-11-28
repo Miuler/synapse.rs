@@ -6,9 +6,10 @@ import type { GitImageDiffResult } from '@shared/repositories';
 import { appSettings } from '@entities/settings';
 import { isD2File, isPlantUmlFile } from '@entities/file-type';
 import { imagePixelDiff } from './image-pixel-diff';
+import { t } from '@shared/lib/i18n';
 
 export async function renderSvg(path: string, code: string): Promise<string> {
-  if (!code.trim()) throw new Error('Una de las versiones del diagrama está vacía');
+  if (!code.trim()) throw new Error(t('diffViewer.errors.diagramVersionEmpty'));
   let result: { svg: string | null; error: string | null };
   if (isD2File(path)) {
     result = await renderD2Svg(code);
@@ -19,7 +20,7 @@ export async function renderSvg(path: string, code: string): Promise<string> {
     const source = `%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%\n${code}`;
     result = await renderMermaidJsSvg(source, `diff-${Math.random().toString(36).slice(2)}`);
   }
-  if (!result.svg) throw new Error(result.error ?? 'No se pudo renderizar el diagrama');
+  if (!result.svg) throw new Error(result.error ?? t('diffViewer.errors.diagramRenderFailed'));
   return result.svg;
 }
 

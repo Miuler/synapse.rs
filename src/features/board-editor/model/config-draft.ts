@@ -1,5 +1,6 @@
 // La configuración que el agente puede ver y cambiar: la última que se abrió en esta ventana. Solo
 // la lee y la cambia en pantalla; guardarla es cosa del usuario.
+import { t } from '@shared/lib/i18n';
 import { listenDraftChanges, publishDraft, replyDraftChange } from '../api/config-draft.api';
 import type { Criterion, IssueFilter } from './issue-sync';
 
@@ -42,7 +43,7 @@ const send = () =>
 function listen() {
   listening ??= listenDraftChanges((requestId, change) => {
     const current = open.at(-1);
-    if (!current) return void replyDraftChange(requestId, null, 'La configuración se cerró');
+    if (!current) return void replyDraftChange(requestId, null, t('boardDraft.closedError'));
     try {
       current.draft = current.apply(change);
       void replyDraftChange(requestId, current.draft, null);

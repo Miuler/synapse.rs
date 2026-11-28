@@ -125,7 +125,7 @@
   }
 
   let vaultFolderName = $derived.by(() => {
-    if (!vaultPath) return 'Abrir Bóveda';
+    if (!vaultPath) return t('explorer.openVault');
     const cleanPath = vaultPath.replace(/[\\/]+$/, '');
     const segments = cleanPath.split(/[\\/]/).filter(Boolean);
     return segments.pop() || vaultPath;
@@ -660,7 +660,7 @@
     const folderIndex = !!pathToLocate && /(^|\/)index\.md$/i.test(pathToLocate) && pathToLocate.includes('/');
     if (folderIndex) pathToLocate = pathToLocate!.slice(0, pathToLocate!.lastIndexOf('/'));
     if (!pathToLocate || pathToLocate.startsWith('empty:')) {
-      showToast('No hay ningún archivo activo para ubicar');
+      showToast(t('explorer.toast.noActiveFile'));
       return;
     }
 
@@ -1157,10 +1157,10 @@
   async function handleExportDiagram(path: string, format: DiagramExportFormat) {
     try {
       const target = await exportDiagram(path, format);
-      showToast(`Exportado: "${target.split('/').pop()}"`);
+      showToast(t('explorer.toast.exported', { name: target.split('/').pop() ?? '' }));
     } catch (err) {
       console.error('Error exportando el diagrama:', err);
-      showToast(`No se pudo exportar: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(t('explorer.toast.exportFailed', { detail: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -1268,24 +1268,24 @@
       const destDir = getTargetDirectory(isKbd);
 
       let extension = 'md';
-      let baseTitle = 'Sin título';
+      let baseTitle = t('explorer.newDefaults.untitled');
       let initialContent = '';
 
       if (fileType === 'mermaid') {
         extension = 'mmd';
-        baseTitle = 'Diagrama';
-        initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+        baseTitle = t('explorer.newDefaults.diagram');
+        initialContent = t('explorer.newDefaults.mermaidSample');
       } else if (fileType === 'd2') {
         extension = 'd2';
-        baseTitle = 'Diagrama';
-        initialContent = 'x -> y: conexión\n';
+        baseTitle = t('explorer.newDefaults.diagram');
+        initialContent = t('explorer.newDefaults.d2Sample');
       } else if (fileType === 'plantuml') {
         extension = 'puml';
-        baseTitle = 'Diagrama';
-        initialContent = '@startuml\nAlice -> Bob: Hola\n@enduml\n';
+        baseTitle = t('explorer.newDefaults.diagram');
+        initialContent = t('explorer.newDefaults.pumlSample');
       } else if (fileType === 'excalidraw') {
         extension = 'excalidraw';
-        baseTitle = 'Dibujo';
+        baseTitle = t('explorer.newDefaults.drawing');
         initialContent = JSON.stringify(
           {
             type: 'excalidraw',
@@ -1300,7 +1300,7 @@
         );
       } else if (fileType === 'obsidian-excalidraw') {
         extension = 'excalidraw.md';
-        baseTitle = 'Dibujo';
+        baseTitle = t('explorer.newDefaults.drawing');
         initialContent = createCanonicalExcalidrawContent();
       } else if (fileType === 'board') {
         extension = 'board.md';
@@ -1370,7 +1370,7 @@
       if (fileType === 'board') onNewBoard?.(candidateRelPath);
       onSelectTab(candidateRelPath);
 
-      showToast(`Nueva nota creada: "${title}.${extension}"`);
+      showToast(t('explorer.toast.noteCreated', { name: `${title}.${extension}` }));
 
       if (onRefreshGit) {
         await onRefreshGit();
@@ -1393,12 +1393,12 @@
     const destDir = getTargetDirectory(isKbd);
 
     const folderName = window.prompt(
-      destDir ? `Crear subcarpeta en "${destDir}":` : 'Nombre de la nueva carpeta:'
+      destDir ? t('explorer.prompts.createSubfolder', { dir: destDir }) : t('explorer.prompts.createFolder')
     )?.trim();
     if (!folderName) return;
 
     if (folderName.includes('/') || folderName.includes('\\') || folderName === '.' || folderName === '..') {
-      showToast('Nombre de carpeta no válido');
+      showToast(t('explorer.toast.invalidFolderName'));
       return;
     }
 
@@ -1441,7 +1441,7 @@
       anchorPath = candidateRelPath;
       scrollPathIntoView(candidateRelPath);
 
-      showToast(`Carpeta creada: "${folderName}"`);
+      showToast(t('explorer.toast.folderCreated', { name: folderName }));
 
       if (onRefreshGit) {
         await onRefreshGit();
@@ -1460,7 +1460,7 @@
     if (paths.length === 0) return;
     copiedPaths = [...paths];
     clipboardMode = 'cut';
-    showToast(paths.length > 1 ? `${paths.length} elementos listos para mover` : 'Elemento listo para mover');
+    showToast(paths.length > 1 ? t('explorer.toast.cutMultiple', { count: paths.length }) : t('explorer.toast.cutOne'));
   }
 
   // Mueve elementos a `destDir` y refresca el árbol (origen y destino)
@@ -1494,7 +1494,9 @@
       lastFocusedPath = moved[moved.length - 1].to;
       anchorPath = moved[0].to;
       showToast(
-        moved.length > 1 ? `${moved.length} elementos movidos` : `Movido a "${destDir || 'raíz'}"`
+        moved.length > 1
+          ? t('explorer.toast.movedMultiple', { count: moved.length })
+          : t('explorer.toast.movedOne', { dest: destDir || t('explorer.root') })
       );
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
@@ -1508,7 +1510,7 @@
   async function handleMoveTo() {
     const paths = getSelectedRelativePaths();
     if (paths.length === 0) return;
-    const answer = window.prompt('Mover a la carpeta (ruta relativa, vacío = raíz):', getTargetDirectory(false));
+    const answer = window.prompt(t('explorer.prompts.moveTo'), getTargetDirectory(false));
     if (answer === null) return;
     await moveToDirectory(paths, answer.trim().replace(/^\/+|\/+$/g, ''));
   }
@@ -1604,8 +1606,8 @@
     );
     showToast(
       paths.length > 1
-        ? `${paths.length} elementos listos para pegar`
-        : 'Elemento listo para pegar'
+        ? t('explorer.toast.copiedMultiple', { count: paths.length })
+        : t('explorer.toast.copiedOne')
     );
   }
 
@@ -1654,8 +1656,8 @@
       }
       showToast(
         created.length > 1
-          ? `${created.length} elementos pegados`
-          : `Pegado como "${created[0]?.split('/').pop() ?? ''}"`
+          ? t('explorer.toast.pastedMultiple', { count: created.length })
+          : t('explorer.toast.pastedOne', { name: created[0]?.split('/').pop() ?? '' })
       );
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
@@ -1674,8 +1676,8 @@
     if (ok) {
       showToast(
         paths.length > 1
-          ? `${paths.length} rutas copiadas al portapapeles`
-          : 'Ruta copiada al portapapeles'
+          ? t('explorer.toast.copiedRelPaths', { count: paths.length })
+          : t('explorer.toast.copiedRelPath')
       );
     }
   }
@@ -1694,8 +1696,8 @@
     if (ok) {
       showToast(
         fullPaths.length > 1
-          ? `${fullPaths.length} rutas completas copiadas al portapapeles`
-          : 'Ruta completa copiada al portapapeles'
+          ? t('explorer.toast.copiedFullPaths', { count: fullPaths.length })
+          : t('explorer.toast.copiedFullPath')
       );
     }
   }
@@ -1705,18 +1707,18 @@
   let reloadMenuLabel = $derived.by(() => {
     const paths = getSelectedRelativePaths();
     if (paths.length > 1) {
-      return `Recargar (${paths.length} elementos)`;
+      return t('explorer.menu.reloadMultiple', { count: paths.length });
     }
     const isFolder =
       (contextMenuNode && contextMenuNode.isFolder) ||
       (paths.length === 1 && selectedNodes.some((n) => n.relativePath === paths[0] && n.isFolder));
     if (isFolder) {
-      return 'Recargar carpeta';
+      return t('explorer.menu.reloadFolder');
     }
     if (contextMenuNode || paths.length === 1) {
-      return 'Recargar archivo';
+      return t('explorer.menu.reloadFile');
     }
-    return 'Recargar bóveda';
+    return t('explorer.menu.reloadVault');
   });
 
   export async function reloadDirectoryAndSubdirectories(dirPath: string) {
@@ -1773,12 +1775,12 @@
 
       showToast(
         targets.length > 1
-          ? `${targets.length} elementos recargados`
+          ? t('explorer.toast.reloadedMultiple', { count: targets.length })
           : targets[0] === ''
-            ? 'Bóveda recargada'
+            ? t('explorer.toast.reloadedVault')
             : isSingleFolder
-              ? 'Carpeta recargada'
-              : 'Archivo recargado'
+              ? t('explorer.toast.reloadedFolder')
+              : t('explorer.toast.reloadedFile')
       );
 
       if (onReloadItems) {
@@ -1834,7 +1836,7 @@
 
     const isFolder = node.isFolder;
     const oldName = node.name;
-    const promptLabel = isFolder ? 'Nuevo nombre de la carpeta:' : 'Nuevo nombre del archivo:';
+    const promptLabel = isFolder ? t('explorer.prompts.renameFolder') : t('explorer.prompts.renameFile');
     const newName = window.prompt(promptLabel, oldName)?.trim();
     if (!newName || newName === oldName) return;
 
@@ -1853,7 +1855,7 @@
       if (isFolder) {
         await reloadDirectoryAndSubdirectories(pDir);
       }
-      showToast(`Renombrado como "${newName}"`);
+      showToast(t('explorer.toast.renamed', { name: newName }));
       if (onRefreshGit) await onRefreshGit();
     } catch (err: unknown) {
       console.error('Error al renombrar:', err);
@@ -1893,8 +1895,8 @@
       }
       showToast(
         targets.length > 1
-          ? `${targets.length} elementos eliminados`
-          : `"${targets[0].name}" ha sido eliminado`
+          ? t('explorer.toast.deletedMultiple', { count: targets.length })
+          : t('explorer.toast.deletedOne', { name: targets[0].name })
       );
       const deletedSet = new Set(targets.map((t) => t.relativePath));
       selectedPaths = selectedPaths.filter((p) => !deletedSet.has(p));
@@ -1975,25 +1977,25 @@
       if (!cleanPath) continue;
 
       let statusKind: GitCommitFileItem['statusKind'] = 'modified';
-      let statusLabel = 'Modificado';
+      let statusLabel = t('explorer.gitStatus.modified');
       let isDeleted = false;
 
       if (info.worktree === 'D' || info.index === 'D') {
         statusKind = 'deleted';
-        statusLabel = 'Eliminado';
+        statusLabel = t('explorer.gitStatus.deleted');
         isDeleted = true;
       } else if (info.worktree === '?') {
         statusKind = 'untracked';
-        statusLabel = 'Sin seguimiento';
+        statusLabel = t('explorer.gitStatus.untracked');
       } else if (info.index === 'A') {
         statusKind = 'added';
-        statusLabel = 'Añadido';
+        statusLabel = t('explorer.gitStatus.added');
       } else if (info.index && !info.worktree) {
         statusKind = 'staged';
-        statusLabel = 'En stage';
+        statusLabel = t('explorer.gitStatus.staged');
       } else {
         statusKind = 'modified';
-        statusLabel = 'Modificado';
+        statusLabel = t('explorer.gitStatus.modified');
       }
 
       list.push({
@@ -2103,14 +2105,14 @@
       await gitApi.add(paths);
       showToast(
         paths.length > 1
-          ? `${paths.length} elementos añadidos al stage (git add)`
-          : 'Elemento añadido al stage (git add)'
+          ? t('explorer.toast.gitAddedMultiple', { count: paths.length })
+          : t('explorer.toast.gitAddedOne')
       );
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
       console.error('Error al ejecutar git add:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git add: ${msg}`);
+      showToast(t('explorer.toast.gitAddError', { detail: msg }));
     }
   }
 
@@ -2121,14 +2123,14 @@
       await gitApi.restoreStaged(paths);
       showToast(
         paths.length > 1
-          ? `${paths.length} elementos desmarcados de stage (git restore --staged)`
-          : 'Elemento desmarcado de stage (git restore --staged)'
+          ? t('explorer.toast.gitUnstagedMultiple', { count: paths.length })
+          : t('explorer.toast.gitUnstagedOne')
       );
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
       console.error('Error al ejecutar git restore --staged:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git restore --staged: ${msg}`);
+      showToast(t('explorer.toast.gitUnstageError', { detail: msg }));
     }
   }
 
@@ -2157,8 +2159,8 @@
       await gitApi.restore(targets);
       showToast(
         targets.length > 1
-          ? `${targets.length} elementos restaurados (git restore)`
-          : 'Elemento restaurado (git restore)'
+          ? t('explorer.toast.gitRestoredMultiple', { count: targets.length })
+          : t('explorer.toast.gitRestoredOne')
       );
       if (onGitRestore) {
         await onGitRestore(targets);
@@ -2171,7 +2173,7 @@
     } catch (err: unknown) {
       console.error('Error al restaurar con git restore:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git restore: ${msg}`);
+      showToast(t('explorer.toast.gitRestoreError', { detail: msg }));
     } finally {
       isRestoring = false;
     }
@@ -2228,6 +2230,21 @@
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   });
+
+  let branchBadgeTitle = $derived.by(() => {
+    const repo = activeGitRepo ? t('explorer.gitBranch.ofRepo', { repo: activeGitRepo }) : '';
+    const behind = branchTrack?.behind
+      ? t('explorer.gitBranch.behind', { count: branchTrack.behind, upstream: branchTrack.upstream })
+      : '';
+    const ahead = branchTrack?.ahead ? t('explorer.gitBranch.ahead', { count: branchTrack.ahead }) : '';
+    return t('explorer.gitBranch.title', { repo, branch: gitBranch ?? '', behind, ahead });
+  });
+
+  const nestedRepoTitle = (repo: { branch: string | null; changes: number }) =>
+    t('explorer.gitBranch.nestedTitle', {
+      branch: repo.branch ?? t('explorer.gitBranch.noBranch'),
+      changes: repo.changes ? t('explorer.gitBranch.nestedChanges', { count: repo.changes }) : '',
+    });
 </script>
 
 <ContextMenu.Root bind:open={isContextMenuOpen}>
@@ -2268,7 +2285,7 @@
                   contextMenuNode = null;
                   selectedPaths = [""]; //RAIZ DEL VAULT
                 }}
-                title={vaultPath || 'Bóveda de Archivos'}
+                title={vaultPath || t('explorer.vaultFilesTitle')}
               >
                 {vaultFolderName}
               </button>
@@ -2278,7 +2295,7 @@
                   class="git-branch-badge"
                   data-tauri-drag-region="false"
                   onclick={handleOpenBranchDialog}
-                  title="Rama Git{activeGitRepo ? ` de ${activeGitRepo}` : ''}: {gitBranch}{branchTrack?.behind ? ` · ${branchTrack.behind} commit(s) nuevos en ${branchTrack.upstream}` : ''}{branchTrack?.ahead ? ` · ${branchTrack.ahead} sin subir` : ''} (Clic para gestionar ramas)"
+                  title={branchBadgeTitle}
                 >
                   <GitBranch size={13} class="git-branch-icon" />
                   <span class="git-branch-name">{gitBranch}</span>
@@ -2300,9 +2317,9 @@
                     filterOnlyModifiedGitFiles = !filterOnlyModifiedGitFiles;
                   }}
                   title={filterOnlyModifiedGitFiles
-                    ? "Mostrando solo archivos modificados en Git (Clic para ver todos)"
-                    : `Filtrar solo modificados en Git (${modifiedFilesCount})`}
-                  aria-label="Filtrar archivos modificados en Git"
+                    ? t('explorer.filterGitModified')
+                    : t('explorer.filterGitModifiedCount', { count: modifiedFilesCount })}
+                  aria-label={t('explorer.filterGitAria')}
                 >
                   <Filter size={13} />
                   {#if modifiedFilesCount > 0}
@@ -2314,8 +2331,8 @@
                 type="button"
                 class="sidebar-action-btn"
                 onclick={() => handleNewNote(false, 'markdown')}
-                title="Nueva nota (en carpeta seleccionada o raíz)"
-                aria-label="Nueva nota"
+                title={t('explorer.newNoteTitle')}
+                aria-label={t('explorer.newNoteAria')}
               >
                 <FilePlus size={14} />
               </button>
@@ -2323,8 +2340,8 @@
                 type="button"
                 class="sidebar-action-btn"
                 onclick={() => handleCreateFolder(false)}
-                title="Nueva carpeta (en carpeta seleccionada o raíz)"
-                aria-label="Nueva carpeta"
+                title={t('explorer.newFolderTitle')}
+                aria-label={t('explorer.newFolderAria')}
               >
                 <FolderPlus size={14} />
               </button>
@@ -2332,8 +2349,8 @@
                 type="button"
                 class="sidebar-action-btn expand-all-btn"
                 onclick={() => setAllFolders(true)}
-                title={isGitRepo && filterOnlyModifiedGitFiles ? 'Expandir las carpetas del filtro' : 'Expandir todas las carpetas'}
-                aria-label="Expandir todas las carpetas"
+                title={isGitRepo && filterOnlyModifiedGitFiles ? t('explorer.expandFilteredFolders') : t('explorer.expandAllFolders')}
+                aria-label={t('explorer.expandAllFolders')}
               >
                 <ChevronsUpDown size={14} />
               </button>
@@ -2341,8 +2358,8 @@
                 type="button"
                 class="sidebar-action-btn collapse-all-btn"
                 onclick={() => setAllFolders(false)}
-                title={isGitRepo && filterOnlyModifiedGitFiles ? 'Contraer las carpetas del filtro' : 'Contraer todas las carpetas'}
-                aria-label="Contraer todas las carpetas"
+                title={isGitRepo && filterOnlyModifiedGitFiles ? t('explorer.collapseFilteredFolders') : t('explorer.collapseAllFolders')}
+                aria-label={t('explorer.collapseAllFolders')}
               >
                 <ChevronsDownUp size={14} />
               </button>
@@ -2350,8 +2367,8 @@
                 type="button"
                 class="sidebar-action-btn"
                 onclick={() => locateActiveFile()}
-                title="Ubicar archivo activo (Ctrl+Alt+1, Alt+L)"
-                aria-label="Ubicar archivo activo"
+                title={t('explorer.locateActiveTitle')}
+                aria-label={t('explorer.locateActiveAria')}
                 disabled={!activeTabPath || activeTabPath.startsWith('empty:')}
               >
                 <Crosshair size={14} />
@@ -2364,9 +2381,9 @@
                   aria-pressed={pinned}
                   onclick={onTogglePin}
                   title={pinned
-                    ? 'Soltar: el explorador flota sobre el editor y no le quita espacio'
-                    : 'Fijar: el explorador ocupa su espacio al lado del editor'}
-                  aria-label={pinned ? 'Soltar explorador' : 'Fijar explorador'}
+                    ? t('explorer.unpinTitle')
+                    : t('explorer.pinTitle')}
+                  aria-label={pinned ? t('explorer.unpinAria') : t('explorer.pinAria')}
                 >
                   {#if pinned}<Pin size={13} />{:else}<PinOff size={13} />{/if}
                 </button>
@@ -2376,8 +2393,8 @@
                   type="button"
                   class="sidebar-collapse-btn"
                   onclick={onCollapse}
-                  title="Colapsar panel lateral (Alt+1, Ctrl+B)"
-                  aria-label="Colapsar panel lateral (Alt+1, Ctrl+B)"
+                  title={t('explorer.collapseSidebar')}
+                  aria-label={t('explorer.collapseSidebar')}
                 >
                   <PanelLeftClose size={14} />
                 </button>
@@ -2426,14 +2443,14 @@
             {#if isGitRepo && filterOnlyModifiedGitFiles && displayTreeNodes.length === 0}
               <div class="git-empty-filter-state">
                 <Check size={18} class="git-empty-filter-icon" />
-                <span class="git-empty-filter-title">No hay modificaciones</span>
-                <span class="git-empty-filter-desc">El árbol de trabajo está limpio</span>
+                <span class="git-empty-filter-title">{t('explorer.emptyFilterTitle')}</span>
+                <span class="git-empty-filter-desc">{t('explorer.emptyFilterDesc')}</span>
                 <button
                   type="button"
                   class="git-empty-filter-btn"
                   onclick={() => (filterOnlyModifiedGitFiles = false)}
                 >
-                  Ver todos los archivos
+                  {t('explorer.showAllFiles')}
                 </button>
               </div>
             {:else}
@@ -2472,7 +2489,7 @@
               e.stopPropagation();
               if (onCollapse) onCollapse();
             }}
-            title="Arrastrar para cambiar tamaño (doble clic para colapsar)"
+            title={t('explorer.resizeHint')}
           ></div>
         </aside>
       {/snippet}
@@ -2483,13 +2500,13 @@
         <div
           class="context-menu-header"
           title={selectedNodes.length > 1
-            ? `${selectedNodes.length} elementos seleccionados`
-            : (contextMenuNode ? contextMenuNode.relativePath : (vaultPath || 'Bóveda'))}
+            ? t('explorer.selectedCount', { count: selectedNodes.length })
+            : (contextMenuNode ? contextMenuNode.relativePath : (vaultPath || t('explorer.vault')))}
         >
           {#if selectedNodes.length > 1}
             <Files size={15} class="context-menu-header-icon" />
             <span class="context-menu-header-title">
-              {selectedNodes.length} elementos seleccionados
+              {t('explorer.selectedCount', { count: selectedNodes.length })}
             </span>
           {:else if contextMenuNode?.isFolder}
             <FolderIcon isOpen={false} name={contextMenuNode.name} size={15} class="context-menu-header-icon" />
@@ -2504,7 +2521,7 @@
           {:else}
             <FolderIcon isOpen={true} name={vaultFolderName} size={15} class="context-menu-header-icon" />
             <span class="context-menu-header-title">
-              {vaultFolderName || 'Bóveda'}
+              {vaultFolderName || t('explorer.vault')}
             </span>
           {/if}
         </div>
@@ -2531,31 +2548,31 @@
               <!-- Raíz del vault (espacio vacío, nombre del vault o badge de la rama): log y ramas del repositorio -->
               <ContextMenu.Item class="context-menu-item vault-git-log" onSelect={() => gitDialogState.openRepoLog(activeGitRepo)}>
                 <GitGraph class="context-menu-item-icon" />
-                <span>Git Log…</span>
+                <span>{t('explorer.menu.gitLog')}</span>
               </ContextMenu.Item>
               <ContextMenu.Item class="context-menu-item" onSelect={handleOpenBranchDialog}>
                 <GitBranch class="context-menu-item-icon" />
-                <span>Ramas…</span>
+                <span>{t('explorer.menu.branches')}</span>
               </ContextMenu.Item>
             {/if}
 
             {#if nestedRepoPath}
               <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openBranchDialog(nestedRepoPath)}>
                 <GitBranch class="context-menu-item-icon" />
-                <span>Ramas de «{repoLabel(nestedRepoPath)}»…</span>
+                <span>{t('explorer.menu.nestedBranches', { repo: repoLabel(nestedRepoPath) })}</span>
               </ContextMenu.Item>
               <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openRepoLog(nestedRepoPath)}>
                 <GitGraph class="context-menu-item-icon" />
-                <span>Git Log de «{repoLabel(nestedRepoPath)}»…</span>
+                <span>{t('explorer.menu.nestedGitLog', { repo: repoLabel(nestedRepoPath) })}</span>
               </ContextMenu.Item>
               <ContextMenu.Item class="context-menu-item" onSelect={() => gitDialogState.openCommitDialog([], nestedRepoPath)}>
                 <GitCommitHorizontal class="context-menu-item-icon" />
-                <span>Commit en «{repoLabel(nestedRepoPath)}»…</span>
+                <span>{t('explorer.menu.nestedCommit', { repo: repoLabel(nestedRepoPath) })}</span>
               </ContextMenu.Item>
               {#if onGitPush}
                 <ContextMenu.Item class="context-menu-item" onSelect={() => onGitPush?.(nestedRepoPath)}>
                   <Cloud class="context-menu-item-icon" />
-                  <span>Push de «{repoLabel(nestedRepoPath)}»</span>
+                  <span>{t('explorer.menu.nestedPush', { repo: repoLabel(nestedRepoPath) })}</span>
                 </ContextMenu.Item>
               {/if}
             {/if}
@@ -2568,10 +2585,10 @@
                 <GitCommitHorizontal class="context-menu-item-icon" />
                 <span>
                   {gitCommitPaths.length > 1
-                    ? `Hacer commit (${gitCommitPaths.length} elementos)...`
+                    ? t('explorer.menu.commitMultiple', { count: gitCommitPaths.length })
                     : gitCommitPaths.length === 1
-                      ? 'Hacer commit...'
-                      : `Hacer commit (${allGitChangedFiles.length} cambios)...`}
+                      ? t('explorer.menu.commitOne')
+                      : t('explorer.menu.commitAll', { count: allGitChangedFiles.length })}
                 </span>
               </ContextMenu.Item>
             {/if}
@@ -2583,7 +2600,7 @@
                 onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
               >
                 <GitCompare class="context-menu-item-icon" />
-                <span>Diff entre los 2 archivos</span>
+                <span>{t('explorer.menu.diffTwoFiles')}</span>
               </ContextMenu.Item>
             {:else if targetFileForDiff}
               <ContextMenu.Item
@@ -2593,10 +2610,10 @@
               >
                 {#if isVisualCandidateForDiff}
                   <Columns class="context-menu-item-icon" />
-                  <span>Diff visual (2 paneles)</span>
+                  <span>{t('explorer.menu.visualDiff')}</span>
                 {:else}
                   <GitCompare class="context-menu-item-icon" />
-                  <span>Diff</span>
+                  <span>{t('explorer.menu.diff')}</span>
                 {/if}
               </ContextMenu.Item>
 
@@ -2607,10 +2624,10 @@
               >
                 {#if isVisualCandidateForDiff}
                   <Columns class="context-menu-item-icon" />
-                  <span>Diff visual --staged</span>
+                  <span>{t('explorer.menu.visualDiffStaged')}</span>
                 {:else}
                   <GitCompareArrows class="context-menu-item-icon" />
-                  <span>Diff --staged</span>
+                  <span>{t('explorer.menu.diffStaged')}</span>
                 {/if}
               </ContextMenu.Item>
             {/if}
@@ -2621,7 +2638,7 @@
                 onSelect={() => handleOpenFileLog(targetFileForDiff)}
               >
                 <History class="context-menu-item-icon" />
-                <span>Historial de Git (Log)...</span>
+                <span>{t('explorer.menu.gitHistory')}</span>
               </ContextMenu.Item>
             {/if}
 
@@ -2631,7 +2648,7 @@
                 onSelect={handleGitAdd}
               >
                 <Plus class="context-menu-item-icon" />
-                <span>{gitAddPaths.length > 1 ? `Git Add (${gitAddPaths.length} elementos)` : 'Git Add'}</span>
+                <span>{gitAddPaths.length > 1 ? t('explorer.menu.gitAddMultiple', { count: gitAddPaths.length }) : t('explorer.menu.gitAdd')}</span>
               </ContextMenu.Item>
             {/if}
 
@@ -2641,7 +2658,7 @@
                 onSelect={handleGitRestoreStaged}
               >
                 <Undo2 class="context-menu-item-icon" />
-                <span>{gitRestoreStagedPaths.length > 1 ? `Git Restore --staged (${gitRestoreStagedPaths.length} elementos)` : 'Git Restore --staged'}</span>
+                <span>{gitRestoreStagedPaths.length > 1 ? t('explorer.menu.gitRestoreStagedMultiple', { count: gitRestoreStagedPaths.length }) : t('explorer.menu.gitRestoreStaged')}</span>
               </ContextMenu.Item>
             {/if}
 
@@ -2651,7 +2668,7 @@
                 onSelect={handlePromptGitRestore}
               >
                 <RotateCcw class="context-menu-item-icon" />
-                <span>{gitRestorePaths.length > 1 ? `Git Restore (${gitRestorePaths.length} elementos)` : 'Git Restore'}</span>
+                <span>{gitRestorePaths.length > 1 ? t('explorer.menu.gitRestoreMultiple', { count: gitRestorePaths.length }) : t('explorer.menu.gitRestore')}</span>
               </ContextMenu.Item>
             {/if}
           {/if}
@@ -2665,7 +2682,7 @@
             onSelect={() => filesToCompare && onCompareFiles?.(filesToCompare[0], filesToCompare[1])}
           >
             <GitCompare class="context-menu-item-icon" />
-            <span>Comparar archivos</span>
+            <span>{t('explorer.menu.compareFiles')}</span>
           </ContextMenu.Item>
         {/if}
 
@@ -2678,7 +2695,7 @@
               onSelect={() => contextMenuNode && onOpenReadOnlyCopy?.(contextMenuNode.relativePath)}
             >
               <Eye class="context-menu-item-icon" />
-              <span>Abrir en otra pestaña (solo lectura)</span>
+              <span>{t('explorer.menu.openReadOnlyTab')}</span>
             </ContextMenu.Item>
           {/if}
 
@@ -2691,7 +2708,7 @@
             }}
           >
             <ExternalLink class="context-menu-item-icon" />
-            <span>Abrir en nueva ventana</span>
+            <span>{t('explorer.menu.openNewWindow')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Item
@@ -2703,7 +2720,7 @@
             }}
           >
             <ExternalLink class="context-menu-item-icon" />
-            <span>Abrir con la app por defecto</span>
+            <span>{t('explorer.menu.openDefaultApp')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Item
@@ -2715,7 +2732,7 @@
             }}
           >
             <FolderSearch class="context-menu-item-icon" />
-            <span>Mostrar en carpeta</span>
+            <span>{t('explorer.menu.showInFolder')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Item
@@ -2732,10 +2749,10 @@
               <span>{t('board.lockedByBoard')}</span>
             {:else if lockedFiles?.has(contextMenuNode.relativePath)}
               <Unlock class="context-menu-item-icon" />
-              <span>Desbloquear archivo</span>
+              <span>{t('explorer.menu.unlockFile')}</span>
             {:else}
               <Lock class="context-menu-item-icon" />
-              <span>Bloquear archivo</span>
+              <span>{t('explorer.menu.lockFile')}</span>
             {/if}
           </ContextMenu.Item>
         {:else if contextMenuNode?.isFolder}
@@ -2750,7 +2767,7 @@
             }}
           >
             <FolderSearch class="context-menu-item-icon" />
-            <span>Mostrar en carpeta</span>
+            <span>{t('explorer.menu.showInFolder')}</span>
           </ContextMenu.Item>
         {/if}
 
@@ -2764,7 +2781,7 @@
             }}
           >
             <PenTool class="context-menu-item-icon" />
-            <span>Abrir con draw.io</span>
+            <span>{t('explorer.menu.openDrawio')}</span>
           </ContextMenu.Item>
         {/if}
 
@@ -2780,7 +2797,7 @@
             }}
           >
             <PenTool class="context-menu-item-icon" />
-            <span>Abrir con Excalidraw</span>
+            <span>{t('explorer.menu.openExcalidraw')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Item
@@ -2792,7 +2809,7 @@
             }}
           >
             <PenTool class="context-menu-item-icon" />
-            <span>Abrir con Excalidraw (Obsidian)</span>
+            <span>{t('explorer.menu.openExcalidrawObsidian')}</span>
           </ContextMenu.Item>
         {/if}
 
@@ -2806,7 +2823,7 @@
             }}
           >
             <ImageDown class="context-menu-item-icon" />
-            <span>Exportar como PNG</span>
+            <span>{t('explorer.menu.exportPng')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Item
@@ -2816,7 +2833,7 @@
             }}
           >
             <ImageDown class="context-menu-item-icon" />
-            <span>Exportar como SVG</span>
+            <span>{t('explorer.menu.exportSvg')}</span>
           </ContextMenu.Item>
         {/if}
 
@@ -2827,7 +2844,7 @@
           onSelect={() => handleCreateFolder(false)}
         >
           <FolderPlus class="context-menu-item-icon" />
-          <span>Nueva carpeta</span>
+          <span>{t('explorer.menu.newFolder')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Separator class="context-menu-divider" />
@@ -2837,7 +2854,7 @@
           onSelect={() => handleNewNote(false, 'markdown')}
         >
           <FilePlus class="context-menu-item-icon" />
-          <span>Nueva nota Markdown (.md)</span>
+          <span>{t('explorer.menu.newMarkdown')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2845,7 +2862,7 @@
           onSelect={() => handleNewNote(false, 'mermaid')}
         >
           <FileCode class="context-menu-item-icon" />
-          <span>Nuevo diagrama Mermaid (.mmd)</span>
+          <span>{t('explorer.menu.newMermaid')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2853,7 +2870,7 @@
           onSelect={() => handleNewNote(false, 'd2')}
         >
           <FileCode class="context-menu-item-icon" />
-          <span>Nuevo diagrama D2 (.d2)</span>
+          <span>{t('explorer.menu.newD2')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2861,7 +2878,7 @@
           onSelect={() => handleNewNote(false, 'plantuml')}
         >
           <FileCode class="context-menu-item-icon" />
-          <span>Nuevo diagrama PlantUML (.puml)</span>
+          <span>{t('explorer.menu.newPlantuml')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2869,7 +2886,7 @@
           onSelect={() => handleNewNote(false, 'excalidraw')}
         >
           <PenTool class="context-menu-item-icon" />
-          <span>Nuevo dibujo Excalidraw (.excalidraw)</span>
+          <span>{t('explorer.menu.newExcalidraw')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2877,7 +2894,7 @@
           onSelect={() => handleNewNote(false, 'obsidian-excalidraw')}
         >
           <PenTool class="context-menu-item-icon" />
-          <span>Nuevo dibujo Excalidraw Obsidian (.excalidraw.md)</span>
+          <span>{t('explorer.menu.newObsidianExcalidraw')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2896,7 +2913,7 @@
           onSelect={handleCopy}
         >
           <Copy class="context-menu-item-icon" />
-          <span>{selectedPaths.length > 1 ? `Copiar (${selectedPaths.length} elementos)` : 'Copiar'}</span>
+          <span>{selectedPaths.length > 1 ? t('explorer.menu.copyMultiple', { count: selectedPaths.length }) : t('explorer.menu.copy')}</span>
           <span class="context-menu-shortcut">Ctrl+C</span>
         </ContextMenu.Item>
 
@@ -2905,7 +2922,7 @@
           onSelect={handleCut}
         >
           <Scissors class="context-menu-item-icon" />
-          <span>{selectedPaths.length > 1 ? `Cortar (${selectedPaths.length} elementos)` : 'Cortar'}</span>
+          <span>{selectedPaths.length > 1 ? t('explorer.menu.cutMultiple', { count: selectedPaths.length }) : t('explorer.menu.cut')}</span>
           <span class="context-menu-shortcut">Ctrl+X</span>
         </ContextMenu.Item>
 
@@ -2915,7 +2932,7 @@
           onSelect={handleMoveTo}
         >
           <FolderInput class="context-menu-item-icon" />
-          <span>Mover a…</span>
+          <span>{t('explorer.menu.moveTo')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2926,10 +2943,12 @@
           <ClipboardPaste class="context-menu-item-icon" />
           <span
             >{externalClipboardFiles.length > 0
-              ? `Pegar (${externalClipboardFiles.length} ${externalClipboardFiles.length > 1 ? 'archivos' : 'archivo'} de fuera)`
+              ? externalClipboardFiles.length > 1
+                ? t('explorer.menu.pasteExternalMultiple', { count: externalClipboardFiles.length })
+                : t('explorer.menu.pasteExternalOne')
               : copiedPaths.length > 1
-                ? `Pegar (${copiedPaths.length} elementos)`
-                : 'Pegar'}</span
+                ? t('explorer.menu.pasteMultiple', { count: copiedPaths.length })
+                : t('explorer.menu.paste')}</span
           >
           <span class="context-menu-shortcut">Ctrl+V</span>
         </ContextMenu.Item>
@@ -2940,7 +2959,7 @@
           onSelect={handleCopyRelativePath}
         >
           <Link class="context-menu-item-icon" />
-          <span>{selectedPaths.length > 1 ? 'Copiar rutas relativas' : 'Copiar ruta relativa'}</span>
+          <span>{selectedPaths.length > 1 ? t('explorer.menu.copyRelPaths') : t('explorer.menu.copyRelPath')}</span>
         </ContextMenu.Item>
 
         <ContextMenu.Item
@@ -2949,8 +2968,8 @@
         >
           <Copy class="context-menu-item-icon" />
           <span>{selectedPaths.length > 1 ?
-            'Copiar rutas completas' :
-            hasConcreteSelection ? 'Copiar ruta completa' : 'Copiar ruta de la bóveda'
+            t('explorer.menu.copyFullPaths') :
+            hasConcreteSelection ? t('explorer.menu.copyFullPath') : t('explorer.menu.copyVaultPath')
           }</span>
         </ContextMenu.Item>
 
@@ -2963,7 +2982,7 @@
               onSelect={handleRename}
             >
               <Pencil class="context-menu-item-icon" />
-              <span>Renombrar</span>
+              <span>{t('explorer.menu.rename')}</span>
             </ContextMenu.Item>
           {/if}
 
@@ -2972,8 +2991,8 @@
             onSelect={handlePromptDelete}
           >
             <Trash2 class="context-menu-item-icon" />
-            <span>{selectedPaths.length > 1 ? `Borrar (${selectedPaths.length} elementos)` : 'Borrar'}</span>
-            <span class="context-menu-shortcut">Supr</span>
+            <span>{selectedPaths.length > 1 ? t('explorer.menu.deleteMultiple', { count: selectedPaths.length }) : t('explorer.menu.delete')}</span>
+            <span class="context-menu-shortcut">{t('explorer.menu.deleteShortcut')}</span>
           </ContextMenu.Item>
         {/if}
       </ContextMenu.Content>
@@ -3061,12 +3080,12 @@
           type="button"
           class="folder-git-branch"
           class:dirty={repo.changes > 0}
-          title="Repositorio Git · rama {repo.branch ?? '(sin rama)'}{repo.changes ? ` · ${repo.changes} cambio(s)` : ''} (clic para gestionar ramas)"
+          title={nestedRepoTitle(repo)}
           onclick={(e) => { e.stopPropagation(); gitDialogState.openBranchDialog(node.relativePath); }}
         >
           <GitBranch size={11} />
           <span class="folder-git-branch-name">{repo.branch ?? 'HEAD'}</span>
-          {#if repo.changes > 0}<span class="folder-git-dot" aria-label="con cambios"></span>{/if}
+          {#if repo.changes > 0}<span class="folder-git-dot" aria-label={t('explorer.gitBranch.dirtyAria')}></span>{/if}
         </button>
       {/if}
     </div>
@@ -3105,13 +3124,13 @@
       <span class="file-name" title={node.name}>{node.name}</span>
 
       {#if node.item?.sync_state === 'ghost'}
-        <span class="ghost-file-badge" title="Archivo en la nube (No descargado)">
+        <span class="ghost-file-badge" title={t('explorer.ghostFileTitle')}>
           <Cloud size={12} class="ghost-file-icon" />
         </span>
       {/if}
 
       {#if lockedFiles?.has(node.relativePath)}
-        <span class="lock-file-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+        <span class="lock-file-badge" title={t('explorer.lockedFileTitle')}>
           <Lock size={12} class="lock-file-icon" />
         </span>
       {/if}

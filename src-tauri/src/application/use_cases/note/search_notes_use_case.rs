@@ -22,7 +22,7 @@ impl<N: NoteRepository> SearchNotesUseCase<N> {
         let notes = self
             .note_repository
             .list_notes(&query.vault_path, &extensions)
-            .map_err(|err| format!("Error al buscar notas: {}", err))?;
+            .map_err(|err| format!("Failed to search notes: {}", err))?;
         let text = query.query.as_str();
 
         Ok(notes

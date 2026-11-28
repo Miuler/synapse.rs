@@ -18,8 +18,20 @@ it('traduce el motivo solo y el que sigue a un valor', () => {
   );
   // El motivo más largo no se confunde con el que es su comienzo
   expect(reasonText('nota.md: name already taken in the destination')).toBe('nota.md: ese nombre ya está en uso en el destino');
+  expect(reasonText('no merge in progress')).toBe('no hay una fusión en curso');
+  expect(reasonText('feature: branch has unmerged commits')).toBe('feature: la rama tiene commits sin fusionar');
+  expect(reasonText('range contains merge commits: cannot squash into one commit')).toBe(
+    'el rango incluye fusiones: no se pueden resumir en un solo commit',
+  );
+  expect(reasonText('/usr/bin/true: not a working Git executable (`git --version` failed)')).toBe(
+    '/usr/bin/true: no es un ejecutable Git válido (falló `git --version`)',
+  );
+  expect(reasonText('agent session is no longer open')).toBe('la sesión del agente ya no está abierta');
+  expect(reasonText('Document XML is corrupted')).toBe('el XML del documento está dañado');
   i18n.setLocale('en');
   expect(reasonText('duplicate name except for case')).toBe('same name as another file except for letter case');
+  expect(reasonText('feature: branch has unmerged commits')).toBe('feature: branch has unmerged commits');
+  expect(reasonText('no merge in progress')).toBe('no merge in progress');
 });
 
 it('deja como está lo que no es un motivo propio', () => {

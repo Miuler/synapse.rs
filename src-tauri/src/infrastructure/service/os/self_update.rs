@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 /// Busca la entrada cuyo nombre de archivo es `exe_name` (p. ej. `synapsers` o `synapsers.exe`).
 pub fn extract_binary(archive: &[u8], exe_name: &str) -> Result<Vec<u8>, String> {
     if archive.starts_with(b"PK") {
-        let mut zip = zip::ZipArchive::new(Cursor::new(archive)).map_err(|e| format!("ZIP no válido: {e}"))?;
+        let mut zip = zip::ZipArchive::new(Cursor::new(archive)).map_err(|e| format!("Invalid ZIP: {e}"))?;
         for i in 0..zip.len() {
-            let mut entry = zip.by_index(i).map_err(|e| format!("ZIP no válido: {e}"))?;
+            let mut entry = zip.by_index(i).map_err(|e| format!("Invalid ZIP: {e}"))?;
             let name = entry.name().map(|n| n.into_owned()).unwrap_or_default();
             if entry.is_file() && file_name(&name) == exe_name {
                 let mut out = Vec::with_capacity(entry.size() as usize);
@@ -24,8 +24,8 @@ pub fn extract_binary(archive: &[u8], exe_name: &str) -> Result<Vec<u8>, String>
         }
     } else if archive.starts_with(&[0x1f, 0x8b]) {
         let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(Cursor::new(archive)));
-        for entry in tar.entries().map_err(|e| format!("tar.gz no válido: {e}"))? {
-            let mut entry = entry.map_err(|e| format!("tar.gz no válido: {e}"))?;
+        for entry in tar.entries().map_err(|e| format!("Invalid tar.gz: {e}"))? {
+            let mut entry = entry.map_err(|e| format!("Invalid tar.gz: {e}"))?;
             let path = entry.path().map_err(|e| e.to_string())?.to_string_lossy().into_owned();
             if entry.header().entry_type().is_file() && file_name(&path) == exe_name {
                 let mut out = Vec::new();
@@ -34,9 +34,9 @@ pub fn extract_binary(archive: &[u8], exe_name: &str) -> Result<Vec<u8>, String>
             }
         }
     } else {
-        return Err("El paquete descargado no es ni .zip ni .tar.gz".into());
+        return Err("downloaded package is neither .zip nor .tar.gz".into());
     }
-    Err(format!("El paquete no contiene «{exe_name}»"))
+    Err(format!("package does not contain «{exe_name}»"))
 }
 
 fn file_name(path: &str) -> &str {
@@ -54,12 +54,12 @@ pub fn old_binary_path(exe: &Path) -> PathBuf {
 /// En Linux/macOS el renombrado sobre el binario en marcha es atómico; en Windows el `.exe` en
 /// marcha se aparta antes como `.old` (se borra en el siguiente arranque).
 pub fn replace_executable(exe: &Path, new_binary: &[u8]) -> Result<(), String> {
-    let dir = exe.parent().ok_or("Ruta del ejecutable sin carpeta")?;
+    let dir = exe.parent().ok_or("executable path has no parent directory")?;
     let mut tmp_name = exe.file_name().unwrap_or_default().to_os_string();
     tmp_name.push(".new");
     let tmp = dir.join(tmp_name);
     std::fs::write(&tmp, new_binary).map_err(|e| {
-        format!("No se pudo escribir en {} ({e}). Descarga la versión a mano desde GitHub.", dir.display())
+        format!("Could not write to {} ({e}). Download the release manually from GitHub.", dir.display())
     })?;
     #[cfg(unix)]
     {
@@ -73,12 +73,12 @@ pub fn replace_executable(exe: &Path, new_binary: &[u8]) -> Result<(), String> {
         let _ = std::fs::remove_file(&old);
         std::fs::rename(exe, &old).map_err(|e| {
             let _ = std::fs::remove_file(&tmp);
-            format!("No se pudo apartar el ejecutable actual: {e}")
+            format!("Could not move current executable aside: {e}")
         })?;
     }
     std::fs::rename(&tmp, exe).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
-        format!("No se pudo reemplazar el ejecutable: {e}")
+        format!("Could not replace executable: {e}")
     })
 }
 
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn falla_si_falta_el_binario_o_el_formato_es_otro() {
-        assert!(extract_binary(&tar_gz(&[("otro", b"x")]), "synapsers").unwrap_err().contains("no contiene"));
+        assert!(extract_binary(&tar_gz(&[("otro", b"x")]), "synapsers").unwrap_err().contains("does not contain"));
         assert!(extract_binary(b"texto", "synapsers").is_err());
     }
 

@@ -14,7 +14,7 @@ impl SystemShellImpl {
         let abs_path = if Path::new(relative_path).is_absolute() {
             let p = PathBuf::from(relative_path);
             if !p.exists() {
-                return Err(format!("El archivo no existe: {}", p.display()));
+                return Err(format!("File does not exist: {}", p.display()));
             }
             p
         } else {
@@ -22,7 +22,7 @@ impl SystemShellImpl {
         };
 
         if !abs_path.exists() {
-            return Err(format!("El archivo no existe: {}", abs_path.display()));
+            return Err(format!("File does not exist: {}", abs_path.display()));
         }
 
         #[cfg(target_os = "windows")]
@@ -30,7 +30,7 @@ impl SystemShellImpl {
             std::process::Command::new("cmd")
                 .args(["/C", "start", "", &abs_path.to_string_lossy()])
                 .spawn()
-                .map_err(|e| format!("Error al abrir archivo en Windows: {}", e))?;
+                .map_err(|e| format!("Failed to open file on Windows: {}", e))?;
         }
 
         #[cfg(target_os = "macos")]
@@ -38,7 +38,7 @@ impl SystemShellImpl {
             std::process::Command::new("open")
                 .arg(&abs_path)
                 .spawn()
-                .map_err(|e| format!("Error al abrir archivo en macOS: {}", e))?;
+                .map_err(|e| format!("Failed to open file on macOS: {}", e))?;
         }
 
         #[cfg(target_os = "linux")]
@@ -46,7 +46,7 @@ impl SystemShellImpl {
             std::process::Command::new("xdg-open")
                 .arg(&abs_path)
                 .spawn()
-                .map_err(|e| format!("Error al abrir archivo con xdg-open: {}", e))?;
+                .map_err(|e| format!("Failed to open file with xdg-open: {}", e))?;
         }
 
         Ok(())
@@ -57,7 +57,7 @@ impl SystemShellImpl {
         let abs_path = if Path::new(relative_path).is_absolute() {
             let p = PathBuf::from(relative_path);
             if !p.exists() {
-                return Err(format!("La ruta no existe: {}", p.display()));
+                return Err(format!("Path does not exist: {}", p.display()));
             }
             p
         } else {
@@ -65,7 +65,7 @@ impl SystemShellImpl {
         };
 
         if !abs_path.exists() {
-            return Err(format!("La ruta no existe: {}", abs_path.display()));
+            return Err(format!("Path does not exist: {}", abs_path.display()));
         }
 
         #[cfg(target_os = "windows")]
@@ -73,7 +73,7 @@ impl SystemShellImpl {
             std::process::Command::new("explorer")
                 .arg(format!("/select,\"{}\"", abs_path.to_string_lossy()))
                 .spawn()
-                .map_err(|e| format!("Error al mostrar en carpeta en Windows: {}", e))?;
+                .map_err(|e| format!("Failed to reveal in folder on Windows: {}", e))?;
         }
 
         #[cfg(target_os = "macos")]
@@ -81,7 +81,7 @@ impl SystemShellImpl {
             std::process::Command::new("open")
                 .args(["-R", &abs_path.to_string_lossy()])
                 .spawn()
-                .map_err(|e| format!("Error al mostrar en carpeta en macOS: {}", e))?;
+                .map_err(|e| format!("Failed to reveal in folder on macOS: {}", e))?;
         }
 
         #[cfg(target_os = "linux")]
@@ -180,7 +180,7 @@ impl SystemShellImpl {
                     .arg(&target_dir)
                     .spawn()
                     .map_err(|e| {
-                        format!("Error al abrir carpeta contenedora con xdg-open: {}", e)
+                        format!("Failed to open containing folder with xdg-open: {}", e)
                     })?;
             }
         }

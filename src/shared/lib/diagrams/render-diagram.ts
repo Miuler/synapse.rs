@@ -2,6 +2,7 @@ import { renderMermaidJsSvg } from './mermaid-service';
 import { renderMermaidSvg, ensureMerman, isMermanInitialized } from './merman-service';
 import { renderD2Svg } from './d2-service';
 import { recordSpan } from '../perf-probe';
+import { t } from '@shared/lib/i18n';
 
 export type DiagramRendererType = 'mermaid' | 'mermaidjs' | 'merman' | 'd2';
 
@@ -39,7 +40,7 @@ async function renderDiagramSvg(
       try {
         await ensureMerman();
       } catch (err) {
-        return { svg: null, error: `Error al inicializar Merman: ${String(err)}`, errors: [] };
+        return { svg: null, error: t('diagramsCatalog.mermanInitError', { detail: String(err) }), errors: [] };
       }
     }
     return renderMermaidSvg(code);

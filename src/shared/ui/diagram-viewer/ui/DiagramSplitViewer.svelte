@@ -6,6 +6,7 @@
   import { diagramLayoutApi } from '@shared/api';
   import { SplitResizer } from '@shared/ui/split-resizer';
   import { LaserCanvas, LaserToggle, laserShortcuts, LASER_CURSOR } from '@shared/ui/laser-pointer';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -45,10 +46,11 @@
     vimMode = false,
     isActive = false,
     onRun,
-    loadingMessage = 'Cargando motor de diagrama...',
+    loadingMessage,
     onChange,
     onSelectionChange,
   }: Props = $props();
+  const effectiveLoadingMessage = $derived(loadingMessage ?? t('diagramViewer.loadingEngine'));
 
   const isEditorVisible = $derived(!readOnly || showEditor);
 
@@ -241,15 +243,15 @@
     <div class="editor-pane" style:width={editorWidthPct !== null ? `${editorWidthPct}%` : undefined}>
       <div class="editor-header-bar">
         <div class="editor-title-group">
-          <span>Código {engineName}</span>
-          <span class="engine-badge" title={engineTooltip || `Visualizador ${engineName}`}>{engineName}</span>
+          <span>{t('diagramViewer.codeHeading', { engine: engineName })}</span>
+          <span class="engine-badge" title={engineTooltip || t('diagramViewer.viewerTooltip', { engine: engineName })}>{engineName}</span>
           {#if readOnly}
-            <span class="readonly-badge" title="Vista de solo lectura del código">Solo lectura</span>
+            <span class="readonly-badge" title={t('diagramViewer.readOnlyTitle')}>{t('diagramViewer.readOnlyBadge')}</span>
           {/if}
         </div>
         <div class="editor-header-actions">
           {#if error}
-            <span class="syntax-error-badge">Error de sintaxis</span>
+            <span class="syntax-error-badge">{t('diagramViewer.syntaxError')}</span>
           {/if}
           <button
             type="button"
@@ -257,10 +259,10 @@
             onclick={() => {
               if (codeEditorRef) codeEditorRef.triggerSearch();
             }}
-            title="Buscar (Ctrl+F)"
+            title={t('diagramViewer.searchTitle')}
           >
             <Search size={12} />
-            <span>Buscar</span>
+            <span>{t('diagramViewer.search')}</span>
           </button>
 
           {#if !readOnly}
@@ -270,10 +272,10 @@
               onclick={() => {
                 if (onChange) onChange(content);
               }}
-              title="Guardar / Grabar cambios"
+              title={t('diagramViewer.saveTitle')}
             >
               <Save size={12} />
-              <span>Grabar</span>
+              <span>{t('diagramViewer.save')}</span>
             </button>
           {/if}
         </div>
@@ -307,7 +309,7 @@
     </div>
     <SplitResizer
       container={viewerContainerRef}
-      label="Redimensionar panel de código"
+      label={t('diagramViewer.resizeCodeAria')}
       bind:active={isResizing}
       onResize={(pct) => (editorWidthPct = pct)}
       onResizeEnd={(pct) => {
@@ -332,12 +334,12 @@
   >
     {#if error}
       <div class="error-msg">
-        <div class="error-title">Error al renderizar diagrama ({engineName})</div>
+        <div class="error-title">{t('diagramViewer.renderErrorTitle', { engine: engineName })}</div>
         <pre>{error}</pre>
       </div>
     {/if}
     {#if !isReady}
-      <div class="loading">{loadingMessage}</div>
+      <div class="loading">{effectiveLoadingMessage}</div>
     {/if}
     {#if svgContent && !error}
       <div class="svg-container">
@@ -350,12 +352,12 @@
     <LaserCanvas bind:this={laser} active={isLaserMode} />
   </div>
 
-  <Toolbar.Root class="zoom-controls" aria-label="Controles de zoom y puntero láser">
+  <Toolbar.Root class="zoom-controls" aria-label={t('diagramViewer.zoomControlsAria')}>
     <LaserToggle bind:active={isLaserMode} />
     <Separator.Root class="separator" orientation="vertical" />
-    <Toolbar.Button onclick={() => (scale = Math.max(0.1, scale / 1.2))} aria-label="Reducir zoom">-</Toolbar.Button>
+    <Toolbar.Button onclick={() => (scale = Math.max(0.1, scale / 1.2))} aria-label={t('diagramViewer.zoomOutAria')}>-</Toolbar.Button>
     <span>{Math.round(scale * 100)}%</span>
-    <Toolbar.Button onclick={() => (scale = Math.min(10, scale * 1.2))} aria-label="Aumentar zoom">+</Toolbar.Button>
+    <Toolbar.Button onclick={() => (scale = Math.min(10, scale * 1.2))} aria-label={t('diagramViewer.zoomInAria')}>+</Toolbar.Button>
     <Toolbar.Button
       class="reset-btn"
       onclick={() => {
@@ -363,7 +365,7 @@
         panX = 0;
         panY = 0;
       }}
-      aria-label="Restablecer zoom">Reset</Toolbar.Button
+      aria-label={t('diagramViewer.resetZoomAria')}>{t('diagramViewer.resetZoom')}</Toolbar.Button
     >
   </Toolbar.Root>
 </div>

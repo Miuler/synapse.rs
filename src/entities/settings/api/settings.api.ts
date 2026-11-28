@@ -1,4 +1,5 @@
 import { invokeTauri } from '@shared/api';
+import { t } from '@shared/lib/i18n';
 
 export interface OpenTabDto {
   path: string;
@@ -100,7 +101,10 @@ export const settingsApi = {
   },
 
   async selectVaultFolder(startingDirectory?: string): Promise<SelectVaultFolderResult | null> {
-    return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', { startingDirectory });
+    return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', {
+      startingDirectory,
+      title: t('common.selectVaultFolderTitle'),
+    });
   },
 
   async getActiveVaultPath(): Promise<string | null> {

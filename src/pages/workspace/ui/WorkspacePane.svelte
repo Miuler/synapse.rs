@@ -3,6 +3,7 @@
   import { EditorHeader } from "@widgets/editor-header";
   import { systemApi } from "@shared/api";
   import { Columns2 } from "lucide-svelte";
+  import { t } from "@shared/lib/i18n";
   import type { TabItem, MarkdownViewMode } from "@entities/vault-item";
 
   interface Props {
@@ -170,7 +171,7 @@
       <div class="split-drop-zone-overlay">
         <div class="split-drop-zone-content">
           <Columns2 size={36} />
-          <span>Dividir panel a la derecha</span>
+          <span>{t('pane.splitRightOverlay')}</span>
         </div>
       </div>
     {/if}

@@ -18,9 +18,9 @@ pub trait ConversationHub: Send + Sync {
     /// entregar un mensaje o una respuesta). Lo resuelve la ventana.
     /// Respuestas pendientes para un cliente MCP externo (se entregan una sola vez).
     fn replies(&self) -> Result<Value, String> {
-        Err("Esta instancia no guarda respuestas para clientes externos".into())
+        Err("This instance does not store replies for external clients".into())
     }
     fn peer(&self, _request: Value) -> Result<Value, String> {
-        Err("Esta instancia no atiende conversaciones de otras bóvedas".into())
+        Err("This instance does not handle conversations from other vaults".into())
     }
 }

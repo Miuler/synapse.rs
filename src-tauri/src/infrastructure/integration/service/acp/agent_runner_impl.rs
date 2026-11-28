@@ -101,7 +101,7 @@ impl AgentRunnerImpl {
                     r.has_synapse_tools.then(|| r.cwd.clone()),
                 )
             })
-            .ok_or_else(|| "La sesión del agente ya no está abierta".to_string())
+            .ok_or_else(|| "agent session is no longer open".to_string())
     }
 
     /// Saludo ACP: devuelve lo que sabe hacer el agente.
@@ -119,7 +119,7 @@ impl AgentRunnerImpl {
             }),
         )
         .await
-        .map_err(|e| format!("El agente no respondió al iniciar: {e}"))?;
+        .map_err(|e| format!("Agent did not respond on startup: {e}"))?;
         Ok(capabilities_of(&init))
     }
 
@@ -140,9 +140,9 @@ impl AgentRunnerImpl {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| format!("No se pudo lanzar el agente «{}»: {e}", launch.command))?;
-        let stdin = child.stdin.take().ok_or("Sin stdin del agente")?;
-        let stdout = child.stdout.take().ok_or("Sin stdout del agente")?;
+            .map_err(|e| format!("Failed to launch agent «{}»: {e}", launch.command))?;
+        let stdin = child.stdin.take().ok_or("missing agent stdin")?;
+        let stdout = child.stdout.take().ok_or("missing agent stdout")?;
         if let Some(stderr) = child.stderr.take() {
             let id = agent_id.to_string();
             tokio::spawn(async move {
@@ -243,18 +243,18 @@ impl AgentRunnerImpl {
                 .map_err(|e| {
                     if e.to_ascii_lowercase().contains("auth") {
                         format!(
-                            "El agente pide iniciar sesión ({e}). Inicia sesión desde su CLI en una terminal \
-                             (por ejemplo `agy` o `claude`) y vuelve a conectar."
+                            "Agent requires sign-in ({e}). Sign in from its CLI in a terminal \
+                             (for example `agy` or `claude`) and reconnect."
                         )
                     } else {
-                        format!("El agente no pudo abrir la sesión: {e}")
+                        format!("Agent could not open session: {e}")
                     }
                 })?,
         };
         let id = result
             .get("sessionId")
             .and_then(Value::as_str)
-            .ok_or("El agente no devolvió un identificador de sesión")?
+            .ok_or("agent did not return a session ID")?
             .to_string();
         let (modes, current_mode) =
             options_of(result.get("modes"), "availableModes", "currentModeId", "id");
@@ -550,7 +550,7 @@ impl AgentRunner for AgentRunnerImpl {
             let sessions = self.sessions.lock().await;
             let session = sessions
                 .get(session_id)
-                .ok_or("La sesión del agente ya no está abierta")?;
+                .ok_or("agent session is no longer open")?;
             if !session.capabilities.list_sessions {
                 return Ok(None);
             }
@@ -1166,7 +1166,7 @@ mod tests {
             .start("falso", launch.clone(), "/b", vec![], None, None, false)
             .await
             .unwrap_err();
-        assert!(err.contains("No se pudo lanzar"), "{err}");
+        assert!(err.contains("Failed to launch"), "{err}");
 
         // Con límite 1 por proceso, la siguiente conversación ya no cabe en el proceso existente
         runner.set_process_limit("falso", 1);
@@ -1174,7 +1174,7 @@ mod tests {
             .start("falso", launch.clone(), "/b", vec![], None, None, false)
             .await
             .unwrap_err();
-        assert!(err.contains("No se pudo lanzar"), "{err}");
+        assert!(err.contains("Failed to launch"), "{err}");
         runner.set_process_limit("falso", MAX_SESSIONS_PER_PROCESS);
 
         // Cerrar una deja sitio en el mismo proceso

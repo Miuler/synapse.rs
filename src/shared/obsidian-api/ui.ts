@@ -1,3 +1,4 @@
+import { t } from '@shared/lib/i18n';
 import { Component } from './component';
 import { createDiv, createEl, empty } from './dom';
 import type { SynapseApp } from './app';
@@ -71,7 +72,7 @@ export class Modal extends Component {
 
     this.modalEl = createDiv({ cls: 'modal', parent: this.containerEl });
     this.closeButtonEl = createDiv({ cls: 'modal-close-button', parent: this.modalEl });
-    this.closeButtonEl.setAttribute('aria-label', 'Cerrar');
+    this.closeButtonEl.setAttribute('aria-label', t('common.close'));
     this.closeButtonEl.addEventListener('click', () => this.close());
 
     this.titleEl = createDiv({ cls: 'modal-title', parent: this.modalEl });

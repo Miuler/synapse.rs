@@ -19,6 +19,7 @@
     vaultRepository,
     type GitCommitLogItem,
   } from '@shared/repositories';
+  import { i18n, t } from '@shared/lib/i18n';
   import { buildFileLogGraph, type GraphRow } from '../lib/file-log-graph';
 
   export interface GitFileLogDialogProps {
@@ -117,7 +118,7 @@
     rowMenu = null;
     try {
       await navigator.clipboard.writeText(text);
-      copiedNotice = pickedInOrder.length === 1 ? 'Hash copiado' : `${pickedInOrder.length} hashes copiados`;
+      copiedNotice = pickedInOrder.length === 1 ? t('gitFileLog.hashCopied') : t('gitFileLog.hashesCopied', { count: pickedInOrder.length });
       setTimeout(() => (copiedNotice = null), 2000);
     } catch (err) {
       console.error('Error al copiar hashes:', err);
@@ -256,7 +257,7 @@
       let d = new Date(isoStr);
       if (Number.isNaN(d.getTime()) && timestamp) d = new Date(timestamp * 1000);
       if (Number.isNaN(d.getTime())) return isoStr || '—';
-      return d.toLocaleDateString(undefined, {
+      return d.toLocaleDateString(i18n.locale === 'es' ? 'es' : 'en', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -284,8 +285,8 @@
 <ResizableDialog
   {open}
   onClose={handleClose}
-  title="Historial de cambios (Git Log)"
-  description="Visualiza las revisiones históricas del archivo y compara diferencias contra la versión local."
+  title={t('gitFileLog.title')}
+  description={t('gitFileLog.description')}
   sizeKey="synapse.gitLogDialog.size"
   defaultSize={{ w: 1200, h: 680 }}
   minSize={{ w: 560, h: 320 }}
@@ -303,32 +304,32 @@
   {#snippet footer()}
     {#if compareMode}
       <span class="git-log-compare-info" aria-live="polite">
-        {selected.length} de 2 versiones elegidas{selected.length < 2 ? ' — marca dos para comparar' : ''}
+        {t('gitFileLog.selectedProgress', { selected: selected.length, hint: selected.length < 2 ? t('gitFileLog.pickTwoHint') : '' })}
       </span>
       <button
         type="button"
         class="compare-go-btn"
         disabled={selected.length !== 2}
         onclick={handleCompare}
-        title="Abrir el diff entre las dos versiones elegidas (de la más antigua a la más nueva)"
+        title={t('gitFileLog.compareTitle')}
       >
         <GitCompare size={13} />
-        Comparar
+        {t('gitFileLog.compare')}
       </button>
     {/if}
     {#if copiedNotice}
       <span class="git-log-copied" aria-live="polite"><Check size={12} /> {copiedNotice}</span>
     {:else if !compareMode && picked.length > 1}
-      <span class="git-log-picked-info">{picked.length} seleccionados · clic derecho para comparar o copiar</span>
+      <span class="git-log-picked-info">{t('gitFileLog.pickedInfo', { count: picked.length })}</span>
     {/if}
     <span class="git-log-count-info">
-      {filteredCommits.length} {filteredCommits.length === 1 ? 'revisión' : 'revisiones'}
+      {filteredCommits.length} {filteredCommits.length === 1 ? t('gitFileLog.revisionOne') : t('gitFileLog.revisionMany')}
       {#if filterText && filteredCommits.length !== commits.length}
-        (de {commits.length})
+        {t('gitFileLog.ofTotal', { total: commits.length })}
       {/if}
     </span>
     <button type="button" class="close-btn" onclick={handleClose}>
-      Cerrar
+      {t('common.close')}
     </button>
   {/snippet}
 
@@ -339,10 +340,10 @@
               type="button"
               role="menuitem"
               disabled={pickedInOrder.length !== 2}
-              title={pickedInOrder.length === 2 ? 'Abrir el diff de la versión más antigua a la más nueva' : 'Elige exactamente 2 versiones (Ctrl+clic)'}
+              title={pickedInOrder.length === 2 ? t('gitFileLog.compareTwoTitle') : t('gitFileLog.compareTwoHint')}
               onclick={comparePicked}
             >
-              <GitCompare size={13} /> Diff entre estas 2 versiones
+              <GitCompare size={13} /> {t('gitFileLog.diffBetweenTwo')}
             </button>
           {/if}
           {#if onAskAgent}
@@ -351,21 +352,21 @@
               role="menuitem"
               disabled={pickedInOrder.length > 2}
               title={pickedInOrder.length <= 2
-                ? 'Abre el panel del agente con el archivo adjunto y la pregunta escrita'
-                : 'Elige 1 commit (qué cambió en él) o 2 (qué cambió entre ellos)'}
+                ? t('gitFileLog.askAgentAvailable')
+                : t('gitFileLog.askAgentHint')}
               onclick={askAgentPicked}
             >
               <Bot size={13} />
-              {pickedInOrder.length === 1 ? 'Preguntar al agente qué cambió en este commit' : 'Preguntar al agente qué cambió'}
+              {pickedInOrder.length === 1 ? t('gitFileLog.askAgentOne') : t('gitFileLog.askAgentTwo')}
             </button>
           {/if}
           <button type="button" role="menuitem" onclick={() => copyPicked(false)}>
             <Copy size={13} />
-            {pickedInOrder.length === 1 ? 'Copiar hash' : `Copiar ${pickedInOrder.length} hashes (separados por coma)`}
+            {pickedInOrder.length === 1 ? t('gitFileLog.copyHash') : t('gitFileLog.copyHashes', { count: pickedInOrder.length })}
           </button>
           <button type="button" role="menuitem" onclick={() => copyPicked(true)}>
             <Copy size={13} />
-            {pickedInOrder.length === 1 ? 'Copiar hash corto' : `Copiar ${pickedInOrder.length} hashes cortos`}
+            {pickedInOrder.length === 1 ? t('gitFileLog.copyShortHash') : t('gitFileLog.copyShortHashes', { count: pickedInOrder.length })}
           </button>
         </div>
       {/if}
@@ -376,7 +377,7 @@
         <input
           type="text"
           bind:value={filterText}
-          placeholder="Buscar por mensaje, hash o autor..."
+          placeholder={t('gitFileLog.searchPlaceholder')}
           class="git-log-search-input"
         />
         {#if filterText}
@@ -384,7 +385,7 @@
             type="button"
             class="git-log-search-clear"
             onclick={() => (filterText = '')}
-            title="Limpiar búsqueda"
+            title={t('gitFileLog.clearSearch')}
           >
             <X size={12} />
           </button>
@@ -396,10 +397,10 @@
             class:active={compareMode}
             aria-pressed={compareMode}
             onclick={toggleCompareMode}
-            title={compareMode ? 'Volver a las acciones de cada commit' : 'Elegir dos versiones del archivo y ver sus diferencias'}
+            title={compareMode ? t('gitFileLog.exitCompareTitle') : t('gitFileLog.enterCompareTitle')}
           >
             <GitCompare size={13} />
-            Diff entre versiones
+            {t('gitFileLog.compareVersions')}
           </button>
         {/if}
       </div>
@@ -409,40 +410,40 @@
         {#if loading}
           <div class="git-log-state-box">
             <Loader2 size={24} class="spinner" />
-            <p>Consultando historial de Git...</p>
+            <p>{t('gitFileLog.loading')}</p>
           </div>
         {:else if error}
           <div class="git-log-state-box error">
             <AlertCircle size={28} />
             <p class="error-msg">{error}</p>
             <button type="button" class="retry-btn" onclick={loadLog}>
-              Reintentar
+              {t('gitFileLog.retry')}
             </button>
           </div>
         {:else if commits.length === 0}
           <div class="git-log-state-box empty">
             <History size={32} />
-            <p>No se encontraron commits en el historial para este archivo.</p>
+            <p>{t('gitFileLog.noCommits')}</p>
           </div>
         {:else if filteredCommits.length === 0}
           <div class="git-log-state-box empty">
             <Search size={32} />
-            <p>Ningún commit coincide con "<strong>{filterText}</strong>".</p>
+            <p>{t('gitFileLog.noSearchMatchesPrefix')} "<strong>{filterText}</strong>".</p>
           </div>
         {:else}
           <div class="git-log-table-container">
             <table class="git-log-table">
               <thead>
                 <tr>
-                  {#if showGraph}<th class="col-graph" aria-label="Ramas"></th>{/if}
-                  <th class="col-hash">Hash</th>
-                  <th class="col-date">Fecha</th>
-                  <th class="col-author">Autor</th>
-                  <th class="col-message">Mensaje</th>
+                  {#if showGraph}<th class="col-graph" aria-label={t('gitFileLog.colBranchesAria')}></th>{/if}
+                  <th class="col-hash">{t('gitFileLog.colHash')}</th>
+                  <th class="col-date">{t('gitFileLog.colDate')}</th>
+                  <th class="col-author">{t('gitFileLog.colAuthor')}</th>
+                  <th class="col-message">{t('gitFileLog.colMessage')}</th>
                   {#if compareMode}
-                    <th class="col-select">Comparar</th>
+                    <th class="col-select">{t('gitFileLog.colCompare')}</th>
                   {:else}
-                    <th class="col-actions">Acciones</th>
+                    <th class="col-actions">{t('gitFileLog.colActions')}</th>
                   {/if}
                 </tr>
               </thead>
@@ -491,7 +492,7 @@
                           type="button"
                           class="copy-hash-btn"
                           onclick={() => copyCommitHash(commit.commit_hash)}
-                          title="Copiar hash completo"
+                          title={t('gitFileLog.copyFullHashTitle')}
                         >
                           {#if copiedHash === commit.commit_hash}
                             <Check size={12} class="copy-success" />
@@ -515,13 +516,13 @@
                     <!-- Columna Mensaje -->
                     <td class="col-message" title={commit.message}>
                       <span class="commit-message-text"
-                        >{#each commit.tags ?? [] as tag (tag)}<span class="commit-tag" title="Tag {tag}"
+                        >{#each commit.tags ?? [] as tag (tag)}<span class="commit-tag" title={t('gitFileLog.tagTitle', { tag })}
                             ><Tag size={10} />{tag}</span
-                          >{/each}{#if commit.change === 'A'}<span class="change-badge added" title="Este commit creó el archivo: no hay versión anterior en su rama">nuevo</span
-                          >{:else if commit.change === 'D'}<span class="change-badge deleted" title="Este commit borró el archivo">borrado</span
-                          >{:else if commit.change === 'R'}<span class="change-badge renamed" title="Antes: {commit.previous_path}">renombrado</span
-                          >{:else if (commit.parents?.length ?? 0) > 1}<span class="change-badge merge" title="Fusión de ramas que tocaron el archivo">fusión</span
-                          >{/if}{#if showGraph && (graph.get(commit.commit_hash)?.col ?? 0) > 0}<span class="change-badge branch" title="Viene de otra rama: no es la versión anterior del commit de arriba">otra rama</span
+                          >{/each}{#if commit.change === 'A'}<span class="change-badge added" title={t('gitFileLog.badgeAddedTitle')}>{t('gitFileLog.badgeAdded')}</span
+                          >{:else if commit.change === 'D'}<span class="change-badge deleted" title={t('gitFileLog.badgeDeletedTitle')}>{t('gitFileLog.badgeDeleted')}</span
+                          >{:else if commit.change === 'R'}<span class="change-badge renamed" title={t('gitFileLog.badgeRenamedTitle', { path: commit.previous_path ?? '' })}>{t('gitFileLog.badgeRenamed')}</span
+                          >{:else if (commit.parents?.length ?? 0) > 1}<span class="change-badge merge" title={t('gitFileLog.badgeMergeTitle')}>{t('gitFileLog.badgeMerge')}</span
+                          >{/if}{#if showGraph && (graph.get(commit.commit_hash)?.col ?? 0) > 0}<span class="change-badge branch" title={t('gitFileLog.badgeBranchTitle')}>{t('gitFileLog.badgeBranch')}</span
                           >{/if}{commit.message}</span
                       >
                     </td>
@@ -532,7 +533,7 @@
                         <input
                           type="checkbox"
                           class="compare-check"
-                          aria-label="Comparar la versión {commit.short_hash}"
+                          aria-label={t('gitFileLog.compareVersionAria', { hash: commit.short_hash })}
                           checked={selected.includes(commit.commit_hash)}
                           disabled={!selected.includes(commit.commit_hash) && selected.length >= 2}
                           onchange={() => toggleSelected(commit.commit_hash)}
@@ -547,10 +548,10 @@
                           type="button"
                           class="action-btn view-btn"
                           onclick={() => handleView(commit.commit_hash)}
-                          title="Ver archivo en memoria en esta revisión histórica"
+                          title={t('gitFileLog.viewFileTitle')}
                         >
                           <Eye size={13} />
-                          <span>Ver archivo</span>
+                          <span>{t('gitFileLog.viewFile')}</span>
                         </button>
                         {/if}
                         <div class="diff-stack">
@@ -559,20 +560,20 @@
                             type="button"
                             class="action-btn diff-btn patch-btn"
                             onclick={() => handlePatch(commit.commit_hash)}
-                            title="Ver qué cambió este commit en el archivo (contra su commit padre)"
+                            title={t('gitFileLog.viewChangesTitle')}
                           >
                             <GitCommitHorizontal size={13} />
-                            <span>Ver cambios</span>
+                            <span>{t('gitFileLog.viewChanges')}</span>
                           </button>
                         {/if}
                         <button
                           type="button"
                           class="action-btn diff-btn"
                           onclick={() => handleDiff(commit.commit_hash)}
-                          title="Comparar esta revisión con el archivo actual en local"
+                          title={t('gitFileLog.diffLocalTitle')}
                         >
                           <GitCompare size={13} />
-                          <span>Diff con local</span>
+                          <span>{t('gitFileLog.diffLocal')}</span>
                         </button>
                         </div>
                       </div>

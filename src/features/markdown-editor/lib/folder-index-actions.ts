@@ -11,13 +11,13 @@ import type { GitFileStatusKind } from '@shared/repositories';
 export type NewFileKind = 'markdown' | 'mermaid' | 'd2' | 'plantuml' | 'excalidraw' | 'obsidian-excalidraw' | 'board';
 
 export const NEW_FILE_KINDS: { kind: NewFileKind; label: string }[] = [
-  { kind: 'markdown', label: 'Nota Markdown' },
-  { kind: 'mermaid', label: 'Diagrama Mermaid' },
-  { kind: 'd2', label: 'Diagrama D2' },
-  { kind: 'plantuml', label: 'Diagrama PlantUML' },
-  { kind: 'excalidraw', label: 'Dibujo Excalidraw' },
-  { kind: 'obsidian-excalidraw', label: 'Dibujo Excalidraw (Obsidian, .excalidraw.md)' },
-  // Se traduce al leerlo: el idioma puede cambiar
+  // Se traducen al leerlos porque el idioma puede cambiar en caliente
+  { kind: 'markdown', get label() { return t('folderIndex.kindMarkdown'); } },
+  { kind: 'mermaid', get label() { return t('folderIndex.kindMermaid'); } },
+  { kind: 'd2', get label() { return t('folderIndex.kindD2'); } },
+  { kind: 'plantuml', get label() { return t('folderIndex.kindPlantUml'); } },
+  { kind: 'excalidraw', get label() { return t('folderIndex.kindExcalidraw'); } },
+  { kind: 'obsidian-excalidraw', get label() { return t('folderIndex.kindObsidianExcalidraw'); } },
   { kind: 'board', get label() { return t('board.newKind'); } },
 ];
 
@@ -75,10 +75,10 @@ export function decorateFolderIndex(
   const newSelect = () => {
     const sel = document.createElement('select');
     sel.className = 'folder-index-new';
-    sel.title = 'Crear un archivo en esta carpeta';
+    sel.title = t('folderIndex.newFileTitle');
     const first = document.createElement('option');
     first.value = '';
-    first.textContent = '+ Nuevo…';
+    first.textContent = t('folderIndex.newFilePlaceholder');
     sel.appendChild(first);
     for (const { kind, label } of NEW_FILE_KINDS) {
       const o = document.createElement('option');
@@ -97,8 +97,8 @@ export function decorateFolderIndex(
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'folder-index-new-folder';
-    b.textContent = '+ Carpeta';
-    b.title = 'Crear una subcarpeta en esta carpeta';
+    b.textContent = t('folderIndex.newFolderLabel');
+    b.title = t('folderIndex.newFolderTitle');
     b.addEventListener('click', () => emit({ folder, action: 'new-folder' }));
     return b;
   };
@@ -213,7 +213,7 @@ export function decorateFolderIndex(
         if (isLocked) {
           const lockWrap = document.createElement('span');
           lockWrap.className = 'okf-explorer-lock';
-          lockWrap.title = 'Archivo bloqueado (auto-guardado desactivado)';
+          lockWrap.title = t('folderIndex.lockedFileTitle');
           mounted.push(mount(Lock, { target: lockWrap, props: { size: 12 } }));
           badges.appendChild(lockWrap);
         }

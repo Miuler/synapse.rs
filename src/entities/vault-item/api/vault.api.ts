@@ -1,4 +1,5 @@
 import { invokeTauri } from '@shared/api';
+import { t } from '@shared/lib/i18n';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
@@ -230,6 +231,7 @@ export const vaultApi = {
     return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', {
       startingDirectory: startingDirectory ?? null,
       starting_directory: startingDirectory ?? null,
+      title: t('common.selectVaultFolderTitle'),
     });
   },
 

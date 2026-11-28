@@ -9,6 +9,7 @@
     type MermaidSyntaxError,
   } from '@shared/lib/diagrams';
   import type { EditorDiagnostic } from '@shared/ui/code-editor';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -43,7 +44,7 @@
       await ensureMermaidJs();
       isReady = true;
     } catch (e) {
-      error = 'Error al cargar Mermaid.js: ' + String(e);
+      error = t('diagramViewer.loadMermaidError', { detail: String(e) });
     }
   });
 
@@ -116,7 +117,7 @@
   {vimMode}
   onRun={() => scheduler.now(content)}
   {isActive}
-  loadingMessage="Cargando Mermaid.js..."
+  loadingMessage={t('diagramViewer.loadingMermaid')}
   {onChange}
   {onSelectionChange}
 />

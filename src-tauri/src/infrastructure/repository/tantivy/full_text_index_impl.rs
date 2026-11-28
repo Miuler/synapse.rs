@@ -153,27 +153,27 @@ impl FullTextIndexImpl {
         }
 
         fs::create_dir_all(dir)
-            .map_err(|e| format!("Error al crear directorio fts {:?}: {}", dir, e))?;
+            .map_err(|e| format!("Failed to create fts directory {:?}: {}", dir, e))?;
 
         let (schema, fields) = Self::build_schema();
 
         let mmap_dir = MmapDirectory::open(dir)
-            .map_err(|e| format!("Error abriendo MmapDirectory en {:?}: {}", dir, e))?;
+            .map_err(|e| format!("Failed to open MmapDirectory at {:?}: {}", dir, e))?;
 
         let index = Index::open_or_create(mmap_dir, schema.clone())
-            .map_err(|e| format!("Error creando/abriendo índice tantivy: {}", e))?;
+            .map_err(|e| format!("Failed to create/open tantivy index: {}", e))?;
 
         Self::register_tokenizers(&index);
 
         let writer = index
             .writer(50_000_000)
-            .map_err(|e| format!("Error al obtener IndexWriter: {}", e))?;
+            .map_err(|e| format!("Failed to acquire IndexWriter: {}", e))?;
 
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .try_into()
-            .map_err(|e| format!("Error al crear IndexReader: {}", e))?;
+            .map_err(|e| format!("Failed to create IndexReader: {}", e))?;
 
         let _ = fs::write(&schema_file, SCHEMA_VERSION);
 
@@ -192,7 +192,7 @@ impl FullTextIndexImpl {
     pub fn open_read_only(dir: &Path) -> Result<Self, String> {
         if !dir.join("SCHEMA_VERSION").exists() {
             return Err(format!(
-                "La bóveda no tiene índice de búsqueda en {:?}",
+                "Vault has no search index at {:?}",
                 dir
             ));
         }
@@ -202,15 +202,15 @@ impl FullTextIndexImpl {
             .unwrap_or(true);
         let (_, fields) = Self::build_schema();
         let mmap_dir = MmapDirectory::open(dir)
-            .map_err(|e| format!("Error abriendo MmapDirectory en {:?}: {}", dir, e))?;
+            .map_err(|e| format!("Failed to open MmapDirectory at {:?}: {}", dir, e))?;
         let index =
-            Index::open(mmap_dir).map_err(|e| format!("Error abriendo índice tantivy: {}", e))?;
+            Index::open(mmap_dir).map_err(|e| format!("Failed to open tantivy index: {}", e))?;
         Self::register_tokenizers(&index);
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()
-            .map_err(|e| format!("Error al crear IndexReader: {}", e))?;
+            .map_err(|e| format!("Failed to create IndexReader: {}", e))?;
         Ok(Self {
             index,
             reader,
@@ -224,7 +224,7 @@ impl FullTextIndexImpl {
     fn writer(&self) -> Result<std::sync::MutexGuard<'_, IndexWriter>, String> {
         self.writer
             .as_ref()
-            .ok_or_else(|| "Índice de solo lectura".to_string())?
+            .ok_or_else(|| "Read-only index".to_string())?
             .lock()
             .map_err(|e| e.to_string())
     }
@@ -237,13 +237,13 @@ impl FullTextIndexImpl {
 
         let writer = index
             .writer(25_000_000)
-            .map_err(|e| format!("Error al obtener IndexWriter en RAM: {}", e))?;
+            .map_err(|e| format!("Failed to acquire RAM IndexWriter: {}", e))?;
 
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .try_into()
-            .map_err(|e| format!("Error al crear IndexReader en RAM: {}", e))?;
+            .map_err(|e| format!("Failed to create RAM IndexReader: {}", e))?;
 
         Ok(Self {
             index,
@@ -286,7 +286,7 @@ impl FullTextIndexImpl {
         let expanded = normalize_operators(&expand_field_aliases(query.text.trim()));
         let trimmed = expanded.as_str();
         if trimmed.is_empty() {
-            return Err("Consulta vacía".to_string());
+            return Err("Empty query".to_string());
         }
 
         let query_parser = self.query_parser();
@@ -369,7 +369,7 @@ impl FullTextIndexImpl {
         for needle in needles {
             if !needle.chars().any(char::is_alphanumeric) {
                 return Err(format!(
-                    "El modo exacto necesita al menos una palabra con letras o números en cada texto («{needle}»)"
+                    "Exact mode requires at least one alphanumeric word in each phrase («{needle}»)"
                 ));
             }
             let phrase = format!("\"{}\"", needle.replace(['\\', '"'], " "));
@@ -473,14 +473,14 @@ impl FullTextIndexImpl {
                 &*candidates,
                 &TopDocs::with_limit(MAX_CANDIDATES).order_by_score(),
             )
-            .map_err(|e| format!("Error en búsqueda tantivy: {}", e))?;
+            .map_err(|e| format!("Tantivy search error: {}", e))?;
         let needles: Vec<String> = query.exact.iter().map(|n| n.to_lowercase()).collect();
         let mut hits = Vec::new();
         let mut total = 0;
         for (score, address) in top {
             let doc: TantivyDocument = searcher
                 .doc(address)
-                .map_err(|e| format!("Error leyendo doc {:?}: {}", address, e))?;
+                .map_err(|e| format!("Failed to read doc {:?}: {}", address, e))?;
             let get = |f: Field| {
                 doc.get_first(f)
                     .and_then(|v| v.as_str())
@@ -636,7 +636,7 @@ impl FullTextIndex for FullTextIndexImpl {
 
             writer
                 .add_document(tantivy_doc)
-                .map_err(|e| format!("Error agregando documento {:?}: {}", doc.path, e))?;
+                .map_err(|e| format!("Failed to add document {:?}: {}", doc.path, e))?;
         }
 
         Ok(())
@@ -655,7 +655,7 @@ impl FullTextIndex for FullTextIndexImpl {
         let writer = self.writer()?;
         writer
             .delete_all_documents()
-            .map_err(|e| format!("Error eliminando documentos: {}", e))?;
+            .map_err(|e| format!("Failed to delete documents: {}", e))?;
         Ok(())
     }
 
@@ -663,10 +663,10 @@ impl FullTextIndex for FullTextIndexImpl {
         let mut writer = self.writer()?;
         writer
             .commit()
-            .map_err(|e| format!("Error en commit de tantivy: {}", e))?;
+            .map_err(|e| format!("Tantivy commit error: {}", e))?;
         self.reader
             .reload()
-            .map_err(|e| format!("Error recargando index reader: {}", e))?;
+            .map_err(|e| format!("Failed to reload index reader: {}", e))?;
         Ok(())
     }
 
@@ -682,16 +682,16 @@ impl FullTextIndex for FullTextIndexImpl {
                 &*tantivy_query,
                 &(TopDocs::with_limit(query.limit).order_by_score(), Count),
             )
-            .map_err(|e| format!("Error en búsqueda tantivy: {}", e))?;
+            .map_err(|e| format!("Tantivy search error: {}", e))?;
 
         let mut body_snippet_gen =
             SnippetGenerator::create(&searcher, &*tantivy_query, self.fields.body)
-                .map_err(|e| format!("Error creando body snippet generator: {}", e))?;
+                .map_err(|e| format!("Failed to create body snippet generator: {}", e))?;
         body_snippet_gen.set_max_num_chars(160);
 
         let mut title_snippet_gen =
             SnippetGenerator::create(&searcher, &*tantivy_query, self.fields.title)
-                .map_err(|e| format!("Error creando title snippet generator: {}", e))?;
+                .map_err(|e| format!("Failed to create title snippet generator: {}", e))?;
         title_snippet_gen.set_max_num_chars(200);
 
         let mut query_terms = HashSet::new();
@@ -711,7 +711,7 @@ impl FullTextIndex for FullTextIndexImpl {
         for (score, doc_address) in top_docs {
             let doc: TantivyDocument = searcher
                 .doc(doc_address)
-                .map_err(|e| format!("Error leyendo doc {:?}: {}", doc_address, e))?;
+                .map_err(|e| format!("Failed to read doc {:?}: {}", doc_address, e))?;
 
             let path = doc
                 .get_first(self.fields.path_id)
@@ -829,24 +829,24 @@ impl FullTextIndex for FullTextIndexImpl {
         for segment_reader in searcher.segment_readers() {
             let inverted = segment_reader
                 .inverted_index(self.fields.path_id)
-                .map_err(|e| format!("Error leyendo términos de path_id: {}", e))?;
+                .map_err(|e| format!("Failed to read path_id terms: {}", e))?;
             let mtimes = segment_reader
                 .fast_fields()
                 .u64("mtime")
-                .map_err(|e| format!("Error leyendo la columna mtime: {}", e))?;
+                .map_err(|e| format!("Failed to read mtime column: {}", e))?;
             let alive = segment_reader.alive_bitset();
 
             let mut terms = inverted
                 .terms()
                 .stream()
-                .map_err(|e| format!("Error recorriendo términos de path_id: {}", e))?;
+                .map_err(|e| format!("Failed to iterate path_id terms: {}", e))?;
             while terms.advance() {
                 let Ok(path) = std::str::from_utf8(terms.key()) else {
                     continue;
                 };
                 let mut postings = inverted
                     .read_postings_from_terminfo(terms.value(), IndexRecordOption::Basic)
-                    .map_err(|e| format!("Error leyendo postings de path_id: {}", e))?;
+                    .map_err(|e| format!("Failed to read path_id postings: {}", e))?;
                 let mut doc_id = postings.doc();
                 while doc_id != TERMINATED {
                     if alive.is_none_or(|bitset| bitset.is_alive(doc_id)) {

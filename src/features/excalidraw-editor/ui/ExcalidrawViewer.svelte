@@ -13,6 +13,7 @@
   import { vaultApi } from '@entities/vault-item';
   import { DEFAULT_APP_CONFIG } from '@entities/file-type';
   import { Sparkles } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -549,10 +550,10 @@
         triggerSave();
         onSwitchToObsidian?.();
       }}
-      title="Abrir con el visor de Excalidraw para Obsidian"
+      title={t('excalidrawViewer.switchObsidianTitle')}
     >
       <Sparkles size={13} />
-      <span>Abrir con Obsidian</span>
+      <span>{t('excalidrawViewer.switchObsidian')}</span>
     </button>
   {/if}
 </div>

@@ -374,19 +374,19 @@
   async function handleGitPush(repo: string = activeGitRepo) {
     if (isPushingGit) return;
     if (!isGitRepo && !appSettings.lastOpenedFolder) {
-      showWorkspaceToast('No hay repositorio Git activo');
+      showWorkspaceToast(t('workspace.noActiveGitRepo'));
       return;
     }
     isPushingGit = true;
-    showWorkspaceToast('Enviando cambios a Git (push)...');
+    showWorkspaceToast(t('workspace.gitPushing'));
     try {
       const res = await gitApi.gitPush(repo);
-      showWorkspaceToast(res || 'Git push completado');
+      showWorkspaceToast(res || t('workspace.gitPushDone'));
       await refreshGitStatus();
     } catch (e: unknown) {
       console.error('Error en git push:', e);
       const msg = e instanceof Error ? e.message : String(e);
-      showWorkspaceToast(`Error en git push: ${msg}`);
+      showWorkspaceToast(t('workspace.gitPushError', { detail: msg }));
     } finally {
       isPushingGit = false;
     }
@@ -544,15 +544,16 @@
     const img = agentImages.get(tab);
     if (!img) return;
     const ext = img.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'png';
-    const base = img.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '-') || 'imagen';
-    let rel = `Imágenes del agente/${base}.${ext}`;
-    for (let i = 2; vaultItemStore.get(rel); i++) rel = `Imágenes del agente/${base} (${i}).${ext}`;
+    const base = img.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '-') || t('workspace.agentImageDefault');
+    const folder = t('workspace.agentImagesFolder');
+    let rel = `${folder}/${base}.${ext}`;
+    for (let i = 2; vaultItemStore.get(rel); i++) rel = `${folder}/${base} (${i}).${ext}`;
     try {
       await vaultApi.saveBinaryAsset(rel, img.data);
-      showWorkspaceToast(`Guardada en ${rel}`);
+      showWorkspaceToast(t('workspace.agentImageSaved', { path: rel }));
       selectTab(rel);
     } catch (e) {
-      showWorkspaceToast(`No se pudo guardar la imagen: ${e}`);
+      showWorkspaceToast(t('workspace.agentImageSaveError', { detail: String(e) }));
     }
   }
 
@@ -565,17 +566,17 @@
         void createNewVaultItem(folderIndexTab(focusedTabPath()) ?? undefined, d.kind, d.folder);
         return;
       }
-      const name = window.prompt(d.folder ? `Nueva subcarpeta en «${d.folder}»:` : 'Nueva carpeta:')?.trim();
+      const name = window.prompt(d.folder ? t('workspace.newSubfolderPrompt', { folder: d.folder }) : t('workspace.newFolderPrompt'))?.trim();
       if (!name) return;
       if (/[\\/]/.test(name) || name === '.' || name === '..') {
-        showWorkspaceToast('Nombre de carpeta no válido');
+        showWorkspaceToast(t('workspace.invalidFolderName'));
         return;
       }
       const path = d.folder ? `${d.folder}/${name}` : name;
       vaultApi
         .createFolder(path)
-        .then(() => showWorkspaceToast(`Carpeta creada: ${path}`))
-        .catch((err) => showWorkspaceToast(`No se pudo crear la carpeta: ${err}`));
+        .then(() => showWorkspaceToast(t('workspace.folderCreated', { path })))
+        .catch((err) => showWorkspaceToast(t('workspace.folderCreateError', { detail: String(err) })));
     };
     window.addEventListener(FOLDER_INDEX_EVENT, onAction);
     return () => window.removeEventListener(FOLDER_INDEX_EVENT, onAction);
@@ -1243,7 +1244,7 @@
     openedNotes[emptyTabPath] = {
       relative_path: emptyTabPath,
       abs_path: undefined,
-      title: "Nueva pestaña",
+      title: t('tabs.newTab'),
       content: "",
       savedContent: "",
       encoding: "---",
@@ -1366,7 +1367,7 @@
   /** Ctrl+clic / F12 sobre un `$ref` de YAML/JSON: abre el archivo y salta a la clave. */
   async function openJsonRef(path: string, pointer: string | null) {
     if (!(await vaultRepository.checkVaultPathExists(path))) {
-      showWorkspaceToast(`No existe ${path}`);
+      showWorkspaceToast(t('workspace.pathMissing', { path }));
       return;
     }
     if (pointer) refJumps[path] = pointer;
@@ -1574,7 +1575,7 @@
         return;
       }
     }
-    showWorkspaceToast(`No está en esta bóveda: ${abs}`);
+    showWorkspaceToast(t('workspace.notInVault', { path: abs }));
   }
 
   /** Enlace de una respuesta del agente: abre el archivo; `#L56-L65` salta a esas líneas */
@@ -1663,7 +1664,7 @@
       if (view) {
         const doc = view.state.doc.toString();
         const next = rewriteLinkTarget(doc, target, chosen, source);
-        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        if (!next.count) return showWorkspaceToast(t('workspace.linkNotFound'));
         // Solo el tramo que cambia, para no mover el cursor ni el scroll
         let from = 0;
         while (from < doc.length && doc[from] === next.content[from]) from++;
@@ -1676,7 +1677,7 @@
         view.dispatch({ changes: { from, to: endA, insert: next.content.slice(from, endB) }, userEvent: 'input.fix-link' });
       } else if (openedNotes[source]?.isLoaded) {
         const next = rewriteLinkTarget(openedNotes[source].content ?? '', target, chosen, source);
-        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        if (!next.count) return showWorkspaceToast(t('workspace.linkNotFound'));
         openedNotes[source].content = next.content;
         const item = vaultItemStore.get(source);
         if (item) await persistVaultItemToRust(item);
@@ -1684,12 +1685,12 @@
         const note = await vaultRepository.readNote(source);
         if (!note) return;
         const next = rewriteLinkTarget(note.content ?? '', target, chosen, source);
-        if (!next.count) return showWorkspaceToast('No se encontró el enlace en la nota');
+        if (!next.count) return showWorkspaceToast(t('workspace.linkNotFound'));
         await vaultRepository.saveNote({ relativePath: source, title: note.title, content: next.content, encoding: note.encoding || 'UTF-8' });
       }
-      showWorkspaceToast(`Enlace fijado a ${chosen}`);
+      showWorkspaceToast(t('workspace.linkUpdated', { target: chosen }));
     } catch (e) {
-      showWorkspaceToast(`No se pudo corregir el enlace: ${e}`);
+      showWorkspaceToast(t('workspace.linkUpdateError', { detail: String(e) }));
     }
   }
 
@@ -2000,7 +2001,7 @@
     // Una copia de pestaña se abre como su original; las de versión o diff, con su propio id
     const target = baseTabPath(path);
     const title = isSyntheticTab(target)
-      ? getTabDisplayTitle(target, 'Pestaña')
+      ? getTabDisplayTitle(target, t('tabs.defaultTitle'))
       : vaultItemStore.get(target)?.title || target.split('/').pop() || target;
     await systemApi.openTabInNewWindow(target, title);
     if (moveTab) {
@@ -2073,7 +2074,7 @@
     openedNotes[emptyTabPath] = {
       relative_path: emptyTabPath,
       abs_path: undefined,
-      title: "Nueva pestaña",
+      title: t('tabs.newTab'),
       content: "",
       savedContent: "",
       encoding: "UTF-8",
@@ -2631,12 +2632,12 @@
     // Copia de otra pestaña: lo mismo que la original, con su propio id
     if (isTabCopy(path)) return { ...tabInfo(baseTabPath(path)), path };
     if (path.startsWith(AGENT_IMAGE_TAB_PREFIX)) {
-      return { path, title: `Agente · ${agentImages.get(path)?.name ?? 'Imagen'}`, abs_path: undefined, isDirty: false, kind: 'agent' as const };
+      return { path, title: t('tabs.agentImageTab', { name: agentImages.get(path)?.name ?? t('tabs.imageFallback') }), abs_path: undefined, isDirty: false, kind: 'agent' as const };
     }
     if (isSyntheticTab(path)) {
       return {
         path,
-        title: getTabDisplayTitle(path, "Pestaña"),
+        title: getTabDisplayTitle(path, t('tabs.defaultTitle')),
         abs_path: undefined,
         isDirty: false,
       };
@@ -2889,15 +2890,17 @@
   const renamedAwayPaths = new Set<string>();
 
   /** Pide confirmación para tocar archivos protegidos (bloqueados): con cambios pendientes solo permite guardar y continuar, o cancelar. */
-  async function confirmProtectedRelocation(paths: string[], verb: string): Promise<boolean> {
+  async function confirmProtectedRelocation(paths: string[], action: 'rename' | 'move'): Promise<boolean> {
     const lockedInScope = Array.from(unsavedChanges.lockedFiles).filter((l) =>
       paths.some((p) => l === p || l.startsWith(`${p}/`))
     );
     if (lockedInScope.length === 0) return true;
     const dirtyLocked = lockedInScope.filter(isTabDirty);
     if (dirtyLocked.length === 0) {
-      const name = paths.length === 1 ? `"${paths[0].split('/').pop()}"` : `${paths.length} elementos`;
-      return window.confirm(`${name} incluye archivos protegidos (bloqueados). ¿${verb} de todos modos?`);
+      const name = paths.length === 1 ? `"${paths[0].split('/').pop()}"` : t('workspace.itemsCount', { count: paths.length });
+      return window.confirm(
+        t(action === 'rename' ? 'workspace.confirmProtectedRename' : 'workspace.confirmProtectedMove', { name })
+      );
     }
     return new Promise<boolean>((resolve) => {
       pendingCloseAction = { type: 'rename', paths: dirtyLocked, resolve };
@@ -2982,7 +2985,7 @@
   }
 
   async function handleRenameItem(relativePath: string, newName: string): Promise<string> {
-    if (!(await confirmProtectedRelocation([relativePath], 'Renombrarlo'))) return relativePath;
+    if (!(await confirmProtectedRelocation([relativePath], 'rename'))) return relativePath;
 
     // El buffer en memoria (p. ej. un Excalidraw abierto) debe estar en disco antes de mover el archivo
     await flushAllModifiedTabs([relativePath]);
@@ -2996,7 +2999,7 @@
   /** Mueve elementos a otra carpeta conservando abiertas las pestañas afectadas. Devuelve los pares movidos. */
   async function handleMoveItems(paths: string[], destDir: string): Promise<{ from: string; to: string }[]> {
     if (paths.length === 0) return [];
-    if (!(await confirmProtectedRelocation(paths, 'Moverlos'))) return [];
+    if (!(await confirmProtectedRelocation(paths, 'move'))) return [];
 
     await flushAllModifiedTabs(paths);
     const moved = await vaultApi.moveItems(paths, destDir);
@@ -3029,7 +3032,7 @@
         try {
           const newFileName = `${cleanTitle}.${ext}`;
           await handleRenameItem(tabPath, newFileName);
-          showWorkspaceToast(`Archivo renombrado a ${cleanTitle}`);
+          showWorkspaceToast(t('workspace.fileRenamed', { name: cleanTitle }));
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           showWorkspaceToast(t('explorer.errors.rename', { detail: msg }));
@@ -3635,24 +3638,24 @@
     folder = ''
   ) {
     let extension = 'md';
-    let defaultBaseTitle = 'Nuevo Archivo';
+    let defaultBaseTitle = t('workspace.defaultFileTitle');
     let initialContent = '';
 
     if (fileType === 'mermaid') {
       extension = 'mmd';
-      defaultBaseTitle = 'Nuevo Diagrama';
-      initialContent = 'graph TD\n  A[Inicio] --> B[Fin]\n';
+      defaultBaseTitle = t('workspace.defaultDiagramTitle');
+      initialContent = t('workspace.defaultMermaidSample');
     } else if (fileType === 'd2') {
       extension = 'd2';
-      defaultBaseTitle = 'Nuevo Diagrama D2';
-      initialContent = 'x -> y: conexión\n';
+      defaultBaseTitle = t('workspace.defaultD2Title');
+      initialContent = t('workspace.defaultD2Sample');
     } else if (fileType === 'plantuml') {
       extension = 'puml';
-      defaultBaseTitle = 'Nuevo Diagrama PlantUML';
-      initialContent = '@startuml\nAlice -> Bob: Hola\n@enduml\n';
+      defaultBaseTitle = t('workspace.defaultPumlTitle');
+      initialContent = t('workspace.defaultPumlSample');
     } else if (fileType === 'excalidraw') {
       extension = 'excalidraw';
-      defaultBaseTitle = 'Nuevo Dibujo';
+      defaultBaseTitle = t('workspace.defaultDrawingTitle');
       initialContent = JSON.stringify(
         {
           type: 'excalidraw',
@@ -3667,7 +3670,7 @@
       );
     } else if (fileType === 'obsidian-excalidraw') {
       extension = 'excalidraw.md';
-      defaultBaseTitle = 'Nuevo Dibujo';
+      defaultBaseTitle = t('workspace.defaultDrawingTitle');
 
       // Consultar si el plugin obsidian-excalidraw-plugin tiene plantilla configurada
       const plugin = synapseApp?.plugins.loadedPlugins.get('obsidian-excalidraw-plugin')?.instance as any;
@@ -4806,7 +4809,7 @@
         <div
           role="separator"
           tabindex="-1"
-          aria-label="Redimensionar inspector de relaciones"
+          aria-label={t('workspace.resizeRelationsAria')}
           class="sidebar-resizer"
           class:is-resizing={isResizingSidebar}
           onpointerdown={handleSidebarResizeStart}
@@ -4986,7 +4989,7 @@
             {#if isLoading}
               <div class="content-loading">
                 <span class="spinner"></span>
-                <span>Cargando contenido desde disco...</span>
+                <span>{t('workspace.loadingFromDisk')}</span>
               </div>
             {:else}
               {#key note?.lastReloaded}
@@ -5138,7 +5141,7 @@
                 {:else if isMarkdownFile(tabFile)}
                   <div class="editor-title-row synapse-note-title">
                   <!-- El campo toma el ancho de su texto para que la ruta de títulos quede a continuación -->
-                  <span class="editor-title-sizer" data-value={vaultItem.title || 'Título del archivo...'}>
+                  <span class="editor-title-sizer" data-value={vaultItem.title || t('workspace.fileTitlePlaceholder')}>
                   <input
                     type="text"
                     size="1"
@@ -5147,7 +5150,7 @@
                     onclick={() => {
                       if (!paneEditing) outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath;
                     }}
-                    title={paneEditing ? undefined : 'Clic para ver el índice'}
+                    title={paneEditing ? undefined : t('workspace.clickForOutlineTitle')}
                     value={vaultItem.title}
                     oninput={(e) => {
                       // El store es inmutable: se actualiza reemplazando el elemento
@@ -5162,12 +5165,12 @@
                         e.currentTarget.blur();
                       }
                     }}
-                    placeholder="Título del archivo..."
+                    placeholder={t('workspace.fileTitlePlaceholder')}
                   />
                   </span>
                     {#if (headingLines[tabPath] ?? -1) >= 0}
                     {@const headingPath = headingPathAt(extractHeadingTree(content), headingLines[tabPath])}
-                      <nav class="editor-heading-path" aria-label="Ubicación en la nota">
+                      <nav class="editor-heading-path" aria-label={t('workspace.noteLocationAria')}>
                         <span class="editor-heading-path-inner">({#each headingPath as h, i (h.line)}{#if i > 0}<span class="editor-heading-sep">›</span>{/if}<button type="button" class="editor-heading-crumb" class:current={i === headingPath.length - 1} onclick={() => (pendingScrollHeadings[tabPath] = { text: h.raw, id: ++headingRequestId })}>{h.text}</button>{/each})</span>
                       </nav>
                     {/if}
@@ -5176,8 +5179,8 @@
                       type="button"
                       class="editor-outline-btn"
                       class:active={outlineOpenFor === tabPath}
-                      aria-label="Índice de la nota"
-                      title="Índice de la nota"
+                      aria-label={t('workspace.noteOutline')}
+                      title={t('workspace.noteOutline')}
                       onclick={() => (outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath)}
                     >
                       <ListTree size={16} />
@@ -5227,15 +5230,15 @@
                   {#if agentImg}
                     <div class="agent-image-pane">
                       <div class="agent-image-bar">
-                        <span>Imagen del chat del agente · solo en esta sesión</span>
+                        <span>{t('workspace.agentImageSession')}</span>
                         <button type="button" class="agent-image-save" onclick={() => saveAgentImage(tabFile)}>
-                          <ImageDown size={14} /> Guardar en la bóveda
+                          <ImageDown size={14} /> {t('workspace.saveInVault')}
                         </button>
                       </div>
                       <ImageViewer src={`data:${agentImg.mimeType};base64,${agentImg.data}`} alt={agentImg.name} />
                     </div>
                   {:else}
-                    <div class="agent-image-missing">Esta imagen ya no está disponible (las imágenes del chat solo duran la sesión).</div>
+                    <div class="agent-image-missing">{t('workspace.agentImageExpired')}</div>
                   {/if}
                 {:else if tabFile.startsWith("synapse://graph")}
                   {@const targetFocus = tabFile.slice("synapse://graph".length).replace(/^:/, "") || currentActiveNonGraphPath}
@@ -5287,8 +5290,8 @@
                         type="button"
                         class="editor-outline-btn code-outline-btn"
                         class:active={outlineOpenFor === tabPath}
-                        aria-label="Índice de claves"
-                        title="Índice de claves"
+                        aria-label={t('workspace.keysOutline')}
+                        title={t('workspace.keysOutline')}
                         onclick={() => (outlineOpenFor = outlineOpenFor === tabPath ? null : tabPath)}
                       >
                         <ListTree size={16} />
@@ -5300,10 +5303,10 @@
                             {content}
                             nodes={keyTree}
                             align="right"
-                            label="Índice de claves"
-                            emptyText="El archivo no tiene claves"
+                            label={t('workspace.keysOutline')}
+                            emptyText={t('workspace.noKeysFound')}
                             showLevel={false}
-                            searchPlaceholder="Buscar clave…"
+                            searchPlaceholder={t('workspace.searchKeyPlaceholder')}
                             currentLine={keyLineAt(keyTree, tabSelections[tabPath]?.cursorLine ?? 1)}
                             onClose={() => (outlineOpenFor = null)}
                             onSelect={(h) => {
@@ -5480,7 +5483,7 @@
           class="split-resizer"
           class:is-resizing={isResizingSplit}
           onpointerdown={handleSplitResizeStart}
-          title="Arrastrar para redimensionar paneles"
+          title={t('workspace.resizePanesTitle')}
         >
           <div class="split-resizer-line"></div>
         </div>
@@ -5646,7 +5649,7 @@
     <ResizableDialog
       open={true}
       onClose={() => (outlineDialogFor = null)}
-      title={isKeyOutlineFile(tab) ? "Índice de claves" : "Índice de la nota"}
+      title={isKeyOutlineFile(tab) ? t('workspace.keysOutline') : t('workspace.noteOutline')}
       description={tab.split("/").pop() ?? tab}
       sizeKey="synapse.outlineDialog.size"
       defaultSize={{ w: 560, h: 620 }}
@@ -5659,10 +5662,10 @@
         content={o.text}
         nodes={o.nodes}
         embedded
-        label={isKeyOutlineFile(tab) ? "Índice de claves" : "Índice de la nota"}
-        emptyText={isKeyOutlineFile(tab) ? "El archivo no tiene claves" : "La nota no tiene títulos"}
+        label={isKeyOutlineFile(tab) ? t('workspace.keysOutline') : t('workspace.noteOutline')}
+        emptyText={isKeyOutlineFile(tab) ? t('workspace.noKeysFound') : t('workspace.noHeadingsFound')}
         showLevel={!isKeyOutlineFile(tab)}
-        searchPlaceholder={isKeyOutlineFile(tab) ? "Buscar clave…" : "Buscar título…"}
+        searchPlaceholder={isKeyOutlineFile(tab) ? t('workspace.searchKeyPlaceholder') : t('workspace.searchHeadingPlaceholder')}
         currentLine={o.current}
         onClose={() => (outlineDialogFor = null)}
         onSelect={(h) => selectOutlineEntry(tab, h)}

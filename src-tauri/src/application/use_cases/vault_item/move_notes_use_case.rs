@@ -20,16 +20,16 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
         let vault = &command.vault_path;
         let clean_target = command.target_folder.trim_matches('/').replace('\\', "/");
         if clean_target.split('/').any(|seg| seg == "..") {
-            return Err("Ruta de destino no permitida ('..' detectado)".to_string());
+            return Err("Destination path not allowed ('..' detected)".to_string());
         }
 
         if !self.vault_item_repository.exists(vault, &clean_target) {
             if command.create_target_folder {
                 self.vault_item_repository
                     .ensure_folder(vault, &clean_target)
-                    .map_err(|e| format!("Error al crear carpeta de destino: {}", e))?;
+                    .map_err(|e| format!("Failed to create destination folder: {}", e))?;
             } else {
-                return Err(format!("La carpeta destino '{}' no existe", clean_target));
+                return Err(format!("Destination folder '{}' does not exist", clean_target));
             }
         }
 
@@ -41,7 +41,7 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
             let file_name = match clean_src.rsplit('/').next() {
                 Some(f) => f,
                 None => {
-                    errors.push((source_rel.clone(), "Ruta inválida".to_string()));
+                    errors.push((source_rel.clone(), "Invalid path".to_string()));
                     continue;
                 }
             };
@@ -52,13 +52,13 @@ impl<N: NoteRepository, V: VaultItemRepository> MoveNotesUseCase<N, V> {
             };
 
             if !self.vault_item_repository.exists(vault, &clean_src) {
-                errors.push((source_rel.clone(), "Archivo origen no existe".to_string()));
+                errors.push((source_rel.clone(), "Source file does not exist".to_string()));
                 continue;
             }
             if self.vault_item_repository.exists(vault, &target_rel) && !command.overwrite {
                 errors.push((
                     source_rel.clone(),
-                    "Ya existe un archivo en destino".to_string(),
+                    "A file already exists at the destination".to_string(),
                 ));
                 continue;
             }

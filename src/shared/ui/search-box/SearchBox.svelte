@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import { Command } from 'bits-ui';
   import { Search } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     value?: string;
@@ -15,7 +16,7 @@
 
   let {
     value = $bindable(''),
-    placeholder = 'Buscar...',
+    placeholder,
     loading = false,
     class: className = '',
     icon,
@@ -34,7 +35,7 @@
   <Command.Input
     class="search-box-input"
     bind:value
-    {placeholder}
+    placeholder={placeholder ?? t('searchBox.placeholder')}
   />
 
   {#if badge}
@@ -42,7 +43,7 @@
   {/if}
 
   {#if loading}
-    <span class="search-box-spinner" aria-label="Buscando..."></span>
+    <span class="search-box-spinner" aria-label={t('searchBox.searching')}></span>
   {/if}
 
   {#if children}

@@ -4,6 +4,7 @@
   // Ratón: clic abre · «Fijar» o Ctrl+clic abre y fija.
   import { tick } from 'svelte';
   import { Pin, FileText } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     /** Destino tal como está escrito en el enlace */
@@ -46,16 +47,16 @@
     }
   }
 
-  const folder = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '(raíz de la bóveda)');
+  const folder = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : t('linkChooser.rootFolder'));
   const name = (p: string) => p.split('/').pop() ?? p;
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="link-chooser-backdrop" onclick={onClose}>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="link-chooser" role="dialog" aria-label="Elegir archivo del enlace" onclick={(e) => e.stopPropagation()}>
+  <div class="link-chooser" role="dialog" aria-label={t('linkChooser.dialogAria')} onclick={(e) => e.stopPropagation()}>
     <div class="link-chooser-head">
-      Hay {candidates.length} archivos llamados <strong>{name(target)}</strong>. ¿A cuál lleva el enlace?
+      {candidates.length === 1 ? t('linkChooser.headOne', { count: candidates.length }) : t('linkChooser.headMany', { count: candidates.length })} <strong>{name(target)}</strong>. {t('linkChooser.headQuestion')}
     </div>
     <div class="link-chooser-list" role="listbox" tabindex="-1" bind:this={list} onkeydown={onKeydown}>
       {#each candidates as path, i (path)}
@@ -75,20 +76,20 @@
             <button
               type="button"
               class="link-chooser-pin"
-              title="Abrir y fijar: el enlace de la nota pasa a llevar la ruta completa (Ctrl+Enter)"
+              title={t('linkChooser.pinTitle')}
               onclick={(e) => {
                 e.stopPropagation();
                 pick(i, true);
               }}
             >
-              <Pin size={12} /> Fijar
+              <Pin size={12} /> {t('linkChooser.pin')}
             </button>
           {/if}
         </div>
       {/each}
     </div>
     <div class="link-chooser-hint">
-      {#if canFix}Enter abre · Ctrl+Enter o <Pin size={10} /> Fijar: abre y corrige el enlace en la nota{:else}Enter abre{/if}
+      {#if canFix}{t('linkChooser.hintCanFix')} <Pin size={10} /> {t('linkChooser.hintCanFixSuffix')}{:else}{t('linkChooser.hintOnlyOpen')}{/if}
     </div>
   </div>
 </div>

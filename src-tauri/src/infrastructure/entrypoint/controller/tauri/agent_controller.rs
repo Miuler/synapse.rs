@@ -54,9 +54,9 @@ pub async fn agent_save_profile(
     let launch = AgentLaunch { command, args, env };
     // La interfaz muestra contenido ajeno: qué programa se podrá ejecutar lo confirma la persona
     confirm_native(
-        "Guardar agente",
+        "Save agent",
         format!(
-            "Synapse podrá ejecutar este programa como agente:\n\n{}\n\n¿Guardarlo?",
+            "Synapse will be able to run this program as an agent:\n\n{}\n\nSave it?",
             describe_launch(&launch)
         ),
     )
@@ -82,9 +82,9 @@ fn synapse_tools(
     let status = app
         .mcp_runtime
         .start()
-        .map_err(|e| format!("No se pudo iniciar el MCP de Synapse: {e}"))?;
+        .map_err(|e| format!("Failed to start Synapse MCP: {e}"))?;
     if !status.running {
-        return Err("No se pudo iniciar el MCP de Synapse".into());
+        return Err("could not start Synapse MCP".into());
     }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let token = session_tokens().issue(conversation);
@@ -318,7 +318,7 @@ pub async fn agent_respond_elicitation(
         "accept" => ElicitationDecision::Accept { content },
         "decline" => ElicitationDecision::Decline,
         "cancel" => ElicitationDecision::Cancel,
-        other => return Err(format!("Acción de elicitación inválida: {other}")),
+        other => return Err(format!("Invalid elicitation action: {other}")),
     };
     state
         .respond_elicitation

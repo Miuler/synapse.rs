@@ -4,6 +4,7 @@
   import { createRenderScheduler, renderPlantUmlSvg } from '@shared/lib/diagrams';
   import { appSettings } from '@entities/settings';
   import type { EditorDiagnostic } from '@shared/ui/code-editor';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -65,7 +66,7 @@
   {content}
   {filePath}
   engineName="PlantUML"
-  engineTooltip={`Se renderiza en el servidor ${server}: el código del diagrama se envía a ese servidor`}
+  engineTooltip={t('diagramViewer.plantUmlTooltip', { server })}
   mode="plantuml"
   {svgContent}
   isReady={true}
@@ -76,7 +77,7 @@
   {vimMode}
   onRun={() => scheduler.now(content)}
   {isActive}
-  loadingMessage="Cargando PlantUML..."
+  loadingMessage={t('diagramViewer.loadingPlantUml')}
   {onChange}
   {onSelectionChange}
 />

@@ -11,6 +11,7 @@
   } from '@shared/obsidian-api';
   import { vaultApi } from '@entities/vault-item';
   import { appSettings } from '@entities/settings';
+  import { t } from '@shared/lib/i18n';
   import {
     Eye,
     Code,
@@ -156,7 +157,7 @@
       return ea.toSVG(scene.elements || [], combinedFiles);
     } catch (e) {
       console.warn('[ObsidianExcalidrawViewer] Error al generar SVG:', e);
-      return `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="50" fill="gray">No se pudo renderizar el lienzo</text></svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="50" fill="gray">${t('excalidrawViewer.svgRenderFailed')}</text></svg>`;
     }
   });
 
@@ -336,20 +337,20 @@
             }
             viewMode = 'visual';
           }}
-          title="Vista gráfica vectorial del dibujo"
+          title={t('excalidrawViewer.canvasBtnTitle')}
         >
           <Eye size={13} />
-          <span>Lienzo</span>
+          <span>{t('excalidrawViewer.canvas')}</span>
         </button>
         <button
           type="button"
           class="mode-btn"
           class:active={viewMode === 'text'}
           onclick={() => (viewMode = 'text')}
-          title="Vista de código fuente (Markdown / JSON)"
+          title={t('excalidrawViewer.codeBtnTitle')}
         >
           <Code size={13} />
-          <span>Código</span>
+          <span>{t('excalidrawViewer.code')}</span>
         </button>
       </div>
     </div>
@@ -360,7 +361,7 @@
           type="button"
           class="action-btn"
           onclick={handleExportSvg}
-          title="Descargar diagrama en formato vectorial SVG"
+          title={t('excalidrawViewer.exportSvgTitle')}
         >
           <Download size={13} />
           <span>SVG</span>
@@ -370,7 +371,7 @@
           type="button"
           class="action-btn"
           onclick={handleExportPng}
-          title="Descargar diagrama como imagen PNG transparente"
+          title={t('excalidrawViewer.exportPngTitle')}
         >
           <Download size={13} />
           <span>PNG</span>
@@ -385,10 +386,10 @@
             if (onSave) onSave(getCurrentSerializedScene());
             onSwitchToNative?.();
           }}
-          title="Abrir con el editor nativo de Excalidraw en esta pestaña"
+          title={t('excalidrawViewer.switchNativeTitle')}
         >
           <PenTool size={13} />
-          <span>Abrir con Excalidraw nativo</span>
+          <span>{t('excalidrawViewer.switchNative')}</span>
         </button>
       {/if}
 
@@ -397,11 +398,11 @@
         class="action-btn config-btn"
         class:is-default={appSettings.defaultExcalidrawViewer === 'obsidian'}
         onclick={handleToggleDefaultViewer}
-        title="Alternar si los archivos de dibujo se abren por defecto con Excalidraw nativo o con el plugin de Obsidian"
+        title={t('excalidrawViewer.toggleDefaultTitle')}
       >
         <Settings size={13} />
         <span>
-          Por defecto: {appSettings.defaultExcalidrawViewer === 'obsidian' ? 'Obsidian' : 'Nativo'}
+          {t('excalidrawViewer.defaultPrefix', { mode: appSettings.defaultExcalidrawViewer === 'obsidian' ? 'Obsidian' : t('excalidrawViewer.modeNative') })}
         </span>
       </button>
     </div>
@@ -452,7 +453,7 @@
           <div class="wikilinks-overlay">
             <span class="wikilinks-title">
               <Link size={12} />
-              <span>Enlaces detectados:</span>
+              <span>{t('excalidrawViewer.linksDetected')}</span>
             </span>
             <div class="wikilinks-tags">
               {#each wikilinks as link}
@@ -460,7 +461,7 @@
                   type="button"
                   class="wikilink-pill"
                   onclick={() => onNavigate && onNavigate(link)}
-                  title="Abrir nota vinculada [[{link}]]"
+                  title={t('excalidrawViewer.openLinkedNoteTitle', { link })}
                 >
                   [[{link}]]
                 </button>
@@ -478,7 +479,7 @@
           readonly={readOnly}
           oninput={handleTextChange}
           onblur={handleBlur}
-          placeholder="Contenido de Excalidraw en formato Markdown u Obsidian JSON..."
+          placeholder={t('excalidrawViewer.rawPlaceholder')}
           spellcheck="false"
         ></textarea>
       </div>
@@ -490,23 +491,23 @@
     <div class="footer-left">
       <span class="footer-item">
         <FileCode size={12} />
-        <span>Formato: {isMarkdownFormat ? 'Obsidian Markdown (.excalidraw.md)' : 'Excalidraw JSON (.excalidraw)'}</span>
+        <span>{t('excalidrawViewer.formatLabel', { format: isMarkdownFormat ? 'Obsidian Markdown (.excalidraw.md)' : 'Excalidraw JSON (.excalidraw)' })}</span>
       </span>
       <span class="footer-separator">•</span>
       <span class="footer-item">
-        <span>Elementos: {activeElementCount}</span>
+        <span>{t('excalidrawViewer.elementsLabel', { count: activeElementCount })}</span>
       </span>
       {#if wikilinks.length > 0}
         <span class="footer-separator">•</span>
         <span class="footer-item">
-          <span>Wikilinks: {wikilinks.length}</span>
+          <span>{t('excalidrawViewer.wikilinksLabel', { count: wikilinks.length })}</span>
         </span>
       {/if}
     </div>
 
     <div class="footer-right">
       <span class="footer-item mode-indicator">
-        Modo actual: <strong>{viewMode === 'visual' ? 'Lienzo SVG' : 'Código Fuente'}</strong>
+        {t('excalidrawViewer.currentModeLabel')} <strong>{viewMode === 'visual' ? t('excalidrawViewer.modeCanvasSvg') : t('excalidrawViewer.modeSourceCode')}</strong>
       </span>
     </div>
   </footer>

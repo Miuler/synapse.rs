@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { vaultApi, type TagCountItem } from '@entities/vault-item';
   import { Tag, Search, RefreshCw, FileText, ChevronRight, Hash } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     sidebarWidth: number;
@@ -73,13 +74,13 @@
   <div class="sidebar-header">
     <div class="header-title">
       <Tag size={16} class="header-icon" />
-      <span>Etiquetas ({tags.length})</span>
+      <span>{t('tagsExplorer.title', { count: tags.length })}</span>
     </div>
     <div class="header-actions">
       <button
         class="icon-btn"
         onclick={loadTags}
-        title="Recargar etiquetas"
+        title={t('tagsExplorer.reloadTitle')}
         disabled={isLoading}
       >
         <span class={isLoading ? 'spinning' : ''} style="display: inline-flex;">
@@ -93,7 +94,7 @@
     <Search size={14} class="search-icon" />
     <input
       type="text"
-      placeholder="Filtrar etiquetas..."
+      placeholder={t('tagsExplorer.filterPlaceholder')}
       bind:value={searchQuery}
       class="search-input"
     />
@@ -101,13 +102,13 @@
 
   <div class="tags-container">
     {#if isLoading}
-      <div class="empty-state">Cargando etiquetas...</div>
+      <div class="empty-state">{t('tagsExplorer.loading')}</div>
     {:else if filteredTags.length === 0}
       <div class="empty-state">
         {#if searchQuery.trim()}
-          No se encontraron etiquetas para "{searchQuery}"
+          {t('tagsExplorer.noResults', { query: searchQuery })}
         {:else}
-          No hay etiquetas (#tags) en tus notas todavía.
+          {t('tagsExplorer.empty')}
         {/if}
       </div>
     {:else}
@@ -129,9 +130,9 @@
             {#if selectedTag === item.tag}
               <div class="tag-notes-list">
                 {#if isLoadingNotes}
-                  <div class="note-loading">Cargando notas...</div>
+                  <div class="note-loading">{t('tagsExplorer.loadingNotes')}</div>
                 {:else if matchingNotes.length === 0}
-                  <div class="note-loading">Sin notas vinculadas</div>
+                  <div class="note-loading">{t('tagsExplorer.noNotes')}</div>
                 {:else}
                   {#each matchingNotes as notePath}
                     <button

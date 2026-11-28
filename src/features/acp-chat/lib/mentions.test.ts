@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { i18n } from '@shared/lib/i18n';
 import { ago, bestMatches, mentionAt, fileMention, folderMention, foldersOf, mentionsPrompt, mergeVaults, splitMentions, vaultToken } from './mentions';
+
+const initial = i18n.locale;
+beforeEach(() => i18n.setLocale('es'));
+afterEach(() => i18n.setLocale(initial));
 
 const conv = (status: 'working' | 'idle') => ({ handle: '#1', agent: 'Claude', title: 'x', status });
 

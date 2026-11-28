@@ -1,6 +1,7 @@
 // Menciones a otras conversaciones y bóvedas en el chat del agente: `#2` (conversación de esta
 // ventana), `@Bóveda` y `@Bóveda#2` (otra bóveda de Synapse). Se insertan como texto; al enviar,
 // se le explica al agente a quién apunta cada una para que use `send_to_conversation`.
+import { t } from '@shared/lib/i18n';
 import type { ConversationSummary, Mention } from '@entities/acp-agent';
 
 export type VaultState = 'active' | 'busy' | 'off';
@@ -28,7 +29,7 @@ export const vaultToken = (name: string) => `@${name.replace(/\s+/g, '_')}`;
 export const fileMention = (relPath: string): Mention => ({
   token: `@${relPath.replace(/\s+/g, '_')}`,
   to: relPath,
-  title: `el archivo «${relPath}»`,
+  title: t('acp.mentions.fileTitle', { path: relPath }),
   file: true,
 });
 
@@ -50,7 +51,7 @@ export function foldersOf(paths: Iterable<string>): string[] {
 export const folderMention = (relPath: string): Mention => ({
   token: `@${relPath.replace(/\s+/g, '_')}/`,
   to: relPath,
-  title: `la carpeta «${relPath}»`,
+  title: t('acp.mentions.folderTitle', { path: relPath }),
   file: true,
 });
 
@@ -113,18 +114,18 @@ export function bestMatches<T>(items: Iterable<T>, pathOf: (item: T) => string, 
 export function ago(ms: number | undefined, now = Date.now()): string {
   if (!ms) return '';
   const min = Math.round((now - ms) / 60_000);
-  if (min < 1) return 'ahora';
-  if (min < 60) return `hace ${min} min`;
+  if (min < 1) return t('acp.mentions.now');
+  if (min < 60) return t('acp.mentions.agoMin', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `hace ${h} h`;
-  return `hace ${Math.round(h / 24)} d`;
+  if (h < 24) return t('acp.mentions.agoHour', { n: h });
+  return t('acp.mentions.agoDay', { n: Math.round(h / 24) });
 }
 
 /** Tooltip de una conversación: su última respuesta y la última pregunta. */
 export function conversationTooltip(c: ConversationSummary): string {
   const parts = [`${c.handle} · ${c.title} · ${c.agent}`];
-  if (c.last_reply) parts.push(`Última respuesta: ${c.last_reply}`);
-  if (c.last_question) parts.push(`Última pregunta: ${c.last_question}`);
+  if (c.last_reply) parts.push(t('acp.mentions.lastReply', { text: c.last_reply }));
+  if (c.last_question) parts.push(t('acp.mentions.lastQuestion', { text: c.last_question }));
   return parts.join('\n\n');
 }
 
@@ -157,9 +158,11 @@ export function mentionsPrompt(text: string, mentions: Mention[]): { prompt: str
   );
   if (!used.length) return { prompt: text, used };
   const lines = used.map((m) =>
-    m.file ? `- ${m.token}: ${m.title} (adjunto)` : `- ${m.token}: ${m.title}. Para escribirle usa send_to_conversation con to="${m.to}".`,
+    m.file
+      ? `- ${m.token}: ${m.title} (${t('acp.mentions.promptAttachment')})`
+      : `- ${m.token}: ${m.title}. ${t('acp.mentions.promptReplyInstr', { to: m.to })}`,
   );
-  return { prompt: `${text}\n\n[Menciones de Synapse]\n${lines.join('\n')}`, used };
+  return { prompt: `${text}\n\n${t('acp.mentions.promptHeader')}\n${lines.join('\n')}`, used };
 }
 
 /** Parte un texto en trozos normales y menciones (para mostrarlas como chips). */

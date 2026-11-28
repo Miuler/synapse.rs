@@ -48,7 +48,7 @@ impl Connection {
             }
             // El agente cerró: falla lo que esperaba respuesta
             for (_, tx) in reader_conn.pending.lock().await.drain() {
-                let _ = tx.send(Err("El agente terminó inesperadamente".into()));
+                let _ = tx.send(Err("agent terminated unexpectedly".into()));
             }
             on_close();
         });
@@ -91,7 +91,7 @@ impl Connection {
                     // No ofrecemos sistema de archivos ni terminal al agente
                     let _ = self
                         .write(json!({"jsonrpc": "2.0", "id": id,
-                            "error": {"code": -32601, "message": format!("Método no soportado: {method}")}}))
+                            "error": {"code": -32601, "message": format!("Unsupported method: {method}")}}))
                         .await;
                 }
             }
@@ -116,10 +116,10 @@ impl Connection {
         let mut w = self.writer.lock().await;
         w.write_all(&line)
             .await
-            .map_err(|e| format!("No se pudo escribir al agente: {e}"))?;
+            .map_err(|e| format!("Failed to write to agent: {e}"))?;
         w.flush()
             .await
-            .map_err(|e| format!("No se pudo escribir al agente: {e}"))
+            .map_err(|e| format!("Failed to write to agent: {e}"))
     }
 
     pub(super) async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
@@ -134,7 +134,7 @@ impl Connection {
             return Err(e);
         }
         rx.await
-            .map_err(|_| "El agente terminó inesperadamente".to_string())?
+            .map_err(|_| "agent terminated unexpectedly".to_string())?
     }
 
     pub(super) async fn notify(&self, method: &str, params: Value) -> Result<(), String> {
@@ -153,7 +153,7 @@ impl Connection {
             .lock()
             .await
             .remove(request_id)
-            .ok_or("La petición de permiso ya no está pendiente")?;
+            .ok_or("permission request is no longer pending")?;
         self.write(json!({"jsonrpc": "2.0", "id": id, "result": {"outcome": outcome}}))
             .await
     }
@@ -169,7 +169,7 @@ impl Connection {
             .lock()
             .await
             .remove(request_id)
-            .ok_or("La solicitud de elicitación ya no está pendiente")?;
+            .ok_or("elicitation request is no longer pending")?;
         self.write(json!({"jsonrpc": "2.0", "id": id, "result": result}))
             .await
     }
@@ -179,7 +179,7 @@ fn error_message(err: &Value) -> String {
     let message = err
         .get("message")
         .and_then(Value::as_str)
-        .unwrap_or("Error del agente");
+        .unwrap_or("Agent error");
     match err.get("data") {
         Some(Value::String(d)) => format!("{message}: {d}"),
         Some(Value::Object(o)) => match o
@@ -214,7 +214,7 @@ fn permission_event(params: &Value, request_id: &str) -> Value {
     json!({
         "sessionId": params.get("sessionId").cloned().unwrap_or(Value::Null),
         "requestId": request_id,
-        "title": tool.get("title").and_then(Value::as_str).unwrap_or("El agente pide permiso"),
+        "title": tool.get("title").and_then(Value::as_str).unwrap_or("Agent requests permission"),
         "toolCallId": tool.get("toolCallId").cloned().unwrap_or(Value::Null),
         "options": options,
     })
@@ -232,7 +232,7 @@ fn elicitation_event(params: &Value, request_id: &str) -> Value {
         "message": params
             .get("message")
             .and_then(Value::as_str)
-            .unwrap_or("El agente solicita información"),
+            .unwrap_or("Agent requests information"),
         "requestedSchema": params.get("requestedSchema").cloned().unwrap_or(Value::Null),
         "url": params.get("url").cloned().unwrap_or(Value::Null),
         "elicitationId": params.get("elicitationId").cloned().unwrap_or(Value::Null),

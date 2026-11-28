@@ -1,6 +1,7 @@
 <script lang="ts">
   // Aviso flotante (abajo a la derecha) del updater: versión nueva, progreso, instalada o error.
   import { Download, Loader2, RotateCw, Sparkles, X } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { appUpdates } from '../model/app-updates.svelte';
 
   interface Props {
@@ -19,38 +20,38 @@
     <div class="update-notice-head">
       <Sparkles size={15} />
       <strong>
-        {#if appUpdates.status === 'available'}Synapse {appUpdates.available?.version} disponible
-        {:else if appUpdates.status === 'installing'}Instalando Synapse {appUpdates.available?.version}
-        {:else if appUpdates.status === 'installed'}Synapse {appUpdates.available?.version} instalado
-        {:else if appUpdates.status === 'up-to-date'}Synapse está al día
-        {:else if appUpdates.status === 'error'}No se pudo actualizar
-        {:else}Buscando actualizaciones…{/if}
+        {#if appUpdates.status === 'available'}{t('updates.available', { version: appUpdates.available?.version ?? '' })}
+        {:else if appUpdates.status === 'installing'}{t('updates.installing', { version: appUpdates.available?.version ?? '' })}
+        {:else if appUpdates.status === 'installed'}{t('updates.installed', { version: appUpdates.available?.version ?? '' })}
+        {:else if appUpdates.status === 'up-to-date'}{t('updates.upToDate')}
+        {:else if appUpdates.status === 'error'}{t('updates.failed')}
+        {:else}{t('updates.checking')}{/if}
       </strong>
       {#if appUpdates.status !== 'installing'}
-        <button type="button" class="update-notice-close" onclick={() => appUpdates.dismiss()} aria-label="Cerrar">
+        <button type="button" class="update-notice-close" onclick={() => appUpdates.dismiss()} aria-label={t('common.close')}>
           <X size={14} />
         </button>
       {/if}
     </div>
 
     {#if appUpdates.status === 'available'}
-      <p>Tienes la {appUpdates.available?.currentVersion}.</p>
+      <p>{t('updates.currentVersion', { version: appUpdates.available?.currentVersion ?? '' })}</p>
       <div class="update-notice-actions">
-        <button type="button" class="update-btn" onclick={onShowNotes}>Ver novedades</button>
-        <button type="button" class="update-btn" onclick={() => appUpdates.dismiss()}>Más tarde</button>
+        <button type="button" class="update-btn" onclick={onShowNotes}>{t('updates.whatsNew')}</button>
+        <button type="button" class="update-btn" onclick={() => appUpdates.dismiss()}>{t('updates.later')}</button>
         <button type="button" class="update-btn primary" onclick={() => appUpdates.install()}>
-          <Download size={13} /> Actualizar
+          <Download size={13} /> {t('updates.update')}
         </button>
       </div>
     {:else if appUpdates.status === 'installing'}
       <div class="update-progress"><div class="update-progress-bar" style:width={`${percent ?? 15}%`} class:indeterminate={percent === null}></div></div>
-      <p><Loader2 size={12} class="update-spin" /> {percent !== null ? `${percent} %` : 'Descargando…'}</p>
+      <p><Loader2 size={12} class="update-spin" /> {percent !== null ? `${percent} %` : t('updates.downloading')}</p>
     {:else if appUpdates.status === 'installed'}
-      <p>Se aplicará al reiniciar.</p>
+      <p>{t('updates.applyOnRestart')}</p>
       <div class="update-notice-actions">
-        <button type="button" class="update-btn" onclick={() => appUpdates.dismiss()}>Más tarde</button>
+        <button type="button" class="update-btn" onclick={() => appUpdates.dismiss()}>{t('updates.later')}</button>
         <button type="button" class="update-btn primary" onclick={() => appUpdates.restart()}>
-          <RotateCw size={13} /> Reiniciar ahora
+          <RotateCw size={13} /> {t('updates.restartNow')}
         </button>
       </div>
     {:else if appUpdates.status === 'error'}

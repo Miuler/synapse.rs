@@ -31,6 +31,7 @@
     lineKeymap,
     documentWordsCompletion,
   } from '@shared/ui/code-editor';
+  import { t } from '@shared/lib/i18n';
 
   registerVimFolding();
 
@@ -107,8 +108,8 @@
     btn.type = 'button';
     btn.className = 'cm-diff-revert-btn';
     btn.textContent = '→';
-    btn.title = 'Revertir este bloque al original';
-    btn.setAttribute('aria-label', 'Revertir bloque');
+    btn.title = t('diffViewer.cm.revertArrowTitle');
+    btn.setAttribute('aria-label', t('diffViewer.cm.revertArrowAria'));
     return btn;
   }
 
@@ -124,11 +125,11 @@
             btn.type = 'button';
             btn.className = `cm-diff-merge-btn cm-diff-merge-${type}`;
             if (type === 'reject') {
-              btn.textContent = 'Revertir';
-              btn.title = 'Revertir este bloque al original';
+              btn.textContent = t('diffViewer.cm.revert');
+              btn.title = t('diffViewer.cm.revertArrowTitle');
             } else {
-              btn.textContent = 'Mantener';
-              btn.title = 'Aceptar este bloque en la vista';
+              btn.textContent = t('diffViewer.cm.keep');
+              btn.title = t('diffViewer.cm.keepTitle');
             }
             btn.onclick = action;
             return btn;
@@ -213,10 +214,10 @@
       autocompletion({ override: [documentWordsCompletion] }),
       syntaxHighlighting(diffHighlightStyle),
       EditorState.phrases.of({
-        'Fold line': 'Plegar',
-        'Unfold line': 'Desplegar',
-        'folded code': 'código plegado',
-        unfold: 'desplegar',
+        'Fold line': t('diffViewer.cm.foldLine'),
+        'Unfold line': t('diffViewer.cm.unfoldLine'),
+        'folded code': t('diffViewer.cm.foldedCode'),
+        unfold: t('diffViewer.cm.unfold'),
       }),
       search({ top: true }),
       keymap.of(searchKeymap as any),

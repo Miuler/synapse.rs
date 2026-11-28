@@ -69,7 +69,7 @@ impl NoteContent {
         start_line_hint: Option<usize>,
     ) -> Result<String, String> {
         if old_text.is_empty() {
-            return Err("El argumento 'old_text' no puede estar vacío".to_string());
+            return Err("Argument 'old_text' cannot be empty".to_string());
         }
 
         // 1. Nivel 1: Coincidencia exacta
@@ -107,7 +107,7 @@ impl NoteContent {
                 }
             }
             return Err(format!(
-                "Ambigüedad: 'old_text' aparece {} veces en el archivo. Proporciona 'start_line' o un fragmento más extenso para unicidad.",
+                "Ambiguity: 'old_text' appears {} times in the file. Provide 'start_line' or a longer snippet for uniqueness.",
                 occurrences.len()
             ));
         }
@@ -160,7 +160,7 @@ impl NoteContent {
                 }
             }
             return Err(format!(
-                "Ambigüedad: 'old_text' aparece {} veces en el documento tras normalizar saltos de línea. Especifica 'start_line'.",
+                "Ambiguity: 'old_text' appears {} times in the document after normalizing line endings. Specify 'start_line'.",
                 norm_occurrences.len()
             ));
         }
@@ -220,7 +220,7 @@ impl NoteContent {
                             .min_by_key(|&line_idx| (line_idx + 1).abs_diff(target_line))
                     } else {
                         return Err(format!(
-                            "Ambigüedad difusa: se encontraron {} bloques coincidentes ignorando indentación. Proporciona 'start_line'.",
+                            "Fuzzy ambiguity: found {} matching blocks ignoring indentation. Provide 'start_line'.",
                             matches_trim.len()
                         ));
                     }
@@ -251,7 +251,7 @@ impl NoteContent {
             let end = (center + 3).min(doc_lines.len());
             if start < end {
                 closest_preview = format!(
-                    "\nLíneas reales cercanas ({}-{}):\n{}",
+                    "\nNearby actual lines ({}-{}):\n{}",
                     start + 1,
                     end,
                     doc_lines[start..end]
@@ -265,7 +265,7 @@ impl NoteContent {
         }
 
         Err(format!(
-            "No se pudo encontrar 'old_text' en el documento (se intentó coincidencia exacta, normalización CRLF y anclaje difuso por líneas).{}",
+            "Could not find 'old_text' in the document (tried exact match, CRLF normalization, and fuzzy line anchoring).{}",
             closest_preview
         ))
     }

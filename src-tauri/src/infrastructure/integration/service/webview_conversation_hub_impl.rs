@@ -49,7 +49,7 @@ impl WebviewConversationHubImpl {
             .lock()
             .ok()
             .and_then(|h| h.clone())
-            .ok_or("La ventana de Synapse no está disponible")?;
+            .ok_or("Synapse window is not available")?;
         let id = format!("c{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let (tx, rx) = mpsc::channel();
         self.pending
@@ -63,7 +63,7 @@ impl WebviewConversationHubImpl {
         }
         let result = rx
             .recv_timeout(TIMEOUT)
-            .unwrap_or_else(|_| Err("La ventana de Synapse no respondió a tiempo".into()));
+            .unwrap_or_else(|_| Err("Synapse window did not respond in time".into()));
         if let Ok(mut p) = self.pending.lock() {
             p.remove(&id);
         }

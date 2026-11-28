@@ -1,4 +1,5 @@
 import { vaultApi } from '@entities/vault-item';
+import { t } from '@shared/lib/i18n';
 
 /**
  * Crea una nueva instancia de RegExp para buscar directivas {{#include <path>}}.
@@ -99,7 +100,7 @@ export async function resolveIncludes(
     const rootPath = rawTarget.replace(/^\.\//, '').replace(/^\/+/, '');
 
     if (visited.has(resolvedPath) || visited.has(rootPath)) {
-      throw new Error(`Ciclo de inclusión detectado: "${rawTarget}" ya ha sido incluido previamente.`);
+      throw new Error(t('readingView.includeCycle', { target: rawTarget }));
     }
 
     let note = await vaultApi.readNote(resolvedPath);
@@ -132,9 +133,11 @@ export async function resolveIncludes(
       resolved = resolved.replace(fullTag, expandedContent);
     } else {
       throw new Error(
-        `No se pudo incluir el archivo: "${rawTarget}".\nRuta buscada: "${resolvedPath}"${
-          rootPath !== resolvedPath ? ` (o "${rootPath}")` : ''
-        }`
+        t('readingView.includeNotFound', {
+          target: rawTarget,
+          resolved: resolvedPath,
+          alt: rootPath !== resolvedPath ? t('readingView.includeOrPath', { path: rootPath }) : '',
+        }),
       );
     }
   }

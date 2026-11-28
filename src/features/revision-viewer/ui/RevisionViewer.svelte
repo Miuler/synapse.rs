@@ -22,6 +22,7 @@
   import { MermanViewer } from '@features/merman-editor';
   import { MarkdownViewer } from '@features/markdown-editor';
   import { OpenApiViewer, isOpenApiContent } from '@features/openapi-viewer';
+  import { t } from '@shared/lib/i18n';
   import {
     History,
     Shield,
@@ -84,7 +85,7 @@
     try {
       const data = await vaultRepository.getGitFileRevision(filePath, false, revision);
       if (!data.exists) {
-        error = `El archivo no existía en la revisión ${revision.slice(0, 7)}.`;
+        error = t('revisionViewer.missingInRev', { rev: revision.slice(0, 7) });
       } else {
         revData = data;
       }
@@ -120,14 +121,14 @@
   <!-- BARRA DE HERRAMIENTAS / CABECERA -->
   <header class="revision-toolbar">
     <div class="revision-toolbar-left">
-      <div class="revision-badge rev" title="Revisión Git: {revision}">
+      <div class="revision-badge rev" title={t('revisionViewer.gitRevTitle', { rev: revision })}>
         <History size={13} class="badge-icon" />
         <span>REV: {revision.slice(0, 7)}</span>
       </div>
 
-      <div class="revision-badge readonly" title="Cargado directamente en memoria. Sin modificaciones en disco.">
+      <div class="revision-badge readonly" title={t('revisionViewer.readOnlyTitle')}>
         <Shield size={12} class="badge-icon" />
-        <span>SOLO LECTURA</span>
+        <span>{t('revisionViewer.readOnlyBadge')}</span>
       </div>
 
       <div class="revision-file-info" title={filePath}>
@@ -139,82 +140,82 @@
     <div class="revision-toolbar-right">
       <!-- 1. TOGGLES DE MODO DE VISTA -->
       {#if isDrawing}
-        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización Excalidraw">
+        <div class="view-mode-toggle" role="group" aria-label={t('revisionViewer.excalidrawModeAria')}>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showDrawingRaw}
             onclick={() => (showDrawingRaw = false)}
-            title="Vista visual interactiva (Excalidraw)"
+            title={t('revisionViewer.visualTitle')}
           >
             <Eye size={12} />
-            <span>Visual</span>
+            <span>{t('revisionViewer.visual')}</span>
           </button>
           <button
             type="button"
             class="toggle-btn"
             class:active={showDrawingRaw}
             onclick={() => (showDrawingRaw = true)}
-            title="Ver contenido Raw como texto JSON"
+            title={t('revisionViewer.rawTextTitle')}
           >
             <FileCode size={12} />
-            <span>Raw (Texto)</span>
+            <span>{t('revisionViewer.rawText')}</span>
           </button>
         </div>
       {:else if isDiagram}
-        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización Mermaid">
+        <div class="view-mode-toggle" role="group" aria-label={t('revisionViewer.diagramModeAria')}>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showMermaidEditor}
             onclick={() => (showMermaidEditor = false)}
-            title="Ver únicamente el diagrama renderizado"
+            title={t('revisionViewer.diagramOnlyTitle')}
           >
             <Eye size={12} />
-            <span>Solo Diagrama</span>
+            <span>{t('revisionViewer.diagramOnly')}</span>
           </button>
           <button
             type="button"
             class="toggle-btn"
             class:active={showMermaidEditor}
             onclick={() => (showMermaidEditor = true)}
-            title="Modo edición: ver el código Mermaid al lado del diagrama en solo lectura"
+            title={t('revisionViewer.diagramCodeTitle')}
           >
             <Columns size={12} />
-            <span>Modo Edición (Código)</span>
+            <span>{t('revisionViewer.diagramCode')}</span>
           </button>
         </div>
       {:else if isMarkdown}
-        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización Markdown">
+        <div class="view-mode-toggle" role="group" aria-label={t('revisionViewer.markdownModeAria')}>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showMarkdownRaw}
             onclick={() => (showMarkdownRaw = false)}
-            title="Vista previa formateada (Markdown)"
+            title={t('revisionViewer.markdownReadingTitle')}
           >
             <Eye size={12} />
-            <span>Lectura</span>
+            <span>{t('revisionViewer.markdownReading')}</span>
           </button>
           <button
             type="button"
             class="toggle-btn"
             class:active={showMarkdownRaw}
             onclick={() => (showMarkdownRaw = true)}
-            title="Ver texto Markdown en bruto (Raw)"
+            title={t('revisionViewer.markdownRawTitle')}
           >
             <FileCode size={12} />
             <span>Raw</span>
           </button>
         </div>
       {:else if isOpenApi}
-        <div class="view-mode-toggle" role="group" aria-label="Modo de visualización OpenAPI">
+        <div class="view-mode-toggle" role="group" aria-label={t('revisionViewer.openapiModeAria')}>
           <button
             type="button"
             class="toggle-btn"
             class:active={!showOpenApiRaw}
             onclick={() => (showOpenApiRaw = false)}
-            title="Vista de la API (OpenAPI)"
+            title={t('revisionViewer.openapiViewTitle')}
           >
             <Eye size={12} />
             <span>API</span>
@@ -224,7 +225,7 @@
             class="toggle-btn"
             class:active={showOpenApiRaw}
             onclick={() => (showOpenApiRaw = true)}
-            title="Ver el YAML/JSON en bruto (Raw)"
+            title={t('revisionViewer.openapiRawTitle')}
           >
             <FileCode size={12} />
             <span>Raw</span>
@@ -239,7 +240,7 @@
           class="rev-btn icon-btn"
           class:active={wrapText}
           onclick={() => (wrapText = !wrapText)}
-          title={wrapText ? 'Desactivar ajuste de línea' : 'Activar ajuste de línea (Wrap)'}
+          title={wrapText ? t('revisionViewer.disableWrap') : t('revisionViewer.enableWrap')}
         >
           <WrapText size={14} />
         </button>
@@ -248,7 +249,7 @@
           type="button"
           class="rev-btn icon-btn"
           onclick={copyRawContent}
-          title="Copiar texto al portapapeles"
+          title={t('revisionViewer.copyTextTitle')}
         >
           {#if copiedRaw}
             <Check size={14} style="color: var(--success);" />
@@ -263,7 +264,7 @@
         type="button"
         class="rev-btn icon-btn"
         onclick={loadRevision}
-        title="Recargar revisión histórica"
+        title={t('revisionViewer.reloadTitle')}
       >
         <RotateCw size={14} class={loading ? 'spinning' : ''} />
       </button>
@@ -274,7 +275,7 @@
           type="button"
           class="rev-btn icon-btn close-btn"
           onclick={onClose}
-          title="Cerrar pestaña"
+          title={t('revisionViewer.closeTabTitle')}
         >
           <X size={15} />
         </button>
@@ -287,17 +288,17 @@
     {#if loading}
       <div class="revision-state-container">
         <div class="spinner"></div>
-        <p class="revision-state-text">Cargando revisión histórica ({revision.slice(0, 7)}) desde Git en memoria...</p>
+        <p class="revision-state-text">{t('revisionViewer.loading', { rev: revision.slice(0, 7) })}</p>
       </div>
     {:else if error}
       <div class="revision-state-container error">
         <div class="state-icon error-icon">
           <AlertCircle size={32} />
         </div>
-        <h3 class="state-title">Error al cargar revisión</h3>
+        <h3 class="state-title">{t('revisionViewer.errorTitle')}</h3>
         <p class="state-desc">{error}</p>
         <button type="button" class="retry-btn" onclick={loadRevision}>
-          Reintentar
+          {t('gitFileLog.retry')}
         </button>
       </div>
     {:else if revData}

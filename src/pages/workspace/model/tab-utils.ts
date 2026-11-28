@@ -55,16 +55,16 @@ export function cleanTabTitle(rawTitle: string, path: string | null | undefined)
 
 export function getTabDisplayTitle(path: string | null | undefined, fallbackTitle: string): string {
   if (!path) return fallbackTitle;
-  if (path.startsWith('empty:')) return 'Nueva pestaña';
+  if (path.startsWith('empty:')) return t('tabs.newTab');
   if (path === 'synapse://update-notes') return t('news.updateTab');
   if (path.startsWith('synapse://news')) return t('news.tab');
   if (path.startsWith('synapse://graph')) {
     const target = path.slice('synapse://graph'.length).replace(/^:/, '');
     if (target) {
       const name = target.split('/').pop() || target;
-      return `Grafo: ${cleanTabTitle(name, target)}`;
+      return t('tabs.graphOf', { name: cleanTabTitle(name, target) });
     }
-    return 'Vista de Grafo';
+    return t('tabs.graphView');
   }
   if (path.startsWith('diff-files:')) {
     const [a, b] = path.slice('diff-files:'.length).split('\n');
@@ -86,7 +86,7 @@ export function getTabDisplayTitle(path: string | null | undefined, fallbackTitl
     const f = parts.slice(1).join(':').split('/').pop() || parts.slice(1).join(':');
     const [from, to] = rev.split('..');
     if (to) return `Diff (${from.slice(0, 7)}…${to.slice(0, 7)}): ${f}`;
-    return `Cambios (${rev.slice(0, 7)}): ${f}`;
+    return t('tabs.changesRev', { rev: rev.slice(0, 7), file: f });
   }
   if (path.startsWith('diff:')) {
     const f = path.slice('diff:'.length).split('/').pop() || path;

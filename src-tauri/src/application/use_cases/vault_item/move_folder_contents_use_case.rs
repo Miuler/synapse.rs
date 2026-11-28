@@ -27,19 +27,19 @@ impl<V: VaultItemRepository> MoveFolderContentsUseCase<V> {
         if source_folder.split('/').any(|s| s == "..")
             || target_folder.split('/').any(|s| s == "..")
         {
-            return Err("Ruta no permitida ('..' detectado)".to_string());
+            return Err("Path not allowed ('..' detected)".to_string());
         }
         if source_folder == target_folder {
-            return Err("La carpeta de origen y destino no pueden ser la misma".to_string());
+            return Err("Source and destination folders cannot be the same".to_string());
         }
         // Prevenir bucle infinito: target no puede ser subcarpeta de source
         if target_folder.starts_with(&format!("{}/", source_folder)) {
             return Err(
-                "La carpeta destino no puede estar dentro de la carpeta origen".to_string(),
+                "Destination folder cannot be inside the source folder".to_string(),
             );
         }
         if !self.vault_item_repository.is_folder(vault, source_folder) {
-            return Err(format!("La carpeta origen '{}' no existe", source_folder));
+            return Err(format!("Source folder '{}' does not exist", source_folder));
         }
 
         let files_to_move: Vec<String> = self
@@ -61,7 +61,7 @@ impl<V: VaultItemRepository> MoveFolderContentsUseCase<V> {
 
         self.vault_item_repository
             .ensure_folder(vault, target_folder)
-            .map_err(|e| format!("No se pudo crear la carpeta destino: {}", e))?;
+            .map_err(|e| format!("Could not create destination folder: {}", e))?;
 
         let mut moved = Vec::new();
         let mut skipped = Vec::new();
@@ -134,7 +134,7 @@ impl<V: VaultItemRepository> MoveFolderContentsUseCase<V> {
                 .relocate(vault, &src_rel, &dest_rel)
             {
                 Ok(_) => moved.push((rel_file, dest_rel.replace('\\', "/"))),
-                Err(e) => errors.push(format!("Error moviendo '{}': {}", rel_file, e)),
+                Err(e) => errors.push(format!("Error moving '{}': {}", rel_file, e)),
             }
         }
 

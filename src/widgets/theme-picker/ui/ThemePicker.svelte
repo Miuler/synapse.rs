@@ -2,6 +2,7 @@
   import { appearance } from '@entities/appearance';
   import { Command, Dialog } from 'bits-ui';
   import { Check } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { SearchBox } from '@shared/ui/search-box';
 
   interface Props {
@@ -15,7 +16,7 @@
   let selected = $state('');
 
   const themes = $derived([
-    { id: null as string | null, label: 'Sin tema' },
+    { id: null as string | null, label: t('themePicker.noTheme') },
     ...appearance.themes.map((id) => ({ id: id as string | null, label: appearance.themeLabel(id) })),
   ]);
   const valueOf = (t: { id: string | null }) => t.id ?? 'sin-tema';
@@ -48,11 +49,11 @@
     <Dialog.Overlay class="palette-backdrop" />
     <!-- Comparte el aspecto de la paleta de comandos -->
     <Dialog.Content class="palette-container theme-picker synapse-dialog synapse-theme-picker">
-      <Dialog.Title class="sr-only">Cambiar de tema</Dialog.Title>
+      <Dialog.Title class="sr-only">{t('themePicker.title')}</Dialog.Title>
       <Command.Root class="command-root" loop shouldFilter={false} bind:value={selected}>
-        <SearchBox bind:value={search} placeholder="Buscar un tema..." />
+        <SearchBox bind:value={search} placeholder={t('themePicker.placeholder')} />
         <Command.List class="results-container">
-          {#if !found.length}<div class="empty-state">Ningún tema coincide</div>{/if}
+          {#if !found.length}<div class="empty-state">{t('themePicker.empty')}</div>{/if}
           {#each found as t (t.id ?? '')}
             <Command.Item
               class="command-item"
@@ -67,9 +68,9 @@
           {/each}
         </Command.List>
         <footer class="palette-footer">
-          <span><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
-          <span><kbd>↵</kbd> Aplicar</span>
-          <span><kbd>esc</kbd> Cerrar</span>
+          <span><kbd>↑</kbd> <kbd>↓</kbd> {t('palette.navigate')}</span>
+          <span><kbd>↵</kbd> {t('themePicker.apply')}</span>
+          <span><kbd>esc</kbd> {t('palette.close')}</span>
         </footer>
       </Command.Root>
     </Dialog.Content>

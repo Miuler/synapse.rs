@@ -4,6 +4,7 @@
   import { isTauriEnvironment } from '@shared/repositories';
   import type { TabItem, MarkdownViewMode } from '@entities/vault-item';
   import { Popover, ContextMenu } from 'bits-ui';
+  import { t } from '@shared/lib/i18n';
   import { FileIcon } from '@entities/file-type';
   import { WindowControls } from '@shared/ui/window-controls';
   import {
@@ -77,7 +78,7 @@
   }
 
   let {
-    title = 'Nota de bienvenida.md',
+    title = t('tabs.welcomeNoteTitle'),
     tabs = [],
     activeTabPath = null,
     isEditing = $bindable(true),
@@ -559,7 +560,7 @@
         if (onNavigateBack) onNavigateBack();
         else triggerAction('nav-back');
       }}
-      title={canGoBack ? "Navegar atrás entre pestañas (Alt+Flecha izquierda o Botón 3 del ratón)" : "Navegar atrás"}
+      title={canGoBack ? t('editorHeader.navBackFull') : t('editorHeader.navBack')}
     >
       <ChevronLeft size={16} class="icon" />
     </button>
@@ -572,7 +573,7 @@
         if (onNavigateForward) onNavigateForward();
         else triggerAction('nav-forward');
       }}
-      title={canGoForward ? "Navegar adelante entre pestañas (Alt+Flecha derecha o Botón 4 del ratón)" : "Navegar adelante"}
+      title={canGoForward ? t('editorHeader.navForwardFull') : t('editorHeader.navForward')}
     >
       <ChevronRight size={16} class="icon" />
     </button>
@@ -586,7 +587,7 @@
         class="tab-scroll-btn left"
         data-tauri-drag-region="false"
         onclick={scrollLeft}
-        title="Desplazar pestañas a la izquierda"
+        title={t('editorHeader.scrollTabsLeft')}
       >
         <ChevronLeft size={14} />
       </button>
@@ -645,7 +646,7 @@
                   {/if}
                   <span class="tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                   {#if tab.isLocked}
-                    <span class="tab-lock-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+                    <span class="tab-lock-badge" title={t('editorHeader.lockedTabTitle')}>
                       <Lock size={11} class="tab-lock-icon" />
                     </span>
                   {/if}
@@ -656,7 +657,7 @@
                       e.stopPropagation();
                       if (onCloseTab) onCloseTab(tab.path);
                     }}
-                    title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
+                    title={t('editorHeader.closeTabTitle')}
                   >
                     <X size={12} />
                   </button>
@@ -684,7 +685,7 @@
                     }}
                   >
                     <ExternalLink size={14} class="context-menu-item-icon" />
-                    <span>Abrir en nueva ventana</span>
+                    <span>{t('editorHeader.openInNewWindow')}</span>
                   </ContextMenu.Item>
                   <ContextMenu.Item
                     class="context-menu-item"
@@ -693,14 +694,14 @@
                     }}
                   >
                     <ExternalLink size={14} class="context-menu-item-icon" />
-                    <span>Mover a nueva ventana</span>
+                    <span>{t('editorHeader.moveToNewWindow')}</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                 {/if}
                 {#if onDuplicateTab && !tab.path.startsWith('empty:')}
                   <ContextMenu.Item class="context-menu-item tab-duplicate" onSelect={() => onDuplicateTab(tab.path)}>
                     <Copy size={14} class="context-menu-item-icon" />
-                    <span>Duplicar pestaña</span>
+                    <span>{t('editorHeader.duplicateTab')}</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                 {/if}
@@ -711,7 +712,7 @@
                   }}
                 >
                   <X size={14} class="context-menu-item-icon" />
-                  <span>Cerrar pestaña</span>
+                  <span>{t('editorHeader.closeTab')}</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   class="context-menu-item"
@@ -719,7 +720,7 @@
                     if (onCloseOtherTabs) onCloseOtherTabs(tab.path);
                   }}
                 >
-                  <span>Cerrar otras pestañas</span>
+                  <span>{t('editorHeader.closeOtherTabs')}</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   class="context-menu-item"
@@ -727,14 +728,14 @@
                     if (onCloseTabsToRight) onCloseTabsToRight(tab.path);
                   }}
                 >
-                  <span>Cerrar pestañas a la derecha</span>
+                  <span>{t('editorHeader.closeTabsToRight')}</span>
                 </ContextMenu.Item>
                 {#if onCloseAllTabs}
                   <ContextMenu.Item
                     class="context-menu-item tab-close-all"
                     onSelect={() => onCloseAllTabs()}
                   >
-                    <span>Cerrar todas las pestañas</span>
+                    <span>{t('editorHeader.closeAllTabs')}</span>
                   </ContextMenu.Item>
                 {/if}
                 {#if !isSyntheticTab(tab.path)}
@@ -746,7 +747,7 @@
                     }}
                   >
                     <ExternalLink size={14} class="context-menu-item-icon" />
-                    <span>Abrir con la app por defecto</span>
+                    <span>{t('editorHeader.openDefault')}</span>
                   </ContextMenu.Item>
                   <ContextMenu.Item
                     class="context-menu-item"
@@ -755,7 +756,7 @@
                     }}
                   >
                     <FolderSearch size={14} class="context-menu-item-icon" />
-                    <span>Mostrar en carpeta</span>
+                    <span>{t('editorHeader.showInFolder')}</span>
                   </ContextMenu.Item>
                   <ContextMenu.Separator class="context-menu-divider" />
                   {#if onRenameTab}
@@ -767,7 +768,7 @@
                       }}
                     >
                       <Edit2 size={14} class="context-menu-item-icon" />
-                      <span>Renombrar archivo</span>
+                      <span>{t('editorHeader.renameFile')}</span>
                     </ContextMenu.Item>
                   {/if}
                   <ContextMenu.Item
@@ -775,7 +776,7 @@
                     onSelect={() => navigator.clipboard.writeText(tab.path)}
                   >
                     <Copy size={14} class="context-menu-item-icon" />
-                    <span>Copiar ruta relativa</span>
+                    <span>{t('editorHeader.copyRelativePath')}</span>
                   </ContextMenu.Item>
                   {#if fullPathOf}
                     <ContextMenu.Item
@@ -783,7 +784,7 @@
                       onSelect={() => navigator.clipboard.writeText(fullPathOf(tab.path))}
                     >
                       <Copy size={14} class="context-menu-item-icon" />
-                      <span>Copiar ruta completa</span>
+                      <span>{t('editorHeader.copyFullPath')}</span>
                     </ContextMenu.Item>
                   {/if}
                 {/if}
@@ -804,7 +805,7 @@
             type="button"
             class="close-tab-btn"
             onclick={() => { if (onCloseTab) onCloseTab(''); }}
-            title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
+            title={t('editorHeader.closeTabTitle')}
           >
             <X size={12} />
           </button>
@@ -817,7 +818,7 @@
         class="new-tab-btn"
         data-tauri-drag-region="false"
         onclick={() => { if (onNewTab) onNewTab(); }}
-        title="Nueva pestaña (Ctrl+T)"
+        title={t('editorHeader.newTabTitle')}
       >
         <Plus size={14} />
       </button>
@@ -829,7 +830,7 @@
         class="tab-scroll-btn right"
         data-tauri-drag-region="false"
         onclick={scrollRight}
-        title="Desplazar pestañas a la derecha"
+        title={t('editorHeader.scrollTabsRight')}
       >
         <ChevronRight size={14} />
       </button>
@@ -839,7 +840,7 @@
         class="new-tab-btn"
         data-tauri-drag-region="false"
         onclick={() => { if (onNewTab) onNewTab(); }}
-        title="Nueva pestaña (Ctrl+T)"
+        title={t('editorHeader.newTabTitle')}
       >
         <Plus size={14} />
       </button>
@@ -866,7 +867,7 @@
                 type="button"
                 class="icon-btn tab-dropdown-trigger"
                 class:active={isTabsMenuOpen}
-                title="Listar y buscar pestañas abiertas (Ctrl+Shift+A)"
+                title={t('editorHeader.tabsListTitle')}
                 {...props}
               >
                 <ChevronDown size={14} class="icon" />
@@ -877,9 +878,9 @@
           <Popover.Portal>
             <Popover.Content class="tabs-dropdown-menu" align="end" side="bottom" sideOffset={6}>
               <div class="dropdown-header">
-                <span>Pestañas ({filteredTabs.length}{filteredTabs.length !== tabs.length ? `/${tabs.length}` : ''})</span>
+                <span>{t('editorHeader.tabsCount', { shown: `${filteredTabs.length}${filteredTabs.length !== tabs.length ? `/${tabs.length}` : ''}` })}</span>
                 <button type="button" class="dropdown-close-all-btn" onclick={handleCloseAll}>
-                  Cerrar todas
+                  {t('editorHeader.closeAllShort')}
                 </button>
               </div>
 
@@ -889,7 +890,7 @@
                 <input
                   type="text"
                   class="dropdown-search-input"
-                  placeholder="Buscar pestaña... (Enter para abrir)"
+                  placeholder={t('editorHeader.searchTabsPlaceholder')}
                   bind:this={searchInputRef}
                   bind:value={searchQuery}
                   onkeydown={handleSearchKeyDown}
@@ -902,7 +903,7 @@
                       searchQuery = '';
                       searchInputRef?.focus();
                     }}
-                    title="Limpiar búsqueda"
+                    title={t('editorHeader.clearSearch')}
                   >
                     <X size={12} />
                   </button>
@@ -937,7 +938,7 @@
                       {/if}
                       <span class="dropdown-tab-title">{tab.title}{tab.isDirty ? ' *' : ''}</span>
                       {#if tab.isLocked}
-                        <span class="tab-lock-badge" title="Archivo bloqueado (auto-guardado desactivado)">
+                        <span class="tab-lock-badge" title={t('editorHeader.lockedTabTitle')}>
                           <Lock size={11} class="tab-lock-icon" />
                         </span>
                       {/if}
@@ -948,7 +949,7 @@
                           e.stopPropagation();
                           if (onCloseTab) onCloseTab(tab.path);
                         }}
-                        title="Cerrar pestaña (Ctrl+W, Ctrl+F4 o click central)"
+                        title={t('editorHeader.closeTabTitle')}
                       >
                         <X size={12} />
                       </button>
@@ -956,7 +957,7 @@
                   {/each}
                 {:else}
                   <div class="dropdown-no-results">
-                    No se encontraron pestañas abiertas
+                    {t('editorHeader.noTabsFound')}
                   </div>
                 {/if}
               </div>
@@ -973,10 +974,10 @@
         onclick={() => {
           if (onSave) onSave();
         }}
-        title="Guardar / Grabar cambios (Ctrl+S)"
+        title={t('editorHeader.saveTitle')}
       >
         <Save size={14} class="icon" />
-        <span>Grabar</span>
+        <span>{t('editorHeader.saveLabel')}</span>
       </button>
     {/if}
 
@@ -992,14 +993,14 @@
             isEditing = !isEditing;
           }
         }}
-        title={isEditing ? "Cambiar a modo Lectura" : "Cambiar a modo Edición"}
+        title={isEditing ? t('editorHeader.switchToReading') : t('editorHeader.switchToEditing')}
       >
         {#if isEditing}
           <PenLine size={14} class="icon" />
         {:else}
           <Eye size={14} class="icon" />
         {/if}
-        <span>{isEditing ? "Edición" : "Lectura"}</span>
+        <span>{isEditing ? t('editorHeader.editingMode') : t('editorHeader.readingMode')}</span>
       </button>
     {/if}
 
@@ -1022,7 +1023,7 @@
           onSplitView(data.path);
         }
       }}
-      title={isSplitActive ? "Cerrar división de paneles" : "Dividir panel verticalmente"}
+      title={isSplitActive ? t('editorHeader.closeSplitTitle') : t('editorHeader.splitVerticalTitle')}
     >
       <Columns2 size={14} class="icon" />
     </button>
@@ -1032,13 +1033,13 @@
         type="button"
         class="icon-btn"
         onclick={() => { if (onOpenInNewWindow) onOpenInNewWindow(activeTabPath, false); }}
-        title="Abrir pestaña en nueva ventana"
+        title={t('editorHeader.openTabNewWindowTitle')}
       >
         <ExternalLink size={14} class="icon" />
       </button>
     {/if}
 
-    <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title="Más opciones del archivo">
+    <button type="button" class="icon-btn" onclick={() => triggerAction('more-options')} title={t('editorHeader.moreOptionsTitle')}>
       <MoreHorizontal size={14} class="icon" />
     </button>
 
@@ -1049,15 +1050,15 @@
         class:active={isAgentOpen}
         aria-pressed={isAgentOpen}
         onclick={() => onToggleAgent?.()}
-        title={isAgentOpen ? 'Ocultar el agente de IA' : 'Agente de IA'}
-        aria-label="Agente de IA"
+        title={isAgentOpen ? t('editorHeader.hideAgentTitle') : t('editorHeader.agentLabel')}
+        aria-label={t('editorHeader.agentLabel')}
       >
         <Bot size={14} class="icon" />
       </button>
     {/if}
 
     <!-- Espaciador dedicado para arrastrar la ventana incluso con múltiples pestañas abiertas -->
-    <div class="window-drag-spacer" data-tauri-drag-region title="Arrastrar ventana"></div>
+    <div class="window-drag-spacer" data-tauri-drag-region title={t('editorHeader.dragWindowTitle')}></div>
 
     {#if showWindowControls}
       <WindowControls />

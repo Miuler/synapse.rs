@@ -47,7 +47,7 @@ impl UserPrompter for WebviewUserPrompterImpl {
             .lock()
             .ok()
             .and_then(|h| h.clone())
-            .ok_or("La ventana de Synapse no está disponible para pedir permiso")?;
+            .ok_or("Synapse window is not available to request permission")?;
         let id = format!("q{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let (tx, rx) = mpsc::channel();
         self.pending
@@ -64,6 +64,6 @@ impl UserPrompter for WebviewUserPrompterImpl {
         if let Ok(mut p) = self.pending.lock() {
             p.remove(&id);
         }
-        answer.map_err(|_| "El usuario no respondió a tiempo".to_string())
+        answer.map_err(|_| "User did not respond in time".to_string())
     }
 }

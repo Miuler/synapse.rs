@@ -35,11 +35,11 @@ impl AgentTelemetryRepositoryImpl {
 
     fn validate_vault_and_id(cwd: &str, conversation_id: &str) -> Result<(), String> {
         if cwd.is_empty() || !Path::new(cwd).is_dir() {
-            return Err(format!("La bóveda «{cwd}» no existe"));
+            return Err(format!("Vault «{cwd}» does not exist"));
         }
         if !AgentTranscript::valid_id(conversation_id) {
             return Err(format!(
-                "Identificador de conversación inválido: {conversation_id}"
+                "Invalid conversation ID: {conversation_id}"
             ));
         }
         Ok(())
@@ -64,7 +64,7 @@ impl AgentTelemetryRepositoryImpl {
         let path = Self::telemetry_path(cwd, conversation_id);
         match std::fs::read(&path) {
             Ok(data) => serde_json::from_slice(&data)
-                .map_err(|e| format!("Telemetría de sesión inválida: {e}")),
+                .map_err(|e| format!("Invalid session telemetry: {e}")),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(AgentSessionTelemetry {
                 conversation_id: conversation_id.to_string(),
                 transcript_path: Self::transcript_path(cwd, conversation_id)

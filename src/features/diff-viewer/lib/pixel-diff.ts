@@ -1,5 +1,6 @@
 // Diff de píxeles en memoria entre dos imágenes RGBA del mismo tamaño, con el mismo estilo que el
 // diff de imágenes del backend: el fondo sin cambios atenuado y los píxeles distintos en magenta.
+import { t } from '@shared/lib/i18n';
 
 export interface PixelDiffResult {
   /** Imagen del diff, RGBA, del mismo tamaño que las de entrada. */
@@ -30,7 +31,7 @@ function yiqDelta(a: Uint8ClampedArray, b: Uint8ClampedArray, i: number): number
 
 /** Compara `before` y `after` (RGBA, mismo tamaño) y pinta el resultado sobre `after` atenuado. */
 export function pixelDiff(before: Uint8ClampedArray, after: Uint8ClampedArray): PixelDiffResult {
-  if (before.length !== after.length) throw new Error('Las imágenes deben tener el mismo tamaño');
+  if (before.length !== after.length) throw new Error(t('diffViewer.errors.imageSizeMismatch'));
   const output = new Uint8ClampedArray(after.length);
   const maxDelta = MAX_YIQ_DELTA * THRESHOLD * THRESHOLD;
   let diffCount = 0;

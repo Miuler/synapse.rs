@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { t } from '@shared/lib/i18n';
   import { measured } from '@shared/lib/perf-probe';
   import { vaultItemStore, type VaultItem, type TagCountItem } from '@entities/vault-item';
   import { Command, Dialog } from 'bits-ui';
@@ -555,7 +556,7 @@
         <SearchBox
           class={isFtsMode ? 'is-fts' : isTagMode ? 'is-tag-mode' : isFolderMode ? 'is-folder-mode' : ''}
           bind:value={searchQuery}
-          placeholder={isFtsMode ? "Buscar en el contenido de las notas... (Tantivy)" : isTagMode ? "Filtrar por etiqueta... (#nombre)" : isFolderMode ? "Explorar carpetas... (/nombre)" : "Buscar archivo o carpeta... (Ctrl+O, '/' carpetas, '?' contenido, '#' tags, 'kind:pdf' tipo, 'hs:' encabezados)"}
+          placeholder={isFtsMode ? t('quickOpen.placeholderFts') : isTagMode ? t('quickOpen.placeholderTag') : isFolderMode ? t('quickOpen.placeholderFolder') : t('quickOpen.placeholderDefault')}
           loading={isFtsLoading}
         >
           {#snippet icon()}
@@ -592,20 +593,20 @@
               <div class="fts-mode-hint">
                 <div class="fts-hint-title">
                   <TextSearch size={15} />
-                  <span>Búsqueda Full-Text activada</span>
+                  <span>{t('quickOpen.ftsHintTitle')}</span>
                 </div>
                 <p class="fts-hint-desc">
-                  Escribe cualquier término tras el signo <code>?</code> para buscar en el interior de tus notas, diagramas y código.
+                  {t('quickOpen.ftsHintPrefix')} <code>?</code> {t('quickOpen.ftsHintSuffix')}
                 </p>
                 <div class="fts-hint-tags">
-                  <span>Ej: <code>?servidor</code></span>
-                  <span><code>?"frase exacta"</code></span>
+                  <span>{t('quickOpen.ftsExamplePrefix')} <code>{t('quickOpen.ftsExampleWord')}</code></span>
+                  <span><code>{t('quickOpen.ftsExamplePhrase')}</code></span>
                   <span><code>?kind:markdown</code></span>
                 </div>
               </div>
             {:else if ftsResults.length === 0 && !isFtsLoading}
               <Command.Empty class="empty-state">
-                No se encontraron coincidencias en el contenido para <strong>"{ftsQuery}"</strong>
+                {t('quickOpen.noContentMatches')} <strong>"{ftsQuery}"</strong>
               </Command.Empty>
             {:else}
               {#each ftsResults as hit (hit.note_path)}
@@ -660,33 +661,33 @@
             {#if isTagMode && filteredTagSuggestions.length > 0 && fileList.length === 0}
               <div class="tag-suggestions-header">
                 <Tag size={13} />
-                <span>Etiquetas disponibles ({filteredTagSuggestions.length})</span>
+                <span>{t('quickOpen.availableTags', { count: filteredTagSuggestions.length })}</span>
               </div>
-              {#each filteredTagSuggestions as t}
+              {#each filteredTagSuggestions as item}
                 <Command.Item
                   class="palette-item tag-suggestion-item"
-                  value={`#${t.tag}`}
+                  value={`#${item.tag}`}
                   forceMount={true}
                   onSelect={() => {
-                    searchQuery = `#${t.tag} `;
+                    searchQuery = `#${item.tag} `;
                   }}
                 >
                   <Tag size={14} class="tag-icon" />
-                  <span class="tag-name">#{t.tag}</span>
-                  <span class="tag-count">{t.count} {t.count === 1 ? 'nota' : 'notas'}</span>
+                  <span class="tag-name">#{item.tag}</span>
+                  <span class="tag-count">{item.count} {item.count === 1 ? t('quickOpen.noteOne') : t('quickOpen.noteMany')}</span>
                 </Command.Item>
               {/each}
             {:else if isSearching}
-              <div class="empty-state">Buscando...</div>
+              <div class="empty-state">{t('quickOpen.searching')}</div>
             {:else if fileList.length === 0 && folderResults.length === 0}
-              <div class="empty-state">{isFolderMode ? 'No se encontraron carpetas' : 'No se encontraron archivos'}</div>
+              <div class="empty-state">{isFolderMode ? t('quickOpen.noFolders') : t('quickOpen.noFiles')}</div>
             {/if}
 
             <!-- SECCIÓN DE CARPETAS COINCIDENTES -->
             {#if folderResults.length > 0}
               <div class="section-divider">
                 <span class="section-divider-label">
-                  Carpetas ({folderResults.length})
+                  {t('quickOpen.foldersCount', { count: folderResults.length })}
                 </span>
               </div>
               {#each visibleFolders as folder (folder.relative_path)}
@@ -716,19 +717,19 @@
                   {/if}
 
                   <div class="folder-meta-badge">
-                    <span class="folder-notes-count">{folder.notes_count} {folder.notes_count === 1 ? 'nota' : 'notas'}</span>
+                    <span class="folder-notes-count">{folder.notes_count} {folder.notes_count === 1 ? t('quickOpen.noteOne') : t('quickOpen.noteMany')}</span>
                     {#if onRevealFolder}
                       <button
                         type="button"
                         class="folder-reveal-btn"
-                        title="Revelar carpeta en el explorador"
+                        title={t('quickOpen.revealTitle')}
                         onclick={(e) => {
                           e.stopPropagation();
                           if (onRevealFolder) onRevealFolder(folder.relative_path);
                           closeDialog();
                         }}
                       >
-                        Revelar
+                        {t('quickOpen.reveal')}
                       </button>
                     {/if}
                   </div>
@@ -747,10 +748,10 @@
                 >
                   {#if !isFoldersExpanded}
                     <ChevronDown size={14} class="toggle-folders-icon" />
-                    <span class="toggle-folders-label">Ver {remainingFoldersCount} carpetas más...</span>
+                    <span class="toggle-folders-label">{t('quickOpen.showMoreFolders', { count: remainingFoldersCount })}</span>
                   {:else}
                     <ChevronUp size={14} class="toggle-folders-icon" />
-                    <span class="toggle-folders-label">Mostrar menos carpetas</span>
+                    <span class="toggle-folders-label">{t('quickOpen.showFewerFolders')}</span>
                   {/if}
                 </Command.Item>
               {/if}
@@ -761,15 +762,15 @@
               {#if hasQuery && i === 0 && folderResults.length > 0}
                 <!-- Al buscar: un único encabezado para separar los archivos de las carpetas -->
                 <div class="section-divider">
-                  <span class="section-divider-label">Archivos</span>
+                  <span class="section-divider-label">{t('quickOpen.filesSection')}</span>
                 </div>
               {:else if hasRecents && i === 0 && file.isRecent}
                 <div class="section-divider">
-                  <span class="section-divider-label">Recientes</span>
+                  <span class="section-divider-label">{t('quickOpen.recentsSection')}</span>
                 </div>
               {:else if hasRecents && !file.isRecent && (i === 0 || fileList[i - 1]?.isRecent)}
                 <div class="section-divider">
-                  <span class="section-divider-label">Archivos</span>
+                  <span class="section-divider-label">{t('quickOpen.filesSection')}</span>
                 </div>
               {/if}
 
@@ -805,7 +806,7 @@
 
             {#if visibleCount < allCandidates.length}
               <div class="scroll-more-indicator">
-                Mostrando {visibleCount} de {allCandidates.length} archivos (desplázate para cargar más)
+                {t('quickOpen.showingMore', { shown: visibleCount, total: allCandidates.length })}
               </div>
             {/if}
           {/if}
@@ -813,25 +814,25 @@
 
         <footer class="quick-open-footer">
           <div class="footer-shortcuts">
-            <span><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
-            <span><kbd>↵</kbd> Abrir</span>
-            <span><kbd>esc</kbd> Cerrar</span>
+            <span><kbd>↑</kbd> <kbd>↓</kbd> {t('palette.navigate')}</span>
+            <span><kbd>↵</kbd> {t('quickOpen.open')}</span>
+            <span><kbd>esc</kbd> {t('palette.close')}</span>
           </div>
           <div class="footer-stats">
             {#if isFtsMode}
               {#if ftsQuery.length > 0}
-                <span>{ftsTotalHits.toLocaleString()} {ftsTotalHits === 1 ? 'coincidencia' : 'coincidencias'} ({ftsElapsedMs.toFixed(1)} ms) en contenido</span>
+                <span>{t('quickOpen.inContentStats', { count: ftsTotalHits.toLocaleString(), label: ftsTotalHits === 1 ? t('quickOpen.matchOne') : t('quickOpen.matchMany'), ms: ftsElapsedMs.toFixed(1) })}</span>
               {:else}
-                <span>Modo Full-Text (?...)</span>
+                <span>{t('quickOpen.ftsModeStats')}</span>
               {/if}
             {:else if isTagMode}
-              <span>Filtro de etiquetas (#tag) · {matchedFiles.toLocaleString()} notas</span>
+              <span>{t('quickOpen.tagModeStats', { count: matchedFiles.toLocaleString() })}</span>
             {:else if isFolderMode}
-              <span>Modo Carpetas (/...) · {folderResults.length} carpetas</span>
+              <span>{t('quickOpen.folderModeStats', { count: folderResults.length })}</span>
             {:else if searchQuery.trim().length > 0}
-              <span>{matchedFiles.toLocaleString()} de {totalFiles.toLocaleString()} archivos</span>
+              <span>{t('quickOpen.matchedFilesStats', { matched: matchedFiles.toLocaleString(), total: totalFiles.toLocaleString() })}</span>
             {:else if totalFiles > 0}
-              <span>{totalFiles.toLocaleString()} archivos</span>
+              <span>{t('quickOpen.totalFilesStats', { total: totalFiles.toLocaleString() })}</span>
             {/if}
           </div>
         </footer>
@@ -867,7 +868,7 @@
     >
       <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
 
-      <Dialog.Title class="sr-only">Buscador Rápido de Archivos</Dialog.Title>
+      <Dialog.Title class="sr-only">{t('quickOpen.title')}</Dialog.Title>
       {@render searchBody()}
     </Dialog.Content>
   </Dialog.Portal>

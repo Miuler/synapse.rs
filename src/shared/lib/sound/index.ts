@@ -1,12 +1,13 @@
 import burbujaFmUrl from '../../assets/burbuja_fm.wav';
 import sonarOrganicoUrl from '../../assets/sonar_organico.wav';
+import { t } from '@shared/lib/i18n';
 
 export type AgentCompletionSound = 'burbuja_fm' | 'sonar_organico' | 'none';
 
 export const AGENT_SOUND_OPTIONS: { id: AgentCompletionSound; label: string }[] = [
-  { id: 'burbuja_fm', label: 'Burbuja FM' },
-  { id: 'sonar_organico', label: 'Sonar orgánico' },
-  { id: 'none', label: 'Sin sonido' },
+  { id: 'burbuja_fm', get label() { return t('sound.burbujaFm'); } },
+  { id: 'sonar_organico', get label() { return t('sound.organicSonar'); } },
+  { id: 'none', get label() { return t('sound.none'); } },
 ];
 
 const SOUND_URLS: Record<Exclude<AgentCompletionSound, 'none'>, string> = {

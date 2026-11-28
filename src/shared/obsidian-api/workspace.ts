@@ -98,7 +98,7 @@ export class SynapseWorkspace extends Events implements SynapseWorkspaceLike {
 
   get app(): SynapseApp {
     if (!this.appInstance) {
-      throw new Error('[SynapseWorkspace] appInstance aún no ha sido conectada');
+      throw new Error('[SynapseWorkspace] appInstance has not been connected yet');
     }
     return this.appInstance;
   }

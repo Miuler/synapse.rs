@@ -362,7 +362,7 @@ export function serializeExcalidrawMarkdown(
   const textSection =
     textLines.length > 0
       ? textLines.join('\n\n')
-      : '%% Elementos de texto aparecerán aquí al añadir texto al lienzo %%';
+      : '%% Text elements will appear here as text is added to the canvas %%';
 
   // 2. Serializar escena en JSON compacto y ordenado
   const sceneJson = JSON.stringify(

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '@shared/lib/i18n';
+  import { i18n, t } from '@shared/lib/i18n';
   import { ContextMenu } from 'bits-ui';
   import { internalDragPaths, NATIVE_DROP, type NativeDrop } from '@shared/lib/native-drop';
   import {
@@ -97,7 +97,9 @@
   /** Tamaño del mensaje de otro agente, para el resumen cerrado. */
   const incomingSize = (text: string) => {
     const bytes = new TextEncoder().encode(text).length;
-    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1).replace('.', ',')} KB`;
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = (bytes / 1024).toFixed(1);
+    return `${i18n.locale === 'es' ? kb.replace('.', ',') : kb} KB`;
   };
 
   function onMessageClick(e: MouseEvent) {
@@ -300,7 +302,7 @@
     label: `${STATUS_ICON[c.status] ?? ''} ${token}  ${c.title}`,
     detail: `${c.agent}${c.last_activity ? ` · ${ago(c.last_activity)}` : ''}`,
     tooltip: conversationTooltip(c),
-    pick: () => insertMention(start, { token, to, title: `la conversación «${c.title}» (${c.agent}) ${where}` }),
+    pick: () => insertMention(start, { token, to, title: t('acp.chat.convTitle', { title: c.title, agent: c.agent, where }) }),
   });
 
   /** Enciende una bóveda apagada (otra ventana) y espera a que responda. */
@@ -338,7 +340,7 @@
           {
             handle: c.handle,
             agent: c.agent?.name ?? c.agentId,
-            title: c.title || 'Conversación nueva',
+            title: c.title || t('acp.store.newConversation'),
             status: c.status,
             last_reply: c.lastText('agent'),
             last_question: c.lastText('user'),
@@ -346,7 +348,7 @@
           },
           c.handle,
           c.handle,
-          'de esta ventana',
+          t('acp.chat.inThisWindow'),
           start,
         ),
       );
@@ -362,15 +364,20 @@
       .slice(0, 8)
       .map((c) => {
         const n = c.number ?? c.handle.replace(/^#/, '');
-        return conversationRow(c, `${vaultToken(v.name)}#${n}`, `${v.name}#${n}`, `de la bóveda «${v.name}»`, start);
+        return conversationRow(c, `${vaultToken(v.name)}#${n}`, `${v.name}#${n}`, t('acp.chat.inVault', { vault: v.name }), start);
       });
-    if ('nueva'.startsWith(cq)) {
+    const newTag = t('acp.mentions.newTag');
+    if (newTag.startsWith(cq)) {
       rows.push({
-        label: `${vaultToken(v.name)}#nueva`,
-        detail: 'Abre una conversación nueva en esa bóveda',
+        label: `${vaultToken(v.name)}#${newTag}`,
+        detail: t('acp.chat.openNewRemoteDetail'),
         pick: () => {
           if (v.state === 'off') startVault(v);
-          insertMention(start, { token: `${vaultToken(v.name)}#nueva`, to: `${v.name}#nueva`, title: `una conversación nueva en la bóveda «${v.name}»` });
+          insertMention(start, {
+            token: `${vaultToken(v.name)}#${newTag}`,
+            to: `${v.name}#${newTag}`,
+            title: t('acp.chat.newConvInVaultTitle', { vault: v.name }),
+          });
         },
       });
     }
@@ -393,7 +400,7 @@
           ? [
               {
                 label: '@this',
-                detail: `Archivo actual · ${relOf(note.path)}`,
+                detail: t('acp.chat.currentFileDetail', { path: relOf(note.path) }),
                 pick: () => {
                   conv.attachActiveNote();
                   insertMention(m.start, fileMention(relOf(note.path)));
@@ -410,17 +417,17 @@
               .map((v) => ({
                 label: `${VAULT_ICON[v.state]} ${vaultToken(v.name)}`,
                 detail: startingPaths.includes(v.path)
-                  ? 'encendiendo…'
+                  ? t('acp.chat.startingVault')
                   : v.state === 'off'
-                    ? 'Bóveda de Synapse apagada · elegirla la abre'
-                    : `Bóveda de Synapse · ${v.conversations.length} conversaciones · escribe # para elegir una`,
+                    ? t('acp.chat.vaultOffDetail')
+                    : t('acp.chat.vaultOnDetail', { count: v.conversations.length }),
                 tooltip: v.path,
                 pick: () => {
                   if (v.state === 'off') startVault(v);
                   insertMention(m.start, {
                     token: vaultToken(v.name),
                     to: v.name,
-                    title: `la bóveda de Synapse «${v.name}» (otra ventana; su conversación de este hilo o una nueva)`,
+                    title: t('acp.chat.vaultMentionTitle', { vault: v.name }),
                   });
                 },
               }));
@@ -459,8 +466,8 @@
       const agents = [...vaultRows, ...localRows];
       // Encabezados con el atajo, solo cuando se ven los dos grupos
       if (!scope && files.length && agents.length) {
-        files[0] = { ...files[0], header: 'Archivos y carpetas · @f: para ver solo estos' };
-        agents[0] = { ...agents[0], header: 'Bóvedas de Synapse · @a: para ver solo estas' };
+        files[0] = { ...files[0], header: t('acp.chat.filesHeader') };
+        agents[0] = { ...agents[0], header: t('acp.chat.vaultsHeader') };
       }
       // Si lo escrito es el comienzo del nombre de una bóveda, las bóvedas van primero
       const vaultFirst = !!q && vaults.some((v) => v.name.toLowerCase().startsWith(q) || vaultToken(v.name).slice(1).toLowerCase().startsWith(q));
@@ -471,7 +478,7 @@
       const own = agentStore.feedbackAvailable && 'feedback'.startsWith(slash)
         ? [{
             label: '/feedback',
-            detail: 'Synapse · el agente registra qué mejorar del MCP y del panel (puedes añadir indicaciones)',
+            detail: t('acp.chat.feedbackDetail'),
             pick: () => {
               conv.draft = '/feedback ';
               tick().then(() => textarea?.focus());
@@ -482,7 +489,7 @@
       if ('usage'.startsWith(slash) && !conv.commands.some((c) => c.name === 'usage')) {
         own.push({
           label: '/usage',
-          detail: 'Synapse · uso de esta conversación y, si el agente lo permite, cuota de la cuenta',
+          detail: t('acp.chat.usageDetail'),
           pick: () => {
             conv.draft = '/usage';
             tick().then(() => textarea?.focus());
@@ -491,11 +498,11 @@
       }
       // `/btw` y `/fork` los resuelve Synapse aunque el agente tenga los suyos
       const native = !!conv.session?.capabilities.fork_session;
-      const how = native ? 'contexto completo' : 'contexto reenviado como texto';
+      const how = native ? t('acp.chat.forkFullContext') : t('acp.chat.forkReplayContext');
       // «Synapse» marca lo que resuelve Synapse; con `session/fork`, la bifurcación es del agente
       for (const [name, detail, tooltip] of [
         ['btw', t('aside.commandDetail', { how }), t('aside.commandTooltip', { agent: conv.agent?.name ?? conv.agentId })],
-        ['fork', `${native ? '' : 'Synapse · '}abre otra conversación a partir de esta (${how})`, undefined],
+        ['fork', t('acp.chat.forkDetail', { prefix: native ? '' : 'Synapse · ', how }), undefined],
       ]) {
         if (isAside || !name!.startsWith(slash)) continue;
         own.push({
@@ -663,8 +670,8 @@
   let pasted = 0;
   const imageTitle = $derived(
     conv.session && !conv.session.capabilities.image
-      ? 'Este agente no acepta imágenes: se le indicará que hay una imagen sin enviarla'
-      : 'Imagen pegada',
+      ? t('acp.chat.imageNotSupportedTitle')
+      : t('acp.chat.pastedImageTitle'),
   );
   function onPaste(e: ClipboardEvent) {
     const files = [...(e.clipboardData?.items ?? [])]
@@ -680,7 +687,7 @@
         const data = url.slice(url.indexOf(',') + 1);
         pasted += 1;
         const ext = file.type.split('/')[1] ?? 'png';
-        conv.attach({ kind: 'image', path: `pegada-${Date.now()}-${pasted}`, name: `Imagen ${pasted}.${ext}`, mimeType: file.type, data });
+        conv.attach({ kind: 'image', path: `pegada-${Date.now()}-${pasted}`, name: t('acp.chat.pastedImageName', { n: pasted, ext }), mimeType: file.type, data });
       };
       reader.readAsDataURL(file);
     }
@@ -693,7 +700,7 @@
 
   function chipLabel(a: Attachment) {
     if (a.kind !== 'selection') return a.name;
-    return a.startLine ? `${a.name} L${a.startLine}–${a.endLine}` : `${a.name} (fragmento)`;
+    return a.startLine ? `${a.name} L${a.startLine}–${a.endLine}` : t('acp.chat.selectionFragment', { name: a.name });
   }
 
   /** Diff por líneas, simple: lo quitado y lo agregado. */
@@ -708,16 +715,16 @@
     ];
   }
 
-  const statusText: Record<string, string> = {
-    installing: 'Descargando e instalando el agente…',
-    starting: 'Iniciando el agente…',
-  };
+  const statusText = $derived<Record<string, string>>({
+    installing: t('acp.chat.installing'),
+    starting: t('acp.chat.starting'),
+  });
 
   const compact = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
   function formatCost(c: { amount: number; currency: string }) {
     try {
-      return new Intl.NumberFormat(undefined, { style: 'currency', currency: c.currency || 'USD', maximumFractionDigits: 4 }).format(c.amount);
+      return new Intl.NumberFormat(i18n.locale, { style: 'currency', currency: c.currency || 'USD', maximumFractionDigits: 4 }).format(c.amount);
     } catch {
       return `${c.amount} ${c.currency}`;
     }
@@ -751,7 +758,13 @@
     conv.currentMode && conv.currentMode !== conv.session?.current_mode ? modeBadge(conv.currentMode, currentModeName) : '',
   );
   const optsTitle = $derived(
-    [currentModelName && `Modelo: ${currentModelName}`, currentEffortName && `Esfuerzo: ${currentEffortName}`, currentModeName && `Modo: ${currentModeName}`].filter(Boolean).join('\n'),
+    [
+      currentModelName && t('acp.chat.modelLabel', { name: currentModelName }),
+      currentEffortName && t('acp.chat.effortLabel', { name: currentEffortName }),
+      currentModeName && t('acp.chat.modeLabel', { name: currentModeName }),
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
 
   // Cuota de la cuenta: el límite más apretado del modelo elegido
@@ -793,13 +806,13 @@
       {:else if conv.connection === 'idle' && conv.items.length === 0}
         <div class="acp-empty">
           <button type="button" class="acp-btn primary" onclick={() => conv.connect()}>
-            <Bot size={14} /> Conectar con {conv.agent?.name ?? "el agente"}
+            <Bot size={14} /> {t('acp.chat.connectWith', { agent: conv.agent?.name ?? t('acp.chat.fallbackAgentLower') })}
           </button>
         </div>
       {/if}
 
       {#if conv.plan.length}
-        <div class="acp-plan" aria-label="Plan del agente">
+        <div class="acp-plan" aria-label={t('acp.chat.planAria')}>
           {#each conv.plan as entry, i (i)}
             <div class="acp-plan-entry" data-status={entry.status}>
               {#if entry.status === 'completed'}<CircleCheck size={13} />{:else if entry.status === 'in_progress'}<CircleDot
@@ -816,22 +829,22 @@
           <!-- Mensaje de otro agente: cerrado; al abrirlo se ve renderizado (tu agente ya lo resume) -->
           <details class="acp-msg user from-agent acp-incoming">
             <summary class="acp-from">
-              {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
-              De {item.from.agent} · {item.from.handle}
+              {#if item.from.vault}<OctopusIcon size={12} title={t('acp.chat.fromAnotherVault')} />{/if}
+              {t('acp.chat.fromHeader', { agent: item.from.agent, handle: item.from.handle })}
               <span class="acp-incoming-size">{incomingSize(item.text)}</span>
             </summary>
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <div class="markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
-            <button type="button" class="acp-incoming-copy" title="Copiar el texto tal como llegó" onclick={() => navigator.clipboard?.writeText(item.text)}>
-              <Copy size={11} /> Copiar texto
+            <button type="button" class="acp-incoming-copy" title={t('acp.chat.copyIncomingTitle')} onclick={() => navigator.clipboard?.writeText(item.text)}>
+              <Copy size={11} /> {t('acp.chat.copyText')}
             </button>
           </details>
         {:else if item.type === 'user'}
           <div class="acp-user-wrap">
           <div class="acp-msg user markdown" class:from-agent={!!item.from}>
             {#if item.from}<div class="acp-from">
-                {#if item.from.vault}<OctopusIcon size={12} title="De otra bóveda de Synapse" />{/if}
-                De {item.from.agent} · {item.from.handle}
+                {#if item.from.vault}<OctopusIcon size={12} title={t('acp.chat.fromAnotherVault')} />{/if}
+                {t('acp.chat.fromHeader', { agent: item.from.agent, handle: item.from.handle })}
               </div>{/if}
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <div class="acp-user-text" onclick={onMessageClick}>{@html renderUserMarkdown(item.text, item.mentions)}</div>
@@ -839,7 +852,7 @@
               <div class="acp-chips sent">
                 {#each item.attachments as a, i (i)}
                   {#if a.kind === 'image'}
-                    <button type="button" class="acp-image-btn" title="Ver {a.name}" onclick={() => openImage(a)}>
+                    <button type="button" class="acp-image-btn" title={t('acp.chat.viewImage', { name: a.name })} onclick={() => openImage(a)}>
                       <img class="acp-sent-image" src="data:{a.mimeType};base64,{a.data}" alt={a.name} />
                     </button>
                   {:else}
@@ -852,8 +865,8 @@
             {/if}
           </div>
             <div class="acp-msg-actions">
-              <button type="button" class="acp-copy-user" title="Copiar el texto tal como lo escribiste (para reusarlo)" onclick={() => copyMarkdown(String(item.id), item.text)}>
-                {#if copied === String(item.id)}<Check size={11} /> Copiado{:else}<Copy size={11} /> Copiar{/if}
+              <button type="button" class="acp-copy-user" title={t('acp.chat.copyUserTitle')} onclick={() => copyMarkdown(String(item.id), item.text)}>
+                {#if copied === String(item.id)}<Check size={11} /> {t('replyCopy.done')}{:else}<Copy size={11} /> {t('replyCopy.copy')}{/if}
               </button>
             </div>
           </div>
@@ -890,9 +903,9 @@
           </div>
         {:else if item.type === 'thought'}
           <details class="acp-thought">
-            <summary title="Razonamiento del agente">
+            <summary title={t('acp.chat.thoughtSummaryTitle')}>
               <span aria-hidden="true">🧠</span>
-              <span class="acp-thought-label">Razonamiento<span class="acp-thought-ellipsis" aria-hidden="true">…</span></span>
+              <span class="acp-thought-label">{t('acp.chat.thoughtLabel')}<span class="acp-thought-ellipsis" aria-hidden="true">…</span></span>
             </summary>
             <div class="acp-thought-body">{item.text.trim()}</div>
           </details>
@@ -906,12 +919,12 @@
                     <span class="acp-tool-title">{item.title}</span>
                     {#if item.status}<span class="acp-tool-status">{item.status}</span>{/if}
                   </summary>
-                  {#if item.kind}<div class="acp-tool-loc">Tipo: {item.kind}</div>{/if}
+                  {#if item.kind}<div class="acp-tool-loc">{t('acp.chat.toolKind', { kind: item.kind })}</div>{/if}
                   {#each item.locations as loc, i (i)}
                     <div class="acp-tool-loc">{relOf(loc.path)}{loc.line ? `:${loc.line}` : ''}</div>
                   {/each}
                   {#if item.rawInput != null}
-                    <div class="acp-tool-label">Entrada</div>
+                    <div class="acp-tool-label">{t('acp.chat.toolInput')}</div>
                     <pre class="acp-tool-text">{formatRaw(item.rawInput)}</pre>
                   {/if}
                   {#each item.content as c, i (i)}
@@ -927,11 +940,11 @@
                     {/if}
                   {/each}
                   {#if item.rawOutput != null}
-                    <div class="acp-tool-label">Salida</div>
+                    <div class="acp-tool-label">{t('acp.chat.toolOutput')}</div>
                     <pre class="acp-tool-text">{formatRaw(item.rawOutput)}</pre>
                   {/if}
                   {#if item.rawInput == null && item.rawOutput == null && !item.content.length && !item.locations.length}
-                    <div class="acp-tool-loc empty">El agente no envió más detalles de esta herramienta.</div>
+                    <div class="acp-tool-loc empty">{t('acp.chat.toolNoDetails')}</div>
                   {/if}
                 </details>
               {/snippet}
@@ -966,7 +979,7 @@
               </div>
             {:else}
               <div class="acp-permission-done">
-                {item.request.options.find((o) => o.id === item.answered)?.name ?? 'Cancelado'}
+                {item.request.options.find((o) => o.id === item.answered)?.name ?? t('acp.chat.cancelled')}
               </div>
             {/if}
           </div>
@@ -982,18 +995,18 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div class="acp-msg info markdown" onclick={onMessageClick}>{@html renderAgentMarkdown(item.text)}</div>
         {:else if item.type === 'compact'}
-          <div class="acp-compact-marker" role="separator">— contexto compactado —</div>
+          <div class="acp-compact-marker" role="separator">{t('acp.chat.compactMarker')}</div>
         {:else if item.type === 'context'}
           <details class="acp-context">
             <summary>{t('aside.contextSent')} <span class="acp-incoming-size">{incomingSize(item.text)}</span></summary>
             <pre>{item.text}</pre>
           </details>
         {:else if item.type === 'fork'}
-          <div class="acp-compact-marker acp-fork-marker" role="separator" title={item.title}>— bifurcada de {item.title || item.handle} —</div>
+          <div class="acp-compact-marker acp-fork-marker" role="separator" title={item.title}>{t('acp.chat.forkMarker', { label: item.title || item.handle })}</div>
         {/if}
       {/each}
       {#if busy}
-        <div class="acp-status acp-thinking"><span class="acp-brain" aria-hidden="true">🧠</span> Pensando…</div>
+        <div class="acp-status acp-thinking"><span class="acp-brain" aria-hidden="true">🧠</span> {t('acp.chat.thinking')}</div>
       {/if}
       <!-- Marca de agua: logo del agente en uso, fija en la esquina inferior derecha -->
       <div class="acp-watermark" aria-hidden="true" style:opacity={appSettings.agentWatermark / 100}><AgentIcon agentId={conv.agentId} size={72} /></div>
@@ -1007,7 +1020,7 @@
               type="button"
               class="acp-opts-btn"
               title={optsTitle}
-              aria-label="Modelo, esfuerzo y modo del agente"
+              aria-label={t('acp.chat.optsAria')}
               aria-haspopup="menu"
               aria-expanded={optsOpen}
               onclick={(e) => {
@@ -1022,7 +1035,7 @@
             {#if optsOpen}
               <div class="acp-opts-menu" role="menu">
                 {#if conv.session.models.length}
-                  <div class="acp-opts-head">Modelo</div>
+                  <div class="acp-opts-head">{t('acp.chat.modelMenuHead')}</div>
                   {#each conv.session.models as m (m.id)}
                     <button
                       type="button"
@@ -1037,7 +1050,7 @@
                   {/each}
                 {/if}
                 {#if conv.session.efforts.length}
-                  <div class="acp-opts-head">Esfuerzo</div>
+                  <div class="acp-opts-head">{t('acp.chat.effortMenuHead')}</div>
                   {#each conv.session.efforts as e (e.id)}
                     <button
                       type="button"
@@ -1053,7 +1066,7 @@
                   {/each}
                 {/if}
                 {#if !isAside && conv.session.modes.length}
-                  <div class="acp-opts-head">Modo</div>
+                  <div class="acp-opts-head">{t('acp.chat.modeMenuHead')}</div>
                   {#each conv.session.modes as m (m.id)}
                     <button
                       type="button"
@@ -1076,7 +1089,13 @@
           <div
             class="acp-usage"
             class:warn={usagePct >= 80}
-            title="Ventana de contexto del modelo: {conv.usage.used.toLocaleString()} de {conv.usage.size.toLocaleString()} tokens ({compact(conv.usage.used)} / {compact(conv.usage.size)}){conv.usage.cost ? ` · ${formatCost(conv.usage.cost)}` : ''}"
+            title={t('acp.chat.contextTitle', {
+              used: conv.usage.used.toLocaleString(),
+              size: conv.usage.size.toLocaleString(),
+              compactUsed: compact(conv.usage.used),
+              compactSize: compact(conv.usage.size),
+              costPart: conv.usage.cost ? ` · ${formatCost(conv.usage.cost)}` : '',
+            })}
           >
             <div class="acp-usage-bar" style="width: {usagePct}%"></div>
           </div>
@@ -1103,12 +1122,12 @@
             class="acp-compact"
             class:shown={usagePct >= 60 || conv.compacting}
             class:warn={usagePct >= 80}
-            title="Pide al agente que resuma su contexto (/compact) para liberar espacio"
+            title={t('acp.chat.compactTitle')}
             disabled={conv.compacting || busy}
             onclick={() => conv.compact()}
           >
             <Shrink size={11} />
-            {conv.compacting ? 'Compactando…' : 'Compactar'}
+            {conv.compacting ? t('acp.chat.compacting') : t('acp.chat.compact')}
           </button>
         {/if}
       </div>
@@ -1151,25 +1170,25 @@
         </div>
       {/if}
       {#if conv.queue.length}
-        <div class="acp-queue" aria-label="Mensajes en cola">
+        <div class="acp-queue" aria-label={t('acp.chat.queueAria')}>
           {#each conv.queue as q (q.id)}
             <div class="acp-queued">
               <Clock size={11} />
               <span class="acp-queued-text" title={q.text}>{q.text}</span>
               {#if q.attachments.length}<span class="acp-queued-att">+{q.attachments.length}</span>{/if}
-              <button type="button" aria-label="Quitar de la cola" title="Quitar de la cola" onclick={() => conv.unqueue(q.id)}><X size={10} /></button>
+              <button type="button" aria-label={t('acp.chat.unqueueLabel')} title={t('acp.chat.unqueueLabel')} onclick={() => conv.unqueue(q.id)}><X size={10} /></button>
             </div>
           {/each}
-          <div class="acp-queue-hint">En cola: se envía al terminar el turno · ↑ edita el último · Detener lo devuelve a la caja</div>
+          <div class="acp-queue-hint">{t('acp.chat.queueHint')}</div>
         </div>
       {/if}
       {#if conv.pendingAttachments.length || minimizedAsides}
         <div class="acp-chips">
           {#each conv.pendingAttachments as a (a.kind + a.path + (a.kind === 'selection' ? a.startLine : ''))}
             <span class="acp-chip" class:image={a.kind === 'image'} title={a.kind === 'image' ? imageTitle : a.path}>
-              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title="Ver la imagen" onclick={() => openImage(a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else if a.name.endsWith('/')}<Folder size={11} />{:else}<FileText size={11} />{/if}
+              {#if a.kind === 'image'}<button type="button" class="acp-image-btn" title={t('acp.chat.viewRawImage')} onclick={() => openImage(a)}><img src="data:{a.mimeType};base64,{a.data}" alt="" /></button><ImageIcon size={11} />{:else if a.kind === 'selection'}<TextSelect size={11} />{:else if a.name.endsWith('/')}<Folder size={11} />{:else}<FileText size={11} />{/if}
               {chipLabel(a)}
-              <button type="button" aria-label="Quitar {chipLabel(a)}" onclick={() => conv.detach(a)}><X size={10} /></button>
+              <button type="button" aria-label={t('acp.chat.removeAttachment', { name: chipLabel(a) })} onclick={() => conv.detach(a)}><X size={10} /></button>
             </span>
           {/each}
           {#if minimizedAsides}
@@ -1202,18 +1221,18 @@
           placeholder={isAside
             ? t('aside.placeholder')
             : busy
-            ? `${conv.agent?.name ?? 'El agente'} está trabajando: Enter deja el mensaje en cola, /btw pregunta aparte`
+            ? t('acp.chat.placeholderBusy', { agent: conv.agent?.name ?? t('acp.store.fallbackAgentName') })
             : ready
-            ? `Escribe a ${conv.agent?.name ?? 'el agente'}… @ nota, / comando, Enter envía`
-            : 'El agente no está conectado'}
+            ? t('acp.chat.placeholderReady', { agent: conv.agent?.name ?? t('acp.chat.fallbackAgentLower') })
+            : t('acp.chat.placeholderDisconnected')}
           disabled={!ready}
         ></textarea>
         {#if busy}
-          <button type="button" class="acp-send" title="Detener (lo que esté en cola vuelve a la caja)" onclick={stopTurn}>
+          <button type="button" class="acp-send" title={t('acp.chat.stopTitle')} onclick={stopTurn}>
             <Square size={14} />
           </button>
         {:else}
-          <button type="submit" class="acp-send" title="Enviar" disabled={!ready || !conv.draft.trim()}>
+          <button type="submit" class="acp-send" title={t('acp.chat.sendTitle')} disabled={!ready || !conv.draft.trim()}>
             <Send size={14} />
           </button>
         {/if}

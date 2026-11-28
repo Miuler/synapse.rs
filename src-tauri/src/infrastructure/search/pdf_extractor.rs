@@ -13,7 +13,7 @@ pub fn extract_pdf_text(
     max_extracted_chars: usize,
     max_word_length: usize,
 ) -> Result<(String, bool), String> {
-    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Failed to decode PDF: {e}"))?;
 
     let mut page_numbers: Vec<u32> = doc.get_pages().keys().copied().collect();
     page_numbers.sort_unstable();
@@ -59,7 +59,7 @@ pub fn extract_pdf_page_range(
     end_page: usize,
     max_chars_per_page: usize,
 ) -> Result<PdfInspectionResult, String> {
-    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Failed to decode PDF: {e}"))?;
 
     let pages_map = doc.get_pages();
     let total_pages = pages_map.len();
@@ -108,7 +108,7 @@ pub fn search_pdf_content(
     query: &str,
     max_results: usize,
 ) -> Result<Vec<PdfPageSnippet>, String> {
-    let doc = Document::load_mem(bytes).map_err(|e| format!("Error al decodificar PDF: {e}"))?;
+    let doc = Document::load_mem(bytes).map_err(|e| format!("Failed to decode PDF: {e}"))?;
 
     let query_lower = query.to_lowercase();
     let pages_map = doc.get_pages();

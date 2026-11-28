@@ -39,7 +39,7 @@ pub async fn get_vault_git_status(
         Some(p) => {
             let p = PathBuf::from(p);
             if !state.allows_path(&p) && !state.is_known_vault(&p) {
-                return Err(format!("Ruta no autorizada: {}", p.display()));
+                return Err(format!("Unauthorized path: {}", p.display()));
             }
             p
         }
@@ -70,7 +70,7 @@ pub async fn get_vault_git_status(
 pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .track_files_use_case
@@ -89,7 +89,7 @@ pub fn git_add_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(
 pub fn git_restore_paths(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .revert_files_use_case
@@ -111,7 +111,7 @@ pub fn git_restore_staged_paths(
 ) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .untrack_files_use_case
@@ -134,7 +134,7 @@ pub fn git_commit_paths(
 ) -> Result<String, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .save_version_use_case
@@ -159,7 +159,7 @@ pub fn get_git_file_diff(
 ) -> Result<FileDiff, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .get_file_diff_use_case
@@ -182,12 +182,12 @@ fn read_vault_text(vault_path: &std::path::Path, path: &str) -> Result<String, S
     let file = vault
         .join(path)
         .canonicalize()
-        .map_err(|e| format!("No se pudo abrir {}: {}", path, e))?;
+        .map_err(|e| format!("Could not open {}: {}", path, e))?;
     if !file.starts_with(&vault) {
-        return Err(format!("{} está fuera de la bóveda", path));
+        return Err(format!("{}: path outside the vault", path));
     }
     std::fs::read_to_string(&file)
-        .map_err(|_| format!("{} no es un archivo de texto y no se puede comparar", path))
+        .map_err(|_| format!("{}: not a text file and cannot be compared", path))
 }
 
 /// Diff de dos archivos de la bóveda; no depende de git.
@@ -199,7 +199,7 @@ pub fn diff_vault_files(
 ) -> Result<FileDiff, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     let old_content = read_vault_text(vault_path, &old_path)?;
     let new_content = read_vault_text(vault_path, &new_path)?;
@@ -222,7 +222,7 @@ pub fn diff_git_revisions(
 ) -> Result<FileDiff, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     let read = |revision: String| -> Result<String, String> {
         let rev = state
@@ -285,7 +285,7 @@ pub fn get_git_file_revision(
 ) -> Result<FileRevision, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .get_file_revision_use_case
@@ -311,7 +311,7 @@ pub fn get_git_image_diff(
 ) -> Result<ImageDiff, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .get_image_diff_use_case
@@ -336,7 +336,7 @@ pub fn get_git_file_log(
 ) -> Result<FileVersionHistory, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     state
         .get_file_version_history_use_case
@@ -356,14 +356,14 @@ pub fn get_git_file_log(
 fn repo_dir(state: &State<'_, AppState>, repo: Option<&str>) -> Result<PathBuf, String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     let repo = repo.unwrap_or("").trim_matches('/');
     if repo.is_empty() {
         return Ok(vault_path.clone());
     }
     if repo.split('/').any(|c| c == ".." || c.is_empty()) {
-        return Err(format!("Repositorio no válido: {repo}"));
+        return Err(format!("Invalid repository: {repo}"));
     }
     Ok(vault_path.join(repo))
 }
@@ -513,7 +513,7 @@ pub fn git_delete_ref(
     let target = match kind.as_str() {
         "tag" => RefToDelete::Tag(name),
         "branch" => RefToDelete::Branch { name, force: force.unwrap_or(false) },
-        other => return Err(format!("Tipo de referencia no válido: {other}")),
+        other => return Err(format!("Invalid ref type: {other}")),
     };
     state.delete_ref_use_case.execute(DeleteRefCommand { vault_path, target })
 }
@@ -602,8 +602,8 @@ pub async fn set_git_path(
             && !state.allowed_paths.has_program(std::path::Path::new(p))
         {
             crate::infrastructure::config::allowed_paths::confirm_native(
-                "Ejecutable de Git",
-                format!("Synapse ejecutará este programa como Git:\n\n{p:?}\n\n¿Usarlo?"),
+                "Git Executable",
+                format!("Synapse will run this program as Git:\n\n{p:?}\n\nUse it?"),
             )
             .await?;
         }
@@ -616,7 +616,7 @@ pub async fn set_git_path(
 pub async fn pick_git_executable(state: State<'_, AppState>) -> Result<Option<String>, String> {
     #[cfg(feature = "desktop")]
     {
-        let mut dialog = rfd::AsyncFileDialog::new().set_title("Elige el ejecutable de Git");
+        let mut dialog = rfd::AsyncFileDialog::new().set_title("Select Git executable");
         if cfg!(windows) {
             dialog = dialog.add_filter("git.exe", &["exe"]);
             if std::path::Path::new(r"C:\Program Files\Git\cmd").is_dir() {

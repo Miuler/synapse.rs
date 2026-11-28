@@ -62,10 +62,10 @@ impl GlobalThemeRepositoryImpl {
 
     fn write_config(&self, config: &Value) -> Result<(), String> {
         std::fs::create_dir_all(&self.config_dir)
-            .map_err(|e| format!("No se pudo crear {}: {e}", self.config_dir.display()))?;
+            .map_err(|e| format!("Failed to create {}: {e}", self.config_dir.display()))?;
         let body = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
         std::fs::write(self.config_path(), format!("{HEADER}{body}\n"))
-            .map_err(|e| format!("No se pudo guardar {}: {e}", self.config_path().display()))
+            .map_err(|e| format!("Failed to save {}: {e}", self.config_path().display()))
     }
 
     fn css_files(dir: &Path) -> Vec<(String, PathBuf)> {

@@ -4,6 +4,7 @@
   import GitFileLogDialog from './GitFileLogDialog.svelte';
   import GitRepoLogDialog from './GitRepoLogDialog.svelte';
   import GitMergeDialog from './GitMergeDialog.svelte';
+  import { t } from '@shared/lib/i18n';
   import {
     gitDialogState,
     gitApi,
@@ -56,22 +57,22 @@
       const worktree = typeof status.worktree === 'string' ? status.worktree : null;
 
       let statusKind: GitCommitFileItem['statusKind'] = 'modified';
-      let statusLabel = 'Modificado';
+      let statusLabel = t('gitUi.status.modified');
       let isDeleted = false;
 
       if (worktree === 'D' || index === 'D') {
         statusKind = 'deleted';
-        statusLabel = 'Eliminado';
+        statusLabel = t('gitUi.status.deleted');
         isDeleted = true;
       } else if (worktree === '?' || index === '?') {
         statusKind = 'untracked';
-        statusLabel = 'No rastreado';
+        statusLabel = t('gitUi.status.untracked');
       } else if (index === 'A') {
         statusKind = 'added';
-        statusLabel = 'Nuevo';
+        statusLabel = t('gitUi.status.added');
       } else if (index && !worktree) {
         statusKind = 'staged';
-        statusLabel = 'En stage';
+        statusLabel = t('gitUi.status.staged');
       }
 
       list.push({ path, statusKind, statusLabel, isDeleted });
@@ -92,8 +93,8 @@
       if (onToast) {
         onToast(
           targets.length > 1
-            ? `${targets.length} elementos confirmados (git commit)`
-            : 'Commit realizado con éxito'
+            ? t('gitUi.commitToast.multiple', { count: targets.length })
+            : t('gitUi.commitToast.single')
         );
       }
       if (onRefreshGit) {
@@ -104,7 +105,7 @@
       console.error('Error al realizar git commit:', err);
       const msg = err instanceof Error ? err.message : String(err);
       commitErrorMessage = msg;
-      if (onToast) onToast(`Error en git commit: ${msg}`);
+      if (onToast) onToast(t('gitUi.commitToast.error', { detail: msg }));
     } finally {
       isCommitting = false;
     }

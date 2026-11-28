@@ -123,7 +123,7 @@ pub async fn confirm_native(title: &str, text: String) -> Result<(), String> {
     // y por variable de entorno, que la interfaz no puede cambiar.
     #[cfg(debug_assertions)]
     if let Ok(answer) = std::env::var("SYNAPSE_E2E_CONFIRM") {
-        return if answer == "yes" { Ok(()) } else { Err("Cancelado".to_string()) };
+        return if answer == "yes" { Ok(()) } else { Err("Cancelled".to_string()) };
     }
     #[cfg(feature = "desktop")]
     {
@@ -134,12 +134,12 @@ pub async fn confirm_native(title: &str, text: String) -> Result<(), String> {
             .set_buttons(rfd::MessageButtons::YesNo)
             .show()
             .await;
-        if answer == rfd::MessageDialogResult::Yes { Ok(()) } else { Err("Cancelado".to_string()) }
+        if answer == rfd::MessageDialogResult::Yes { Ok(()) } else { Err("Cancelled".to_string()) }
     }
     #[cfg(not(feature = "desktop"))]
     {
         let _ = (title, text);
-        Err("Requiere confirmación en el escritorio".to_string())
+        Err("Desktop confirmation required".to_string())
     }
 }
 

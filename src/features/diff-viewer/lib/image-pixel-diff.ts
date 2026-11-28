@@ -3,6 +3,7 @@
 // imágenes de distinto tamaño también se comparan y lo que sobra de una cuenta como diferencia.
 import type { GitImageDiffResult } from '@shared/repositories';
 import { pixelDiff } from './pixel-diff';
+import { t } from '@shared/lib/i18n';
 
 /** Lado máximo del lienzo, para no reventar la memoria con imágenes enormes. */
 const MAX_SIDE = 8000;
@@ -11,7 +12,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('No se pudo cargar una de las imágenes'));
+    img.onerror = () => reject(new Error(t('diffViewer.errors.imageLoadFailed')));
     img.src = src;
   });
 }
@@ -26,7 +27,7 @@ export async function imagePixelDiff(beforeSrc: string, afterSrc: string, path: 
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) throw new Error('No se pudo crear el lienzo');
+    if (!ctx) throw new Error(t('diffViewer.errors.canvasCreateFailed'));
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0);

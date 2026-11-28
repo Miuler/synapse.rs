@@ -47,14 +47,14 @@ impl AgentProfile {
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
             return Err(
-                "El identificador del agente solo admite letras, números, «-» y «_»".into(),
+                "agent ID may only contain letters, numbers, «-», and «_»".into(),
             );
         }
         if name.is_empty() {
-            return Err("El agente necesita un nombre".into());
+            return Err("agent requires a name".into());
         }
         if launch.command.trim().is_empty() {
-            return Err("El agente necesita un comando".into());
+            return Err("agent requires a command".into());
         }
         Ok(Self {
             id: id.to_string(),

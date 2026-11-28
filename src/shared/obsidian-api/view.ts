@@ -1,3 +1,4 @@
+import { t } from '@shared/lib/i18n';
 import { Component } from './component';
 import { createDiv } from './dom';
 import type { TFile } from './types';
@@ -145,7 +146,7 @@ export abstract class TextFileView extends ItemView {
   }
 
   override getDisplayText(): string {
-    return this.file ? this.file.basename : 'Archivo';
+    return this.file ? this.file.basename : t('obsidian.defaultFileTitle');
   }
 }
 

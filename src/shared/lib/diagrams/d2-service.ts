@@ -1,4 +1,5 @@
 import type { RenderOptions } from '@d2lang/d2';
+import { t } from '@shared/lib/i18n';
 
 export interface D2SyntaxError {
   line: number; // 1-indexed
@@ -31,30 +32,30 @@ export interface D2AutocompleteItem {
 
 // Catálogo de motores disponibles en el build WASM
 export const D2_ENGINES = [
-  { label: 'dagre', detail: 'Layout jerárquico por defecto (rápido)', apply: 'dagre' },
-  { label: 'elk', detail: 'Eclipse Layout Kernel (avanzado, soporta puertos)', apply: 'elk' },
-  { label: 'tala', detail: 'TALA (diseñado para diagramas de arquitectura)', apply: 'tala' },
+  { label: 'dagre', get detail() { return t('diagramsCatalog.d2EngineDagre'); }, apply: 'dagre' },
+  { label: 'elk', get detail() { return t('diagramsCatalog.d2EngineElk'); }, apply: 'elk' },
+  { label: 'tala', get detail() { return t('diagramsCatalog.d2EngineTala'); }, apply: 'tala' },
 ];
 
 // Catálogo de temas oficiales de D2 con sus IDs
 export const D2_THEMES = [
-  { id: 0, label: '0', detail: 'Neutral Default (Claro)' },
-  { id: 1, label: '1', detail: 'Neutral Grey (Claro)' },
-  { id: 3, label: '3', detail: 'Flagship Terrastruct (Claro)' },
-  { id: 4, label: '4', detail: 'Cool Classics (Claro)' },
-  { id: 5, label: '5', detail: 'Mixed Berry Blue (Claro)' },
-  { id: 6, label: '6', detail: 'Grape Soda (Claro)' },
-  { id: 7, label: '7', detail: 'Aubergine (Claro)' },
-  { id: 8, label: '8', detail: 'Colorblind Clear (Claro)' },
-  { id: 100, label: '100', detail: 'Vanilla Nitro Cola (Claro)' },
-  { id: 101, label: '101', detail: 'Orange Creamsicle (Claro)' },
-  { id: 102, label: '102', detail: 'Shirley Temple (Claro)' },
-  { id: 103, label: '103', detail: 'Earth Tones (Claro)' },
-  { id: 104, label: '104', detail: 'Everglade Green (Claro)' },
-  { id: 105, label: '105', detail: 'Buttered Toast (Claro)' },
-  { id: 200, label: '200', detail: 'Dark Mauve (Oscuro)' },
-  { id: 201, label: '201', detail: 'Dark Flagship Terrastruct (Oscuro)' },
-  { id: 300, label: '300', detail: 'Terminal (Oscuro / Monocromo)' },
+  { id: 0, label: '0', get detail() { return t('diagramsCatalog.d2Theme0'); } },
+  { id: 1, label: '1', get detail() { return t('diagramsCatalog.d2Theme1'); } },
+  { id: 3, label: '3', get detail() { return t('diagramsCatalog.d2Theme3'); } },
+  { id: 4, label: '4', get detail() { return t('diagramsCatalog.d2Theme4'); } },
+  { id: 5, label: '5', get detail() { return t('diagramsCatalog.d2Theme5'); } },
+  { id: 6, label: '6', get detail() { return t('diagramsCatalog.d2Theme6'); } },
+  { id: 7, label: '7', get detail() { return t('diagramsCatalog.d2Theme7'); } },
+  { id: 8, label: '8', get detail() { return t('diagramsCatalog.d2Theme8'); } },
+  { id: 100, label: '100', get detail() { return t('diagramsCatalog.d2Theme100'); } },
+  { id: 101, label: '101', get detail() { return t('diagramsCatalog.d2Theme101'); } },
+  { id: 102, label: '102', get detail() { return t('diagramsCatalog.d2Theme102'); } },
+  { id: 103, label: '103', get detail() { return t('diagramsCatalog.d2Theme103'); } },
+  { id: 104, label: '104', get detail() { return t('diagramsCatalog.d2Theme104'); } },
+  { id: 105, label: '105', get detail() { return t('diagramsCatalog.d2Theme105'); } },
+  { id: 200, label: '200', get detail() { return t('diagramsCatalog.d2Theme200'); } },
+  { id: 201, label: '201', get detail() { return t('diagramsCatalog.d2Theme201'); } },
+  { id: 300, label: '300', get detail() { return t('diagramsCatalog.d2Theme300'); } },
   { id: 301, label: '301', detail: 'Terminal Grayscale' },
   { id: 302, label: '302', detail: 'Origami' },
   { id: 303, label: '303', detail: 'C4 Architecture' },
@@ -229,7 +230,7 @@ export async function validateD2(code: string): Promise<D2ValidationResult> {
     return { valid: true, errors: [], errorText: null };
   } catch (err: any) {
     const errors = parseD2Errors(err);
-    const errorText = errors.map((e) => `Línea ${e.line}, col ${e.column}: ${e.message}`).join('\n') || String(err?.message || err);
+    const errorText = errors.map((e) => t('diagramsCatalog.lineCol', { line: e.line, col: e.column, message: e.message })).join('\n') || String(err?.message || err);
     return {
       valid: false,
       errors,
@@ -284,7 +285,7 @@ export async function renderD2Svg(
     return { svg, error: null, errors: [] };
   } catch (err: any) {
     const errors = parseD2Errors(err);
-    const errorMsg = errors.map((e) => `Línea ${e.line}, col ${e.column}: ${e.message}`).join('\n') || String(err?.message || err);
+    const errorMsg = errors.map((e) => t('diagramsCatalog.lineCol', { line: e.line, col: e.column, message: e.message })).join('\n') || String(err?.message || err);
     return { svg: null, error: errorMsg, errors };
   }
 }

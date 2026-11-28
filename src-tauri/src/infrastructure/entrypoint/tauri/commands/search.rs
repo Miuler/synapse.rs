@@ -113,7 +113,7 @@ pub async fn full_text_search(
         })
     })
     .await
-    .map_err(|e| format!("Error en tarea de búsqueda: {}", e))?
+    .map_err(|e| format!("Search task error: {}", e))?
 }
 
 #[tauri::command(async)]

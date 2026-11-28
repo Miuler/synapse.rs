@@ -83,7 +83,7 @@
   "content": [
     {
       "type": "text",
-      "text": "La carpeta 'no-existe' no existe o no es un directorio"
+      "text": "Folder 'no-existe' does not exist or is not a directory"
     },
     {
       "type": "text",
@@ -167,7 +167,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Error al leer nota: El archivo no existe en \"<VAULT>/no-existe.md\""
+      "text": "Failed to read note: File does not exist at \"<VAULT>/no-existe.md\""
     },
     {
       "type": "text",
@@ -201,7 +201,7 @@
   "content": [
     {
       "type": "text",
-      "text": "El archivo PDF 'no.pdf' no existe"
+      "text": "PDF file 'no.pdf' does not exist"
     },
     {
       "type": "text",
@@ -275,7 +275,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03', esperado: 'sha256:malo'. Relee el documento antes de escribir."
+      "text": "OCC concurrency conflict: the file changed on disk. Current hash: 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03', expected: 'sha256:malo'. Re-read the document before writing."
     }
   ],
   "isError": true
@@ -295,7 +295,7 @@
   "content": [
     {
       "type": "text",
-      "text": "La nota 'carpeta-nueva/nota.md' ya existe (hash 'sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da', 4 líneas). Usa read_note para ver su contenido, patch_note para cambiar una parte, o reenvía con expected_hash (recomendado) u overwrite: true para reemplazarla."
+      "text": "Note 'carpeta-nueva/nota.md' already exists (hash 'sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da', 4 lines). Use read_note to inspect it, patch_note to edit a section, or resend with expected_hash (recommended) or overwrite: true to replace it."
     }
   ],
   "isError": true
@@ -325,7 +325,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Se indicó expected_hash, pero la nota 'no-existe.md' no existe: pudo moverse o borrarse. Comprueba la ruta; para crearla, omite expected_hash."
+      "text": "expected_hash was specified, but note 'no-existe.md' does not exist: it may have been moved or deleted. Check the path; to create it, omit expected_hash."
     }
   ],
   "isError": true
@@ -355,7 +355,7 @@
   "content": [
     {
       "type": "text",
-      "text": "No se pudo encontrar 'old_text' en el documento (se intentó coincidencia exacta, normalización CRLF y anclaje difuso por líneas). en 'recetas/pan.md'"
+      "text": "Could not find 'old_text' in the document (tried exact match, CRLF normalization, and fuzzy line anchoring). in 'recetas/pan.md'"
     }
   ],
   "isError": true
@@ -385,7 +385,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Encabezado de sección 'Nada' no encontrado"
+      "text": "Section heading 'Nada' not found"
     }
   ],
   "isError": true
@@ -425,7 +425,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"error_count\": 1,\n  \"errors\": [\n    {\n      \"error\": \"Archivo origen no existe\",\n      \"source\": \"no-existe.md\"\n    }\n  ],\n  \"errors_count\": 1,\n  \"moved\": [],\n  \"moved_count\": 0\n}"
+      "text": "{\n  \"error_count\": 1,\n  \"errors\": [\n    {\n      \"error\": \"Source file does not exist\",\n      \"source\": \"no-existe.md\"\n    }\n  ],\n  \"errors_count\": 1,\n  \"moved\": [],\n  \"moved_count\": 0\n}"
     }
   ],
   "isError": false
@@ -455,7 +455,7 @@
   "content": [
     {
       "type": "text",
-      "text": "La carpeta destino no puede estar dentro de la carpeta origen"
+      "text": "Destination folder cannot be inside the source folder"
     }
   ],
   "isError": true
@@ -465,7 +465,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Conflicto de concurrencia optimista (OCC): el hash esperado 'sha256:malo' no coincide con el hash actual de la nota 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03'"
+      "text": "Optimistic concurrency conflict (OCC): expected hash 'sha256:malo' does not match current note hash 'sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03'"
     }
   ],
   "isError": true
@@ -485,7 +485,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Error al eliminar nota: El archivo no existe en \"<VAULT>/  \""
+      "text": "Failed to delete note: File does not exist at \"<VAULT>/  \""
     }
   ],
   "isError": true

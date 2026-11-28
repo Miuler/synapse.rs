@@ -1,17 +1,18 @@
 <script lang="ts">
   // Selector del repositorio sobre el que actúa un diálogo de git (solo con varios repositorios).
   import { FolderGit2 } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { gitDialogState, repoLabel } from '@entities/git';
 
   let { disabled = false }: { disabled?: boolean } = $props();
 </script>
 
 {#if gitDialogState.repos.length > 1}
-  <label class="git-repo-select" title="Repositorio">
+  <label class="git-repo-select" title={t('gitUi.repository')}>
     <FolderGit2 size={13} />
-    <select bind:value={gitDialogState.repo} {disabled} aria-label="Repositorio">
+    <select bind:value={gitDialogState.repo} {disabled} aria-label={t('gitUi.repository')}>
       {#each gitDialogState.repos as r (r.path)}
-        <option value={r.path}>{r.path || `${repoLabel('')} (raíz)`}{r.branch ? ` · ${r.branch}` : ''}</option>
+        <option value={r.path}>{r.path || `${repoLabel('')} ${t('gitUi.rootTag')}`}{r.branch ? ` · ${r.branch}` : ''}</option>
       {/each}
     </select>
   </label>

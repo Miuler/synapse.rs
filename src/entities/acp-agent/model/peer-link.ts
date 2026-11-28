@@ -1,6 +1,7 @@
 // Conversaciones entre bóvedas de Synapse (otras ventanas, por el canal `/peer`): a quién se le
 // escribe, el permiso de cada bóveda, en qué conversación entra un mensaje, cómo vuelve la
 // respuesta y qué se permite solo en una conversación que abrió otra bóveda.
+import { t } from '@shared/lib/i18n';
 import { askConfirm } from '@shared/lib/confirm';
 import { agentApi } from '../api/agent.api';
 import { Conversation, MAX_AGENT_HOPS, type AgentStore, type Sender } from './agent-store.svelte';
@@ -78,7 +79,7 @@ export class PeerLink {
   }
   /** `to` apunta a otra bóveda abierta: su nombre, con `#n` o `#nueva` opcional. */
   async remoteTarget(to: string): Promise<{ vault: string; number: number | null; fresh: boolean } | null> {
-    const m = /^(.*?)#(\d+|nueva)?$/i.exec(to) ?? [to, to, undefined];
+    const m = /^(.*?)#(\d+|nueva|new)?$/i.exec(to) ?? [to, to, undefined];
     const vault = (m[1] ?? '').trim();
     if (!vault) return null;
     const me = await this.me();
@@ -87,11 +88,11 @@ export class PeerLink {
     const peer = peers.find((p) => p.vault.toLowerCase() === vault.toLowerCase() || p.path === vault);
     if (!peer) {
       // Sin «#» puede ser el título de una conversación local; con «#» es una bóveda que no está abierta
-      if (to.includes('#')) throw new Error(`La bóveda «${vault}» no está abierta en otra ventana de Synapse.`);
+      if (to.includes('#')) throw new Error(t('acp.peer.vaultNotOpenRemote', { vault }));
       return null;
     }
     const n = m[2];
-    return { vault: peer.path, number: n && /^\d+$/.test(n) ? Number(n) : null, fresh: /^nueva$/i.test(n ?? '') };
+    return { vault: peer.path, number: n && /^\d+$/.test(n) ? Number(n) : null, fresh: /^(?:nueva|new)$/i.test(n ?? '') };
   }
   async sendRemote(
     caller: Conversation,
@@ -101,7 +102,7 @@ export class PeerLink {
     hops: number,
   ) {
     const me = await this.me();
-    if (!me) throw new Error('Esta ventana no tiene una bóveda abierta.');
+    if (!me) throw new Error(t('acp.peer.noVaultInWindow'));
     const result = (await agentApi.peerSend(target.vault, {
       action: 'send',
       from: { ...this.#store.senderOf(caller), vault: me.vault, path: me.path, convId: caller.id },
@@ -115,8 +116,8 @@ export class PeerLink {
     return {
       ...result,
       note:
-        `Enviado a la bóveda de otra ventana (${result.to}). ` +
-        (expectsReply ? 'Su respuesta te llegará como un mensaje nuevo en esta conversación; no la esperes.' : ''),
+        t('acp.peer.sentRemotePrefix', { to: result.to }) +
+        (expectsReply ? t('acp.peer.replyWaitAsync') : ''),
     };
   }
   /** Devuelve la respuesta a la conversación de otra bóveda que preguntó. */
@@ -131,7 +132,7 @@ export class PeerLink {
         hops,
       });
     } catch (e) {
-      from.error(`No se pudo devolver la respuesta a «${remote.vault}»: ${e instanceof Error ? e.message : String(e)}`);
+      from.error(t('acp.peer.replyFailed', { vault: remote.vault, detail: e instanceof Error ? e.message : String(e) }));
     }
   }
   /** Pedidos de otra instancia: listar, recibir un mensaje (en una conversación entrante) o una respuesta. */
@@ -139,19 +140,19 @@ export class PeerLink {
     if (!req || req.action === 'ping') return [];
     if (req.action === 'list') return this.#store.localSummaries(null);
     const cwd = this.#store.cwd;
-    if (!cwd) throw new Error('Esa ventana de Synapse no tiene una bóveda abierta.');
+    if (!cwd) throw new Error(t('acp.peer.remoteNoVault'));
     const from = req.from;
-    if (req.hops > MAX_AGENT_HOPS) throw new Error(`Límite de ${MAX_AGENT_HOPS} mensajes seguidos entre agentes.`);
+    if (req.hops > MAX_AGENT_HOPS) throw new Error(t('acp.peer.hopLimitShort', { max: MAX_AGENT_HOPS }));
     const sender: Sender = { handle: `${from.vault}${from.handle}`, agent: from.agent, title: from.title, vault: from.vault };
     if (req.action === 'deliver') {
       const c = this.#store.byId(req.to as string);
-      if (!c) throw new Error('La conversación que preguntó ya no está abierta.');
+      if (!c) throw new Error(t('acp.peer.askingConvClosed'));
       c.waitingFor = c.waitingFor.filter((h) => !h.startsWith(from.vault));
       c.receive({ from: sender, text: req.message, hops: req.hops, replyTo: null });
       return { status: 'delivered' };
     }
-    if (req.action !== 'send') throw new Error(`Pedido desconocido: ${req.action}`);
-    if (!(await this.#acceptsFrom(cwd, from))) throw new Error(`La bóveda «${(await this.me())?.vault}» no aceptó la conversación.`);
+    if (req.action !== 'send') throw new Error(t('acp.peer.unknownRequest', { action: req.action }));
+    if (!(await this.#acceptsFrom(cwd, from))) throw new Error(t('acp.peer.vaultDeclinedConv', { vault: (await this.me())?.vault ?? '' }));
     const c = await this.#incomingConversation(cwd, req);
     const me = await this.me();
     const status = c.receive({
@@ -178,7 +179,7 @@ export class PeerLink {
     setTimeout(() => {
       const item = c.items.find((i) => i.id === itemId);
       if (item && item.type === 'permission' && item.answered === null) {
-        c.push({ type: 'error', text: 'Nadie respondió el permiso en 2 minutos: se rechazó.' });
+        c.push({ type: 'error', text: t('acp.peer.permissionTimedOut') });
         void c.answer(itemId, reject?.id ?? null);
       }
     }, INCOMING_PERMISSION_TIMEOUT);
@@ -192,10 +193,11 @@ export class PeerLink {
     const agentId = this.#store.incomingAgentId ?? this.#store.fallbackAgentId;
     const agent = agentId ? (this.#store.agents.find((a) => a.id === agentId)?.name ?? '') : '';
     const allowed = await askConfirm(
-      '🐙 Conversación desde otra bóveda',
-      `Un agente de «${from.vault}» quiere conversar con un agente de esta bóveda` +
-        (agent ? ` (se usará ${agent})` : '') +
-        '. Si no hay una conversación abierta para él, se abrirá una nueva. ¿Permitir?',
+      t('acp.peer.incomingTitle'),
+      t('acp.peer.incomingPrompt', {
+        vault: from.vault,
+        agentPart: agent ? t('acp.peer.incomingUsingAgent', { agent }) : '',
+      }),
     );
     saved[from.path] = allowed;
     save(key, JSON.stringify(saved));
@@ -206,7 +208,7 @@ export class PeerLink {
     const from = req.from;
     if (typeof req.to === 'number') {
       const c = this.#store.conversations.find((x) => x.number === req.to);
-      if (!c) throw new Error(`No hay una conversación #${req.to} en esa bóveda.`);
+      if (!c) throw new Error(t('acp.peer.missingConvNumber', { num: req.to }));
       return c;
     }
     const threadsKey = `synapse.agent.threads.${cwd}`;
@@ -225,7 +227,7 @@ export class PeerLink {
     if (!this.#store.agents.length) await this.#store.refresh();
     const configured = this.#store.incomingAgentId && this.#store.agents.some((a) => a.id === this.#store.incomingAgentId) ? this.#store.incomingAgentId : null;
     const agentId = configured ?? this.#store.fallbackAgentId;
-    if (!agentId) throw new Error('Esa ventana de Synapse no tiene ningún agente disponible para atender conversaciones.');
+    if (!agentId) throw new Error(t('acp.peer.noAgentAvailable'));
     const c = new Conversation(this.#store, agentId, cwd);
     c.incoming = { vault: from.vault, handle: from.handle, title: from.title };
     this.#store.addConversation(c);

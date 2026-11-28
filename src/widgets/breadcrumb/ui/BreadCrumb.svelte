@@ -18,6 +18,7 @@
     Check,
   } from 'lucide-svelte';
   import { ContextMenu } from 'bits-ui';
+  import { t } from '@shared/lib/i18n';
   import { FolderIcon } from '@shared/ui/icons';
   import { FileIcon, isImageFile, isPdfFile, isDrawingFile, isDiagramFile } from '@entities/file-type';
   import { parseGitStatusInfo, gitDialogState, gitApi, GitStatusBadge, type GitFileStatusKind } from '@entities/git';
@@ -99,7 +100,7 @@
     parts.length > 0
       ? parts[parts.length - 1]
       : path.startsWith('empty:')
-        ? 'Nueva nota'
+        ? t('breadcrumb.newNote')
         : ''
   );
 
@@ -173,12 +174,12 @@
     try {
       await flushPendingWrites([cleanPath]);
       await gitApi.add([cleanPath]);
-      showToast('Elemento añadido al stage (git add)');
+      showToast(t('breadcrumb.gitAdded'));
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
       console.error('Error al ejecutar git add desde breadcrumb:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git add: ${msg}`);
+      showToast(t('breadcrumb.gitAddError', { detail: msg }));
     }
   }
 
@@ -186,12 +187,12 @@
     if (!cleanPath) return;
     try {
       await gitApi.restoreStaged([cleanPath]);
-      showToast('Elemento desmarcado de stage (git restore --staged)');
+      showToast(t('breadcrumb.gitUnstaged'));
       if (onRefreshGit) onRefreshGit();
     } catch (err: unknown) {
       console.error('Error al ejecutar git restore --staged desde breadcrumb:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git restore --staged: ${msg}`);
+      showToast(t('breadcrumb.gitUnstageError', { detail: msg }));
     }
   }
 
@@ -210,7 +211,7 @@
     isRestoring = true;
     try {
       await gitApi.restore([cleanPath]);
-      showToast('Elemento restaurado (git restore)');
+      showToast(t('breadcrumb.gitRestored'));
       if (onGitRestore) {
         await onGitRestore([cleanPath]);
       }
@@ -221,7 +222,7 @@
     } catch (err: unknown) {
       console.error('Error al restaurar con git restore desde breadcrumb:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Error en git restore: ${msg}`);
+      showToast(t('breadcrumb.gitRestoreError', { detail: msg }));
     } finally {
       isRestoring = false;
     }
@@ -324,7 +325,7 @@
           disabled={isSubmitting}
           spellcheck="false"
         />
-        <span class="breadcrumb-edit-hint">Enter para guardar &bull; Esc para cancelar</span>
+        <span class="breadcrumb-edit-hint">{t('breadcrumb.enterToSave')} &bull; {t('breadcrumb.escToCancel')}</span>
       </div>
     {:else}
       <!-- Modo normal: carpetas + separadores + nombre de archivo -->
@@ -335,7 +336,7 @@
               type="button"
               class="breadcrumb-btn folder-btn"
               onclick={() => onNavigateFolder?.(folder.path)}
-              title={`Navegar y enfocar ${folder.name} en el explorador`}
+              title={t('breadcrumb.navigateFolderTitle', { folder: folder.name })}
             >
               <FolderIcon name={folder.name} size={14} class="breadcrumb-icon" />
               <span class="segment-text">{folder.name}</span>
@@ -367,7 +368,7 @@
                         class="breadcrumb-btn file-btn"
                         class:editable={!readOnly}
                         onclick={startEditing}
-                        title={!readOnly ? 'Clic para renombrar • Clic derecho para opciones' : fileName}
+                        title={!readOnly ? t('breadcrumb.renameOrMenuTitle') : fileName}
                         disabled={readOnly}
                       >
                         <FileIcon path={cleanPath} name={fileName} size={14} class="breadcrumb-icon" />
@@ -394,7 +395,7 @@
                           onSelect={handlePromptGitCommit}
                         >
                           <GitCommitHorizontal size={14} class="context-menu-item-icon" />
-                          <span>Hacer commit...</span>
+                          <span>{t('breadcrumb.gitCommitMenu')}</span>
                         </ContextMenu.Item>
                       {/if}
 
@@ -406,7 +407,7 @@
                         >
                           {#if isVisualCandidateForDiff}
                             <Columns size={14} class="context-menu-item-icon" />
-                            <span>Diff visual (2 paneles)</span>
+                            <span>{t('breadcrumb.diffVisualTwoPanes')}</span>
                           {:else}
                             <GitCompare size={14} class="context-menu-item-icon" />
                             <span>Diff</span>
@@ -420,7 +421,7 @@
                         >
                           {#if isVisualCandidateForDiff}
                             <Columns size={14} class="context-menu-item-icon" />
-                            <span>Diff visual --staged</span>
+                            <span>{t('breadcrumb.diffVisualStaged')}</span>
                           {:else}
                             <GitCompareArrows size={14} class="context-menu-item-icon" />
                             <span>Diff --staged</span>
@@ -433,7 +434,7 @@
                         onSelect={handleOpenFileLog}
                       >
                         <History size={14} class="context-menu-item-icon" />
-                        <span>Historial de Git (Log)...</span>
+                        <span>{t('breadcrumb.gitLogMenu')}</span>
                       </ContextMenu.Item>
 
                       {#if canGitAdd}
@@ -477,7 +478,7 @@
                         onSelect={() => onOpenInNewWindow(cleanPath)}
                       >
                         <ExternalLink size={14} class="context-menu-item-icon" />
-                        <span>Abrir en nueva ventana</span>
+                        <span>{t('breadcrumb.openInNewWindow')}</span>
                       </ContextMenu.Item>
                     {/if}
 
@@ -487,7 +488,7 @@
                         onSelect={() => onOpenFileWithDefaultApp(cleanPath)}
                       >
                         <ExternalLink size={14} class="context-menu-item-icon" />
-                        <span>Abrir con la app por defecto</span>
+                        <span>{t('breadcrumb.openDefault')}</span>
                       </ContextMenu.Item>
                     {/if}
 
@@ -497,7 +498,7 @@
                         onSelect={() => onShowItemInFolder(cleanPath)}
                       >
                         <FolderSearch size={14} class="context-menu-item-icon" />
-                        <span>Mostrar en carpeta</span>
+                        <span>{t('breadcrumb.showInFolder')}</span>
                       </ContextMenu.Item>
                     {/if}
 
@@ -509,7 +510,7 @@
                         onSelect={startEditing}
                       >
                         <Edit2 size={14} class="context-menu-item-icon" />
-                        <span>Renombrar archivo</span>
+                        <span>{t('breadcrumb.renameFile')}</span>
                       </ContextMenu.Item>
                     {/if}
 
@@ -518,7 +519,7 @@
                       onSelect={handleCopyPath}
                     >
                       <Copy size={14} class="context-menu-item-icon" />
-                      <span>Copiar ruta relativa</span>
+                      <span>{t('breadcrumb.copyRelativePath')}</span>
                     </ContextMenu.Item>
                     {#if fullPath}
                       <ContextMenu.Item
@@ -526,7 +527,7 @@
                         onSelect={() => navigator.clipboard.writeText(fullPath)}
                       >
                         <Copy size={14} class="context-menu-item-icon" />
-                        <span>Copiar ruta completa</span>
+                        <span>{t('breadcrumb.copyFullPath')}</span>
                       </ContextMenu.Item>
                     {/if}
                   </ContextMenu.Content>

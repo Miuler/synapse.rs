@@ -4,6 +4,7 @@
   import { vaultRepository } from '@shared/repositories';
   import { appSettings } from '@entities/settings';
   import { Loader2, AlertCircle } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     src: string;
@@ -147,7 +148,7 @@
                 } else {
                   isLoading = false;
                   hasError = true;
-                  errorMessage = `No se pudo cargar el archivo PDF: ${targetSrc}`;
+                  errorMessage = t('pdfViewer.loadError', { path: targetSrc });
                 }
               })
               .catch((err) => {
@@ -167,7 +168,7 @@
     } else {
       isLoading = false;
       hasError = true;
-      errorMessage = 'No hay conexión con la bóveda de Synapse';
+      errorMessage = t('pdfViewer.noConnection');
     }
 
     return () => {
@@ -381,12 +382,12 @@
   {#if isLoading}
     <div class="synapse-pdf-loading">
       <Loader2 class="synapse-spin-icon" size={32} />
-      <span>Cargando documento PDF...</span>
+      <span>{t('pdfViewer.loading')}</span>
     </div>
   {:else if hasError}
     <div class="synapse-pdf-error">
       <AlertCircle size={32} />
-      <span class="synapse-pdf-error-title">Error al abrir el PDF</span>
+      <span class="synapse-pdf-error-title">{t('pdfViewer.errorTitle')}</span>
       <span class="synapse-pdf-error-desc">{errorMessage}</span>
     </div>
   {:else if currentBlobUrl || currentBuffer}

@@ -3,6 +3,7 @@
   // las de una versión nueva disponible, con su botón para instalarla.
   import { MarkdownViewer } from '@features/markdown-editor';
   import { Download, Loader2, RotateCw, Sparkles } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { appUpdates } from '../model/app-updates.svelte';
 
   interface Props {
@@ -18,19 +19,19 @@
     <div class="news-update-bar">
       <Sparkles size={14} />
       {#if appUpdates.status === 'installed'}
-        <span>Synapse {appUpdates.available?.version} está instalado.</span>
+        <span>{t('updates.installedBanner', { version: appUpdates.available?.version ?? '' })}</span>
         <button type="button" class="news-btn primary" onclick={() => appUpdates.restart()}>
-          <RotateCw size={13} /> Reiniciar ahora
+          <RotateCw size={13} /> {t('updates.restartNow')}
         </button>
       {:else if appUpdates.status === 'installing'}
-        <span><Loader2 size={13} class="news-spin" /> Descargando e instalando…</span>
+        <span><Loader2 size={13} class="news-spin" /> {t('updates.downloadingAndInstalling')}</span>
       {:else if appUpdates.available}
-        <span>Synapse {appUpdates.available.version} está disponible (tienes {appUpdates.available.currentVersion}).</span>
+        <span>{t('updates.availableBanner', { version: appUpdates.available.version, current: appUpdates.available.currentVersion })}</span>
         <button type="button" class="news-btn primary" onclick={() => appUpdates.install()}>
-          <Download size={13} /> Actualizar
+          <Download size={13} /> {t('updates.update')}
         </button>
       {:else}
-        <span>Ya tienes la última versión.</span>
+        <span>{t('updates.alreadyLatest')}</span>
       {/if}
     </div>
     {#if appUpdates.error}

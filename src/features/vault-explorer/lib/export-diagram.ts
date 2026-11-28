@@ -1,6 +1,7 @@
 import { vaultRepository } from '@shared/repositories';
 import { parseExcalidrawContent } from '@shared/obsidian-api';
 import { renderD2Svg, renderMermaidJsSvg, renderPlantUmlSvg } from '@shared/lib/diagrams';
+import { t } from '@shared/lib/i18n';
 import { isD2File, isDrawingFile, isMermaidFile, isPlantUmlFile } from '@entities/file-type';
 import { appSettings } from '@entities/settings';
 
@@ -28,10 +29,10 @@ export function exportPathFor(path: string, format: DiagramExportFormat): string
 
 /** Dibuja el diagrama de la bóveda y devuelve los bytes (PNG o SVG), con el tema actual de la app. */
 export async function renderDiagram(path: string, format: DiagramExportFormat, content?: string | null): Promise<Uint8Array> {
-  if (!isExportableDiagram(path)) throw new Error('No es un diagrama que Synapse sepa dibujar');
+  if (!isExportableDiagram(path)) throw new Error(t('explorer.diagram.unsupported'));
   // `content`: un diagrama de otra bóveda, que ya leyó el backend
   const note = content != null ? { content } : await vaultRepository.readNote(path);
-  if (!note?.content?.trim()) throw new Error('El diagrama está vacío');
+  if (!note?.content?.trim()) throw new Error(t('explorer.diagram.empty'));
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   return isDrawingFile(path)
     ? exportExcalidraw(note.content, format, isDark)
@@ -52,7 +53,7 @@ export async function exportDiagram(path: string, format: DiagramExportFormat): 
 async function exportExcalidraw(content: string, format: DiagramExportFormat, isDark: boolean): Promise<Uint8Array> {
   const { scene } = parseExcalidrawContent(content);
   const elements = scene.elements ?? [];
-  if (!elements.length) throw new Error('El dibujo no tiene elementos');
+  if (!elements.length) throw new Error(t('explorer.diagram.noElements'));
   const { exportToSvg, exportToBlob } = await import('@excalidraw/excalidraw');
   const options = {
     elements,
@@ -85,7 +86,7 @@ async function exportCodeDiagram(path: string, code: string, format: DiagramExpo
     const source = format === 'png' ? `%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%\n${code}` : code;
     result = await renderMermaidJsSvg(source, 'diagram-export');
   }
-  if (!result.svg) throw new Error(result.error ?? 'No se pudo renderizar el diagrama');
+  if (!result.svg) throw new Error(result.error ?? t('explorer.diagram.renderFailed'));
   if (format === 'svg') return new TextEncoder().encode(result.svg);
   return svgToPng(result.svg);
 }
@@ -109,14 +110,14 @@ async function svgToPng(svgText: string): Promise<Uint8Array> {
   canvas.width = Math.ceil(width * PNG_SCALE);
   canvas.height = Math.ceil(height * PNG_SCALE);
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('No se pudo crear el canvas');
+  if (!ctx) throw new Error(t('explorer.diagram.canvasFailed'));
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.scale(PNG_SCALE, PNG_SCALE);
   ctx.drawImage(image, 0, 0, width, height);
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('No se pudo generar el PNG');
+  if (!blob) throw new Error(t('explorer.diagram.pngFailed'));
   return new Uint8Array(await blob.arrayBuffer());
 }
 

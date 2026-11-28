@@ -73,7 +73,7 @@ export class WorkspaceLeaf extends Events {
 
     const creator = this.app.workspace.getViewCreator(viewState.type);
     if (!creator) {
-      throw new Error(`[WorkspaceLeaf] No hay creador de vista registrado para el tipo: ${viewState.type}`);
+      throw new Error(`[WorkspaceLeaf] No view creator registered for type: ${viewState.type}`);
     }
 
     const view = creator(this);

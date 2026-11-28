@@ -1,4 +1,5 @@
 import { appSettings } from '@entities/settings';
+import { i18n, t } from '@shared/lib/i18n';
 import { buildDrawioUrl, parseDrawioMessage } from './drawio-embed';
 
 /** Tiempo máximo para cargar draw.io y exportar el diagrama. */
@@ -10,7 +11,7 @@ const RENDER_TIMEOUT_MS = 30_000;
  * funciona con un draw.io local. Devuelve el PNG como data URL.
  */
 export function renderDrawioPng(xml: string): Promise<string> {
-  const src = buildDrawioUrl(appSettings.settings.drawioUrl, false, appSettings.settings.locale ?? 'es');
+  const src = buildDrawioUrl(appSettings.settings.drawioUrl, false, appSettings.settings.locale ?? i18n.locale);
   const origin = new URL(src).origin;
   const iframe = document.createElement('iframe');
   // Fuera de la vista pero con tamaño: draw.io necesita maquetar para exportar
@@ -26,7 +27,7 @@ export function renderDrawioPng(xml: string): Promise<string> {
       iframe.remove();
       fn();
     };
-    const timer = setTimeout(() => finish(() => reject(new Error('draw.io no respondió al exportar el diagrama'))), RENDER_TIMEOUT_MS);
+    const timer = setTimeout(() => finish(() => reject(new Error(t('drawio.exportTimeout')))), RENDER_TIMEOUT_MS);
     const onMessage = (e: MessageEvent) => {
       if (e.source !== iframe.contentWindow) return;
       const msg = parseDrawioMessage(e.data);
@@ -35,7 +36,7 @@ export function renderDrawioPng(xml: string): Promise<string> {
       else if (msg.event === 'load') post({ action: 'export', format: 'png', border: 10 });
       else if (msg.event === 'export') {
         const data = msg.data ?? '';
-        finish(() => (data.startsWith('data:image/') ? resolve(data) : reject(new Error('draw.io no devolvió una imagen'))));
+        finish(() => (data.startsWith('data:image/') ? resolve(data) : reject(new Error(t('drawio.noImageReturned')))));
       }
     };
     window.addEventListener('message', onMessage);

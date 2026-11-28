@@ -1,3 +1,4 @@
+import { t } from '@shared/lib/i18n';
 import DOMPurify from 'dompurify';
 import { TextFileView } from '../../view';
 import type { WorkspaceLeaf } from '../../leaf';
@@ -78,11 +79,11 @@ export class ExcalidrawView extends TextFileView {
     this.statusNoticeEl.style.opacity = '0.7';
 
     // Registrar acciones en la cabecera de la pestaña
-    this.addAction('file-code', 'Conmutar entre lienzo visual y código Markdown', () => {
+    this.addAction('file-code', t('obsidian.excalidrawToggleView'), () => {
       this.toggleViewMode();
     });
 
-    this.addAction('image', 'Exportar a SVG transparente', async () => {
+    this.addAction('image', t('obsidian.excalidrawExportSvg'), async () => {
       const svg = this.exportSvg();
       if (this.file) {
         const svgPath = this.file.path.replace(/\.(excalidraw\.md|md|excalidraw)$/i, '.svg');
@@ -245,7 +246,11 @@ export class ExcalidrawView extends TextFileView {
   private updateStatus(): void {
     const elemCount = (this.scene.elements || []).filter((e) => !e.isDeleted).length;
     const links = this.getWikilinks();
-    const linksText = links.length > 0 ? ` | Enlaces: ${links.join(', ')}` : '';
-    this.statusNoticeEl.textContent = `Modo: ${this.viewMode.toUpperCase()} | Elementos: ${elemCount}${linksText}`;
+    const linksText = links.length > 0 ? t('obsidian.excalidrawLinksSegment', { links: links.join(', ') }) : '';
+    this.statusNoticeEl.textContent = t('obsidian.excalidrawStatus', {
+      mode: this.viewMode.toUpperCase(),
+      count: elemCount,
+      links: linksText,
+    });
   }
 }

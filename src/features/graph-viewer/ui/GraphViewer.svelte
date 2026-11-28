@@ -7,6 +7,7 @@
   import { vaultApi } from '@entities/vault-item';
   import { cssVar, withAlpha, onThemeChange } from '@shared/lib/theme-colors';
   import { Globe, Crosshair, RefreshCw, Layers, Search, Ghost, Box, Sparkles } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     activeNotePath?: string | null;
@@ -273,10 +274,10 @@
           isGlobalMode = false;
           loadGraph();
         }}
-        title="Mostrar sólo conexiones directas de la nota actual"
+        title={t('graphViewer.localTitle')}
       >
         <Crosshair size={14} />
-        <span>Local</span>
+        <span>{t('graphViewer.local')}</span>
       </button>
 
       <button
@@ -286,17 +287,17 @@
           isGlobalMode = true;
           loadGraph();
         }}
-        title="Mostrar la galaxia completa de notas de la bóveda"
+        title={t('graphViewer.vaultTitle')}
       >
         <Globe size={14} />
-        <span>Todo el Vault</span>
+        <span>{t('graphViewer.vault')}</span>
       </button>
     </div>
 
     {#if !isGlobalMode}
       <div class="depth-selector">
         <Layers size={13} class="icon-muted" />
-        <span class="label">Saltos:</span>
+        <span class="label">{t('graphViewer.hops')}</span>
         <select
           value={depth}
           onchange={(e) => {
@@ -305,9 +306,9 @@
           }}
           class="depth-select"
         >
-          <option value={1}>1 nivel</option>
-          <option value={2}>2 niveles</option>
-          <option value={3}>3 niveles</option>
+          <option value={1}>{t('graphViewer.depthOne')}</option>
+          <option value={2}>{t('graphViewer.depthMany', { count: 2 })}</option>
+          <option value={3}>{t('graphViewer.depthMany', { count: 3 })}</option>
         </select>
       </div>
     {/if}
@@ -317,10 +318,10 @@
       class="toggle-ghost-btn"
       class:active={showGhostNodes}
       onclick={() => (showGhostNodes = !showGhostNodes)}
-      title={showGhostNodes ? 'Ocultar notas pendientes/fantasma' : 'Mostrar notas pendientes/fantasma'}
+      title={showGhostNodes ? t('graphViewer.hideGhosts') : t('graphViewer.showGhosts')}
     >
       <Ghost size={13} />
-      <span>Fantasmas</span>
+      <span>{t('graphViewer.ghosts')}</span>
     </button>
 
     <!-- Alternador 2D / 3D WebGL -->
@@ -331,7 +332,7 @@
         is3DMode = !is3DMode;
         initForceGraph();
       }}
-      title={is3DMode ? 'Cambiar a vista Canvas 2D' : 'Acelerar por GPU con vista 3D WebGL'}
+      title={is3DMode ? t('graphViewer.switch2d') : t('graphViewer.switch3d')}
     >
       <Box size={13} />
       <span>{is3DMode ? '3D WebGL' : '2D Canvas'}</span>
@@ -342,7 +343,7 @@
       <Search size={13} class="search-icon" />
       <input
         type="text"
-        placeholder="Buscar nodo..."
+        placeholder={t('graphViewer.searchPlaceholder')}
         bind:value={searchQuery}
         class="search-input"
       />
@@ -351,19 +352,19 @@
     <div class="stats-badge">
       {#if !isGlobalMode && activeNotePath}
         <span class="focus-label" title={activeNotePath}>
-          Nota: <strong>{activeNotePath.split('/').pop()}</strong>
+          {t('graphViewer.notePrefix')} <strong>{activeNotePath.split('/').pop()}</strong>
         </span>
         <span class="dot">•</span>
       {/if}
-      <span>{totalNodes} nodos</span>
+      <span>{t('graphViewer.nodesCount', { count: totalNodes })}</span>
       <span class="dot">•</span>
-      <span>{totalLinks} enlaces</span>
+      <span>{t('graphViewer.linksCount', { count: totalLinks })}</span>
     </div>
 
     <button
       class="refresh-btn"
       onclick={loadGraph}
-      title="Recargar Grafo"
+      title={t('graphViewer.reloadTitle')}
       disabled={isLoading}
     >
       <span class={isLoading ? 'spinning' : ''} style="display: inline-flex;">

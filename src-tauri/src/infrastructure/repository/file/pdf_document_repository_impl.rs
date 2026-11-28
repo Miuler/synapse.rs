@@ -9,7 +9,7 @@ pub struct PdfDocumentRepositoryImpl;
 
 impl PdfDocumentRepositoryImpl {
     fn read_bytes(vault_path: &Path, relative_path: &str) -> Result<Vec<u8>, String> {
-        fs::read(vault_path.join(relative_path)).map_err(|e| format!("Error al leer PDF: {}", e))
+        fs::read(vault_path.join(relative_path)).map_err(|e| format!("Failed to read PDF: {}", e))
     }
 }
 

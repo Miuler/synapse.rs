@@ -3,6 +3,7 @@
   // config.jsonc → git.path). Ver el estado, el historial y las versiones funciona sin Git; hace
   // falta para commit, cambiar de rama, push, clone y LFS.
   import { ResizableDialog } from '@shared/ui/dialog-resize';
+  import { t } from '@shared/lib/i18n';
   import { gitBinary } from '@entities/git';
   import { FolderOpen, GitBranch } from 'lucide-svelte';
 
@@ -25,8 +26,8 @@
   {open}
   onClose={() => close(false)}
   busy={gitBinary.busy}
-  title="No se encontró Git"
-  description="La bóveda es un repositorio Git, pero Synapse no encuentra el programa git."
+  title={t('gitMissing.title')}
+  description={t('gitMissing.description')}
   sizeKey="synapse.gitMissingDialog.size"
   defaultSize={{ w: 520, h: 330 }}
   minSize={{ w: 380, h: 260 }}
@@ -35,23 +36,21 @@
 >
   {#snippet icon()}<GitBranch size={20} />{/snippet}
   <p>
-    Puedes ver el estado, el historial y las versiones sin él, pero hace falta para hacer commit,
-    cambiar de rama, hacer push, clonar y usar Git LFS.
+    {t('gitMissing.body1')}
   </p>
   <p>
-    Si lo tienes instalado fuera del PATH, elige el ejecutable (por ejemplo
-    <code>C:\Program Files\Git\cmd\git.exe</code>). Si no, instálalo desde
-    <a href="https://git-scm.com/downloads" target="_blank" rel="noopener noreferrer">git-scm.com</a>.
-    La ruta se guarda en la configuración y también se puede cambiar en Ajustes → Git.
+    {t('gitMissing.body2Part1')}
+    <code>C:\Program Files\Git\cmd\git.exe</code>{t('gitMissing.body2Part2')}
+    <a href="https://git-scm.com/downloads" target="_blank" rel="noopener noreferrer">git-scm.com</a>{t('gitMissing.body2Part3')}
   </p>
   {#if gitBinary.error}
     <p class="git-missing-error" role="alert">{gitBinary.error}</p>
   {/if}
   {#snippet footer()}
-    <button type="button" class="git-missing-btn" onclick={() => close(true)} disabled={gitBinary.busy}>No volver a preguntar</button>
-    <button type="button" class="git-missing-btn" onclick={() => close(false)} disabled={gitBinary.busy}>Ahora no</button>
+    <button type="button" class="git-missing-btn" onclick={() => close(true)} disabled={gitBinary.busy}>{t('gitMissing.dontAskAgain')}</button>
+    <button type="button" class="git-missing-btn" onclick={() => close(false)} disabled={gitBinary.busy}>{t('gitMissing.notNow')}</button>
     <button type="button" class="git-missing-btn primary" onclick={choose} disabled={gitBinary.busy}>
-      <FolderOpen size={14} /> Elegir ejecutable…
+      <FolderOpen size={14} /> {t('gitMissing.chooseExecutable')}
     </button>
   {/snippet}
 </ResizableDialog>

@@ -20,11 +20,11 @@ impl<N: NoteRepository> DeleteNoteUseCase<N> {
             let note = self
                 .note_repository
                 .read_note(&command.vault_path, &note_path)
-                .map_err(|e| format!("No se pudo leer la nota para validar el hash: {}", e))?;
+                .map_err(|e| format!("Could not read note to validate hash: {}", e))?;
             let current_hash = NoteContent::hash(&note.content);
             if current_hash != expected_hash {
                 return Err(format!(
-                    "Conflicto de concurrencia optimista (OCC): el hash esperado '{}' no coincide con el hash actual de la nota '{}'",
+                    "Optimistic concurrency conflict (OCC): expected hash '{}' does not match current note hash '{}'",
                     expected_hash, current_hash
                 ));
             }
@@ -32,6 +32,6 @@ impl<N: NoteRepository> DeleteNoteUseCase<N> {
 
         self.note_repository
             .delete_note(&command.vault_path, &note_path)
-            .map_err(|err| format!("Error al eliminar nota: {}", err))
+            .map_err(|err| format!("Failed to delete note: {}", err))
     }
 }

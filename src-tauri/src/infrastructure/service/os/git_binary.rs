@@ -11,7 +11,7 @@ use std::sync::RwLock;
 
 static CONFIGURED: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-const HEADER: &str = "// Configuración global de Synapse: vale para todas las bóvedas.\n";
+const HEADER: &str = "// Global Synapse configuration: applies to all vaults.\n";
 
 /// `Command` para el Git real (ruta configurada o `git` del PATH).
 pub fn git_command() -> Command {
@@ -84,10 +84,10 @@ pub(crate) fn read_config(config_dir: &Path) -> Value {
 }
 
 pub(crate) fn write_config(config_dir: &Path, config: &Value) -> Result<(), String> {
-    std::fs::create_dir_all(config_dir).map_err(|e| format!("No se pudo crear {}: {e}", config_dir.display()))?;
+    std::fs::create_dir_all(config_dir).map_err(|e| format!("Could not create {}: {e}", config_dir.display()))?;
     let body = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     std::fs::write(config_path(config_dir), format!("{HEADER}{body}\n"))
-        .map_err(|e| format!("No se pudo guardar {}: {e}", config_path(config_dir).display()))
+        .map_err(|e| format!("Could not save {}: {e}", config_path(config_dir).display()))
 }
 
 /// Carga `git.path` de la configuración al arrancar.
@@ -108,7 +108,7 @@ pub fn save(config_dir: &Path, path: Option<&str>) -> Result<GitInfo, String> {
     let path = path.map(str::trim).filter(|p| !p.is_empty()).map(PathBuf::from);
     if let Some(p) = &path
         && version_of(p).is_none() {
-            return Err(format!("{} no es un ejecutable de Git que funcione (`git --version` falló)", p.display()));
+            return Err(format!("{}: not a working Git executable (`git --version` failed)", p.display()));
         }
     let mut config = read_config(config_dir);
     let root = config.as_object_mut().expect("read_config devuelve un objeto");
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn rechaza_un_ejecutable_que_no_es_git() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(save(dir.path(), Some("/bin/true")).unwrap_err().contains("no es un ejecutable de Git"));
+        assert!(save(dir.path(), Some("/bin/true")).unwrap_err().contains("not a working Git executable"));
         assert!(!dir.path().join("config.jsonc").exists());
     }
 

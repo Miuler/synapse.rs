@@ -52,14 +52,14 @@
   let { open = $bindable(false), section = $bindable<Section>('appearance') }: Props = $props();
 
   const sections: { id: Section; label: string }[] = [
-    { id: 'appearance', label: 'Apariencia' },
-    { id: 'editor', label: 'Editor' },
-    { id: 'diagrams', label: 'Diagramas' },
-    { id: 'agents', label: 'Agentes de IA' },
-    { id: 'git', label: 'Git' },
+    { id: 'appearance', get label() { return t('settings.sections.appearance'); } },
+    { id: 'editor', get label() { return t('settings.sections.editor'); } },
+    { id: 'diagrams', get label() { return t('settings.sections.diagrams'); } },
+    { id: 'agents', get label() { return t('settings.sections.agents'); } },
+    { id: 'git', get label() { return t('settings.sections.git'); } },
     { id: 'azure', get label() { return t('connections.title'); } },
-    { id: 'updates', label: 'Actualizaciones' },
-    { id: 'shortcuts', label: 'Atajos de teclado' },
+    { id: 'updates', get label() { return t('settings.sections.updates'); } },
+    { id: 'shortcuts', get label() { return t('settings.sections.shortcuts'); } },
   ];
 
   // Agentes de IA: catálogo verificado y personalizados
@@ -104,7 +104,7 @@
       await agentStore.refresh();
     } catch (e) {
       // Cancelar la confirmación no es un error: el borrador se conserva
-      agentError = e === 'Cancelado' ? '' : String(e);
+      agentError = e === 'Cancelado' || e === 'Cancelled' ? '' : String(e);
     }
   }
 
@@ -138,54 +138,54 @@
   }
 
   // Nombres legibles de cada acción de shortcuts.jsonc
-  const shortcutGroups: { section: keyof ShortcutsConfig; title: string; labels: Record<string, string> }[] = [
+  const shortcutGroups = $derived<{ section: keyof ShortcutsConfig; title: string; labels: Record<string, string> }[]>([
     {
       section: 'workspace',
-      title: 'General',
+      title: t('settings.shortcuts.generalGroup'),
       labels: {
-        quick_open: 'Abrir archivo rápido',
-        command_palette: 'Paleta de comandos',
-        search_fulltext: 'Buscar en el contenido',
-        new_file: 'Nuevo archivo',
-        new_tab: 'Nueva pestaña',
-        save_file: 'Guardar',
-        close_tab: 'Cerrar pestaña',
-        next_tab: 'Pestaña siguiente',
-        prev_tab: 'Pestaña anterior',
-        next_tab_outside_text: 'Pestaña siguiente (sin escribir)',
-        prev_tab_outside_text: 'Pestaña anterior (sin escribir)',
-        split_view: 'Vista dividida',
-        toggle_edit_mode: 'Alternar edición / lectura',
-        toggle_sidebar: 'Mostrar / ocultar barra lateral',
-        toggle_agent: 'Mostrar / ocultar el agente',
-        locate_active_file: 'Localizar archivo activo',
-        open_vault_folder: 'Abrir carpeta de la bóveda',
-        nav_back: 'Atrás',
-        nav_forward: 'Adelante',
-        reload_active_file: 'Recargar archivo activo',
-        reload_vault: 'Recargar bóveda',
-        toggle_theme: 'Alternar tema claro / oscuro',
-        pick_theme: 'Elegir tema',
-        toggle_devtools: 'Herramientas de desarrollo',
-        toggle_outline: 'Índice de la nota o de las claves',
-        git_push: 'Git: push',
-        zoom_in: 'Aumentar tamaño del texto',
-        zoom_out: 'Reducir tamaño del texto',
-        zoom_reset: 'Restablecer tamaño del texto',
-        toggle_task: 'Marcar / desmarcar tarea',
+        quick_open: t('shortcutLabels.actions.quick_open'),
+        command_palette: t('shortcutLabels.actions.command_palette'),
+        search_fulltext: t('shortcutLabels.actions.search_fulltext'),
+        new_file: t('shortcutLabels.actions.new_file'),
+        new_tab: t('shortcutLabels.actions.new_tab'),
+        save_file: t('shortcutLabels.actions.save_file'),
+        close_tab: t('shortcutLabels.actions.close_tab'),
+        next_tab: t('shortcutLabels.actions.next_tab'),
+        prev_tab: t('shortcutLabels.actions.prev_tab'),
+        next_tab_outside_text: t('shortcutLabels.actions.next_tab_outside_text'),
+        prev_tab_outside_text: t('shortcutLabels.actions.prev_tab_outside_text'),
+        split_view: t('shortcutLabels.actions.split_view'),
+        toggle_edit_mode: t('shortcutLabels.actions.toggle_edit_mode'),
+        toggle_sidebar: t('shortcutLabels.actions.toggle_sidebar'),
+        toggle_agent: t('shortcutLabels.actions.toggle_agent'),
+        locate_active_file: t('shortcutLabels.actions.locate_active_file'),
+        open_vault_folder: t('shortcutLabels.actions.open_vault_folder'),
+        nav_back: t('shortcutLabels.actions.nav_back'),
+        nav_forward: t('shortcutLabels.actions.nav_forward'),
+        reload_active_file: t('shortcutLabels.actions.reload_active_file'),
+        reload_vault: t('shortcutLabels.actions.reload_vault'),
+        toggle_theme: t('shortcutLabels.actions.toggle_theme'),
+        pick_theme: t('shortcutLabels.actions.pick_theme'),
+        toggle_devtools: t('shortcutLabels.actions.toggle_devtools'),
+        toggle_outline: t('shortcutLabels.actions.toggle_outline'),
+        git_push: t('shortcutLabels.actions.git_push'),
+        zoom_in: t('shortcutLabels.actions.zoom_in'),
+        zoom_out: t('shortcutLabels.actions.zoom_out'),
+        zoom_reset: t('shortcutLabels.actions.zoom_reset'),
+        toggle_task: t('shortcutLabels.actions.toggle_task'),
       },
     },
     {
       section: 'welcome',
-      title: 'Pantalla de bienvenida',
+      title: t('settings.shortcuts.welcomeGroup'),
       labels: {
-        new_workspace: 'Nueva bóveda',
-        open_folder: 'Abrir carpeta',
-        clone_git: 'Clonar repositorio git',
-        search_workspaces: 'Buscar espacios de trabajo',
+        new_workspace: t('shortcutLabels.welcome.new_workspace'),
+        open_folder: t('shortcutLabels.welcome.open_folder'),
+        clone_git: t('shortcutLabels.welcome.clone_git'),
+        search_workspaces: t('shortcutLabels.welcome.search_workspaces'),
       },
     },
-  ];
+  ]);
 
   let shortcutErrors = $state<Record<string, string>>({});
   let savingKey = $state<string | null>(null);
@@ -223,7 +223,7 @@
   function savePlantuml() {
     const server = plantumlDraft.trim().replace(/\/+$/, '');
     if (!/^https?:\/\//i.test(server)) {
-      plantumlError = 'Debe empezar por http:// o https://';
+      plantumlError = t('settings.diagrams.plantumlInvalid');
       return;
     }
     plantumlError = '';
@@ -248,8 +248,8 @@
       style={dialogSize.style}
     >
       <DialogResizeHandles onStart={dialogSize.startResize} />
-      <nav class="settings-nav" aria-label="Secciones de configuración">
-        <Dialog.Title class="settings-title">Configuración</Dialog.Title>
+      <nav class="settings-nav" aria-label={t('settings.navAria')}>
+        <Dialog.Title class="settings-title">{t('settings.title')}</Dialog.Title>
         {#each sections as s (s.id)}
           <button
             type="button"
@@ -262,20 +262,20 @@
 
       <div class="settings-body">
         {#if section === 'appearance'}
-          <h3>Apariencia</h3>
+          <h3>{t('settings.sections.appearance')}</h3>
           <label class="row">
-            <span class="row-label">Tema</span>
+            <span class="row-label">{t('settings.appearance.theme')}</span>
             <select
               value={appSettings.theme}
               onchange={(e) => appSettings.setTheme(e.currentTarget.value as ThemeMode)}
             >
-              <option value="system">Seguir al sistema</option>
-              <option value="light">Claro</option>
-              <option value="dark">Oscuro</option>
+              <option value="system">{t('settings.appearance.themeSystem')}</option>
+              <option value="light">{t('settings.appearance.themeLight')}</option>
+              <option value="dark">{t('settings.appearance.themeDark')}</option>
             </select>
           </label>
           <label class="row">
-            <span class="row-label">Idioma</span>
+            <span class="row-label">{t('settings.appearance.language')}</span>
             <select
               value={appSettings.locale}
               onchange={(e) => appSettings.setLocale(e.currentTarget.value as SupportedLocale)}
@@ -285,12 +285,12 @@
             </select>
           </label>
           <div class="row">
-            <span class="row-label">Tamaño del texto</span>
+            <span class="row-label">{t('settings.appearance.textSize')}</span>
             <div class="inline">
               <button type="button" onclick={() => appSettings.setContentZoom(appSettings.contentZoom - 0.1)}>−</button>
               <span class="value">{Math.round(appSettings.contentZoom * 100)}%</span>
               <button type="button" onclick={() => appSettings.setContentZoom(appSettings.contentZoom + 0.1)}>+</button>
-              <button type="button" onclick={() => appSettings.setContentZoom(1)}>Restablecer</button>
+              <button type="button" onclick={() => appSettings.setContentZoom(1)}>{t('settings.appearance.reset')}</button>
             </div>
           </div>
           <label class="row">
@@ -311,27 +311,27 @@
             />
           </label>
           <div class="row wallpaper-row">
-            <span class="row-label">Fondo de la pestaña vacía (de esta bóveda)</span>
+            <span class="row-label">{t('settings.appearance.emptyTabBg')}</span>
             <div class="inline">
               {#if wallpaperUrl}
-                <img class="wallpaper-thumb" src={wallpaperUrl} alt="Fondo actual" />
+                <img class="wallpaper-thumb" src={wallpaperUrl} alt={t('settings.appearance.currentBgAlt')} />
               {/if}
-              <button type="button" onclick={chooseWallpaper}>Elegir imagen…</button>
+              <button type="button" onclick={chooseWallpaper}>{t('settings.appearance.chooseImage')}</button>
               {#if appSettings.wallpaper}
-                <button type="button" onclick={() => appSettings.setWallpaper(undefined)}>Quitar</button>
+                <button type="button" onclick={() => appSettings.setWallpaper(undefined)}>{t('settings.appearance.remove')}</button>
               {/if}
             </div>
           </div>
 
-          <h4 class="subsection">Tema y fragmentos CSS (de esta bóveda)</h4>
+          <h4 class="subsection">{t('settings.appearance.cssHeading')}</h4>
           <label class="row">
-            <span class="row-label">Tema personalizado</span>
+            <span class="row-label">{t('settings.appearance.customTheme')}</span>
             <select
               class="custom-theme-select"
               value={appearance.theme ?? ''}
               onchange={(e) => appearance.setTheme(e.currentTarget.value || null)}
             >
-              <option value="">Ninguno</option>
+              <option value="">{t('settings.appearance.none')}</option>
               {#each appearance.themes as name (name)}
                 <option value={name}>{appearance.themeLabel(name)}</option>
               {/each}
@@ -351,22 +351,21 @@
           {/each}
           <div class="row">
             <span class="row-label hint">
-              Temas en <code>{THEMES_DIR}/</code> y fragmentos en <code>{SNIPPETS_DIR}/</code>, como archivos <code>.css</code>.
+              {t('settings.appearance.cssLocationPrefix')} <code>{THEMES_DIR}/</code> {t('settings.appearance.cssLocationMiddle')} <code>{SNIPPETS_DIR}/</code>{t('settings.appearance.cssLocationSuffix')} <code>.css</code>{t('settings.appearance.cssLocationFiles')}
             </span>
-            <button type="button" class="appearance-reload" onclick={() => appearance.rescan()}>Recargar</button>
+            <button type="button" class="appearance-reload" onclick={() => appearance.rescan()}>{t('settings.appearance.reload')}</button>
           </div>
 
-          <h4 class="subsection">Carpetas de temas globales (todas las bóvedas)</h4>
+          <h4 class="subsection">{t('settings.appearance.globalDirsHeading')}</h4>
           <p class="hint">
-            Cada <code>.css</code> de estas carpetas aparece como tema en todas las bóvedas. La primera se lee
-            siempre; las que agregues se guardan en <code>appearance.theme_dirs</code> del
-            <code>config.jsonc</code> global. «~» es tu carpeta de usuario.
+            {t('settings.appearance.globalDirsPart1')} <code>.css</code> {t('settings.appearance.globalDirsPart2')} <code>appearance.theme_dirs</code> {t('settings.appearance.globalDirsPart3')}
+            <code>config.jsonc</code>{t('settings.appearance.globalDirsPart4')}
           </p>
           {#if appearance.defaultThemeDir}
             <div class="row theme-dir theme-dir-default" data-dir={appearance.defaultThemeDir}>
               <code class="theme-dir-path">{appearance.defaultThemeDir}</code>
               <span class="theme-dir-count">
-                {appearance.globalThemes.filter((t) => t.dir === appearance.defaultThemeDir).length} temas · siempre
+                {t('settings.appearance.themesAlways', { count: appearance.globalThemes.filter((t) => t.dir === appearance.defaultThemeDir).length })}
               </span>
             </div>
           {/if}
@@ -374,14 +373,14 @@
             <div class="row theme-dir" data-dir={dir}>
               <code class="theme-dir-path">{dir}</code>
               <span class="theme-dir-count">
-                {appearance.globalThemes.filter((t) => t.dir === dir).length} temas
+                {t('settings.appearance.themesCount', { count: appearance.globalThemes.filter((t) => t.dir === dir).length })}
               </span>
               <button
                 type="button"
                 class="theme-dir-remove"
-                aria-label="Quitar carpeta {dir}"
+                aria-label={t('settings.appearance.removeFolderAria', { dir })}
                 onclick={() => saveThemeDirs(appearance.themeDirs.filter((_, j) => j !== i))}
-              >Quitar</button>
+              >{t('settings.appearance.remove')}</button>
             </div>
           {/each}
           <form
@@ -393,19 +392,19 @@
           >
             <input
               class="theme-dir-input"
-              placeholder="~/mis-temas o /ruta/absoluta"
+              placeholder={t('settings.appearance.dirPlaceholder')}
               bind:value={newThemeDir}
             />
-            <button type="submit" class="theme-dir-add-btn">Agregar</button>
-            <button type="button" class="theme-dirs-rescan" onclick={() => appearance.rescan()}>Reescanear</button>
+            <button type="submit" class="theme-dir-add-btn">{t('settings.appearance.add')}</button>
+            <button type="button" class="theme-dirs-rescan" onclick={() => appearance.rescan()}>{t('settings.appearance.rescan')}</button>
           </form>
           {#if themeDirsError}
             <p class="error">{themeDirsError}</p>
           {/if}
         {:else if section === 'editor'}
-          <h3>Editor</h3>
+          <h3>{t('settings.sections.editor')}</h3>
           <label class="row">
-            <span class="row-label">Modo Vim</span>
+            <span class="row-label">{t('settings.editor.vimMode')}</span>
             <input
               type="checkbox"
               checked={appSettings.vimMode}
@@ -413,30 +412,30 @@
             />
           </label>
           <label class="row">
-            <span class="row-label">Clic en una carpeta del explorador</span>
+            <span class="row-label">{t('settings.editor.folderClick')}</span>
             <select
               value={appSettings.folderClick}
               onchange={(e) => appSettings.setFolderClick(e.currentTarget.value as FolderClickMode)}
             >
-              <option value="index">Abrir su índice (index.md)</option>
-              <option value="expand">Desplegarla</option>
+              <option value="index">{t('settings.editor.folderClickIndex')}</option>
+              <option value="expand">{t('settings.editor.folderClickExpand')}</option>
             </select>
           </label>
           <label class="row">
-            <span class="row-label">Propiedades de la nota</span>
+            <span class="row-label">{t('settings.editor.noteProperties')}</span>
             <select
               value={appSettings.propertiesViewMode}
               onchange={(e) => appSettings.setPropertiesViewMode(e.currentTarget.value as PropertiesViewMode)}
             >
-              <option value="expanded">Visibles</option>
-              <option value="collapsed">Plegadas</option>
-              <option value="hidden">Ocultas</option>
+              <option value="expanded">{t('settings.editor.propertiesExpanded')}</option>
+              <option value="collapsed">{t('settings.editor.propertiesCollapsed')}</option>
+              <option value="hidden">{t('settings.editor.propertiesHidden')}</option>
             </select>
           </label>
         {:else if section === 'diagrams'}
-          <h3>Diagramas</h3>
+          <h3>{t('settings.sections.diagrams')}</h3>
           <label class="row">
-            <span class="row-label">Visor de Mermaid</span>
+            <span class="row-label">{t('settings.diagrams.mermaidViewer')}</span>
             <select
               value={appSettings.mermaidRenderer}
               onchange={(e) => appSettings.setMermaidRenderer(e.currentTarget.value as MermaidRendererType)}
@@ -446,17 +445,17 @@
             </select>
           </label>
           <label class="row">
-            <span class="row-label">Visor de Excalidraw</span>
+            <span class="row-label">{t('settings.diagrams.excalidrawViewer')}</span>
             <select
               value={appSettings.defaultExcalidrawViewer}
               onchange={(e) => appSettings.setDefaultExcalidrawViewer(e.currentTarget.value as ExcalidrawViewerType)}
             >
-              <option value="native">Excalidraw nativo</option>
-              <option value="obsidian">Compatible con Obsidian</option>
+              <option value="native">{t('settings.diagrams.excalidrawNative')}</option>
+              <option value="obsidian">{t('settings.diagrams.excalidrawObsidian')}</option>
             </select>
           </label>
           <div class="row column">
-            <span class="row-label">Servidor de PlantUML</span>
+            <span class="row-label">{t('settings.diagrams.plantumlServer')}</span>
             <div class="inline grow">
               <input
                 type="url"
@@ -465,47 +464,45 @@
                 onblur={savePlantuml}
               />
             </div>
-            <span class="hint">El código de los diagramas PlantUML se envía a este servidor para dibujarlos.</span>
+            <span class="hint">{t('settings.diagrams.plantumlHint')}</span>
             {#if plantumlError}<span class="error">{plantumlError}</span>{/if}
           </div>
         {:else if section === 'agents'}
-          <h3>Agentes de IA</h3>
+          <h3>{t('settings.sections.agents')}</h3>
           <p class="hint">
-            Agentes compatibles con ACP (Agent Client Protocol). Los verificados se descargan del registro
-            público de ACP, el mismo que usa Zed, y se verifican con su sha256.
+            {t('settings.agents.intro')}
           </p>
           {#if agentStore.listError}<span class="error">{agentStore.listError}</span>{/if}
           <p class="hint">
-            Cada conversación usa el MCP de esta ventana de Synapse (<code>synapse_instance</code>), y se le pide al
-            agente que cree y edite las notas con él en lugar de escribir los archivos directamente.
+            {t('settings.agents.mcpPrefix')}<code>synapse_instance</code>{t('settings.agents.mcpSuffix')}
           </p>
           <label class="row">
             <span class="row-label">
-              Agente por defecto
-              <span class="hint">Para todas las bóvedas: el que se usa en una bóveda que todavía no usó ninguno (por ejemplo, cuando otra bóveda le escribe por primera vez) y el de «＋ Nueva conversación». Si no está instalado, se descarga al usarlo.</span>
+              {t('settings.agents.defaultAgent')}
+              <span class="hint">{t('settings.agents.defaultAgentHint')}</span>
             </span>
             <select
-              aria-label="Agente por defecto"
+              aria-label={t('settings.agents.defaultAgent')}
               value={agentStore.defaultAgentId ?? ''}
               onchange={(e) => agentStore.setDefaultAgent(e.currentTarget.value || null)}
             >
-              <option value="">El primero instalado</option>
+              <option value="">{t('settings.agents.firstInstalled')}</option>
               {#each agentStore.agents as a (a.id)}
-                <option value={a.id}>{a.name}{a.installed ? '' : ' (se descargará)'}</option>
+                <option value={a.id}>{a.name}{a.installed ? '' : t('settings.agents.willDownload')}</option>
               {/each}
             </select>
           </label>
           <label class="row">
             <span class="row-label">
-              Agente para conversaciones de otras bóvedas
-              <span class="hint">🐙 Cuando un agente de otra bóveda abierta le escribe a esta, se abre una conversación con este agente. Se guarda para esta bóveda.</span>
+              {t('settings.agents.incomingAgent')}
+              <span class="hint">{t('settings.agents.incomingAgentHint')}</span>
             </span>
             <select
-              aria-label="Agente para conversaciones de otras bóvedas"
+              aria-label={t('settings.agents.incomingAgent')}
               value={agentStore.incomingAgentId ?? ''}
               onchange={(e) => agentStore.setIncomingAgent(e.currentTarget.value || null)}
             >
-              <option value="">El último usado o el agente por defecto</option>
+              <option value="">{t('settings.agents.lastUsedOrDefault')}</option>
               {#each agentStore.agents as a (a.id)}
                 <option value={a.id}>{a.name}</option>
               {/each}
@@ -530,12 +527,12 @@
           </label>
           <div class="row">
             <span class="row-label">
-              Sonido al terminar un turno
-              <span class="hint">Se reproduce cuando el agente termina de responder.</span>
+              {t('settings.agents.completionSound')}
+              <span class="hint">{t('settings.agents.completionSoundHint')}</span>
             </span>
             <div class="inline">
               <select
-                aria-label="Sonido al terminar un turno"
+                aria-label={t('settings.agents.completionSound')}
                 value={appSettings.agentCompletionSound}
                 onchange={(e) => {
                   const chosen = e.currentTarget.value as AgentCompletionSound;
@@ -551,7 +548,7 @@
                 type="button"
                 disabled={appSettings.agentCompletionSound === 'none'}
                 onclick={() => void playAgentCompletionSound(appSettings.agentCompletionSound)}
-              >Probar</button>
+              >{t('settings.agents.testSound')}</button>
             </div>
           </div>
           <label class="row">
@@ -606,8 +603,8 @@
           </div>
           <div class="row peer-decisions">
             <span class="row-label">
-              Bóvedas que pueden conversar con esta
-              <span class="hint">🐙 Lo que respondiste cuando un agente de otra bóveda quiso conversar con esta. Al quitar una, se vuelve a preguntar la próxima vez.</span>
+              {t('settings.agents.peerVaults')}
+              <span class="hint">{t('settings.agents.peerVaultsHint')}</span>
             </span>
             {#if peerDecisions.length}
               <ul>
@@ -616,27 +613,27 @@
                     <span>{d.allowed ? '✅' : '🚫'} {d.vault}</span>
                     <button
                       type="button"
-                      aria-label="Quitar {d.vault}"
+                      aria-label="{t('settings.appearance.remove')} {d.vault}"
                       onclick={() => {
                         agentStore.peers.forget(d.path);
                         peerDecisions = agentStore.peers.decisions();
-                      }}>Quitar</button
+                      }}>{t('settings.appearance.remove')}</button
                     >
                   </li>
                 {/each}
               </ul>
             {:else}
-              <span class="hint">Ninguna todavía.</span>
+              <span class="hint">{t('settings.agents.noneYet')}</span>
             {/if}
           </div>
           <label class="row">
             <span class="row-label">
-              Registro de depuración de ACP
-              <span class="hint">Guarda, sin filtrar, cada mensaje que entra y sale de los agentes (herramientas con su resultado incluido, si el agente lo manda){#if agentStore.debugLogPath} en <code>{agentStore.debugLogPath}</code>{/if}. Útil para ver qué envía cada agente; puede crecer rápido.</span>
+              {t('settings.agents.debugLog')}
+              <span class="hint">{t('settings.agents.debugLogPart1')}{#if agentStore.debugLogPath} {t('settings.agents.debugLogIn')} <code>{agentStore.debugLogPath}</code>{/if}{t('settings.agents.debugLogPart2')}</span>
             </span>
             <input
               type="checkbox"
-              aria-label="Registro de depuración de ACP"
+              aria-label={t('settings.agents.debugLog')}
               checked={agentStore.debugLog}
               onchange={(e) => agentStore.setDebugLog(e.currentTarget.checked)}
             />
@@ -646,13 +643,13 @@
               type="button"
               class="link-btn"
               onclick={() => invokeTauri('show_item_in_folder', { path: agentStore.debugLogPath }).catch(() => {})}
-            >Mostrar el registro en su carpeta</button>
+            >{t('settings.agents.showLogFolder')}</button>
           {/if}
           {#if feedbackAvailable}
           <label class="row">
             <span class="row-label">
-              Modo feedback del MCP
-              <span class="hint">El agente anota en <code>~/.config/synapsers/feedback.md</code> lo que le falte al MCP. Aplica a las conversaciones nuevas.</span>
+              {t('settings.agents.feedbackMode')}
+              <span class="hint">{t('settings.agents.feedbackPart1')} <code>~/.config/synapsers/feedback.md</code> {t('settings.agents.feedbackPart2')}</span>
             </span>
             <input
               type="checkbox"
@@ -661,7 +658,7 @@
             />
           </label>
           {/if}
-          <h4 class="agents-subtitle">Verificados</h4>
+          <h4 class="agents-subtitle">{t('settings.agents.verified')}</h4>
           {#each agentStore.agents.filter((a) => a.source === 'verified') as a (a.id)}
             <div class="row agent-row">
               <span class="row-label">
@@ -670,28 +667,28 @@
               </span>
               <select
                 class="process-limit"
-                title="Conversaciones que comparte un mismo proceso del agente; con más, se lanza otro. Usa 1 si el agente atiende una conversación a la vez."
-                aria-label="Conversaciones por proceso de {a.name}"
+                title={t('settings.agents.processLimitTitle')}
+                aria-label={t('settings.agents.processLimitAria', { name: a.name })}
                 value={String(agentStore.processLimits[a.id] ?? DEFAULT_PROCESS_LIMIT)}
                 onchange={(e) => agentStore.setProcessLimit(a.id, Number(e.currentTarget.value))}
               >
                 {#each [1, 2, 3, 4, 6, 8] as n (n)}
-                  <option value={String(n)}>{n} por proceso</option>
+                  <option value={String(n)}>{t('settings.agents.perProcess', { n })}</option>
                 {/each}
               </select>
               {#if a.installed}
-                <span class="hint">Instalado</span>
+                <span class="hint">{t('settings.agents.installed')}</span>
               {:else}
                 <button type="button" disabled={installing !== null} onclick={() => installAgent(a.id)}>
-                  {installing === a.id ? 'Instalando…' : 'Instalar'}
+                  {installing === a.id ? t('settings.agents.installing') : t('settings.agents.install')}
                 </button>
               {/if}
             </div>
           {:else}
-            <p class="hint">Sin agentes verificados disponibles.</p>
+            <p class="hint">{t('settings.agents.noVerified')}</p>
           {/each}
 
-          <h4 class="agents-subtitle">Personalizados</h4>
+          <h4 class="agents-subtitle">{t('settings.agents.custom')}</h4>
           {#each agentStore.agents.filter((a) => a.source === 'custom') as a (a.id)}
             <div class="row agent-row">
               <span class="row-label">
@@ -700,16 +697,16 @@
               </span>
               <select
                 class="process-limit"
-                title="Conversaciones que comparte un mismo proceso del agente; con más, se lanza otro. Usa 1 si el agente atiende una conversación a la vez."
-                aria-label="Conversaciones por proceso de {a.name}"
+                title={t('settings.agents.processLimitTitle')}
+                aria-label={t('settings.agents.processLimitAria', { name: a.name })}
                 value={String(agentStore.processLimits[a.id] ?? DEFAULT_PROCESS_LIMIT)}
                 onchange={(e) => agentStore.setProcessLimit(a.id, Number(e.currentTarget.value))}
               >
                 {#each [1, 2, 3, 4, 6, 8] as n (n)}
-                  <option value={String(n)}>{n} por proceso</option>
+                  <option value={String(n)}>{t('settings.agents.perProcess', { n })}</option>
                 {/each}
               </select>
-              <button type="button" onclick={() => deleteCustomAgent(a.id)}>Quitar</button>
+              <button type="button" onclick={() => deleteCustomAgent(a.id)}>{t('settings.appearance.remove')}</button>
             </div>
           {/each}
           <form
@@ -719,54 +716,53 @@
               saveCustomAgent();
             }}
           >
-            <input placeholder="Identificador (mi-agente)" bind:value={draftAgent.id} required />
-            <input placeholder="Nombre" bind:value={draftAgent.name} required />
-            <input placeholder="Comando (ruta o nombre en el PATH)" bind:value={draftAgent.command} required />
-            <input placeholder="Argumentos separados por espacios" bind:value={draftAgent.args} />
-            <textarea placeholder="Variables de entorno, una por línea: CLAVE=valor" rows="2" bind:value={draftAgent.env}
+            <input placeholder={t('settings.agents.idPlaceholder')} bind:value={draftAgent.id} required />
+            <input placeholder={t('settings.agents.namePlaceholder')} bind:value={draftAgent.name} required />
+            <input placeholder={t('settings.agents.commandPlaceholder')} bind:value={draftAgent.command} required />
+            <input placeholder={t('settings.agents.argsPlaceholder')} bind:value={draftAgent.args} />
+            <textarea placeholder={t('settings.agents.envPlaceholder')} rows="2" bind:value={draftAgent.env}
             ></textarea>
-            <button type="submit">Agregar agente</button>
+            <button type="submit">{t('settings.agents.addAgent')}</button>
           </form>
           {#if agentError}<span class="error">{agentError}</span>{/if}
         {:else if section === 'git'}
-          <h3>Git</h3>
+          <h3>{t('settings.sections.git')}</h3>
           <div class="row">
-            <span class="row-label">Ejecutable</span>
-            <span class="git-path" title={gitBinary.info?.configuredPath ?? 'git del PATH'}>
-              {gitBinary.info?.configuredPath ?? 'git del PATH del sistema'}
+            <span class="row-label">{t('settings.git.executable')}</span>
+            <span class="git-path" title={gitBinary.info?.configuredPath ?? t('settings.git.systemPathTitle')}>
+              {gitBinary.info?.configuredPath ?? t('settings.git.systemPath')}
             </span>
           </div>
           <div class="row">
-            <span class="row-label">Estado</span>
+            <span class="row-label">{t('settings.git.status')}</span>
             {#if !gitBinary.info}
-              <span>Comprobando…</span>
+              <span>{t('settings.git.checking')}</span>
             {:else if gitBinary.info.version}
               <span>✓ {gitBinary.info.version}</span>
             {:else}
-              <span class="error">No se encontró Git</span>
+              <span class="error">{t('settings.git.notFound')}</span>
             {/if}
           </div>
           <div class="row">
             <span class="row-label"></span>
             <span class="git-actions">
-              <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.choose()}>Elegir ejecutable…</button>
+              <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.choose()}>{t('settings.git.chooseExecutable')}</button>
               {#if gitBinary.info?.configuredPath}
-                <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.setPath(null)}>Usar el del sistema</button>
+                <button type="button" class="theme-dirs-rescan" disabled={gitBinary.busy} onclick={() => gitBinary.setPath(null)}>{t('settings.git.useSystem')}</button>
               {/if}
             </span>
           </div>
           {#if gitBinary.error}<p class="error">{gitBinary.error}</p>{/if}
           <p class="hint">
-            Ver el estado, el historial y las versiones no necesita Git; commit, cambiar de rama, push, clone y
-            Git LFS sí. La ruta se guarda en <code>config.jsonc</code> (<code>git.path</code>).
+            {t('settings.git.hintPrefix')} <code>config.jsonc</code> (<code>git.path</code>).
           </p>
         {:else if section === 'azure'}
           <h3>{t('connections.title')}</h3>
           <ConnectionsSettings />
         {:else if section === 'updates'}
-          <h3>Actualizaciones</h3>
+          <h3>{t('settings.sections.updates')}</h3>
           <label class="row">
-            <span class="row-label">Buscar actualizaciones al iniciar</span>
+            <span class="row-label">{t('settings.updates.checkOnStartup')}</span>
             <input
               type="checkbox"
               checked={appSettings.autoCheckUpdates}
@@ -774,25 +770,23 @@
             />
           </label>
           <p class="hint">
-            Consulta el <code>latest.json</code> de la última release en GitHub. Solo se envía la petición
-            (sin datos de tus notas); el paquete se verifica con su firma antes de instalarlo.
+            {t('settings.updates.hintPart1')} <code>latest.json</code> {t('settings.updates.hintPart2')}
           </p>
           <div class="row">
-            <span class="row-label">Ahora</span>
+            <span class="row-label">{t('settings.updates.now')}</span>
             <button
               type="button"
               class="theme-dirs-rescan"
               disabled={appUpdates.status === 'checking' || appUpdates.status === 'installing'}
               onclick={() => appUpdates.check(false)}
             >
-              {appUpdates.status === 'checking' ? 'Buscando…' : 'Buscar actualizaciones'}
+              {appUpdates.status === 'checking' ? t('settings.updates.checking') : t('settings.updates.checkNow')}
             </button>
           </div>
         {:else}
-          <h3>Atajos de teclado</h3>
+          <h3>{t('settings.sections.shortcuts')}</h3>
           <p class="hint">
-            Se guardan en <code>~/.config/synapsers/shortcuts.jsonc</code>. Para varios atajos en una misma
-            acción, sepáralos con comas: <code>Alt+1, Ctrl+B</code>. Se guarda al pulsar Enter o al salir del campo.
+            {t('settings.shortcuts.hintPart1')} <code>~/.config/synapsers/shortcuts.jsonc</code>{t('settings.shortcuts.hintPart2')} <code>Alt+1, Ctrl+B</code>{t('settings.shortcuts.hintPart3')}
           </p>
           {#each shortcutGroups as group (group.section)}
             <h4>{group.title}</h4>

@@ -1,3 +1,4 @@
+import { t } from '@shared/lib/i18n';
 import { invokeTauri, isTauriEnvironment, type StartupTarget } from './tauri';
 export type { StartupTarget };
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -978,6 +979,7 @@ export class TauriVaultRepository implements VaultRepository {
       return await invokeTauri<SelectVaultFolderResult | null>('select_vault_folder', {
         startingDirectory: startingDirectory ?? null,
         starting_directory: startingDirectory ?? null,
+        title: t('common.selectVaultFolderTitle'),
       });
     } catch (error) {
       console.error('Error en TauriVaultRepository al seleccionar carpeta de bóveda:', error);
@@ -1035,7 +1037,7 @@ export class TauriVaultRepository implements VaultRepository {
 
   async gitCommit(paths: string[], message: string): Promise<string> {
     if (!this.isConnected() || paths.length === 0) {
-      throw new Error('No hay archivos seleccionados para confirmar');
+      throw new Error(t('explorer.errors.noFilesToCommit'));
     }
 
     return await invokeTauri<string>('git_commit_paths', {
@@ -1062,7 +1064,7 @@ export class TauriVaultRepository implements VaultRepository {
 
   async gitPush(repo = ''): Promise<string> {
     if (!this.isConnected()) {
-      throw new Error('No hay conexión con el backend de Tauri');
+      throw new Error('No connection to Tauri backend');
     }
     return await invokeTauri<string>('git_push_vault', { repo });
   }
@@ -1176,7 +1178,7 @@ export class TauriVaultRepository implements VaultRepository {
 
   async gitCheckout(branchName: string, repo = ''): Promise<string> {
     if (!this.isConnected()) {
-      throw new Error('No hay conexión con la bóveda');
+      throw new Error(t('pdfViewer.noConnection'));
     }
 
     return await invokeTauri<string>('git_checkout_branch', {
@@ -1193,7 +1195,7 @@ export class TauriVaultRepository implements VaultRepository {
     repo?: string;
   }): Promise<string> {
     if (!this.isConnected()) {
-      throw new Error('No hay conexión con la bóveda');
+      throw new Error(t('pdfViewer.noConnection'));
     }
 
     return await invokeTauri<string>('git_create_branch', {
@@ -1219,7 +1221,7 @@ export class TauriVaultRepository implements VaultRepository {
 
   async renameItem(relativePath: string, newName: string): Promise<string> {
     if (!this.isConnected()) {
-      throw new Error('No hay conexión con la bóveda');
+      throw new Error(t('pdfViewer.noConnection'));
     }
 
     return await invokeTauri<string>('rename_vault_item', {

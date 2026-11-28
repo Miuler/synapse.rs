@@ -1,6 +1,7 @@
 import { EditorView, Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
 import { StateField, type EditorState } from '@codemirror/state';
 import { extractYouTubeTokens, getYouTubeThumbnailUrl } from './youtube';
+import { t } from '@shared/lib/i18n';
 
 class YouTubeWidget extends WidgetType {
   constructor(
@@ -23,11 +24,11 @@ class YouTubeWidget extends WidgetType {
     link.href = this.url;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.title = 'Abrir en YouTube';
+    link.title = t('readingView.youtubeTitle');
 
     const img = document.createElement('img');
     img.className = 'cm-youtube-thumb';
-    img.alt = 'Miniatura de YouTube';
+    img.alt = t('readingView.youtubeThumbAlt');
     img.loading = 'lazy';
     img.onload = () => view.requestMeasure();
     img.onerror = () => {

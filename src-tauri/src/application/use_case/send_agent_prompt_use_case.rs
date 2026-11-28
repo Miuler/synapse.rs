@@ -19,7 +19,7 @@ impl<A: AgentRunner> SendAgentPromptUseCase<A> {
             .filter(|b| !b.is_empty())
             .collect();
         if blocks.is_empty() {
-            return Err("El mensaje está vacío".into());
+            return Err("message is empty".into());
         }
         self.runner.prompt(&command.session_id, blocks).await
     }

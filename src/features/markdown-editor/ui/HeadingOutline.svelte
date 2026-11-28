@@ -5,6 +5,7 @@
   import { tick, untrack } from 'svelte';
   import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search } from 'lucide-svelte';
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
+  import { t } from '@shared/lib/i18n';
   import { extractHeadingTree, flattenHeadings, headingPathAt, normalizeHeadingText, type HeadingNode } from '../lib/heading-anchor';
 
   interface Props {
@@ -27,7 +28,7 @@
     onClose: () => void;
   }
 
-  let { content, nodes, label = 'Índice de la nota', emptyText = 'La nota no tiene títulos', showLevel = true, searchPlaceholder = 'Buscar título…', embedded = false, align = 'left', currentLine = -1, onSelect, onClose }: Props = $props();
+  let { content, nodes, label, emptyText, showLevel = true, searchPlaceholder, embedded = false, align = 'left', currentLine = -1, onSelect, onClose }: Props = $props();
 
   const popoverSize = persistedDialogSize(
     'synapse.outlinePopover.size',
@@ -156,7 +157,7 @@
   class:embedded
   style={embedded ? undefined : popoverSize.style}
   role={embedded ? undefined : 'dialog'}
-  aria-label={label}
+  aria-label={label ?? t('headingOutline.title')}
 >
   {#if !embedded}
     <DialogResizeHandles
@@ -172,22 +173,22 @@
         bind:value={query}
         type="text"
         class="outline-search-input"
-        placeholder={searchPlaceholder}
-        aria-label="Buscar título"
+        placeholder={searchPlaceholder ?? t('headingOutline.searchPlaceholder')}
+        aria-label={t('headingOutline.searchAria')}
         onkeydown={onSearchKeydown}
       />
     </label>
-    <button type="button" class="outline-btn" aria-label="Expandir todo" title="Expandir todo" onclick={() => setAll(true)}>
+    <button type="button" class="outline-btn" aria-label={t('headingOutline.expandAll')} title={t('headingOutline.expandAll')} onclick={() => setAll(true)}>
       <ChevronsUpDown size={14} />
     </button>
-    <button type="button" class="outline-btn" aria-label="Contraer todo" title="Contraer todo" onclick={() => setAll(false)}>
+    <button type="button" class="outline-btn" aria-label={t('headingOutline.collapseAll')} title={t('headingOutline.collapseAll')} onclick={() => setAll(false)}>
       <ChevronsDownUp size={14} />
     </button>
   </div>
   {#if tree.length === 0}
-    <div class="outline-empty">{emptyText}</div>
+    <div class="outline-empty">{emptyText ?? t('headingOutline.emptyNote')}</div>
   {:else if visibleTree.length === 0}
-    <div class="outline-empty">Ningún título coincide</div>
+    <div class="outline-empty">{t('headingOutline.noMatches')}</div>
   {:else}
     <ul class="outline-list" bind:this={listEl}>
       {#each visibleTree as node (node.line)}

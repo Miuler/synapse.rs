@@ -23,6 +23,7 @@
   import { PlantUmlViewer } from '@features/plantuml-editor';
   import { MermanViewer } from '@features/merman-editor';
   import { AlertCircle, HardDrive, GitCommit, Split, Eye, Pencil } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     filePath: string;
@@ -156,12 +157,12 @@
   {#if loading}
     <div class="state-container">
       <div class="spinner"></div>
-      <p>Cargando visualización de ambos paneles{compareWith ? '' : ' (Disco vs Git)'}...</p>
+      <p>{t('diffViewer.visual.loading', { suffix: compareWith ? '' : t('diffViewer.visual.loadingDiskVsGit') })}</p>
     </div>
   {:else if error}
     <div class="state-container error">
       <AlertCircle size={32} class="error-icon" />
-      <h3>Error al preparar diff visual</h3>
+      <h3>{t('diffViewer.visual.errorTitle')}</h3>
       <p>{error}</p>
     </div>
   {:else}
@@ -171,35 +172,35 @@
       <div class="pane-header">
         <div class="pane-tag local">
           <HardDrive size={13} />
-          <span>{sides.afterLabel}{#if afterIsDisk && !compareWith && (isDrawing || isDiagram)}{isLocalEditable ? ' — Editable' : ' — Lectura'}{/if}</span>
+          <span>{sides.afterLabel}{#if afterIsDisk && !compareWith && (isDrawing || isDiagram)}{isLocalEditable ? t('diffViewer.visual.editableTag') : t('diffViewer.visual.readOnlyTag')}{/if}</span>
         </div>
         <div class="pane-header-right">
           {#if afterIsDisk && (isDrawing || isDiagram)}
-            <div class="mode-toggle-group" role="group" aria-label="Modo de edición local">
+            <div class="mode-toggle-group" role="group" aria-label={t('diffViewer.visual.editModeGroupAria')}>
               <button
                 type="button"
                 class="mode-toggle-btn"
                 class:active={!isLocalEditable}
                 onclick={() => (isLocalEditable = false)}
-                title="Modo lectura (por defecto)"
+                title={t('diffViewer.visual.readingTitle')}
               >
                 <Eye size={12} />
-                <span>Lectura</span>
+                <span>{t('diffViewer.visual.readingLabel')}</span>
               </button>
               <button
                 type="button"
                 class="mode-toggle-btn"
                 class:active={isLocalEditable}
                 onclick={() => (isLocalEditable = true)}
-                title="Modo escritura (aplica únicamente al archivo local en disco)"
+                title={t('diffViewer.visual.writingTitle')}
               >
                 <Pencil size={12} />
-                <span>Escritura</span>
+                <span>{t('diffViewer.visual.writingLabel')}</span>
               </button>
             </div>
           {/if}
           {#if isSavingLocal}
-            <span class="saving-indicator">Guardando...</span>
+            <span class="saving-indicator">{t('diffViewer.visual.saving')}</span>
           {/if}
           <span class="pane-filename" title={filePath}>{fileName}</span>
         </div>
@@ -260,7 +261,7 @@
       aria-orientation="vertical"
       aria-valuenow={splitRatio}
       tabindex="0"
-      title="Arrastra para ajustar proporción"
+      title={t('diffViewer.visual.resizerTitle')}
     >
       <div class="resizer-handle">
         <Split size={12} />
@@ -275,16 +276,16 @@
           <span>{sides.beforeLabel}</span>
         </div>
         {#if compareWith}
-          <span class="pane-rev-info">Archivo comparado</span>
+          <span class="pane-rev-info">{t('diffViewer.visual.comparedFile')}</span>
         {:else if !gitRevision?.exists}
-          <span class="not-in-git-badge">No existe en esta versión</span>
+          <span class="not-in-git-badge">{t('diffViewer.visual.missingBadge')}</span>
         {/if}
       </div>
 
       <div class="pane-content">
         {#if !gitRevision?.exists}
           <div class="empty-git-state">
-            <p>Este archivo no existe en «{sides.beforeLabel}».</p>
+            <p>{t('diffViewer.visual.missingText', { label: sides.beforeLabel })}</p>
           </div>
         {:else if isDrawing}
           <ExcalidrawViewer content={gitRevision.content || ''} filePath={filePath} readOnly={true} />

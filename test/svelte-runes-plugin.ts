@@ -2,13 +2,13 @@
 // compilador de Svelte, igual que hace Vite en la app. Sin esto, cualquier prueba que importe un
 // store de una entidad falla con "$state is not defined".
 import { plugin } from 'bun';
+import { compileModule } from 'svelte/compiler';
 
 plugin({
   name: 'svelte-runes',
-  async setup(build) {
+  setup(build) {
     // TypeScript 7 ya no trae API de JavaScript (`transpileModule`): el TS se quita con el transpilador de Bun
     const transpiler = new Bun.Transpiler({ loader: 'ts' });
-    const { compileModule } = await import('svelte/compiler');
     build.onLoad({ filter: /\.svelte\.ts$/ }, async ({ path }) => {
       const source = await Bun.file(path).text();
       const js = transpiler.transformSync(source);

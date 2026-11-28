@@ -142,7 +142,7 @@ impl WorkspaceRegistryRepositoryImpl {
         if let Some(parent) = self.config_file_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
                 format!(
-                    "No se pudo crear el directorio de configuración {:?}: {}",
+                    "Could not create config directory {:?}: {}",
                     parent, e
                 )
             })?;
@@ -341,19 +341,19 @@ pub(crate) fn set_jsonc_shortcut(
 ) -> Result<String, String> {
     let root = skip_jsonc_trivia(raw, 0);
     if !raw[root..].starts_with('{') {
-        return Err("shortcuts.jsonc no contiene un objeto".to_string());
+        return Err("shortcuts.jsonc does not contain an object".to_string());
     }
     let section_start = find_jsonc_key_value(raw, root, section)
         .filter(|&p| raw[p..].starts_with('{'))
-        .ok_or_else(|| format!("shortcuts.jsonc no tiene la sección \"{section}\""))?;
+        .ok_or_else(|| format!("shortcuts.jsonc does not have section \"{section}\""))?;
     let encoded = serde_json::to_string(value).map_err(|e| e.to_string())?;
 
     if let Some(value_start) = find_jsonc_key_value(raw, section_start, action) {
         if !raw[value_start..].starts_with('"') {
-            return Err(format!("El atajo \"{action}\" no es una cadena"));
+            return Err(format!("Shortcut \"{action}\" is not a string"));
         }
         let value_end = json_string_end(raw, value_start)
-            .ok_or_else(|| "Cadena sin cerrar en shortcuts.jsonc".to_string())?;
+            .ok_or_else(|| "Unterminated string in shortcuts.jsonc".to_string())?;
         return Ok(format!(
             "{}{}{}",
             &raw[..value_start],
@@ -386,7 +386,7 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
 
         let raw = std::fs::read_to_string(&self.config_file_path).map_err(|e| {
             format!(
-                "Error leyendo registro de workspaces {:?}: {}",
+                "Failed to read workspace registry {:?}: {}",
                 self.config_file_path, e
             )
         })?;
@@ -397,7 +397,7 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
 
         let mut cfg = serde_json::from_str::<WorkspaceRegistryConfig>(&raw).map_err(|e| {
             format!(
-                "Error deserializando registro de workspaces {:?}: {}",
+                "Failed to deserialize workspace registry {:?}: {}",
                 self.config_file_path, e
             )
         })?;
@@ -416,10 +416,10 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
     fn save_registry(&self, config: &WorkspaceRegistryConfig) -> Result<(), String> {
         self.ensure_dir_exists()?;
         let json = serde_json::to_string_pretty(config)
-            .map_err(|e| format!("Error serializando registro de workspaces: {}", e))?;
+            .map_err(|e| format!("Failed to serialize workspace registry: {}", e))?;
         std::fs::write(&self.config_file_path, json).map_err(|e| {
             format!(
-                "Error guardando registro de workspaces en {:?}: {}",
+                "Failed to save workspace registry at {:?}: {}",
                 self.config_file_path, e
             )
         })
@@ -628,12 +628,12 @@ impl WorkspaceRegistryRepository for WorkspaceRegistryRepositoryImpl {
         self.load_shortcuts_config()?;
         let path = self.shortcuts_file_path();
         let raw = std::fs::read_to_string(&path)
-            .map_err(|e| format!("No se pudo leer {}: {e}", path.display()))?;
+            .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
         let updated = set_jsonc_shortcut(&raw, section, action, value)?;
         let parsed = serde_json_lenient::from_str::<ShortcutsConfig>(&updated)
-            .map_err(|e| format!("El cambio dejaría shortcuts.jsonc inválido: {e}"))?;
+            .map_err(|e| format!("Change would make shortcuts.jsonc invalid: {e}"))?;
         std::fs::write(&path, updated)
-            .map_err(|e| format!("No se pudo guardar {}: {e}", path.display()))?;
+            .map_err(|e| format!("Could not save {}: {e}", path.display()))?;
         Ok(parsed)
     }
 }

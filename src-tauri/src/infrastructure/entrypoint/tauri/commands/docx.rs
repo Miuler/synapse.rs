@@ -23,7 +23,7 @@ impl DocxSourceDto {
             ("staged", _) => DocxSource::Staged,
             // `git show` no debe tomar la revisión por una opción
             ("rev", Some(rev)) if !rev.starts_with('-') => DocxSource::Revision(rev),
-            _ => return Err("Versión del documento no válida".into()),
+            _ => return Err("Invalid document version".into()),
         };
         Ok(DocxSourceQuery { path: self.path, source })
     }

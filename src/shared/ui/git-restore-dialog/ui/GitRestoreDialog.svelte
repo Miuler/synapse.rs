@@ -1,5 +1,6 @@
 <script lang="ts">
   import { RotateCcw } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { ConfirmDialog } from '@shared/ui/confirm-dialog';
 
   interface Props {
@@ -20,14 +21,14 @@
 
   let title = $derived(
     items.length > 1
-      ? `¿Restaurar ${items.length} elementos con Git?`
-      : `¿Restaurar "${items[0] || ''}" con Git?`
+      ? t('gitRestore.titleMultiple', { count: items.length })
+      : t('gitRestore.titleSingle', { name: items[0] || '' })
   );
 
   let description = $derived(
     items.length > 1
-      ? `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de estos ${items.length} elementos? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`
-      : `¿Estás seguro de que deseas descartar las modificaciones locales no confirmadas en Git de "${items[0] || ''}"? Esta acción sobreescribirá los cambios no preparados en tu espacio de trabajo.`
+      ? t('gitRestore.descMultiple', { count: items.length })
+      : t('gitRestore.descSingle', { name: items[0] || '' })
   );
 </script>
 
@@ -35,9 +36,9 @@
   bind:open
   {title}
   {description}
-  confirmText="Restaurar cambios"
-  loadingText="Restaurando..."
-  cancelText="Cancelar"
+  confirmText={t('gitRestore.confirmText')}
+  loadingText={t('gitRestore.loadingText')}
+  cancelText={t('common.cancel')}
   variant="danger"
   icon={RotateCcw}
   {loading}
@@ -53,7 +54,7 @@
       {/each}
       {#if items.length > 5}
         <div class="confirm-dialog-item more">
-          ... y {items.length - 5} más
+          {t('gitRestore.more', { count: items.length - 5 })}
         </div>
       {/if}
     </div>

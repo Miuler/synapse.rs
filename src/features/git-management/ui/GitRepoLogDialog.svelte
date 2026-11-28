@@ -7,7 +7,7 @@
     GitGraph, Search, Loader2, AlertCircle, Tag, GitBranch, Cloud, FileText, RefreshCw,
     GitBranchPlus, LogIn, Trash2, Copy, Crosshair, FastForward, Combine, Undo2, History, GitMerge,
   } from 'lucide-svelte';
-  import { t } from '@shared/lib/i18n';
+  import { i18n, t } from '@shared/lib/i18n';
   import { flushPendingWrites } from '@shared/lib/pending-writes';
   import {
     gitApi,
@@ -61,10 +61,10 @@
   const COLUMNS_STORAGE_KEY = 'synapse.gitRepoLogDialog.columns';
   const DEFAULT_COLUMNS: RepoLogColumnId[] = ['hash', 'message', 'author', 'date'];
   const COLUMN_LABELS: Record<RepoLogColumnId, string> = {
-    hash: 'Hash',
-    message: 'Mensaje',
-    author: 'Autor',
-    date: 'Fecha',
+    get hash() { return t('gitRepoLog.columns.hash'); },
+    get message() { return t('gitRepoLog.columns.message'); },
+    get author() { return t('gitRepoLog.columns.author'); },
+    get date() { return t('gitRepoLog.columns.date'); },
   };
 
   function loadColumns(): RepoLogColumnId[] {
@@ -293,7 +293,7 @@
         .catch((err) => {
           const reason = err instanceof Error ? err.message : String(err);
           // Solo se ofrece (desactivado) si lo impiden las fusiones; en otras ramas no aplica
-          if (reason.includes('fusiones')) squashCheck = { hash, reason };
+          if (reason.includes('fusiones') || reason.includes('merge')) squashCheck = { hash, reason };
         });
     }
     if (branch && c.commit_hash !== head) {
@@ -303,7 +303,7 @@
         .catch((err) => {
           const reason = err instanceof Error ? err.message : String(err);
           // Solo se ofrece (desactivado) si las ramas divergieron; en commits anteriores no aplica
-          if (reason.startsWith('No es un avance rápido')) ffCheck = { hash: c.commit_hash, ok: false, reason };
+          if (reason.startsWith('No es un avance rápido') || reason.startsWith('Not a fast-forward')) ffCheck = { hash: c.commit_hash, ok: false, reason };
         });
     }
   }
@@ -454,16 +454,16 @@
     menu = null;
     try {
       await navigator.clipboard.writeText(hash);
-      notice = { text: `Hash copiado: ${hash.slice(0, 7)}`, error: false };
+      notice = { text: t('gitRepoLog.hashCopied', { hash: hash.slice(0, 7) }), error: false };
     } catch {
-      notice = { text: 'No se pudo copiar el hash', error: true };
+      notice = { text: t('gitRepoLog.hashCopyFailed'), error: true };
     }
   }
 
   function formatDate(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString(i18n.locale === 'es' ? 'es' : 'en', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   /** Ruta del archivo relativa a la bóveda (el log puede ser de un repositorio en una subcarpeta). */
@@ -476,12 +476,12 @@
   }
 
   const changeLabel: Record<string, string> = {
-    A: 'Agregado',
-    M: 'Modificado',
-    D: 'Eliminado',
-    R: 'Renombrado',
-    C: 'Copiado',
-    T: 'Cambio de tipo',
+    get A() { return t('gitUi.status.added'); },
+    get M() { return t('gitUi.status.modified'); },
+    get D() { return t('gitUi.status.deleted'); },
+    get R() { return t('gitUi.status.renamed'); },
+    get C() { return t('gitUi.status.copied'); },
+    get T() { return t('gitUi.status.typeChange'); },
   };
 
   function handleClose() {
@@ -518,8 +518,8 @@
 <ResizableDialog
   {open}
   onClose={handleClose}
-  title="Git Log"
-  description="Commits de todas las ramas del repositorio, con el grafo de ramas."
+  title={t('gitRepoLog.title')}
+  description={t('gitRepoLog.description')}
   sizeKey="synapse.gitRepoLogDialog.size"
   defaultSize={{ w: 1200, h: 760 }}
   minSize={{ w: 640, h: 400 }}
@@ -530,7 +530,7 @@
   {#snippet icon()}<GitGraph size={20} />{/snippet}
   {#snippet footer()}
     {#if busy}
-      <span class="repo-log-notice"><Loader2 size={12} class="spin" /> Ejecutando…</span>
+      <span class="repo-log-notice"><Loader2 size={12} class="spin" /> {t('gitRepoLog.busy')}</span>
     {:else if notice}
       <span class="repo-log-notice" class:error={notice.error} aria-live="polite">{notice.text}</span>
     {/if}
@@ -547,10 +547,10 @@
       </button>
     {/if}
     <span class="repo-log-count">
-      {visibleCommits.length} {visibleCommits.length === 1 ? 'commit' : 'commits'}
-      {#if visibleCommits.length !== commits.length}(de {commits.length}){/if}
+      {visibleCommits.length} {visibleCommits.length === 1 ? t('gitRepoLog.commitOne') : t('gitRepoLog.commitMany')}
+      {#if visibleCommits.length !== commits.length}{t('gitRepoLog.ofTotal', { total: commits.length })}{/if}
     </span>
-    <button type="button" class="close-btn" onclick={handleClose}>Cerrar</button>
+    <button type="button" class="close-btn" onclick={handleClose}>{t('common.close')}</button>
   {/snippet}
 
   <div class="repo-log">
@@ -560,18 +560,18 @@
         <Search size={13} />
         <input
           type="text"
-          placeholder="Filtrar por mensaje, autor, hash o rama…"
+          placeholder={t('gitRepoLog.searchPlaceholder')}
           bind:value={filterText}
-          aria-label="Filtrar commits"
+          aria-label={t('gitRepoLog.searchAria')}
         />
       </label>
-      <select class="repo-log-branch" bind:value={branchFilter} aria-label="Rama">
-        <option value="">Todas las ramas</option>
+      <select class="repo-log-branch" bind:value={branchFilter} aria-label={t('gitRepoLog.branchAria')}>
+        <option value="">{t('gitRepoLog.allBranches')}</option>
         {#each allRefs as r (r.kind + r.name)}
-          <option value={r.name}>{r.kind === 'tag' ? 'Tag: ' : r.kind === 'remote' ? 'Remota: ' : ''}{r.name}</option>
+          <option value={r.name}>{r.kind === 'tag' ? t('gitRepoLog.tagPrefix') : r.kind === 'remote' ? t('gitRepoLog.remotePrefix') : ''}{r.name}</option>
         {/each}
       </select>
-      <button type="button" class="repo-log-refresh" onclick={loadLog} title="Recargar" aria-label="Recargar" disabled={loading}>
+      <button type="button" class="repo-log-refresh" onclick={loadLog} title={t('gitRepoLog.reload')} aria-label={t('gitRepoLog.reload')} disabled={loading}>
         <RefreshCw size={13} />
       </button>
       {#if mergeState}
@@ -586,11 +586,11 @@
 
     <div class="repo-log-list">
       {#if loading && commits.length === 0}
-        <div class="repo-log-state"><Loader2 size={18} class="spin" /> Cargando log…</div>
+        <div class="repo-log-state"><Loader2 size={18} class="spin" /> {t('gitRepoLog.loadingLog')}</div>
       {:else if error}
         <div class="repo-log-state error"><AlertCircle size={18} /> {error}</div>
       {:else if visibleCommits.length === 0}
-        <div class="repo-log-state">{commits.length ? 'Ningún commit coincide con el filtro.' : 'El repositorio no tiene commits.'}</div>
+        <div class="repo-log-state">{commits.length ? t('gitRepoLog.noFilterMatches') : t('gitRepoLog.noCommits')}</div>
       {:else}
         <table class="repo-log-table">
           <thead>
@@ -603,7 +603,7 @@
                   class:drag-over-after={dragOverCol === col && dragOverSide === 'after'}
                   data-col={col}
                   draggable="true"
-                  title="Arrastra para reordenar columnas"
+                  title={t('gitRepoLog.dragColumnsTitle')}
                   ondragstart={(e) => onColDragStart(col, e)}
                   ondragover={(e) => onColDragOver(col, e)}
                   ondragleave={(e) => onColDragLeave(col, e)}
@@ -656,9 +656,9 @@
                         {#if c.commit_hash === head}
                           <span
                             class="head-label"
-                            title={headBranch ? `Estás aquí: HEAD en la rama ${headBranch}` : 'Estás aquí: HEAD separado (sin rama)'}
+                            title={headBranch ? t('gitRepoLog.headHereBranch', { branch: headBranch }) : t('gitRepoLog.headHereDetached')}
                           >
-                            HEAD{headBranch ? '' : ' (separado)'}
+                            HEAD{headBranch ? '' : t('gitRepoLog.detached')}
                           </span>
                         {/if}
                         {#each c.refs as r (r.kind + r.name)}
@@ -687,12 +687,12 @@
 
     <div class="repo-log-details" aria-live="polite">
       {#if detailsLoading}
-        <div class="repo-log-state"><Loader2 size={16} class="spin" /> Cargando commit…</div>
+        <div class="repo-log-state"><Loader2 size={16} class="spin" /> {t('gitRepoLog.loadingCommit')}</div>
       {:else if detailsError}
         <div class="repo-log-state error"><AlertCircle size={16} /> {detailsError}</div>
       {:else if details}
         <div class="details-files">
-          <div class="details-title">Archivos cambiados ({details.files.length})</div>
+          <div class="details-title">{t('gitRepoLog.changedFiles', { count: details.files.length })}</div>
           <ul>
             {#each details.files as f (f.path)}
               <li>
@@ -700,7 +700,7 @@
                   type="button"
                   class="details-file"
                   data-path={f.path}
-                  title="Abrir el diff de {f.path} en este commit"
+                  title={t('gitRepoLog.openDiffFileTitle', { path: f.path })}
                   ondblclick={() => openFile(f)}
                   onkeydown={(e) => e.key === 'Enter' && openFile(f)}
                 >
@@ -721,13 +721,13 @@
             <span>{details.author_name} &lt;{details.author_email}&gt;</span>
             <span>{formatDate(details.date)}</span>
             {#if details.committer_name && details.committer_name !== details.author_name}
-              <span>confirmado por {details.committer_name}</span>
+              <span>{t('gitRepoLog.committedBy', { name: details.committer_name })}</span>
             {/if}
-            {#if details.parents.length > 1}<span>Fusión de {details.parents.map((p) => p.slice(0, 7)).join(' y ')}</span>{/if}
+            {#if details.parents.length > 1}<span>{t('gitRepoLog.mergeOf', { parents: details.parents.map((p) => p.slice(0, 7)).join(', ') })}</span>{/if}
           </div>
         </div>
       {:else}
-        <div class="repo-log-state">Elige un commit para ver sus detalles.</div>
+        <div class="repo-log-state">{t('gitRepoLog.selectCommitHint')}</div>
       {/if}
     </div>
   </div>
@@ -740,7 +740,7 @@
       <div class="menu-title">{c.short_hash} · {c.message}</div>
       {#each locals.filter((r) => r.name !== headBranch) as r (r.name)}
         <button type="button" role="menuitem" onclick={() => run(() => gitApi.gitCheckout(r.name, repo), true)}>
-          <LogIn size={13} /> Checkout de «{r.name}»
+          <LogIn size={13} /> {t('gitRepoLog.checkoutBranch', { branch: r.name })}
         </button>
       {/each}
       {#if c.commit_hash !== head || headBranch}
@@ -751,12 +751,12 @@
           onclick={() => {
             const hash = c.commit_hash; // `c` sale de `menu`, que se cierra antes de confirmar
             askConfirm(
-              `¿Hacer checkout de ${c.short_hash}? HEAD quedará separado (sin rama): los commits nuevos no pertenecerán a ninguna rama.`,
+              t('gitRepoLog.checkoutCommitConfirm', { hash: c.short_hash }),
               () => gitApi.gitCheckout(hash, repo)
             );
           }}
         >
-          <Crosshair size={13} /> Checkout de este commit (HEAD separado)
+          <Crosshair size={13} /> {t('gitRepoLog.checkoutCommit')}
         </button>
       {/if}
       {#if headBranch && ffCheck?.hash === c.commit_hash}
@@ -765,7 +765,7 @@
           role="menuitem"
           data-action="fast-forward"
           disabled={!ffCheck.ok}
-          title={ffCheck.ok ? `Mueve «${headBranch}» hasta ${c.short_hash} sin crear commits (git merge --ff-only)` : ffCheck.reason}
+          title={ffCheck.ok ? t('gitRepoLog.ffTitle', { branch: headBranch, hash: c.short_hash }) : ffCheck.reason}
           onclick={() => {
             // `c` sale de `menu`, que `run` cierra: se copia antes
             const b = headBranch!;
@@ -773,14 +773,14 @@
             void run(() => gitApi.gitFastForward(b, hash, repo), true);
           }}
         >
-          <FastForward size={13} /> Avanzar «{headBranch}» hasta aquí (fast-forward)
+          <FastForward size={13} /> {t('gitRepoLog.ffMenu', { branch: headBranch })}
         </button>
       {/if}
       <button type="button" role="menuitem" data-action="new-branch" onclick={() => askName('branch', c)}>
-        <GitBranchPlus size={13} /> Nueva rama aquí… (checkout -b)
+        <GitBranchPlus size={13} /> {t('gitRepoLog.newBranchHere')}
       </button>
       <button type="button" role="menuitem" data-action="new-tag" onclick={() => askName('tag', c)}>
-        <Tag size={13} /> Crear tag aquí…
+        <Tag size={13} /> {t('gitRepoLog.newTagHere')}
       </button>
       {#if headBranch}
         {@const branch = headBranch}
@@ -828,9 +828,9 @@
           role="menuitem"
           class="danger"
           data-action="delete-tag"
-          onclick={() => askConfirm(`¿Borrar el tag local «${r.name}»? (no se borra del remoto)`, () => gitApi.gitDeleteRef('tag', r.name, repo))}
+          onclick={() => askConfirm(t('gitRepoLog.deleteTagConfirm', { name: r.name }), () => gitApi.gitDeleteRef('tag', r.name, repo))}
         >
-          <Trash2 size={13} /> Borrar tag «{r.name}»
+          <Trash2 size={13} /> {t('gitRepoLog.deleteTagMenu', { name: r.name })}
         </button>
       {/each}
       {#each locals.filter((r) => r.name !== headBranch) as r (r.name)}
@@ -840,27 +840,27 @@
           class="danger"
           data-action="delete-branch"
           onclick={() =>
-            askConfirm(`¿Borrar la rama local «${r.name}»? (no se borra del remoto)`, async () => {
+            askConfirm(t('gitRepoLog.deleteBranchConfirm', { name: r.name }), async () => {
               try {
                 return await gitApi.gitDeleteRef('branch', r.name, repo);
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                if (!msg.includes('sin fusionar')) throw err;
+                if (!msg.includes('sin fusionar') && !msg.includes('unmerged')) throw err;
                 // Commits sin fusionar: segunda confirmación para forzar (git branch -D)
                 confirmAction = {
-                  text: `${msg}: si la borras, esos commits quedarán sin rama. ¿Borrarla igual (git branch -D)?`,
+                  text: t('gitRepoLog.deleteBranchUnmergedConfirm', { msg }),
                   run: () => gitApi.gitDeleteRef('branch', r.name, repo, true),
                 };
                 return msg;
               }
             })}
         >
-          <Trash2 size={13} /> Borrar rama «{r.name}»
+          <Trash2 size={13} /> {t('gitRepoLog.deleteBranchMenu', { name: r.name })}
         </button>
       {/each}
       <div class="menu-sep"></div>
       <button type="button" role="menuitem" onclick={() => copyHash(c.commit_hash)}>
-        <Copy size={13} /> Copiar hash
+        <Copy size={13} /> {t('gitRepoLog.copyHash')}
       </button>
     </div>
   {/if}
@@ -875,22 +875,22 @@
         }}
       >
         <div class="prompt-title">
-          {prompt.kind === 'tag' ? 'Crear tag' : 'Nueva rama'} en {prompt.commit.short_hash}
+          {prompt.kind === 'tag' ? t('gitRepoLog.createTagTitle') : t('gitRepoLog.newBranchTitle')} {t('gitRepoLog.atCommit', { hash: prompt.commit.short_hash })}
         </div>
         <input
           type="text"
           bind:value={prompt.name}
-          placeholder={prompt.kind === 'tag' ? 'v1.2.0' : 'feature/nombre'}
-          aria-label="Nombre"
+          placeholder={prompt.kind === 'tag' ? 'v1.2.0' : t('gitRepoLog.branchPlaceholder')}
+          aria-label={t('gitRepoLog.nameAria')}
         />
         {#if prompt.kind === 'tag'}
-          <input type="text" bind:value={prompt.message} placeholder="Mensaje (opcional: tag anotado)" aria-label="Mensaje del tag" />
+          <input type="text" bind:value={prompt.message} placeholder={t('gitRepoLog.tagMessagePlaceholder')} aria-label={t('gitRepoLog.tagMessageAria')} />
         {:else}
-          <label class="prompt-check"><input type="checkbox" bind:checked={prompt.checkout} /> Cambiar a la rama nueva (checkout -b)</label>
+          <label class="prompt-check"><input type="checkbox" bind:checked={prompt.checkout} /> {t('gitRepoLog.checkoutNewBranch')}</label>
         {/if}
         <div class="prompt-actions">
-          <button type="button" onclick={() => (prompt = null)}>Cancelar</button>
-          <button type="submit" class="primary" disabled={!prompt.name.trim()}>Crear</button>
+          <button type="button" onclick={() => (prompt = null)}>{t('common.cancel')}</button>
+          <button type="submit" class="primary" disabled={!prompt.name.trim()}>{t('gitRepoLog.create')}</button>
         </div>
       </form>
     </div>
@@ -923,7 +923,7 @@
       <div class="repo-log-prompt" role="alertdialog">
         <div class="prompt-text">{ca.text}</div>
         <div class="prompt-actions">
-          <button type="button" onclick={() => (confirmAction = null)}>Cancelar</button>
+          <button type="button" onclick={() => (confirmAction = null)}>{t('common.cancel')}</button>
           <button
             type="button"
             class="primary"
@@ -935,7 +935,7 @@
               void run(action, true);
             }}
           >
-            Aceptar
+            {t('gitRepoLog.accept')}
           </button>
         </div>
       </div>

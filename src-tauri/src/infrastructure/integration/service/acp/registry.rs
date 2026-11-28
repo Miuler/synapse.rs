@@ -175,10 +175,10 @@ impl RegistryClient {
                 bytes.to_vec()
             }
             Err(e) => std::fs::read(&copy)
-                .map_err(|_| format!("No se pudo descargar el registro de agentes: {e}"))?,
+                .map_err(|_| format!("Could not download agent registry: {e}"))?,
         };
         let reg: Registry = serde_json::from_slice(&bytes)
-            .map_err(|e| format!("Registro de agentes inválido: {e}"))?;
+            .map_err(|e| format!("Invalid agent registry: {e}"))?;
         let reg = Arc::new(reg);
         *cache = Some((Instant::now(), reg.clone()));
         Ok(reg)
@@ -187,7 +187,7 @@ impl RegistryClient {
     /// Entrada verificada del registro.
     pub(super) async fn verified(&self, agent_id: &str) -> Result<RegistryAgent, String> {
         if !VERIFIED_AGENTS.contains(&agent_id) {
-            return Err(format!("«{agent_id}» no es un agente verificado"));
+            return Err(format!("{agent_id}: not a verified agent"));
         }
         self.registry()
             .await?
@@ -195,7 +195,7 @@ impl RegistryClient {
             .iter()
             .find(|a| a.id == agent_id)
             .cloned()
-            .ok_or_else(|| format!("El registro de agentes ya no incluye «{agent_id}»"))
+            .ok_or_else(|| format!("Agent registry no longer includes «{agent_id}»"))
     }
 }
 

@@ -18,12 +18,12 @@ type CacheResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 fn open_store(cache_path: &Path) -> CacheResult<(Arc<dyn ObjectStore>, StorePath)> {
     let dir = cache_path
         .parent()
-        .ok_or("la ruta de la caché no tiene carpeta")?;
+        .ok_or("cache path has no parent directory")?;
     std::fs::create_dir_all(dir)?;
     let name = cache_path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or("la ruta de la caché no tiene nombre de archivo")?;
+        .ok_or("cache path has no file name")?;
     let store = LocalFileSystem::new_with_prefix(dir)?;
     Ok((Arc::new(store), StorePath::from(name)))
 }

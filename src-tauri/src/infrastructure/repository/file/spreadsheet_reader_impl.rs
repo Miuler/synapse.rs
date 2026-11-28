@@ -62,7 +62,7 @@ impl SpreadsheetReaderImpl {
     /// Libro leído (de la caché o del disco)
     fn entry(&self, vault_path: &Path, relative_path: &str) -> Result<Arc<Mutex<Entry>>, String> {
         let abs = vault_path.join(relative_path);
-        let meta = std::fs::metadata(&abs).map_err(|e| format!("No se pudo leer «{relative_path}»: {e}"))?;
+        let meta = std::fs::metadata(&abs).map_err(|e| format!("Could not read «{relative_path}»: {e}"))?;
         let stamp = (meta.modified().unwrap_or(SystemTime::UNIX_EPOCH), meta.len());
         // Se mantiene el candado mientras se lee: dos peticiones seguidas no leen el libro dos veces
         let mut cache = self.cache.lock().map_err(|e| e.to_string())?;
@@ -73,7 +73,7 @@ impl SpreadsheetReaderImpl {
                 return Ok(e);
             }
         }
-        let bytes = std::fs::read(&abs).map_err(|e| format!("No se pudo leer «{relative_path}»: {e}"))?;
+        let bytes = std::fs::read(&abs).map_err(|e| format!("Could not read «{relative_path}»: {e}"))?;
         let entry = Arc::new(Mutex::new(load(relative_path, bytes, stamp)?));
         cache.insert(0, (abs, entry.clone()));
         cache.truncate(CACHE_SIZE);
@@ -248,7 +248,7 @@ fn load(path: &str, bytes: Vec<u8>, stamp: Stamp) -> Result<Entry, String> {
             Err(e) => log::warn!("umya no pudo abrir {path}, se intenta con calamine: {e}"),
         }
     }
-    let reader = open_workbook_auto_from_rs(Cursor::new(bytes)).map_err(|e| format!("No se pudo abrir el libro: {e}"))?;
+    let reader = open_workbook_auto_from_rs(Cursor::new(bytes)).map_err(|e| format!("Could not open workbook: {e}"))?;
     let metas = reader.sheets_metadata().to_vec();
     let names: Vec<String> = metas.iter().map(|m| m.name.clone()).collect();
     let sheets = metas

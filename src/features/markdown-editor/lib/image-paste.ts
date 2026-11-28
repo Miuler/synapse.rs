@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { vaultApi } from '@entities/vault-item';
 import { isTauriEnvironment } from '@shared/api';
+import { t } from '@shared/lib/i18n';
 import { activeFilePathFacet } from './editor-facets';
 
 /**
@@ -54,7 +55,7 @@ export async function fileToBase64DataUrl(blob: Blob): Promise<string> {
         if (typeof reader.result === 'string') {
           resolve(reader.result);
         } else {
-          reject(new Error('No se pudo convertir el blob a Data URL'));
+          reject(new Error(t('readingView.blobToDataUrlError')));
         }
       };
       reader.onerror = () => reject(reader.error);

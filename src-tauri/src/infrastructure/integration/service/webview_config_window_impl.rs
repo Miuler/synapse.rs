@@ -71,10 +71,10 @@ impl ConfigWindow for WebviewConfigWindowImpl {
         let owner = lock(&self.draft)
             .as_ref()
             .map(|(owner, _)| owner.clone())
-            .ok_or("La configuración se cerró")?;
+            .ok_or("Settings window was closed")?;
         let handle = lock(&self.app_handle)
             .clone()
-            .ok_or("La ventana de Synapse no está disponible")?;
+            .ok_or("Synapse window is not available")?;
         let id = format!("c{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let (sender, receiver) = mpsc::channel();
         lock(&self.pending).insert(id.clone(), sender);
@@ -86,7 +86,7 @@ impl ConfigWindow for WebviewConfigWindowImpl {
         let reply = match sent {
             Ok(()) => receiver
                 .recv_timeout(APPLY_TIMEOUT)
-                .unwrap_or_else(|_| Err("La ventana de Synapse no respondió a tiempo".into())),
+                .unwrap_or_else(|_| Err("Synapse window did not respond in time".into())),
             Err(e) => Err(e.to_string()),
         };
         lock(&self.pending).remove(&id);

@@ -32,15 +32,19 @@
 
   let title = $derived(
     items.length > 1
-      ? `¿Eliminar ${items.length} elementos?`
-      : `¿Eliminar ${items[0]?.isFolder ? 'carpeta' : 'archivo'}?`
+      ? t('explorer.deleteDialog.titleMultiple', { count: items.length })
+      : items[0]?.isFolder
+        ? t('explorer.deleteDialog.titleFolder')
+        : t('explorer.deleteDialog.titleFile')
   );
 
   let description = $derived(
     items.length > 1
-      ? `¿Estás seguro de que deseas eliminar permanentemente estos ${items.length} elementos y todo su contenido? Esta acción no se puede deshacer.`
+      ? t('explorer.deleteDialog.descMultiple', { count: items.length })
       : items.length === 1
-        ? `¿Estás seguro de que deseas eliminar permanentemente "${items[0]?.name}"${items[0]?.isFolder ? ' y todo su contenido' : ''}? Esta acción no se puede deshacer.`
+        ? t(items[0]?.isFolder ? 'explorer.deleteDialog.descFolder' : 'explorer.deleteDialog.descFile', {
+            name: items[0].name,
+          })
         : ''
   );
 </script>
@@ -49,9 +53,9 @@
   bind:open
   {title}
   {description}
-  confirmText="Eliminar"
-  loadingText="Eliminando..."
-  cancelText="Cancelar"
+  confirmText={t('common.delete')}
+  loadingText={t('explorer.deleteDialog.deleting')}
+  cancelText={t('common.cancel')}
   variant="danger"
   icon={Trash2}
   {loading}
@@ -68,12 +72,12 @@
     <div class="confirm-dialog-item-list">
       {#each items.slice(0, 5) as item}
         <div class="confirm-dialog-item">
-          • {item.name} {item.isFolder ? '(carpeta)' : ''}
+          • {item.name}{item.isFolder ? ` (${t('explorer.deleteDialog.folderTag')})` : ''}
         </div>
       {/each}
       {#if items.length > 5}
         <div class="confirm-dialog-item more">
-          ... y {items.length - 5} más
+          {t('explorer.deleteDialog.more', { count: items.length - 5 })}
         </div>
       {/if}
     </div>

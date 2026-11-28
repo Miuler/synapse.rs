@@ -22,11 +22,11 @@ impl<N: NoteRepository> UpdateNoteMetadataUseCase<N> {
         command: UpdateNoteMetadataCommand,
     ) -> Result<(NoteFrontmatter, String), String> {
         let relative_path = NoteRelativePath::new(&command.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
         let note = self
             .note_repository
             .read_note(&command.vault_path, &relative_path)
-            .map_err(|e| format!("Error al leer nota: {}", e))?;
+            .map_err(|e| format!("Failed to read note: {}", e))?;
 
         let (fm_opt, body) = NoteFrontmatter::parse(&note.content);
         let mut fm = fm_opt.unwrap_or_default();
@@ -62,7 +62,7 @@ impl<N: NoteRepository> UpdateNoteMetadataUseCase<N> {
         );
         self.note_repository
             .save_note(&command.vault_path, &updated_note)
-            .map_err(|err| format!("Error al actualizar metadatos: {}", err))?;
+            .map_err(|err| format!("Failed to update metadata: {}", err))?;
         Ok((fm, new_hash))
     }
 }

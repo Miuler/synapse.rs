@@ -20,6 +20,7 @@
     type GitBranchesResult,
   } from '@shared/repositories';
   import { gitDialogState, gitApi } from '@entities/git';
+  import { t } from '@shared/lib/i18n';
   import GitRepoSelect from './GitRepoSelect.svelte';
 
   export interface GitBranchDialogProps {
@@ -78,7 +79,7 @@
     } catch (err: unknown) {
       console.error('Error al obtener ramas Git:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      errorMessage = `Error al listar ramas: ${msg}`;
+      errorMessage = t('gitBranches.fetchError', { detail: msg });
     } finally {
       isLoading = false;
     }
@@ -210,8 +211,8 @@
   {open}
   onClose={handleClose}
   busy={isActionLoading}
-  title="Ramas Git"
-  description="Gestiona, cambia entre ramas locales y remotas, o crea una nueva rama."
+  title={t('gitBranches.title')}
+  description={t('gitBranches.description')}
   sizeKey="synapse.gitBranchDialog.size"
   defaultSize={{ w: 860, h: 640 }}
   minSize={{ w: 460, h: 380 }}
@@ -226,7 +227,7 @@
   {#snippet badge()}
     <GitRepoSelect disabled={isActionLoading} />
     {#if currentBranchName}
-      <span class="git-current-badge" title="Rama activa actual">
+      <span class="git-current-badge" title={t('gitBranches.currentBranchTitle')}>
         <Check size={11} />
         <span>{currentBranchName}</span>
       </span>
@@ -239,7 +240,7 @@
       onclick={handleClose}
       disabled={isActionLoading}
     >
-      Cerrar
+      {t('common.close')}
     </button>
   {/snippet}
 
@@ -252,7 +253,7 @@
             bind:value={searchQuery}
             type="text"
             class="git-branch-search-input"
-            placeholder="Filtrar ramas..."
+            placeholder={t('gitBranches.filterPlaceholder')}
           />
           {#if searchQuery}
             <button
@@ -277,10 +278,10 @@
               requestAnimationFrame(() => createInputEl?.focus());
             }
           }}
-          title="Crear nueva rama"
+          title={t('gitBranches.createTitle')}
         >
           <Plus size={14} />
-          <span>Nueva rama</span>
+          <span>{t('gitBranches.newBranch')}</span>
         </button>
       </div>
 
@@ -288,7 +289,7 @@
       {#if showCreateSection}
         <div class="git-create-branch-panel">
           <div class="git-create-branch-header">
-            <span class="git-create-branch-title">Crear nueva rama</span>
+            <span class="git-create-branch-title">{t('gitBranches.createTitle')}</span>
             <button
               type="button"
               class="git-create-branch-close"
@@ -300,14 +301,14 @@
 
           <div class="git-create-branch-form">
             <div class="git-create-field">
-              <label for="new-branch-name-input">Nombre de la nueva rama:</label>
+              <label for="new-branch-name-input">{t('gitBranches.nameLabel')}</label>
               <input
                 id="new-branch-name-input"
                 bind:this={createInputEl}
                 bind:value={newBranchName}
                 type="text"
                 class="git-create-input"
-                placeholder="ej. feature/mi-nueva-caracteristica"
+                placeholder={t('gitBranches.namePlaceholder')}
                 disabled={isActionLoading}
                 onkeydown={(e) => {
                   if (e.key === 'Enter') {
@@ -319,7 +320,7 @@
             </div>
 
             <div class="git-create-field">
-              <label for="create-base-branch-select">Basada en la rama:</label>
+              <label for="create-base-branch-select">{t('gitBranches.baseBranchLabel')}</label>
               <select
                 id="create-base-branch-select"
                 bind:value={createFromBranch}
@@ -328,16 +329,16 @@
               >
                 {#if currentBranchName}
                   <option value={currentBranchName}>
-                    {currentBranchName} (Actual)
+                    {t('gitBranches.baseCurrent', { name: currentBranchName })}
                   </option>
                 {/if}
                 {#each branchesResult?.local_branches || [] as b}
                   {#if b.name !== currentBranchName}
-                    <option value={b.name}>{b.name} (Local)</option>
+                    <option value={b.name}>{t('gitBranches.baseLocal', { name: b.name })}</option>
                   {/if}
                 {/each}
                 {#each branchesResult?.remote_branches || [] as b}
-                  <option value={b.name}>{b.name} (Remota)</option>
+                  <option value={b.name}>{t('gitBranches.baseRemote', { name: b.name })}</option>
                 {/each}
               </select>
             </div>
@@ -348,7 +349,7 @@
                 bind:checked={switchAfterCreate}
                 disabled={isActionLoading}
               />
-              <span>Cambiar a la nueva rama inmediatamente (checkout)</span>
+              <span>{t('gitBranches.checkoutNew')}</span>
             </label>
 
             <div class="git-create-actions">
@@ -358,7 +359,7 @@
                 onclick={() => (showCreateSection = false)}
                 disabled={isActionLoading}
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -368,10 +369,10 @@
               >
                 {#if isActionLoading}
                   <Loader2 size={13} class="spin-icon" />
-                  <span>Creando...</span>
+                  <span>{t('gitBranches.creating')}</span>
                 {:else}
                   <Plus size={13} />
-                  <span>Crear rama</span>
+                  <span>{t('gitBranches.createBtn')}</span>
                 {/if}
               </button>
             </div>
@@ -392,7 +393,7 @@
         <div class="git-alert error" role="alert">
           <AlertCircle size={15} class="alert-icon" />
           <div class="git-alert-text">
-            <strong>Error:</strong> {errorMessage}
+            <strong>{t('gitBranches.errorPrefix')}</strong> {errorMessage}
           </div>
         </div>
       {/if}
@@ -405,7 +406,7 @@
           class:active={activeTab === 'local'}
           onclick={() => (activeTab = 'local')}
         >
-          <span>Locales</span>
+          <span>{t('gitBranches.tabLocal')}</span>
           <span class="git-branch-count">
             {branchesResult?.local_branches.length ?? 0}
           </span>
@@ -416,7 +417,7 @@
           class:active={activeTab === 'remote'}
           onclick={() => (activeTab = 'remote')}
         >
-          <span>Remotas</span>
+          <span>{t('gitBranches.tabRemote')}</span>
           <span class="git-branch-count">
             {branchesResult?.remote_branches.length ?? 0}
           </span>
@@ -428,12 +429,12 @@
         {#if isLoading}
           <div class="git-branch-empty">
             <Loader2 size={20} class="spin-icon" />
-            <span>Cargando ramas...</span>
+            <span>{t('gitBranches.loading')}</span>
           </div>
         {:else if activeTab === 'local'}
           {#if filteredLocalBranches.length === 0}
             <div class="git-branch-empty">
-              <span>No se encontraron ramas locales</span>
+              <span>{t('gitBranches.noLocal')}</span>
             </div>
           {:else}
             <div class="git-branch-list">
@@ -449,10 +450,10 @@
                         {branch.name}
                       </span>
                       {#if branch.is_current}
-                        <span class="current-tag">Actual</span>
+                        <span class="current-tag">{t('gitBranches.currentTag')}</span>
                       {/if}
                       {#if branch.upstream}
-                        <span class="upstream-tag" title="Rastrea {branch.upstream}">
+                        <span class="upstream-tag" title={t('gitBranches.tracksTitle', { upstream: branch.upstream })}>
                           <ArrowUpRight size={10} />
                           <span>{branch.upstream}</span>
                         </span>
@@ -461,8 +462,8 @@
                             class="track-tag"
                             class:diverged={!!branch.behind && !!branch.ahead}
                             title={[
-                              branch.behind ? `${branch.behind} commit(s) en ${branch.upstream} que no tienes` : '',
-                              branch.ahead ? `${branch.ahead} commit(s) tuyos sin subir` : '',
+                              branch.behind ? t('gitBranches.behindTooltip', { count: branch.behind, upstream: branch.upstream }) : '',
+                              branch.ahead ? t('gitBranches.aheadTooltip', { count: branch.ahead }) : '',
                             ].filter(Boolean).join(' · ')}
                           >
                             {#if branch.behind}↓{branch.behind}{/if}{#if branch.behind && branch.ahead}&nbsp;{/if}{#if branch.ahead}↑{branch.ahead}{/if}
@@ -474,7 +475,7 @@
                     {#if branch.last_commit_message || branch.last_commit_date}
                       <div class="git-branch-sub-line">
                         {#if branch.last_commit_date}
-                          <span class="branch-date" title="Fecha del último commit">
+                          <span class="branch-date" title={t('gitBranches.lastCommitDateTitle')}>
                             <Calendar size={11} />
                             <span>{branch.last_commit_date}</span>
                           </span>
@@ -498,11 +499,11 @@
                         onclick={() => handleFastForward(branch)}
                         disabled={isActionLoading || !!branch.ahead}
                         title={branch.ahead
-                          ? `«${branch.name}» y «${branch.upstream}» divergieron (tienes ${branch.ahead} commit(s) propios): hace falta rebase o merge`
-                          : `Avanzar hasta ${branch.upstream} sin crear commits (git merge --ff-only)`}
+                          ? t('gitBranches.divergedTitle', { name: branch.name, upstream: branch.upstream, ahead: branch.ahead })
+                          : t('gitBranches.ffTitle', { upstream: branch.upstream })}
                       >
                         <ArrowDownToLine size={12} />
-                        <span>Actualizar desde {branch.upstream}</span>
+                        <span>{t('gitBranches.updateFrom', { upstream: branch.upstream })}</span>
                       </button>
                     {/if}
                     {#if !branch.is_current}
@@ -511,10 +512,10 @@
                         class="git-row-btn checkout"
                         onclick={() => handleCheckout(branch)}
                         disabled={isActionLoading}
-                        title="Cambiar a esta rama (git checkout)"
+                        title={t('gitBranches.checkoutLocalTitle')}
                       >
                         <Check size={12} />
-                        <span>Checkout</span>
+                        <span>{t('gitBranches.checkout')}</span>
                       </button>
                     {/if}
                     <button
@@ -522,10 +523,10 @@
                       class="git-row-btn branch-from"
                       onclick={() => startCreateFromBranch(branch)}
                       disabled={isActionLoading}
-                      title="Crear nueva rama a partir de esta"
+                      title={t('gitBranches.branchFromTitle')}
                     >
                       <Plus size={12} />
-                      <span>Nueva rama</span>
+                      <span>{t('gitBranches.newBranch')}</span>
                     </button>
                   </div>
                 </div>
@@ -535,7 +536,7 @@
         {:else}
           {#if filteredRemoteBranches.length === 0}
             <div class="git-branch-empty">
-              <span>No se encontraron ramas remotas</span>
+              <span>{t('gitBranches.noRemote')}</span>
             </div>
           {:else}
             <div class="git-branch-list">
@@ -574,20 +575,20 @@
                       class="git-row-btn checkout"
                       onclick={() => handleCheckout(branch)}
                       disabled={isActionLoading}
-                      title="Hacer checkout a esta rama remota"
+                      title={t('gitBranches.checkoutRemoteTitle')}
                     >
                       <Check size={12} />
-                      <span>Checkout</span>
+                      <span>{t('gitBranches.checkout')}</span>
                     </button>
                     <button
                       type="button"
                       class="git-row-btn branch-from"
                       onclick={() => startCreateFromBranch(branch)}
                       disabled={isActionLoading}
-                      title="Crear rama local a partir de esta remota"
+                      title={t('gitBranches.branchFromRemoteTitle')}
                     >
                       <Plus size={12} />
-                      <span>Nueva rama</span>
+                      <span>{t('gitBranches.newBranch')}</span>
                     </button>
                   </div>
                 </div>

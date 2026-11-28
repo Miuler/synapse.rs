@@ -28,6 +28,7 @@
   registerVimFolding();
   import { d2Autocomplete, mermaidAutocomplete, plantumlAutocomplete } from '../lib/diagram-autocompletion';
   import { documentWordsCompletion, withDocumentWords } from '../lib/document-words';
+  import { i18n, t } from '@shared/lib/i18n';
 
   export interface SelectionInfo {
     hasSelection: boolean;
@@ -101,6 +102,15 @@
   // Lectura/Edición cambia sin volver a crear el editor. En lectura se usa `readOnly` y no
   // `editable`: el editor sigue recibiendo el foco, con cursor, selección y Ctrl+F para buscar.
   const editableCompartment = new Compartment();
+  const phrasesCompartment = new Compartment();
+
+  const editorPhrases = () =>
+    EditorState.phrases.of({
+      'Fold line': t('codeEditor.foldLine'),
+      'Unfold line': t('codeEditor.unfoldLine'),
+      'folded code': t('codeEditor.foldedCode'),
+      unfold: t('codeEditor.unfold'),
+    });
 
   let lastContent = $state(untrack(() => content));
 
@@ -423,13 +433,8 @@
         langExtension,
         autocompleteExtension,
         syntaxHighlighting(customHighlightStyle),
-        // Textos del plegado en español
-        EditorState.phrases.of({
-          'Fold line': 'Plegar',
-          'Unfold line': 'Desplegar',
-          'folded code': 'código plegado',
-          unfold: 'desplegar',
-        }),
+        // Textos del plegado en el idioma actual
+        phrasesCompartment.of(untrack(editorPhrases)),
         search({ top: true }),
         keymap.of(searchKeymap as any),
         renameOccurrencesKeymap(),
@@ -470,7 +475,7 @@
     if (!ptr || !editorView || !text) return;
     queueMicrotask(() => {
       if (!editorView) return;
-      if (!jumpToPointer(editorView, ptr)) onNotify?.(`No se encontró «#${ptr}» en este archivo`);
+      if (!jumpToPointer(editorView, ptr)) onNotify?.(t('codeEditor.refNotFound', { pointer: ptr }));
       onJumped?.();
     });
   });
@@ -483,6 +488,11 @@
   $effect(() => {
     const ro = readOnly;
     editorView?.dispatch({ effects: editableCompartment.reconfigure(EditorState.readOnly.of(ro)) });
+  });
+
+  $effect(() => {
+    void i18n.locale;
+    editorView?.dispatch({ effects: phrasesCompartment.reconfigure(editorPhrases()) });
   });
 
   $effect(() => {

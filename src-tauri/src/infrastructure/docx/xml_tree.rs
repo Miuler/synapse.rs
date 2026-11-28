@@ -88,7 +88,7 @@ pub fn parse(xml: &str) -> Result<Node, String> {
             Ok(Event::Start(e)) => {
                 count()?;
                 if stack.len() > MAX_DEPTH {
-                    return Err("El documento tiene demasiados niveles anidados".into());
+                    return Err("Document has too many nested levels".into());
                 }
                 stack.push(node_of(&e));
             }
@@ -101,7 +101,7 @@ pub fn parse(xml: &str) -> Result<Node, String> {
             }
             Ok(Event::End(_)) => {
                 if stack.len() < 2 {
-                    return Err("El XML del documento está dañado".into());
+                    return Err("Document XML is corrupted".into());
                 }
                 let node = stack.pop().unwrap_or_default();
                 if let Some(top) = stack.last_mut() {
@@ -130,17 +130,17 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 push_text(&mut stack, c.encode_utf8(&mut [0; 4]));
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(format!("El XML del documento está dañado: {e}")),
+            Err(e) => return Err(format!("Document XML is corrupted: {e}")),
             _ => {}
         }
     }
     if stack.len() != 1 {
-        return Err("El XML del documento está cortado".into());
+        return Err("Document XML is truncated".into());
     }
     let mut root = stack.pop().unwrap_or_default();
     root.children
         .pop()
-        .ok_or_else(|| "El documento no tiene contenido".to_string())
+        .ok_or_else(|| "Document has no content".to_string())
 }
 
 fn push_text(stack: &mut [Node], s: &str) {

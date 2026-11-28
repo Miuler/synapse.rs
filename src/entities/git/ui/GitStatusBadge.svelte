@@ -14,25 +14,25 @@
 </script>
 
 {#if status}
-  <div class="git-badges-group {className}" title="Estado Git de este archivo">
+  <div class="git-badges-group {className}" title={t('gitBadge.repoTitle')}>
     {#if status.index === 'M'}
-      <span class="git-badge staged" title="Modificado y en stage (preparado)">M</span>
+      <span class="git-badge staged" title={t('gitBadge.modifiedStaged')}>M</span>
     {:else if status.index === 'A'}
-      <span class="git-badge staged" title="Nuevo archivo en stage (preparado)">A</span>
+      <span class="git-badge staged" title={t('gitBadge.addedStaged')}>A</span>
     {:else if status.index === 'D'}
       <span class="git-badge staged" title={t('gitBadge.deletedStaged')}>D</span>
     {/if}
 
     {#if status.worktree === 'M'}
-      <span class="git-badge modified" title="Modificaciones locales sin preparar">M</span>
+      <span class="git-badge modified" title={t('gitBadge.modifiedUnstaged')}>M</span>
     {:else if status.worktree === 'D'}
       <span class="git-badge modified" title={t('gitBadge.deletedUnstaged')}>D</span>
     {:else if status.worktree === '?'}
-      <span class="git-badge untracked" title="No controlado por Git (incógnita)">?</span>
+      <span class="git-badge untracked" title={t('gitBadge.untracked')}>?</span>
     {/if}
 
     {#if status.is_stashed}
-      <span class="git-badge stashed" title="En Stash de Git">S</span>
+      <span class="git-badge stashed" title={t('gitBadge.stashed')}>S</span>
     {/if}
   </div>
 {/if}

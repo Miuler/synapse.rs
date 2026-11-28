@@ -15,11 +15,11 @@ impl<N: NoteRepository> ReadNoteDetailsUseCase<N> {
 
     pub fn execute(&self, query: ReadNoteDetailsQuery) -> Result<NoteDetails, String> {
         let relative_path = NoteRelativePath::new(&query.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
         let note = self
             .note_repository
             .read_note(&query.vault_path, &relative_path)
-            .map_err(|err| format!("Error al leer nota: {}", err))?;
+            .map_err(|err| format!("Failed to read note: {}", err))?;
         let lines: Vec<&str> = note.content.lines().collect();
         let (mermaid_count, d2_count) = NoteContent::diagram_block_counts(&lines);
         let details = NoteDetails {

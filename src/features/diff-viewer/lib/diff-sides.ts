@@ -2,6 +2,7 @@
 // visuales (2 Paneles y Diferencias) sirven igual para el disco contra Git, el stage contra HEAD,
 // el parche de un commit (contra su padre) y la comparación de dos archivos.
 import { vaultRepository } from '@shared/repositories';
+import { t } from '@shared/lib/i18n';
 
 /** De dónde sale una versión del archivo. */
 export type DiffSource =
@@ -31,55 +32,55 @@ export interface DiffTarget {
 const short = (rev: string) => (/^[0-9a-f]{8,}$/i.test(rev) ? rev.slice(0, 7) : rev);
 const nameOf = (p: string) => p.split('/').pop() || p;
 
-export function diffSides(t: DiffTarget): DiffSides {
-  const path = t.filePath;
-  if (t.compareWith) {
+export function diffSides(target: DiffTarget): DiffSides {
+  const path = target.filePath;
+  if (target.compareWith) {
     return {
-      before: { kind: 'disk', path: t.compareWith },
+      before: { kind: 'disk', path: target.compareWith },
       after: { kind: 'disk', path },
-      beforeLabel: nameOf(t.compareWith),
+      beforeLabel: nameOf(target.compareWith),
       afterLabel: nameOf(path),
     };
   }
-  if (t.commitRevision && t.fromRevision) {
+  if (target.commitRevision && target.fromRevision) {
     return {
-      before: { kind: 'rev', path, rev: t.fromRevision },
-      after: { kind: 'rev', path, rev: t.commitRevision },
-      beforeLabel: `Versión ${short(t.fromRevision)}`,
-      afterLabel: `Versión ${short(t.commitRevision)}`,
+      before: { kind: 'rev', path, rev: target.fromRevision },
+      after: { kind: 'rev', path, rev: target.commitRevision },
+      beforeLabel: t('diffViewer.sides.version', { rev: short(target.fromRevision) }),
+      afterLabel: t('diffViewer.sides.version', { rev: short(target.commitRevision) }),
     };
   }
-  if (t.commitRevision) {
+  if (target.commitRevision) {
     return {
-      before: { kind: 'rev', path, rev: `${t.commitRevision}^` },
-      after: { kind: 'rev', path, rev: t.commitRevision },
-      beforeLabel: `Antes (${short(t.commitRevision)}^)`,
-      afterLabel: `Commit ${short(t.commitRevision)}`,
+      before: { kind: 'rev', path, rev: `${target.commitRevision}^` },
+      after: { kind: 'rev', path, rev: target.commitRevision },
+      beforeLabel: t('diffViewer.sides.beforeCommit', { rev: short(target.commitRevision) }),
+      afterLabel: t('diffViewer.sides.commit', { rev: short(target.commitRevision) }),
     };
   }
-  if (t.isStaged) {
+  if (target.isStaged) {
     // Como `git diff --staged`: el stage contra HEAD
     return {
       before: { kind: 'rev', path, rev: 'HEAD' },
       after: { kind: 'staged', path },
-      beforeLabel: 'HEAD (Último commit)',
-      afterLabel: 'Stage / Index',
+      beforeLabel: t('diffViewer.sides.headCommit'),
+      afterLabel: t('diffViewer.sides.stageIndex'),
     };
   }
-  if (t.baseRevision) {
+  if (target.baseRevision) {
     return {
-      before: { kind: 'rev', path, rev: t.baseRevision },
+      before: { kind: 'rev', path, rev: target.baseRevision },
       after: { kind: 'disk', path },
-      beforeLabel: `REV: ${short(t.baseRevision)}`,
-      afterLabel: 'Disco Duro (Local)',
+      beforeLabel: `REV: ${short(target.baseRevision)}`,
+      afterLabel: t('diffViewer.sides.diskLocal'),
     };
   }
   // Como `git diff`: lo local contra el stage (si no hay nada en stage, el stage es igual a HEAD)
   return {
     before: { kind: 'staged', path },
     after: { kind: 'disk', path },
-    beforeLabel: 'Stage / Index',
-    afterLabel: 'Disco Duro (Local)',
+    beforeLabel: t('diffViewer.sides.stageIndex'),
+    afterLabel: t('diffViewer.sides.diskLocal'),
   };
 }
 

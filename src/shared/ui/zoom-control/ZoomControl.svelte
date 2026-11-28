@@ -2,6 +2,7 @@
   // Control de zoom de un visor: −, porcentaje (clic = 100 %), + y, opcional, «Ajustar al ancho».
   import { Minus, Plus, MoveHorizontal } from 'lucide-svelte';
   import { stepViewerZoom } from '@shared/lib/viewer-zoom';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     zoom: number;
@@ -12,18 +13,18 @@
   let { zoom, onChange, onFit }: Props = $props();
 </script>
 
-<div class="zoom-control" role="group" aria-label="Zoom">
-  <button type="button" class="zoom-btn zoom-out" title="Reducir (Ctrl+−, Ctrl+rueda)" onclick={() => onChange(stepViewerZoom(zoom, -1))}>
+<div class="zoom-control" role="group" aria-label={t('zoomControl.aria')}>
+  <button type="button" class="zoom-btn zoom-out" title={t('zoomControl.zoomOut')} onclick={() => onChange(stepViewerZoom(zoom, -1))}>
     <Minus size={13} />
   </button>
-  <button type="button" class="zoom-value" title="Volver al 100 % (Ctrl+0)" onclick={() => onChange(1)}>
+  <button type="button" class="zoom-value" title={t('zoomControl.reset')} onclick={() => onChange(1)}>
     {Math.round(zoom * 100)} %
   </button>
-  <button type="button" class="zoom-btn zoom-in" title="Ampliar (Ctrl++, Ctrl+rueda)" onclick={() => onChange(stepViewerZoom(zoom, 1))}>
+  <button type="button" class="zoom-btn zoom-in" title={t('zoomControl.zoomIn')} onclick={() => onChange(stepViewerZoom(zoom, 1))}>
     <Plus size={13} />
   </button>
   {#if onFit}
-    <button type="button" class="zoom-btn zoom-fit" title="Ajustar al ancho" onclick={onFit}>
+    <button type="button" class="zoom-btn zoom-fit" title={t('zoomControl.fitWidth')} onclick={onFit}>
       <MoveHorizontal size={13} />
     </button>
   {/if}

@@ -36,7 +36,7 @@ async fn find_update(app: &AppHandle) -> Result<Option<tauri_plugin_updater::Upd
         .map_err(|e| e.to_string())?
         .check()
         .await
-        .map_err(|e| format!("No se pudo consultar la última versión: {e}"))
+        .map_err(|e| format!("Could not check latest version: {e}"))
 }
 
 /// Devuelve la versión nueva si la hay.
@@ -65,7 +65,7 @@ pub async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, Stri
 pub async fn install_update(app: AppHandle) -> Result<String, String> {
     #[cfg(feature = "desktop")]
     {
-        let update = find_update(&app).await?.ok_or("Ya tienes la última versión")?;
+        let update = find_update(&app).await?.ok_or("already on the latest version")?;
         let mut downloaded: u64 = 0;
         let emitter = app.clone();
         let bytes = update
@@ -77,14 +77,14 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
                 || {},
             )
             .await
-            .map_err(|e| format!("No se pudo descargar o verificar la actualización: {e}"))?;
+            .map_err(|e| format!("Could not download or verify update: {e}"))?;
 
         if cfg!(target_os = "macos") {
             // .app.tar.gz: el instalador del plugin sí sabe reemplazar el bundle
-            update.install(bytes).map_err(|e| format!("No se pudo instalar: {e}"))?;
+            update.install(bytes).map_err(|e| format!("Could not install update: {e}"))?;
         } else {
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let exe_name = exe.file_name().and_then(|n| n.to_str()).ok_or("Nombre del ejecutable no válido")?;
+            let exe_name = exe.file_name().and_then(|n| n.to_str()).ok_or("invalid executable name")?;
             let binary = self_update::extract_binary(&bytes, exe_name)?;
             self_update::replace_executable(&exe, &binary)?;
         }
@@ -93,7 +93,7 @@ pub async fn install_update(app: AppHandle) -> Result<String, String> {
     #[cfg(not(feature = "desktop"))]
     {
         let _ = app;
-        Err("Actualizaciones automáticas solo disponibles en escritorio".to_string())
+        Err("automatic updates are only available on desktop".to_string())
     }
 }
 

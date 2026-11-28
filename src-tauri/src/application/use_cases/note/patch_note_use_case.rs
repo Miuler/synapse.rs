@@ -17,18 +17,18 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
 
     pub fn execute(&self, command: PatchNoteCommand) -> Result<PatchNoteOutcome, String> {
         let relative_path = NoteRelativePath::new(&command.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
         let note = self
             .note_repository
             .read_note(&command.vault_path, &relative_path)
-            .map_err(|e| format!("Error al leer nota: {}", e))?;
+            .map_err(|e| format!("Failed to read note: {}", e))?;
 
         let current_hash = NoteContent::hash(&note.content);
         if let Some(exp) = command.expected_hash.as_deref()
             && exp != current_hash
         {
             return Err(format!(
-                "Conflicto OCC en patch_note: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento.",
+                "OCC conflict in patch_note: the file changed on disk. Current hash: '{}', expected: '{}'. Re-read the document.",
                 current_hash, exp
             ));
         }
@@ -39,7 +39,7 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
             &command.new_text,
             command.start_line,
         )
-        .map_err(|err_msg| format!("{} en '{}'", err_msg, command.relative_path))?;
+        .map_err(|err_msg| format!("{} in '{}'", err_msg, command.relative_path))?;
 
         if command.dry_run {
             return Ok(PatchNoteOutcome {
@@ -60,7 +60,7 @@ impl<N: NoteRepository> PatchNoteUseCase<N> {
         );
         self.note_repository
             .save_note(&command.vault_path, &updated_note)
-            .map_err(|err| format!("Error al guardar parche: {}", err))?;
+            .map_err(|err| format!("Failed to save patch: {}", err))?;
         Ok(PatchNoteOutcome {
             old_content,
             new_content: patched_content,

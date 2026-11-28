@@ -17,18 +17,18 @@ pub(super) const LOCAL_CLI_AGENTS: &[LocalCliAgent] = &[
     LocalCliAgent {
         id: "antigravity",
         name: "Google Antigravity",
-        description: "Servidor ACP del CLI de Antigravity (agy acp)",
+        description: "Antigravity CLI ACP server (agy acp)",
         binary: "agy",
         args: &["acp"],
-        install_hint: "Instala el CLI de Antigravity: curl -fsSL https://antigravity.google/cli/install.sh | bash",
+        install_hint: "Install the Antigravity CLI: curl -fsSL https://antigravity.google/cli/install.sh | bash",
     },
     LocalCliAgent {
         id: "github-copilot",
         name: "GitHub Copilot",
-        description: "Servidor ACP del CLI de GitHub Copilot (copilot --acp)",
+        description: "GitHub Copilot CLI ACP server (copilot --acp)",
         binary: "copilot",
         args: &["--acp"],
-        install_hint: "Instala el CLI de GitHub Copilot: npm install -g @github/copilot (y entra con copilot /login)",
+        install_hint: "Install the GitHub Copilot CLI: npm install -g @github/copilot (then sign in with copilot /login)",
     },
 ];
 
@@ -59,7 +59,7 @@ impl LocalCliAgent {
     pub fn launch(&self) -> Result<AgentLaunch, String> {
         let path = self
             .locate()
-            .ok_or_else(|| format!("No se encontró «{}». {}", self.binary, self.install_hint))?;
+            .ok_or_else(|| format!("«{}» not found. {}", self.binary, self.install_hint))?;
         Ok(AgentLaunch {
             command: path.to_string_lossy().into_owned(),
             args: self.args.iter().map(|a| a.to_string()).collect(),

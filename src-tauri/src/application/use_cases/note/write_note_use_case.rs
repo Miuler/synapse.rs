@@ -18,7 +18,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
 
     pub fn execute(&self, command: WriteNoteCommand) -> Result<WriteNoteOutcome, String> {
         let relative_path = NoteRelativePath::new(&command.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
         let content = command.content.as_str();
 
         // Leer nota existente si existe
@@ -27,14 +27,14 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             .read_note(&command.vault_path, &relative_path)
         {
             Ok(note) => Some(note),
-            Err(e) if e.starts_with("El archivo no existe") => None,
+            Err(e) if e.starts_with("File does not exist") => None,
             // Existe pero no se pudo leer: tratarla como nueva la destruiría.
-            Err(e) => return Err(format!("No se pudo leer la nota existente: {}", e)),
+            Err(e) => return Err(format!("Failed to read existing note: {}", e)),
         };
 
         if existing_note.is_none() && command.expected_hash.is_some() {
             return Err(format!(
-                "Se indicó expected_hash, pero la nota '{}' no existe: pudo moverse o borrarse. Comprueba la ruta; para crearla, omite expected_hash.",
+                "expected_hash was specified, but note '{}' does not exist: it may have been moved or deleted. Check the path; to create it, omit expected_hash.",
                 command.relative_path
             ));
         }
@@ -44,13 +44,13 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             if let Some(exp) = command.expected_hash.as_deref() {
                 if exp != current_hash {
                     return Err(format!(
-                        "Conflicto de concurrencia OCC: el archivo cambió en disco. Hash actual: '{}', esperado: '{}'. Relee el documento antes de escribir.",
+                        "OCC concurrency conflict: the file changed on disk. Current hash: '{}', expected: '{}'. Re-read the document before writing.",
                         current_hash, exp
                     ));
                 }
             } else if !command.overwrite {
                 return Err(format!(
-                    "La nota '{}' ya existe (hash '{}', {} líneas). Usa read_note para ver su contenido, patch_note para cambiar una parte, o reenvía con expected_hash (recomendado) u overwrite: true para reemplazarla.",
+                    "Note '{}' already exists (hash '{}', {} lines). Use read_note to inspect it, patch_note to edit a section, or resend with expected_hash (recommended) or overwrite: true to replace it.",
                     command.relative_path,
                     current_hash,
                     note.content.lines().count()
@@ -65,7 +65,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
                 && new_line_count < (old_line_count * 60) / 100
             {
                 return Err(format!(
-                    "Freno anti-truncamiento activado: la nota original tiene {} líneas y la nueva tiene {}. Usa patch_note para ediciones parciales o establece allow_large_overwrite: true.",
+                    "Anti-truncation guard triggered: the original note has {} lines and the new content has {}. Use patch_note for partial edits or set allow_large_overwrite: true.",
                     old_line_count, new_line_count
                 ));
             }
@@ -76,7 +76,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
             existing_note
                 .as_ref()
                 .map(|n| n.title.clone())
-                .unwrap_or_else(|| "Sin título".to_string())
+                .unwrap_or_else(|| "Untitled".to_string())
         });
 
         let final_body = if content.trim_start().starts_with("---") {
@@ -122,7 +122,7 @@ impl<N: NoteRepository> WriteNoteUseCase<N> {
         );
         self.note_repository
             .save_note(&command.vault_path, &note)
-            .map_err(|err| format!("Error al guardar la nota: {}", err))?;
+            .map_err(|err| format!("Failed to save note: {}", err))?;
         Ok(WriteNoteOutcome::Saved {
             created,
             new_hash: NoteContent::hash(&final_body),

@@ -43,7 +43,7 @@ export function parseDrawioMessage(data: unknown): DrawioEvent | null {
 
 /** Diagrama vacío para un `.drawio` sin contenido. */
 export const EMPTY_DRAWIO_XML =
-  '<mxfile><diagram name="Página-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
+  '<mxfile><diagram name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 export function bytesToDataUrl(bytes: Uint8Array, mime = 'image/png'): string {
   let binary = '';

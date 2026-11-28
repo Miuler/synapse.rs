@@ -6,6 +6,7 @@ import { renderDrawioPng } from '@features/drawio-editor';
 import { loadSide, type DiffSource } from './diff-sides';
 import { renderSvg, svgDataUrl } from './diagram-pixel-diff';
 import { renderKindFrom, type RenderKind } from './render-kind';
+import { t } from '@shared/lib/i18n';
 
 export function renderKindOf(path: string): RenderKind | null {
   return renderKindFrom({
@@ -20,7 +21,7 @@ export function renderKindOf(path: string): RenderKind | null {
 async function excalidrawDataUrl(raw: string): Promise<string> {
   const { scene } = parseExcalidrawContent(raw);
   const elements = (scene.elements ?? []).filter((e: any) => !e.isDeleted);
-  if (!elements.length) throw new Error('El dibujo no tiene elementos');
+  if (!elements.length) throw new Error(t('diffViewer.errors.drawingEmpty'));
   const { exportToCanvas } = await import('@excalidraw/excalidraw');
   const canvas = await exportToCanvas({
     elements,
@@ -34,11 +35,11 @@ async function excalidrawDataUrl(raw: string): Promise<string> {
 /** La versión como imagen, o `null` si no existe en ese lado. */
 export async function renderSideToImage(source: DiffSource): Promise<string | null> {
   const kind = renderKindOf(source.path);
-  if (!kind) throw new Error(`No se puede convertir en imagen: ${source.path}`);
+  if (!kind) throw new Error(t('diffViewer.errors.cannotConvertImage', { path: source.path }));
   const side = await loadSide(source, kind === 'image');
   if (!side.exists) return null;
   if (kind === 'image') {
-    if (!side.dataUrl) throw new Error('No se pudo leer la imagen');
+    if (!side.dataUrl) throw new Error(t('diffViewer.errors.cannotReadImage'));
     return side.dataUrl;
   }
   const text = side.content ?? '';

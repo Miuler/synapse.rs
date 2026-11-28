@@ -151,7 +151,7 @@ pub fn import_external_items(
     if !paths.iter().all(dropped) {
         let copied = read_system_clipboard_files()?;
         if let Some(p) = paths.iter().find(|p| !copied.contains(p)) {
-            return Err(format!("No está en el portapapeles: {p}"));
+            return Err(format!("Not in clipboard: {p}"));
         }
     }
     let vault_path = {

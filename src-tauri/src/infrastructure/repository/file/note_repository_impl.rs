@@ -247,14 +247,14 @@ impl NoteRepository for NoteRepositoryImpl {
 
         info!("Reading note at {:?}, is_binary: {}", abs_path, is_binary);
         if !abs_path.is_file() {
-            return Err(format!("El archivo no existe en {:?}", abs_path));
+            return Err(format!("File does not exist at {:?}", abs_path));
         }
 
         let (encoding, raw_content) = if is_binary {
             ("binary".to_string(), "".to_string())
         } else {
             let bytes = fs::read(&abs_path)
-                .map_err(|e| format!("Error al leer la nota en {:?}: {}", abs_path, e))?;
+                .map_err(|e| format!("Failed to read note at {:?}: {}", abs_path, e))?;
             let (encoding, content) = detect_and_decode(&bytes);
 
             (encoding, content)
@@ -274,7 +274,7 @@ impl NoteRepository for NoteRepositoryImpl {
             abs_path
                 .file_stem()
                 .and_then(|s| s.to_str())
-                .unwrap_or("Sin título")
+                .unwrap_or("Untitled")
                 .to_string()
         });
 
@@ -314,7 +314,7 @@ impl NoteRepository for NoteRepositoryImpl {
         // frontmatter (ni se crea uno solo para eso)
         let bytes = encode_content(&note.content, &note.encoding);
         fs::write(&abs_path, bytes)
-            .map_err(|e| format!("Error al guardar la nota en {:?}: {}", abs_path, e))
+            .map_err(|e| format!("Failed to save note at {:?}: {}", abs_path, e))
     }
 
     fn delete_note(
@@ -325,26 +325,26 @@ impl NoteRepository for NoteRepositoryImpl {
         let abs_path = self.resolve_absolute_path(vault_path, relative_path);
         board_guard::ensure_writable(&abs_path)?;
         if !abs_path.exists() {
-            return Err(format!("El archivo no existe en {:?}", abs_path));
+            return Err(format!("File does not exist at {:?}", abs_path));
         }
 
         let canonical_vault = vault_path.canonicalize().map_err(|e| e.to_string())?;
         let canonical_target = abs_path.canonicalize().map_err(|e| e.to_string())?;
         if !canonical_target.starts_with(&canonical_vault) || canonical_target == canonical_vault {
-            return Err("Operación no permitida: fuera de los límites de la bóveda".to_string());
+            return Err("Operation not allowed: outside vault boundaries".to_string());
         }
 
         if !canonical_target.is_file() {
-            return Err("El elemento a eliminar debe ser un archivo".to_string());
+            return Err("Item to delete must be a file".to_string());
         }
 
         fs::remove_file(&canonical_target)
-            .map_err(|e| format!("Error al eliminar el archivo: {}", e))
+            .map_err(|e| format!("Failed to delete file: {}", e))
     }
 
     fn read_standalone_file(&self, path: &Path) -> Result<Note, String> {
         if !path.is_file() {
-            return Err(format!("El archivo no existe en {:?}", path));
+            return Err(format!("File does not exist at {:?}", path));
         }
 
         let ext_str = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
@@ -358,7 +358,7 @@ impl NoteRepository for NoteRepositoryImpl {
             ("binary".to_string(), "".to_string())
         } else {
             let bytes = fs::read(path)
-                .map_err(|e| format!("Error al leer archivo en {:?}: {}", path, e))?;
+                .map_err(|e| format!("Failed to read file at {:?}: {}", path, e))?;
             let (encoding, content) = detect_and_decode(&bytes);
             (encoding, content)
         };
@@ -407,7 +407,7 @@ impl NoteRepository for NoteRepositoryImpl {
         // Se guarda tal cual: el título por defecto es el nombre del archivo, no se escribe en el
         // frontmatter (ni se crea uno solo para eso)
         let bytes = encode_content(&note.content, &note.encoding);
-        fs::write(path, bytes).map_err(|e| format!("Error al guardar archivo en {:?}: {}", path, e))
+        fs::write(path, bytes).map_err(|e| format!("Failed to save file at {:?}: {}", path, e))
     }
 }
 

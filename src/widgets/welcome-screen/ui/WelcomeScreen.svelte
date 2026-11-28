@@ -316,7 +316,7 @@
         onWorkspaceOpened(res.folder_path, res.notes);
       }
     } catch (err: any) {
-      cloneError = typeof err === 'string' ? err : err?.message || 'Error al clonar el repositorio';
+      cloneError = typeof err === 'string' ? err : err?.message || t('welcome.cloneErrorDefault');
     } finally {
       isCloning = false;
     }

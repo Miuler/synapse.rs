@@ -31,10 +31,10 @@ impl AgentInstallerImpl {
             .send()
             .await
             .and_then(|r| r.error_for_status())
-            .map_err(|e| format!("No se pudo descargar {}: {e}", agent.name))?
+            .map_err(|e| format!("Could not download {}: {e}", agent.name))?
             .bytes()
             .await
-            .map_err(|e| format!("No se pudo descargar {}: {e}", agent.name))?;
+            .map_err(|e| format!("Could not download {}: {e}", agent.name))?;
         if let Some(expected) = &target.sha256 {
             verify_sha256(&bytes, expected)?;
         }
@@ -88,7 +88,7 @@ impl AgentInstaller for AgentInstallerImpl {
             });
         }
         Err(format!(
-            "{} no publica una versión para esta plataforma",
+            "{} does not publish a build for this platform",
             agent.name
         ))
     }
@@ -102,7 +102,7 @@ fn verify_sha256(bytes: &[u8], expected: &str) -> Result<(), String> {
     if actual.eq_ignore_ascii_case(expected.trim()) {
         Ok(())
     } else {
-        Err("La descarga del agente no coincide con su sha256 del registro".into())
+        Err("agent download does not match registry sha256".into())
     }
 }
 
@@ -145,7 +145,7 @@ fn extract(archive: &str, bytes: &[u8], cmd: &str, dest: &Path) -> Result<(), St
             .unpack(dest)
             .map_err(|e| e.to_string())
     } else if [".tar.bz2", ".tbz2"].iter().any(|ext| name.ends_with(ext)) {
-        Err("Formato .tar.bz2 aún no soportado para agentes".into())
+        Err(".tar.bz2 format is not yet supported for agents".into())
     } else {
         let out: PathBuf = dest.join(cmd.trim_start_matches("./"));
         std::fs::write(&out, bytes).map_err(|e| e.to_string())
@@ -155,7 +155,7 @@ fn extract(archive: &str, bytes: &[u8], cmd: &str, dest: &Path) -> Result<(), St
 fn make_executable(path: &Path) -> Result<(), String> {
     if !path.exists() {
         return Err(format!(
-            "El paquete del agente no contiene {}",
+            "Agent package does not contain {}",
             path.display()
         ));
     }

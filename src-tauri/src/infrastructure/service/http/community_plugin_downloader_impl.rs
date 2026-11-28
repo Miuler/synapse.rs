@@ -128,7 +128,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                 .get(COMMUNITY_PLUGINS_URL)
                 .send()
                 .await
-                .map_err(|e| format!("Error de conexión al obtener catálogo de plugins: {e}"))?;
+                .map_err(|e| format!("Connection error fetching plugins catalog: {e}"))?;
 
             if !res.status().is_success() {
                 // Si falla la red pero tenemos caché en disco previa, devolverla como salvaguarda
@@ -141,7 +141,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
                     return Ok(cached_plugins);
                 }
                 return Err(format!(
-                    "Respuesta fallida de GitHub al obtener catálogo: HTTP {}",
+                    "Failed GitHub response fetching catalog: HTTP {}",
                     res.status()
                 ));
             }
@@ -149,7 +149,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             let mut plugins: Vec<CommunityPlugin> = res
                 .json()
                 .await
-                .map_err(|e| format!("Error al decodificar catálogo de plugins: {e}"))?;
+                .map_err(|e| format!("Failed to decode plugins catalog: {e}"))?;
 
             // 2. Descargar estadísticas de descargas de forma opcional
             if let Ok(stats_res) = client.get(COMMUNITY_PLUGIN_STATS_URL).send().await
@@ -191,7 +191,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             let target_dir = vault_path.join(".synapse").join("plugins").join(plugin_id);
             fs::create_dir_all(&target_dir).map_err(|e| {
                 format!(
-                    "No se pudo crear el directorio de plugin en '{}': {e}",
+                    "Could not create plugin directory at '{}': {e}",
                     target_dir.display()
                 )
             })?;
@@ -218,7 +218,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
 
             let manifest_bytes = manifest_bytes.ok_or_else(|| {
                 format!(
-                    "No se pudo descargar 'manifest.json' para el plugin '{plugin_id}' desde {repo}"
+                    "Could not download 'manifest.json' for plugin '{plugin_id}' from {repo}"
                 )
             })?;
 
@@ -233,7 +233,7 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             // Guardar manifest.json
             let manifest_path = target_dir.join("manifest.json");
             fs::write(&manifest_path, &manifest_bytes)
-                .map_err(|e| format!("Error al escribir 'manifest.json' en disco: {e}"))?;
+                .map_err(|e| format!("Failed to write 'manifest.json' to disk: {e}"))?;
 
             // 2. Descargar main.js
             let main_urls = [
@@ -257,12 +257,12 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             }
 
             let main_bytes = main_bytes.ok_or_else(|| {
-                format!("No se pudo descargar 'main.js' para el plugin '{plugin_id}' desde los releases de {repo}")
+                format!("Could not download 'main.js' for plugin '{plugin_id}' from releases of {repo}")
             })?;
 
             let main_path = target_dir.join("main.js");
             fs::write(&main_path, &main_bytes)
-                .map_err(|e| format!("Error al escribir 'main.js' en disco: {e}"))?;
+                .map_err(|e| format!("Failed to write 'main.js' to disk: {e}"))?;
 
             // 3. Descargar styles.css (opcional)
             let styles_urls = [
@@ -310,13 +310,13 @@ impl CommunityPluginDownloader for CommunityPluginDownloaderImpl {
             let synapse_plugin_dir = vault_path.join(".synapse").join("plugins").join(plugin_id);
             if !synapse_plugin_dir.exists() {
                 return Err(format!(
-                    "No se encontró el plugin '{plugin_id}' en .synapse/plugins"
+                    "Plugin '{plugin_id}' not found in .synapse/plugins"
                 ));
             }
 
             fs::remove_dir_all(&synapse_plugin_dir).map_err(|e| {
                 format!(
-                    "Error al eliminar plugin de '{}': {e}",
+                    "Failed to delete plugin from '{}': {e}",
                     synapse_plugin_dir.display()
                 )
             })?;

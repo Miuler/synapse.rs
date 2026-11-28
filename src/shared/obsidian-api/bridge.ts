@@ -436,6 +436,6 @@ export function setupObsidianGlobalEnvironment(app: SynapseApp): void {
     if (typeof prevRequire === 'function') {
       return prevRequire(moduleId);
     }
-    throw new Error(`[Synapse Module Bridge] No se encontró el módulo solicitado: '${moduleId}'`);
+    throw new Error(`[Synapse Module Bridge] Requested module not found: '${moduleId}'`);
   };
 }

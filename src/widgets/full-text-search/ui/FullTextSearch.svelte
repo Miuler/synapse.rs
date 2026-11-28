@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Command, Dialog } from 'bits-ui';
   import { RefreshCw } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
   import { SearchBox } from '@shared/ui/search-box';
   import { DialogResizeHandles, persistedDialogSize } from '@shared/ui/dialog-resize';
   import { FileIcon } from '@entities/file-type';
@@ -193,7 +194,7 @@
     >
       <DialogResizeHandles onStart={dialogSize.startResize} showCornerGrip />
 
-      <Dialog.Title class="sr-only">Búsqueda en el Contenido de Notas (Full-Text)</Dialog.Title>
+      <Dialog.Title class="sr-only">{t('fullTextSearch.dialogTitle')}</Dialog.Title>
 
       <Command.Root
         class="fts-command-root"
@@ -205,7 +206,7 @@
         <!-- Barra de búsqueda superior -->
         <SearchBox
           bind:value={searchQuery}
-          placeholder="Buscar en el contenido de las notas... (Ctrl+Shift+F)"
+          placeholder={t('fullTextSearch.placeholder')}
           loading={isLoading}
         />
 
@@ -214,37 +215,37 @@
           {#if searchQuery.trim().length === 0}
             <!-- Guía de sintaxis y tips cuando no hay texto -->
             <div class="fts-guide-box">
-              <div class="guide-title">Búsqueda rápida en el contenido de las notas</div>
+              <div class="guide-title">{t('fullTextSearch.guideTitle')}</div>
               <div class="guide-items">
                 <div class="guide-item">
-                  <span class="guide-badge">"frase exacta"</span>
-                  <span class="guide-desc">Coincidencia de palabras adyacentes</span>
+                  <span class="guide-badge">{t('fullTextSearch.guide.phrase')}</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.phraseDesc')}</span>
                 </div>
                 <div class="guide-item">
-                  <span class="guide-badge">-excluir</span>
-                  <span class="guide-desc">Omite notas con esa palabra</span>
+                  <span class="guide-badge">{t('fullTextSearch.guide.exclude')}</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.excludeDesc')}</span>
                 </div>
                 <div class="guide-item">
-                  <span class="guide-badge">path:carpeta</span>
-                  <span class="guide-desc">Filtra por subdirectorio</span>
+                  <span class="guide-badge">{t('fullTextSearch.guide.path')}</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.pathDesc')}</span>
                 </div>
                 <div class="guide-item">
                   <span class="guide-badge">kind:markdown</span>
-                  <span class="guide-desc">Filtra: markdown, mermaid, code, excalidraw</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.kindDesc')}</span>
                 </div>
                 <div class="guide-item">
-                  <span class="guide-badge">title:termino</span>
-                  <span class="guide-desc">Busca exclusivamente en títulos</span>
+                  <span class="guide-badge">{t('fullTextSearch.guide.title')}</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.titleDesc')}</span>
                 </div>
                 <div class="guide-item">
-                  <span class="guide-badge">hs:termino</span>
-                  <span class="guide-desc">Busca en encabezados (también headings:)</span>
+                  <span class="guide-badge">{t('fullTextSearch.guide.hs')}</span>
+                  <span class="guide-desc">{t('fullTextSearch.guide.hsDesc')}</span>
                 </div>
               </div>
             </div>
           {:else if hits.length === 0 && !isLoading}
             <Command.Empty class="empty-state">
-              No se encontraron coincidencias para <strong>"{searchQuery}"</strong>
+              {t('fullTextSearch.noResults')} <strong>"{searchQuery}"</strong>
             </Command.Empty>
           {:else}
             {#each hits as hit (hit.note_path)}
@@ -303,13 +304,13 @@
           <div class="footer-left">
             {#if status.is_indexing}
               <span class="fts-spinner-small"></span>
-              <span class="status-text">Indexando ({status.pending} pendientes)...</span>
+              <span class="status-text">{t('fullTextSearch.indexing', { pending: status.pending })}</span>
             {:else}
-              <span class="status-text">Índice: {status.indexed_docs} docs</span>
+              <span class="status-text">{t('fullTextSearch.indexCount', { count: status.indexed_docs })}</span>
             {/if}
 
             {#if status.in_memory_fallback}
-              <span class="fallback-tag" title="El índice se mantiene en memoria">Memoria</span>
+              <span class="fallback-tag" title={t('fullTextSearch.memoryTitle')}>{t('fullTextSearch.memoryTag')}</span>
             {/if}
 
             <button
@@ -317,23 +318,23 @@
               class="rebuild-btn"
               onclick={handleRebuildIndex}
               disabled={isRebuilding}
-              title="Reconstruir índice completo"
+              title={t('fullTextSearch.rebuildTitle')}
             >
               <RefreshCw size={11} class={isRebuilding ? 'spin-icon' : ''} />
-              <span>{isRebuilding ? 'Reconstruyendo...' : 'Reconstruir'}</span>
+              <span>{isRebuilding ? t('fullTextSearch.rebuilding') : t('fullTextSearch.rebuild')}</span>
             </button>
           </div>
 
           <div class="footer-right">
             {#if searchQuery.trim().length > 0}
               <span class="stats-text">
-                {totalHits} {totalHits === 1 ? 'resultado' : 'resultados'} ({elapsedMs.toFixed(1)} ms)
+                {totalHits} {totalHits === 1 ? t('fullTextSearch.resultOne') : t('fullTextSearch.resultMany')} ({elapsedMs.toFixed(1)} ms)
               </span>
             {/if}
             <div class="footer-shortcuts">
-              <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
-              <span><kbd>↵</kbd> abrir</span>
-              <span><kbd>esc</kbd> cerrar</span>
+              <span><kbd>↑</kbd><kbd>↓</kbd> {t('fullTextSearch.navNavigate')}</span>
+              <span><kbd>↵</kbd> {t('fullTextSearch.navOpen')}</span>
+              <span><kbd>esc</kbd> {t('fullTextSearch.navClose')}</span>
             </div>
           </div>
         </div>

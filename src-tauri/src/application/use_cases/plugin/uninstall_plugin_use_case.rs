@@ -17,7 +17,7 @@ impl<A: CommunityPluginDownloader> UninstallPluginUseCase<A> {
     pub async fn execute(&self, command: UninstallPluginCommand) -> Result<(), String> {
         let clean_id = command.plugin_id.trim();
         if clean_id.is_empty() {
-            return Err("El ID del plugin no puede estar vacío".to_string());
+            return Err("plugin ID cannot be empty".to_string());
         }
         self.community_plugin_downloader
             .uninstall_plugin(&command.vault_path, clean_id)

@@ -1,7 +1,7 @@
 // Pinta en una nota ya renderizada los bloques `board` y los enlaces a tareas, y los vuelve a pintar
 // cuando cambia su tablero. Todo el texto entra como texto (`textContent`): lo que venga de un
 // proveedor no puede ejecutar nada ni cargar recursos.
-import { reasonText, t } from '@shared/lib/i18n';
+import { i18n, reasonText, t } from '@shared/lib/i18n';
 import { referencedBoards } from '../api/board.api';
 import { sharedReads } from '../lib/shared-reads';
 import { boardRefresher, requestBoardTask } from '../model/actions';
@@ -306,6 +306,7 @@ export function mountBoardReferences(
   };
   paint();
 
+  const stopLocale = i18n.onChange(repaint);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const unlisten = vault.onFilesChanged(({ paths, deleted }) => {
     if (stopped || ![...paths, ...deleted].some((path) => /\.board(\.md$|\/)/i.test(path))) return;
@@ -316,6 +317,7 @@ export function mountBoardReferences(
   return () => {
     root.removeEventListener('click', open, true);
     stopped = true;
+    stopLocale();
     clearTimeout(timer);
     void unlisten.then((stop) => stop());
   };

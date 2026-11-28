@@ -48,11 +48,11 @@ impl<N: NoteRepository> SearchInNoteUseCase<N> {
         context_lines: usize,
     ) -> Result<NoteMatches, String> {
         let relative_path =
-            NoteRelativePath::new(rel).map_err(|e| format!("Ruta inválida: {}", e))?;
+            NoteRelativePath::new(rel).map_err(|e| format!("Invalid path: {}", e))?;
         let note = self
             .note_repository
             .read_note(&query.vault_path, &relative_path)
-            .map_err(|e| format!("Error al leer nota: {}", e))?;
+            .map_err(|e| format!("Failed to read note: {}", e))?;
 
         let lines: Vec<&str> = note.content.lines().collect();
         let mut counts: Vec<AlternativeCount> = alternatives

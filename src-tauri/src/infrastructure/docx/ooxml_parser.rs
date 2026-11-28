@@ -66,12 +66,12 @@ struct Paragraph {
 
 fn open(bytes: &[u8]) -> Result<Zip<'_>, String> {
     if bytes.len() > MAX_FILE {
-        return Err("El documento es demasiado grande para compararlo".into());
+        return Err("Document is too large to compare".into());
     }
     let zip = zip::ZipArchive::new(Cursor::new(bytes))
-        .map_err(|e| format!("No es un documento de Word válido: {e}"))?;
+        .map_err(|e| format!("Not a valid Word document: {e}"))?;
     if zip.len() > MAX_ENTRIES {
-        return Err("El documento tiene demasiadas partes".into());
+        return Err("Document has too many parts".into());
     }
     Ok(zip)
 }
@@ -81,14 +81,14 @@ fn read_part(zip: &mut Zip, name: &str, limit: u64) -> Result<Option<Vec<u8>>, S
     let file = match zip.by_name(name) {
         Ok(f) => f,
         Err(zip::result::ZipError::FileNotFound) => return Ok(None),
-        Err(e) => return Err(format!("No se pudo leer {name}: {e}")),
+        Err(e) => return Err(format!("Could not read {name}: {e}")),
     };
     let mut out = Vec::new();
     file.take(limit + 1)
         .read_to_end(&mut out)
-        .map_err(|e| format!("No se pudo leer {name}: {e}"))?;
+        .map_err(|e| format!("Could not read {name}: {e}"))?;
     if out.len() as u64 > limit {
-        return Err(format!("{name} es demasiado grande para compararlo"));
+        return Err(format!("{name} is too large to compare"));
     }
     Ok(Some(out))
 }
@@ -452,7 +452,7 @@ impl Walker<'_, '_> {
                     Some(bytes) => {
                         self.images_read += bytes.len() as u64;
                         if self.images_read > MAX_IMAGES_TOTAL {
-                            return Err("Las imágenes del documento son demasiado grandes para compararlas".into());
+                            return Err("Document images are too large to compare".into());
                         }
                         hex(&Sha256::digest(&bytes))
                     }
@@ -534,10 +534,10 @@ impl DocxParser for OoxmlParser {
         let (part, base, rels) = main_part(&mut zip)?;
         let styles = read_styles(&mut zip, &base, &rels)?;
         let root = read_xml(&mut zip, &part)?
-            .ok_or_else(|| "No es un documento de Word: falta su contenido".to_string())?;
+            .ok_or_else(|| "Not a Word document: missing content".to_string())?;
         let body = root
             .child("body")
-            .ok_or_else(|| "No es un documento de Word: falta su contenido".to_string())?;
+            .ok_or_else(|| "Not a Word document: missing content".to_string())?;
         let mut walker = Walker {
             zip: &mut zip,
             base,
@@ -723,7 +723,7 @@ pub(super) mod tests {
             let _ = OoxmlParser.parse(&full[..n]);
         }
         let deep = format!("{}{}", "<w:sdt>".repeat(5_000), "</w:sdt>".repeat(5_000));
-        assert!(OoxmlParser.parse(&docx(&deep)).unwrap_err().contains("anidados"));
+        assert!(OoxmlParser.parse(&docx(&deep)).unwrap_err().contains("nested"));
     }
 
     #[test]
@@ -731,7 +731,7 @@ pub(super) mod tests {
         let big = vec![b' '; (MAX_XML + 2) as usize];
         let bomb = zip_of(&[("word/document.xml", &big)]);
         assert!(bomb.len() < 1024 * 1024);
-        assert!(OoxmlParser.parse(&bomb).unwrap_err().contains("demasiado grande"));
+        assert!(OoxmlParser.parse(&bomb).unwrap_err().contains("too large"));
     }
 
     #[test]

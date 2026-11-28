@@ -160,7 +160,7 @@ impl FtsIndexer {
 
                         if let Err(e) = idx.delete(&final_deletions)
                             && let Ok(mut l) = err_lock.lock() {
-                                *l = Some(format!("Error en delete FTS: {}", e));
+                                *l = Some(format!("FTS delete error: {}", e));
                             }
                     }
 
@@ -245,14 +245,14 @@ impl FtsIndexer {
                         if !docs.is_empty()
                             && let Err(e) = idx.upsert(docs)
                                 && let Ok(mut l) = err_lock.lock() {
-                                    *l = Some(format!("Error en upsert FTS: {}", e));
+                                    *l = Some(format!("FTS upsert error: {}", e));
                                 }
                     }
 
                     // 3. Commit unificado
                     if let Err(e) = idx.commit()
                         && let Ok(mut l) = err_lock.lock() {
-                            *l = Some(format!("Error en commit FTS: {}", e));
+                            *l = Some(format!("FTS commit error: {}", e));
                         }
 
                     if let Ok(mut l) = cur_f.lock() {
@@ -424,7 +424,7 @@ impl FtsIndexer {
     pub fn rebuild(&self) -> Result<(), String> {
         self.tx
             .send(IndexerCmd::Rebuild)
-            .map_err(|e| format!("Error solicitando reconstrucción de índice: {}", e))
+            .map_err(|e| format!("Failed to request index rebuild: {}", e))
     }
 }
 
@@ -470,7 +470,7 @@ fn perform_full_sync(
         Ok(v) => v,
         Err(e) => {
             if let Ok(mut l) = error_lock.lock() {
-                *l = Some(format!("Error leyendo versiones indexadas: {}", e));
+                *l = Some(format!("Failed to read indexed versions: {}", e));
             }
             return;
         }
@@ -558,7 +558,7 @@ fn perform_full_sync(
         && let Err(e) = index.delete(&to_delete)
         && let Ok(mut l) = error_lock.lock()
     {
-        *l = Some(format!("Error en delete de sync: {}", e));
+        *l = Some(format!("Sync delete error: {}", e));
     }
 
     // 2. Indexar archivos nuevos o modificados en paralelo con rayon
@@ -620,7 +620,7 @@ fn perform_full_sync(
             && let Err(e) = index.upsert(docs)
             && let Ok(mut l) = error_lock.lock()
         {
-            *l = Some(format!("Error en upsert de sync: {}", e));
+            *l = Some(format!("Sync upsert error: {}", e));
         }
     }
 

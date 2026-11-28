@@ -188,7 +188,7 @@ pub fn read_note_content(
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
         if !state.allowed_paths.allows(vault_guard.as_deref(), p) {
-            return Err(format!("Ruta no autorizada: {relative_path}"));
+            return Err(format!("Unauthorized path: {relative_path}"));
         }
         return state.read_standalone_note_use_case.execute(
             crate::application::dto::note::read_standalone_note_query::ReadStandaloneNoteQuery {
@@ -198,7 +198,7 @@ pub fn read_note_content(
     }
 
     let Some(ref vault_path) = *vault_guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     let note_res = state.read_note_use_case.execute(
         crate::application::dto::note::read_note_query::ReadNoteQuery {
@@ -276,7 +276,7 @@ pub fn save_note_content(
     // Modo Archivo Puntual: si la ruta es absoluta o no hay ninguna bóveda activa
     if p.is_absolute() || vault_guard.is_none() {
         if !state.allowed_paths.allows(vault_guard.as_deref(), p) {
-            return Err(format!("Ruta no autorizada: {relative_path}"));
+            return Err(format!("Unauthorized path: {relative_path}"));
         }
         return state.save_standalone_note_use_case.execute(crate::application::dto::note::save_standalone_note_command::SaveStandaloneNoteCommand {
             path: p.to_path_buf(),
@@ -287,7 +287,7 @@ pub fn save_note_content(
     }
 
     let Some(ref vault_path) = *vault_guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
     // El watcher del sistema de archivos detecta el cambio; no hace falta recorrer toda la bóveda en cada guardado
     state.save_note_use_case.execute(
@@ -321,22 +321,22 @@ pub async fn set_active_vault_path(
                 path: new_path.clone(),
             },
         );
-        return Err("Ruta de bóveda inválida o no existe".to_string());
+        return Err("invalid or nonexistent vault path".to_string());
     }
 
     // La ruta llega de la interfaz: si no es una bóveda conocida, lo confirma la persona
     let known = state.is_known_vault(&target_dir);
     #[cfg(not(feature = "desktop"))]
     if !known {
-        return Err("Bóveda no autorizada".to_string());
+        return Err("unauthorized vault".to_string());
     }
     let synapse_dir = target_dir.join(".synapse");
     #[cfg(feature = "desktop")]
     if !known && synapse_dir.exists() {
         crate::infrastructure::config::allowed_paths::confirm_native(
-            "Abrir bóveda",
+            "Open vault",
             format!(
-                "¿Abrir esta carpeta como bóveda?\n{}\n\nSynapse podrá leer y modificar sus archivos.",
+                "Open this folder as a vault?\n{}\n\nSynapse will be able to read and modify its files.",
                 target_dir.display()
             ),
         )
@@ -346,9 +346,9 @@ pub async fn set_active_vault_path(
         #[cfg(feature = "desktop")]
         {
             let confirmed = rfd::AsyncMessageDialog::new()
-                .set_title("Advertencia de Bóveda")
+                .set_title("Vault Warning")
                 .set_description(format!(
-                    "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                    "Selected directory:\n{}\n\nDoes not contain a '.synapse' folder.\nOpen it as a vault? All files and notes inside will be indexed.",
                     target_dir.display()
                 ))
                 .set_buttons(rfd::MessageButtons::YesNo)
@@ -356,12 +356,12 @@ pub async fn set_active_vault_path(
                 .await;
 
             if confirmed != rfd::MessageDialogResult::Yes {
-                return Err("Apertura de bóveda cancelada por el usuario".to_string());
+                return Err("vault open cancelled by user".to_string());
             }
         }
 
         if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
-            return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+            return Err(format!("Could not create .synapse directory: {}", e));
         }
     }
 
@@ -384,7 +384,7 @@ pub(super) fn active_vault(state: &State<'_, AppState>) -> Result<PathBuf, Strin
         .lock()
         .map_err(|e| e.to_string())?
         .clone()
-        .ok_or_else(|| "No hay bóveda abierta".to_string())
+        .ok_or_else(|| "no vault open".to_string())
 }
 
 /// Abre una hoja de cálculo de la bóveda (`.xlsx`, `.xls`, `.ods`…): la lista de sus hojas.

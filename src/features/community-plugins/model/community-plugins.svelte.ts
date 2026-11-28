@@ -1,4 +1,5 @@
 import verifiedRaw from '../../../../verified-plugins.jsonc?raw';
+import { t } from '@shared/lib/i18n';
 import type { VaultRepository } from '@shared/repositories';
 import type { SynapseApp, PluginManifest } from '@shared/obsidian-api';
 import type {
@@ -128,7 +129,7 @@ export class CommunityPluginsState {
       });
       this.resetPagination();
     } catch (e: any) {
-      this.error = `No se pudo cargar el catálogo de plugins comunitarios: ${e?.message || e}`;
+      this.error = t('plugins.errors.loadCatalog', { detail: e?.message || e });
     } finally {
       this.isLoadingCatalogue = false;
     }
@@ -255,7 +256,7 @@ export class CommunityPluginsState {
         }
       }
     } catch (e: any) {
-      this.error = `Error al buscar actualizaciones de plugins: ${e?.message || e}`;
+      this.error = t('plugins.errors.checkUpdates', { detail: e?.message || e });
     } finally {
       this.isCheckingUpdates = false;
     }
@@ -297,7 +298,7 @@ export class CommunityPluginsState {
 
       await this.refreshInstalled(app, repository);
     } catch (e: any) {
-      this.error = `Error al actualizar ${item?.manifest.name || pluginId}: ${e?.message || e}`;
+      this.error = t('plugins.errors.updatePlugin', { name: item?.manifest.name || pluginId, detail: e?.message || e });
     } finally {
       this.updatingMap[pluginId] = false;
     }
@@ -318,7 +319,7 @@ export class CommunityPluginsState {
         await this.updateSinglePlugin(p.id, app, repository);
       }
     } catch (e: any) {
-      this.error = `Error al actualizar plugins: ${e?.message || e}`;
+      this.error = t('plugins.errors.updateAll', { detail: e?.message || e });
     } finally {
       this.isUpdatingAll = false;
     }
@@ -356,7 +357,7 @@ export class CommunityPluginsState {
 
       await this.refreshInstalled(app, repository);
     } catch (e: any) {
-      this.error = `Error al instalar ${plugin.name}: ${e?.message || e}`;
+      this.error = t('plugins.errors.installPlugin', { name: plugin.name, detail: e?.message || e });
     } finally {
       this.installingMap[plugin.id] = false;
     }
@@ -393,7 +394,7 @@ export class CommunityPluginsState {
 
       await this.refreshInstalled(app, repository);
     } catch (e: any) {
-      this.error = `Error al desinstalar plugin: ${e?.message || e}`;
+      this.error = t('plugins.errors.uninstallPlugin', { detail: e?.message || e });
     } finally {
       this.uninstallingMap[pluginId] = false;
     }
@@ -427,7 +428,7 @@ export class CommunityPluginsState {
       await repository.setEnabledPlugins(updated);
       await this.refreshInstalled(app, repository);
     } catch (e: any) {
-      this.error = `Error al alternar estado de plugin: ${e?.message || e}`;
+      this.error = t('plugins.errors.togglePlugin', { detail: e?.message || e });
     }
   }
 }

@@ -694,7 +694,7 @@ impl AppState {
         if self.allowed_paths.allows(vault.as_deref(), &abs) {
             Ok(())
         } else {
-            Err(format!("Ruta no autorizada: {path}"))
+            Err(format!("Unauthorized path: {path}"))
         }
     }
 

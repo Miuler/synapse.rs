@@ -22,13 +22,13 @@ impl<N: NoteRepository, V: VaultItemRepository> ExtractNoteDiagramsUseCase<N, V>
 
     pub fn execute(&self, query: ExtractNoteDiagramsQuery) -> Result<NoteDiagrams, String> {
         let relative_path = NoteRelativePath::new(&query.relative_path)
-            .map_err(|e| format!("Ruta inválida: {}", e))?;
+            .map_err(|e| format!("Invalid path: {}", e))?;
 
         if query.relative_path.ends_with(".d2") || query.relative_path.ends_with(".mmd") {
             let content = self
                 .vault_item_repository
                 .read_text(&query.vault_path, &query.relative_path)
-                .map_err(|e| format!("Error al leer archivo de diagrama: {}", e))?;
+                .map_err(|e| format!("Failed to read diagram file: {}", e))?;
             let kind = if query.relative_path.ends_with(".d2") {
                 "d2"
             } else {
@@ -43,7 +43,7 @@ impl<N: NoteRepository, V: VaultItemRepository> ExtractNoteDiagramsUseCase<N, V>
         let note = self
             .note_repository
             .read_note(&query.vault_path, &relative_path)
-            .map_err(|e| format!("Error al leer nota: {}", e))?;
+            .map_err(|e| format!("Failed to read note: {}", e))?;
         let lines: Vec<&str> = note.content.lines().collect();
         Ok(NoteDiagrams::Blocks(NoteContent::diagrams(
             &lines,

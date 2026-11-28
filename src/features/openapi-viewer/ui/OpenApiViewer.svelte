@@ -4,6 +4,7 @@
   // Con `path` y `readFile`, los `$ref` a otros archivos se resuelven antes (ver lib/bundle.ts).
   import { onDestroy, onMount } from 'svelte';
   import { bundleOpenApi, hasExternalRefs, type ReadFile } from '../lib/bundle';
+  import { t } from '@shared/lib/i18n';
   type ApiReferenceInstance = ReturnType<typeof import('@scalar/api-reference').createApiReference>;
 
   interface Props {
@@ -187,7 +188,7 @@
 <div class="openapi-wrap">
   {#if problems.length}
     <details class="openapi-problems" role="alert">
-      <summary>⚠ {problems.length === 1 ? 'Una referencia' : `${problems.length} referencias`} sin resolver</summary>
+      <summary>⚠ {problems.length === 1 ? t('openApiViewer.problemOne') : t('openApiViewer.problemMany', { count: problems.length })}</summary>
       <ul>
         {#each problems as p}<li>{p}</li>{/each}
       </ul>

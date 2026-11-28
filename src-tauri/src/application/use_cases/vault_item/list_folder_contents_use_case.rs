@@ -22,14 +22,14 @@ impl<N: NoteRepository, V: VaultItemRepository> ListFolderContentsUseCase<N, V> 
     pub fn execute(&self, query: ListFolderContentsQuery) -> Result<FolderListing, String> {
         let clean_folder = query.folder.as_str();
         if clean_folder.split('/').any(|seg| seg == "..") {
-            return Err("Ruta de carpeta no permitida ('..' detectado)".to_string());
+            return Err("Folder path not allowed ('..' detected)".to_string());
         }
         if !self
             .vault_item_repository
             .is_folder(&query.vault_path, clean_folder)
         {
             return Err(format!(
-                "La carpeta '{}' no existe o no es un directorio",
+                "Folder '{}' does not exist or is not a directory",
                 clean_folder
             ));
         }

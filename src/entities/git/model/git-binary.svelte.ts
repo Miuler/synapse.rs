@@ -64,7 +64,7 @@ class GitBinary {
       }
       return !!this.info.version;
     } catch (e) {
-      this.error = e === 'Cancelado' ? null : e instanceof Error ? e.message : String(e);
+      this.error = e === 'Cancelado' || e === 'Cancelled' ? null : e instanceof Error ? e.message : String(e);
       return false;
     } finally {
       this.busy = false;

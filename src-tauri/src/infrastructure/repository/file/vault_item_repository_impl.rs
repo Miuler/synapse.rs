@@ -402,19 +402,19 @@ impl VaultItemRepositoryImpl {
         let target = Self::resolve(vault_path, relative_path)?;
         if !target.is_file() {
             return Err(format!(
-                "El archivo no existe o no es un archivo: {}",
+                "File does not exist or is not a file: {}",
                 relative_path
             ));
         }
 
-        fs::read(&target).map_err(|e| format!("Error al leer archivo binario: {}", e))
+        fs::read(&target).map_err(|e| format!("Failed to read binary file: {}", e))
     }
 
     /// Crea una carpeta dentro de la bóveda garantizando los límites de seguridad.
     pub fn create_folder(vault_path: &Path, relative_path: &str) -> Result<(), String> {
         let target = Self::resolve(vault_path, relative_path)?;
         board_guard::ensure_writable(&target)?;
-        fs::create_dir_all(&target).map_err(|e| format!("Error al crear carpeta: {}", e))
+        fs::create_dir_all(&target).map_err(|e| format!("Failed to create folder: {}", e))
     }
 }
 
@@ -577,7 +577,7 @@ impl VaultItemRepository for VaultItemRepositoryImpl {
         let folder = folder.trim_matches('/');
         let root = Self::resolve(vault_path, folder)?;
         if !root.is_dir() {
-            return Err(format!("La carpeta '{folder}' no existe o no es un directorio"));
+            return Err(format!("Folder '{folder}' does not exist or is not a directory"));
         }
         let mut files: Vec<VaultFile> = jwalk::WalkDir::new(&root)
             .skip_hidden(true)

@@ -2,6 +2,7 @@
 // Ctrl+clic o Ctrl+Enter se abre el archivo al que apuntan y se salta a la clave del puntero `#/...`.
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, keymap } from '@codemirror/view';
 import { type Extension, RangeSetBuilder, Prec } from '@codemirror/state';
+import { t } from '@shared/lib/i18n';
 
 export interface RefMatch {
   /** Rango del valor de la referencia (sin comillas). */
@@ -271,12 +272,12 @@ function follow(view: EditorView, ref: RefMatch, opts: JsonRefOptions): void {
   const current = opts.getPath() ?? '';
   const resolved = resolveRef(current, ref.target);
   if (!resolved) {
-    opts.notify?.(`No se puede abrir «${ref.target}»`);
+    opts.notify?.(t('codeEditor.cannotOpenRef', { target: ref.target }));
     return;
   }
   if (resolved.path === null || resolved.path === current) {
     if (resolved.pointer && !jumpToPointer(view, resolved.pointer)) {
-      opts.notify?.(`No se encontró «#${resolved.pointer}» en este archivo`);
+      opts.notify?.(t('codeEditor.refNotFound', { pointer: resolved.pointer }));
     }
     return;
   }

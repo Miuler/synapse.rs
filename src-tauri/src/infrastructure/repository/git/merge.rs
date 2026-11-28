@@ -129,7 +129,7 @@ pub fn versions(dir: &Path, path: &str) -> Result<ConflictVersions, String> {
     let root = root(dir)?;
     let stages = unmerged(&root)?;
     if !stages.iter().any(|s| s.path == path) {
-        return Err(format!("«{path}» no está en conflicto"));
+        return Err(format!("{path}: not conflicted"));
     }
     Ok(versions_of(&root, &stages, path))
 }
@@ -151,7 +151,7 @@ fn start(dir: &Path, target: &str) -> Result<MergeOutcome, String> {
             return Ok(MergeOutcome::Conflicts);
         }
         // P. ej. cambios locales que se pisarían, o un hook que rechaza el commit
-        return Err(format!("No se pudo fusionar: {error}"));
+        return Err(format!("Could not merge: {error}"));
     }
     let after = commit_id(dir, "HEAD")?;
     Ok(if after == before { MergeOutcome::UpToDate } else { merged(branch, before, after) })
@@ -160,13 +160,13 @@ fn start(dir: &Path, target: &str) -> Result<MergeOutcome, String> {
 fn resolve(dir: &Path, path: &str, resolution: &Resolution) -> Result<MergeOutcome, String> {
     let root = root(dir)?;
     if !has_state(&root, "MERGE_HEAD") {
-        return Err("No hay ninguna fusión en curso".to_string());
+        return Err("no merge in progress".to_string());
     }
     let stages = unmerged(&root)?;
     // Solo rutas que git da como en conflicto: la ruta llega de la interfaz
     let of_path: Vec<&Stage> = stages.iter().filter(|s| s.path == path).collect();
     if of_path.is_empty() {
-        return Err(format!("«{path}» no está en conflicto"));
+        return Err(format!("{path}: not conflicted"));
     }
     let literal = |args: &[&str]| -> Result<String, String> {
         let mut all = vec!["--literal-pathspecs"];
@@ -178,12 +178,12 @@ fn resolve(dir: &Path, path: &str, resolution: &Resolution) -> Result<MergeOutco
             let file = root.join(path);
             let is_link = std::fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_symlink());
             if is_link || of_path.iter().any(|s| !s.mode.starts_with("100")) {
-                return Err(format!("«{path}» no es un archivo de texto: elige una de las versiones"));
+                return Err(format!("{path}: not a text file: choose one of the versions"));
             }
             if let Some(parent) = file.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            std::fs::write(&file, content).map_err(|e| format!("No se pudo escribir «{path}»: {e}"))?;
+            std::fs::write(&file, content).map_err(|e| format!("Could not write «{path}»: {e}"))?;
             literal(&["add", "-f", "--", path])?;
             return Ok(MergeOutcome::Resolved);
         }
@@ -210,10 +210,10 @@ fn resolve(dir: &Path, path: &str, resolution: &Resolution) -> Result<MergeOutco
 fn conclude(dir: &Path, message: Option<&str>) -> Result<MergeOutcome, String> {
     let root = root(dir)?;
     if !has_state(&root, "MERGE_HEAD") {
-        return Err("No hay ninguna fusión en curso".to_string());
+        return Err("no merge in progress".to_string());
     }
     if !unmerged(&root)?.is_empty() {
-        return Err("Quedan conflictos sin resolver".to_string());
+        return Err("unresolved conflicts remain".to_string());
     }
     let branch = current_branch(&root)?;
     let before = commit_id(&root, "HEAD")?;
@@ -222,7 +222,7 @@ fn conclude(dir: &Path, message: Option<&str>) -> Result<MergeOutcome, String> {
         Some(m) => args.extend(["-m", m]),
         None => args.push("--no-edit"),
     }
-    git(&root, &args).map_err(|e| format!("No se pudo confirmar la fusión: {e}"))?;
+    git(&root, &args).map_err(|e| format!("Could not commit merge: {e}"))?;
     let after = commit_id(&root, "HEAD")?;
     Ok(merged(branch, before, after))
 }
@@ -234,9 +234,9 @@ pub fn act(dir: &Path, action: &MergeAction) -> Result<MergeOutcome, String> {
         MergeAction::Continue { message } => conclude(dir, message.as_deref()),
         MergeAction::Abort => {
             if !has_state(dir, "MERGE_HEAD") {
-                return Err("No hay ninguna fusión en curso".to_string());
+                return Err("no merge in progress".to_string());
             }
-            git(dir, &["merge", "--abort"]).map_err(|e| format!("No se pudo cancelar la fusión: {e}"))?;
+            git(dir, &["merge", "--abort"]).map_err(|e| format!("Could not abort merge: {e}"))?;
             Ok(MergeOutcome::Aborted)
         }
     }
@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(v.theirs.as_deref(), Some("1\nsuyo\n3\n4\n5\nseis\n"));
         assert_eq!(versions(repo.path(), "nuevo[1].txt").unwrap().base, None);
 
-        assert!(act(repo.path(), &MergeAction::Continue { message: None }).unwrap_err().contains("sin resolver"));
+        assert!(act(repo.path(), &MergeAction::Continue { message: None }).unwrap_err().contains("unresolved conflicts"));
         assert!(repo.resolve("../fuera.txt", Resolution::Content { content: "x".into() }).is_err());
         assert!(repo.resolve(".git/config", Resolution::Content { content: "x".into() }).is_err());
 
@@ -353,7 +353,7 @@ mod tests {
         let repo = Repo::diverged();
         let before = repo.head();
         repo.start("otra").unwrap();
-        assert!(repo.start("otra").unwrap_err().contains("sin terminar"));
+        assert!(repo.start("otra").unwrap_err().contains("in progress"));
         assert_eq!(act(repo.path(), &MergeAction::Abort).unwrap(), MergeOutcome::Aborted);
         assert_eq!(repo.head(), before);
         assert_eq!(repo.read("a.txt"), "1\nmio\n3\n4\n5\n6\n");

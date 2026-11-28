@@ -162,7 +162,7 @@ pub fn save_binary_asset(
 ) -> Result<(), String> {
     let guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *guard else {
-        return Err("No hay ninguna bóveda abierta".to_string());
+        return Err("no vault open".to_string());
     };
 
     use base64::Engine;
@@ -176,7 +176,7 @@ pub fn save_binary_asset(
 
     let bytes = BASE64_STANDARD
         .decode(raw_b64.trim())
-        .map_err(|e| format!("Error decodificando base64: {}", e))?;
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
 
     state.write_binary_vault_item_use_case.execute(
         crate::application::dto::vault_item::write_binary_vault_item_command::WriteBinaryVaultItemCommand {
@@ -233,7 +233,7 @@ pub fn read_asset_data_url(
             abs_path,
             e
         );
-        format!("Error leyendo {}: {}", abs_path, e)
+        format!("Failed to read {}: {}", abs_path, e)
     })?;
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let mime = get_image_mime_type(ext);

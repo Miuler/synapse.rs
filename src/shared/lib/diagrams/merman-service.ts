@@ -1,4 +1,5 @@
 import { initMerman, renderSvg, validate, isMermanInitialized } from '@mermanjs/web';
+import { t } from '@shared/lib/i18n';
 
 export interface MermanSyntaxError {
   line: number;
@@ -45,7 +46,7 @@ export function renderMermaidSvg(code: string): { svg: string | null; error: str
     const val = validate(code);
     if (!val.valid) {
       const errors = parseMermanErrors(val);
-      return { svg: null, error: val.error || `Error de sintaxis (${val.code_name || 'MERMAN_PARSE_ERROR'})`, errors };
+      return { svg: null, error: val.error || t('diagramViewer.mermanSyntaxError', { code: val.code_name || 'MERMAN_PARSE_ERROR' }), errors };
     }
     const svg = renderSvg(code);
     return { svg, error: null, errors: [] };

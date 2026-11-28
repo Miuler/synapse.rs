@@ -21,7 +21,7 @@ impl<N: NoteRepository> GetNoteRelationsUseCase<N> {
         let all_notes = self
             .note_repository
             .list_notes(&query.vault_path, &extensions)
-            .map_err(|e| format!("Error al listar notas: {}", e))?;
+            .map_err(|e| format!("Failed to list notes: {}", e))?;
 
         let target_normalized = query
             .relative_path

@@ -35,7 +35,7 @@ pub fn extract_docx(
 ) -> Result<DocxText, String> {
     let reader = Cursor::new(bytes);
     let mut zip = zip::ZipArchive::new(reader)
-        .map_err(|e| format!("Error al abrir archivo docx como ZIP: {e}"))?;
+        .map_err(|e| format!("Failed to open docx file as ZIP: {e}"))?;
 
     let heading_styles = zip
         .by_name("word/styles.xml")
@@ -49,12 +49,12 @@ pub fn extract_docx(
 
     let mut xml_file = zip
         .by_name("word/document.xml")
-        .map_err(|e| format!("No se encontró 'word/document.xml' en el archivo docx: {e}"))?;
+        .map_err(|e| format!("'word/document.xml' not found in docx file: {e}"))?;
 
     let mut xml_content = String::new();
     xml_file
         .read_to_string(&mut xml_content)
-        .map_err(|e| format!("Error al leer contenido XML de docx: {e}"))?;
+        .map_err(|e| format!("Failed to read docx XML content: {e}"))?;
 
     // Sin `trim_text`: los espacios al borde de un run separan palabras
     let mut xml_reader = Reader::from_str(&xml_content);

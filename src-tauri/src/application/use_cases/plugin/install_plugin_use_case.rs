@@ -23,11 +23,11 @@ impl<A: CommunityPluginDownloader> InstallPluginUseCase<A> {
         let clean_repo = command.repo.trim();
 
         if clean_id.is_empty() {
-            return Err("El ID del plugin no puede estar vacío".to_string());
+            return Err("plugin ID cannot be empty".to_string());
         }
         if clean_repo.is_empty() || !clean_repo.contains('/') {
             return Err(format!(
-                "Repositorio inválido: '{clean_repo}'. Debe tener formato 'usuario/repo'"
+                "Invalid repository: '{clean_repo}'. Expected format 'owner/repo'"
             ));
         }
 

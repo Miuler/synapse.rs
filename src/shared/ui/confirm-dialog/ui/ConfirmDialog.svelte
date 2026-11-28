@@ -1,14 +1,15 @@
 <script lang="ts">
   import type { ConfirmDialogProps } from '../model/types';
   import { AlertDialog } from 'bits-ui';
+  import { t } from '@shared/lib/i18n';
 
   let {
     open = $bindable(false),
     title,
     description,
-    confirmText = 'Confirmar',
+    confirmText,
     loadingText,
-    cancelText = 'Cancelar',
+    cancelText,
     variant = 'default',
     icon: IconComponent,
     loading = false,
@@ -138,7 +139,7 @@
           disabled={loading}
           onclick={handleCancel}
         >
-          {cancelText}
+          {cancelText ?? t('common.cancel')}
         </AlertDialog.Cancel>
         <AlertDialog.Action
           bind:ref={confirmButtonEl}
@@ -149,7 +150,7 @@
           }}
           disabled={loading}
         >
-          {loading && loadingText ? loadingText : confirmText}
+          {loading && loadingText ? loadingText : (confirmText ?? t('common.confirm'))}
         </AlertDialog.Action>
       </div>
     </AlertDialog.Content>

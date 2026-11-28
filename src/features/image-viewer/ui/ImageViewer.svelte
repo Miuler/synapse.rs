@@ -4,6 +4,7 @@
   import { isDrawioPngFile } from '@entities/file-type';
   import { vaultRepository } from '@shared/repositories';
   import { LaserCanvas, LaserToggle, laserShortcuts, LASER_CURSOR } from '@shared/ui/laser-pointer';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     src: string;
@@ -17,7 +18,8 @@
     reloadKey?: number;
   }
 
-  let { src, alt = 'Imagen', content, onEditWithDrawio, drawio, reloadKey }: Props = $props();
+  let { src, alt, content, onEditWithDrawio, drawio, reloadKey }: Props = $props();
+  const effectiveAlt = $derived(alt ?? t('imageViewer.defaultAlt'));
   const isDrawioPng = $derived(drawio ?? isDrawioPngFile(src));
 
   let containerRef = $state<HTMLDivElement | null>(null);
@@ -308,19 +310,19 @@
   oncontextmenu={(e) => e.preventDefault()}
   use:laserShortcuts={{ isActive: () => laserMode, setActive: (v) => (laserMode = v) }}
   role="region"
-  aria-label="Visor de imagen"
+  aria-label={t('imageViewer.ariaLabel')}
   style="cursor: {isDragging && !drawing ? 'grabbing' : laserMode ? LASER_CURSOR : 'grab'};"
 >
   {#if isLoading}
     <div class="image-loading">
       <div class="loading-spinner"></div>
-      <p class="loading-text">Cargando imagen...</p>
+      <p class="loading-text">{t('imageViewer.loading')}</p>
     </div>
   {:else if hasError || !resolvedSrc}
     <div class="image-error">
       <AlertCircle size={36} strokeWidth={1.7} />
-      <p class="error-title">No se pudo cargar la imagen</p>
-      <p class="error-path">{alt || src}</p>
+      <p class="error-title">{t('imageViewer.errorTitle')}</p>
+      <p class="error-path">{effectiveAlt || src}</p>
     </div>
   {:else}
     <div
@@ -330,7 +332,7 @@
       <img
         bind:this={imgRef}
         src={resolvedSrc}
-        {alt}
+        alt={effectiveAlt}
         onload={handleImageLoad}
         onerror={handleImageError}
         class:is-svg={isSvg}
@@ -346,36 +348,36 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <Toolbar.Root
       class="image-controls"
-      aria-label="Controles de zoom de imagen"
+      aria-label={t('imageViewer.controlsAria')}
       onmousedown={(e) => e.stopPropagation()}
     >
       {#if isSvg}
-        <span class="format-badge" title="Formato gráfico vectorial escalable">SVG</span>
+        <span class="format-badge" title={t('imageViewer.svgTitle')}>SVG</span>
         <Separator.Root class="divider" orientation="vertical" />
       {/if}
 
-      <Toolbar.Button class="ctrl-btn" onclick={zoomOut} aria-label="Alejar (Ctrl + Rueda hacia abajo)">
+      <Toolbar.Button class="ctrl-btn" onclick={zoomOut} aria-label={t('imageViewer.zoomOutAria')}>
         <Minus size={16} />
       </Toolbar.Button>
-      <Toolbar.Button class="zoom-level-btn" onclick={toggleFitOrActual} aria-label="Alternar entre Ajustar y 100%">
+      <Toolbar.Button class="zoom-level-btn" onclick={toggleFitOrActual} aria-label={t('imageViewer.toggleFitAria')}>
         {Math.round(zoom * 100)}%
       </Toolbar.Button>
-      <Toolbar.Button class="ctrl-btn" onclick={zoomIn} aria-label="Acercar (Ctrl + Rueda hacia arriba)">
+      <Toolbar.Button class="ctrl-btn" onclick={zoomIn} aria-label={t('imageViewer.zoomInAria')}>
         <Plus size={16} />
       </Toolbar.Button>
       <Separator.Root class="divider" orientation="vertical" />
-      <Toolbar.Button class="ctrl-btn text-btn" onclick={setActualSize} aria-label="Tamaño real (1:1 / 100%)">
+      <Toolbar.Button class="ctrl-btn text-btn" onclick={setActualSize} aria-label={t('imageViewer.actualSizeAria')}>
         1:1
       </Toolbar.Button>
-      <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label="Ajustar a ventana">
+      <Toolbar.Button class="ctrl-btn" onclick={fitToWindow} aria-label={t('imageViewer.fitWindowAria')}>
         <Maximize2 size={16} />
       </Toolbar.Button>
       <Separator.Root class="divider" orientation="vertical" />
       <LaserToggle bind:active={laserMode} />
       {#if isDrawioPng && onEditWithDrawio}
         <Separator.Root class="divider" orientation="vertical" />
-        <Toolbar.Button class="ctrl-btn text-btn drawio-edit-btn" onclick={onEditWithDrawio} aria-label="Editar con draw.io">
-          <PenTool size={16} /> Abrir en draw.io
+        <Toolbar.Button class="ctrl-btn text-btn drawio-edit-btn" onclick={onEditWithDrawio} aria-label={t('imageViewer.editDrawioAria')}>
+          <PenTool size={16} /> {t('imageViewer.openDrawio')}
         </Toolbar.Button>
       {/if}
     </Toolbar.Root>

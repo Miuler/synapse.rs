@@ -2,6 +2,7 @@
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { isTauriEnvironment } from '@shared/repositories';
   import { Minus, Square, X } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     class?: string;
@@ -42,8 +43,8 @@
       e.stopPropagation();
       handleWindowControl('minimize');
     }}
-    title="Minimizar"
-    aria-label="Minimizar ventana"
+    title={t('windowControls.minimize')}
+    aria-label={t('windowControls.minimizeAria')}
   >
     <Minus size={13} class="win-icon" />
   </button>
@@ -54,8 +55,8 @@
       e.stopPropagation();
       handleWindowControl('maximize');
     }}
-    title="Maximizar / Restaurar"
-    aria-label="Maximizar o restaurar ventana"
+    title={t('windowControls.maximize')}
+    aria-label={t('windowControls.maximizeAria')}
   >
     <Square size={12} class="win-icon" />
   </button>
@@ -66,8 +67,8 @@
       e.stopPropagation();
       handleWindowControl('close');
     }}
-    title="Cerrar"
-    aria-label="Cerrar ventana"
+    title={t('common.close')}
+    aria-label={t('windowControls.closeAria')}
   >
     <X size={13} class="win-icon" />
   </button>

@@ -307,23 +307,23 @@ export class Conversation {
 
   /** Carga una conversación guardada (sus mensajes) antes de conectar. */
   async restore(transcriptId: string): Promise<string | null> {
-    const t = await agentApi.loadTranscript(this.#cwd, transcriptId);
-    if (!this.#store.agents.some((a) => a.id === t.agent_id)) {
-      throw new Error(`El agente «${t.agent_name || t.agent_id}» de esta conversación ya no está configurado.`);
+    const transcript = await agentApi.loadTranscript(this.#cwd, transcriptId);
+    if (!this.#store.agents.some((a) => a.id === transcript.agent_id)) {
+      throw new Error(t('acp.store.agentMissingForTranscript', { agent: transcript.agent_name || transcript.agent_id }));
     }
-    this.agentId = t.agent_id;
-    this.items = Array.isArray(t.items) ? t.items : [];
+    this.agentId = transcript.agent_id;
+    this.items = Array.isArray(transcript.items) ? transcript.items : [];
     this.#nextId = this.items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
-    this.#createdAt = t.created_at;
-    this.lastActivity = t.updated_at ?? t.created_at;
-    this.#acpSessionId = t.acp_session_id;
-    this.nativeTitle = t.native_title ?? null;
-    this.asides = (Array.isArray(t.asides) ? t.asides : []).map((a) => this.#restoreAside(a));
+    this.#createdAt = transcript.created_at;
+    this.lastActivity = transcript.updated_at ?? transcript.created_at;
+    this.#acpSessionId = transcript.acp_session_id;
+    this.nativeTitle = transcript.native_title ?? null;
+    this.asides = (Array.isArray(transcript.asides) ? transcript.asides : []).map((a) => this.#restoreAside(a));
     this.#saved = true;
     // El agente no repite el contexto hasta responder: mientras tanto, el de la última vez
-    if (t.acp_session_id && t.usage?.size) this.usage = t.usage;
-    if (!t.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
-    return t.acp_session_id;
+    if (transcript.acp_session_id && transcript.usage?.size) this.usage = transcript.usage;
+    if (!transcript.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
+    return transcript.acp_session_id;
   }
 
   /** Lanza el agente (instalándolo si hace falta) y abre o retoma la sesión. */
@@ -457,12 +457,15 @@ export class Conversation {
     if (!this.inbox.length) return;
     const msg = this.inbox.shift()!;
     const from = msg.from;
-    const origin = from.vault ? `otra bóveda de Synapse («${from.vault}»)` : 'otra conversación de agente';
+    const origin = from.vault ? t('acp.store.originOtherVault', { vault: from.vault }) : t('acp.store.originOtherConv');
     const prompt =
-      `[Mensaje de ${origin}: ${from.agent} (${from.handle}${from.title ? ` · ${from.title}` : ''})]\n` +
-      (msg.replyTo
-        ? 'Te hace una pregunta; tu respuesta se le enviará automáticamente, así que respóndela directamente.\n\n'
-        : 'Es un aviso; no hace falta que le respondas.\n\n') +
+      t('acp.store.incomingHeader', {
+        origin,
+        agent: from.agent,
+        handle: from.handle,
+        titlePart: from.title ? ` · ${from.title}` : '',
+      }) +
+      (msg.replyTo ? t('acp.store.incomingQuestionNote') : t('acp.store.incomingNoticeNote')) +
       msg.text;
     void this.send(msg.text, { prompt, from, hops: msg.hops, replyTo: msg.replyTo });
   }
@@ -530,24 +533,40 @@ export class Conversation {
     const replies = this.items.filter((i) => i.type === 'agent').length;
     const tools = this.items.filter((i) => i.type === 'tool');
     const byKind = new Map<string, number>();
-    for (const t of tools) if (t.type === 'tool') byKind.set(t.kind ?? 'otra', (byKind.get(t.kind ?? 'otra') ?? 0) + 1);
+    const otherKind = t('acp.store.usageToolOther');
+    for (const tool of tools) if (tool.type === 'tool') byKind.set(tool.kind ?? otherKind, (byKind.get(tool.kind ?? otherKind) ?? 0) + 1);
     const compacts = this.items.filter((i) => i.type === 'compact').length;
     const minutes = Math.round((Date.now() - this.#createdAt) / 60_000);
     const rows = [
-      ['Agente', this.agent?.name ?? this.agentId],
-      ['Modelo', model ?? '—'],
+      [t('acp.store.usageAgent'), this.agent?.name ?? this.agentId],
+      [t('acp.store.usageModel'), model ?? '—'],
       ...(this.currentEffort
-        ? [['Esfuerzo', this.session?.efforts.find((e) => e.id === this.currentEffort)?.name ?? this.currentEffort]]
+        ? [[t('acp.store.usageEffort'), this.session?.efforts.find((e) => e.id === this.currentEffort)?.name ?? this.currentEffort]]
         : []),
-      ['Modo', mode ?? '—'],
-      ['Contexto', u ? `${fmt(u.used)} de ${fmt(u.size)} tokens (${((u.used / u.size) * 100).toFixed(1)} %)` : 'el agente no lo informó'],
-      ['Costo', u?.cost ? `${u.cost.amount} ${u.cost.currency}` : 'el agente no lo informó'],
-      ['Mensajes', `${users} tuyos · ${replies} del agente`],
-      ['Herramientas', tools.length ? `${tools.length} (${[...byKind].map(([k, n]) => `${k}: ${n}`).join(', ')})` : 'ninguna'],
-      ['Compactado', compacts ? `${compacts} vez/veces` : 'nunca'],
-      ['Duración', minutes < 1 ? 'menos de un minuto' : `${minutes} min`],
+      [t('acp.store.usageMode'), mode ?? '—'],
+      [
+        t('acp.store.usageContext'),
+        u
+          ? t('acp.store.usageContextValue', {
+              used: fmt(u.used),
+              size: fmt(u.size),
+              percent: ((u.used / u.size) * 100).toFixed(1),
+            })
+          : t('acp.store.usageNotReported'),
+      ],
+      [t('acp.store.usageCost'), u?.cost ? `${u.cost.amount} ${u.cost.currency}` : t('acp.store.usageNotReported')],
+      [t('acp.store.usageMessages'), t('acp.store.usageMessagesValue', { users, replies })],
+      [
+        t('acp.store.usageTools'),
+        tools.length ? `${tools.length} (${[...byKind].map(([k, n]) => `${k}: ${n}`).join(', ')})` : t('acp.store.usageNone'),
+      ],
+      [
+        t('acp.store.usageCompacted'),
+        compacts ? t('acp.store.usageCompactedValue', { count: compacts }) : t('acp.store.usageNever'),
+      ],
+      [t('acp.store.usageDuration'), minutes < 1 ? t('acp.store.usageLessThanMinute') : `${minutes} min`],
     ];
-    return `**Uso de esta conversación** (Synapse)\n\n| | |\n|---|---|\n${rows.map(([k, v]) => `| ${k} | ${v} |`).join('\n')}`;
+    return `${t('acp.store.usageTitle')}\n\n| | |\n|---|---|\n${rows.map(([k, v]) => `| ${k} | ${v} |`).join('\n')}`;
   }
 
   async send(
@@ -623,7 +642,7 @@ export class Conversation {
     try {
       const stop = await agentApi.sendPrompt(session.id, blocks);
       stopReason = stop;
-      if (stop === 'refusal') this.push({ type: 'error', text: 'El agente rechazó la petición.' });
+      if (stop === 'refusal') this.push({ type: 'error', text: t('acp.store.refusalError') });
     } catch (e) {
       this.error(e);
     } finally {
@@ -691,7 +710,7 @@ export class Conversation {
           .join('\n\n')
           .trim();
         const target = opts.replyTo;
-        const text = answer || '(no respondió nada)';
+        const text = answer || t('acp.store.noAnswerFallback');
         const hops = (opts.hops ?? 0) + 1;
         if ('local' in target) {
           const asker = target.local;
@@ -713,7 +732,7 @@ export class Conversation {
         // La respuesta final es el último mensaje del turno (los anteriores acompañan a sus herramientas)
         const last = this.items.slice(turnStart).findLast((i) => i.type === 'agent');
         const answer = agentNoticeContent() === 'answer' && last?.type === 'agent' ? last.text : undefined;
-        const notice = completionNotice(this.agent?.name ?? 'El agente', this.handle, text, stopReason === 'error', answer);
+        const notice = completionNotice(this.agent?.name ?? t('acp.store.fallbackAgentName'), this.handle, text, stopReason === 'error', answer);
         notifyIfUnfocused(notice.title, notice.body, this.id);
       }
       this.deliverNext();
@@ -1015,7 +1034,7 @@ export class Conversation {
 
   /** Una pregunta aparte no concede nada: rechaza y lo deja dicho en el panel. */
   rejectPermission(request: PermissionRequestEvent) {
-    this.push({ type: 'info', text: `Permiso rechazado: ${request.title}` });
+    this.push({ type: 'info', text: t('acp.store.permissionRejected', { title: request.title }) });
     void agentApi
       .respondPermission(request.sessionId, request.requestId, rejectOption(request.options))
       .catch((e) => this.error(e));
@@ -1245,7 +1264,7 @@ export class AgentStore {
         if (c.incoming) this.peers.incomingPermission(c, item.id, e);
         const tool = c.items.find((i) => i.type === 'tool' && i.toolCallId === e.toolCallId);
         requestAttention(
-          `${c.agent?.name ?? 'El agente'} pide permiso`,
+          t('acp.store.asksPermission', { agent: c.agent?.name ?? t('acp.store.fallbackAgentName') }),
           `${c.handle}${tool && tool.type === 'tool' ? ` · ${tool.title}` : ''}`,
           c.id,
         );
@@ -1256,14 +1275,14 @@ export class AgentStore {
           this.conversations.find((x) => x.connection === 'busy');
         if (!c) return;
         if (c.isAside) {
-          c.push({ type: 'info', text: `El agente pidió información: ${e.message}` });
+          c.push({ type: 'info', text: t('acp.store.asideAskedInfo', { message: e.message }) });
           void agentApi.respondElicitation(c.session?.id ?? '', e.requestId, 'cancel', null).catch(() => {});
           return;
         }
         c.push({ type: 'elicitation', request: e, answered: null });
         if (!this.isVisible(c)) c.unseen = true;
         requestAttention(
-          `${c.agent?.name ?? 'El agente'} solicita información`,
+          t('acp.store.asksInfo', { agent: c.agent?.name ?? t('acp.store.fallbackAgentName') }),
           `${c.handle} · ${e.message}`,
           c.id,
         );
@@ -1273,7 +1292,7 @@ export class AgentStore {
         if (!c) return;
         c.session = null;
         c.connection = 'idle';
-        c.push({ type: 'error', text: 'El agente terminó.' });
+        c.push({ type: 'error', text: t('acp.store.agentTerminated') });
       },
     }));
     return this.#listening;
@@ -1403,7 +1422,7 @@ export class AgentStore {
   }): Promise<unknown> {
     if (req.action === 'peer') return this.peers.handlePeer(req.request as PeerRequest);
     if (req.action === 'send' && this.conversations.some((c) => c.asides.some((a) => a.id === req.caller))) {
-      throw new Error('Una pregunta aparte (/btw) no puede escribir a otras conversaciones.');
+      throw new Error(t('acp.store.asideCannotSend'));
     }
     const caller = req.caller ? this.byId(req.caller) : null;
     if (req.action === 'list') {
@@ -1412,27 +1431,25 @@ export class AgentStore {
       const peers = await agentApi.peerList({ action: 'list' }).catch(() => []);
       const remote = peers.flatMap((p) =>
         Array.isArray(p.result)
-          ? (p.result as { handle: string }[]).map((c) => ({ ...c, handle: `${p.vault}${c.handle}`, vault: p.vault, window: 'otra ventana' }))
+          ? (p.result as { handle: string }[]).map((c) => ({ ...c, handle: `${p.vault}${c.handle}`, vault: p.vault, window: t('acp.store.otherWindow') }))
           : [],
       );
       const me = await this.peers.me();
       return [
-        ...local.map((c) => ({ ...c, vault: me?.vault ?? null, window: 'esta ventana' })),
+        ...local.map((c) => ({ ...c, vault: me?.vault ?? null, window: t('acp.store.thisWindow') })),
         ...remote,
         ...peers
           .filter((p) => !Array.isArray(p.result) || !(p.result as unknown[]).length)
-          .map((p) => ({ handle: `${p.vault}#nueva`, vault: p.vault, window: 'otra ventana', note: 'Bóveda abierta sin conversaciones: escribirle abre una nueva' })),
+          .map((p) => ({ handle: `${p.vault}#${t('acp.mentions.newTag')}`, vault: p.vault, window: t('acp.store.otherWindow'), note: t('acp.store.emptyRemoteVaultNote') })),
       ];
     }
     if (req.action === 'replies') return this.externalReplies.splice(0);
-    if (req.action !== 'send') throw new Error(`Acción desconocida: ${req.action}`);
+    if (req.action !== 'send') throw new Error(t('acp.store.unknownAction', { action: req.action }));
     if (!caller) return this.#sendFromExternal(req.to ?? '', req.message ?? '', !!req.expectsReply);
     const to = (req.to ?? '').trim();
     const hops = caller.turnHops + 1;
     if (hops > MAX_AGENT_HOPS) {
-      throw new Error(
-        `Límite de ${MAX_AGENT_HOPS} mensajes seguidos entre agentes sin intervención del usuario. Resume lo que tengas y deja que el usuario decida.`,
-      );
+      throw new Error(t('acp.store.hopLimitDetail', { max: MAX_AGENT_HOPS }));
     }
     const expectsReply = !!req.expectsReply;
     // «mainframe», «mainframe#2» o «mainframe#nueva»: otra bóveda
@@ -1450,8 +1467,8 @@ export class AgentStore {
       status,
       to: `${target.handle} · ${target.agent?.name ?? target.agentId}`,
       note:
-        (status === 'queued' ? 'Está trabajando: lo recibirá al terminar su turno. ' : 'Entregado. ') +
-        (expectsReply ? 'Su respuesta te llegará como un mensaje nuevo en esta conversación; no la esperes.' : ''),
+        (status === 'queued' ? t('acp.store.queuedPrefix') : t('acp.store.deliveredPrefix')) +
+        (expectsReply ? t('acp.peer.replyWaitAsync') : ''),
     };
   }
 
@@ -1462,7 +1479,7 @@ export class AgentStore {
   #sendFromExternal(to: string, message: string, expectsReply: boolean) {
     const target = this.#resolveTarget(to.trim(), null);
     const status = target.receive({
-      from: { handle: 'externo', agent: 'Cliente MCP externo', title: '' },
+      from: { handle: t('acp.store.externalAgentHandle'), agent: t('acp.store.externalMcpClient'), title: '' },
       text: message,
       hops: 1,
       replyTo: expectsReply ? { external: true } : null,
@@ -1471,8 +1488,8 @@ export class AgentStore {
       status,
       to: `${target.handle} · ${target.agent?.name ?? target.agentId}`,
       note:
-        (status === 'queued' ? 'Está trabajando: lo recibirá al terminar su turno. ' : 'Entregado. ') +
-        (expectsReply ? 'Cuando responda, recoge su respuesta con la herramienta read_replies.' : ''),
+        (status === 'queued' ? t('acp.store.queuedPrefix') : t('acp.store.deliveredPrefix')) +
+        (expectsReply ? t('acp.store.externalReplyHint') : ''),
     };
   }
 
@@ -1482,7 +1499,7 @@ export class AgentStore {
       handle: c.handle,
       agent: c.agent?.name ?? c.agentId,
       model: c.session?.models.find((m) => m.id === c.currentModel)?.name ?? c.currentModel ?? undefined,
-      title: c.title || 'Conversación nueva',
+      title: c.title || t('acp.store.newConversation'),
       status: c.status,
       pending_messages: c.inbox.length,
       is_you: c.id === caller?.id,
@@ -1511,11 +1528,11 @@ export class AgentStore {
     if (exact) return exact;
     const matches = others.filter((c) => `${c.agent?.name ?? c.agentId} ${c.title}`.toLowerCase().includes(q));
     if (matches.length === 1) return matches[0];
-    const list = others.map((c) => `${c.handle} ${c.agent?.name ?? c.agentId} · ${c.title || 'nueva'}`).join('; ');
+    const list = others.map((c) => `${c.handle} ${c.agent?.name ?? c.agentId} · ${c.title || t('acp.store.newShort')}`).join('; ');
     throw new Error(
       matches.length
-        ? `«${to}» coincide con varias conversaciones (${matches.map((c) => c.handle).join(', ')}); usa su número. Abiertas: ${list}`
-        : `No hay otra conversación «${to}». Abiertas: ${list || 'ninguna'}`,
+        ? t('acp.store.ambiguousTarget', { to, handles: matches.map((c) => c.handle).join(', '), list })
+        : t('acp.store.missingTarget', { to, list: list || t('acp.store.usageNone') }),
     );
   }
 
@@ -1610,14 +1627,22 @@ export class AgentStore {
     this.setPanelOpen(true);
     this.attach({ kind: 'file', path: file.path, name: file.name });
     const s = (h: string) => h.slice(0, 7);
-    const how =
-      `Usa git_diff_revisions (from: ${from}, to: ${to}) y, si es una imagen o un diagrama, ` +
-      `render_diagram con revision en cada versión.`;
+    const how = t('acp.store.askRevisionsHow', { from, to });
     // Un solo commit: `from` es su padre (`<hash>^`); si el archivo nació en él, el diff es contra vacío
     this.pendingDraft =
       from === `${to}^`
-        ? `¿Qué cambió en ${file.name} en el commit ${s(to)}${message ? ` («${message}»)` : ''}? ${how}`
-        : `¿Qué cambió en ${file.name} entre los commits ${s(from)} y ${s(to)}? ${how}`;
+        ? t('acp.store.askCommit', {
+            name: file.name,
+            commit: s(to),
+            msgPart: message ? ` («${message}»)` : '',
+            how,
+          })
+        : t('acp.store.askRevisions', {
+            name: file.name,
+            from: s(from),
+            to: s(to),
+            how,
+          });
   }
 
   /** Adjunta (por ejemplo, la selección del editor) a la conversación enfocada. */

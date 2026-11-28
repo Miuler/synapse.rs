@@ -2,6 +2,8 @@
 // lo suyo hasta el siguiente título del mismo nivel o superior. Lo plegado se recuerda por archivo
 // mientras la app está abierta (cambiar a edición y volver no lo pierde).
 
+import { t } from '@shared/lib/i18n';
+
 /** Elemento de la nota: nivel de título (0 si no es título) y su clave. */
 export interface FoldBlock {
   level: number;
@@ -76,8 +78,8 @@ export function applyFolds(article: HTMLElement, file: string | null): void {
     }
     const isFolded = folded.has(key);
     button.setAttribute('aria-expanded', String(!isFolded));
-    button.title = `${isFolded ? 'Desplegar' : 'Plegar'} (Alt: todos los de este nivel)`;
-    button.setAttribute('aria-label', isFolded ? 'Desplegar sección' : 'Plegar sección');
+    button.title = isFolded ? t('readingView.unfoldTitle') : t('readingView.foldTitle');
+    button.setAttribute('aria-label', isFolded ? t('readingView.unfoldSection') : t('readingView.foldSection'));
     el.classList.toggle('reading-folded', isFolded);
   });
 }

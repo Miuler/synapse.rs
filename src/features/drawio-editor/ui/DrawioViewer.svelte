@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import { appSettings } from '@entities/settings';
   import { vaultRepository } from '@shared/repositories';
+  import { i18n, t } from '@shared/lib/i18n';
   import {
     buildDrawioUrl,
     parseDrawioMessage,
@@ -38,7 +39,7 @@
   // El tema y la URL se fijan al abrir: recargar el iframe perdería los cambios sin guardar.
   const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
   const isImage = untrack(() => format !== 'xml');
-  const src = buildDrawioUrl(appSettings.settings.drawioUrl, isDark, appSettings.settings.locale ?? 'es', isImage);
+  const src = buildDrawioUrl(appSettings.settings.drawioUrl, isDark, appSettings.settings.locale ?? i18n.locale, isImage);
   const origin = new URL(src).origin;
 
   function post(msg: Record<string, unknown>) {
@@ -59,7 +60,7 @@
       }
     } catch (err) {
       status = 'error';
-      errorMessage = `No se pudo leer el diagrama: ${err}`;
+      errorMessage = t('drawio.loadError', { detail: String(err) });
     }
   }
 
@@ -71,7 +72,7 @@
       onSavedPng?.();
     } catch (err) {
       status = 'error';
-      errorMessage = `No se pudo guardar la imagen: ${err}`;
+      errorMessage = t('drawio.saveError', { detail: String(err) });
     }
   }
 
@@ -114,12 +115,12 @@
 
 <div class="drawio-viewer" data-drawio-path={filePath} data-drawio-status={status}>
   {#if status === 'loading'}
-    <div class="drawio-overlay">Cargando draw.io…</div>
+    <div class="drawio-overlay">{t('drawio.loading')}</div>
   {:else if status === 'error'}
     <div class="drawio-overlay drawio-error">{errorMessage}</div>
   {/if}
-  <div class="drawio-source" title="El editor se descarga de esa web; el diagrama no se envía, viaja solo dentro de la app">
-    draw.io cargado desde {new URL(src).host} (requiere conexión)
+  <div class="drawio-source" title={t('drawio.sourceHint')}>
+    {t('drawio.loadedFrom', { host: new URL(src).host })}
   </div>
   <iframe bind:this={iframe} {src} title={`draw.io: ${filePath}`} class="drawio-frame"></iframe>
 </div>

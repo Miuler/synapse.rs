@@ -426,7 +426,7 @@
     class:found={foundHere.has(`${r}:${c}`)}
     class:has-formula={!!cell?.f}
     class:no-cache={!!cell?.f && !cell.v}
-    title={cell?.f && !cell.v ? 'Fórmula sin resultado guardado en el archivo' : undefined}
+    title={cell?.f && !cell.v ? t('spreadsheetViewer.uncomputedFormulaTitle') : undefined}
     style={cellCss(hit?.css ?? '', cell, box)}
     data-cell={`${colName(c)}${r}`}
     onpointerdown={() => (sel = { r, c })}
@@ -435,38 +435,38 @@
 
 <div class="spreadsheet-viewer" data-path={path}>
   {#if loading && !info}
-    <div class="sheet-message">Leyendo hoja de cálculo…</div>
+    <div class="sheet-message">{t('spreadsheetViewer.loadingWorkbook')}</div>
   {:else if error}
     <div class="sheet-message error"><TriangleAlert size={16} /> {error}</div>
   {:else if info}
     <div class="formula-bar">
-      <span class="cell-ref" title="Celda seleccionada">{colName(sel.c)}{sel.r}</span>
+      <span class="cell-ref" title={t('spreadsheetViewer.selectedCellTitle')}>{colName(sel.c)}{sel.r}</span>
       <span class="fx" class:active={!!selected?.f}><FunctionSquare size={14} /></span>
       <span class="formula-text" title={selected?.f ? `=${selected.f}` : (selected?.v ?? '')}>
         {#if selected?.f}={selected.f}{:else}{selected?.v ?? ''}{/if}
       </span>
       {#if selected?.f}
-        <span class="formula-result" title="Resultado guardado en el archivo">
-          {selected.v ? `→ ${selected.v}` : 'sin resultado guardado'}
+        <span class="formula-result" title={t('spreadsheetViewer.cachedResultTitle')}>
+          {selected.v ? `→ ${selected.v}` : t('spreadsheetViewer.noCachedResult')}
         </span>
       {/if}
       <button
         type="button"
         class="sheet-btn show-formulas"
         class:active={showFormulas}
-        title="Mostrar fórmulas en lugar de resultados (Ctrl+`)"
+        title={t('spreadsheetViewer.showFormulasTitle')}
         onclick={() => (showFormulas = !showFormulas)}
       >
-        <FunctionSquare size={14} /> Fórmulas
+        <FunctionSquare size={14} /> {t('spreadsheetViewer.formulas')}
       </button>
       <ZoomControl {zoom} onChange={setZoom} />
       <button
         type="button"
         class="sheet-btn open-external"
-        title="Abrir con la aplicación del sistema para editarlo"
+        title={t('docxViewer.openExternalTitle')}
         onclick={() => systemApi.openFileWithDefaultApp(path).catch((e) => console.warn('No se pudo abrir con la aplicación del sistema:', e))}
       >
-        <ExternalLink size={14} /> Abrir en la aplicación
+        <ExternalLink size={14} /> {t('docxViewer.openExternal')}
       </button>
     </div>
 
@@ -485,16 +485,16 @@
 
     {#if info.valuesOnly}
       <div class="sheet-notice">
-        {#if info.large}El archivo es grande: se muestra sin estilos (solo valores y fórmulas) para abrirlo más rápido.
-        {:else}Este formato se muestra solo con valores y fórmulas, sin estilos.{/if}
+        {#if info.large}{t('spreadsheetViewer.valuesOnlyLarge')}
+        {:else}{t('spreadsheetViewer.valuesOnlyFormat')}{/if}
       </div>
     {/if}
 
     <div class="sheet-area">
       {#if !layout || !grid || !win}
-        <div class="sheet-message">Leyendo hoja…</div>
+        <div class="sheet-message">{t('spreadsheetViewer.loadingSheet')}</div>
       {:else if !layout.cellCount && !layout.merges.length}
-        <div class="sheet-message">La hoja está vacía.</div>
+        <div class="sheet-message">{t('spreadsheetViewer.emptySheet')}</div>
       {:else}
         <!-- Cabeceras fuera del área que se desplaza: se mueven con ella por transform -->
         <div class="corner" style={`width:${headW}px;height:${headH}px`}></div>
@@ -571,17 +571,17 @@
         <button
           type="button"
           class="sheet-btn toggle-hidden"
-          title={showHidden ? 'Ocultar las hojas ocultas' : `Mostrar ${hiddenCount} hoja(s) oculta(s)`}
+          title={showHidden ? t('spreadsheetViewer.hideHiddenSheets') : t('spreadsheetViewer.showHiddenSheets', { count: hiddenCount })}
           onclick={() => {
             showHidden = !showHidden;
             if (!showHidden && sheets[sheetIndex]?.hidden) openSheet(tabs[0]?.i ?? 0);
           }}
         >
           {#if showHidden}<EyeOff size={13} />{:else}<Eye size={13} />{/if}
-          {hiddenCount} oculta{hiddenCount === 1 ? '' : 's'}
+          {hiddenCount === 1 ? t('spreadsheetViewer.hiddenOne', { count: hiddenCount }) : t('spreadsheetViewer.hiddenMany', { count: hiddenCount })}
         </button>
       {/if}
-      <span class="sheet-hint">Solo lectura · Alt+RePág/AvPág cambia de hoja</span>
+      <span class="sheet-hint">{t('spreadsheetViewer.readOnlyHint')}</span>
     </div>
   {/if}
 </div>

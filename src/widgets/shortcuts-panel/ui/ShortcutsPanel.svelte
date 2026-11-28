@@ -35,82 +35,82 @@
     const ws = shortcutsConfig.workspace;
     const all: Group[] = [
       {
-        title: 'Archivos y pestañas',
+        title: t('shortcutsPanel.groups.filesAndTabs'),
         entries: [
-          { label: 'Abrir archivo rápido', shortcut: ws.quick_open },
-          { label: 'Nuevo archivo', shortcut: ws.new_file },
-          { label: 'Nueva pestaña', shortcut: ws.new_tab },
-          { label: 'Guardar', shortcut: ws.save_file },
-          { label: 'Cerrar pestaña', shortcut: ws.close_tab },
-          { label: 'Pestaña siguiente', shortcut: ws.next_tab },
-          { label: 'Pestaña anterior', shortcut: ws.prev_tab },
-          { label: 'Pestaña siguiente (sin escribir)', shortcut: ws.next_tab_outside_text },
-          { label: 'Pestaña anterior (sin escribir)', shortcut: ws.prev_tab_outside_text },
-          { label: 'Vista dividida', shortcut: ws.split_view },
-          { label: 'Alternar edición / lectura', shortcut: ws.toggle_edit_mode },
+          { label: t('shortcutLabels.actions.quick_open'), shortcut: ws.quick_open },
+          { label: t('shortcutLabels.actions.new_file'), shortcut: ws.new_file },
+          { label: t('shortcutLabels.actions.new_tab'), shortcut: ws.new_tab },
+          { label: t('shortcutLabels.actions.save_file'), shortcut: ws.save_file },
+          { label: t('shortcutLabels.actions.close_tab'), shortcut: ws.close_tab },
+          { label: t('shortcutLabels.actions.next_tab'), shortcut: ws.next_tab },
+          { label: t('shortcutLabels.actions.prev_tab'), shortcut: ws.prev_tab },
+          { label: t('shortcutLabels.actions.next_tab_outside_text'), shortcut: ws.next_tab_outside_text },
+          { label: t('shortcutLabels.actions.prev_tab_outside_text'), shortcut: ws.prev_tab_outside_text },
+          { label: t('shortcutLabels.actions.split_view'), shortcut: ws.split_view },
+          { label: t('shortcutLabels.actions.toggle_edit_mode'), shortcut: ws.toggle_edit_mode },
         ],
       },
       {
-        title: 'Navegación',
+        title: t('shortcutsPanel.groups.navigation'),
         entries: [
-          { label: 'Paleta de comandos', shortcut: ws.command_palette },
-          { label: 'Buscar en el contenido', shortcut: ws.search_fulltext },
-          { label: 'Atrás', shortcut: ws.nav_back },
-          { label: 'Adelante', shortcut: ws.nav_forward },
-          { label: 'Mostrar / ocultar barra lateral', shortcut: ws.toggle_sidebar },
-          { label: 'Mostrar / ocultar el agente', shortcut: ws.toggle_agent },
-          { label: 'Localizar archivo activo', shortcut: ws.locate_active_file },
-          { label: 'Abrir carpeta de la bóveda', shortcut: ws.open_vault_folder },
-          { label: 'Atajos de teclado', shortcut: 'F1' },
+          { label: t('shortcutLabels.actions.command_palette'), shortcut: ws.command_palette },
+          { label: t('shortcutLabels.actions.search_fulltext'), shortcut: ws.search_fulltext },
+          { label: t('shortcutLabels.actions.nav_back'), shortcut: ws.nav_back },
+          { label: t('shortcutLabels.actions.nav_forward'), shortcut: ws.nav_forward },
+          { label: t('shortcutLabels.actions.toggle_sidebar'), shortcut: ws.toggle_sidebar },
+          { label: t('shortcutLabels.actions.toggle_agent'), shortcut: ws.toggle_agent },
+          { label: t('shortcutLabels.actions.locate_active_file'), shortcut: ws.locate_active_file },
+          { label: t('shortcutLabels.actions.open_vault_folder'), shortcut: ws.open_vault_folder },
+          { label: t('shortcutsPanel.fixed.keyboardShortcuts'), shortcut: 'F1' },
         ],
       },
       {
-        title: 'Editor',
+        title: t('shortcutsPanel.groups.editor'),
         entries: [
-          { label: 'Deshacer', shortcut: 'Ctrl+Z' },
-          { label: 'Rehacer', shortcut: 'Ctrl+Shift+Z, Ctrl+Y' },
-          { label: 'Comentar / descomentar líneas', shortcut: 'Ctrl+/' },
-          { label: 'Sangrar / quitar sangría', shortcut: 'Tab, Shift+Tab' },
-          { label: 'Marcar / desmarcar tarea', shortcut: ws.toggle_task },
-          { label: 'Aumentar tamaño del texto', shortcut: ws.zoom_in },
-          { label: 'Reducir tamaño del texto', shortcut: ws.zoom_out },
-          { label: 'Restablecer tamaño del texto', shortcut: ws.zoom_reset },
-          { label: 'Buscar en el archivo', shortcut: 'Ctrl+F' },
+          { label: t('shortcutsPanel.fixed.undo'), shortcut: 'Ctrl+Z' },
+          { label: t('shortcutsPanel.fixed.redo'), shortcut: 'Ctrl+Shift+Z, Ctrl+Y' },
+          { label: t('shortcutsPanel.fixed.commentLines'), shortcut: 'Ctrl+/' },
+          { label: t('shortcutsPanel.fixed.indent'), shortcut: 'Tab, Shift+Tab' },
+          { label: t('shortcutLabels.actions.toggle_task'), shortcut: ws.toggle_task },
+          { label: t('shortcutLabels.actions.zoom_in'), shortcut: ws.zoom_in },
+          { label: t('shortcutLabels.actions.zoom_out'), shortcut: ws.zoom_out },
+          { label: t('shortcutLabels.actions.zoom_reset'), shortcut: ws.zoom_reset },
+          { label: t('shortcutsPanel.fixed.findInFile'), shortcut: 'Ctrl+F' },
           { label: t('chatSearch.placeholder'), shortcut: 'Ctrl+F' },
-          { label: 'Buscar y reemplazar en el archivo', shortcut: 'Ctrl+R' },
+          { label: t('shortcutsPanel.fixed.findReplaceInFile'), shortcut: 'Ctrl+R' },
         ],
       },
       {
-        title: 'Explorador',
+        title: t('shortcutsPanel.groups.explorer'),
         entries: [
-          { label: 'Copiar', shortcut: 'Ctrl+C' },
-          { label: 'Cortar (para mover)', shortcut: 'Ctrl+X' },
-          { label: 'Pegar', shortcut: 'Ctrl+V' },
-          { label: 'Recargar', shortcut: 'F5, Ctrl+R' },
-          { label: 'Eliminar', shortcut: 'Delete' },
+          { label: t('shortcutsPanel.fixed.copy'), shortcut: 'Ctrl+C' },
+          { label: t('shortcutsPanel.fixed.cut'), shortcut: 'Ctrl+X' },
+          { label: t('shortcutsPanel.fixed.paste'), shortcut: 'Ctrl+V' },
+          { label: t('shortcutsPanel.fixed.reload'), shortcut: 'F5, Ctrl+R' },
+          { label: t('shortcutsPanel.fixed.delete'), shortcut: 'Delete' },
         ],
       },
       {
-        title: 'Vista y desarrollo',
+        title: t('shortcutsPanel.groups.viewAndDev'),
         entries: [
-          { label: 'Recargar archivo activo', shortcut: ws.reload_active_file },
-          { label: 'Recargar bóveda', shortcut: ws.reload_vault },
-          { label: 'Alternar tema claro / oscuro', shortcut: ws.toggle_theme },
-          { label: 'Elegir tema', shortcut: ws.pick_theme },
-          { label: 'Índice de la nota o de las claves', shortcut: ws.toggle_outline },
-          { label: 'Herramientas de desarrollo', shortcut: ws.toggle_devtools },
-          { label: 'Git: push', shortcut: ws.git_push },
+          { label: t('shortcutLabels.actions.reload_active_file'), shortcut: ws.reload_active_file },
+          { label: t('shortcutLabels.actions.reload_vault'), shortcut: ws.reload_vault },
+          { label: t('shortcutLabels.actions.toggle_theme'), shortcut: ws.toggle_theme },
+          { label: t('shortcutLabels.actions.pick_theme'), shortcut: ws.pick_theme },
+          { label: t('shortcutLabels.actions.toggle_outline'), shortcut: ws.toggle_outline },
+          { label: t('shortcutLabels.actions.toggle_devtools'), shortcut: ws.toggle_devtools },
+          { label: t('shortcutLabels.actions.git_push'), shortcut: ws.git_push },
         ],
       },
     ];
     // Los atajos de vim solo aparecen si el modo vim está activo
     if (appSettings.vimMode) {
       all.push({
-        title: 'Vim',
+        title: t('shortcutsPanel.groups.vim'),
         entries: [
-          { label: 'Deshacer', shortcut: 'u' },
-          { label: 'Deshacer cambios de la última línea', shortcut: 'U' },
-          { label: 'Rehacer', shortcut: 'Ctrl+R' },
+          { label: t('shortcutsPanel.fixed.undo'), shortcut: 'u' },
+          { label: t('shortcutsPanel.fixed.vimUndoLastLine'), shortcut: 'U' },
+          { label: t('shortcutsPanel.fixed.redo'), shortcut: 'Ctrl+R' },
         ],
       });
     }
@@ -141,8 +141,8 @@
       style={dialogSize.style}
     >
       <DialogResizeHandles onStart={dialogSize.startResize} />
-      <Dialog.Title class="shortcuts-title">Atajos de teclado</Dialog.Title>
-      <SearchBox bind:value={query} placeholder="Buscar un atajo o una acción..." />
+      <Dialog.Title class="shortcuts-title">{t('shortcutsPanel.title')}</Dialog.Title>
+      <SearchBox bind:value={query} placeholder={t('shortcutsPanel.searchPlaceholder')} />
 
       <div class="shortcuts-body">
         {#each filtered as group (group.title)}
@@ -158,7 +158,7 @@
             </ul>
           </section>
         {:else}
-          <p class="shortcuts-empty">No hay atajos que coincidan.</p>
+          <p class="shortcuts-empty">{t('shortcutsPanel.empty')}</p>
         {/each}
       </div>
     </Dialog.Content>

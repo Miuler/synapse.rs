@@ -24,6 +24,7 @@
   import { searchRepository, isTauriEnvironment, type FullTextIndexStatus } from '@shared/repositories';
   import { systemApi, type McpRuntimeStatus } from '@shared/api';
   import { listen } from '@tauri-apps/api/event';
+  import { i18n, t } from '@shared/lib/i18n';
   import { diagramRenderStatus } from '@shared/lib/diagrams';
 
   interface Props {
@@ -91,7 +92,7 @@
     const interval = setInterval(tick, 200);
     return () => clearInterval(interval);
   });
-  const formatSeconds = (ms: number) => `${(ms / 1000).toLocaleString('es', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+  const formatSeconds = (ms: number) => `${(ms / 1000).toLocaleString(i18n.locale === 'es' ? 'es' : 'en', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
   let appVersion = $state('');
 
   $effect(() => {
@@ -108,21 +109,21 @@
   }[] = [
     {
       id: 'live',
-      label: 'En vivo',
+      get label() { return t('statusBar.modes.live'); },
       badge: 'Live Preview',
-      description: 'Editor con estilos enriquecidos y diagramas Mermaid en vivo',
+      get description() { return t('statusBar.modes.liveDesc'); },
     },
     {
       id: 'source',
-      label: 'Fuente',
+      get label() { return t('statusBar.modes.source'); },
       badge: 'Source Mode',
-      description: 'Código Markdown puro con resaltado de sintaxis',
+      get description() { return t('statusBar.modes.sourceDesc'); },
     },
     {
       id: 'reading',
-      label: 'Lectura',
+      get label() { return t('statusBar.modes.reading'); },
       badge: 'Reading View',
-      description: 'Documento renderizado final de solo lectura',
+      get description() { return t('statusBar.modes.readingDesc'); },
     },
   ];
 
@@ -143,21 +144,21 @@
   let listRef = $state<HTMLDivElement | null>(null);
 
   const ENCODINGS = [
-    { id: 'UTF-8', label: 'UTF-8', description: 'Unicode (Estándar recomendado)' },
-    { id: 'UTF-8 con BOM', label: 'UTF-8 con BOM', description: 'Unicode con marca de orden de bytes' },
-    { id: 'ASCII', label: 'ASCII', description: 'US-ASCII de 7 bits' },
-    { id: 'Windows-1252', label: 'Windows-1252', description: 'ANSI / Europa Occidental' },
-    { id: 'ISO-8859-1', label: 'ISO-8859-1 (Latin-1)', description: 'Europa Occidental' },
-    { id: 'ISO-8859-2', label: 'ISO-8859-2 (Latin-2)', description: 'Europa Central y Oriental' },
-    { id: 'ISO-8859-15', label: 'ISO-8859-15 (Latin-9)', description: 'Europa Occidental con símbolo Euro' },
-    { id: 'Windows-1250', label: 'Windows-1250', description: 'Europa Central' },
-    { id: 'Windows-1251', label: 'Windows-1251', description: 'Cirílico' },
-    { id: 'UTF-16 LE', label: 'UTF-16 LE', description: 'Unicode 16-bit Little Endian' },
-    { id: 'UTF-16 BE', label: 'UTF-16 BE', description: 'Unicode 16-bit Big Endian' },
-    { id: 'Shift_JIS', label: 'Shift_JIS', description: 'Japonés' },
-    { id: 'GBK', label: 'GBK / GB2312', description: 'Chino Simplificado' },
-    { id: 'Big5', label: 'Big5', description: 'Chino Tradicional' },
-    { id: 'EUC-KR', label: 'EUC-KR', description: 'Coreano' },
+    { id: 'UTF-8', label: 'UTF-8', get description() { return t('statusBar.encodingDesc.utf8'); } },
+    { id: 'UTF-8 con BOM', get label() { return t('statusBar.encodingDesc.utf8BomLabel'); }, get description() { return t('statusBar.encodingDesc.utf8Bom'); } },
+    { id: 'ASCII', label: 'ASCII', get description() { return t('statusBar.encodingDesc.ascii'); } },
+    { id: 'Windows-1252', label: 'Windows-1252', get description() { return t('statusBar.encodingDesc.win1252'); } },
+    { id: 'ISO-8859-1', label: 'ISO-8859-1 (Latin-1)', get description() { return t('statusBar.encodingDesc.iso88591'); } },
+    { id: 'ISO-8859-2', label: 'ISO-8859-2 (Latin-2)', get description() { return t('statusBar.encodingDesc.iso88592'); } },
+    { id: 'ISO-8859-15', label: 'ISO-8859-15 (Latin-9)', get description() { return t('statusBar.encodingDesc.iso885915'); } },
+    { id: 'Windows-1250', label: 'Windows-1250', get description() { return t('statusBar.encodingDesc.win1250'); } },
+    { id: 'Windows-1251', label: 'Windows-1251', get description() { return t('statusBar.encodingDesc.win1251'); } },
+    { id: 'UTF-16 LE', label: 'UTF-16 LE', get description() { return t('statusBar.encodingDesc.utf16le'); } },
+    { id: 'UTF-16 BE', label: 'UTF-16 BE', get description() { return t('statusBar.encodingDesc.utf16be'); } },
+    { id: 'Shift_JIS', label: 'Shift_JIS', get description() { return t('statusBar.encodingDesc.shiftJis'); } },
+    { id: 'GBK', label: 'GBK / GB2312', get description() { return t('statusBar.encodingDesc.gbk'); } },
+    { id: 'Big5', label: 'Big5', get description() { return t('statusBar.encodingDesc.big5'); } },
+    { id: 'EUC-KR', label: 'EUC-KR', get description() { return t('statusBar.encodingDesc.eucKr'); } },
   ];
 
   let filteredEncodings = $derived(
@@ -289,16 +290,16 @@
   async function handleCopyMcpUrl() {
     if (onCopyMcpUrl) {
       onCopyMcpUrl();
-      showToast('URL de MCP copiada');
+      showToast(t('statusBar.mcpCopied'));
       return;
     }
     const endpoint = mcpStatus?.endpoint || (mcpStatus?.port ? `http://127.0.0.1:${mcpStatus.port}/mcp` : 'http://127.0.0.1:27182/mcp');
     try {
       await navigator.clipboard.writeText(endpoint);
-      showToast('URL de MCP copiada');
+      showToast(t('statusBar.mcpCopied'));
     } catch (e) {
       console.warn('Error al copiar URL de MCP:', e);
-      showToast('Error al copiar al portapapeles');
+      showToast(t('statusBar.clipboardError'));
     }
   }
 </script>
@@ -309,7 +310,7 @@
       type="button"
       class="status-item clickable"
       onclick={() => { if (onOpenCommandPalette) onOpenCommandPalette(); }}
-      title="Abrir paleta de comandos"
+      title={t('statusBar.openCommandPalette')}
     >
       <Command size={14} class="icon" />
       <span>Ctrl+P</span>
@@ -319,7 +320,7 @@
 
     <div class="status-item">
       <span class="dot {syncStatus}"></span>
-      <span>{syncStatus === 'synced' ? 'Guardado' : syncStatus === 'saving' ? 'Guardando...' : 'Error de guardado'}</span>
+      <span>{syncStatus === 'synced' ? t('statusBar.saved') : syncStatus === 'saving' ? t('statusBar.saving') : t('statusBar.saveError')}</span>
     </div>
 
     {#if diagramRenderStatus.active > 0 || diagramRenderStatus.lastMs !== null}
@@ -327,11 +328,11 @@
       <div
         class="status-item diagram-render-status"
         class:rendering={diagramRenderStatus.active > 0}
-        title="Ctrl+Enter en el editor fuerza el redibujado"
+        title={t('statusBar.diagramRenderHint')}
       >
         {#if diagramRenderStatus.active > 0}
           <Loader2 size={13} class="icon spin" />
-          <span>Renderizando {diagramRenderStatus.engine}… {formatSeconds(renderElapsedMs)}</span>
+          <span>{t('statusBar.renderingEngine', { engine: diagramRenderStatus.engine, seconds: formatSeconds(renderElapsedMs) })}</span>
         {:else}
           <span>{diagramRenderStatus.engine}: {formatSeconds(diagramRenderStatus.lastMs ?? 0)}</span>
         {/if}
@@ -356,23 +357,23 @@
               class:indexing={indexStatus?.is_indexing}
               class:error={Boolean(indexStatus?.last_error)}
               class:active={isIndexingMenuOpen}
-              title="Estado de indexación y búsqueda en segundo plano (clic para ver progreso)"
+              title={t('statusBar.indexingStatusTitle')}
               {...props}
             >
               {#if indexStatus?.is_indexing}
                 <Loader2 size={13} class="icon spin indexing-icon" />
                 <span class="indexing-text">
-                  Indexando
+                  {t('statusBar.indexing')}
                   {#if indexStatus.total_to_index && indexStatus.total_to_index > 0}
                     ({indexStatus.indexed_in_batch || 0}/{indexStatus.total_to_index})
                   {/if}
                 </span>
               {:else if indexStatus?.last_error}
                 <AlertCircle size={13} class="icon error-icon" />
-                <span>Error índice</span>
+                <span>{t('statusBar.indexError')}</span>
               {:else}
                 <Database size={13} class="icon" />
-                <span>Índice al día</span>
+                <span>{t('statusBar.indexReady')}</span>
               {/if}
             </button>
           {/snippet}
@@ -383,7 +384,7 @@
             <div class="popover-header">
               <div class="header-left">
                 <Database size={14} class="header-icon" />
-                <span class="header-title">Índice de Búsqueda</span>
+                <span class="header-title">{t('statusBar.searchIndexTitle')}</span>
               </div>
               <span
                 class="status-pill"
@@ -393,11 +394,11 @@
               >
                 {#if indexStatus?.is_indexing}
                   <span class="pulse-dot"></span>
-                  Indexando
+                  {t('statusBar.indexing')}
                 {:else if indexStatus?.last_error}
-                  Error
+                  {t('statusBar.statusError')}
                 {:else}
-                  Al día
+                  {t('statusBar.statusUpToDate')}
                 {/if}
               </span>
             </div>
@@ -406,9 +407,9 @@
               {#if indexStatus?.is_indexing}
                 <div class="progress-section">
                   <div class="progress-info">
-                    <span class="progress-title">Indexando documentos...</span>
+                    <span class="progress-title">{t('statusBar.indexingDocs')}</span>
                     <span class="progress-count">
-                      {indexStatus.indexed_in_batch || 0} de {indexStatus.total_to_index || 0}
+                      {t('statusBar.ofTotal', { done: indexStatus.indexed_in_batch || 0, total: indexStatus.total_to_index || 0 })}
                     </span>
                   </div>
                   <div class="progress-bar-bg">
@@ -421,7 +422,7 @@
 
                 {#if indexStatus.current_file}
                   <div class="current-file-section">
-                    <span class="section-label">Procesando ahora:</span>
+                    <span class="section-label">{t('statusBar.nowProcessing')}</span>
                     <div class="file-badge">
                       <FileText size={12} class="file-icon" />
                       <span class="file-name" title={indexStatus.current_file}>{indexStatus.current_file}</span>
@@ -432,25 +433,25 @@
                 <div class="stats-grid">
                   <div class="stat-card">
                     <span class="stat-num">{indexStatus?.indexed_docs || 0}</span>
-                    <span class="stat-label">Documentos indexados</span>
+                    <span class="stat-label">{t('statusBar.indexedDocs')}</span>
                   </div>
                   <div class="stat-card">
                     <span class="stat-num">{indexStatus?.pending || 0}</span>
-                    <span class="stat-label">Pendientes en cola</span>
+                    <span class="stat-label">{t('statusBar.pendingQueue')}</span>
                   </div>
                 </div>
 
                 <div class="engine-info">
-                  <span class="engine-label">Motor:</span>
+                  <span class="engine-label">{t('statusBar.engineLabel')}</span>
                   <span class="engine-value">
-                    {indexStatus?.in_memory_fallback ? 'Memoria RAM (Fallback)' : 'Tantivy en disco (.synapse/fts)'}
+                    {indexStatus?.in_memory_fallback ? t('statusBar.engineMemory') : t('statusBar.engineDisk')}
                   </span>
                 </div>
               {/if}
 
               {#if indexStatus?.recent_files && indexStatus.recent_files.length > 0}
                 <div class="recent-files-section">
-                  <span class="section-label">Archivos procesados recientemente:</span>
+                  <span class="section-label">{t('statusBar.recentFiles')}</span>
                   <div class="recent-files-list">
                     {#each indexStatus.recent_files.slice(-5).reverse() as file}
                       <div class="recent-file-item">
@@ -479,10 +480,10 @@
               >
                 {#if isRebuilding}
                   <Loader2 size={13} class="icon spin" />
-                  <span>Reconstruyendo...</span>
+                  <span>{t('statusBar.rebuilding')}</span>
                 {:else}
                   <RefreshCw size={13} class="icon" />
-                  <span>Reindexar bóveda</span>
+                  <span>{t('statusBar.reindexVault')}</span>
                 {/if}
               </button>
             </div>
@@ -504,8 +505,12 @@
             class:mcp-running={mcpStatus?.running}
             onclick={() => { if (onToggleMcp) onToggleMcp(); }}
             title={mcpStatus?.running
-              ? `Servidor MCP Activo en ${mcpStatus.endpoint}\nBóveda: ${mcpStatus.active_vault || 'Sin bóveda'}\nPeticiones: ${mcpStatus.requests_handled}\n(Clic para desactivar, clic secundario para opciones)`
-              : `Servidor MCP Desactivado\nPuerto asignado: :${mcpStatus?.port || 27182}\n(Clic para activar, clic secundario para opciones)`}
+              ? t('statusBar.mcpActiveTitle', {
+                  endpoint: mcpStatus.endpoint ?? '',
+                  vault: mcpStatus.active_vault || t('statusBar.noVault'),
+                  requests: mcpStatus.requests_handled ?? 0,
+                })
+              : t('statusBar.mcpInactiveTitle', { port: mcpStatus?.port || 27182 })}
           >
             <Bot size={13} class="icon mcp-icon" />
             <span class="mcp-label">
@@ -525,7 +530,7 @@
             onSelect={handleCopyMcpUrl}
           >
             <Copy size={13} class="context-menu-item-icon" />
-            <span class="context-menu-item-text">Copiar URL del servidor MCP</span>
+            <span class="context-menu-item-text">{t('statusBar.copyMcpUrl')}</span>
           </ContextMenu.Item>
 
           <ContextMenu.Separator class="status-context-menu-divider" />
@@ -536,7 +541,7 @@
           >
             <Power size={13} class="context-menu-item-icon" />
             <span class="context-menu-item-text">
-              {mcpStatus?.running ? 'Desactivar MCP en este workspace' : 'Activar MCP en este workspace'}
+              {mcpStatus?.running ? t('statusBar.disableMcp') : t('statusBar.enableMcp')}
             </span>
           </ContextMenu.Item>
         </ContextMenu.Content>
@@ -558,18 +563,18 @@
                 class:source-mode={markdownViewMode === 'source'}
                 class:reading-mode={markdownViewMode === 'reading'}
                 class:active={isViewMenuOpen}
-                title="Cambiar modo de vista Markdown: En vivo, Fuente o Lectura"
+                title={t('statusBar.mdViewTitle')}
                 {...props}
               >
                 {#if markdownViewMode === 'live'}
                   <Sparkles size={14} class="icon" />
-                  <span>En vivo</span>
+                  <span>{t('statusBar.modes.live')}</span>
                 {:else if markdownViewMode === 'source'}
                   <Code size={14} class="icon" />
-                  <span>Fuente</span>
+                  <span>{t('statusBar.modes.source')}</span>
                 {:else}
                   <BookOpen size={14} class="icon" />
-                  <span>Lectura</span>
+                  <span>{t('statusBar.modes.reading')}</span>
                 {/if}
                 <ChevronDown size={12} class="chevron-icon {isViewMenuOpen ? 'open' : ''}" />
               </button>
@@ -579,9 +584,9 @@
           <DropdownMenu.Portal>
             <DropdownMenu.Content class="view-dropdown" side="top" align="end" sideOffset={6}>
               <div class="view-dropdown-header">
-                <span class="header-title">Vista Markdown</span>
+                <span class="header-title">{t('statusBar.mdViewHeading')}</span>
                 <span class="header-current">
-                  {markdownViewMode === 'live' ? 'En vivo' : markdownViewMode === 'source' ? 'Fuente' : 'Lectura'}
+                  {markdownViewMode === 'live' ? t('statusBar.modes.live') : markdownViewMode === 'source' ? t('statusBar.modes.source') : t('statusBar.modes.reading')}
                 </span>
               </div>
 
@@ -627,7 +632,7 @@
       class="status-item clickable vim-btn"
       pressed={isVimMode}
       onPressedChange={() => { if (onToggleVim) onToggleVim(); }}
-      title={isVimMode ? 'Desactivar modo VIM en el editor' : 'Activar modo VIM en el editor'}
+      title={isVimMode ? t('statusBar.disableVim') : t('statusBar.enableVim')}
     >
       <span class="vim-badge">VIM</span>
       <span>{isVimMode ? 'ON' : 'OFF'}</span>
@@ -638,22 +643,22 @@
     {/if}
     <div
       class="status-item"
-      title={hasSelection ? "Palabras en la selección actual" : "Palabras en todo el documento"}
+      title={hasSelection ? t('statusBar.wordsSelection') : t('statusBar.wordsDocument')}
     >
-      <span>{wordCount} palabras</span>
+      <span>{t('statusBar.wordsCount', { count: wordCount })}</span>
     </div>
     <div
       class="status-item"
-      title={hasSelection ? "Caracteres en la selección actual" : "Caracteres en todo el documento"}
+      title={hasSelection ? t('statusBar.charsSelection') : t('statusBar.charsDocument')}
     >
-      <span>{charCount} caracteres</span>
+      <span>{t('statusBar.charsCount', { count: charCount })}</span>
     </div>
     <div class="divider"></div>
     <div
       class="status-item"
-      title={hasSelection ? "Líneas y columnas/caracteres en la selección" : "Posición del cursor: Línea y Columna"}
+      title={hasSelection ? t('statusBar.cursorSelection') : t('statusBar.cursorPosition')}
     >
-      <span>Lín {line}, Col {col}</span>
+      <span>{t('statusBar.lineCol', { line, col })}</span>
     </div>
     <div class="divider"></div>
     
@@ -679,7 +684,7 @@
               type="button"
               class="status-item clickable encoding-btn"
               class:active={isEncodingMenuOpen}
-              title="Cambiar codificación del archivo y guardar con la nueva codificación"
+              title={t('statusBar.changeEncodingTitle')}
               {...props}
             >
               <span class="encoding-text">{encoding || '---'}</span>
@@ -691,8 +696,8 @@
         <Popover.Portal>
           <Popover.Content class="encoding-dropdown" side="top" align="end" sideOffset={6}>
             <div class="encoding-dropdown-header">
-              <span class="header-title">Guardar con codificación</span>
-              <span class="header-current">Actual: {encoding || '---'}</span>
+              <span class="header-title">{t('statusBar.saveWithEncoding')}</span>
+              <span class="header-current">{t('statusBar.currentEncoding', { encoding: encoding || '---' })}</span>
             </div>
 
             <div class="encoding-search-box">
@@ -700,7 +705,7 @@
               <input
                 type="text"
                 class="encoding-search-input"
-                placeholder="Buscar codificación..."
+                placeholder={t('statusBar.searchEncodingPlaceholder')}
                 bind:value={searchQuery}
                 bind:this={searchInputRef}
                 onkeydown={handleKeydown}
@@ -710,7 +715,7 @@
 
             <div class="encoding-options-list" bind:this={listRef}>
               {#if filteredEncodings.length === 0}
-                <div class="empty-results">No se encontraron codificaciones</div>
+                <div class="empty-results">{t('statusBar.noEncodingsFound')}</div>
               {:else}
                 {#each filteredEncodings as item, idx}
                   {@const isCurrent = isCurrentEncoding(item.id, item.label)}

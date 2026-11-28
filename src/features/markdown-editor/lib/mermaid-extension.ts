@@ -4,6 +4,7 @@ import { appSettings } from '@entities/settings';
 import { renderUnifiedDiagramSvg } from '@shared/lib/diagrams';
 import { resolveIncludes, hasIncludeDirective } from './include-resolver';
 import { activeFilePathFacet } from './editor-facets';
+import { t } from '@shared/lib/i18n';
 
 export { activeFilePathFacet };
 
@@ -121,13 +122,13 @@ class MermaidWidget extends WidgetType {
     titleEl.className = 'cm-mermaid-badge';
 
     const hasInclude = hasIncludeDirective(this.code);
-    const engineLabel = this.engine === 'd2' ? 'Diagrama D2' : 'Diagrama Mermaid';
+    const engineLabel = this.engine === 'd2' ? t('readingView.d2Badge') : t('readingView.mermaidBadge');
     titleEl.innerHTML = `
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
       <span>${engineLabel}</span>
-      ${hasInclude ? '<span class="cm-mermaid-include-pill" title="Incrusta archivos externos con {{#include}}">Include</span>' : ''}
+      ${hasInclude ? `<span class="cm-mermaid-include-pill" title="${t('readingView.mermaidIncludeTooltip')}">Include</span>` : ''}
     `;
     header.appendChild(titleEl);
 
@@ -138,13 +139,13 @@ class MermaidWidget extends WidgetType {
       const editBtn = document.createElement('button');
       editBtn.type = 'button';
       editBtn.className = 'cm-mermaid-edit-btn';
-      editBtn.title = 'Editar código de este diagrama';
+      editBtn.title = t('readingView.mermaidEditTitle');
       editBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
         </svg>
-        <span>Editar código</span>
+        <span>${t('readingView.mermaidEdit')}</span>
       `;
       editBtn.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -160,7 +161,7 @@ class MermaidWidget extends WidgetType {
     } else {
       const liveBadge = document.createElement('span');
       liveBadge.className = 'cm-mermaid-live-pill';
-      liveBadge.innerHTML = `<span class="cm-mermaid-live-dot"></span>Vista previa en vivo`;
+      liveBadge.innerHTML = `<span class="cm-mermaid-live-dot"></span>${t('readingView.mermaidLivePreview')}`;
       actionsEl.appendChild(liveBadge);
     }
 
@@ -186,11 +187,11 @@ class MermaidWidget extends WidgetType {
 
     const render = async () => {
       if (!this.code) {
-        body.innerHTML = `<div class="cm-mermaid-empty">Diagrama vacío. Añade contenido al bloque de diagrama.</div>`;
+        body.innerHTML = `<div class="cm-mermaid-empty">${t('readingView.mermaidEmptyHint')}</div>`;
         return;
       }
 
-      body.innerHTML = `<div class="cm-mermaid-loading">Generando diagrama...</div>`;
+      body.innerHTML = `<div class="cm-mermaid-loading">${t('readingView.mermaidGenerating')}</div>`;
 
       try {
         // 1. Resolver directivas {{#include ...}} contra el sistema de archivos del vault
@@ -211,7 +212,7 @@ class MermaidWidget extends WidgetType {
                   <line x1="12" y1="8" x2="12" y2="12"/>
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
-                <span>Error de sintaxis (${engineLabel})</span>
+                <span>${t('readingView.mermaidSyntaxTitle', { engine: engineLabel })}</span>
               </div>
               <pre>${escapeHtml(error)}</pre>
             </div>
@@ -219,7 +220,7 @@ class MermaidWidget extends WidgetType {
         } else if (svg) {
           body.innerHTML = `<div class="cm-mermaid-svg-container">${svg}</div>`;
         } else {
-          body.innerHTML = `<div class="cm-mermaid-empty">No se pudo generar el diagrama.</div>`;
+          body.innerHTML = `<div class="cm-mermaid-empty">${t('readingView.mermaidFailed')}</div>`;
         }
       } catch (err) {
         if (this.isCancelled) return;
@@ -231,7 +232,7 @@ class MermaidWidget extends WidgetType {
                 <line x1="12" y1="8" x2="12" y2="12"/>
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
-              <span>Error al procesar inclusión de archivo</span>
+              <span>${t('readingView.includeProcessError')}</span>
             </div>
             <pre>${escapeHtml(String(err instanceof Error ? err.message : err))}</pre>
           </div>

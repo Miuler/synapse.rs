@@ -3,6 +3,7 @@
   import { DiagramSplitViewer } from '@shared/ui/diagram-viewer';
   import { createRenderScheduler, ensureD2, renderD2Svg, type D2SyntaxError } from '@shared/lib/diagrams';
   import type { EditorDiagnostic } from '@shared/ui/code-editor';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -37,7 +38,7 @@
       await ensureD2();
       isReady = true;
     } catch (e) {
-      error = 'Error al cargar motor D2 (WASM): ' + String(e);
+      error = t('diagramViewer.loadD2Error', { detail: String(e) });
     }
   });
 
@@ -84,7 +85,7 @@
   {content}
   {filePath}
   engineName="D2"
-  engineTooltip="Visualizador D2 basado en WebAssembly (D2 v0.9 + TALA)"
+  engineTooltip={t('diagramViewer.d2Tooltip')}
   mode="d2"
   {svgContent}
   {isReady}
@@ -95,7 +96,7 @@
   {vimMode}
   onRun={() => scheduler.now(content)}
   {isActive}
-  loadingMessage="Cargando motor D2 WASM..."
+  loadingMessage={t('diagramViewer.loadingD2')}
   {onChange}
   {onSelectionChange}
 />

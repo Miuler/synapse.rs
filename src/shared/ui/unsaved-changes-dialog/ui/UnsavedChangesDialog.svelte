@@ -2,6 +2,7 @@
   import type { UnsavedChangesDialogProps } from '../model/types';
   import { AlertDialog } from "bits-ui";
   import { Lock, AlertTriangle } from "lucide-svelte";
+  import { t } from '@shared/lib/i18n';
 
   let {
     open = $bindable(false),
@@ -79,12 +80,12 @@
   let computedTitle = $derived(
     title ||
       (isWindowClose
-        ? "Cambios sin guardar al cerrar la aplicación"
+        ? t('unsavedDialog.titleWindowClose')
         : isRename
-          ? "Renombrar o mover archivo bloqueado con cambios sin guardar"
+          ? t('unsavedDialog.titleRename')
         : isManualSave
-          ? "Confirmar guardado en archivo bloqueado"
-          : "Cambios sin persistir en archivo bloqueado"),
+          ? t('unsavedDialog.titleManualSave')
+          : t('unsavedDialog.titleDefault')),
   );
 
   let singleFileName = $derived(
@@ -121,25 +122,21 @@
           </AlertDialog.Title>
           <AlertDialog.Description class="confirm-dialog-desc">
             {#if isWindowClose}
-              Hay <strong>{files.length}</strong>
+              {files.length === 1 ? t('unsavedDialog.closeTextOne') : t('unsavedDialog.closeTextMany')} <strong>{files.length}</strong>
               {files.length === 1
-                ? "archivo bloqueado con cambios sin persistir"
-                : "archivos bloqueados con cambios sin persistir"}. Si cierras
-              la aplicación sin guardar, se perderán las modificaciones.
+                ? t('unsavedDialog.closeSuffixOne')
+                : t('unsavedDialog.closeSuffixMany')}
             {:else if isRename}
-              {files.length === 1 ? "El archivo" : "Los archivos"}
+              {files.length === 1 ? t('unsavedDialog.renameTextOne') : t('unsavedDialog.renameTextMany')}
               {#if files.length === 1}<strong>{singleFileName}</strong>{/if}
-              {files.length === 1 ? "está" : "están"} <strong>bloqueado{files.length === 1 ? "" : "s"}</strong>
-              y {files.length === 1 ? "tiene" : "tienen"} cambios sin guardar. Para renombrar o mover primero se deben
-              guardar (forzando el guardado). Si quieres descartarlos, cancela y hazlo fuera de esta operación.
+              {files.length === 1 ? t('unsavedDialog.renameMidOne') : t('unsavedDialog.renameMidMany')} <strong>{files.length === 1 ? t('unsavedDialog.renameLockedWordOne') : t('unsavedDialog.renameLockedWordMany')}</strong>
+              {files.length === 1 ? t('unsavedDialog.renameHasOne') : t('unsavedDialog.renameHasMany')}
             {:else if isManualSave}
-              El archivo <strong>{singleFileName}</strong> está
-              <strong>bloqueado</strong> (protegido con candado). ¿Deseas autorizar
-              y forzar el guardado de los cambios en disco?
+              {t('unsavedDialog.manualSavePre')} <strong>{singleFileName}</strong> {t('unsavedDialog.manualSaveMid')}
+              <strong>{t('unsavedDialog.manualSaveLocked')}</strong> {t('unsavedDialog.manualSavePost')}
             {:else}
-              El archivo <strong>{singleFileName}</strong> está
-              <strong>bloqueado</strong> y tiene cambios que no han sido guardados
-              en disco.
+              {t('unsavedDialog.manualSavePre')} <strong>{singleFileName}</strong> {t('unsavedDialog.manualSaveMid')}
+              <strong>{t('unsavedDialog.manualSaveLocked')}</strong> {t('unsavedDialog.defaultPost')}
             {/if}
           </AlertDialog.Description>
 
@@ -163,7 +160,7 @@
           disabled={loading}
           onclick={handleAbort}
         >
-          {isRename ? "Cancelar" : "Seguir Editando"}
+          {isRename ? t('common.cancel') : t('unsavedDialog.continueEditing')}
         </button>
         {#if !isRename}
         <button
@@ -173,7 +170,7 @@
           disabled={loading}
           onclick={handleDiscard}
         >
-          Descartar cambios
+          {t('unsavedDialog.discardChanges')}
         </button>
         {/if}
         <button
@@ -183,7 +180,7 @@
           disabled={loading}
           onclick={handleForceSave}
         >
-          {loading ? "Guardando..." : isRename ? "Guardar y continuar" : "Forzar el guardado"}
+          {loading ? t('unsavedDialog.saving') : isRename ? t('unsavedDialog.saveAndContinue') : t('unsavedDialog.forceSave')}
         </button>
       </div>
     </AlertDialog.Content>

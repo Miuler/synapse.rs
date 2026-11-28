@@ -18,6 +18,7 @@
   import { extractYouTubeId, getYouTubeThumbnailUrl } from '../lib/youtube';
   import { extractFrontmatterAndBody } from '../lib/frontmatter-extractor';
   import NoteProperties from './NoteProperties.svelte';
+  import { i18n, t } from '@shared/lib/i18n';
 
   interface Props {
     content: string;
@@ -478,7 +479,7 @@
         const anchor = `<a href="${escapeHtml(safeHref)}" class="${isExternal ? 'external-link' : 'internal-link'}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} ${title ? `title="${escapeHtml(title)}"` : ''} data-internal-path="${escapeHtml(safeHref)}">${text}</a>`;
         const youtubeId = isExternal ? extractYouTubeId(safeHref) : null;
         if (!youtubeId) return anchor;
-        const thumb = `<a href="${escapeHtml(safeHref)}" class="external-link youtube-thumb-link" target="_blank" rel="noopener noreferrer" data-internal-path="${escapeHtml(safeHref)}"><img src="${getYouTubeThumbnailUrl(youtubeId)}" alt="Miniatura de YouTube" loading="lazy" /></a>`;
+        const thumb = `<a href="${escapeHtml(safeHref)}" class="external-link youtube-thumb-link" target="_blank" rel="noopener noreferrer" data-internal-path="${escapeHtml(safeHref)}"><img src="${getYouTubeThumbnailUrl(youtubeId)}" alt="${t('readingView.youtubeThumbAlt')}" loading="lazy" /></a>`;
         return `${anchor}<br />${thumb}`;
       },
       image({ href, title, text }: { href: string; title?: string | null; text: string }) {
@@ -509,20 +510,20 @@
         if (/^(?:mermaid|mermair|mermai|merman)$/i.test(cleanLang)) {
           return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}" data-engine="mermaid">
             <div class="reading-mermaid-header">
-              <span class="reading-mermaid-badge">Diagrama Mermaid</span>
+              <span class="reading-mermaid-badge">${t('readingView.mermaidBadge')}</span>
             </div>
             <div class="reading-mermaid-body">
-              <span class="reading-mermaid-loading">Cargando diagrama...</span>
+              <span class="reading-mermaid-loading">${t('readingView.loadingDiagram')}</span>
             </div>
           </div>`;
         }
         if (cleanLang === 'd2') {
           return `<div class="reading-mermaid-card" data-code="${encodeURIComponent(text)}" data-engine="d2">
             <div class="reading-mermaid-header">
-              <span class="reading-mermaid-badge">Diagrama D2</span>
+              <span class="reading-mermaid-badge">${t('readingView.d2Badge')}</span>
             </div>
             <div class="reading-mermaid-body">
-              <span class="reading-mermaid-loading">Cargando diagrama...</span>
+              <span class="reading-mermaid-loading">${t('readingView.loadingDiagram')}</span>
             </div>
           </div>`;
         }
@@ -532,10 +533,10 @@
         if (cleanLang === 'excalidraw') {
           return `<div class="reading-excalidraw-card" data-code="${encodeURIComponent(text)}">
             <div class="reading-mermaid-header">
-              <span class="reading-mermaid-badge">Dibujo Excalidraw</span>
+              <span class="reading-mermaid-badge">${t('readingView.excalidrawBadge')}</span>
             </div>
             <div class="reading-excalidraw-body">
-              <span class="reading-mermaid-loading">Cargando dibujo Excalidraw...</span>
+              <span class="reading-mermaid-loading">${t('readingView.loadingDrawing')}</span>
             </div>
           </div>`;
         }
@@ -596,7 +597,7 @@
             const container = fig.querySelector<HTMLElement>('.reading-image-container');
             if (container) {
               const name = escapeHtml(rawSrc.split('/').pop() ?? rawSrc);
-              container.innerHTML = `<div class="reading-link-ambiguous">⚠ Hay ${r.candidates.length} archivos «${name}»: usa la ruta completa <button type="button" data-ambiguous-target="${escapeHtml(rawSrc)}">Elegir cuál</button></div>`;
+              container.innerHTML = `<div class="reading-link-ambiguous">${t('readingView.ambiguousFiles', { count: r.candidates.length, name })} <button type="button" data-ambiguous-target="${escapeHtml(rawSrc)}">${t('readingView.ambiguousChoose')}</button></div>`;
             }
           }
         }
@@ -625,12 +626,12 @@
         if (svgString) {
           body.innerHTML = `<div class="reading-excalidraw-svg-wrapper">${svgString}</div>`;
         } else {
-          body.innerHTML = `<div class="reading-mermaid-empty">Dibujo Excalidraw vacío</div>`;
+          body.innerHTML = `<div class="reading-mermaid-empty">${t('readingView.emptyDrawing')}</div>`;
         }
       } catch (err: any) {
         body.innerHTML = `
           <div class="reading-mermaid-error">
-            <div class="error-badge">Error al renderizar Excalidraw</div>
+            <div class="error-badge">${t('readingView.excalidrawError')}</div>
             <pre>${escapeHtml(String(err?.message || err))}</pre>
           </div>
         `;
@@ -653,19 +654,19 @@
         if (error) {
           body.innerHTML = `
             <div class="reading-mermaid-error">
-              <div class="error-badge">Error de sintaxis Mermaid</div>
+              <div class="error-badge">${t('readingView.mermaidSyntaxError')}</div>
               <pre>${escapeHtml(error)}</pre>
             </div>
           `;
         } else if (svg) {
           body.innerHTML = `<div class="reading-mermaid-svg">${svg}</div>`;
         } else {
-          body.innerHTML = `<div class="reading-mermaid-empty">Diagrama vacío</div>`;
+          body.innerHTML = `<div class="reading-mermaid-empty">${t('readingView.emptyDiagram')}</div>`;
         }
       } catch (e) {
         body.innerHTML = `
           <div class="reading-mermaid-error">
-            <div class="error-badge">Error al procesar diagrama</div>
+            <div class="error-badge">${t('readingView.diagramProcessError')}</div>
             <pre>${escapeHtml(String(e instanceof Error ? e.message : e))}</pre>
           </div>
         `;
@@ -778,6 +779,7 @@
   }
 
   $effect(() => {
+    void i18n.locale;
     const raw = content;
     let isCurrent = true;
 
@@ -900,7 +902,7 @@
           bind:this={searchInputRef}
           type="text"
           class="reading-search-input"
-          placeholder="Buscar en el documento..."
+          placeholder={t('readingView.searchPlaceholder')}
           bind:value={searchQuery}
           oninput={scheduleSearch}
           onkeydown={handleSearchKeyDown}
@@ -909,7 +911,7 @@
           <button
             type="button"
             class="reading-search-icon-btn"
-            title="Borrar búsqueda"
+            title={t('readingView.clearSearch')}
             onclick={() => {
               cancelScheduledSearch();
               searchQuery = '';
@@ -925,7 +927,7 @@
       <div class="reading-search-info">
         {#if searchQuery && !searchPending}
           <span class="reading-search-count">
-            {matchCount > 0 ? `${currentMatchIndex} de ${matchCount}` : 'Sin coincidencias'}
+            {matchCount > 0 ? t('readingView.matchesCount', { current: currentMatchIndex, total: matchCount }) : t('readingView.noMatches')}
           </span>
         {/if}
       </div>
@@ -934,7 +936,7 @@
         <button
           type="button"
           class="reading-search-btn"
-          title="Anterior (Shift+Enter)"
+          title={t('readingView.prevMatch')}
           disabled={matchCount === 0}
           onclick={findPrevious}
         >
@@ -943,7 +945,7 @@
         <button
           type="button"
           class="reading-search-btn"
-          title="Siguiente (Enter)"
+          title={t('readingView.nextMatch')}
           disabled={matchCount === 0}
           onclick={findNext}
         >
@@ -953,7 +955,7 @@
           type="button"
           class="reading-search-btn reading-search-case-btn"
           class:active={caseSensitive}
-          title="Coincidir mayúsculas y minúsculas"
+          title={t('readingView.matchCase')}
           onclick={() => {
             caseSensitive = !caseSensitive;
             performSearch();
@@ -964,7 +966,7 @@
         <button
           type="button"
           class="reading-search-btn reading-search-close-btn"
-          title="Cerrar búsqueda (Esc)"
+          title={t('readingView.closeSearch')}
           onclick={closeSearch}
         >
           <X size={14} />
@@ -1002,7 +1004,7 @@
     {#if renderedHtml}
       {@html renderedHtml}
     {:else}
-      <p class="empty-doc">Documento vacío</p>
+      <p class="empty-doc">{t('readingView.emptyDoc')}</p>
     {/if}
   </article>
 </div>

@@ -20,7 +20,7 @@ impl<P: PdfDocumentRepository, V: VaultItemRepository> ReadPdfDocumentUseCase<P,
         let vault = &query.vault_path;
         let rel = query.relative_path.as_str();
         if !self.vault_item_repository.exists(vault, rel) {
-            return Err(format!("El archivo PDF '{}' no existe", rel));
+            return Err(format!("PDF file '{}' does not exist", rel));
         }
         match query.mode.as_str() {
             "pages" => self

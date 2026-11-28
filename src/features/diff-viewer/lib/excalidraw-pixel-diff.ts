@@ -4,6 +4,7 @@
 import { parseExcalidrawContent } from '@shared/obsidian-api';
 import type { GitImageDiffResult } from '@shared/repositories';
 import { pixelDiff } from './pixel-diff';
+import { t } from '@shared/lib/i18n';
 
 const PADDING = 20;
 /** Lado máximo de la imagen exportada, para no reventar la memoria con dibujos enormes. */
@@ -33,7 +34,7 @@ export async function excalidrawPixelDiff(
   const before = sceneOf(beforeRaw);
   const after = sceneOf(afterRaw);
   const all = [...before.elements, ...after.elements];
-  if (all.length === 0) throw new Error('Las dos versiones del dibujo están vacías');
+  if (all.length === 0) throw new Error(t('diffViewer.errors.drawingBothEmpty'));
 
   const [minX, minY, maxX, maxY] = getCommonBounds(all);
   const width = maxX - minX + PADDING * 2;
@@ -65,7 +66,7 @@ export async function excalidrawPixelDiff(
       getDimensions: () => ({ width: outW, height: outH, scale }),
     });
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('No se pudo leer el lienzo exportado');
+    if (!ctx) throw new Error(t('diffViewer.errors.canvasExportFailed'));
     return ctx.getImageData(0, 0, outW, outH).data;
   };
 

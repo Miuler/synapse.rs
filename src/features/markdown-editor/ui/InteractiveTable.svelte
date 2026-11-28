@@ -11,6 +11,7 @@
     ChevronDown,
   } from 'lucide-svelte';
   import type { TableData, ColumnAlignment } from '../lib/table-parser';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     initialData: TableData;
@@ -221,9 +222,9 @@
   <div class="table-card-header">
     <div class="table-badge">
       <Table size={13} />
-      <span>Tabla</span>
+      <span>{t('interactiveTable.title')}</span>
       <span class="table-stats-pill">
-        {rows.length} {rows.length === 1 ? 'fila' : 'filas'} × {headers.length} {headers.length === 1 ? 'columna' : 'columnas'}
+        {rows.length} {rows.length === 1 ? t('interactiveTable.rowOne') : t('interactiveTable.rowMany')} × {headers.length} {headers.length === 1 ? t('interactiveTable.colOne') : t('interactiveTable.colMany')}
       </span>
     </div>
 
@@ -232,20 +233,20 @@
         type="button"
         class="table-btn"
         onclick={() => addRow()}
-        title="Añadir fila al final"
+        title={t('interactiveTable.addRowTitle')}
       >
         <Plus size={12} />
-        <span>Fila</span>
+        <span>{t('interactiveTable.rowBtn')}</span>
       </button>
 
       <button
         type="button"
         class="table-btn"
         onclick={() => addColumn()}
-        title="Añadir columna a la derecha"
+        title={t('interactiveTable.addColTitle')}
       >
         <Plus size={12} />
-        <span>Columna</span>
+        <span>{t('interactiveTable.colBtn')}</span>
       </button>
 
       {#if onSwitchToSource}
@@ -253,7 +254,7 @@
           type="button"
           class="table-btn table-source-btn"
           onclick={onSwitchToSource}
-          title="Ver o editar sintaxis Markdown pura"
+          title={t('interactiveTable.markdownSourceTitle')}
         >
           <Code size={12} />
           <span>Markdown</span>
@@ -279,7 +280,7 @@
                   style="text-align: {alignments[colIndex] === 'center' ? 'center' : alignments[colIndex] === 'right' ? 'right' : 'left'};"
                   value={header}
                   data-header={colIndex}
-                  placeholder={`Columna ${colIndex + 1}`}
+                  placeholder={t('interactiveTable.colPlaceholder', { n: colIndex + 1 })}
                   oninput={(e) => updateHeader(colIndex, (e.target as HTMLInputElement).value)}
                   onkeydown={(e) => handleHeaderKeyDown(e, colIndex)}
                 />
@@ -289,7 +290,7 @@
                   <button
                     type="button"
                     class="column-tool-btn"
-                    title={`Alineación: ${alignments[colIndex] || 'por defecto'} (Clic para cambiar)`}
+                    title={t('interactiveTable.alignmentTitle', { align: alignments[colIndex] || t('interactiveTable.alignmentDefault') })}
                     onclick={() => cycleAlignment(colIndex)}
                   >
                     {#if alignments[colIndex] === 'center'}
@@ -305,7 +306,7 @@
                   <button
                     type="button"
                     class="column-tool-btn"
-                    title="Insertar columna a la derecha"
+                    title={t('interactiveTable.insertColTitle')}
                     onclick={() => addColumn(colIndex)}
                   >
                     <Plus size={11} />
@@ -316,7 +317,7 @@
                     <button
                       type="button"
                       class="column-tool-btn delete-btn"
-                      title="Eliminar columna"
+                      title={t('interactiveTable.deleteColTitle')}
                       onclick={() => deleteColumn(colIndex)}
                     >
                       <Trash2 size={11} />
@@ -339,7 +340,7 @@
                 <button
                   type="button"
                   class="row-tool-btn"
-                  title="Insertar fila abajo"
+                  title={t('interactiveTable.insertRowTitle')}
                   onclick={() => addRow(rowIndex)}
                 >
                   <Plus size={10} />
@@ -347,7 +348,7 @@
                 <button
                   type="button"
                   class="row-tool-btn delete-btn"
-                  title="Eliminar fila"
+                  title={t('interactiveTable.deleteRowTitle')}
                   onclick={() => deleteRow(rowIndex)}
                 >
                   <Trash2 size={10} />

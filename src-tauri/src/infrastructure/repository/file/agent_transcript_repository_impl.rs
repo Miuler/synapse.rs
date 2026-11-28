@@ -8,7 +8,7 @@ pub struct AgentTranscriptRepositoryImpl;
 impl AgentTranscriptRepositoryImpl {
     fn dir(cwd: &str) -> Result<PathBuf, String> {
         if cwd.is_empty() || !Path::new(cwd).is_dir() {
-            return Err(format!("La bóveda «{cwd}» no existe"));
+            return Err(format!("Vault «{cwd}» does not exist"));
         }
         Ok(Path::new(cwd).join(".synapse").join("agent-sessions"))
     }
@@ -17,7 +17,7 @@ impl AgentTranscriptRepositoryImpl {
         if AgentTranscript::valid_id(id) {
             Ok(format!("{id}.json"))
         } else {
-            Err(format!("Identificador de conversación inválido: {id}"))
+            Err(format!("Invalid conversation ID: {id}"))
         }
     }
 
@@ -59,8 +59,8 @@ impl AgentTranscriptRepository for AgentTranscriptRepositoryImpl {
 
     fn load(&self, cwd: &str, id: &str) -> Result<AgentTranscript, String> {
         let data = std::fs::read(Self::dir(cwd)?.join(Self::file_name(id)?))
-            .map_err(|e| format!("No se pudo leer la conversación: {e}"))?;
-        serde_json::from_slice(&data).map_err(|e| format!("Conversación inválida: {e}"))
+            .map_err(|e| format!("Could not read conversation: {e}"))?;
+        serde_json::from_slice(&data).map_err(|e| format!("Invalid conversation: {e}"))
     }
 
     fn delete(&self, cwd: &str, id: &str) -> Result<(), String> {
@@ -81,7 +81,7 @@ impl AgentTranscriptRepository for AgentTranscriptRepositoryImpl {
         let dir = Self::dir(cwd)?;
         let name = Self::file_name(id)?;
         if !dir.join(&name).exists() {
-            return Err("La conversación aún no se ha guardado".into());
+            return Err("conversation has not been saved yet".into());
         }
         Ok((dir, name))
     }

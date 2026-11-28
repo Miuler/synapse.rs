@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { vaultApi, type NoteBacklinksReport } from '@entities/vault-item';
   import { Link, ArrowDownLeft, ArrowUpRight, Search, FileText, Sparkles, RefreshCw } from 'lucide-svelte';
+  import { t } from '@shared/lib/i18n';
 
   interface Props {
     activeNotePath: string | null;
@@ -49,12 +50,12 @@
   <div class="inspector-header">
     <div class="header-left">
       <Link size={14} class="header-icon" />
-      <span class="header-title">Enlaces & Menciones</span>
+      <span class="header-title">{t('relationsInspector.title')}</span>
     </div>
     <button
       class="refresh-btn"
       onclick={loadRelations}
-      title="Recargar relaciones"
+      title={t('relationsInspector.reloadTitle')}
       disabled={isLoading || !activeNotePath}
     >
       <span class={isLoading ? 'spinning' : ''} style="display: inline-flex;">
@@ -65,11 +66,11 @@
 
   {#if !activeNotePath}
     <div class="empty-state">
-      Selecciona una nota para inspeccionar sus conexiones.
+      {t('relationsInspector.emptyNoNote')}
     </div>
   {:else if isLoading && !report}
     <div class="empty-state">
-      Analizando enlaces entrantes y salientes...
+      {t('relationsInspector.loading')}
     </div>
   {:else if report}
     <!-- Selector de Pestañas -->
@@ -80,7 +81,7 @@
         onclick={() => (activeTab = 'backlinks')}
       >
         <ArrowDownLeft size={12} />
-        <span>Entrantes ({report.backlinks.length})</span>
+        <span>{t('relationsInspector.backlinks', { count: report.backlinks.length })}</span>
       </button>
 
       <button
@@ -89,7 +90,7 @@
         onclick={() => (activeTab = 'outlinks')}
       >
         <ArrowUpRight size={12} />
-        <span>Salientes ({report.outlinks.length})</span>
+        <span>{t('relationsInspector.outlinks', { count: report.outlinks.length })}</span>
       </button>
 
       <button
@@ -98,7 +99,7 @@
         onclick={() => (activeTab = 'unlinked')}
       >
         <Sparkles size={12} />
-        <span>Menciones ({report.unlinked_mentions.length})</span>
+        <span>{t('relationsInspector.mentions', { count: report.unlinked_mentions.length })}</span>
       </button>
     </div>
 
@@ -106,7 +107,7 @@
     <div class="inspector-content">
       {#if activeTab === 'backlinks'}
         {#if report.backlinks.length === 0}
-          <div class="empty-msg">No hay notas que enlacen a este documento.</div>
+          <div class="empty-msg">{t('relationsInspector.noBacklinks')}</div>
         {:else}
           <div class="items-list">
             {#each report.backlinks as b}
@@ -135,7 +136,7 @@
         {/if}
       {:else if activeTab === 'outlinks'}
         {#if report.outlinks.length === 0}
-          <div class="empty-msg">Esta nota no tiene enlaces salientes `[[...]]`.</div>
+          <div class="empty-msg">{t('relationsInspector.noOutlinks')}</div>
         {:else}
           <div class="items-list">
             {#each report.outlinks as o}
@@ -162,9 +163,9 @@
                   <ArrowUpRight size={12} class="card-icon" />
                   <span class="card-title">{o.alias || o.target}</span>
                   {#if o.ambiguous?.length}
-                    <span class="ghost-tag ambiguous" title={`Hay ${o.ambiguous.length} archivos con ese nombre:\n${o.ambiguous.join('\n')}\nAl abrirlo se elige cuál y se puede fijar`}>ambiguo ({o.ambiguous.length})</span>
+                    <span class="ghost-tag ambiguous" title={t('relationsInspector.ambiguousTitle', { count: o.ambiguous.length, paths: o.ambiguous.join('\n') })}>{t('relationsInspector.ambiguousBadge', { count: o.ambiguous.length })}</span>
                   {:else if !o.resolved_path}
-                    <span class="ghost-tag">pendiente</span>
+                    <span class="ghost-tag">{t('relationsInspector.pendingBadge')}</span>
                   {/if}
                 </div>
                 {#if o.resolved_path}
@@ -176,7 +177,7 @@
         {/if}
       {:else if activeTab === 'unlinked'}
         {#if report.unlinked_mentions.length === 0}
-          <div class="empty-msg">No se encontraron menciones textuales sin enlazar.</div>
+          <div class="empty-msg">{t('relationsInspector.noMentions')}</div>
         {:else}
           <div class="items-list">
             {#each report.unlinked_mentions as m}

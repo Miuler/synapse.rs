@@ -1,5 +1,6 @@
 import { StateEffect, StateField, RangeSetBuilder, type Extension, type Text } from '@codemirror/state';
 import { EditorView, GutterMarker, gutter, showTooltip, type Tooltip } from '@codemirror/view';
+import { t } from '@shared/lib/i18n';
 
 export type LineDiffKind = 'added' | 'modified' | 'deleted';
 
@@ -318,10 +319,10 @@ class GitDiffMarker extends GutterMarker {
     el.className = `cm-git-diff-marker cm-git-diff-${this.kind}`;
     el.title =
       this.kind === 'added'
-        ? 'Línea añadida (Git)'
+        ? t('gitDiffGutter.addedMarker')
         : this.kind === 'modified'
-          ? 'Línea modificada (Git)'
-          : 'Líneas eliminadas (Git)';
+          ? t('gitDiffGutter.modifiedMarker')
+          : t('gitDiffGutter.deletedMarker');
     return el;
   }
 }
@@ -458,13 +459,18 @@ function renderHunk(h: DiffHunk, view: EditorView): HTMLElement {
   dom.dataset.scheme = dark ? 'dark' : 'light';
   const head = document.createElement('div');
   head.className = 'cm-git-diff-tip-head';
-  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
   head.textContent =
     h.kind === 'added'
-      ? `Añadido: ${n(h.newLines.length, 'línea nueva', 'líneas nuevas')} (no estaban en Git)`
+      ? t('gitDiffGutter.headAdded', {
+          count: h.newLines.length,
+          unit: h.newLines.length === 1 ? t('gitDiffGutter.lineAddedOne') : t('gitDiffGutter.lineAddedMany'),
+        })
       : h.kind === 'deleted'
-        ? `Borrado: ${n(h.oldLines.length, 'línea', 'líneas')} que había en Git`
-        : `Modificado: así estaba en Git (−) y así está ahora (+)`;
+        ? t('gitDiffGutter.headDeleted', {
+            count: h.oldLines.length,
+            unit: h.oldLines.length === 1 ? t('gitDiffGutter.lineOne') : t('gitDiffGutter.lineMany'),
+          })
+        : t('gitDiffGutter.headModified');
   dom.appendChild(head);
   const body = document.createElement('div');
   body.className = 'cm-git-diff-tip-body';
@@ -472,7 +478,7 @@ function renderHunk(h: DiffHunk, view: EditorView): HTMLElement {
   const more = (left: number) => {
     const el = document.createElement('div');
     el.className = 'cm-git-diff-tip-more';
-    el.textContent = `… y ${left} más`;
+    el.textContent = t('gitDiffGutter.more', { count: left });
     body.appendChild(el);
   };
   if (h.kind === 'deleted') {
@@ -511,17 +517,17 @@ function renderHunk(h: DiffHunk, view: EditorView): HTMLElement {
   };
   const readOnly = view.state.readOnly;
   button(
-    'Revertir',
-    readOnly ? 'El archivo está en solo lectura' : 'Devolver este bloque a como está en Git (Ctrl+Z lo deshace)',
+    t('gitDiffGutter.revert'),
+    readOnly ? t('gitDiffGutter.revertReadOnlyTitle') : t('gitDiffGutter.revertTitle'),
     'cm-git-diff-tip-revert',
     () => revertHunk(view, h),
     readOnly,
   );
   if (h.oldLines.length) {
-    const copy = button('Copiar original', 'Copiar las líneas que había en Git', 'cm-git-diff-tip-copy', () => {
+    const copy = button(t('gitDiffGutter.copyOriginal'), t('gitDiffGutter.copyOriginalTitle'), 'cm-git-diff-tip-copy', () => {
       navigator.clipboard?.writeText(h.oldLines.join('\n')).then(
-        () => (copy.textContent = 'Copiado'),
-        () => (copy.textContent = 'No se pudo copiar'),
+        () => (copy.textContent = t('gitDiffGutter.copied')),
+        () => (copy.textContent = t('gitDiffGutter.copyFailed')),
       );
     });
   }

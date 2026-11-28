@@ -18,7 +18,7 @@ fn call(peer: &PeerInstance, request: &Value, timeout: Duration) -> Result<Value
     let url = format!("http://127.0.0.1:{}/peer", peer.port);
     let raw = post_with(&url, &body, &[("X-Synapse-Token", &peer.token)], timeout)?;
     let reply: Value =
-        serde_json::from_str(&raw).map_err(|e| format!("Respuesta inválida: {e}"))?;
+        serde_json::from_str(&raw).map_err(|e| format!("Invalid response: {e}"))?;
     if !ping {
         debug_log::log_value("peer-reply", json!({"from": peer.vault_name, "reply": reply}));
     }
@@ -50,7 +50,7 @@ fn open_window(path: &std::path::Path) -> Result<(), String> {
         .stderr(std::process::Stdio::null())
         .spawn()
         .map(|_| ())
-        .map_err(|e| format!("No se pudo abrir la bóveda en otra ventana: {e}"))
+        .map_err(|e| format!("Could not open vault in another window: {e}"))
 }
 
 impl PeerInstances for PeerInstancesImpl {
@@ -93,9 +93,9 @@ impl PeerInstances for PeerInstancesImpl {
         }
         let peer = peers.iter().find(|p| matches(p)).ok_or_else(|| {
             format!(
-                "La bóveda «{wanted}» no está abierta en otra ventana de Synapse. Abiertas: {}",
+                "Vault \"{wanted}\" is not open in another Synapse window. Open: {}",
                 if peers.is_empty() {
-                    "ninguna".to_string()
+                    "none".to_string()
                 } else {
                     peers
                         .iter()

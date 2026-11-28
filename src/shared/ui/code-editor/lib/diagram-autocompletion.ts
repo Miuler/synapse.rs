@@ -1,4 +1,5 @@
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete';
+import { t } from '@shared/lib/i18n';
 import {
   D2_ENGINES,
   D2_THEMES,
@@ -39,11 +40,11 @@ export function d2Autocomplete(context: CompletionContext): CompletionResult | n
     const from = line.from + textBefore.lastIndexOf(':') + 1;
     return {
       from: from + (textBefore.slice(from - line.from).match(/^\s*/)?.[0]?.length || 0),
-      options: D2_THEMES.map((t) => ({
-        label: t.label,
+      options: D2_THEMES.map((theme) => ({
+        label: theme.label,
         type: 'constant',
-        detail: t.detail,
-        boost: t.id === 0 || t.id === 200 ? 5 : 1,
+        detail: theme.detail,
+        boost: theme.id === 0 || theme.id === 200 ? 5 : 1,
       })),
     };
   }
@@ -56,7 +57,7 @@ export function d2Autocomplete(context: CompletionContext): CompletionResult | n
       options: D2_SHAPES.map((s) => ({
         label: s,
         type: 'type',
-        detail: 'Forma geométrica D2',
+        detail: t('diagramsCatalog.d2Shape'),
         boost: 2,
       })),
     };
@@ -70,7 +71,7 @@ export function d2Autocomplete(context: CompletionContext): CompletionResult | n
       options: D2_DIRECTIONS.map((d) => ({
         label: d,
         type: 'keyword',
-        detail: 'Dirección del flujo',
+        detail: t('diagramsCatalog.d2Direction'),
         boost: 2,
       })),
     };
@@ -96,7 +97,7 @@ export function d2Autocomplete(context: CompletionContext): CompletionResult | n
       options: D2_STYLES.map((st) => ({
         label: st,
         type: 'property',
-        detail: 'Propiedad de estilo D2',
+        detail: t('diagramsCatalog.d2Style'),
         boost: 2,
       })),
     };
@@ -107,44 +108,44 @@ export function d2Autocomplete(context: CompletionContext): CompletionResult | n
   const options: Completion[] = [
     {
       label: 'd2-config',
-      detail: 'Snippet de configuración declarativa del diagrama',
+      detail: t('diagramsCatalog.d2Config'),
       type: 'snippet',
       apply: 'vars: {\n  d2-config: {\n    layout-engine: dagre\n    theme-id: 0\n    sketch: false\n  }\n}\n',
       boost: 10,
     },
     {
       label: 'direction: right',
-      detail: 'Flujo horizontal de izquierda a derecha',
+      detail: t('diagramsCatalog.d2DirRight'),
       type: 'keyword',
       boost: 5,
     },
     {
       label: 'direction: down',
-      detail: 'Flujo vertical de arriba hacia abajo',
+      detail: t('diagramsCatalog.d2DirDown'),
       type: 'keyword',
       boost: 5,
     },
     {
       label: 'shape: ',
-      detail: 'Asignar forma al nodo',
+      detail: t('diagramsCatalog.d2ShapeProp'),
       type: 'property',
       boost: 4,
     },
     {
       label: 'style: ',
-      detail: 'Bloque de estilos del nodo/conexión',
+      detail: t('diagramsCatalog.d2StyleBlock'),
       type: 'property',
       boost: 4,
     },
     {
       label: 'tooltip: ',
-      detail: 'Texto emergente al pasar el cursor',
+      detail: t('diagramsCatalog.d2TooltipProp'),
       type: 'property',
       boost: 3,
     },
     {
       label: 'link: ',
-      detail: 'Enlace web al hacer clic en el nodo',
+      detail: t('diagramsCatalog.d2LinkProp'),
       type: 'property',
       boost: 3,
     },
@@ -171,10 +172,10 @@ export function mermaidAutocomplete(context: CompletionContext): CompletionResul
     const from = line.from + textBefore.lastIndexOf(':') + 1;
     return {
       from: from + (textBefore.slice(from - line.from).match(/^\s*["']?/)?.[0]?.length || 0),
-      options: MERMAID_THEMES.map((t) => ({
-        label: t.label,
+      options: MERMAID_THEMES.map((theme) => ({
+        label: theme.label,
         type: 'constant',
-        detail: t.detail,
+        detail: theme.detail,
         boost: 2,
       })),
     };
@@ -216,7 +217,7 @@ export function mermaidAutocomplete(context: CompletionContext): CompletionResul
       options: MERMAID_CURVES.map((c) => ({
         label: c,
         type: 'keyword',
-        detail: 'Tipo de curva de conexión',
+        detail: t('diagramsCatalog.mermaidCurve'),
         boost: 2,
       })),
     };
@@ -227,14 +228,14 @@ export function mermaidAutocomplete(context: CompletionContext): CompletionResul
     const options: Completion[] = [
       {
         label: '%%{init: ...}%%',
-        detail: 'Directiva de configuración in-file de Mermaid',
+        detail: t('diagramsCatalog.mermaidInit'),
         type: 'snippet',
         apply: '%%{init: {"theme": "default", "look": "classic"}}%%\n',
         boost: 10,
       },
       {
         label: '--- (Frontmatter config)',
-        detail: 'Bloque frontmatter YAML para configurar Mermaid',
+        detail: t('diagramsCatalog.mermaidFrontmatter'),
         type: 'snippet',
         apply: '---\nconfig:\n  theme: default\n  look: handDrawn\n---\n',
         boost: 9,
@@ -255,12 +256,12 @@ export function mermaidAutocomplete(context: CompletionContext): CompletionResul
 
   // 6. Palabras clave generales de Mermaid
   const generalOptions: Completion[] = [
-    { label: 'subgraph', detail: 'Subgrafo / agrupación', type: 'keyword', apply: 'subgraph Titulo\n  \nend', boost: 3 },
-    { label: 'participant', detail: 'Participante en diagrama de secuencia', type: 'keyword', boost: 2 },
-    { label: 'actor', detail: 'Actor en diagrama de secuencia', type: 'keyword', boost: 2 },
-    { label: 'autonumber', detail: 'Numeración automática de pasos', type: 'keyword', boost: 2 },
-    { label: 'classDef', detail: 'Definición de estilo de clase', type: 'keyword', boost: 2 },
-    { label: 'style', detail: 'Estilo directo para un nodo', type: 'keyword', boost: 2 },
+    { label: 'subgraph', detail: t('diagramsCatalog.mermaidSubgraph'), type: 'keyword', apply: 'subgraph Titulo\n  \nend', boost: 3 },
+    { label: 'participant', detail: t('diagramsCatalog.mermaidParticipant'), type: 'keyword', boost: 2 },
+    { label: 'actor', detail: t('diagramsCatalog.mermaidActor'), type: 'keyword', boost: 2 },
+    { label: 'autonumber', detail: t('diagramsCatalog.mermaidAutonumber'), type: 'keyword', boost: 2 },
+    { label: 'classDef', detail: t('diagramsCatalog.mermaidClassDef'), type: 'keyword', boost: 2 },
+    { label: 'style', detail: t('diagramsCatalog.mermaidDirectStyle'), type: 'keyword', boost: 2 },
   ];
 
   if (!word && !context.explicit) return null;

@@ -16,10 +16,12 @@ pub struct VaultDirectoryList {
 pub async fn select_vault_folder(
     state: State<'_, AppState>,
     starting_directory: Option<String>,
+    title: Option<String>,
 ) -> Result<Option<SelectVaultFolderResult>, String> {
     #[cfg(feature = "desktop")]
     {
-        let mut dialog = rfd::AsyncFileDialog::new().set_title("Seleccionar Carpeta / Bóveda");
+        let mut dialog = rfd::AsyncFileDialog::new()
+            .set_title(title.as_deref().unwrap_or("Select Folder / Vault"));
 
         let starting_path = starting_directory
             .as_deref()
@@ -59,9 +61,9 @@ pub async fn select_vault_folder(
             let synapse_dir = path.join(".synapse");
             if !synapse_dir.exists() {
                 let confirmed = rfd::AsyncMessageDialog::new()
-                    .set_title("Advertencia de Bóveda")
+                    .set_title("Vault Warning")
                     .set_description(format!(
-                        "El directorio seleccionado:\n{}\n\nNo contiene una carpeta '.synapse'.\n¿Deseas abrirlo como una bóveda? Ten en cuenta que se indexarán todos los archivos y notas contenidos en él.",
+                        "Selected directory:\n{}\n\nDoes not contain a '.synapse' folder.\nOpen it as a vault? All files and notes inside will be indexed.",
                         path.display()
                     ))
                     .set_buttons(rfd::MessageButtons::YesNo)
@@ -73,7 +75,7 @@ pub async fn select_vault_folder(
                 }
 
                 if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
-                    return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+                    return Err(format!("Could not create .synapse directory: {}", e));
                 }
             }
 
@@ -85,7 +87,7 @@ pub async fn select_vault_folder(
     }
     #[cfg(not(feature = "desktop"))]
     {
-        let _ = (state, starting_directory);
+        let _ = (state, starting_directory, title);
         Ok(None)
     }
 }
@@ -291,9 +293,9 @@ pub async fn pick_image_file(state: State<'_, AppState>) -> Result<Option<String
     #[cfg(feature = "desktop")]
     {
         let file = rfd::AsyncFileDialog::new()
-            .set_title("Seleccionar imagen de fondo")
+            .set_title("Select background image")
             .add_filter(
-                "Imágenes",
+                "Images",
                 &["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"],
             )
             .pick_file()
@@ -356,7 +358,7 @@ pub async fn create_new_workspace(
     #[cfg(feature = "desktop")]
     {
         let mut dialog = rfd::AsyncFileDialog::new()
-            .set_title("Seleccionar o Crear Directorio para Nuevo Workspace");
+            .set_title("Select or Create Directory for New Workspace");
 
         if let Some(dir) = starting_directory
             .as_deref()
@@ -378,7 +380,7 @@ pub async fn create_new_workspace(
 
             let synapse_dir = path.join(".synapse");
             if let Err(e) = std::fs::create_dir_all(&synapse_dir) {
-                return Err(format!("No se pudo crear el directorio .synapse: {}", e));
+                return Err(format!("Could not create .synapse directory: {}", e));
             }
 
             let res = state.activate_vault(path, None)?;
@@ -404,11 +406,11 @@ pub async fn clone_git_workspace(
     {
         let trimmed_url = repo_url.trim().to_string();
         if trimmed_url.is_empty() {
-            return Err("La URL del repositorio Git no puede estar vacía".to_string());
+            return Err("Git repository URL cannot be empty".to_string());
         }
 
         let mut dialog = rfd::AsyncFileDialog::new()
-            .set_title("Seleccionar Carpeta Destino para Clonar Repositorio");
+            .set_title("Select Destination Folder to Clone Repository");
 
         if let Some(dir) = starting_directory
             .as_deref()
@@ -462,7 +464,7 @@ pub async fn clone_git_workspace(
 pub fn open_workspace_in_new_window(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let target_dir = PathBuf::from(&path);
     if !target_dir.is_dir() {
-        return Err("El directorio del workspace no existe".to_string());
+        return Err("Workspace directory does not exist".to_string());
     }
     let name = target_dir
         .file_name()
@@ -489,7 +491,7 @@ pub fn open_workspace_in_new_window(app: tauri::AppHandle, path: String) -> Resu
     .resizable(true)
     .center()
     .build()
-    .map_err(|e| format!("Error creando nueva ventana de workspace: {}", e))?;
+    .map_err(|e| format!("Failed to create new workspace window: {}", e))?;
 
     Ok(())
 }
@@ -520,7 +522,7 @@ pub fn list_vault_directory(
     relative_path: Option<String>,
 ) -> Result<VaultDirectoryList, String> {
     if relative_path.as_deref().is_some_and(|p| p.split(['/', '\\']).any(|c| c == "..")) {
-        return Err("Ruta no permitida con '..'".to_string());
+        return Err("path with '..' is not allowed".to_string());
     }
     let vault_guard = state.active_vault_path.lock().map_err(|e| e.to_string())?;
     let Some(ref vault_path) = *vault_guard else {
