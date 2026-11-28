@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Markdown editor: typing `[[#` in wikilink autocomplete now searches across all `.board/` tasks by issue number/ID or title and inserts `[[Board.board/id]]`. Inline task links render as segmented Jira-style pills (`[key] [title] [state]`), with a compact variant (`[[Board.board/id|#]]` or `|compact`) without the title.
 - Task boards: local tasks now use 26-character Crockford Base32 UUIDv7 IDs, Azure DevOps tasks pulled from a provider drop the `ado-` prefix (while keeping compatibility with existing `ado-*` files), and issue references (`parent`, `AB#123`, `#123` in task details and `[[Board.board/123]]` in notes) navigate locally to the synced task.
 
 - Task boards (Azure DevOps): pulling now fetches and saves native work item attributes in folder-board task files—clickable provider URL, tags, priority, severity, iteration, area, parent, estimate, start/due dates, scheduling hours (original estimate, remaining and completed work), board column and swimlane, reason, audit fields (created/changed by and date), and acceptance criteria—and falls back to `uniqueName` when an identity has no `displayName`. Kanban cards, the Table view (with sorting and optional columns), and the task detail dialog now display them.

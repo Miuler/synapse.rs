@@ -246,13 +246,16 @@ async function renderTask(anchor: HTMLElement, loadBoard: Loader) {
   }
   const row = task.value as Row;
   if (found.ok) opensTask(anchor, found.value.path, row.id);
-  // Un texto propio (`[[…|así]]`) se respeta
+  // Un texto propio (`[[…|así]]`) se respeta; `#` o `compact` muestran solo clave y estado
+  const compact = written.trim() === '#' || written.trim().toLowerCase() === 'compact';
   const plain = taskReference(written);
-  const own = !plain || plain.task.toLowerCase() !== reference.task.toLowerCase();
+  const own = !compact && (!plain || plain.task.toLowerCase() !== reference.task.toLowerCase());
   const parts = own
     ? [written]
-    : [element('span', 'board-ref-key', row.key), element('span', 'board-ref-title', row.title)];
-  anchor.replaceChildren(...spaced([...parts, element('span', `board-ref-state is-${row.category}`, row.state)]));
+    : compact
+      ? [element('span', 'board-ref-key', row.key)]
+      : [element('span', 'board-ref-key', row.key), element('span', 'board-ref-title', row.title)];
+  anchor.replaceChildren(...parts, element('span', `board-ref-state is-${row.category}`, row.state));
 }
 
 const decoded = (path: string) => {

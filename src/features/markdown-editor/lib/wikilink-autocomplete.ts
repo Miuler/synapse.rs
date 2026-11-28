@@ -24,6 +24,48 @@ export async function wikilinkCompletionSource(
   const query = match.text.slice(2).trim(); // Texto después de `[[`
 
   try {
+    if (query.startsWith('#')) {
+      const needle = query.slice(1).trim().toLowerCase();
+      const searchResp = await vaultApi.searchNotes('.board/');
+      const results = (searchResp.results || []).filter((r) => {
+        const fullPath = r.note_path || r.text || '';
+        if (!fullPath.includes('.board/')) return false;
+        if (!needle) return true;
+        return fullPath.toLowerCase().includes(needle) || (r.text ?? '').toLowerCase().includes(needle);
+      });
+
+      const options: Completion[] = results.map((r) => {
+        const fullPath = r.note_path || r.text;
+        const boardIdx = fullPath.lastIndexOf('.board/');
+        const boardStart = fullPath.lastIndexOf('/', boardIdx);
+        const boardFolder = fullPath.slice(boardStart + 1, boardIdx + 6); // Nombre.board
+        const fileName = fullPath.slice(boardIdx + 7);
+        const taskId = fileName.endsWith('.md') ? fileName.slice(0, -3) : fileName;
+        const ref = `${boardFolder}/${taskId}`;
+        const title = r.text && r.text !== taskId ? r.text : undefined;
+
+        return {
+          label: ref,
+          detail: title,
+          type: 'text',
+          boost: r.is_recent ? 2 : (r.score ? r.score / 100 : 0),
+          apply: (view, completion, _from, to) => {
+            const insertText = `${completion.label}]]`;
+            view.dispatch({
+              changes: { from: match.from + 2, to, insert: insertText },
+              selection: { anchor: match.from + 2 + insertText.length },
+            });
+          },
+        };
+      });
+
+      return {
+        from: match.from + 2,
+        options,
+        filter: false,
+      };
+    }
+
     const searchResp = await vaultApi.searchNotes(query);
     const results = searchResp.results || [];
 

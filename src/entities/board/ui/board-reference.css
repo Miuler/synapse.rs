@@ -70,7 +70,55 @@
   overflow-wrap: anywhere;
 }
 
+a.board-task-ref {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  text-decoration: none;
+  vertical-align: baseline;
+  line-height: 1.4;
+  font-size: 0.9em;
+}
+
+a.board-task-ref .board-ref-key {
+  padding: 1px 6px;
+  font-weight: 600;
+  color: var(--accent, #0969da);
+  background: color-mix(in srgb, var(--accent, #0969da) 12%, transparent);
+}
+
+a.board-task-ref .board-ref-title {
+  padding: 1px 7px;
+  color: var(--text-primary);
+}
+
+a.board-task-ref .board-ref-state {
+  padding: 1px 7px;
+  border: none;
+  border-radius: 0;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #ffffff;
+  background: #64748b;
+}
+
+a.board-task-ref .board-ref-state.is-doing {
+  background: var(--accent, #0969da);
+}
+
+a.board-task-ref .board-ref-state.is-done {
+  background: #22c55e;
+}
+
+a.board-task-ref .board-ref-state.is-cancelled {
+  background: #ef4444;
+}
+
 a.board-task-ref .board-ref-error {
+  padding: 1px 6px;
   font-size: 0.85em;
 }
 

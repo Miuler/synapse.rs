@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.
 
 ### Añadido
 
+- Editor Markdown: escribir `[[#` en el autocompletado de wikilinks ahora busca entre todas las tareas de los tableros `.board/` por número/ID o título e inserta `[[Tablero.board/id]]`. Los enlaces inline a tareas se muestran como insignias segmentadas al estilo Jira (`[clave] [título] [estado]`), con variante compacta (`[[Tablero.board/id|#]]` o `|compact`) sin título.
 - Tableros de tareas: las tareas locales ahora usan IDs UUIDv7 en Crockford Base32 de 26 caracteres, los issues traídos de Azure DevOps dejan de llevar el prefijo `ado-` (manteniendo compatibilidad con los `ado-*` existentes) y las referencias (`parent`, `AB#123`, `#123` en el detalle y `[[Tablero.board/123]]` en notas) navegan localmente a la tarea sincronizada.
 
 - Tableros de tareas (Azure DevOps): «Traer» ahora obtiene y guarda en los archivos de tarea los atributos nativos del work item —enlace clicable al proveedor, etiquetas, prioridad, severidad, iteración, área, padre, estimación, fechas de inicio y vencimiento, horas de planificación (estimación original, trabajo restante y completado), columna y carril del tablero, motivo, campos de auditoría (creado/modificado por y fecha) y criterios de aceptación— y usa `uniqueName` como respaldo cuando una identidad no tiene `displayName`. Las tarjetas del Kanban, la vista de Tabla (con ordenación y columnas opcionales) y el diálogo de detalle ya los muestran.
