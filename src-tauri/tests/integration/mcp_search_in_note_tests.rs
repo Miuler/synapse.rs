@@ -98,7 +98,7 @@ fn varias_notas_y_una_que_no_existe() {
     let files = r["files"].as_array().unwrap();
     assert_eq!(files.len(), 3);
     assert_eq!(files[0]["total_matches"], 1);
-    assert!(files[1]["error"].as_str().unwrap().contains("no existe en la bóveda activa"), "{text}");
+    assert!(files[1]["error"].as_str().unwrap().contains("does not exist in active vault"), "{text}");
     assert_eq!(files[2]["counts"]["insert"]["lines"], 1);
     assert_eq!(files[2]["matches"][0]["matched"], json!(["TIEL"]));
 }
@@ -111,7 +111,7 @@ fn errores_de_varias_notas() {
     assert!(err, "si ninguna nota existe, es error");
     let many: Vec<String> = (0..21).map(|i| format!("n{i}.md")).collect();
     let (_, text, err) = call(&h, json!({"relative_paths": many, "query": "x"}));
-    assert!(err && text.contains("Como máximo 20"), "{text}");
+    assert!(err && text.contains("At most 20"), "{text}");
     let (_, text, err) = call(&h, json!({"query": "x"}));
-    assert!(err && text.contains("obligatorio"), "{text}");
+    assert!(err && text.contains("is required"), "{text}");
 }

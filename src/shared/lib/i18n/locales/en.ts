@@ -1929,6 +1929,38 @@ export const en = {
       failedQuery: 'Query failed: "{query}"',
       finishedQuery: 'Query finished: "{query}"',
     },
+    prompts: {
+      feedbackHeader: 'User feedback request (do not continue the previous task).',
+      feedbackIntro:
+        'Review this conversation and your experience working from the Synapse agent panel with the `synapse_instance` MCP. Think about what would make your work easier, faster, or more reliable, and log each item with the `report_feedback` tool from `synapse_instance` (one call per item, at most 5, from most to least important).',
+      feedbackWhatToLookFor: 'What to look for:',
+      feedbackItemTools:
+        '- Missing MCP tools or parameters, or cases where you had to fall back to reading or writing files directly.',
+      feedbackItemResponses: '- Confusing, incomplete, overly long, or error-prone MCP responses.',
+      feedbackItemFormats:
+        '- Formats you could not handle well (notes, links, metadata, diagrams, images, PDF, Git).',
+      feedbackItemContext:
+        '- Context that Synapse did not pass you and would have helped (active note, selection, vault structure, instructions).',
+      feedbackItemPanel: '- Improvements to the agent panel for the user.',
+      feedbackCallFormat:
+        'In each call: `title`, a short summary; `details`, what you were trying to do, what happened, your concrete proposal (tool name, parameters, and a sample response if applicable), and why it would help.',
+      feedbackNoInvent:
+        'Do not invent issues: if something worked well, do not log it. If there is nothing to improve, say so without calling the tool.',
+      feedbackSummary: 'When done, reply with a short list of what you logged.',
+      feedbackUserNotes: 'User instructions for this feedback: {extra}',
+      btwHeader:
+        '[User side question, asked from Synapse while another session continues working on the previous conversation]',
+      btwBody:
+        'Answer directly and briefly based on what you already know from that conversation. Do not continue that work, do not make plans, and do not modify files: any permission requests will be rejected.',
+      promotedNote:
+        '[Synapse] This side question is now a normal conversation: you may use tools and request permissions.',
+      forkedFrom: 'Forked from {title}',
+      replayUser: 'User: {text}',
+      replayAgent: 'Agent: {text}',
+      replayTool: '(tool: {title})',
+      replayWrap:
+        'Context: this conversation continues a previous one. Summary of what was said so far:\n\n{body}\n\n— End of previous context —',
+    },
     mentions: {
       fileTitle: 'the file «{path}»',
       folderTitle: 'the folder «{path}»',

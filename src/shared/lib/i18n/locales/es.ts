@@ -1930,6 +1930,38 @@ export const es: TranslationSchema = {
       failedQuery: 'Falló la consulta: "{query}"',
       finishedQuery: 'Terminó la consulta: "{query}"',
     },
+    prompts: {
+      feedbackHeader: 'Petición de feedback del usuario (no continúes con la tarea anterior).',
+      feedbackIntro:
+        'Revisa esta conversación y tu experiencia trabajando desde el panel de agentes de Synapse con el MCP `synapse_instance`. Piensa qué haría tu trabajo más fácil, rápido o fiable, y registra cada punto con la herramienta `report_feedback` de `synapse_instance` (una llamada por punto, como mucho 5, de lo más importante a lo menos).',
+      feedbackWhatToLookFor: 'Qué buscar:',
+      feedbackItemTools:
+        '- Herramientas o parámetros del MCP que te faltaron, o que tuviste que reemplazar leyendo o escribiendo archivos directamente.',
+      feedbackItemResponses: '- Respuestas del MCP confusas, incompletas, demasiado largas o con errores.',
+      feedbackItemFormats:
+        '- Formatos que no pudiste manejar bien (notas, enlaces, metadatos, diagramas, imágenes, PDF, Git).',
+      feedbackItemContext:
+        '- Contexto que Synapse no te pasó y te habría servido (nota activa, selección, estructura de la bóveda, instrucciones).',
+      feedbackItemPanel: '- Lo que mejoraría el panel del agente para el usuario.',
+      feedbackCallFormat:
+        'En cada llamada: `title`, un resumen corto; `details`, qué intentabas, qué pasó, qué propones en concreto (nombre de la herramienta, parámetros y un ejemplo de respuesta si aplica) y por qué ayudaría.',
+      feedbackNoInvent:
+        'No inventes problemas: si algo funcionó bien, no lo registres. Si no hay nada que mejorar, dilo sin llamar a la herramienta.',
+      feedbackSummary: 'Al terminar, responde con una lista breve de lo que registraste.',
+      feedbackUserNotes: 'Indicaciones del usuario para este feedback: {extra}',
+      btwHeader:
+        '[Pregunta aparte del usuario, hecha desde Synapse mientras otra sesión sigue con el trabajo de la conversación anterior]',
+      btwBody:
+        'Responde directamente y en breve, con lo que ya sabes de esa conversación. No continúes ese trabajo, no hagas planes y no modifiques archivos: los permisos que pidas se rechazarán.',
+      promotedNote:
+        '[Synapse] La pregunta aparte es ahora una conversación normal: ya puedes usar herramientas y pedir permisos.',
+      forkedFrom: 'Bifurcada de {title}',
+      replayUser: 'Usuario: {text}',
+      replayAgent: 'Agente: {text}',
+      replayTool: '(herramienta: {title})',
+      replayWrap:
+        'Contexto: esta conversación continúa una anterior. Resumen de lo dicho hasta ahora:\n\n{body}\n\n— Fin del contexto anterior —',
+    },
     mentions: {
       fileTitle: 'el archivo «{path}»',
       folderTitle: 'la carpeta «{path}»',

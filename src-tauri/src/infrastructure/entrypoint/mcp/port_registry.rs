@@ -281,7 +281,7 @@ pub fn allocate_and_bind_port(
             Ok((l, actual_port))
         }
         Err(e) => Err(format!(
-            "No se pudo asignar ningún puerto TCP disponible para MCP: {}",
+            "Failed to bind an available TCP port for MCP: {}",
             e
         )),
     }

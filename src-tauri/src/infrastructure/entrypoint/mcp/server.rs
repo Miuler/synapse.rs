@@ -196,7 +196,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpStdioSe
                     let err_resp = JsonRpcErrorResponse::new(
                         Some(id_val),
                         -32601,
-                        format!("Método no encontrado: '{}'", other),
+                        format!("Method not found: '{}'", other),
                     );
                     return serde_json::to_string(&err_resp).ok();
                 }
@@ -413,7 +413,7 @@ impl McpBackgroundRuntime {
                     }
                 }
             })
-            .map_err(|e| format!("Error al iniciar hilo MCP: {}", e))?;
+            .map_err(|e| format!("Failed to start MCP thread: {}", e))?;
 
         if let Ok(mut worker_lock) = self.worker_handle.lock() {
             *worker_lock = Some(handle);
@@ -576,7 +576,7 @@ impl McpBackgroundRuntime {
             }
             let authorized = peer_token.as_deref() == Some(super::port_registry::instance_token());
             let (status, payload) = if !authorized {
-                ("403 Forbidden", json!({"error": "Token inválido"}))
+                ("403 Forbidden", json!({"error": "Invalid token"}))
             } else {
                 let request: serde_json::Value =
                     serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
@@ -588,7 +588,7 @@ impl McpBackgroundRuntime {
                 let answer = match provider.conversation_hub().map(|hub| hub.peer(request)) {
                     Some(Ok(v)) => ("200 OK", json!({"result": v})),
                     Some(Err(e)) => ("200 OK", json!({"error": e})),
-                    None => ("200 OK", json!({"error": "Sin ventana de Synapse"})),
+                    None => ("200 OK", json!({"error": "No Synapse window"})),
                 };
                 if !ping {
                     debug_log::log_value("peer-answer", answer.1.clone());
@@ -833,8 +833,8 @@ mod tests {
 
     const LIST: &str = r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#;
     const CALL: &str = r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"config_get_context","arguments":{}}}"#;
-    const REJECTED: &str = "solo está disponible para los agentes que abre Synapse";
-    const NOTHING_OPEN: &str = "No hay ninguna configuración abierta";
+    const REJECTED: &str = "only available to agents launched by Synapse";
+    const NOTHING_OPEN: &str = "No configuration is open";
 
     fn assert_rejected(headers: &[(&str, &str)]) {
         let list = send("/mcp", headers, LIST);

@@ -91,7 +91,7 @@ fn sin_ventana_explica_que_falta() {
         r["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("ventana")
+            .contains("window")
     );
 }
 

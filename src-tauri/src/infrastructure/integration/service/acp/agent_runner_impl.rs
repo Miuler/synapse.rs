@@ -648,7 +648,7 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
                 end_line,
                 ..
             } if *start_line > 0 => {
-                Some(format!("`{}` (líneas {start_line}-{end_line})", rel(path)))
+                Some(format!("`{}` (lines {start_line}-{end_line})", rel(path)))
             }
             PromptBlock::Selection { path, .. } => Some(format!("`{}`", rel(path))),
             _ => None,
@@ -656,8 +656,8 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
         .collect();
     let folder_hint = (!folders.is_empty()).then(|| {
         format!(
-            "[Contexto de Synapse] Las carpetas adjuntas están en la bóveda abierta en Synapse: {}. \
-             Mira su contenido con la herramienta MCP `list_folder_contents` del servidor \
+            "[Synapse Context] The attached folders are in the vault open in Synapse: {}. \
+             Browse their contents with the MCP tool `list_folder_contents` on server \
              `{SYNAPSE_TOOLS}`.",
             folders.join(", ")
         )
@@ -673,19 +673,19 @@ fn synapse_hint(blocks: &[PromptBlock], vault: &str) -> Option<String> {
             .any(|ext| l.contains(ext))
     };
     let visual_hint = if notes.iter().any(visual) {
-        " Para ver una imagen o un diagrama adjunto (.png, .svg, .drawio.png, .excalidraw, .d2, .mmd…) usa \
-         `render_diagram` con `relative_path`; para el texto y la estructura (contenedores y \
-         conexiones) de un draw.io, `extract_note_diagrams`."
+        " To inspect an attached image or diagram (.png, .svg, .drawio.png, .excalidraw, .d2, .mmd…), use \
+         `render_diagram` with `relative_path`; for the text and structure (containers and \
+         edges) of a draw.io file, use `extract_note_diagrams`."
             .to_string()
     } else {
         String::new()
     };
     let notes_hint = format!(
-        "[Contexto de Synapse] Las notas adjuntas están en la bóveda abierta en Synapse: {}. \
-         Léelas con la herramienta MCP `read_note` del servidor `{SYNAPSE_TOOLS}` usando `relative_path`; \
-         para notas largas pide primero `mode: \"outline_only\"` y luego `mode: \"section\"` o \
-         `\"chunk\"` (`start_line`, `line_count`) en lugar de leer el archivo completo.{visual_hint} El servidor \
-         `{SYNAPSE_TOOLS}` también ofrece búsqueda, enlaces, backlinks y Git sobre la bóveda.",
+        "[Synapse Context] The attached notes are in the vault open in Synapse: {}. \
+         Read them with the MCP tool `read_note` on server `{SYNAPSE_TOOLS}` using `relative_path`; \
+         for long notes first request `mode: \"outline_only\"` and then `mode: \"section\"` or \
+         `\"chunk\"` (`start_line`, `line_count`) instead of reading the whole file.{visual_hint} Server \
+         `{SYNAPSE_TOOLS}` also provides search, links, backlinks, and Git on the vault.",
         notes.join(", ")
     );
     Some(match folder_hint {
@@ -850,8 +850,8 @@ fn acp_block(block: &PromptBlock, caps: &AgentCapabilities) -> Value {
                 json!({"type": "resource", "resource": {"uri": uri, "mimeType": "text/plain", "text": text}})
             } else {
                 let place = match lines {
-                    Some((s, e)) => format!("{path} (líneas {s}-{e})"),
-                    None => format!("{path} (fragmento)"),
+                    Some((s, e)) => format!("{path} (lines {s}-{e})"),
+                    None => format!("{path} (excerpt)"),
                 };
                 json!({"type": "text", "text": format!("{place}:\n```\n{text}\n```")})
             }
@@ -860,7 +860,7 @@ fn acp_block(block: &PromptBlock, caps: &AgentCapabilities) -> Value {
             json!({"type": "image", "mimeType": mime_type, "data": data})
         }
         PromptBlock::Image { .. } => {
-            json!({"type": "text", "text": "[imagen omitida: el agente no acepta imágenes]"})
+            json!({"type": "text", "text": "[image omitted: the agent does not accept images]"})
         }
     }
 }
@@ -1354,7 +1354,7 @@ mod tests {
         );
         assert_eq!(embedded["resource"]["uri"], "file:///b/n.md#L2-L3");
         let quoted = acp_block(&sel, &AgentCapabilities::default());
-        assert!(quoted["text"].as_str().unwrap().contains("líneas 2-3"));
+        assert!(quoted["text"].as_str().unwrap().contains("lines 2-3"));
     }
 
     #[test]
@@ -1585,7 +1585,7 @@ mod tests {
         ];
         let hint = synapse_hint(&blocks, "/b").unwrap();
         assert!(hint.contains("`notas/a.md`"));
-        assert!(hint.contains("`c.md` (líneas 3-5)"));
+        assert!(hint.contains("`c.md` (lines 3-5)"));
         assert!(hint.contains("read_note"));
         assert!(synapse_hint(&blocks[..1], "/b").is_none());
 

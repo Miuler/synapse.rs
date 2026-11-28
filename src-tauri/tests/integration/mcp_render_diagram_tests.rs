@@ -88,6 +88,6 @@ fn sin_ventana_render_diagram_explica_que_falta() {
         img["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("ventana")
+            .contains("window")
     );
 }

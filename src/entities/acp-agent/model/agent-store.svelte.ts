@@ -9,7 +9,7 @@ import { agentApi, listenAgentEvents, listenConversationRequests } from '../api/
 import { feedbackPrompt } from './feedback-prompt';
 import { savedModelChoice } from './legacy-model';
 import { replayText } from './replay-text';
-import { asideBase, btwPrompt, conversationTitle, forkItems, PROMOTED_NOTE, readOnlyMode, rejectOption } from './side-question';
+import { asideBase, btwPrompt, conversationTitle, forkItems, promotedNote, readOnlyMode, rejectOption } from './side-question';
 import type {
   AgentCommand,
   AgentConfig,
@@ -142,6 +142,7 @@ export class Conversation {
   lastActivity = $state(Date.now());
   #acpSessionId = $state<string | null>(null);
   #replay: string | null = null;
+  #replayOnlyPromoted = false;
   /** Mensajes heredados de la original, para convertir la pregunta aparte en conversación. */
   #base: ChatItem[] = [];
   /** Sesión del agente que se bifurca al conectar, y lo que llevaba del turno en curso. */
@@ -192,7 +193,7 @@ export class Conversation {
   }
   /** Id que se guarda para retomarla: con contexto sin enviar la sesión está vacía y retomarla lo perdería. */
   get #resumableId(): string | null {
-    return this.#replay && this.#replay !== PROMOTED_NOTE ? null : this.sessionId;
+    return this.#replay && !this.#replayOnlyPromoted ? null : this.sessionId;
   }
   get pendingPermissions(): number {
     return this.items.filter(
@@ -322,7 +323,10 @@ export class Conversation {
     this.#saved = true;
     // El agente no repite el contexto hasta responder: mientras tanto, el de la última vez
     if (transcript.acp_session_id && transcript.usage?.size) this.usage = transcript.usage;
-    if (!transcript.acp_session_id && this.items.some((i) => i.type === 'user')) this.#replay = replayText(this.items);
+    if (!transcript.acp_session_id && this.items.some((i) => i.type === 'user')) {
+      this.#replay = replayText(this.items);
+      this.#replayOnlyPromoted = false;
+    }
     return transcript.acp_session_id;
   }
 
@@ -339,7 +343,10 @@ export class Conversation {
       this.connection = 'starting';
       this.session = await agentApi.startSession(agent.id, this.#cwd, this.#store.feedbackMode, resume ?? this.#forkOf, this.id, !resume && !!this.#forkOf);
       // Bifurcada por el agente: ya tiene el contexto, salvo lo que la original lleve del turno en curso
-      if (!resume && this.session.resumed) this.#replay = this.#turnReplay;
+      if (!resume && this.session.resumed) {
+        this.#replay = this.#turnReplay;
+        this.#replayOnlyPromoted = false;
+      }
       if (resume && !this.session.resumed) {
         // Sesión nueva en el agente: el contexto guardado ya no es el suyo. El nombre se conserva
         // hasta que el agente le ponga otro
@@ -352,6 +359,7 @@ export class Conversation {
       // Sin su contexto en el agente, viaja con el próximo mensaje (a una pregunta aparte, con lo heredado)
       if (!this.session.resumed && (resume || (this.#parent && !this.#replay)) && this.items.length) {
         this.#replay = replayText([...(this.#parent ? this.#inheritedItems() : []), ...this.items]);
+        this.#replayOnlyPromoted = false;
       }
       this.#acpSessionId = this.session.id;
       const title = this.#store.takeEarlyTitle(this.session.id);
@@ -600,6 +608,7 @@ export class Conversation {
     if (replay) {
       blocks.push({ type: 'text', text: replay });
       this.#replay = null;
+      this.#replayOnlyPromoted = false;
     }
     const prompt = opts.prompt ?? (feedback ? feedbackPrompt(feedback[1]?.trim() ?? '') : text);
     blocks.push({ type: 'text', text: prompt });
@@ -1016,7 +1025,12 @@ export class Conversation {
     if (this.openAside === id) this.openAside = null;
     c.#parent = null;
     c.items = [...base, ...c.items];
-    c.#replay = c.#replay ? `${c.#replay}\n\n${PROMOTED_NOTE}` : PROMOTED_NOTE;
+    if (c.#replay) {
+      c.#replay = `${c.#replay}\n\n${promotedNote()}`;
+    } else {
+      c.#replay = promotedNote();
+      c.#replayOnlyPromoted = true;
+    }
     // Fuera del modo de solo lectura: el de la sesión al abrirse o, si era ese, el de la original
     const readOnly = readOnlyMode(session.modes);
     const mode = session.current_mode !== readOnly ? session.current_mode : this.currentMode;

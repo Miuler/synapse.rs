@@ -155,7 +155,7 @@ fn resolve_vault(vaults: &[VaultRef], wanted: &str) -> Result<VaultRef, String> 
     match found.as_slice() {
         [one] => Ok((*one).clone()),
         [] => Err(format!(
-            "No hay una bóveda «{w}». Disponibles: {}",
+            "No vault named «{w}». Available: {}",
             vaults
                 .iter()
                 .map(|v| v.name.as_str())
@@ -163,7 +163,7 @@ fn resolve_vault(vaults: &[VaultRef], wanted: &str) -> Result<VaultRef, String> 
                 .join(", ")
         )),
         many => Err(format!(
-            "Hay varias bóvedas «{w}»; usa su ruta: {}",
+            "Multiple vaults match «{w}»; use its path: {}",
             many.iter()
                 .map(|v| v.path.to_string_lossy())
                 .collect::<Vec<_>>()
@@ -339,7 +339,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 1. search_notes
                 McpTool {
                     name: "search_notes".to_string(),
-                    description: "Busca notas por nombre, ruta o título dentro de la bóveda, con filtros opcionales por etiquetas (con soporte jerárquico sub-tags) y retorno de snippets. Por defecto solo Markdown; con 'extensions' busca otros archivos (p. ej. [\"archimate\"], [\"d2\", \"mmd\"]).".to_string(),
+                    description: "Searches notes by name, path, or title within the vault, with optional tag filters (supporting hierarchical sub-tags) and snippets. Markdown only by default; pass 'extensions' to search other files (e.g. [\"archimate\"], [\"d2\", \"mmd\"]).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -347,21 +347,21 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "query": {
                                 "type": "string",
                                 "default": "",
-                                "description": "Texto o palabra clave para filtrar notas (puede dejarse vacío si se usan filtros por tags)"
+                                "description": "Text or keyword to filter notes (can be left empty when using tag filters)"
                             },
                             "tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Filtro opcional de etiquetas OKF o sub-tags jerárquicos (ej. 'cachyos' coincide con 'linux/cachyos')"
+                                "description": "Optional OKF tag or hierarchical sub-tag filter (e.g. 'cachyos' matches 'linux/cachyos')"
                             },
                             "limit": {
                                 "type": "number",
-                                "description": "Número máximo de resultados a devolver (por defecto 20)"
+                                "description": "Maximum number of results to return (default 20)"
                             },
                             "extensions": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Extensiones de archivo a recorrer, sin punto (p. ej. [\"archimate\"] o [\"md\", \"d2\"]). Por defecto solo Markdown."
+                                "description": "File extensions to scan without leading dot (e.g. [\"archimate\"] or [\"md\", \"d2\"]). Markdown only by default."
                             }
                         }
                     }),
@@ -369,52 +369,52 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 2. full_text_search
                 McpTool {
                     name: "full_text_search".to_string(),
-                    description: "Búsqueda profunda de texto completo (BM25) en el contenido de todos los documentos indexados (Markdown, diagramas, código, PDF, Word, draw.io —también dentro de imágenes .drawio.png/.drawio.svg— modelos ArchiMate .archimate y procesos BPMN .bpmn), con filtros por carpeta, extensión, tags y telemetría de tokens. Sintaxis: palabras con AND por defecto; varias alternativas en una sola consulta con `|` u `OR` (`TIEL|QTI1|QTI3`, `(TIEL|QTI1) emisor`); `\"frase exacta\"`; `-excluir`; `prefijo*` (`BCTITP*`); campos `title:`, `hs:` (encabezados), `path:`, `kind:` (`kind:archimate`). Con `lines: true` cada resultado trae las líneas que coinciden con su ubicación, como `rg -n`: `{line}` (número de línea del archivo) en Markdown, código y diagramas en texto; `{page}` en PDF (léela con read_pdf_document start_page/end_page); `{section, paragraph}` en Word (el título de la sección y el número de párrafo con texto); `{sheet, row, column}` en planillas; `{diagram}` (la página) en draw.io; `{element, type}` en ArchiMate y BPMN; `null` en Excalidraw. Las líneas largas se recortan alrededor de la coincidencia. Un resultado con `truncated: true` se indexó cortado (documento muy grande): puede tener más coincidencias que no se ven. Con `exact: true` la consulta son textos literales separados por `|` (`outbounds-ach|/ach-operations/`) y solo vuelven los documentos que los contienen tal cual (sin distinguir mayúsculas), útil para endpoints, ids o códigos con puntuación; se comprueba sobre el texto indexado (en Markdown, el texto sin el formato: las URL de los enlaces no cuentan).".to_string(),
+                    description: "Deep full-text search (BM25) across the body of all indexed documents (Markdown, diagrams, code, PDF, Word, draw.io —including inside .drawio.png/.drawio.svg images—, ArchiMate .archimate models, and BPMN .bpmn processes), with folder, extension, tag filters, and token telemetry. Syntax: words use AND by default; multiple alternatives in one query with `|` or `OR` (`TIEL|QTI1|QTI3`, `(TIEL|QTI1) sender`); `\"exact phrase\"`; `-exclude`; `prefix*` (`BCTITP*`); fields `title:`, `hs:` (headings), `path:`, `kind:` (`kind:archimate`). With `lines: true` each hit includes matching lines with their location, like `rg -n`: `{line}` (1-based line number) in Markdown, code, and text diagrams; `{page}` in PDF (read with read_pdf_document start_page/end_page); `{section, paragraph}` in Word (section title and non-empty paragraph number); `{sheet, row, column}` in spreadsheets; `{diagram}` (page) in draw.io; `{element, type}` in ArchiMate and BPMN; `null` in Excalidraw. Long lines are trimmed around the match. Results with `truncated: true` were truncated when indexed (very large document): more matches may exist beyond the cut. With `exact: true`, the query is literal strings separated by `|` (`outbounds-ach|/ach-operations/`) and only documents containing them verbatim (case-insensitive) match, useful for endpoints, IDs, or codes with punctuation; matched against indexed text (in Markdown, stripped of formatting: link URLs do not count).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Frase o palabras clave a buscar en el cuerpo de las notas"
+                                "description": "Phrase or keywords to search inside document bodies"
                             },
                             "folder_path": {
                                 "type": "string",
-                                "description": "Subdirectorio para restringir el alcance de búsqueda"
+                                "description": "Subdirectory to restrict search scope"
                             },
                             "tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Filtrar por etiquetas presentes en las notas"
+                                "description": "Filter by tags present in notes"
                             },
                             "limit": {
                                 "type": "number",
-                                "description": "Número máximo de resultados (por defecto 20)"
+                                "description": "Maximum number of results (default 20)"
                             },
                             "extensions": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Solo archivos con estas extensiones, sin punto (p. ej. [\"archimate\"])"
+                                "description": "Only files with these extensions, without leading dot (e.g. [\"archimate\"])"
                             },
                             "lines": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Incluir en cada resultado las líneas que coinciden con su ubicación (`lines`, `total_line_matches`), como `rg -n`; máximo 200 líneas en total (`lines_truncated` avisa si se recortó)"
+                                "description": "Include matching lines with locations (`lines`, `total_line_matches`) in each hit, like `rg -n`; max 200 lines total (`lines_truncated` indicates trimming)"
                             },
                             "context_lines": {
                                 "type": "number",
                                 "default": 0,
-                                "description": "Con `lines`: líneas antes y después de cada coincidencia (máx 5)"
+                                "description": "With `lines`: lines before and after each match (max 5)"
                             },
                             "max_lines_per_doc": {
                                 "type": "number",
                                 "default": 20,
-                                "description": "Con `lines`: máximo de líneas por documento (máx 100)"
+                                "description": "With `lines`: max lines per document (max 100)"
                             },
                             "exact": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "La consulta son textos literales separados por `|`; solo documentos que los contienen tal cual (sin distinguir mayúsculas)"
+                                "description": "Treat query as literal texts separated by `|`; only documents containing them verbatim (case-insensitive)"
                             }
                         },
                         "required": ["query"]
@@ -423,42 +423,42 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 3. search_in_note
                 McpTool {
                     name: "search_in_note".to_string(),
-                    description: "Busca uno o varios textos dentro de notas que ya conoces (sin distinguir mayúsculas) y devuelve las líneas que coinciden con su número y contexto, y cuántas veces aparece cada texto. Varios textos a la vez separados por `|`, como `rg \"a|b\"`: `id_ach_operation|Límite BD|no almacena`; cada línea indica en `matched` cuáles contiene. Si al partir por `|` queda una parte vacía (p. ej. la fila de tabla `| campo |`) la consulta entera es literal; `\\|` es un `|` literal y `literal: true` no parte nunca. Úsalo para comprobar lo que acabas de editar (`counts`, `counts_only`) o para revisar varias notas a la vez (`relative_paths`); para buscar en toda la bóveda, full_text_search.".to_string(),
+                    description: "Searches one or more strings inside known notes (case-insensitive) and returns matching lines with line numbers, context, and occurrence counts. Multiple alternatives separated by `|`, like `rg \"a|b\"`: `id_ach_operation|DB limit|not stored`; each line indicates which ones matched in `matched`. If splitting on `|` produces an empty part (e.g. a Markdown table row `| field |`), the whole query is treated literally; `\\|` escapes a literal `|`, and `literal: true` never splits. Use it to verify recent edits (`counts`, `counts_only`) or inspect multiple notes at once (`relative_paths`); to search the whole vault, use full_text_search.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota donde buscar"
+                                "description": "Relative path of the note to search"
                             },
                             "relative_paths": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Varias notas a la vez (máximo 20); la respuesta trae `files`, una entrada por nota, y una nota que no existe lleva su propio `error` sin impedir las demás"
+                                "description": "Multiple notes at once (max 20); returns `files` with one entry per note, and missing notes report their own `error` without failing the rest"
                             },
                             "query": {
                                 "type": "string",
-                                "description": "Texto a buscar; varios separados por `|` (p. ej. `TIEL|QTI1|QTI3`)"
+                                "description": "Text to search; multiple alternatives separated by `|` (e.g. `TIEL|QTI1|QTI3`)"
                             },
                             "literal": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Buscar 'query' tal cual aunque lleve `|`"
+                                "description": "Search 'query' literally even if it contains `|`"
                             },
                             "counts_only": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Solo los recuentos por texto (`counts`: líneas y apariciones), sin las líneas, como `grep -c`"
+                                "description": "Only counts per search term (`counts`: matching lines and occurrences), without line snippets, like `grep -c`"
                             },
                             "context_lines": {
                                 "type": "number",
                                 "default": 2,
-                                "description": "Número de líneas antes y después de cada coincidencia (máximo 10, por defecto 2)"
+                                "description": "Number of lines before and after each match (max 10, default 2)"
                             },
                             "max_matches": {
                                 "type": "number",
-                                "description": "Máximo de coincidencias a devolver por nota (por defecto todas); total_matches dice cuántas hay"
+                                "description": "Max matches to return per note (default all); total_matches reports how many exist"
                             }
                         },
                         "required": ["query"]
@@ -467,36 +467,36 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 4. list_folder_contents
                 McpTool {
                     name: "list_folder_contents".to_string(),
-                    description: "Lista las notas y/o subdirectorios dentro de una carpeta de la bóveda, incluyendo estadísticas de líneas y tokens estimados.".to_string(),
+                    description: "Lists notes and/or subdirectories inside a vault folder, including line counts and estimated tokens.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "folder_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la carpeta a consultar (ej: 'proyectos/rust'). Dejar vacío para la raíz."
+                                "description": "Relative folder path to inspect (e.g. 'projects/rust'). Leave empty for vault root."
                             },
                             "include_notes": {
                                 "type": "boolean",
-                                "description": "Incluir las notas y archivos dentro de la carpeta (por defecto true)"
+                                "description": "Include notes and files inside the folder (default true)"
                             },
                             "include_folders": {
                                 "type": "boolean",
-                                "description": "Incluir los subdirectorios dentro de la carpeta (por defecto true)"
+                                "description": "Include subdirectories inside the folder (default true)"
                             },
                             "recursive": {
                                 "type": "boolean",
-                                "description": "Si es true, lista recursivamente subcarpetas (por defecto false)"
+                                "description": "If true, lists subfolders recursively (default false)"
                             },
                             "limit": {
                                 "type": "number",
                                 "default": 50,
-                                "description": "Límite máximo de notas devueltas (por defecto 50, máx 200)"
+                                "description": "Maximum number of notes returned (default 50, max 200)"
                             },
                             "offset": {
                                 "type": "number",
                                 "default": 0,
-                                "description": "Desplazamiento para paginación de notas (por defecto 0)"
+                                "description": "Pagination offset for notes (default 0)"
                             }
                         }
                     }),
@@ -504,24 +504,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 4.1. search_folders
                 McpTool {
                     name: "search_folders".to_string(),
-                    description: "Busca carpetas por coincidencia difusa de nombre o ruta, devolviendo huella semántica (conteo de notas, tags dominantes y notas de muestra) para desambiguar carpetas homónimas.".to_string(),
+                    description: "Searches folders by fuzzy name or path match, returning a semantic fingerprint (note count, dominant tags, and sample notes) to disambiguate similarly named folders.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Término o nombre parcial de la carpeta a buscar (ej: 'azure', 'facturas', 'cli')"
+                                "description": "Search term or partial folder name (e.g. 'azure', 'invoices', 'cli')"
                             },
                             "limit": {
                                 "type": "number",
                                 "default": 20,
-                                "description": "Límite de carpetas coincidentes a devolver (por defecto 20)"
+                                "description": "Max matching folders to return (default 20)"
                             },
                             "offset": {
                                 "type": "number",
                                 "default": 0,
-                                "description": "Desplazamiento para paginación (por defecto 0)"
+                                "description": "Pagination offset (default 0)"
                             }
                         }
                     }),
@@ -529,33 +529,33 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 4.2. move_folder_contents
                 McpTool {
                     name: "move_folder_contents".to_string(),
-                    description: "Mueve todas las notas de una carpeta de origen a una carpeta de destino, con soporte para estrategia de colisiones, extensión y simulacro (dry_run).".to_string(),
+                    description: "Moves all notes from a source folder to a target folder, with conflict strategy, extension filter, and dry_run preview.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "source_folder": {
                                 "type": "string",
-                                "description": "Ruta relativa de la carpeta origen (ej: 'descargas' o 'proyectos/azure')"
+                                "description": "Relative source folder path (e.g. 'inbox' or 'projects/azure')"
                             },
                             "target_folder": {
                                 "type": "string",
-                                "description": "Ruta relativa de la carpeta destino (ej: 'archivo/azure' o 'clientes/bcp')"
+                                "description": "Relative target folder path (e.g. 'archive/azure' or 'clients/bcp')"
                             },
                             "extension": {
                                 "type": "string",
-                                "description": "Filtro opcional por extensión de archivo a mover (ej: 'md' o 'pdf')"
+                                "description": "Optional file extension filter to move (e.g. 'md' or 'pdf')"
                             },
                             "conflict_strategy": {
                                 "type": "string",
                                 "enum": ["skip", "rename", "overwrite"],
                                 "default": "skip",
-                                "description": "Estrategia ante archivos duplicados en destino: 'skip' (omite), 'rename' (añade sufijo numérico) o 'overwrite' (sobrescribe)"
+                                "description": "Conflict handling when destination exists: 'skip', 'rename' (append numeric suffix), or 'overwrite'"
                             },
                             "dry_run": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Si es true, solo simula y devuelve la lista de archivos que se moverían sin alterar el disco"
+                                "description": "If true, simulates and returns files that would move without modifying disk"
                             }
                         },
                         "required": ["source_folder", "target_folder"]
@@ -564,22 +564,22 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 5. list_sibling_notes
                 McpTool {
                     name: "list_sibling_notes".to_string(),
-                    description: "A partir de una nota de referencia, lista todas las demás notas ubicadas en la misma carpeta.".to_string(),
+                    description: "Given a reference note, lists all other notes located in the same folder.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota de referencia (ej: 'notas/arquitectura.md')"
+                                "description": "Relative path of the reference note (e.g. 'notes/architecture.md')"
                             },
                             "include_self": {
                                 "type": "boolean",
-                                "description": "Incluir también la nota de referencia en el resultado (por defecto false)"
+                                "description": "Also include the reference note in the result (default false)"
                             },
                             "include_folders": {
                                 "type": "boolean",
-                                "description": "Incluir subcarpetas hermanas en el mismo directorio (por defecto false)"
+                                "description": "Include sibling subfolders in the same directory (default false)"
                             }
                         },
                         "required": ["relative_path"]
@@ -588,45 +588,45 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 6. read_note
                 McpTool {
                     name: "read_note".to_string(),
-                    description: "Lee una nota Markdown y sus metadatos OKF. Soporta modos 'full', 'chunk', 'section' y 'metadata_only'/'outline_only', proveyendo content_hash (OCC), TOC y detección de bloques. Devuelve además el index.md OKF de la raíz y el de la carpeta de la nota (mapas de la bóveda que mantiene Synapse; cada carpeta tiene el suyo en disco).".to_string(),
+                    description: "Reads a Markdown note and its OKF metadata. Supports 'full', 'chunk', 'section', and 'metadata_only'/'outline_only' modes, providing content_hash (OCC), TOC, and block counts. Also appends the root and folder OKF index.md (vault maps maintained by Synapse; each folder has its own on disk).".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del archivo dentro de la bóveda (ej: 'notas/arquitectura.md')"
+                                "description": "Relative file path in the vault (e.g. 'notes/architecture.md')"
                             },
                             "mode": {
                                 "type": "string",
                                 "enum": ["full", "chunk", "section", "metadata_only", "outline_only"],
                                 "default": "full",
-                                "description": "'full': lee toda la nota. 'chunk': lee un rango acotado de líneas. 'section': extrae solo un encabezado. 'metadata_only'/'outline_only': metadatos OKF, TOC y estadísticas sin el cuerpo."
+                                "description": "'full': reads entire note. 'chunk': reads a line range. 'section': extracts one heading section. 'metadata_only'/'outline_only': OKF metadata, TOC, and stats without the body."
                             },
                             "outline_only": {
                                 "type": "boolean",
-                                "description": "Si es true, devuelve únicamente el TOC (encabezados con números de línea) y metadatos sin el cuerpo completo"
+                                "description": "If true, returns only TOC (headings with line numbers) and metadata without the body"
                             },
                             "section": {
                                 "type": "string",
-                                "description": "Nombre del encabezado H1/H2 a extraer exclusivamente (alias directo de section_heading)"
+                                "description": "Heading name to extract (direct alias of section_heading)"
                             },
                             "start_line": {
                                 "type": "number",
-                                "description": "Línea inicial (base 1) cuando mode='chunk' (por defecto 1)"
+                                "description": "Start line (1-based) when mode='chunk' (default 1)"
                             },
                             "line_count": {
                                 "type": "number",
-                                "description": "Cantidad de líneas a leer en mode='chunk' (por defecto 150, máximo 500)"
+                                "description": "Number of lines to read in mode='chunk' (default 150, max 500)"
                             },
                             "section_heading": {
                                 "type": "string",
-                                "description": "Texto del encabezado a extraer cuando mode='section' (ej: '## Canal ACP')"
+                                "description": "Heading text to extract when mode='section' (e.g. '## ACP Channel')"
                             },
                             "include_line_numbers": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Prefija cada línea devuelta con su número (ej: '42: texto') para facilitar patch_note."
+                                "description": "Prefix each returned line with its line number (e.g. '42: text') to assist patch_note."
                             }
                         },
                         "required": ["relative_path"]
@@ -635,51 +635,51 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 7. write_note
                 McpTool {
                     name: "write_note".to_string(),
-                    description: "Crea una nota o reemplaza una existente, con protección de hash OCC, freno anti-truncamiento y modo dry_run. Reemplazar exige expected_hash (recomendado) u overwrite: true; si no, falla. La respuesta indica en 'created' si la nota es nueva y en 'warning' si su carpeta no existía.".to_string(),
+                    description: "Creates a note or replaces an existing one, with OCC hash protection, anti-truncation guard, and dry_run mode. Overwriting requires expected_hash (recommended) or overwrite: true; otherwise it fails. Response indicates in 'created' whether the note is new and in 'warning' if its parent folder did not exist.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, true)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del archivo (ej: 'proyectos/nuevo.md')"
+                                "description": "Relative file path (e.g. 'projects/new.md')"
                             },
                             "title": {
                                 "type": "string",
-                                "description": "Título principal del documento (opcional si la nota ya existe)"
+                                "description": "Document title (optional if the note already exists)"
                             },
                             "content": {
                                 "type": "string",
-                                "description": "Cuerpo en formato Markdown"
+                                "description": "Markdown body"
                             },
                             "tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Lista de etiquetas de taxonomía"
+                                "description": "Taxonomy tags"
                             },
                             "aliases": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Nombres alternativos para la nota"
+                                "description": "Alternative names for the note"
                             },
                             "expected_hash": {
                                 "type": "string",
-                                "description": "Hash obtenido previamente en read_note para control de concurrencia optimista"
+                                "description": "Hash previously obtained from read_note for optimistic concurrency control"
                             },
                             "overwrite": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Permite reemplazar una nota existente sin haberla leído. Es preferible leerla y enviar expected_hash, que basta por sí solo. Sin ninguno de los dos, escribir sobre una nota existente falla"
+                                "description": "Allows replacing an existing note without reading it first. Prefer reading it and sending expected_hash, which suffices on its own. Without either, writing over an existing note fails"
                             },
                             "allow_large_overwrite": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Permite sobrescritura incluso si reduce más del 40% del documento original (>150 líneas)"
+                                "description": "Allows overwriting even if it shrinks the original document (>150 lines) by more than 40%"
                             },
                             "dry_run": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Si es true, valida y retorna el unified_diff sin modificar disco"
+                                "description": "If true, validates and returns unified_diff without modifying disk"
                             }
                         },
                         "required": ["relative_path", "content"]
@@ -688,39 +688,39 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 8. patch_note
                 McpTool {
                     name: "patch_note".to_string(),
-                    description: "Modifica un fragmento quirúrgico de una nota reemplazando un bloque de texto exacto con tolerancia de anclaje difuso y control OCC.".to_string(),
+                    description: "Surgically modifies a note snippet by replacing an exact text block with fuzzy anchoring tolerance and OCC check.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota a editar"
+                                "description": "Relative path of the note to edit"
                             },
                             "old_text": {
                                 "type": "string",
-                                "description": "Texto original exacto a reemplazar"
+                                "description": "Exact original text to replace"
                             },
                             "new_text": {
                                 "type": "string",
-                                "description": "Nuevo texto en Markdown que reemplazará a old_text"
+                                "description": "New Markdown text replacing old_text"
                             },
                             "start_line": {
                                 "type": "number",
-                                "description": "Línea inicial estimada del bloque (base 1)"
+                                "description": "Estimated start line of the block (1-based)"
                             },
                             "end_line": {
                                 "type": "number",
-                                "description": "Línea final estimada del bloque"
+                                "description": "Estimated end line of the block"
                             },
                             "expected_hash": {
                                 "type": "string",
-                                "description": "Hash previo para verificar que la nota no cambió concurrentemente"
+                                "description": "Previous hash to verify the note was not modified concurrently"
                             },
                             "dry_run": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Si es true, calcula el unified_diff sin alterar disco"
+                                "description": "If true, computes unified_diff without modifying disk"
                             }
                         },
                         "required": ["relative_path", "old_text", "new_text"]
@@ -729,28 +729,28 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 9. append_to_note
                 McpTool {
                     name: "append_to_note".to_string(),
-                    description: "Agrega contenido al final de una nota o dentro de una sección específica de encabezado Markdown.".to_string(),
+                    description: "Appends content to the end of a note or inside a specific Markdown heading section.".to_string(),
                     annotations: Some(McpToolAnnotations::write(false, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota"
+                                "description": "Relative path of the note"
                             },
                             "content": {
                                 "type": "string",
-                                "description": "Texto Markdown a insertar"
+                                "description": "Markdown text to insert"
                             },
                             "section_heading": {
                                 "type": "string",
-                                "description": "Encabezado opcional donde insertar (ej: '## Tareas'). Si se omite, se agrega al final del archivo."
+                                "description": "Optional heading to insert into (e.g. '## Tasks'). If omitted, appends at end of file."
                             },
                             "position": {
                                 "type": "string",
                                 "enum": ["start_of_section", "end_of_section"],
                                 "default": "end_of_section",
-                                "description": "Posición dentro de la sección elegida"
+                                "description": "Position within the target section"
                             }
                         },
                         "required": ["relative_path", "content"]
@@ -759,37 +759,37 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 10. update_note_metadata
                 McpTool {
                     name: "update_note_metadata".to_string(),
-                    description: "Actualiza atómicamente los metadatos OKF (título, tags, aliases, custom_properties) del frontmatter YAML sin tocar el cuerpo de la nota.".to_string(),
+                    description: "Atomically updates OKF metadata (title, tags, aliases, custom_properties) in YAML frontmatter without modifying the note body.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, true)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota"
+                                "description": "Relative path of the note"
                             },
                             "title": {
                                 "type": "string",
-                                "description": "Nuevo título opcional"
+                                "description": "Optional new title"
                             },
                             "add_tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Etiquetas a añadir (sin duplicados)"
+                                "description": "Tags to add (deduplicated)"
                             },
                             "remove_tags": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Etiquetas a eliminar"
+                                "description": "Tags to remove"
                             },
                             "aliases": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Lista de aliases a establecer"
+                                "description": "List of aliases to set"
                             },
                             "custom_properties": {
                                 "type": "object",
-                                "description": "Pares clave-valor adicionales para el frontmatter"
+                                "description": "Additional key-value pairs for frontmatter"
                             }
                         },
                         "required": ["relative_path"]
@@ -798,7 +798,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 11. move_notes
                 McpTool {
                     name: "move_notes".to_string(),
-                    description: "Mueve notas a una carpeta de destino con soporte de reescritura automática de wikilinks en la bóveda.".to_string(),
+                    description: "Moves notes to a target folder with optional automatic wikilink rewriting across the vault.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
@@ -806,26 +806,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "notes": {
                                 "type": "array",
                                 "items": { "type": "string" },
-                                "description": "Lista de rutas de notas a mover"
+                                "description": "List of note paths to move"
                             },
                             "target_folder": {
                                 "type": "string",
-                                "description": "Carpeta destino relativa"
+                                "description": "Relative destination folder"
                             },
                             "create_target_folder": {
                                 "type": "boolean",
                                 "default": true,
-                                "description": "Crear carpeta si no existe"
+                                "description": "Create destination folder if missing"
                             },
                             "overwrite": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Sobrescribir si ya existe en destino"
+                                "description": "Overwrite if file already exists at destination"
                             },
                             "update_wikilinks": {
                                 "type": "boolean",
                                 "default": false,
-                                "description": "Reescribir enlaces entrantes en otras notas para apuntar a la nueva ubicación"
+                                "description": "Rewrite incoming links in other notes to point to the new location"
                             }
                         },
                         "required": ["notes", "target_folder"]
@@ -834,18 +834,18 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 12. delete_note
                 McpTool {
                     name: "delete_note".to_string(),
-                    description: "Elimina permanentemente una nota del sistema de archivos dentro de la bóveda. Soporta control de concurrencia optimista mediante expected_hash.".to_string(),
+                    description: "Permanently deletes a note from the vault filesystem. Supports optimistic concurrency control via expected_hash.".to_string(),
                     annotations: Some(McpToolAnnotations::write(true, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota a eliminar dentro de la bóveda (ej. 'carpeta/nota.md')"
+                                "description": "Relative path of the note to delete inside the vault (e.g. 'folder/note.md')"
                             },
                             "expected_hash": {
                                 "type": "string",
-                                "description": "Hash SHA-256 opcional (obtenido en read_note). Si se proporciona, previene la eliminación si el contenido cambió"
+                                "description": "Optional SHA-256 hash (from read_note). Prevents deletion if the content changed"
                             }
                         },
                         "required": ["relative_path"]
@@ -854,14 +854,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 13. get_backlinks_and_relations
                 McpTool {
                     name: "get_backlinks_and_relations".to_string(),
-                    description: "Obtiene backlinks con snippets contextuales, outlinks (resueltos, no resueltos y ambiguos: si hay varias notas con ese nombre, `ambiguous` lista los candidatos y conviene enlazar con la ruta completa) y top 5 vecinos por similitud Jaccard de tags.".to_string(),
+                    description: "Returns backlinks with contextual snippets, outlinks (resolved, unresolved, and ambiguous: when multiple notes share a name, `ambiguous` lists candidates and linking by full path is recommended), and top 5 neighbors by Jaccard tag similarity.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota a analizar"
+                                "description": "Relative path of the note to analyze"
                             }
                         },
                         "required": ["relative_path"]
@@ -870,7 +870,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 14. get_vault_git_status
                 McpTool {
                     name: "get_vault_git_status".to_string(),
-                    description: "Obtiene el estado de control de versiones Git de la bóveda (rama, index, worktree, stash). Si hay repositorios en subcarpetas, `repos` lista cada uno (carpeta, rama, cambios) y las rutas de `statuses` siguen siendo relativas a la bóveda.".to_string(),
+                    description: "Returns Git version control status for the vault (branch, index, worktree, stash). When repositories live in subfolders, `repos` lists each one (folder, branch, changes) while `statuses` paths remain vault-relative.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
@@ -880,32 +880,32 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 15. read_pdf_document
                 McpTool {
                     name: "read_pdf_document".to_string(),
-                    description: "Inspecciona documentos PDF: índice/metadatos, lectura por rango de páginas (máximo 5) o búsqueda interna.".to_string(),
+                    description: "Inspects PDF documents: outline/metadata, page-range reading (max 5 pages), or internal text search.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del archivo PDF (ej: 'docs/paper.pdf')"
+                                "description": "Relative path of the PDF file (e.g. 'docs/paper.pdf')"
                             },
                             "mode": {
                                 "type": "string",
                                 "enum": ["outline_only", "pages", "search"],
                                 "default": "outline_only",
-                                "description": "'outline_only': total de páginas y metadatos. 'pages': extrae texto entre start_page y end_page. 'search': busca un término en el PDF."
+                                "description": "'outline_only': page count and metadata. 'pages': extracts text between start_page and end_page. 'search': searches for a query inside the PDF."
                             },
                             "start_page": {
                                 "type": "number",
-                                "description": "Página inicial (base 1, por defecto 1)"
+                                "description": "Start page (1-based, default 1)"
                             },
                             "end_page": {
                                 "type": "number",
-                                "description": "Página final (máximo 5 páginas por llamada)"
+                                "description": "End page (max 5 pages per call)"
                             },
                             "search_query": {
                                 "type": "string",
-                                "description": "Término a buscar cuando mode='search'"
+                                "description": "Search term when mode='search'"
                             }
                         },
                         "required": ["relative_path"]
@@ -914,24 +914,24 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 16. extract_note_diagrams
                 McpTool {
                     name: "extract_note_diagrams".to_string(),
-                    description: "Extrae todos los bloques de código de diagramas (Mermaid, D2lang) de una nota con números de línea o lee archivos .d2 / .mmd. Con un diagrama de draw.io (.drawio, o una imagen .drawio.png/.drawio.svg con el diagrama dentro) devuelve por página sus contenedores con las figuras de cada uno, las figuras sueltas y las conexiones (desde → hasta, con su texto); con `revision`, tal como era en ese commit.".to_string(),
+                    description: "Extracts all diagram code blocks (Mermaid, D2) from a note with line numbers, or reads .d2 / .mmd files. For a draw.io diagram (.drawio, or embedded inside .drawio.png/.drawio.svg), returns each page's containers with their shapes, standalone shapes, and edges (from → to, with labels); pass `revision` to inspect it at that commit.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa de la nota Markdown, archivo .d2 / .mmd o diagrama de draw.io (.drawio, .drawio.png, .drawio.svg)"
+                                "description": "Relative path of the Markdown note, .d2 / .mmd file, or draw.io diagram (.drawio, .drawio.png, .drawio.svg)"
                             },
                             "revision": {
                                 "type": "string",
-                                "description": "Solo draw.io: commit de Git (hash, HEAD~1…) para ver el diagrama como era entonces"
+                                "description": "draw.io only: Git commit (hash, HEAD~1…) to inspect the diagram as of that revision"
                             },
                             "diagram_type": {
                                 "type": "string",
                                 "enum": ["all", "mermaid", "d2"],
                                 "default": "all",
-                                "description": "Filtrar por tipo de diagrama"
+                                "description": "Filter by diagram type"
                             }
                         },
                         "required": ["relative_path"]
@@ -940,22 +940,22 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // Modelos ArchiMate (`.archimate` de Archi)
                 McpTool {
                     name: "inspect_archimate_element".to_string(),
-                    description: "Busca elementos en un modelo ArchiMate (.archimate) por id exacto o parte del nombre y devuelve, en una sola respuesta, su tipo, línea, documentación, propiedades (p. ej. UNIQUECODE), sus relaciones entrantes y salientes con el nombre y tipo del elemento del otro extremo, y las vistas (ArchimateDiagramModel) donde aparece. Para el índice de carpetas y vistas usa read_note con mode \"outline_only\".".to_string(),
+                    description: "Searches elements in an ArchiMate model (.archimate) by exact ID or partial name and returns in one response their type, line, documentation, properties (e.g. UNIQUECODE), incoming and outgoing relations with the other endpoint's name and type, and the views (ArchimateDiagramModel) where they appear. For folder and view outlines, use read_note with mode \"outline_only\".".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del modelo .archimate"
+                                "description": "Relative path of the .archimate model"
                             },
                             "query": {
                                 "type": "string",
-                                "description": "Id del elemento (id-…) o parte de su nombre, sin distinguir mayúsculas"
+                                "description": "Element ID (id-…) or part of its name, case-insensitive"
                             },
                             "limit": {
                                 "type": "number",
-                                "description": "Máximo de elementos a devolver (por defecto 5)"
+                                "description": "Max elements to return (default 5)"
                             }
                         },
                         "required": ["relative_path", "query"]
@@ -964,18 +964,18 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 18. report_feedback
                 McpTool {
                     name: "report_feedback".to_string(),
-                    description: "Deja una nota para los desarrolladores de Synapse cuando a este MCP le falta algo para completar la tarea (una herramienta, un parámetro, un formato). Se acumula en feedback.md de la configuración global; no toca la bóveda.".to_string(),
+                    description: "Leaves a note for Synapse developers when this MCP lacks something needed to complete a task (a tool, parameter, or format). Appends to feedback.md in global config; does not touch the vault.".to_string(),
                     annotations: Some(McpToolAnnotations::write(false, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "title": {
                                 "type": "string",
-                                "description": "Resumen corto de lo que falta"
+                                "description": "Short summary of what is missing"
                             },
                             "details": {
                                 "type": "string",
-                                "description": "Qué intentabas hacer, qué te faltó y cómo lo resolviste mientras tanto"
+                                "description": "What you were trying to do, what was missing, and how you worked around it"
                             }
                         },
                         "required": ["title", "details"]
@@ -984,13 +984,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 24. git_file_history
                 McpTool {
                     name: "git_file_history".to_string(),
-                    description: "Historial de Git de un archivo de la bóveda (siguiendo renombres; se usa el repositorio más cercano que lo contiene, también en subcarpetas): hash, hash corto, fecha, autor, mensaje y tags de cada commit, del más nuevo al más antiguo. Úsalo para elegir los commits a comparar con git_diff_revisions.".to_string(),
+                    description: "Git history of a vault file (following renames; uses the nearest repository containing it, including in subfolders): hash, short hash, date, author, message, and tags for each commit, newest first. Use it to pick commits to compare with git_diff_revisions.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
-                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo"},
-                            "limit": {"type": "integer", "description": "Commits como máximo (por defecto 20)", "default": 20}
+                            "relative_path": {"type": "string", "description": "Relative file path"},
+                            "limit": {"type": "integer", "description": "Max commits (default 20)", "default": 20}
                         },
                         "required": ["relative_path"]
                     }),
@@ -998,14 +998,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 25. git_diff_revisions
                 McpTool {
                     name: "git_diff_revisions".to_string(),
-                    description: "Qué cambió en un archivo entre dos commits: diff unificado (de `from` a `to`; sin `to`, contra la versión local), con líneas agregadas y quitadas. Si el archivo se renombró entre medio, se usa el nombre que tenía en cada commit. Para imágenes y diagramas binarios usa render_diagram con `revision` en cada versión.".to_string(),
+                    description: "Shows what changed in a file between two commits: unified diff (from `from` to `to`; if `to` omitted, against the working tree), with lines added and removed. If renamed across commits, resolves the name in each commit. For binary images and diagrams, use render_diagram with `revision` on each version.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
-                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo (la actual)"},
-                            "from": {"type": "string", "description": "Commit de partida (hash, hash corto, HEAD~2…)"},
-                            "to": {"type": "string", "description": "Commit de llegada; vacío = la versión local del disco"}
+                            "relative_path": {"type": "string", "description": "Current relative path of the file"},
+                            "from": {"type": "string", "description": "Start commit (hash, short hash, HEAD~2…)"},
+                            "to": {"type": "string", "description": "End commit; empty = local file on disk"}
                         },
                         "required": ["relative_path", "from"]
                     }),
@@ -1013,15 +1013,15 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 26. git_read_revision
                 McpTool {
                     name: "git_read_revision".to_string(),
-                    description: "Contenido de un archivo en un commit (con el nombre que tenía entonces si se renombró). Devuelve un tramo de líneas; usa start_line y line_count para archivos largos.".to_string(),
+                    description: "Reads a file's contents at a commit (using its path at that time if renamed). Returns a line range; use start_line and line_count for long files.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
-                            "relative_path": {"type": "string", "description": "Ruta relativa del archivo (la actual)"},
-                            "revision": {"type": "string", "description": "Commit (hash, hash corto, HEAD~1…)"},
-                            "start_line": {"type": "integer", "description": "Primera línea (desde 1)", "default": 1},
-                            "line_count": {"type": "integer", "description": "Líneas a devolver (por defecto 300)", "default": 300}
+                            "relative_path": {"type": "string", "description": "Current relative path of the file"},
+                            "revision": {"type": "string", "description": "Commit (hash, short hash, HEAD~1…)"},
+                            "start_line": {"type": "integer", "description": "First line (1-based)", "default": 1},
+                            "line_count": {"type": "integer", "description": "Lines to return (default 300)", "default": 300}
                         },
                         "required": ["relative_path", "revision"]
                     }),
@@ -1029,35 +1029,35 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 23. read_replies
                 McpTool {
                     name: "read_replies".to_string(),
-                    description: "Para clientes MCP externos (que no son una conversación del panel de Synapse, como Claude Code): recoge las respuestas de las conversaciones a las que preguntaste con send_to_conversation (expects_reply=true). Cada respuesta se entrega una sola vez; si aún no hay, vuelve a llamar más tarde.".to_string(),
+                    description: "For external MCP clients (not a Synapse panel conversation, e.g. Claude Code): collects replies from conversations queried with send_to_conversation (expects_reply=true). Each reply is delivered once; if none yet, call again later.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({"type": "object", "properties": {}}),
                 },
                 // 22. list_vaults
                 McpTool {
                     name: "list_vaults".to_string(),
-                    description: "Lista las otras bóvedas de Synapse del usuario (abiertas y recientes) que puedes consultar en solo lectura pasando `vault` (su nombre) a search_notes, full_text_search, read_note, list_folder_contents y demás herramientas de lectura. Úsalo cuando la información que necesitas está en otra bóveda (por ejemplo, documentación de otro sistema). La primera consulta a cada bóveda pide permiso al usuario.".to_string(),
+                    description: "Lists the user's other Synapse vaults (open and recent) that can be queried read-only by passing `vault` (vault name) to search_notes, full_text_search, read_note, list_folder_contents, and other read tools. Use when the information you need lives in another vault. The first query to a vault asks the user for permission.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({"type": "object", "properties": {}}),
                 },
                 // 20. list_conversations
                 McpTool {
                     name: "list_conversations".to_string(),
-                    description: "Lista las conversaciones con agentes abiertas en el panel de Synapse (pueden ser otros agentes: Claude, Gemini…), las de esta ventana (#1, #2…) y las de otras bóvedas abiertas en otras ventanas (mainframe#1…, o mainframe#nueva si no tiene ninguna). La tuya va marcada con `is_you`. Úsalo antes de send_to_conversation para elegir el destino.".to_string(),
+                    description: "Lists open agent conversations in the Synapse panel (including other agents: Claude, Gemini…), both in this window (#1, #2…) and in other vaults open in other windows (mainframe#1…, or mainframe#new if none exists). Yours is marked `is_you`. Call before send_to_conversation to pick the target.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({"type": "object", "properties": {}}),
                 },
                 // 21. send_to_conversation
                 McpTool {
                     name: "send_to_conversation".to_string(),
-                    description: "Deja un mensaje a otra conversación de agente del panel (por ejemplo, cuando el usuario dice «pregúntale a Gemini…» o «avísale a #2…»). Es asíncrono: si el destino está trabajando, el mensaje entra al terminar su turno. Con expects_reply=true, su respuesta te llegará después como un mensaje nuevo en esta conversación; no la esperes ni la inventes. Si dudas a cuál conversación se refiere el usuario, pregúntale.".to_string(),
+                    description: "Sends a message to another agent conversation in the panel (e.g. when the user says \"ask Gemini…\" or \"tell #2…\"). Asynchronous: if the target is busy, the message is delivered when its turn ends. With expects_reply=true, the reply will arrive later as a new message in this conversation; do not wait for or fabricate it. If unsure which conversation the user means, ask.".to_string(),
                     annotations: Some(McpToolAnnotations::write(false, false)),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
-                            "to": {"type": "string", "description": "Destino: #2 (esta ventana), parte de su título o del agente; u otra bóveda: «mainframe» (su conversación para ti, o una nueva y limpia), «mainframe#1» (esa conversación) o «mainframe#nueva»"},
-                            "message": {"type": "string", "description": "Lo que le dices o preguntas, con el contexto que necesite (no ve tu conversación)"},
-                            "expects_reply": {"type": "boolean", "description": "true si es una pregunta y quieres su respuesta de vuelta", "default": false}
+                            "to": {"type": "string", "description": "Target: #2 (this window), part of its title or agent name; or another vault: \"mainframe\" (its conversation for you, or a fresh one), \"mainframe#1\" (that conversation), or \"mainframe#new\""},
+                            "message": {"type": "string", "description": "What to say or ask, including any needed context (it cannot see your conversation)"},
+                            "expects_reply": {"type": "boolean", "description": "true if this is a question and you want its reply back", "default": false}
                         },
                         "required": ["to", "message"]
                     }),
@@ -1065,22 +1065,22 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 19. render_diagram
                 McpTool {
                     name: "render_diagram".to_string(),
-                    description: "Devuelve un diagrama o imagen de la bóveda como imagen, tal como lo ve el usuario en Synapse: Excalidraw, Mermaid, D2 y PlantUML (dibujados como PNG), draw.io (.drawio.png, .drawio.svg) e imágenes (.png, .jpg, .svg, .webp…). Úsalo para ver un diagrama o una imagen adjunta, o cuando read_note indique `diagram.render_tool`. Para el texto y la estructura de un draw.io, extract_note_diagrams. Requiere la ventana de Synapse abierta.".to_string(),
+                    description: "Returns a diagram or image from the vault as an image, as rendered in Synapse: Excalidraw, Mermaid, D2, and PlantUML (rendered as PNG), draw.io (.drawio.png, .drawio.svg), and images (.png, .jpg, .svg, .webp…). Use it to view an attached image or diagram, or when read_note indicates `diagram.render_tool`. For text and structure of a draw.io diagram, use extract_note_diagrams. Requires the Synapse window to be open.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "relative_path": {
                                 "type": "string",
-                                "description": "Ruta relativa del diagrama en la bóveda"
+                                "description": "Relative path of the diagram in the vault"
                             },
                             "vault": {
                                 "type": "string",
-                                "description": "Otra bóveda (ver list_vaults); vacío = esta bóveda"
+                                "description": "Another vault (see list_vaults); empty = this vault"
                             },
                             "revision": {
                                 "type": "string",
-                                "description": "Commit de Git (hash, HEAD~1…): el diagrama o la imagen (p. ej. un .drawio.png) tal como era entonces"
+                                "description": "Git commit (hash, HEAD~1…): the diagram or image (e.g. .drawio.png) as it was at that commit"
                             }
                         },
                         "required": ["relative_path"]
@@ -1089,14 +1089,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 // 17. list_vault_tree (alias retrocompatible)
                 McpTool {
                     name: "list_vault_tree".to_string(),
-                    description: "Alias retrocompatible de list_folder_contents.".to_string(),
+                    description: "Backward-compatible alias for list_folder_contents.".to_string(),
                     annotations: Some(McpToolAnnotations::read_only()),
                     input_schema: json!({
                         "type": "object",
                         "properties": {
                             "parent_path": {
                                 "type": "string",
-                                "description": "Carpeta relativa"
+                                "description": "Relative folder"
                             }
                         }
                     }),
@@ -1116,7 +1116,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             {
                 props.insert(
                     "vault".into(),
-                    json!({"type": "string", "description": "Otra bóveda a consultar (su nombre, ver list_vaults); vacío = esta bóveda"}),
+                    json!({"type": "string", "description": "Another vault to query (its name, see list_vaults); empty = this vault"}),
                 );
             }
         }
@@ -1196,18 +1196,18 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             other if other.starts_with(PRIVATE_TOOL_PREFIX) => {
                 self.execute_config_tool(other, args)
             }
-            other => McpCallToolResult::error(format!("Herramienta desconocida: '{}'", other)),
+            other => McpCallToolResult::error(format!("Unknown tool: '{}'", other)),
         }
     }
 
     fn execute_config_tool(&self, name: &str, args: &Value) -> McpCallToolResult {
         if !self.private_tools {
             return McpCallToolResult::error(format!(
-                "'{name}' solo está disponible para los agentes que abre Synapse"
+                "'{name}' is only available to agents launched by Synapse"
             ));
         }
         if !config_tools::definitions().iter().any(|tool| tool.name == name) {
-            return McpCallToolResult::error(format!("Herramienta desconocida: '{name}'"));
+            return McpCallToolResult::error(format!("Unknown tool: '{name}'"));
         }
         let Some(assistant) = &self.config else {
             return McpCallToolResult::error(NOTHING_OPEN);
@@ -1246,22 +1246,22 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             while !text.is_char_boundary(end) {
                 end -= 1;
             }
-            format!("{}\n… (cortado; léelo entero con read_note «{}»)", &text[..end], path)
+            format!("{}\n… (truncated; read it in full with read_note «{}»)", &text[..end], path)
         };
         let folder = rel.rfind('/').map(|i| &rel[..i]).unwrap_or("");
         let mut parts = Vec::new();
         if let Some(r) = root {
-            parts.push(format!("## index.md (raíz de la bóveda)\n\n{}", cap(r, "index.md")));
+            parts.push(format!("## index.md (vault root)\n\n{}", cap(r, "index.md")));
         }
         if let Some(o) = own {
             let path = format!("{folder}/index.md");
-            parts.push(format!("## {path} (carpeta de la nota)\n\n{}", cap(o, &path)));
+            parts.push(format!("## {path} (note folder)\n\n{}", cap(o, &path)));
         }
         if !parts.is_empty() {
             result.content.push(crate::infrastructure::entrypoint::mcp::dto::McpContentItem {
                 content_type: "text".into(),
                 text: Some(format!(
-                    "Índices OKF (index.md, generados por Synapse) para orientarte en la bóveda:\n\n{}",
+                    "OKF indexes (index.md, generated by Synapse) to help orient within the vault:\n\n{}",
                     parts.join("\n\n")
                 )),
                 data: None,
@@ -1305,7 +1305,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         })
                     })
                     .collect();
-                let mut result = to_text(&filtered, "Error al serializar notas: ");
+                let mut result = to_text(&filtered, "Failed to serialize notes: ");
                 if filtered.is_empty()
                     && !query_text.is_empty()
                     && no_extensions
@@ -1356,7 +1356,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .or_else(|| here.file_name().map(|n| n.to_string_lossy().to_string()))
             .unwrap_or_default();
         let mut hint = format!(
-            "La ruta «{rel}» no existe en la bóveda activa «{here_name}» ({}). Las rutas son relativas a su raíz.",
+            "Path «{rel}» does not exist in active vault «{here_name}» ({}). Paths are relative to its root.",
             here.display()
         );
         let elsewhere: Vec<&str> = vaults
@@ -1366,7 +1366,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .collect();
         if !elsewhere.is_empty() {
             hint.push_str(&format!(
-                " Sí existe en: {}. Repite la llamada con `vault` (p. ej. vault: \"{}\").",
+                " It exists in: {}. Retry the call with `vault` (e.g. vault: \"{}\").",
                 elsewhere.iter().map(|n| format!("«{n}»")).collect::<Vec<_>>().join(", "),
                 elsewhere[0]
             ));
@@ -1386,9 +1386,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .map(|f| f.relative_path)
             .collect();
         if !similar.is_empty() {
-            hint.push_str(&format!(" En esta bóveda hay: {}.", similar.join(", ")));
+            hint.push_str(&format!(" This vault contains: {}.", similar.join(", ")));
         } else if elsewhere.is_empty() {
-            hint.push_str(" Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents.");
+            hint.push_str(" Search for it with search_notes (using `extensions` if not Markdown) or list_folder_contents.");
         }
         Some(hint)
     }
@@ -1416,7 +1416,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         exts.sort();
         exts.dedup();
         Some(format!(
-            "Ninguna nota Markdown coincide, pero hay {} archivo(s) de otros tipos cuya ruta contiene «{query}» (p. ej. {}). Repite con extensions: {:?}.",
+            "No Markdown notes matched, but there are {} file(s) of other types whose path contains «{query}» (e.g. {}). Retry with extensions: {:?}.",
             others.len(),
             others.iter().take(5).cloned().collect::<Vec<_>>().join(", "),
             exts
@@ -1454,17 +1454,17 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "next_offset": next_offset,
             "folders": result.folders,
         });
-        to_text(&payload, "Error serializando carpetas: ")
+        to_text(&payload, "Failed to serialize folders: ")
     }
 
     fn execute_move_folder_contents_tool(&self, args: &Value) -> McpCallToolResult {
         let source_folder = match args.get("source_folder").and_then(|v| v.as_str()) {
             Some(sf) => sf.trim_matches('/').replace('\\', "/"),
-            None => return McpCallToolResult::error("El argumento 'source_folder' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'source_folder' is required"),
         };
         let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
             Some(tf) => tf.trim_matches('/').replace('\\', "/"),
-            None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'target_folder' is required"),
         };
         let command = MoveFolderContentsCommand {
             vault_path: self.vault(),
@@ -1520,14 +1520,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_full_text_search(&self, args: &Value) -> McpCallToolResult {
         let query_str = match args.get("query").and_then(|v| v.as_str()) {
             Some(q) => q.trim(),
-            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'query' is required"),
         };
         if query_str.is_empty() {
             return McpCallToolResult::text("[]");
         }
         let Some(ref fts) = self.full_text_index else {
             return McpCallToolResult::error(
-                "El índice Tantivy de búsqueda de texto completo no está disponible.",
+                "The Tantivy full-text search index is not available.",
             );
         };
         let query = SearchNotesFullTextQuery {
@@ -1605,7 +1605,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 if query_lines {
                     results["lines_truncated"] = json!(lines_truncated);
                 }
-                to_text(&results, "Error al serializar: ")
+                to_text(&results, "Failed to serialize: ")
             }
             Err(err) => McpCallToolResult::error(err),
         }
@@ -1621,19 +1621,19 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             (Some(p), false) => std::iter::once(p.to_string()).chain(many).collect(),
             (None, true) => {
                 return McpCallToolResult::error(
-                    "El argumento 'relative_path' (o 'relative_paths') es obligatorio",
+                    "Argument 'relative_path' (or 'relative_paths') is required",
                 );
             }
         };
         if relative_paths.len() > MAX_NOTES {
             return McpCallToolResult::error(format!(
-                "Como máximo {MAX_NOTES} notas por llamada (llegaron {}); para buscar en toda la bóveda usa full_text_search",
+                "At most {MAX_NOTES} notes per call (received {}); to search across the vault use full_text_search",
                 relative_paths.len()
             ));
         }
         let query = match args.get("query").and_then(|v| v.as_str()) {
             Some(q) => q,
-            None => return McpCallToolResult::error("El argumento 'query' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'query' is required"),
         };
         let flag = |k: &str| args.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
         let counts_only = flag("counts_only");
@@ -1700,7 +1700,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     if several {
                         payload["alternatives"] = json!(result.alternatives);
                     }
-                    to_text(&payload, "Error al serializar: ")
+                    to_text(&payload, "Failed to serialize: ")
                 }
                 Err(e) => McpCallToolResult::error(e.clone()),
             };
@@ -1731,7 +1731,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         if several {
             payload["alternatives"] = json!(result.alternatives);
         }
-        let mut out = to_text(&payload, "Error al serializar: ");
+        let mut out = to_text(&payload, "Failed to serialize: ");
         out.is_error = all_failed;
         out
     }
@@ -1755,7 +1755,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 let git = self.git()?;
                 let r = git.get_file_revision(&self.vault(), rel, rev).map_err(McpCallToolResult::error)?;
                 if !r.exists {
-                    return Err(McpCallToolResult::error(format!("'{rel}' no existía en {rev}")));
+                    return Err(McpCallToolResult::error(format!("'{rel}' did not exist at {rev}")));
                 }
                 match (r.content, r.data_url) {
                     (Some(text), _) if !r.is_binary => text.into_bytes(),
@@ -1770,7 +1770,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             None => {
                 let rel_path = crate::domain::note::NoteRelativePath::new(rel).map_err(McpCallToolResult::error)?;
                 std::fs::read(self.vault().join(rel_path.as_str()))
-                    .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?
+                    .map_err(|e| McpCallToolResult::error(format!("Could not read '{rel}': {e}")))?
             }
         };
         Ok(match kind {
@@ -1783,7 +1783,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_read_note(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         // Modelo ArchiMate: el índice son sus carpetas y vistas, no encabezados Markdown
         let wants_outline = args.get("mode").and_then(|v| v.as_str()) == Some("outline_only")
@@ -1796,7 +1796,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "relative_path": rel_path_str,
                         "total_lines": model.lines(),
                         "toc": model.outline(),
-                        "note": "Modelo ArchiMate: carpetas y vistas con su línea. Para un elemento (propiedades, relaciones y vistas donde aparece) usa inspect_archimate_element; para leer un tramo, read_note con mode \"chunk\".",
+                        "note": "ArchiMate model: folders and views with their line numbers. To inspect an element (properties, relations, and views where it appears), use inspect_archimate_element; to read a line range, use read_note with mode \"chunk\".",
                     }),
                     "",
                 ),
@@ -1817,15 +1817,15 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                             "render_tool": "render_diagram",
                             "structure_tool": "extract_note_diagrams",
                         },
-                        "note": "Diagrama de draw.io: `text` son los textos de sus figuras y páginas. Para verlo como imagen usa render_diagram; para sus contenedores y conexiones, extract_note_diagrams.",
+                        "note": "draw.io diagram: `text` contains labels from its shapes and pages. Use render_diagram to view it as an image, or extract_note_diagrams for its containers and connections.",
                     }),
                     "",
                 ),
                 Ok(None) if lower.ends_with(".svg") => McpCallToolResult::error(
-                    "Es una imagen SVG: para verla usa render_diagram con el mismo relative_path.",
+                    "This is an SVG image: use render_diagram with the same relative_path to view it.",
                 ),
                 Ok(None) => McpCallToolResult::error(
-                    "Es una imagen, no una nota de texto: para verla usa render_diagram con el mismo relative_path.",
+                    "This is an image, not a text note: use render_diagram with the same relative_path to view it.",
                 ),
             };
         }
@@ -1903,7 +1903,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     Some(h) => h.trim().trim_start_matches('#').trim().to_lowercase(),
                     None => {
                         return McpCallToolResult::error(
-                            "El argumento 'section' o 'section_heading' es requerido en mode='section'",
+                            "Argument 'section' or 'section_heading' is required for mode='section'",
                         );
                     }
                 };
@@ -1916,7 +1916,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         let available_headings: Vec<String> =
                             details.toc.iter().map(|h| h.text.clone()).collect();
                         return McpCallToolResult::error(format!(
-                            "Sección '{}' no encontrada en la nota. Secciones disponibles: {:?}",
+                            "Section '{}' not found in note. Available sections: {:?}",
                             target_heading, available_headings
                         ));
                     }
@@ -1983,9 +1983,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     "render_tool": "render_diagram",
                     "renderable": self.diagram_renderer.is_some(),
                     "hint": if self.diagram_renderer.is_some() {
-                        "Es un diagrama: llama a render_diagram con este relative_path para verlo como imagen PNG."
+                        "This is a diagram: call render_diagram with this relative_path to view it as a PNG image."
                     } else {
-                        "Es un diagrama; verlo como imagen requiere la ventana de Synapse abierta (MCP de la instancia)."
+                        "This is a diagram; rendering it as an image requires the Synapse window to be open (instance MCP)."
                     },
                 }),
             );
@@ -1996,7 +1996,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn git(&self) -> Result<&Arc<G>, McpCallToolResult> {
         self.git_service
             .as_ref()
-            .ok_or_else(|| McpCallToolResult::error("Git no está disponible en este modo"))
+            .ok_or_else(|| McpCallToolResult::error("Git is not available in this mode"))
     }
 
     fn execute_git_file_history(&self, args: &Value) -> McpCallToolResult {
@@ -2005,7 +2005,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Err(e) => return e,
         };
         let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
-            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+            return McpCallToolResult::error("Argument 'relative_path' is required");
         };
         let limit = args
             .get("limit")
@@ -2014,7 +2014,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .clamp(1, 200) as usize;
         match git.get_file_log(&self.vault(), rel, Some(limit)) {
             Ok(log) if log.commits.is_empty() => {
-                McpCallToolResult::error(format!("'{rel}' no tiene commits en el historial de Git"))
+                McpCallToolResult::error(format!("'{rel}' has no commits in Git history"))
             }
             Ok(log) => to_text(
                 &json!({
@@ -2047,7 +2047,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         };
         let (Some(rel), Some(from)) = (text("relative_path"), text("from")) else {
             return McpCallToolResult::error(
-                "Los argumentos 'relative_path' y 'from' son obligatorios",
+                "Arguments 'relative_path' and 'from' are required",
             );
         };
         let to = text("to");
@@ -2069,12 +2069,12 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     (Ok(a), Ok(b)) => {
                         if !a.exists && !b.exists {
                             return McpCallToolResult::error(format!(
-                                "'{rel}' no existía en {from} ni en {to}"
+                                "'{rel}' did not exist at {from} or {to}"
                             ));
                         }
                         if a.is_binary || b.is_binary {
                             return McpCallToolResult::error(format!(
-                                "'{rel}' es binario: compáralo visualmente con render_diagram y `revision` en cada versión"
+                                "'{rel}' is binary: compare visually with render_diagram and `revision` on each version"
                             ));
                         }
                         (
@@ -2134,7 +2134,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         };
         let (Some(rel), Some(rev)) = (text("relative_path"), text("revision")) else {
             return McpCallToolResult::error(
-                "Los argumentos 'relative_path' y 'revision' son obligatorios",
+                "Arguments 'relative_path' and 'revision' are required",
             );
         };
         let start = args
@@ -2148,9 +2148,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .unwrap_or(300) as usize)
             .clamp(1, GIT_MAX_LINES);
         match git.get_file_revision(&self.vault(), rel, rev) {
-            Ok(r) if !r.exists => McpCallToolResult::error(format!("'{rel}' no existía en {rev}")),
+            Ok(r) if !r.exists => McpCallToolResult::error(format!("'{rel}' did not exist at {rev}")),
             Ok(r) if r.is_binary => McpCallToolResult::error(format!(
-                "'{rel}' es binario en {rev}: si es un diagrama, usa render_diagram con `revision`"
+                "'{rel}' is binary at {rev}: if it is a diagram, use render_diagram with `revision`"
             )),
             Ok(r) => {
                 let content = r.content.unwrap_or_default();
@@ -2177,7 +2177,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_list_vaults(&self) -> McpCallToolResult {
         let Some(catalog) = &self.vault_catalog else {
             return McpCallToolResult::error(
-                "Consultar otras bóvedas no está disponible en este modo",
+                "Querying other vaults is not available in this mode",
             );
         };
         let here = self.vault().canonicalize().unwrap_or_else(|_| self.vault());
@@ -2204,7 +2204,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let here = self.vault().canonicalize().unwrap_or_else(|_| self.vault());
         let Some(catalog) = &self.vault_catalog else {
             return McpCallToolResult::error(
-                "Consultar otras bóvedas no está disponible en este modo",
+                "Querying other vaults is not available in this mode",
             );
         };
         let vaults = catalog.list();
@@ -2220,7 +2220,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
         if !CROSS_VAULT_TOOLS.contains(&name) {
             return McpCallToolResult::error(format!(
-                "'{name}' no se puede usar sobre otra bóveda: solo las de lectura ({})",
+                "'{name}' cannot be used on another vault: only read tools are allowed ({})",
                 CROSS_VAULT_TOOLS.join(", ")
             ));
         }
@@ -2246,7 +2246,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let mut result = other.call_tool(name, Some(args));
         result.content.insert(
             0,
-            McpContentItem::text(format!("📚 Bóveda «{}» (solo lectura)", target.name)),
+            McpContentItem::text(format!("📚 Vault «{}» (read-only)", target.name)),
         );
         result
     }
@@ -2259,10 +2259,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         };
         let r = match git.get_file_revision(&self.vault(), rel, rev) {
             Ok(r) if r.exists => r,
-            Ok(_) => return McpCallToolResult::error(format!("'{rel}' no existía en {rev}")),
+            Ok(_) => return McpCallToolResult::error(format!("'{rel}' did not exist at {rev}")),
             Err(e) => return McpCallToolResult::error(e),
         };
-        let header = format!("«{rel}» en {rev} (archivo en el commit: {})", r.path);
+        let header = format!("«{rel}» at {rev} (file in commit: {})", r.path);
         // Imágenes (png, jpg, svg… incluido un `.drawio.png`): se devuelven tal cual
         if let Some(data_url) = r
             .data_url
@@ -2276,7 +2276,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         .to_string();
                     return McpCallToolResult {
                         content: vec![
-                            McpContentItem::text(format!("Imagen {header}.")),
+                            McpContentItem::text(format!("Image {header}.")),
                             McpContentItem::image(data.to_string(), mime),
                         ],
                         is_error: false,
@@ -2284,25 +2284,25 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 }
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
-                "'{rel}' no es una imagen ni un diagrama que Synapse sepa dibujar; léelo con git_read_revision"
+                "'{rel}' is not an image or diagram that Synapse can render; read it with git_read_revision"
             ));
         };
         let Some(renderer) = &self.diagram_renderer else {
             return McpCallToolResult::error(
-                "Dibujar diagramas requiere la ventana de Synapse abierta",
+                "Rendering diagrams requires the Synapse window to be open",
             );
         };
         match renderer.render(rel, r.content.as_deref()) {
             Ok(img) => McpCallToolResult {
                 content: vec![
                     McpContentItem::text(format!(
-                        "Diagrama {kind} {header}, dibujado como imagen."
+                        "{kind} diagram {header}, rendered as image."
                     )),
                     McpContentItem::image(img.data_base64, img.mime_type),
                 ],
                 is_error: false,
             },
-            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}' en {rev}: {e}")),
+            Err(e) => McpCallToolResult::error(format!("Could not render '{rel}' at {rev}: {e}")),
         }
     }
 
@@ -2314,16 +2314,16 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         args: &Value,
     ) -> McpCallToolResult {
         let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
-            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+            return McpCallToolResult::error("Argument 'relative_path' is required");
         };
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
-                "'{rel}' no es un diagrama que Synapse sepa dibujar"
+                "'{rel}' is not a diagram that Synapse can render"
             ));
         };
         let Some(renderer) = &self.diagram_renderer else {
             return McpCallToolResult::error(
-                "Dibujar diagramas requiere la ventana de Synapse abierta",
+                "Rendering diagrams requires the Synapse window to be open",
             );
         };
         if let Err(e) = self.ensure_vault_access(here, target) {
@@ -2336,26 +2336,26 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .unwrap_or(false);
         if !inside {
             return McpCallToolResult::error(format!(
-                "No existe el archivo '{rel}' en «{}»",
+                "File '{rel}' does not exist in «{}»",
                 target.name
             ));
         }
         let content = match std::fs::read_to_string(&file) {
             Ok(c) => c,
-            Err(e) => return McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")),
+            Err(e) => return McpCallToolResult::error(format!("Could not read '{rel}': {e}")),
         };
         match renderer.render(rel, Some(&content)) {
             Ok(img) => McpCallToolResult {
                 content: vec![
                     McpContentItem::text(format!(
-                        "📚 Bóveda «{}» · diagrama {kind} «{rel}» dibujado como imagen.",
+                        "📚 Vault «{}» · {kind} diagram «{rel}» rendered as image.",
                         target.name
                     )),
                     McpContentItem::image(img.data_base64, img.mime_type),
                 ],
                 is_error: false,
             },
-            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}': {e}")),
+            Err(e) => McpCallToolResult::error(format!("Could not render '{rel}': {e}")),
         }
     }
 
@@ -2367,7 +2367,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(true) => return Ok(()),
             Some(false) => {
                 return Err(format!(
-                    "El usuario no permitió que esta bóveda consulte «{}».",
+                    "The user did not allow this vault to query «{}».",
                     target.name
                 ));
             }
@@ -2375,7 +2375,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         }
         let Some(prompter) = &self.prompter else {
             return Err(format!(
-                "Consultar «{}» necesita el permiso del usuario; ábrelo desde Synapse con la ventana abierta.",
+                "Querying «{}» requires user permission; open it from Synapse with the window open.",
                 target.name
             ));
         };
@@ -2384,9 +2384,9 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         let allowed = prompter.confirm(
-            "Consultar otra bóveda",
+            "Query another vault",
             &format!(
-                "Un agente de «{here_name}» quiere leer las notas de «{}» (solo lectura). ¿Permitir?",
+                "An agent from «{here_name}» wants to read notes in «{}» (read-only). Allow?",
                 target.name
             ),
         )?;
@@ -2396,7 +2396,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Ok(())
         } else {
             Err(format!(
-                "El usuario no permitió consultar «{}».",
+                "The user did not allow querying «{}».",
                 target.name
             ))
         }
@@ -2405,7 +2405,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn conversations(&self) -> Result<&Arc<dyn ConversationHub>, McpCallToolResult> {
         self.conversation_hub.as_ref().ok_or_else(|| {
             McpCallToolResult::error(
-                "Hablar con otras conversaciones requiere la ventana de Synapse abierta (MCP de la instancia)",
+                "Messaging other conversations requires the Synapse window to be open (instance MCP)",
             )
         })
     }
@@ -2431,14 +2431,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .and_then(|v| v.as_str())
             .filter(|s| !s.trim().is_empty())
         else {
-            return McpCallToolResult::error("El argumento 'to' es obligatorio");
+            return McpCallToolResult::error("Argument 'to' is required");
         };
         let Some(message) = args
             .get("message")
             .and_then(|v| v.as_str())
             .filter(|s| !s.trim().is_empty())
         else {
-            return McpCallToolResult::error("El argumento 'message' es obligatorio");
+            return McpCallToolResult::error("Argument 'message' is required");
         };
         let expects_reply = args
             .get("expects_reply")
@@ -2453,7 +2453,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     /// Dibuja un diagrama de la bóveda como imagen PNG, a través de la ventana de Synapse.
     fn execute_render_diagram(&self, args: &Value) -> McpCallToolResult {
         let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
-            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+            return McpCallToolResult::error("Argument 'relative_path' is required");
         };
         if let Some(rev) = args
             .get("revision")
@@ -2471,55 +2471,55 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .map(|(_, mime)| mime);
         if let Some(mime) = image_mime {
             let Ok(rel_path) = crate::domain::note::NoteRelativePath::new(rel) else {
-                return McpCallToolResult::error(format!("Ruta inválida: '{rel}'"));
+                return McpCallToolResult::error(format!("Invalid path: '{rel}'"));
             };
             return match std::fs::read(self.vault().join(rel_path.as_str())) {
                 Ok(bytes) => {
                     use base64::Engine;
                     McpCallToolResult {
                         content: vec![
-                            McpContentItem::text(format!("Imagen «{rel}».")),
+                            McpContentItem::text(format!("Image «{rel}».")),
                             McpContentItem::image(base64::engine::general_purpose::STANDARD.encode(&bytes), mime.to_string()),
                         ],
                         is_error: false,
                     }
                 }
-                Err(e) => McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")),
+                Err(e) => McpCallToolResult::error(format!("Could not read '{rel}': {e}")),
             };
         }
         let Some(kind) = diagram_kind(rel) else {
             return McpCallToolResult::error(format!(
-                "'{rel}' no es un diagrama que Synapse sepa dibujar (Excalidraw, Mermaid, D2 o PlantUML)"
+                "'{rel}' is not a diagram that Synapse can render (Excalidraw, Mermaid, D2, or PlantUML)"
             ));
         };
         if !self.vault().join(rel).is_file() {
-            return McpCallToolResult::error(format!("No existe el archivo '{rel}' en la bóveda"));
+            return McpCallToolResult::error(format!("File '{rel}' does not exist in the vault"));
         }
         let Some(renderer) = &self.diagram_renderer else {
             return McpCallToolResult::error(
-                "Dibujar diagramas requiere la ventana de Synapse abierta (usa el MCP de la instancia)",
+                "Rendering diagrams requires the Synapse window to be open (use instance MCP)",
             );
         };
         match renderer.render(rel, None) {
             Ok(img) => McpCallToolResult {
                 content: vec![
-                    McpContentItem::text(format!("Diagrama {kind} «{rel}» dibujado como imagen.")),
+                    McpContentItem::text(format!("{kind} diagram «{rel}» rendered as image.")),
                     McpContentItem::image(img.data_base64, img.mime_type),
                 ],
                 is_error: false,
             },
-            Err(e) => McpCallToolResult::error(format!("No se pudo dibujar '{rel}': {e}")),
+            Err(e) => McpCallToolResult::error(format!("Could not render '{rel}': {e}")),
         }
     }
 
     fn execute_write_note(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let content = match args.get("content").and_then(|v| v.as_str()) {
             Some(c) => c,
-            None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'content' is required"),
         };
         let command = WriteNoteCommand {
             vault_path: self.vault(),
@@ -2577,15 +2577,15 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 "relative_path": rel_path_str,
                 "new_content_hash": new_hash,
                 "message": format!(
-                    "Nota '{}' {} exitosamente.",
+                    "Note '{}' {} successfully.",
                     rel_path_str,
-                    if created { "creada" } else { "sobrescrita" }
+                    if created { "created" } else { "overwritten" }
                 ),
             }),
         };
         if let Some(folder) = missing_folder {
             payload["warning"] = json!(format!(
-                "La carpeta '{}' no existía en la bóveda. Comprueba que el nombre es correcto.",
+                "Folder '{}' did not exist in the vault. Check that the name is correct.",
                 folder
             ));
         }
@@ -2595,15 +2595,15 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_patch_note(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let old_text = match args.get("old_text").and_then(|v| v.as_str()) {
             Some(t) => t,
-            None => return McpCallToolResult::error("El argumento 'old_text' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'old_text' is required"),
         };
         let new_text = match args.get("new_text").and_then(|v| v.as_str()) {
             Some(t) => t,
-            None => return McpCallToolResult::error("El argumento 'new_text' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'new_text' is required"),
         };
         let command = PatchNoteCommand {
             vault_path: self.vault(),
@@ -2648,11 +2648,11 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_append_to_note(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let content_to_append = match args.get("content").and_then(|v| v.as_str()) {
             Some(c) => c,
-            None => return McpCallToolResult::error("El argumento 'content' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'content' is required"),
         };
         let command = AppendToNoteCommand {
             vault_path: self.vault(),
@@ -2684,7 +2684,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_update_note_metadata(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let optional_list = |key: &str| {
             args.get(key)
@@ -2754,10 +2754,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_list_sibling_notes(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p.trim_matches('/').replace('\\', "/"),
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         if rel_path_str.is_empty() {
-            return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
+            return McpCallToolResult::error("Argument 'relative_path' cannot be empty");
         }
 
         let include_self = args
@@ -2860,7 +2860,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "next_offset": next_offset,
             "notes": paged_notes,
         });
-        to_text(&payload, "Error al serializar contenidos: ")
+        to_text(&payload, "Failed to serialize contents: ")
     }
 
     fn execute_move_notes_tool(&self, args: &Value) -> McpCallToolResult {
@@ -2868,13 +2868,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             Some(n) => n,
             None => {
                 return McpCallToolResult::error(
-                    "El argumento 'notes' debe ser una lista de rutas",
+                    "Argument 'notes' must be a list of paths",
                 );
             }
         };
         let target_folder = match args.get("target_folder").and_then(|v| v.as_str()) {
             Some(tf) => tf,
-            None => return McpCallToolResult::error("El argumento 'target_folder' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'target_folder' is required"),
         };
         let command = MoveNotesCommand {
             vault_path: self.vault(),
@@ -2920,16 +2920,16 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "errors_count": errors.len(),
             "errors": errors,
         });
-        to_text(&payload, "Error al serializar move_notes: ")
+        to_text(&payload, "Failed to serialize move_notes: ")
     }
 
     fn execute_delete_note(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p.trim_matches('/').replace('\\', "/"),
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         if rel_path_str.is_empty() {
-            return McpCallToolResult::error("El argumento 'relative_path' no puede estar vacío");
+            return McpCallToolResult::error("Argument 'relative_path' cannot be empty");
         }
         let command = DeleteNoteCommand {
             vault_path: self.vault(),
@@ -2944,7 +2944,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 &json!({
                     "status": "success",
                     "deleted_path": rel_path_str,
-                    "message": "Nota eliminada correctamente"
+                    "message": "Note deleted successfully"
                 }),
                 "",
             ),
@@ -2955,7 +2955,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
     fn execute_get_backlinks_and_relations(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let relations = match GetNoteRelationsUseCase::new(&self.note_repository).execute(
             GetNoteRelationsQuery {
@@ -2996,7 +2996,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             "outlinks": outlinks,
             "shared_tags_neighbors": neighbors_json,
         });
-        to_text(&payload, "Error al serializar: ")
+        to_text(&payload, "Failed to serialize: ")
     }
 
     /// Agrega una entrada a `~/.config/synapsers/feedback.md` con lo que le faltó al agente.
@@ -3008,7 +3008,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .filter(|v| !v.is_empty())
         };
         let (Some(title), Some(details)) = (text("title"), text("details")) else {
-            return McpCallToolResult::error("Los argumentos 'title' y 'details' son obligatorios");
+            return McpCallToolResult::error("Arguments 'title' and 'details' are required");
         };
         let path = crate::infrastructure::repository::file::workspace_registry_repository_impl::WorkspaceRegistryRepositoryImpl::resolve_config_dir()
             .join("feedback.md");
@@ -3036,25 +3036,25 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .map(str::to_string)
         };
         let mut meta = format!(
-            "- Fecha: {}\n- Fecha (unix): {secs}\n- Bóveda: {}\n",
+            "- Date: {}\n- Date (unix): {secs}\n- Vault: {}\n",
             readable_date(secs),
             self.vault().display()
         );
         if let Some(agent) = field("agent") {
-            meta.push_str(&format!("- Agente: {agent}\n"));
+            meta.push_str(&format!("- Agent: {agent}\n"));
         }
         if let Some(model) = field("model") {
-            meta.push_str(&format!("- Modelo: {model}\n"));
+            meta.push_str(&format!("- Model: {model}\n"));
         }
         if let (Some(handle), title) = (field("handle"), field("title")) {
             meta.push_str(&format!(
-                "- Conversación: {handle}{}\n",
+                "- Conversation: {handle}{}\n",
                 title.map(|t| format!(" · {t}")).unwrap_or_default()
             ));
         }
         if let Some(caller) = &self.caller {
             meta.push_str(&format!(
-                "- Historial: .synapse/agent-sessions/{caller}.json\n"
+                "- History: .synapse/agent-sessions/{caller}.json\n"
             ));
         }
         let entry = format!("\n## {title}\n\n{meta}\n{details}\n");
@@ -3069,34 +3069,34 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 .append(true)
                 .open(&path)?;
             if new {
-                f.write_all(b"# Feedback de los agentes sobre el MCP de Synapse\n")?;
+                f.write_all(b"# Agent feedback on Synapse MCP\n")?;
             }
             f.write_all(entry.as_bytes())
         })();
         match result {
-            Ok(()) => McpCallToolResult::text(format!("Feedback registrado en {}", path.display())),
-            Err(e) => McpCallToolResult::error(format!("No se pudo guardar el feedback: {e}")),
+            Ok(()) => McpCallToolResult::text(format!("Feedback recorded at {}", path.display())),
+            Err(e) => McpCallToolResult::error(format!("Could not save feedback: {e}")),
         }
     }
 
     fn execute_get_vault_git_status(&self) -> McpCallToolResult {
         let Some(ref git) = self.git_service else {
             return McpCallToolResult::error(
-                "El servicio Git no está disponible o la carpeta no es un repositorio.",
+                "Git service is unavailable or this folder is not a repository.",
             );
         };
         match GetVaultVersionStateUseCase::new(&**git).execute(GetVaultVersionStateQuery {
             vault_path: self.vault(),
         }) {
-            Ok(status) => to_text(&status, "Error al serializar: "),
-            Err(err) => McpCallToolResult::error(format!("Error al consultar git: {}", err)),
+            Ok(status) => to_text(&status, "Failed to serialize: "),
+            Err(err) => McpCallToolResult::error(format!("Failed to query git: {}", err)),
         }
     }
 
     fn execute_read_pdf_document(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         let start_page = args.get("start_page").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
         let end_page = args
@@ -3152,7 +3152,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let path = self.vault().join(rel_path.as_str());
         AnalysisCache::global().get_or_analyze(&path, "archimate", || {
             let bytes = std::fs::read(&path)
-                .map_err(|e| McpCallToolResult::error(format!("No se pudo leer '{rel}': {e}")))?;
+                .map_err(|e| McpCallToolResult::error(format!("Could not read '{rel}': {e}")))?;
             let model = crate::infrastructure::search::archimate_extractor::parse_archimate(&String::from_utf8_lossy(&bytes));
             Ok(Analyzed { bytes: model.approx_bytes(), value: model })
         })
@@ -3160,13 +3160,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
     fn execute_inspect_archimate(&self, args: &Value) -> McpCallToolResult {
         let Some(rel) = args.get("relative_path").and_then(|v| v.as_str()) else {
-            return McpCallToolResult::error("El argumento 'relative_path' es obligatorio");
+            return McpCallToolResult::error("Argument 'relative_path' is required");
         };
         let Some(query) = args.get("query").and_then(|v| v.as_str()).filter(|q| !q.trim().is_empty()) else {
-            return McpCallToolResult::error("El argumento 'query' es obligatorio");
+            return McpCallToolResult::error("Argument 'query' is required");
         };
         if !rel.to_lowercase().ends_with(".archimate") {
-            return McpCallToolResult::error("inspect_archimate_element solo lee modelos ArchiMate (.archimate)");
+            return McpCallToolResult::error("inspect_archimate_element only reads ArchiMate models (.archimate)");
         }
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5).clamp(1, 50) as usize;
         let model = match self.archimate_model(rel) {
@@ -3181,14 +3181,14 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 "returned": found.len(),
                 "elements": found,
             }),
-            "Error al serializar el modelo: ",
+            "Failed to serialize model: ",
         )
     }
 
     fn execute_extract_note_diagrams(&self, args: &Value) -> McpCallToolResult {
         let rel_path_str = match args.get("relative_path").and_then(|v| v.as_str()) {
             Some(p) => p,
-            None => return McpCallToolResult::error("El argumento 'relative_path' es obligatorio"),
+            None => return McpCallToolResult::error("Argument 'relative_path' is required"),
         };
         // draw.io (`.drawio`, o un PNG/SVG con el diagrama dentro): contenedores, figuras y conexiones
         let revision = args.get("revision").and_then(|v| v.as_str()).filter(|r| !r.trim().is_empty());
@@ -3203,10 +3203,10 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "diagram_type": "drawio",
                         "pages": crate::infrastructure::search::drawio_extractor::mxfile_structure(&xml),
                     }),
-                    "Error al serializar el diagrama: ",
+                    "Failed to serialize diagram: ",
                 ),
                 Ok(None) => McpCallToolResult::error(
-                    "La imagen no lleva un diagrama de draw.io dentro: para verla usa render_diagram.",
+                    "Image does not contain an embedded draw.io diagram: use render_diagram to view it.",
                 ),
             };
         }
@@ -3247,7 +3247,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                         "total_diagrams": diagrams.len(),
                         "diagrams": diagrams,
                     }),
-                    "Error al serializar diagramas: ",
+                    "Failed to serialize diagrams: ",
                 )
             }
         }
@@ -3268,7 +3268,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             .map(|n| McpResource {
                 uri: format!("synapse://vault/{}", n.relative_path.as_str()),
                 name: n.title,
-                description: Some(format!("Nota en '{}'", n.relative_path.as_str())),
+                description: Some(format!("Note at '{}'", n.relative_path.as_str())),
                 mime_type: Some("text/markdown".to_string()),
             })
             .collect();
@@ -3281,7 +3281,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let prefix = "synapse://vault/";
         if !uri.starts_with(prefix) {
             return Err(format!(
-                "URI no soportada: {}. Debe empezar con '{}'",
+                "Unsupported URI: {}. Must start with '{}'",
                 uri, prefix
             ));
         }
@@ -3307,19 +3307,19 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
             prompts: vec![
                 McpPrompt {
                     name: "resumir_nota".to_string(),
-                    description: "Genera un resumen conciso y extrae conceptos clave en formato OKF.".to_string(),
+                    description: "Generates a concise summary and extracts key concepts in OKF format.".to_string(),
                     arguments: vec![McpPromptArgument {
                         name: "relative_path".to_string(),
-                        description: Some("Ruta de la nota a resumir".to_string()),
+                        description: Some("Path of the note to summarize".to_string()),
                         required: true,
                     }],
                 },
                 McpPrompt {
                     name: "vincular_conceptos".to_string(),
-                    description: "Analiza el contenido de una nota y sugiere wikilinks y relaciones semánticas con otras notas.".to_string(),
+                    description: "Analyzes a note's contents and suggests wikilinks and semantic relations to other notes.".to_string(),
                     arguments: vec![McpPromptArgument {
                         name: "relative_path".to_string(),
-                        description: Some("Ruta de la nota a vincular".to_string()),
+                        description: Some("Path of the note to link".to_string()),
                         required: true,
                     }],
                 },
@@ -3337,7 +3337,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
         let rel_path_str = args
             .get("relative_path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| "El argumento 'relative_path' es requerido".to_string())?;
+            .ok_or_else(|| "Argument 'relative_path' is required".to_string())?;
 
         let note = ReadNoteUseCase::new(&self.note_repository).execute(ReadNoteQuery {
             vault_path: self.vault(),
@@ -3346,13 +3346,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
 
         match name {
             "resumir_nota" => Ok(McpGetPromptResult {
-                description: Some(format!("Resumen de '{}'", note.title)),
+                description: Some(format!("Summary of '{}'", note.title)),
                 messages: vec![McpPromptMessage {
                     role: "user".to_string(),
                     content: McpPromptMessageContent {
                         content_type: "text".to_string(),
                         text: format!(
-                            "Por favor resume la siguiente nota y genera un bloque frontmatter OKF con tags y conceptos clave:\n\n---\nTitulo: {}\nRuta: {}\n---\n\n{}",
+                            "Please summarize the following note and generate an OKF frontmatter block with tags and key concepts:\n\n---\nTitle: {}\nPath: {}\n---\n\n{}",
                             note.title,
                             note.relative_path.as_str(),
                             note.content
@@ -3361,13 +3361,13 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                 }],
             }),
             "vincular_conceptos" => Ok(McpGetPromptResult {
-                description: Some(format!("Vincular conceptos para '{}'", note.title)),
+                description: Some(format!("Link concepts for '{}'", note.title)),
                 messages: vec![McpPromptMessage {
                     role: "user".to_string(),
                     content: McpPromptMessageContent {
                         content_type: "text".to_string(),
                         text: format!(
-                            "Revisa el contenido de esta nota y sugiere posibles relaciones semánticas (relations.related) y wikilinks [[...]] pertinentes:\n\n---\nTitulo: {}\nRuta: {}\n---\n\n{}",
+                            "Review this note's content and suggest relevant semantic relations (relations.related) and [[...]] wikilinks:\n\n---\nTitle: {}\nPath: {}\n---\n\n{}",
                             note.title,
                             note.relative_path.as_str(),
                             note.content
@@ -3375,7 +3375,7 @@ impl<R: NoteRepository, I: FullTextIndex + ?Sized, G: VersionControl> McpToolHan
                     },
                 }],
             }),
-            other => Err(format!("Prompt desconocido: '{}'", other)),
+            other => Err(format!("Unknown prompt: '{}'", other)),
         }
     }
 }

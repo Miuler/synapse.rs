@@ -90,8 +90,8 @@ fn ruta_inexistente_dice_la_boveda_activa_y_donde_si_esta() {
 
     let (text, err) = call(&h, "read_note", json!({"relative_path": "src/sequences/Retry.mmd"}));
     assert!(err);
-    assert!(text.contains("bóveda activa «MisNotas»"), "{text}");
-    assert!(text.contains("Sí existe en: «ds-emisor»"), "{text}");
+    assert!(text.contains("active vault «MisNotas»"), "{text}");
+    assert!(text.contains("It exists in: «ds-emisor»"), "{text}");
     assert!(text.contains("otros/Retry.mmd"), "mismo nombre en esta bóveda: {text}");
 
     let (text, err) = call(&h, "list_folder_contents", json!({"folder_path": "src/sequences"}));
@@ -99,7 +99,7 @@ fn ruta_inexistente_dice_la_boveda_activa_y_donde_si_esta() {
 
     // Una ruta que sí existe no añade nada
     let (text, _) = call(&h, "read_note", json!({"relative_path": "otros/Retry.mmd"}));
-    assert!(!text.contains("bóveda activa"));
+    assert!(!text.contains("active vault"));
 }
 
 #[test]

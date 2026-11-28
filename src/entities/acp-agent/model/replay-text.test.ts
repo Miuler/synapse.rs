@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { i18n } from '@shared/lib/i18n';
 import { replayText } from './replay-text';
 import type { ChatItem } from './types';
+
+const initial = i18n.locale;
+beforeEach(() => i18n.setLocale('es'));
+afterEach(() => i18n.setLocale(initial));
 
 describe('replayText', () => {
   it('manda toda la conversación si nunca se compactó', () => {
@@ -11,6 +16,11 @@ describe('replayText', () => {
     const out = replayText(items);
     expect(out).toContain('Usuario: hola');
     expect(out).toContain('Agente: qué tal');
+
+    i18n.setLocale('en');
+    const outEn = replayText(items);
+    expect(outEn).toContain('User: hola');
+    expect(outEn).toContain('Agent: qué tal');
   });
 
   it('tras /compact manda solo el resumen y lo posterior', () => {

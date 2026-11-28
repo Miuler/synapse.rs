@@ -43,7 +43,7 @@
   "content": [
     {
       "type": "text",
-      "text": "El índice Tantivy de búsqueda de texto completo no está disponible."
+      "text": "The Tantivy full-text search index is not available."
     }
   ],
   "isError": true
@@ -87,7 +87,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no-existe» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
+      "text": "Path «no-existe» does not exist in active vault «<VAULT_NAME>» (<VAULT>). Paths are relative to its root. Search for it with search_notes (using `extensions` if not Markdown) or list_folder_contents."
     }
   ],
   "isError": true
@@ -147,7 +147,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Sección 'nada' no encontrada en la nota. Secciones disponibles: [\"Arquitectura\", \"Capas\", \"Dominio\", \"Diagramas\"]"
+      "text": "Section 'nada' not found in note. Available sections: [\"Arquitectura\", \"Capas\", \"Dominio\", \"Diagramas\"]"
     }
   ],
   "isError": true
@@ -171,7 +171,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no-existe.md» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
+      "text": "Path «no-existe.md» does not exist in active vault «<VAULT_NAME>» (<VAULT>). Paths are relative to its root. Search for it with search_notes (using `extensions` if not Markdown) or list_folder_contents."
     }
   ],
   "isError": true
@@ -191,7 +191,7 @@
   "content": [
     {
       "type": "text",
-      "text": "El servicio Git no está disponible o la carpeta no es un repositorio."
+      "text": "Git service is unavailable or this folder is not a repository."
     }
   ],
   "isError": true
@@ -205,7 +205,7 @@
     },
     {
       "type": "text",
-      "text": "La ruta «no.pdf» no existe en la bóveda activa «<VAULT_NAME>» (<VAULT>). Las rutas son relativas a su raíz. Búscala con search_notes (con `extensions` si no es Markdown) o list_folder_contents."
+      "text": "Path «no.pdf» does not exist in active vault «<VAULT_NAME>» (<VAULT>). Paths are relative to its root. Search for it with search_notes (using `extensions` if not Markdown) or list_folder_contents."
     }
   ],
   "isError": true
@@ -245,7 +245,7 @@
   "content": [
     {
       "type": "text",
-      "text": "Herramienta desconocida: 'herramienta_inexistente'"
+      "text": "Unknown tool: 'herramienta_inexistente'"
     }
   ],
   "isError": true
@@ -265,7 +265,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"created\": true,\n  \"message\": \"Nota 'nueva.md' creada exitosamente.\",\n  \"new_content_hash\": \"sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03\",\n  \"relative_path\": \"nueva.md\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"created\": true,\n  \"message\": \"Note 'nueva.md' created successfully.\",\n  \"new_content_hash\": \"sha256:ae663e5bbef293302075851ea1adcbec6d04141e7cf2f03ad487a1b90d428f03\",\n  \"relative_path\": \"nueva.md\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false
@@ -285,7 +285,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"created\": true,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' creada exitosamente.\",\n  \"new_content_hash\": \"sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\",\n  \"warning\": \"La carpeta 'carpeta-nueva' no existía en la bóveda. Comprueba que el nombre es correcto.\"\n}"
+      "text": "{\n  \"created\": true,\n  \"message\": \"Note 'carpeta-nueva/nota.md' created successfully.\",\n  \"new_content_hash\": \"sha256:b734a6b056f5308e557b12624e6c8a6c2d32fa6a4ca653e3260466bc9d76b4da\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\",\n  \"warning\": \"Folder 'carpeta-nueva' did not exist in the vault. Check that the name is correct.\"\n}"
     }
   ],
   "isError": false
@@ -305,7 +305,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"created\": false,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' sobrescrita exitosamente.\",\n  \"new_content_hash\": \"sha256:df650caabe31705662a3d08d1c32f1e05dc57beb917d6861489e30b51e3d5e9d\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"created\": false,\n  \"message\": \"Note 'carpeta-nueva/nota.md' overwritten successfully.\",\n  \"new_content_hash\": \"sha256:df650caabe31705662a3d08d1c32f1e05dc57beb917d6861489e30b51e3d5e9d\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false
@@ -315,7 +315,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"created\": false,\n  \"message\": \"Nota 'carpeta-nueva/nota.md' sobrescrita exitosamente.\",\n  \"new_content_hash\": \"sha256:3895044e657cc5c482ff8109aa10f9676ec2e90dfe43ff6e995339e6ed0da0ff\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"created\": false,\n  \"message\": \"Note 'carpeta-nueva/nota.md' overwritten successfully.\",\n  \"new_content_hash\": \"sha256:3895044e657cc5c482ff8109aa10f9676ec2e90dfe43ff6e995339e6ed0da0ff\",\n  \"relative_path\": \"carpeta-nueva/nota.md\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false
@@ -475,7 +475,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\n  \"deleted_path\": \"nueva.md\",\n  \"message\": \"Nota eliminada correctamente\",\n  \"status\": \"success\"\n}"
+      "text": "{\n  \"deleted_path\": \"nueva.md\",\n  \"message\": \"Note deleted successfully\",\n  \"status\": \"success\"\n}"
     }
   ],
   "isError": false

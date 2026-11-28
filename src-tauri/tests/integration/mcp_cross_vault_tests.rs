@@ -104,7 +104,7 @@ fn lee_otra_boveda_con_permiso_preguntado_una_vez() {
         read["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("📚 Bóveda «mainframe»")
+            .contains("📚 Vault «mainframe»")
     );
     assert!(
         read["content"][1]["text"]
@@ -141,7 +141,7 @@ fn lee_otra_boveda_con_permiso_preguntado_una_vez() {
         none["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("Disponibles")
+            .contains("Available")
     );
 }
 
@@ -201,7 +201,7 @@ fn sin_permiso_o_sin_ventana_no_lee() {
         r2["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("permiso")
+            .contains("permission")
     );
 }
 
@@ -268,7 +268,7 @@ fn dibuja_un_diagrama_de_otra_boveda_sin_salir_de_ella() {
         r["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("📚 Bóveda «b»")
+            .contains("📚 Vault «b»")
     );
     // La ventana recibe el contenido leído de la otra bóveda
     assert_eq!(r["content"][1]["data"], "flujo.d2|x -> y\n");

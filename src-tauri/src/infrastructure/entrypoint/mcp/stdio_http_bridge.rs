@@ -13,7 +13,7 @@ use std::time::Duration;
 fn split_url(url: &str) -> Result<(String, String), String> {
     let rest = url
         .strip_prefix("http://")
-        .ok_or_else(|| format!("URL MCP no soportada: {url}"))?;
+        .ok_or_else(|| format!("Unsupported MCP URL: {url}"))?;
     let (addr, path) = match rest.find('/') {
         Some(i) => (&rest[..i], &rest[i..]),
         None => (rest, "/"),
@@ -35,9 +35,9 @@ pub fn post_with(
     let (addr, path) = split_url(url)?;
     let socket = addr
         .parse::<std::net::SocketAddr>()
-        .map_err(|e| format!("Dirección inválida {addr}: {e}"))?;
+        .map_err(|e| format!("Invalid address {addr}: {e}"))?;
     let mut stream = TcpStream::connect_timeout(&socket, Duration::from_secs(3))
-        .map_err(|e| format!("Synapse no responde en {addr}: {e}"))?;
+        .map_err(|e| format!("Synapse is not responding at {addr}: {e}"))?;
     let _ = stream.set_read_timeout(Some(timeout));
     let extra: String = headers
         .iter()

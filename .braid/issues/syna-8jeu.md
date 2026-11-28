@@ -3,12 +3,13 @@ schema_version: 9
 id: syna-8jeu
 title: 'i18n: traducir lo que queda en español de la interfaz'
 priority: P3
-status: open
+status: done
 deps: []
 tags:
 - i18n
 owner: null
 created_at: 2026-11-28T04:01:49.363701749Z
+completed_at: 2026-11-28T06:39:21.135546145Z
 acceptance:
 - Con la aplicación en inglés ni la interfaz ni los errores que muestra tienen textos en español
 ---
@@ -23,7 +24,7 @@ Lo que sigue en español con la interfaz en inglés. Inventario del 2026-11-27 s
 ## Interfaz (~1166 textos en 112 archivos)
 
 - [x] **Explorador (menús, diálogos y avisos de éxito)** (~108): `features/vault-explorer/ui/VaultExplorer.svelte` 96, `features/vault-explorer/ui/VaultDeleteDialog.svelte` 7, `features/vault-explorer/lib/export-diagram.ts` 5
-- [ ] **Textos que se mandan al agente (decidir si van en el idioma de la interfaz)** (~21): `entities/acp-agent/model/feedback-prompt.ts` 15, `entities/acp-agent/model/side-question.ts` 4, `entities/acp-agent/model/replay-text.ts` 2
+- [x] **Textos que se mandan al agente (decidir si van en el idioma de la interfaz)** (~21): `entities/acp-agent/model/feedback-prompt.ts` 15, `entities/acp-agent/model/side-question.ts` 4, `entities/acp-agent/model/replay-text.ts` 2
 - [x] **Panel y chat del agente** (~149): `features/acp-chat/ui/AcpChat.svelte` 44, `widgets/acp-panel/ui/AcpPanel.svelte` 42, `entities/acp-agent/model/agent-store.svelte.ts` 33, `entities/acp-agent/model/peer-link.ts` 16, `features/acp-chat/ui/ElicitationCard.svelte` 6, `features/acp-chat/lib/mentions.ts` 5, `entities/acp-agent/model/completion-notice.ts` 3
 - [x] **Ajustes, atajos, apertura rápida, búsqueda y temas** (~168): `widgets/settings-panel/ui/SettingsPanel.svelte` 86, `widgets/shortcuts-panel/ui/ShortcutsPanel.svelte` 45, `widgets/quick-open/ui/QuickOpen.svelte` 18, `widgets/full-text-search/ui/FullTextSearch.svelte` 12, `widgets/theme-picker/ui/ThemePicker.svelte` 5, `entities/settings/model/shortcuts.svelte.ts` 1, `widgets/mcp-confirm/ui/McpConfirm.svelte` 1
 - [x] **Ventana principal, pestañas y barras** (~152): `pages/workspace/ui/WorkspacePage.svelte` 54, `widgets/editor-header/ui/EditorHeader.svelte` 40, `widgets/status-bar/ui/StatusBar.svelte` 36, `widgets/breadcrumb/ui/BreadCrumb.svelte` 13, `pages/workspace/model/tab-utils.ts` 3, `shared/ui/window-controls/WindowControls.svelte` 3, `pages/workspace/ui/WorkspacePane.svelte` 1, `widgets/ribbon/ui/Ribbon.svelte` 1, `widgets/welcome-screen/ui/WelcomeScreen.svelte` 1
@@ -43,7 +44,7 @@ Lo que sigue en español con la interfaz en inglés. Inventario del 2026-11-27 s
 ## Aparte
 
 - [x] Los bloques de tablero ya pintados en una nota no cambian de idioma hasta volver a abrirla.
-- [ ] Decidir: descripciones y respuestas del MCP (~201 líneas en `infrastructure/entrypoint/mcp/`) las lee el agente, no la persona.
+- [x] Decidir: descripciones y respuestas del MCP (~201 líneas en `infrastructure/entrypoint/mcp/`) las lee el agente, no la persona.
 
 ## No hay que traducir
 
